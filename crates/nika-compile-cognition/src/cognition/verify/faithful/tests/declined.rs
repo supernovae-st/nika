@@ -229,3 +229,21 @@ async fn the_field_case_names_its_contested_part_apart_from_the_contested_reques
     assert_held(&verdict, HELD);
     assert_eq!(judge.left(), 0);
 }
+
+/// A decision seat that cannot judge is named with its own reason, verbatim, and what can be done
+/// next, never the call bound's generic stop: here a capacity refusal of the whole request. A
+/// provider judge's failed call keeps the generic stop and its receipt
+/// (`a_failed_or_refused_task_question_stops_the_localization`).
+#[tokio::test]
+async fn a_declining_seat_is_named_with_its_reason() {
+    let capacity = "typesafe http status 400: max_tokens_exceeded, the request reads more tokens than the model's context holds";
+    let seat = Seated::new([("verify-request", Err(capacity))]);
+    let request = CompileRequest::create(ORDERS);
+    let judge = Judge::<Scripted>::Seat(&seat);
+    let Judged { verdict, .. } = judged(ORDERS, &request, CANDIDATE, &judge, None).await;
+    assert!(verdict.stopped, "{:#?}", verdict.records);
+    let named = format!(
+        "The decision seat `{SEAT}` cannot judge here: {capacity}. Next: retry when it is available, choose another verifier, or verify with the authoring model."
+    );
+    assert_eq!(told(&verdict), [unsettled(ORDERS), named]);
+}

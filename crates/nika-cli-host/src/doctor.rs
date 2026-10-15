@@ -44,6 +44,14 @@ pub use nika_display::front_door::doctor::{Finding, Level};
 /// local summary · the inference-readiness gate).
 #[must_use]
 pub fn diagnose(probe: &Probe) -> Vec<Finding> {
+    // Where the run-key comes from, observed once here and decided
+    // without opening the keychain (a custody question never costs a password).
+    diagnose_with(probe, &nika_dap::seal::custody())
+}
+
+/// [`diagnose`] judging a given run-key custody: the doctor's tests pass a
+/// fixed one, so no test reads the keys of the machine it runs on.
+pub(crate) fn diagnose_with(probe: &Probe, custody: &nika_dap::seal::Custody) -> Vec<Finding> {
     let mut out = vec![
         Finding {
             level: Level::Ok,
@@ -86,6 +94,7 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
     // #891 — the sandbox row rides the ONE selection's decision (#888),
     // observed once here (the sidecar precedent · diagnose stays pure).
     out.push(sandbox_finding(&crate::probe::sandbox_probe()));
+    out.push(run_key_finding(custody));
     out.extend(sidecar_finding());
     out.extend(models_finding(&probe.models));
     if let Ok(cwd) = std::env::current_dir() {
@@ -313,6 +322,223 @@ fn serve_token_group_readable(path: &std::path::Path) -> Option<Finding> {
 #[cfg(not(unix))]
 fn serve_token_group_readable(_path: &std::path::Path) -> Option<Finding> {
     None
+}
+
+/// The run-key custody in one line: where the key this process
+/// would sign with comes from, its fingerprint, and why the keychain is or
+/// is not part of it. When a signed release and the other builds on this
+/// machine sign with different keys, or may, the line says so and names the
+/// one gesture that makes them one (nika key align). A secret key file other
+/// users can read fails, as ssh refuses one; nothing here ever asks for a
+/// password.
+fn run_key_finding(custody: &nika_dap::seal::Custody) -> Finding {
+    use nika_dap::seal::{KeyFile, KeychainUse};
+    if let Some(explicit) = &custody.explicit {
+        return explicit_key_finding(explicit, custody.signer.as_deref());
+    }
+    // A loose fallback fails first: it is refused whenever custody reaches it.
+    if let Some((path, KeyFile::Exposed(mode))) = &custody.fallback {
+        return exposed_key_finding(path, *mode);
+    }
+    let keychain = keychain_words(custody.keychain);
+    let Some(signer) = custody.signer.as_deref() else {
+        return unsigned_key_finding(custody, keychain);
+    };
+    if custody.keychain_fingerprint.as_deref() == Some(signer) {
+        return release_key_finding(signer, custody.file_fingerprint.as_deref(), keychain);
+    }
+    let place = custody.fallback.as_ref().map_or_else(
+        || "~/.nika/keys (0600)".to_owned(),
+        |(path, _)| format!("{} (0600)", path.display()),
+    );
+    match (custody.keychain_key, custody.keychain) {
+        (Some(true), KeychainUse::Opened) => run_key_row(
+            Level::Warn,
+            format!(
+                "{place} · signs with {signer} · the keychain holds a run-key entry this build could not read (refused, or not a usable pair)"
+            ),
+            None,
+        ),
+        // The keychain holds a key this build never reads: the one a signed
+        // release signs with, known here only through a fresh record.
+        (Some(true), _) => {
+            kept_build_key_finding(&place, signer, custody.recorded.as_deref(), keychain)
+        }
+        _ => run_key_row(
+            Level::Ok,
+            format!("{place} · signs with {signer} · {keychain}"),
+            None,
+        ),
+    }
+}
+
+/// A build kept from the keychain signs with the 0600 files while the keychain
+/// holds the key a signed release signs with. It compares the two only
+/// through the record a release wrote for the item as it still is; a stale
+/// or absent record leaves it unknown, never one identity.
+fn kept_build_key_finding(
+    place: &str,
+    signer: &str,
+    recorded: Option<&str>,
+    keychain: &str,
+) -> Finding {
+    match recorded {
+        Some(release) if release == signer => run_key_row(
+            Level::Ok,
+            format!(
+                "{place} · signs with {signer} · the keychain holds the same key, as a signed release recorded it: one identity · {keychain}"
+            ),
+            None,
+        ),
+        Some(release) => run_key_row(
+            Level::Warn,
+            format!(
+                "{place} · signs with {signer} · a signed release signs with {release}, the keychain key: two identities · {keychain}"
+            ),
+            Some(format!(
+                "nika key align from a signed release (~/.nika/keys takes {release}; {signer} is retired, the journals it sealed stay verifiable)"
+            )),
+        ),
+        None => run_key_row(
+            Level::Warn,
+            format!(
+                "{place} · signs with {signer} · the keychain also holds a run-key, which a signed release signs with: one key or two is unknown here · {keychain}"
+            ),
+            Some(
+                "run nika doctor from a signed release to compare them; nika key align there makes them one"
+                    .to_owned(),
+            ),
+        ),
+    }
+}
+
+/// One `run-key` row.
+fn run_key_row(level: Level, detail: String, fix: Option<String>) -> Finding {
+    Finding {
+        level,
+        label: "run-key".to_owned(),
+        detail,
+        fix,
+    }
+}
+
+/// A secret key file other users can read: refused, as ssh refuses one.
+fn exposed_key_finding(path: &std::path::Path, mode: u32) -> Finding {
+    run_key_row(
+        Level::Fail,
+        format!(
+            "{} is readable by others ({mode:o}): refused, as ssh refuses one · runs stay unsigned",
+            path.display()
+        ),
+        Some(format!("chmod 600 {}", path.display())),
+    )
+}
+
+/// The explicit pair is the whole custody: it signs, or runs stay unsigned
+/// (it never falls through to another key).
+fn explicit_key_finding(
+    explicit: &Result<(std::path::PathBuf, nika_dap::seal::KeyFile), String>,
+    signer: Option<&str>,
+) -> Finding {
+    use nika_dap::seal::KeyFile;
+    match (explicit, signer) {
+        (Err(why), _) => run_key_row(Level::Fail, why.clone(), None),
+        (Ok((path, KeyFile::Private)), Some(signer)) => run_key_row(
+            Level::Ok,
+            format!(
+                "{} (0600) · NIKA_RUN_KEY_FILE · signs with {signer}",
+                path.display()
+            ),
+            None,
+        ),
+        (Ok((path, KeyFile::Private)), None) => run_key_row(
+            Level::Fail,
+            format!(
+                "NIKA_RUN_KEY_FILE names {}, but its pair with NIKA_RUN_PUB_FILE is not usable · runs stay unsigned",
+                path.display()
+            ),
+            None,
+        ),
+        (Ok((path, KeyFile::Exposed(mode))), _) => exposed_key_finding(path, *mode),
+        (Ok((path, _)), _) => run_key_row(
+            Level::Fail,
+            format!(
+                "NIKA_RUN_KEY_FILE names {}, which cannot be read · runs stay unsigned",
+                path.display()
+            ),
+            None,
+        ),
+    }
+}
+
+/// No tier this process reads holds a usable pair: runs stay unsigned.
+/// Beside a keychain key, or where that is unknown, a build kept from the
+/// keychain is never told `nika key init`: it would mint a second identity.
+fn unsigned_key_finding(custody: &nika_dap::seal::Custody, keychain: &str) -> Finding {
+    use nika_dap::seal::KeychainUse;
+    match (custody.keychain, custody.keychain_key) {
+        (KeychainUse::AdHoc | KeychainUse::NoTerminal, Some(true) | None) => run_key_row(
+            Level::Warn,
+            format!("none for this build · runs stay unsigned · {keychain}"),
+            Some(
+                "a signed release signs with its keychain key: nika key align from it gives this build the same key; or name a 0600 pair with NIKA_RUN_KEY_FILE and NIKA_RUN_PUB_FILE"
+                    .to_owned(),
+            ),
+        ),
+        _ => run_key_row(
+            Level::Warn,
+            format!("none · runs stay unsigned · {keychain}"),
+            Some("nika key init".to_owned()),
+        ),
+    }
+}
+
+/// A signed release signs with the keychain key; dev builds and `nika serve`
+/// sign with the 0600 files: one identity when they hold the same key.
+fn release_key_finding(signer: &str, files: Option<&str>, keychain: &str) -> Finding {
+    match files {
+        Some(file) if file != signer => run_key_row(
+            Level::Warn,
+            format!(
+                "{keychain} · signs with {signer} · dev builds and nika serve sign with {file} (~/.nika/keys): two identities"
+            ),
+            Some(format!(
+                "nika key align (~/.nika/keys takes {signer}; {file} is retired, the journals it sealed stay verifiable)"
+            )),
+        ),
+        Some(_) => run_key_row(
+            Level::Ok,
+            format!(
+                "{keychain} · signs with {signer} · ~/.nika/keys holds the same key: one identity for releases, dev builds and nika serve"
+            ),
+            None,
+        ),
+        None => run_key_row(
+            Level::Ok,
+            format!(
+                "{keychain} · signs with {signer} · dev builds and nika serve hold no key (nika key align gives them this one)"
+            ),
+            None,
+        ),
+    }
+}
+
+/// Why this process does or does not open the keychain, in words.
+fn keychain_words(keychain: nika_dap::seal::KeychainUse) -> &'static str {
+    use nika_dap::seal::KeychainUse;
+    match keychain {
+        KeychainUse::Opened => {
+            "the OS keychain first (this build's signature keeps its grant: no password on later runs)"
+        }
+        KeychainUse::Off => "the keychain is off (NIKA_KEYCHAIN)",
+        KeychainUse::TestBinary => "the keychain is never opened by a test binary",
+        KeychainUse::Resident => "the keychain is never opened by a resident (nika serve)",
+        KeychainUse::NoTerminal => "the keychain is not opened without a terminal",
+        KeychainUse::AdHoc => {
+            "the keychain is not opened by this ad-hoc build (each build is a new identity to it, so it would ask for the password on every run)"
+        }
+        _ => "the keychain is not opened",
+    }
 }
 
 /// The sovereign sidecar lane (ADR-091) — a row ONLY when this binary was
@@ -1075,8 +1301,28 @@ pub fn run_with(
     theme: Theme,
     extra: Vec<Finding>,
 ) -> VerbOutput {
+    run_with_custody(
+        ping,
+        json,
+        verbose,
+        theme,
+        extra,
+        &nika_dap::seal::custody(),
+    )
+}
+
+/// [`run_with`] judging a given run-key custody, as [`diagnose_with`] does.
+#[must_use]
+pub(crate) fn run_with_custody(
+    ping: bool,
+    json: bool,
+    verbose: bool,
+    theme: Theme,
+    extra: Vec<Finding>,
+    custody: &nika_dap::seal::Custody,
+) -> VerbOutput {
     let probe = crate::probe::collect(ping);
-    let mut findings = diagnose(&probe);
+    let mut findings = diagnose_with(&probe, custody);
     findings.extend(extra);
     // P3 B6 · every shipped agentic CLI runtime (always listed · label
     // `runtime`, never the MCP-wire `agent` column).
@@ -1110,6 +1356,8 @@ pub fn run_with(
     }
 }
 
+#[cfg(test)]
+mod custody_tests;
 #[cfg(test)]
 mod json_tests;
 #[cfg(test)]

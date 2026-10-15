@@ -168,14 +168,15 @@ fn the_project_names_itself() {
     assert_eq!(p.name.as_deref(), Some("my-project"));
 }
 
-/// The retired schema tag refuses HERE, where a workflow lets it pass.
+/// The retired schema tag refuses here, as it does in the workflow envelope.
 ///
-/// The asymmetry is the point: a pre-nuke workflow carried `workflow:`
-/// beside its `nika: proj` and refuses on that key, so `v1` is free to be
-/// an ordinary workflow NAME. A pre-nuke project file had no companion
-/// key — `nika: proj` + `ceiling:` is well-formed under both readings —
-/// so only a refusal here keeps the same bytes from quietly changing
-/// meaning.
+/// Here it is the only guard: a pre-nuke project file had no companion
+/// key, so `nika: v1` + `ceiling:` is well-formed under both readings and
+/// only a refusal keeps the same bytes from quietly changing meaning. The
+/// workflow once let `v1` pass as an ordinary name (its pre-nuke form is
+/// refused on `workflow:`); since 2026-10-12 one name law holds for both
+/// documents, because authors and models trained on old examples still
+/// write `nika: v1` (`is_retired_version_tag`).
 #[test]
 fn the_retired_schema_tag_refuses_in_a_project_file() {
     for marker in ["v1", "v2", "v999"] {
@@ -626,24 +627,69 @@ fn the_project_schema_mirrors_the_parser() {
         .collect();
     let tiers: Vec<&str> = ProvenanceFloor::ALL.iter().map(|t| t.as_str()).collect();
     assert_eq!(floor, tiers, "the floor spellings are the ladder's");
-    let miss: Vec<&str> = schema["properties"]["arm"]["items"]["properties"]["manqué"]["enum"]
+    // `manqué` has two branches in the Spec: the closed spellings, exactly the parser's, and the
+    // bounded catch-up `{ rattraper: N }`, the Spec's shape only: this parser refuses it by name
+    // until the engine fires it (`the_bounded_catch_up_is_refused_by_name`).
+    let branches = schema["properties"]["arm"]["items"]["properties"]["manqué"]["oneOf"]
+        .as_array()
+        .expect("the miss-policy branches");
+    assert_eq!(
+        branches.len(),
+        2,
+        "the closed spellings and the bounded catch-up"
+    );
+    let spelled = branches
+        .iter()
+        .find(|branch| branch["type"] == "string")
+        .expect("the closed-spelling branch");
+    let mut miss: Vec<&str> = spelled["enum"]
         .as_array()
         .expect("the miss-policy enum")
         .iter()
         .filter_map(|v| v.as_str())
         .collect();
-    for policy in [
+    miss.sort_unstable();
+    let mut policies = [
         MissPolicy::Rattraper,
         MissPolicy::RattraperUneFois,
         MissPolicy::Sauter,
+    ]
+    .map(MissPolicy::as_str)
+    .to_vec();
+    policies.sort_unstable();
+    assert_eq!(
+        miss, policies,
+        "the closed spellings are exactly the parser's"
+    );
+    let bounded = branches
+        .iter()
+        .find(|branch| branch["type"] == "object")
+        .expect("the bounded catch-up branch");
+    assert_eq!(bounded["additionalProperties"], false);
+    assert_eq!(bounded["required"], serde_json::json!(["rattraper"]));
+    assert_eq!(bounded["properties"]["rattraper"]["type"], "integer");
+    assert_eq!(bounded["properties"]["rattraper"]["minimum"], 1);
+}
+
+/// The Spec's bounded catch-up, `manqué: { rattraper: N }`, is a shape this parser does not
+/// accept yet: `nika check` and `nika arm` read the project through it, and it refuses the form
+/// by name (`project.bad-value`, on the value's line), never reading it as another policy or
+/// dropping it. The day the engine fires a bounded catch-up, this test flips to require acceptance.
+#[test]
+fn the_bounded_catch_up_is_refused_by_name() {
+    let base =
+        "nika: proj\narm:\n  - workflow: w.nika\n    cadence: \"lundi 9h00\"\n    plafond: 1.0\n";
+    // The flow form's value sits on the key's line; the block form's on the next one.
+    for (form, line) in [
+        ("    manqué: { rattraper: 2 }\n", 6),
+        ("    manqué:\n      rattraper: 2\n", 7),
     ] {
-        assert!(
-            miss.contains(&policy.as_str()),
-            "{} is a miss policy",
-            policy.as_str()
-        );
+        let err = parse(&format!("{base}{form}")).unwrap_err();
+        assert_eq!(err.kind(), ProjectErrorKind::BadValue, "{form}: {err}");
+        assert_eq!(err.kind().spec_code(), "project.bad-value");
+        assert!(err.detail().contains("manqué"), "the key is named: {err}");
+        assert_eq!(err.line(), Some(line), "{form}: {err}");
     }
-    assert_eq!(miss.len(), 3);
 }
 
 /// #1547 · an ancestor the process may not read ends the walk as

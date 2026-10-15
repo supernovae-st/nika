@@ -29,6 +29,23 @@ like the rest.
 | `sitemap` | array of URLs | sitemap.xml · sitemap index |
 | `raw` | string (text · UTF-8) | Response body verbatim · no extraction · **text only** (a non-UTF-8 body is `NIKA-BUILTIN-FETCH-001` · binary is file-mediated per [04 §value rendering](../spec/04-variables.md)) |
 
+**A body served as text (normative)** · the page modes `markdown`
+(the default), `article` and `text` clean a page. A response whose
+`Content-Type` names text that is not a page has nothing for them to
+clean: any `text/*` type other than `text/html`, and `application/json`,
+`application/xml`, `application/csv`, `application/ndjson`,
+`application/x-ndjson`, `application/yaml`, `application/x-yaml`,
+`application/toml` or a `+json`, `+xml` or `+yaml` suffix, never
+`application/xhtml+xml`. Such a body MUST be returned as served: no HTML
+parse, no Markdown escape, line breaks kept. Read as a page, a `text/csv`
+export lost its line breaks and gained escapes (`A\_1`), and a following
+`nika:convert from: csv` found no rows. Its bytes are decoded by a
+byte-order mark, else by the declared `charset`, else as UTF-8 when they
+are valid UTF-8, else as windows-1252 (the WHATWG fallback for an
+undeclared legacy text body, such as a spreadsheet export). A body
+served as HTML or XHTML, or with no `Content-Type`, keeps the mode's
+extraction; the other modes are unchanged.
+
 ---
 
 ## Mode-by-mode
@@ -298,6 +315,7 @@ enforces it). Until it stabilizes (stdlib v0.2 candidate) · fetch with
 What you have                      Use mode
 ─────────────                      ────────
 HTML page · want content for LLM    markdown    (default)
+CSV · plain-text · JSON file        markdown    (default · returned as served)
 News/blog article                   article     (cleaner)
 Want raw HTML structure             selector    (with CSS selector)
 JSON API response                   jq          (with a jq expression)

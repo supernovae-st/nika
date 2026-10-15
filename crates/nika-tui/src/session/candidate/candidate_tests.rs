@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The Live host adapter over the actual Session runtime, no intelligence chosen: the
+//! The Live host adapter over the actual Session runtime, a configured fixture route: the
 //! deterministic compiler proposes, the fold carries the Session's identity and the exact
 //! pending bytes, a revision of the proposal's money is a new identity over the same bytes,
 //! a `yes` answers the identity on screen or none, and Save is never a Run. Hermetic: no
@@ -11,9 +11,6 @@ use std::path::{Path, PathBuf};
 
 use nika_session::ScriptedReasoner;
 use nika_session::change::{ProjectChange, ProjectChangeSet, RunRequest, Witness};
-use nika_session::intelligence::{
-    IntelligenceCensus, IntelligenceKind, UserIntelligencePreference,
-};
 use nika_tui_view::Face;
 
 use crate::model::{Beat, Conversation, Kind};
@@ -48,14 +45,14 @@ impl Drop for Room {
     }
 }
 
-/// A live conversation over `root` with the kept choice « none »: the facts and the
+/// A live conversation over `root` with an injected fixture route: the facts and the
 /// deterministic compiler answer, nothing reasons, nothing runs.
 fn live(root: &Path) -> Live {
-    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let (census, selected) = crate::session::intelligence::fixture();
     let mut live = Live::new(
         root.to_path_buf(),
-        IntelligenceCensus::empty(),
-        Some(none),
+        census,
+        Some(selected),
         None,
         Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
         Runners {

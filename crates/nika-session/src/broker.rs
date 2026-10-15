@@ -232,6 +232,29 @@ fn read_bounded_context(mut reader: impl std::io::Read) -> Result<String, &'stat
 /// The shared outgoing-context redactor, kept at its historical Session path.
 pub use nika_cli_host::context_redaction::redact;
 
+/// What the record store keeps of `text`: `text` exactly as it was when the redactor changed
+/// nothing but its line ends (it rebuilds lines with `\n`), else the redacted text.
+#[must_use]
+pub(crate) fn redact_for_record(text: &str) -> String {
+    record_view(text, &redact)
+}
+
+/// `text` when `redact` only rebuilt its line ends as `str::lines` reads them (`\r\n` becomes
+/// `\n`), else what `redact` wrote. The output decides, never the kinds reported: a text
+/// changed without a kind is kept changed.
+fn record_view(text: &str, redact: &dyn Fn(&str) -> (String, Vec<String>)) -> String {
+    let (out, _) = redact(text);
+    let mut rejoined = text.lines().collect::<Vec<_>>().join("\n");
+    if text.ends_with('\n') {
+        rejoined.push('\n');
+    }
+    if out == rejoined {
+        text.to_owned()
+    } else {
+        out
+    }
+}
+
 /// Whether a path is inside `root` (a helper for the runtime's own doors).
 #[must_use]
 pub fn inside(root: &Path, path: &Path) -> bool {
@@ -414,6 +437,212 @@ mod tests {
             assert!(!prompt.contains("FAKE_PRIVATE_MATERIAL"));
             assert!(bundle.selected_snippets[0].text.len() <= cap);
         }
+    }
+
+    /// The plan a compiler records for `source`: one composed component, bound to its bytes.
+    fn record_of(source: &str) -> serde_json::Value {
+        serde_json::json!({"strategy": "native", "source": source,
+            "document": {"version": 1, "candidate_sha256": nika_compile::surface::sha256(source),
+                "request": "the request", "base_sha256": null, "mode": "composed",
+                "components": [{"component": {"id": "block:json-filter-records"},
+                    "nodes": {"tasks": {"filter": "0".repeat(64)}}}]}})
+    }
+
+    /// `record` kept through the record store with `redact`: remembered for a proposal, then
+    /// moved by its Save. Returns the record store, and the plan a later round would replay
+    /// from the saved file.
+    fn kept_through_save_with(
+        source: &str,
+        record: &serde_json::Value,
+        redact: &dyn Fn(&str) -> String,
+    ) -> (Option<serde_json::Value>, Option<serde_json::Value>) {
+        use nika_onboard::compile::program_records::{Place, plan, remember, saved};
+        let mut raw = None;
+        remember(&mut raw, Place::Proposal("p"), source, Some(record), redact);
+        saved(&mut raw, "workflow.nika", source, "p", redact);
+        let replayed = plan(raw.as_ref(), Place::Saved("workflow.nika"), source);
+        assert!(
+            replayed.is_none() || replayed.as_ref() == Some(record),
+            "a replayable record is the plan as compiled"
+        );
+        (raw, replayed)
+    }
+
+    /// The plan of `source` kept through the record store with the Session's redactor.
+    fn kept_through_save(source: &str) -> (Option<serde_json::Value>, Option<serde_json::Value>) {
+        kept_through_save_with(source, &record_of(source), &redact_for_record)
+    }
+
+    /// A workflow name that holds `sk-` inside a word keeps the record of its program.
+    #[test]
+    fn a_workflow_named_weekly_task_scheduler_keeps_its_record() {
+        let (raw, replayed) =
+            kept_through_save("nika: weekly-task-scheduler\npermits: {}\ntasks: {}\n");
+        assert!(raw.is_some() && replayed.is_some(), "{raw:?}");
+    }
+
+    /// The same for `ask-questions-intake`.
+    #[test]
+    fn a_workflow_named_ask_questions_intake_keeps_its_record() {
+        let (raw, replayed) =
+            kept_through_save("nika: ask-questions-intake\npermits: {}\ntasks: {}\n");
+        assert!(raw.is_some() && replayed.is_some(), "{raw:?}");
+    }
+
+    /// A prompt that says `risk-assessment` keeps the record of its program.
+    #[test]
+    fn a_prompt_saying_risk_assessment_keeps_its_record() {
+        let (raw, replayed) = kept_through_save(
+            "nika: review\ntasks:\n  t:\n    infer: { prompt: \"Write the risk-assessment summary\" }\n",
+        );
+        assert!(raw.is_some() && replayed.is_some(), "{raw:?}");
+    }
+
+    /// A text the redactor only re-joins holds no credential: a source with `\r\n` line ends, or a
+    /// lone trailing `\r`, keeps its record replayable, with its bytes and no redaction listed.
+    #[test]
+    fn a_crlf_source_keeps_its_record_replayable_and_unredacted() {
+        for source in [
+            "nika: crlf\r\npermits: {}\r\ntasks: {}\r\n",
+            "nika: crlf\npermits: {}\ntasks: {}\r",
+        ] {
+            let (raw, replayed) = kept_through_save(source);
+            let text = raw
+                .as_ref()
+                .map(serde_json::Value::to_string)
+                .unwrap_or_default();
+            assert!(replayed.is_some(), "{source:?}: {text}");
+            assert!(!text.contains("\"redactions\""), "{source:?}: {text}");
+        }
+    }
+
+    /// A token in a URL is a credential: its value is never stored and the plan is never
+    /// replayed, yet the record of the program and its components is kept through the Save, and
+    /// the saved file keeps it.
+    #[test]
+    fn a_token_in_a_url_is_redacted_and_the_record_kept_through_save() {
+        let source = "nika: pull\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://x.test/feed?token=abc123&page=2\" } }\n";
+        let (raw, replayed) = kept_through_save(source);
+        let text = raw
+            .as_ref()
+            .map(serde_json::Value::to_string)
+            .unwrap_or_default();
+        assert!(
+            !text.contains("abc123"),
+            "the credential is never stored: {text}"
+        );
+        assert!(text.contains("block:json-filter-records"), "{text}");
+        assert!(text.contains("\"replayable\":false"), "{text}");
+        assert_eq!(
+            nika_onboard::compile::program_records::last_saved(raw.as_ref()),
+            Some("workflow.nika")
+        );
+        assert!(replayed.is_none(), "a redacted plan is never replayed");
+    }
+
+    /// The store decides from what the redactor wrote, never from the kinds it reports: a text
+    /// masked without a kind is stored masked, and its plan is never replayed.
+    #[test]
+    fn a_change_without_a_reported_kind_still_keeps_the_redacted_text() {
+        let masks = |text: &str| (text.replace("SECRET", "[masked]"), Vec::<String>::new());
+        let source = "nika: pull\npermits: {}\ntasks: {}\n# SECRET\n";
+        let masked = |text: &str| record_view(text, &masks);
+        let (raw, replayed) = kept_through_save_with(source, &record_of(source), &masked);
+        let text = raw
+            .as_ref()
+            .map(serde_json::Value::to_string)
+            .unwrap_or_default();
+        assert!(!text.contains("SECRET"), "{text}");
+        assert!(text.contains("\"replayable\":false"), "{text}");
+        assert!(replayed.is_none());
+    }
+
+    /// A key glued to an encoded separator is a key in the record store too: its value is never
+    /// stored, and the record of the program is kept without it.
+    #[test]
+    fn a_key_after_an_encoded_separator_is_never_stored() {
+        let source = "nika: pull\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://x.test/feed?token%3Dsk-live-ABCDEFGH123456\" } }\n";
+        let (raw, replayed) = kept_through_save(source);
+        let text = raw
+            .as_ref()
+            .map(serde_json::Value::to_string)
+            .unwrap_or_default();
+        assert!(!text.contains("ABCDEFGH123456"), "{text}");
+        assert!(text.contains("block:json-filter-records"), "{text}");
+        assert!(replayed.is_none());
+    }
+
+    /// A credential split across texts of a plan, which the plan's single compact line showed
+    /// whole: a private key given line by line, a value after the text that opens it, a key
+    /// named `token: `. No text alone shows it, so such a plan is not stored.
+    #[test]
+    fn a_credential_split_across_texts_is_never_stored() {
+        let source = "nika: pull\npermits: {}\ntasks: {}\n";
+        for (split, material) in [
+            (
+                serde_json::json!([
+                    "-----BEGIN RSA PRIVATE KEY-----",
+                    "FAKE_PRIVATE_MATERIAL_LINE",
+                    "-----END RSA PRIVATE KEY-----"
+                ]),
+                "FAKE_PRIVATE_MATERIAL_LINE",
+            ),
+            (
+                serde_json::json!(["--password=", "FAKE_PASSWORD_VALUE"]),
+                "FAKE_PASSWORD_VALUE",
+            ),
+            (
+                serde_json::json!({"token: ": "FAKE_TOKEN_VALUE"}),
+                "FAKE_TOKEN_VALUE",
+            ),
+        ] {
+            let mut record = record_of(source);
+            record["document"]["observed"] = split;
+            let (raw, _) = kept_through_save_with(source, &record, &redact_for_record);
+            let text = raw
+                .as_ref()
+                .map(serde_json::Value::to_string)
+                .unwrap_or_default();
+            assert!(!text.contains(material), "{text}");
+        }
+    }
+
+    /// A YAML block value split across texts of a plan: the header that opens it (`token: |`,
+    /// literal or folded, with chomping, indentation or a comment) in one text, its lines in the
+    /// next. No text alone shows it, so such a plan is not stored; an ordinary block keeps it.
+    #[test]
+    fn a_yaml_block_value_split_across_texts_is_never_stored() {
+        let source = "nika: pull\npermits: {}\ntasks: {}\n";
+        for opened in [
+            "token: |",
+            "token: >",
+            "password: |-",
+            "secret: >+2",
+            "token: | # the deploy token",
+        ] {
+            let mut record = record_of(source);
+            record["document"]["observed"] =
+                serde_json::json!(["config:", format!("  {opened}"), "    FAKE_BLOCK_VALUE"]);
+            let (raw, _) = kept_through_save_with(source, &record, &redact_for_record);
+            let text = raw
+                .as_ref()
+                .map(serde_json::Value::to_string)
+                .unwrap_or_default();
+            assert!(!text.contains("FAKE_BLOCK_VALUE"), "{opened}: {text}");
+        }
+        let mut record = record_of(source);
+        record["document"]["observed"] =
+            serde_json::json!(["notes:", "  description: |", "    plain text"]);
+        let (raw, replayed) = kept_through_save_with(source, &record, &redact_for_record);
+        let text = raw
+            .as_ref()
+            .map(serde_json::Value::to_string)
+            .unwrap_or_default();
+        assert!(
+            text.contains("plain text"),
+            "an ordinary block keeps its plan: {text}"
+        );
+        assert!(replayed.is_some(), "{text}");
     }
 
     #[test]

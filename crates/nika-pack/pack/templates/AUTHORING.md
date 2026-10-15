@@ -124,7 +124,7 @@ fixtures (`unproven-law`) before leaving `mock/`. An agent that
 *writes* Nika grants `nika:compose` on `agent.tools` after
 `nika:done` and iterates on the check JSON until `valid`
 (`examples/15-compose-self-check.nika`). A standalone
-`invoke: nika:compose` is `NIKA-BUILTIN-COMPOSE-001`. Checking
+`invoke: { tool: "nika:compose" }` is `NIKA-BUILTIN-COMPOSE-001`. Checking
 never executes the draft.
 
 **Paid-infer order** (cheaper than discovering this with tokens) ·
@@ -157,8 +157,8 @@ budgets · evidence lands · jq once · callable outputs · mock-first.
 
 Use [the generated index](INDEX.md) to find a skeleton and its filled lesson.
 For a batch, `bounded-batch` separates admission (`maxItems` and bounded item
-strings), terminal refusal (`nika:assert`) and execution (`after: admit:
-success`). Its concurrency limit does not cap item count. These checks run
+strings), terminal refusal (`nika:assert`) and execution (`after: { admit:
+success }`). Its concurrency limit does not cap item count. These checks run
 after loading the input; they do not provide a streaming ingress bound.
 
 `validate-records`, `snapshot-diff`, `deduplicate-records` and `aggregate-by-key`

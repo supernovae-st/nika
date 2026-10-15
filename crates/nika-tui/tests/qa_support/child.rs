@@ -186,6 +186,8 @@ fn diagnostic() -> Option<Beat> {
 /// (the workspace mode lends the demo project):
 /// `slow-free` · `slow-gate` · `slow-gate-fresh` (the gate asks for fresh
 /// input) · `slow-stop` (stoppable preparation) · `slow-diagnostic` (opening raw evidence) · `big` (no held turn)
+/// · `demo` / `slow-demo` (the complete scripted question/review journey,
+/// with the same project listing; `slow-demo` holds its first turn)
 /// open on `n` transcript lines; `flood`
 /// sends `n` busy labels in its first turn.
 pub(crate) fn conversation_for(mode: &str, release: Option<PathBuf>) -> (Child, Presentation) {
@@ -216,7 +218,11 @@ pub(crate) fn conversation_for(mode: &str, release: Option<PathBuf>) -> (Child, 
         vec![say(Kind::Reply, SECOND), Beat::Wait(Waiting::Free)]
     };
     let child = Child {
-        script: Script::new(opening, vec![first, second]),
+        script: if matches!(kind, "demo" | "slow-demo") {
+            Script::demo()
+        } else {
+            Script::new(opening, vec![first, second])
+        },
         release: if kind.starts_with("slow") {
             release
         } else {

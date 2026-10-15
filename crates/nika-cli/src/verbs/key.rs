@@ -4,8 +4,9 @@
 //! `nika key …` — the run-signing key lifecycle (S2 · the verifiable-run
 //! seal's custody): mint the ed25519 key the journal seals with, print
 //! the TOFU fingerprint to enroll elsewhere, rotate with the retired
-//! public half kept verifiable. The crypto + custody live in
-//! `nika_cli::seal` — this verb is the operator-facing surface only.
+//! public half kept verifiable, align every build on the release's key.
+//! The crypto + custody live in `nika_cli::seal` — this verb is the
+//! operator-facing surface only.
 
 use clap::Subcommand;
 
@@ -24,6 +25,11 @@ pub enum KeyAction {
     /// Retire the current public key to the ledger and mint a fresh one
     /// (old journals stay verifiable against the retired pubs).
     Rotate,
+    /// Make dev builds and `nika serve` sign with the key a signed release
+    /// signs with: the keychain pair goes to ~/.nika/keys (0600), the file
+    /// key it replaces is retired (its journals stay verifiable). Run it from
+    /// a signed release, on a terminal.
+    Align,
 }
 
 /// Dispatch one key action — the verb body behind `nika key <action>`.
@@ -48,6 +54,23 @@ pub fn run(action: KeyAction) -> VerbOutput {
             )),
             Err(msg) => VerbOutput::file(format!("nika key rotate: {msg}")),
         },
+        KeyAction::Align => match crate::seal::key_align() {
+            Ok(aligned) if aligned.already => VerbOutput::ok(format!(
+                "already one key · releases, dev builds and `nika serve` on this machine sign with {}",
+                aligned.fingerprint
+            )),
+            Ok(aligned) => VerbOutput::ok(match aligned.retired {
+                Some(retired) => format!(
+                    "aligned · releases, dev builds and `nika serve` on this machine now sign with {} · {retired} is retired to ~/.nika/keys/retired.pub, the journals it sealed stay verifiable",
+                    aligned.fingerprint
+                ),
+                None => format!(
+                    "aligned · releases, dev builds and `nika serve` on this machine now sign with {}",
+                    aligned.fingerprint
+                ),
+            }),
+            Err(msg) => VerbOutput::file(format!("nika key align: {msg}")),
+        },
     }
 }
 
@@ -69,5 +92,14 @@ mod tests {
             "{}",
             out.text
         );
+    }
+
+    /// A test binary never opens the keychain, so it never aligns: the verb
+    /// refuses with its reason and writes nothing.
+    #[test]
+    fn align_refuses_where_the_keychain_stays_closed() {
+        let out = run(KeyAction::Align);
+        assert_ne!(out.code, super::super::exit::OK, "{}", out.text);
+        assert!(out.text.starts_with("nika key align: "), "{}", out.text);
     }
 }

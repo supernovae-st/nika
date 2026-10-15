@@ -553,6 +553,7 @@ fn parse_response(
         .and_then(Value::as_str)
         .map(ToOwned::to_owned);
     resp.finish_reason_raw = raw_stop.map(ToOwned::to_owned);
+    resp.window_full = window_full(raw_stop);
     resp.cached_tokens = v
         .pointer("/usage/cache_read_input_tokens")
         .and_then(Value::as_u64)
@@ -564,6 +565,13 @@ fn parse_response(
         .and_then(Value::as_str)
         .map(ToOwned::to_owned);
     Ok(resp)
+}
+
+/// Whether the documented stop says the answer filled the model's context window (it maps to
+/// `MaxTokens`, and the response carries the window-full marker beside it). Evidence:
+/// documented by Anthropic's stop reasons (`model_context_window_exceeded`, since 2025-09-29).
+fn window_full(raw: Option<&str>) -> bool {
+    raw == Some("model_context_window_exceeded")
 }
 
 fn map_stop(raw: Option<&str>) -> StopReason {

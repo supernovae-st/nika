@@ -466,7 +466,10 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 // ── Product parity with the reference ───────────────────────────────────────────────────────
 
 /// Reviewed prompt identities for [`three_calls`] under the unchanged legacy framing.
-/// Captured on three prompt inputs that changed together: the vendored pack at nika-spec d9b2d01
+/// Captured at nika-spec ac7e64cd, whose vendored pack grows the builtin contracts (the
+/// `nika:jq` examples bind upstream outputs through `with:`), each contract ending before
+/// the next chapter heading. Before it, on three prompt inputs that changed together: the
+/// vendored pack at nika-spec d9b2d01
 /// (its examples and authoring guide show only the forms the parser reads), the output
 /// conventions showing a total written alone as a workflow writes it (the total's field as the
 /// write's content, never a plan's `alone: true`), and the card showing each builtin with its own
@@ -480,9 +483,9 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 /// calls. The assertions below independently compare the observer with the legacy framing over
 /// each exact request before checking these values.
 const REVIEWED_PROMPTS: [&str; 3] = [
-    "6597e09db84e243db4b931c517019268b9627e37a612ff3be06115db9770c7d3",
-    "cfd2405036e6156c597cadaa66ed071eafa5a2bf3e45f271e22191dde4953a6f",
-    "9572d375adc85bc6ab35aa474e4b3d87ed3900c4ebe61fe4b734536eb386a68a",
+    "a99a492ad556c5ef0b8dcb4ee2f7789ae62849ee58150cc8fae784e789790f49",
+    "065d5ebff0ad7419047de78ca494efea27d55c75153dca8213988944ae658a1c",
+    "59c843255afa9ae17e454361aca527755f9ec95436b84f779e1f7a90a1e05beb",
 ];
 /// Legacy response identities, unchanged by the new prompt conventions.
 const PRE_CHANGE_FRAMED: [&str; 3] = [

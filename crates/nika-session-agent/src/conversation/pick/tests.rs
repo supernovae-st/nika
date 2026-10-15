@@ -109,3 +109,48 @@ fn a_reading_covers_a_revision_only_when_it_asks_for_a_change_first() {
     );
     assert!(!offer("neither").consents(shown) && !Pick::Unread.consents(revised));
 }
+
+#[test]
+fn native_multiple_keys_are_exact_unique_current_and_ordered() {
+    let mut q = source();
+    q.multi_select = true;
+    let selected = Pick::Offers(vec!["hackernews".into(), "yc_blog".into()]);
+    assert_eq!(
+        Pick::of_line(&q, r#" ["yc_blog", "hackernews"] "#),
+        Some(selected.clone())
+    );
+    assert_eq!(
+        Pick::read(r#"Answer: ["yc_blog", "hackernews"]"#, &q),
+        selected
+    );
+    for line in [
+        r#"["hackernews", "other"]"#,
+        r#"["hackernews", "hackernews"]"#,
+        "[]",
+        "[broken]",
+        r#"["HACKERNEWS"]"#,
+        "[1]",
+    ] {
+        assert_eq!(Pick::of_line(&q, line), Some(Pick::Unread), "{line}");
+        assert_eq!(Pick::read(line, &q), Pick::Unread, "{line}");
+    }
+    q.multi_select = false;
+    assert_eq!(Pick::of_line(&q, r#"["hackernews"]"#), Some(Pick::Unread));
+    assert_eq!(Pick::read(r#"["hackernews"]"#, &q), Pick::Unread);
+}
+
+#[test]
+fn several_choices_in_natural_language_get_one_bounded_multi_reading() {
+    let mut q = source();
+    q.multi_select = true;
+    let line = "Les deux sources, s'il te plaît.";
+    assert_eq!(Pick::of_line(&q, line), None);
+    let prompt = Pick::prompt(&q, line);
+    assert!(prompt.contains(line), "{prompt}");
+    assert!(prompt.contains("JSON array"), "{prompt}");
+    assert!(!prompt.contains("or chooses several"), "{prompt}");
+    assert_eq!(
+        Pick::read(r#"["hackernews","yc_blog"]"#, &q),
+        Pick::Offers(vec!["hackernews".into(), "yc_blog".into()])
+    );
+}

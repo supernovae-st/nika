@@ -86,8 +86,11 @@ pub(crate) trait JournalSeal: Send + Sync + 'static {
     ) -> bool;
 }
 
-/// Production custody: the run-signing key this machine holds (the OS
-/// keychain · `~/.nika/keys`) — exactly what `nika run` seals with.
+/// Production custody: the run-signing key this machine holds in files —
+/// `NIKA_RUN_KEY_FILE` · `NIKA_RUN_PUB_FILE`, otherwise `~/.nika/keys`
+/// (0600) — never the keychain: a resident cannot stop to ask for
+/// a password, whatever its terminal or its signature. The same pair
+/// honesty and the same 0600 rule as `nika run`.
 struct CustodySeal;
 
 impl JournalSeal for CustodySeal {
@@ -97,7 +100,12 @@ impl JournalSeal for CustodySeal {
         workflow_hash: Option<&str>,
         teardown: Option<&nika_dap::seal::SealTeardown>,
     ) -> bool {
-        nika_dap::journal::seal_journal_with(trace, workflow_hash, teardown)
+        nika_dap::journal::seal_journal_with_key(
+            trace,
+            workflow_hash,
+            teardown,
+            nika_dap::seal::load_served_signing_key,
+        )
     }
 }
 
@@ -635,6 +643,9 @@ pub fn serve_resident_process(
     state_root: PathBuf,
     server: Option<ServerConfig>,
 ) -> Result<(), String> {
+    // A resident never opens the keychain: every custody reader in
+    // this process (the seal, the signed-memory fold) takes files only.
+    nika_dap::seal::resident_custody();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

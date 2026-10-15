@@ -283,3 +283,95 @@ fn a_failed_tool_step_reaches_the_host_with_why_it_failed() {
     );
     assert!(seen.iter().all(|a| !a.note.contains("ABCDEFGH12345678")));
 }
+
+/// An authentication refusal is scoped to this conversation, not a workflow Run diagnostic.
+#[test]
+fn authentication_failure_guides_the_conversation_without_run_advice() {
+    let denied = serde_json::json!({"error": {"message": "Invalid API key", "type": "authentication_error"}});
+    let peer = Peer::start(vec![(401, denied)]);
+    let _http = test_transport::install(&peer.url);
+    let mut model = AgentModel::new("deepseek/deepseek-v4-pro");
+    let error = model
+        .complete(&line(), &mut |_| {})
+        .expect_err("401 refuses once");
+    let said = error.to_string();
+    assert!(
+        said.contains("deepseek") && said.contains("HTTP 401"),
+        "{said}"
+    );
+    assert!(
+        said.contains("NIKA_DEEPSEEK_API_KEY") && said.contains("DEEPSEEK_API_KEY"),
+        "{said}"
+    );
+    assert!(
+        said.contains("/intelligence") && said.contains("usage and billing unknown"),
+        "{said}"
+    );
+    assert!(
+        !said.contains("mock/echo") && !said.contains("timeout:") && !said.contains("XAI_API_KEY"),
+        "{said}"
+    );
+    assert_eq!(peer.bodies().len(), 1);
+}
+
+/// A quota refusal is not rewritten as a credential problem, even on an HTTP 403.
+#[test]
+fn conversation_auth_guidance_preserves_quota_diagnostics() {
+    let details =
+        nika_kernel::provider::ProviderHttpError::new(403, Some("insufficient_quota"), None, None);
+    let error = ProviderError::HttpResponse { details };
+    assert_eq!(conversation_error("deepseek", &error), error.to_string());
+}
+
+/// The adapter preserves the provider's window marker separately from its stop and usage.
+#[test]
+fn an_agent_reply_keeps_window_full_without_confusing_it_with_an_output_cap() {
+    const MODEL: &str = "deepseek/deepseek-flash";
+    let window = nika_catalog::find_provider("deepseek")
+        .expect("catalogued provider")
+        .models
+        .iter()
+        .find(|model| model.model == "deepseek-flash")
+        .map(|model| u64::from(model.context_window_tokens))
+        .expect("the adapter's exact model has a known window");
+    let cases = [
+        (window + 1, "stop", StopReason::EndTurn, true),
+        (window, "stop", StopReason::EndTurn, false),
+        (window, "length", StopReason::MaxTokens, false),
+    ];
+    let script = cases
+        .iter()
+        .map(|(input, finish, _, _)| {
+            let mut body = response("the adapter's answer");
+            body["choices"][0]["finish_reason"] = serde_json::json!(finish);
+            body["usage"]["prompt_tokens"] = serde_json::json!(input);
+            body["usage"]["prompt_cache_miss_tokens"] = serde_json::json!(input);
+            body["usage"]["total_tokens"] = serde_json::json!(input + 20);
+            (200, body)
+        })
+        .collect();
+    let peer = Peer::start(script);
+    let _http = test_transport::install(&peer.url);
+    let mut model = AgentModel::new(MODEL);
+    for (input, finish, stop, full) in cases {
+        let reply = model
+            .complete(&line(), &mut |_| {})
+            .expect("one reported response");
+        assert_eq!(reply.window_full, full, "input={input}, finish={finish}");
+        assert_eq!(reply.stop, stop, "the adapter preserves the wire stop");
+        assert_eq!(reply.model.as_deref(), Some(MODEL));
+        let usage = reply.usage.expect("reported usage remains reported");
+        assert_eq!((usage.input_tokens, usage.output_tokens), (input, 20));
+        assert!(matches!(
+            reply.content.as_slice(),
+            [ContentBlock::Text { text }] if text == "the adapter's answer"
+        ));
+    }
+    let requests = peer.bodies();
+    assert_eq!(requests.len(), 3, "no retry or extra model request");
+    assert!(
+        requests
+            .iter()
+            .all(|body| body["model"] == "deepseek-flash")
+    );
+}

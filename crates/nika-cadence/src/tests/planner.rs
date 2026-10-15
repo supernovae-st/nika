@@ -192,11 +192,13 @@ arm:
         plan.is_empty(),
         "ni le suspendu ni le cloud ne sont dus ICI: {plan:?}"
     );
-    assert_eq!(
-        earliest_next(&reg, &now).expect("le prochain"),
-        None,
-        "rien d'armé ne tire ici"
-    );
+    // Le suspendu se réveille à minuit après son jusqu_au (dans sa zone) :
+    // son premier créneau d'après est le prochain. Le cloud, jamais ici.
+    let (index, slot) = earliest_next(&reg, &now)
+        .expect("le prochain")
+        .expect("le suspendu se réveille après sa date");
+    assert_eq!(index, 0, "le suspendu, jamais le cloud");
+    assert_eq!(slot.civil.to_string(), "2026-09-02T03:00:00");
 }
 
 #[test]
@@ -434,4 +436,28 @@ proptest! {
             }
         }
     }
+}
+
+/// A suspension still asleep offers its first slot after the wake, so the
+/// resident edge never sleeps through it.
+#[test]
+fn earliest_next_offers_a_suspension_its_first_slot_after_the_wake() {
+    let reg = parse_registry(concat!(
+        "nika: proj\narm:\n  - workflow: w.nika\n",
+        "    cadence: \"TZ=UTC 0 9 * * *\"\n    plafond: 0.25\n    manqué: sauter\n",
+        "    actif: false\n    raison: \"holidays\"\n    jusqu_au: \"2026-08-31\"\n",
+    ))
+    .expect("parse");
+    let next = earliest_next(&reg, &at("2026-08-20T12:00:00Z")).expect("plan");
+    assert_eq!(
+        next.map(|(_, slot)| utc(&slot.at)),
+        Some(utc(&at("2026-09-01T09:00:00Z")))
+    );
+    assert!(
+        due(&reg, &at("2026-08-20T09:01:00Z"), &|_| None)
+            .expect("plan")
+            .next()
+            .is_none(),
+        "asleep, nothing is due"
+    );
 }

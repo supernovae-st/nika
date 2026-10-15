@@ -107,7 +107,7 @@ impl SessionRuntime {
         }
         let run_note = driver.run_note.take().filter(|_| !line.is_empty());
         // A seat's agent rides its own subscription: the verifier admits no paid dispatch.
-        let (before, read) = match self.agent_begin(driver, chosen, line, None) {
+        let (before, read, recovery) = match self.agent_begin(driver, chosen, line, None) {
             Ok(begun) => begun,
             Err(why) => return could_not_start(&why),
         };
@@ -133,7 +133,7 @@ impl SessionRuntime {
             .with_steering(steering)
             .with_cancel(cancel)
             .with_reading(&read)
-            .with_note(run_note)
+            .with_note(super::reopened::with_run_note(run_note, recovery))
             .with_pending(&pending);
         let agent = &mut *leading.agent;
         let outcome = match said {

@@ -965,3 +965,48 @@ fn rattraper_une_fois_fires_one_run_for_the_whole_silence() {
     assert_eq!(last["kind"], "fired");
     assert_eq!(last["slot"], "2026-08-19T03:00:00Z");
 }
+
+/// A unit written for another schedule (its revision is not the one
+/// `nika.yaml` gives now) is refused as stale, loudly, and fires nothing;
+/// a unit whose revision matches fires as before, and a fire by hand,
+/// with no revision, is never judged stale.
+#[test]
+fn a_wake_from_a_stale_unit_is_refused_loudly() {
+    let dir = project("stale-unit", DAILY_3AM, &[("doctor.nika", TRUE)]);
+    let stale = nika_cadence::emit::unit_revision(
+        "TZ=UTC 0 9 * * *",
+        nika_cadence::emit::Target::SystemdUser,
+        "",
+    );
+    let out = bin()
+        .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
+        .args(["--unit-rev", &stale])
+        .current_dir(&dir)
+        .output()
+        .expect("spawn fire");
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    let said =
+        String::from_utf8_lossy(&out.stdout).into_owned() + &String::from_utf8_lossy(&out.stderr);
+    assert!(
+        said.contains("unité périmée") && said.contains(&stale) && said.contains("nika arm --emit"),
+        "{said}"
+    );
+    assert!(last_json(&dir, "doctor").is_none(), "nothing fired");
+
+    let current = nika_cadence::emit::unit_revision(
+        "TZ=UTC 0 3 * * *",
+        nika_cadence::emit::Target::SystemdUser,
+        "",
+    );
+    let out = bin()
+        .args(["arm", "fire", "doctor", "--now", "2026-08-19T10:00:00Z"])
+        .args(["--unit-rev", &current])
+        .current_dir(&dir)
+        .output()
+        .expect("spawn fire");
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(
+        assert_one_line(&out).starts_with("skipped doctor · not-due"),
+        "a current unit is judged as before"
+    );
+}

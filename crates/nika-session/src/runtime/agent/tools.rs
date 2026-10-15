@@ -57,6 +57,7 @@ pub(crate) trait Desk: Send {
         source: &str,
         stated: (&str, &BTreeMap<String, String>, Option<&str>),
         selections: (&[Resolution], &[Resolution]),
+        presentation: &Value,
     ) -> Result<String, String>;
     /// What Nika judges of `source` with no model: its check findings, then the laws over the
     /// person's words (`stated`) and its selections. Empty when nothing stands against it.
@@ -82,6 +83,8 @@ pub(crate) struct Decided {
     pub(crate) cited: Option<String>,
     /// The schedule the proposal carries beside its candidate, read and in its zone.
     pub(crate) trigger: Option<TriggerRequirement>,
+    /// The revision proposed again under the verdict the person was shown, judging nothing.
+    pub(crate) reused: Option<u64>,
 }
 
 /// A question's identity, from the context it was asked in.
@@ -383,7 +386,10 @@ impl Parts<'_> {
         let (authored, mut host) = self.conversation.selections();
         host.extend(Conversation::defaults(open));
         let said = (stated.as_str(), &answers, citations.first(since));
-        self.desk.verify(&source, said, (&authored, &host))
+        // The author proposes these validated choices; none is a human answer or consent.
+        let presentation = json!({"kind": "proposal", "pending_choices": open, "selected": null});
+        self.desk
+            .verify(&source, said, (&authored, &host), &presentation)
     }
 
     fn verify(&mut self) -> ToolReply {
@@ -433,6 +439,7 @@ impl Parts<'_> {
         let verdict = (self.conversation.shown_verdict())
             .filter(|_| consents && open.is_empty())
             .map(str::to_owned);
+        let reused = verdict.is_some();
         let scope = match verdict {
             Some(scope) => scope,
             None => match self.judged(&open) {
@@ -448,13 +455,14 @@ impl Parts<'_> {
         let acts = authorized.as_ref().ok().copied().flatten();
         let cited = acts.and_then(|_| {
             let message = args["authorized_by"]["message"].as_str()?;
-            citations.get(message).map(|line| line.text.clone())
+            self.conversation.authorization_text(&citations, message)
         });
         *self.decided = Decided {
             proposed: revision,
             acts,
             cited,
             trigger,
+            reused: revision.filter(|_| reused),
         };
         let said = match (&authorized, acts) {
             (_, Some(acts)) if acts.run => {
@@ -475,3 +483,6 @@ impl Parts<'_> {
         ToolReply::ends_turn(text.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests;

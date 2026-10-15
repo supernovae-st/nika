@@ -154,13 +154,25 @@ Decision evaluation reaches a workflow as a **pure builtin** (a tool
 under `invoke:` — [no fifth verb, ever](./02-verbs.md)):
 
 ```yaml
+permits:
+  tools: ["nika:decide"]
+  fs:
+    read: ["./decisions/pr-triage.bundle.json"]   # the bundle path is a declared read
+
 tasks:
+  collect:
+    invoke:
+      tool: "nika:jq"                                 # pure · stands for the collection step
+      args: { input: { items: [] }, expression: "." }
+
   triage:
+    with:
+      evidence: ${{ tasks.collect.output }}               # the snapshot items · the binding is the edge
     invoke:
       tool: "nika:decide"
       args:
         bundle: "./decisions/pr-triage.bundle.json"   # path or inline object
-        evidence: "${{ tasks.collect.output }}"       # the snapshot items
+        evidence: "${{ with.evidence }}"
     returns:                  # the receipt shape · the type expression, INLINE (09-types)
       object:
         decision: string

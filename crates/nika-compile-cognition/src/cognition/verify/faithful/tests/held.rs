@@ -310,9 +310,22 @@ impl DecisionSeat for Reader {
     fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
         Box::pin(async move {
             self.asked.lock().unwrap().push(question.clone());
-            Ok(ChoiceAnswer::new(self.decide(question), SEAT))
+            Ok(weighs_rejection(
+                question,
+                ChoiceAnswer::new(self.decide(question), SEAT),
+            ))
         })
     }
+}
+
+/// A seat's rejection of the whole request, weighed at 0.9 (over the holding probability): a seat
+/// that weighs it holds what it cannot locate, where one taken at its word lets its parts decide.
+fn weighs_rejection(question: &ChoiceQuestion, mut answer: ChoiceAnswer) -> ChoiceAnswer {
+    if question.id == "verify-request" && answer.choice == "unfaithful" {
+        let weights = [("unfaithful".to_owned(), 0.9), ("none".to_owned(), 0.1)];
+        answer.probabilities.extend(weights);
+    }
+    answer
 }
 
 /// The whole verdict of the tickets request over `candidate`, its state showing `facts`, asked of

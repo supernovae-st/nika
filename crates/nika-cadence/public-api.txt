@@ -337,9 +337,10 @@ pub nika_cadence::emit::EmitCtx::log_dir: std::path::PathBuf
 pub nika_cadence::emit::EmitCtx::machine_tz: alloc::string::String
 pub nika_cadence::emit::EmitCtx::nika_bin: std::path::PathBuf
 pub nika_cadence::emit::EmitCtx::project_file: std::path::PathBuf
+pub nika_cadence::emit::EmitCtx::project_key: alloc::string::String
 pub nika_cadence::emit::EmitCtx::project_root: std::path::PathBuf
 impl nika_cadence::emit::EmitCtx
-pub fn nika_cadence::emit::EmitCtx::new(nika_bin: std::path::PathBuf, project_root: std::path::PathBuf, project_file: std::path::PathBuf, env_file: core::option::Option<std::path::PathBuf>, log_dir: std::path::PathBuf, machine_tz: alloc::string::String) -> Self
+pub fn nika_cadence::emit::EmitCtx::new(nika_bin: std::path::PathBuf, project_root: std::path::PathBuf, project_file: std::path::PathBuf, project_key: alloc::string::String, env_file: core::option::Option<std::path::PathBuf>, log_dir: std::path::PathBuf, machine_tz: alloc::string::String) -> Self
 impl core::clone::Clone for nika_cadence::emit::EmitCtx
 pub fn nika_cadence::emit::EmitCtx::clone(&self) -> nika_cadence::emit::EmitCtx
 impl core::fmt::Debug for nika_cadence::emit::EmitCtx
@@ -415,9 +416,20 @@ impl<T> typenum::type_operators::Same for nika_cadence::emit::Unit
 pub type nika_cadence::emit::Unit::Output = T
 pub const nika_cadence::emit::GENERATED_MARK: &str
 pub const nika_cadence::emit::MAX_INTERVALS: usize
+pub const nika_cadence::emit::PROJECT_KEY_LEN: usize
+pub const nika_cadence::emit::UNIT_REV_LEN: usize
+pub fn nika_cadence::emit::beat_unit(project_key: &str, label: &str) -> alloc::string::String
+pub fn nika_cadence::emit::beat_unit_files(target: nika_cadence::emit::Target, unit: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_cadence::emit::env_file_named_in_unit(body: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_cadence::emit::generated_source(body: &str) -> core::option::Option<&str>
 pub fn nika_cadence::emit::labels(reg: &nika_cadence::registry::ArmRegistry) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_cadence::emit::legacy_beat_unit(label: &str) -> alloc::string::String
+pub fn nika_cadence::emit::project_key(root_fingerprint: &str) -> alloc::string::String
 pub fn nika_cadence::emit::render(reg: &nika_cadence::registry::ArmRegistry, ctx: &nika_cadence::emit::EmitCtx, target: nika_cadence::emit::Target, mode: nika_cadence::emit::Mode) -> core::result::Result<alloc::vec::Vec<nika_cadence::emit::Unit>, nika_cadence::emit::EmitRefusal>
+pub fn nika_cadence::emit::render_beat(reg: &nika_cadence::registry::ArmRegistry, ctx: &nika_cadence::emit::EmitCtx, target: nika_cadence::emit::Target, label: &str) -> core::result::Result<alloc::vec::Vec<nika_cadence::emit::Unit>, nika_cadence::emit::EmitRefusal>
+pub fn nika_cadence::emit::revision_in_unit(body: &str) -> core::option::Option<&str>
+pub fn nika_cadence::emit::serve_unit(project_key: &str) -> alloc::string::String
+pub fn nika_cadence::emit::unit_revision(expression: &str, target: nika_cadence::emit::Target, machine_tz: &str) -> alloc::string::String
 pub mod nika_cadence::error
 #[non_exhaustive] pub enum nika_cadence::error::CadenceErrorKind
 pub nika_cadence::error::CadenceErrorKind::ApresSautMisplaced
@@ -2671,6 +2683,7 @@ pub fn nika_cadence::tick::TickDecision::as_any(&self) -> &(dyn core::any::Any +
 impl<T> typenum::type_operators::Same for nika_cadence::tick::TickDecision
 pub type nika_cadence::tick::TickDecision::Output = T
 pub fn nika_cadence::tick::expiry_passed(beat: &nika_cadence::registry::Beat, now: &jiff::zoned::Zoned) -> core::option::Option<alloc::string::String>
+pub fn nika_cadence::tick::suspension_over(beat: &nika_cadence::registry::Beat, now: &jiff::zoned::Zoned) -> bool
 pub fn nika_cadence::tick::tick_decision(registry: &nika_cadence::registry::ArmRegistry, index: usize, label: &str, now: &jiff::zoned::Zoned, last: core::option::Option<&jiff::zoned::Zoned>) -> nika_cadence::tick::TickDecision
 pub fn nika_cadence::tick::v0_unsupported(beat: &nika_cadence::registry::Beat) -> core::option::Option<(&'static str, &'static str)>
 #[non_exhaustive] pub enum nika_cadence::AfterSkip

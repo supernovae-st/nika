@@ -1,0 +1,54 @@
+{
+  "sdk": "@supernovae-st/nika@0.120.3",
+  "read_from": "the published dist/index.js (REA audit, 12 Oct 2026): the keys and values each closed parser accepts",
+  "enforced_clocks": { "machineProtocolVersion": 1 },
+  "closed": [
+    {
+      "schema": "Job",
+      "keys": ["id", "status", "execution_id", "trace_id", "outputs", "receipt", "error", "settlement", "evidence"]
+    },
+    { "schema": "Job", "member": "error", "keys": ["code", "message"] },
+    {
+      "schema": "JobEvent",
+      "keys": ["sequence", "at", "kind", "status", "code", "message", "outputs", "receipt", "settlement", "evidence"]
+    },
+    {
+      "schema": "JobReceipt",
+      "keys": ["job_id", "execution_id", "trace_id", "snapshot_digest", "origin", "chain_head"]
+    },
+    { "schema": "JobOrigin", "variant": "manual", "keys": ["kind"] },
+    {
+      "schema": "JobOrigin",
+      "variant": "schedule",
+      "keys": [
+        "kind", "schedule_origin", "schedule_id", "schedule_revision", "slot_id", "decision",
+        "scheduled_for", "fired_at", "arm_generation"
+      ]
+    },
+    { "schema": "JournalEvidence", "keys": ["status", "reason"] },
+    { "schema": "SnapshotValidationAck", "keys": ["status", "snapshot_digest", "root", "units"] },
+    { "schema": "Error", "keys": ["error"] },
+    { "schema": "Error", "member": "error", "keys": ["code", "message"] },
+    { "schema": "WorkflowList", "keys": ["workflows"] },
+    { "schema": "WorkflowMetadata", "keys": ["workflow"] }
+  ],
+  "enums": [
+    {
+      "schema": "JobStatus",
+      "values": ["queued", "running", "interrupted", "paused", "succeeded", "failed", "cancelled"]
+    },
+    { "schema": "JournalEvidence", "member": "status", "values": ["mirror_lost"] },
+    { "schema": "JournalEvidence", "member": "reason", "values": ["write_failed", "record_refused"] },
+    { "schema": "JobOrigin", "variant": "schedule", "member": "decision", "values": ["scheduled", "catch_up"] },
+    { "schema": "JobOrigin", "variant": "schedule", "member": "schedule_origin", "values": ["project", "api"] },
+    { "schema": "CompileOutcome", "member": "status", "values": ["ready", "incomplete", "refused"] },
+    { "schema": "CompileOutcome", "member": "questions[].type", "values": ["text", "literal"] },
+    {
+      "schema": "CompileOutcome",
+      "member": "diagnostics[].kind",
+      "values": ["applied", "missed", "unknown", "requiresHuman", "refused"]
+    },
+    { "schema": "CompileOutcome", "member": "check_preview.scope", "values": ["sourceOnly"] },
+    { "schema": "CompileOutcome", "member": "provenance.cognition", "values": ["deterministicOnly"] }
+  ]
+}

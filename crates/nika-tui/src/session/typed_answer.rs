@@ -26,11 +26,30 @@ impl Live {
     }
 
     fn typed_answer(&mut self, text: &str, witness: &str) -> Turn {
+        if self.action.is_some() || witness.starts_with("action:") {
+            return self.action_answer(text, witness);
+        }
+        if let work::Waiting::Consent { proposal } = &self.shown {
+            let proposal = proposal.clone();
+            return self.proposal_answer(&proposal, text, witness);
+        }
         let (id, key) = match &self.shown {
             work::Waiting::Question { id, key }
                 if super::asked::witness(id, self.question_epoch) == witness =>
             {
                 (id.clone(), key.clone())
+            }
+            work::Waiting::Questions { ids } => {
+                let Some(runtime) = self.runtime.as_ref() else {
+                    return self.not_shown(text);
+                };
+                let snapshot = runtime.work();
+                let Some(question) = super::asked::grouped_question(&snapshot, ids)
+                    .filter(|q| super::asked::witness(&q.id, self.question_epoch) == witness)
+                else {
+                    return self.not_shown(text);
+                };
+                (question.id.clone(), question.key.clone())
             }
             _ => return self.not_shown(text),
         };
@@ -65,7 +84,47 @@ impl Live {
         Turn { beats, handoff }
     }
 
-    fn not_shown(&mut self, text: &str) -> Turn {
+    fn proposal_answer(
+        &mut self,
+        proposal: &nika_session::ProposalId,
+        text: &str,
+        witness: &str,
+    ) -> Turn {
+        let Some(runtime) = self.runtime.as_mut() else {
+            return self.not_shown(text);
+        };
+        let snapshot = runtime.work();
+        let Some(question) = snapshot
+            .open_choices
+            .iter()
+            .find(|question| question.state == work::AskedState::Open)
+            .filter(|question| {
+                super::asked::proposal_witness(proposal, &question.id, self.question_epoch)
+                    == witness
+            })
+        else {
+            return self.not_shown(text);
+        };
+        let id = question.id.clone();
+        let outcome = runtime.answer_proposal_choice_for(proposal, &id, text);
+        let after = runtime.work();
+        let remains = after
+            .open_choices
+            .iter()
+            .any(|q| q.id == id && q.state == work::AskedState::Open);
+        // A later compilation can refuse after the choice was bound. Retain only an
+        // open choice or the Session's exact pre-admission refusal for this question.
+        let refused = after.answered.as_ref().is_some_and(|answered| {
+            answered.question == id && matches!(answered.act, work::AnswerAct::Refused { .. })
+        });
+        let (mut beats, handoff) = self.map(outcome);
+        if remains || refused {
+            beats.push(Beat::NotTaken(text.to_owned()));
+        }
+        Turn { beats, handoff }
+    }
+
+    pub(super) fn not_shown(&mut self, text: &str) -> Turn {
         Turn {
             beats: vec![
                 Beat::Say(Committed::new(

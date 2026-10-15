@@ -24,10 +24,13 @@ use ratatui::text::Line;
 use unicode_width::UnicodeWidthStr;
 
 use super::commands::diagnostic;
+use super::said::{Said, routed};
 use super::{
     Busy, Composer, ComposerAction, Conversation, Desk, Exit, Heard, LEAVE_WAITS, Presentation,
     Route, Shell, Signal, UiEvent, UiState, busy_key, is_ctrl_c,
 };
+use crate::composer::answer::{Offered, choice};
+use crate::model::Shape;
 use crate::render::surface::Hit;
 use crate::workspace::screen;
 use crate::workspace::{
@@ -437,6 +440,31 @@ impl<C: Conversation + 'static> Shell<C> {
         routed
     }
 
+    /// Only a deliberate press on the painted Submit row sends multiple
+    /// choices. The same geometry paints and resolves this action; busy or
+    /// covered surfaces, modifiers, releases and wheel events never activate.
+    pub(super) fn submit_pointed(&mut self, mouse: MouseEvent) -> Option<Said> {
+        if self.diagnostic.is_some() || self.state.busy.is_some() || self.conversation.is_none() {
+            return None;
+        }
+        let point = pressed(mouse)?;
+        let band = painted_band(&self.state, &self.desk, &self.composer)?;
+        let Hit::Item(index) =
+            crate::render::surface::hit(&self.state, &self.composer, band, point)?
+        else {
+            return None;
+        };
+        let (_, asked, offers) = choice(&self.state.waiting)?;
+        if !matches!(asked.shape, Shape::Multiple(_)) || index != offers.len() {
+            return None;
+        }
+        self.desk.focus.region = Region::Conversation;
+        match self.composer.submit_choices(&self.state.waiting) {
+            Offered::Answer(text) => Some(routed(&self.state.waiting, text)),
+            Offered::Pass | Offered::Moved => None,
+        }
+    }
+
     /// A pointer event on an open surface's band ([`band_pointer`]).
     fn band_pointed(&mut self, mouse: MouseEvent) -> Option<Route> {
         band_pointer(&self.state, &mut self.desk, &mut self.composer, mouse)
@@ -472,6 +500,9 @@ impl<C: Conversation + 'static> Shell<C> {
             UiEvent::Paste(text) => {
                 self.state.completion = None;
                 self.composer.paste(&text);
+                if !text.is_empty() {
+                    self.guard.edited();
+                }
                 self.typed_live = true;
                 return Heard::Redraw;
             }
@@ -510,7 +541,12 @@ impl<C: Conversation + 'static> Shell<C> {
             Busy::Edit => {
                 self.state.completion = None;
                 self.typed_live = true;
-                if self.composer.handle(key) == ComposerAction::Complete
+                let before = self.composer.text();
+                let action = self.composer.handle(key);
+                if self.composer.text() != before {
+                    self.guard.edited();
+                }
+                if action == ComposerAction::Complete
                     && let crate::composer::Completion::Several(list) =
                         self.composer.complete(&self.commands)
                 {
@@ -1247,12 +1283,10 @@ mod tests {
                 let (buffer, _) = live_frame(&state, &desk, &composer);
                 let band = painted_band(&state, &desk, &composer).expect("the band");
                 let (from, to) = inner(band.0, band.1);
-                let sep = if ascii { " - " } else { " · " };
                 let mut first = None;
                 for y in band.0.y..band.0.bottom() {
                     let text = cells(&buffer, from, to, y);
-                    let shown =
-                        (0..9).find(|n| text.trim_end() == format!("  opt-{n}{sep}label {n}"));
+                    let shown = (0..9).find(|n| text.trim_end() == format!("  ( ) label {n}"));
                     let hit = offer_at(&state, &composer, band, y);
                     assert_eq!(hit, shown, "{at} row {y}: {text:?}");
                     first = first.or(hit.map(|index| (index, y)));
@@ -1271,10 +1305,10 @@ mod tests {
                 );
                 assert_eq!((state.transcript.len(), state.focus_scroll), (blocks, 0));
                 let (buffer, _) = live_frame(&state, &desk, &composer);
-                let mark = if ascii { "> " } else { "› " };
+                let mark = if ascii { "> (*) " } else { "› (●) " };
                 let row = cells(&buffer, from, to, y);
                 assert!(
-                    row.starts_with(&format!("{mark}opt-{index}")),
+                    row.starts_with(&format!("{mark}label {index}")),
                     "{at}: {row}"
                 );
             }

@@ -166,3 +166,9 @@ whether it is ready, how it bills) and the catalogue's output list price on a me
 none when the inventory offers no such model, never the author's words. `Work::with_queued`
 sets `queued`: the lines the person sent while the conversation's last run was under way, each
 with its identity, mode and state (`work::queue`).
+
+
+`Intelligence.options` optionally carries the current settings selector's offers.
+They are absent when no selection is pending. Keys belong to Session's existing
+intelligence choice protocol; they are settings choices, not author question
+identities or authorization for an action.

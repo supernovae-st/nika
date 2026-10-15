@@ -2,10 +2,14 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! ARM unit context and host I/O; parsing, presentation and process exit stay at the interface.
-//! These operations preserve the existing explicit emission behavior. They never load a unit.
+//! These operations never load a unit. [`ProjectUnits`] tells this project's units from another
+//! project's, which is never read for an env path, replaced or removed.
 
 use nika_cadence::emit::{self, Target, Unit};
 use std::path::{Path, PathBuf};
+
+#[cfg(test)]
+mod tests;
 
 /// Refusal from explicit unit emission; input faults and host faults stay distinct.
 #[derive(Debug)]
@@ -48,11 +52,271 @@ impl std::fmt::Display for UnitIoError {
 }
 impl std::error::Error for UnitIoError {}
 
+/// One project's units in a unit directory: every file named with its key
+/// ([`emit::project_key`]), and an older engine's unkeyed unit whose
+/// GENERATED header names its project file. Another project's unit is
+/// never read for an env path, overwritten or removed.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct ProjectUnits {
+    key: String,
+    project_file: PathBuf,
+}
+
+/// Whose unit a file in a unit directory is, by its GENERATED header.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum UnitOwner {
+    /// The header names this project.
+    ThisProject,
+    /// The header names another project file.
+    Other(PathBuf),
+    /// No GENERATED mark: the unit was written or edited by hand.
+    Unmarked,
+}
+
+impl ProjectUnits {
+    /// A project's unit key and its canonical project file.
+    #[must_use]
+    pub fn new(key: String, project_file: PathBuf) -> Self {
+        Self { key, project_file }
+    }
+
+    /// Whether `file_name` carries this project's key.
+    #[must_use]
+    pub fn keyed(&self, file_name: &str) -> bool {
+        file_name.starts_with(&emit::beat_unit(&self.key, ""))
+            || file_name.starts_with(&format!("{}.", emit::serve_unit(&self.key)))
+    }
+
+    /// Whose unit `body` is. An older engine wrote the project file as the
+    /// operator's shell spelled it, so the header's path is canonicalized
+    /// before the comparison.
+    #[must_use]
+    pub fn owner(&self, body: &str) -> UnitOwner {
+        let Some(source) = emit::generated_source(body) else {
+            return UnitOwner::Unmarked;
+        };
+        let source = Path::new(source);
+        if source == self.project_file
+            || std::fs::canonicalize(source).is_ok_and(|canonical| canonical == self.project_file)
+        {
+            UnitOwner::ThisProject
+        } else {
+            UnitOwner::Other(source.to_path_buf())
+        }
+    }
+
+    /// Whether the unit file `file_name` holding `body` is this project's:
+    /// its header names this project, or it carries this project's key and
+    /// no mark (a stripped header leaves the unit its project's).
+    fn holds(&self, file_name: &str, body: &str) -> bool {
+        match self.owner(body) {
+            UnitOwner::ThisProject => true,
+            UnitOwner::Unmarked => self.keyed(file_name),
+            UnitOwner::Other(_) => false,
+        }
+    }
+}
+
+/// An older engine's unit for one of this project's beats, under the name
+/// without the project key ([`emit::legacy_beat_unit`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct LegacyUnit {
+    /// The old unit label (`nika.arm.<beat label>`).
+    pub unit: String,
+    /// The files found under the old name.
+    pub paths: Vec<PathBuf>,
+    /// Whose unit it is, by the first file's GENERATED header.
+    pub owner: UnitOwner,
+}
+
+/// The units an older engine wrote in `dir` for `labels` on `target`.
+/// An emit reports them and never removes one: the unload has to come
+/// first, and an emit never unloads.
+#[must_use]
+pub fn legacy_units(
+    dir: &Path,
+    labels: &[String],
+    target: Target,
+    project: &ProjectUnits,
+) -> Vec<LegacyUnit> {
+    let mut found = Vec::new();
+    for label in labels {
+        let unit = emit::legacy_beat_unit(label);
+        let mut paths = Vec::new();
+        let mut owner = None;
+        for file in emit::beat_unit_files(target, &unit) {
+            let path = dir.join(file);
+            if let Some(body) = unit_text(&path) {
+                owner.get_or_insert_with(|| project.owner(&body));
+                paths.push(path);
+            }
+        }
+        if let Some(owner) = owner {
+            found.push(LegacyUnit { unit, paths, owner });
+        }
+    }
+    found
+}
+
+/// The commands that retire a legacy unit — PRINTED, never run: the
+/// unload while the file still exists, then its removal.
+///
+/// # Errors
+/// The platform is not supported by this host adapter.
+pub fn retire_commands(legacy: &LegacyUnit, target: Target) -> Result<Vec<String>, UnitIoError> {
+    let unload = match target {
+        Target::Launchd => format!("launchctl bootout gui/$UID/{}", legacy.unit),
+        Target::SystemdUser => format!("systemctl --user disable --now {}.timer", legacy.unit),
+        _ => {
+            return Err(UnitIoError::input(
+                "arm --emit · unsupported unit platform".to_owned(),
+            ));
+        }
+    };
+    let files: Vec<String> = legacy
+        .paths
+        .iter()
+        .map(|path| sh_quote(&path.display().to_string()))
+        .collect();
+    Ok(vec![unload, format!("rm {}", files.join(" "))])
+}
+
+/// One of this project's beat units in a unit directory that `nika.yaml` no
+/// longer arms: its beat is gone, renamed, or now runs in the cloud.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct OrphanUnit {
+    /// The unit label (`nika.arm.<project key>.<beat label>`).
+    pub unit: String,
+    /// The beat label it was written for.
+    pub label: String,
+    /// Its files in the directory, in name order.
+    pub paths: Vec<PathBuf>,
+    /// Whose unit it is, by the first file's GENERATED header.
+    pub owner: UnitOwner,
+}
+
+/// The units in `dir` named with this project's key whose beat label is not
+/// in `armed` (the labels the registry gives a unit now), in name order.
+/// READ ONLY: the caller retires only those whose header names this project.
+#[must_use]
+pub fn orphan_units(
+    dir: &Path,
+    armed: &[String],
+    target: Target,
+    project: &ProjectUnits,
+) -> Vec<OrphanUnit> {
+    let prefix = emit::beat_unit(&project.key, "");
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut units: std::collections::BTreeMap<String, Vec<PathBuf>> =
+        std::collections::BTreeMap::new();
+    for entry in entries.filter_map(Result::ok) {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let Some(unit) = unit_stem(&name, target) else {
+            continue;
+        };
+        let Some(label) = unit.strip_prefix(&prefix) else {
+            continue;
+        };
+        if label.is_empty() || armed.iter().any(|armed| armed == label) {
+            continue;
+        }
+        units.entry(unit.to_owned()).or_default().push(entry.path());
+    }
+    units
+        .into_iter()
+        .map(|(unit, mut paths)| {
+            paths.sort();
+            let owner = (paths.iter().find_map(|path| unit_text(path)))
+                .map_or(UnitOwner::Unmarked, |body| project.owner(&body));
+            let label = unit[prefix.len()..].to_owned();
+            OrphanUnit {
+                unit,
+                label,
+                paths,
+                owner,
+            }
+        })
+        .collect()
+}
+
+/// The unit label a file of `target` names: its name without the `.plist`,
+/// `.timer` or `.service` extension.
+fn unit_stem(file_name: &str, target: Target) -> Option<&str> {
+    match target {
+        Target::Launchd => file_name.strip_suffix(".plist"),
+        Target::SystemdUser => {
+            (file_name.strip_suffix(".timer")).or_else(|| file_name.strip_suffix(".service"))
+        }
+        _ => None,
+    }
+}
+
+/// The commands that unload an orphan unit once its files are gone —
+/// PRINTED, never run (an emit never unloads): launchd boots the label out,
+/// systemd stops the loaded timer and service, then forgets the files.
+///
+/// # Errors
+/// The platform is not supported by this host adapter.
+pub fn orphan_unload_commands(
+    orphan: &OrphanUnit,
+    target: Target,
+) -> Result<Vec<String>, UnitIoError> {
+    match target {
+        Target::Launchd => Ok(vec![format!("launchctl bootout gui/$UID/{}", orphan.unit)]),
+        Target::SystemdUser => Ok(vec![
+            format!(
+                "systemctl --user stop {}.timer {}.service",
+                orphan.unit, orphan.unit
+            ),
+            "systemctl --user daemon-reload".to_owned(),
+        ]),
+        _ => Err(UnitIoError::input(
+            "arm --emit · unsupported unit platform".to_owned(),
+        )),
+    }
+}
+
+/// Remove an orphan unit's files, refusing one whose header does not name
+/// this project (`project`): another project's unit, or one without the
+/// GENERATED mark, is never removed.
+///
+/// # Errors
+/// The unit is not this project's, or a file cannot be removed (the files
+/// before it are already gone).
+pub fn remove_orphan(orphan: &OrphanUnit, project: &ProjectUnits) -> Result<(), UnitIoError> {
+    for path in &orphan.paths {
+        let owner = unit_text(path).map_or(UnitOwner::Unmarked, |body| project.owner(&body));
+        if owner != UnitOwner::ThisProject {
+            return Err(UnitIoError::input(format!(
+                "arm --emit --write · {} ne porte pas la marque GENERATED de ce projet — jamais supprimée",
+                path.display()
+            )));
+        }
+        std::fs::remove_file(path).map_err(|e| {
+            UnitIoError::host(format!("arm --emit --write · {}: {e}", path.display()))
+        })?;
+    }
+    Ok(())
+}
+
+/// POSIX single-quoting for a printed path.
+fn sh_quote(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "'\\''"))
+}
+
 /// Remembering the explicit environment path prevents a later emit from stripping its wrap.
 const ENV_FILE_SIDECAR: &str = ".nika/arm/env-file";
 
-/// Resolve explicit environment path, then persisted context, then an existing unit wrap.
-/// A named path that cannot be read refuses — never a weaker unit.
+/// Resolve explicit environment path, then persisted context, then the wrap
+/// of one of this project's existing units (another project's wrap names
+/// its own keys). A named path that cannot be read refuses — never a
+/// weaker unit.
 ///
 /// # Errors
 /// A named file is unavailable or existing unit contexts disagree.
@@ -61,6 +325,7 @@ pub fn resolve_env_file(
     cwd: &Path,
     root: &Path,
     dest: Option<&Path>,
+    project: &ProjectUnits,
 ) -> Result<Option<PathBuf>, UnitIoError> {
     if let Some(file) = explicit {
         let file = absolute(file, cwd);
@@ -76,7 +341,7 @@ pub fn resolve_env_file(
         return Ok(Some(file));
     }
     match dest {
-        Some(dir) => env_file_from_existing_units(dir),
+        Some(dir) => env_file_from_existing_units(dir, project),
         None => Ok(None),
     }
 }
@@ -138,13 +403,17 @@ pub fn persist_env_file(root: &Path, file: &Path) -> Result<(), UnitIoError> {
         .map_err(|e| UnitIoError::host(format!("arm --emit · {}: {e}", sidecar.display())))
 }
 
-/// Read a dest that already carries the wrap — recovering the path is
-/// what makes `--write` over field units non-destructive. The wrap is
-/// the env-exec pattern itself (GENERATED header optional — stripping
+/// Read this project's units in a dest that already carries the wrap —
+/// recovering the path is what makes `--write` over field units
+/// non-destructive. The wrap is the env-exec pattern itself (GENERATED
+/// header optional on a unit named with this project's key — stripping
 /// the comment must not reopen a weaker overwrite). Two named paths
 /// refuse rather than pick. A named path that is gone refuses rather
 /// than emit the short argv over the wrap.
-fn env_file_from_existing_units(dir: &Path) -> Result<Option<PathBuf>, UnitIoError> {
+fn env_file_from_existing_units(
+    dir: &Path,
+    project: &ProjectUnits,
+) -> Result<Option<PathBuf>, UnitIoError> {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -166,9 +435,20 @@ fn env_file_from_existing_units(dir: &Path) -> Result<Option<PathBuf>, UnitIoErr
                 )));
             }
         };
+        // Every unit a Nika engine writes is named `nika.…`: another
+        // application's agent is never read.
+        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if !name.starts_with("nika.") {
+            continue;
+        }
         let Some(body) = unit_text(&path) else {
             continue;
         };
+        if !project.holds(name, &body) {
+            continue;
+        }
         match emit::env_file_named_in_unit(&body) {
             Some(raw) => {
                 let candidate = PathBuf::from(raw);
@@ -219,10 +499,31 @@ fn weaker_refusal(file: Option<&Path>) -> UnitIoError {
 }
 
 /// Write explicit units and create their log directory; never load them into the OS.
+/// A unit file whose GENERATED header names another project is never
+/// replaced: one such file refuses the whole write before anything lands.
 ///
 /// # Errors
-/// The destination, log directory or a unit cannot be written. Earlier writes may exist.
-pub fn write_units(dir: &Path, log_dir: &Path, units: &[Unit]) -> Result<(), UnitIoError> {
+/// Another project's unit holds one of the names, or the destination, log
+/// directory or a unit cannot be written. Earlier writes may exist.
+pub fn write_units(
+    dir: &Path,
+    log_dir: &Path,
+    units: &[Unit],
+    project: &ProjectUnits,
+) -> Result<(), UnitIoError> {
+    for unit in units {
+        let path = dir.join(&unit.file_name);
+        if let Some(body) = unit_text(&path)
+            && let UnitOwner::Other(source) = project.owner(&body)
+        {
+            return Err(UnitIoError::input(format!(
+                "arm --emit --write · {} appartient au projet {} — jamais écrasée (ces deux racines partagent la clé {}) · remède: démonte-la depuis ce projet-là (`nika arm disarm <beat> --write`), ou déplace l'une des deux racines",
+                path.display(),
+                source.display(),
+                project.key
+            )));
+        }
+    }
     std::fs::create_dir_all(dir)
         .and_then(|()| std::fs::create_dir_all(log_dir))
         .map_err(|e| UnitIoError::host(format!("arm --emit --write · {}: {e}", dir.display())))?;
@@ -260,7 +561,7 @@ pub fn load_commands(
                 let is_timer = std::path::Path::new(&unit.file_name)
                     .extension()
                     .is_some_and(|ext| ext.eq_ignore_ascii_case("timer"));
-                let is_serve = unit.file_name == "nika.serve.service";
+                let is_serve = unit.file_name.starts_with("nika.serve.");
                 if is_timer || is_serve {
                     out.push(format!("systemctl --user enable --now {}", unit.file_name));
                 }

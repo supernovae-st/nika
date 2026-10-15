@@ -5,6 +5,8 @@
 //! becomes a run request only after a clean check on disk, the money admitted and every declared
 //! input bound, one question per missing input (moved whole out of `authoring.rs`).
 
+mod choices;
+
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
@@ -58,8 +60,11 @@ impl SessionRuntime {
             if let Some(held) = self.hold_for_knowledge(input, self.routes_by_model()) {
                 return Some(held);
             }
-            return match self.classify(SessionPhase::Idle, input).act {
-                TurnAct::RequestRun => Some(self.run_plain(&line, ceiling, access_pin)),
+            let decision = self.classify(SessionPhase::Idle, input);
+            return match decision.act {
+                TurnAct::RequestRun if decision.secondary.is_empty() => {
+                    Some(self.run_plain(&line, ceiling, access_pin))
+                }
                 TurnAct::Modify | TurnAct::Mixed => Some(TurnOutcome::Refusal(Refusal::new(
                     RefusalClass::WrongState,
                     "a run with a change in it — say the change first (in a sentence), review the new workflow, then « run it »",
@@ -79,17 +84,28 @@ impl SessionRuntime {
         access_pin: Option<String>,
     ) -> TurnOutcome {
         let root = self.snapshot.root.clone();
-        let named = named_files(input)
-            .into_iter()
+        let references = named_files(input);
+        let named = references
+            .iter()
             .map(PathBuf::from)
             .find(|p| root.join(p).is_file());
-        let Some(workflow) = named.or_else(|| self.last_workflow.clone()) else {
+        let target = named
+            .or_else(|| self.last_workflow.clone())
+            .map(|path| (path, None))
+            .or_else(|| {
+                references
+                    .is_empty()
+                    .then(|| self.observed_run_target())
+                    .flatten()
+                    .map(|(path, witness)| (path, Some(witness)))
+            });
+        let Some(target) = target else {
             return TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::WrongState,
                 "nothing to run — name a workflow file (« run brief.nika »), or describe the work and Nika builds one first",
             ));
         };
-        self.admit_run(input, workflow, ceiling, access_pin, inline_vars(input))
+        self.admit_bound_run(input, target, ceiling, access_pin, inline_vars(input))
     }
 
     /// A run refused before any check: a paused gate waits, or a restored exposure has no stated
@@ -128,6 +144,19 @@ impl SessionRuntime {
         access_pin: Option<String>,
         given: Vec<String>,
     ) -> TurnOutcome {
+        self.admit_bound_run(said, (workflow, None), ceiling, access_pin, given)
+    }
+
+    /// The same admission, optionally restricted to the exact bytes a retained Run observed.
+    /// Compare against the check's witness before adopting a target or asking for its inputs.
+    pub(super) fn admit_bound_run(
+        &mut self,
+        said: &str,
+        (workflow, expected): (PathBuf, Option<Witness>),
+        ceiling: Option<f64>,
+        access_pin: Option<String>,
+        given: Vec<String>,
+    ) -> TurnOutcome {
         if let Some(refused) = self.run_refused(said, ceiling) {
             return refused;
         }
@@ -148,6 +177,15 @@ impl SessionRuntime {
             }
             return TurnOutcome::Facts(text);
         }
+        if expected
+            .as_ref()
+            .is_some_and(|seen| audit.bytes.as_ref() != Some(seen))
+        {
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::StaleRevision,
+                "the observed workflow changed since that run; name the current file explicitly before requesting another Run",
+            ));
+        }
         let max_cost_usd = match self.run_money(said, &workflow, ceiling) {
             Ok(amount) => amount,
             Err(refusal) => return refusal,
@@ -161,6 +199,7 @@ impl SessionRuntime {
             .filter(|name| !given.iter().any(|v| v.starts_with(&format!("{name}="))))
             .collect();
         let inputs = RunInputs {
+            admission: choices::next_admission(),
             workflow,
             max_cost_usd,
             access_pin,
@@ -262,8 +301,15 @@ impl SessionRuntime {
                 "the input needs a value — nothing answers for you (`cancel` drops the run)",
             ));
         }
-        // A value in quotes is its content: the escape for a word the protocol would take.
-        let value = serde_json::from_str::<String>(value).unwrap_or_else(|_| value.to_owned());
+        // Finite declarations keep their canonical JSON literal through Run parsing.
+        // Open inputs keep the existing quoted-protocol escape and raw-text behavior.
+        let value = match inputs.literal(&self.snapshot.root, value) {
+            Ok(value) => value,
+            Err(refusal) => {
+                self.run_inputs = Some(inputs);
+                return TurnOutcome::Refusal(refusal);
+            }
+        };
         let name = inputs.needed.remove(0);
         inputs.given.push(format!("{name}={value}"));
         self.intent.unresolved.clear();
@@ -276,6 +322,9 @@ impl SessionRuntime {
 /// inputs (required, no default): the next lines bind them, in order.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct RunInputs {
+    /// One admitted request, even when another request has identical content.
+    /// Presentation identity only; never persisted or used to authorize a Run.
+    admission: u64,
     workflow: PathBuf,
     max_cost_usd: f64,
     access_pin: Option<String>,

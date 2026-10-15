@@ -32,7 +32,7 @@ use ratatui::widgets::Widget;
 use ratatui_textarea::{Input, Key, TextArea};
 
 use super::Composer;
-use crate::model::{Asked, Offer, Shape, Waiting};
+use crate::model::{Asked, Offer, Retained, Shape, Waiting};
 
 /// What `Enter` sent while a typed question was painted, until its turn
 /// returns.
@@ -65,38 +65,98 @@ const KNOWLEDGE: &str = "knowledge";
 /// waits for, whose offers are the exact lines the Session reads.
 pub(crate) fn choice(waiting: &Waiting) -> Option<(&str, &Asked, &[Offer])> {
     let (key, asked) = match waiting {
-        Waiting::QuestionDocument { key, asked } => (key.as_str(), asked),
+        Waiting::QuestionDocument { key, asked }
+        | Waiting::ProposalChoice { key, asked, .. }
+        | Waiting::Action { key, asked } => (key.as_str(), asked),
         Waiting::Knowledge { asked } => (KNOWLEDGE, asked),
+        Waiting::Selection { asked } => ("intelligence", asked),
         _ => return None,
     };
     match &asked.shape {
-        Shape::Choice(offers) if !offers.is_empty() => Some((key, asked, offers.as_slice())),
-        Shape::Choice(_) | Shape::Text | Shape::Literal => None,
+        Shape::Choice(offers) | Shape::Multiple(offers) if !offers.is_empty() => {
+            Some((key, asked, offers.as_slice()))
+        }
+        Shape::Choice(_) | Shape::Multiple(_) | Shape::Text | Shape::Literal => None,
+    }
+}
+
+/// The semantic door owning a surface. Its kind cannot collide with a
+/// question's free-form key, even when that key is `intelligence` or `knowledge`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ScopeKind {
+    Question,
+    Proposal,
+    Knowledge,
+    Settings,
+    Action,
+}
+
+impl ScopeKind {
+    fn of(waiting: &Waiting) -> Self {
+        match waiting {
+            Waiting::ProposalChoice { .. } => Self::Proposal,
+            Waiting::Selection { .. } => Self::Settings,
+            Waiting::Action { .. } => Self::Action,
+            Waiting::Knowledge { .. } => Self::Knowledge,
+            _ => Self::Question,
+        }
     }
 }
 
 /// The logical question a selection belongs to.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Scope {
+    kind: ScopeKind,
+    proposal: Option<String>,
     epoch: u64,
     key: String,
     offers: Vec<Offer>,
+    label: String,
+    why: String,
+    multiple: bool,
+    free_text: bool,
+    retained: Option<Retained>,
 }
 
 impl Scope {
     /// The scope of the typed choice `key` asked as `asked` with `offers`.
-    fn of(key: &str, asked: &Asked, offers: &[Offer]) -> Self {
+    fn of(waiting: &Waiting, key: &str, asked: &Asked, offers: &[Offer]) -> Self {
         Self {
+            kind: ScopeKind::of(waiting),
+            proposal: match waiting {
+                Waiting::ProposalChoice { proposal, .. } => Some(proposal.clone()),
+                Waiting::Action { asked, .. } => Some(asked.witness.clone()),
+                _ => None,
+            },
             epoch: asked.epoch,
             key: key.to_owned(),
             offers: offers.to_vec(),
+            label: asked.label.clone(),
+            why: asked.why.clone(),
+            multiple: matches!(asked.shape, Shape::Multiple(_)),
+            free_text: asked.free_text,
+            retained: asked.retained.clone(),
         }
     }
 
     /// Whether that typed choice is this logical question, whatever its
     /// identity now.
-    fn holds(&self, key: &str, asked: &Asked, offers: &[Offer]) -> bool {
-        self.epoch == asked.epoch && self.key == key && self.offers.as_slice() == offers
+    fn holds(&self, waiting: &Waiting, key: &str, asked: &Asked, offers: &[Offer]) -> bool {
+        self.kind == ScopeKind::of(waiting)
+            && self.proposal.as_deref()
+                == match waiting {
+                    Waiting::ProposalChoice { proposal, .. } => Some(proposal.as_str()),
+                    Waiting::Action { asked, .. } => Some(asked.witness.as_str()),
+                    _ => None,
+                }
+            && self.epoch == asked.epoch
+            && self.key == key
+            && self.offers == offers
+            && self.label == asked.label
+            && self.why == asked.why
+            && self.multiple == matches!(asked.shape, Shape::Multiple(_))
+            && self.free_text == asked.free_text
+            && self.retained == asked.retained
     }
 }
 
@@ -104,7 +164,9 @@ impl Scope {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Answer {
     scope: Option<Scope>,
+    suspended: Option<Box<Self>>,
     selected: Option<usize>,
+    checked: Vec<usize>,
     sent: Option<Sent>,
     /// The human's own reply to the typed choice: a field of its own, so the
     /// ordinary draft never changes under a question. It belongs to the
@@ -131,7 +193,7 @@ fn own_field(focused: bool) -> TextArea<'static> {
 impl Answer {
     /// The own reply's cursor follows the keys, as the line's does.
     pub(super) fn focus(&mut self, focused: bool) {
-        let cursor = if focused {
+        let cursor = if focused && self.scope.as_ref().is_none_or(|scope| scope.free_text) {
             super::CURSOR
         } else {
             self.own.cursor_line_style()
@@ -148,8 +210,9 @@ impl Answer {
         let held = self
             .scope
             .as_ref()
-            .is_some_and(|scope| scope.holds(key, asked, offers));
-        self.selected.filter(|at| held && *at < offers.len())
+            .is_some_and(|scope| scope.holds(waiting, key, asked, offers));
+        let count = offers.len() + usize::from(matches!(asked.shape, Shape::Multiple(_)));
+        self.selected.filter(|at| held && *at < count)
     }
 
     /// A wait about to be painted. An intermediate decision (the intelligence
@@ -161,13 +224,30 @@ impl Answer {
             return;
         }
         let chosen = choice(waiting);
+        let settings = matches!(waiting, Waiting::Selection { .. });
+        if settings
+            && self
+                .scope
+                .as_ref()
+                .is_some_and(|scope| scope.kind != ScopeKind::Settings)
+        {
+            let previous = std::mem::take(self);
+            self.suspended = Some(Box::new(previous));
+        } else if !settings && let Some(previous) = self.suspended.take() {
+            *self = *previous;
+        }
         let kept = chosen.is_some_and(|(key, asked, offers)| {
-            (self.scope.as_ref()).is_some_and(|scope| scope.holds(key, asked, offers))
+            (self.scope.as_ref()).is_some_and(|scope| scope.holds(waiting, key, asked, offers))
         });
         if !kept {
-            self.scope = chosen.map(|(key, asked, offers)| Scope::of(key, asked, offers));
+            self.scope = chosen.map(|(key, asked, offers)| Scope::of(waiting, key, asked, offers));
             self.selected = None;
+            self.checked.clear();
             self.own = own_field(true);
+            if chosen.is_some_and(|(_, asked, _)| !asked.free_text) {
+                self.own.set_placeholder_text("choose an offered answer");
+                self.own.set_cursor_style(Style::default());
+            }
         }
     }
 }
@@ -210,6 +290,14 @@ impl Composer {
     /// along the line, or a line break (`Alt+Enter`, `Ctrl+J`). `false` when
     /// the key is not an edit (the shell's keys, the offers' keys, `Enter`).
     pub(crate) fn own_key(&mut self, key: KeyEvent) -> bool {
+        if self
+            .answer
+            .scope
+            .as_ref()
+            .is_some_and(|scope| !scope.free_text)
+        {
+            return false;
+        }
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         let alt = key.modifiers.contains(KeyModifiers::ALT);
         let shift = key.modifiers.contains(KeyModifiers::SHIFT);
@@ -244,6 +332,14 @@ impl Composer {
 
     /// Pasted text into the own reply's field, as data.
     pub(crate) fn paste_own(&mut self, text: &str) {
+        if self
+            .answer
+            .scope
+            .as_ref()
+            .is_some_and(|scope| !scope.free_text)
+        {
+            return;
+        }
         (self.answer.own).insert_str(text.replace("\r\n", "\n").replace('\r', "\n"));
     }
 
@@ -270,34 +366,143 @@ impl Composer {
         self.focused() && self.offers_open(waiting)
     }
 
-    /// One key for the offers of `waiting`, before the composer reads it.
-    /// Only `Enter` on a selection answers, with that offer's exact key, and
-    /// the offers are inert from then until the answer's turn returns.
+    /// Whether a checkbox belongs to this exact logical question.
+    pub(crate) fn offer_checked(&self, waiting: &Waiting, index: usize) -> bool {
+        let Some((key, asked, offers)) = choice(waiting) else {
+            return false;
+        };
+        self.answer
+            .scope
+            .as_ref()
+            .is_some_and(|scope| scope.holds(waiting, key, asked, offers))
+            && self.answer.checked.contains(&index)
+    }
+
+    /// How many currently offered answers are checked.
+    #[cfg(test)]
+    pub(crate) fn checked_count(&self, waiting: &Waiting) -> usize {
+        choice(waiting).map_or(0, |(_, _, offers)| {
+            (0..offers.len())
+                .filter(|index| self.offer_checked(waiting, *index))
+                .count()
+        })
+    }
+
+    /// Toggle one offered answer. Navigation and toggling never send.
+    fn toggle_offer(&mut self, index: usize) {
+        if let Some(at) = self.answer.checked.iter().position(|held| *held == index) {
+            self.answer.checked.remove(at);
+        } else {
+            self.answer.checked.push(index);
+        }
+    }
+
+    /// Explicit Submit, shared by the keyboard and the painted button.
+    /// The selected keys are serialized losslessly in the Session's offer order.
+    pub(crate) fn submit_choices(&mut self, waiting: &Waiting) -> Offered {
+        if !self.offers_open(waiting) {
+            return Offered::Pass;
+        }
+        let Some((_, asked, offers)) = choice(waiting) else {
+            return Offered::Pass;
+        };
+        if !matches!(asked.shape, Shape::Multiple(_)) {
+            return Offered::Pass;
+        }
+        self.answer.follow(waiting);
+        if let Some(own) = self.send_own() {
+            return Offered::Answer(own);
+        }
+        let keys: Vec<&str> = offers
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| self.answer.checked.contains(index))
+            .map(|(_, offer)| offer.key.as_str())
+            .collect();
+        if keys.is_empty() {
+            return Offered::Moved;
+        }
+        let Ok(text) = serde_json::to_string(&keys) else {
+            return Offered::Moved;
+        };
+        self.answer.sent = Some(Sent::Offer);
+        Offered::Answer(text)
+    }
+
+    /// Send an own reply before any offered selection, without touching the draft.
+    fn send_own(&mut self) -> Option<String> {
+        let own = self.own_reply();
+        if own.trim().is_empty() {
+            return None;
+        }
+        self.answer.own = own_field(true);
+        self.history.push(own.clone());
+        self.answer.sent = Some(Sent::Own);
+        Some(own)
+    }
+
+    /// One key for the offers. A multiple choice has a final Submit row;
+    /// Space or Enter on an option only toggles its checkbox.
     pub(crate) fn offer_key(&mut self, waiting: &Waiting, key: KeyEvent) -> Offered {
         if !key.modifiers.is_empty() || !self.offers_armed(waiting) {
             return Offered::Pass;
         }
-        let Some((_, _, offers)) = choice(waiting) else {
+        let Some((_, asked, offers)) = choice(waiting) else {
             return Offered::Pass;
         };
         self.answer.follow(waiting);
+        let multiple = matches!(asked.shape, Shape::Multiple(_));
         let at = self.answer.selection(waiting);
-        let last = offers.len().saturating_sub(1);
+        let last = offers.len().saturating_sub(1) + usize::from(multiple);
         let next = match key.code {
             KeyCode::Down => at.map_or(0, |at| at.saturating_add(1).min(last)),
             KeyCode::Up => at.map_or(last, |at| at.saturating_sub(1)),
             KeyCode::Home => 0,
             KeyCode::End => last,
+            KeyCode::Tab if multiple => last,
+            KeyCode::Esc if matches!(waiting, Waiting::Action { .. }) => {
+                let Some(cancel) = offers
+                    .iter()
+                    .find(|offer| matches!(offer.key.as_str(), "no" | "cancel"))
+                else {
+                    return Offered::Moved;
+                };
+                self.answer.sent = Some(Sent::Offer);
+                return Offered::Answer(cancel.key.clone());
+            }
+            KeyCode::Esc if matches!(waiting, Waiting::Selection { .. }) => {
+                if asked.mandatory {
+                    return Offered::Moved;
+                }
+                self.answer.sent = Some(Sent::Offer);
+                return Offered::Answer("cancel".to_owned());
+            }
+            KeyCode::Char(' ') if multiple && self.own_reply().is_empty() => {
+                if let Some(index) = at.filter(|index| *index < offers.len()) {
+                    self.toggle_offer(index);
+                    return Offered::Moved;
+                }
+                // Space on Submit belongs to the control, not an invisible
+                // free reply that disables subsequent checkbox toggles.
+                return if at == Some(offers.len()) || !asked.free_text {
+                    Offered::Moved
+                } else {
+                    Offered::Pass
+                };
+            }
             KeyCode::Enter => {
-                // The own reply's words first, kept in history as any line sent.
-                let own = self.own_reply();
-                if !own.trim().is_empty() {
-                    self.answer.own = own_field(true);
-                    self.history.push(own.clone());
-                    self.answer.sent = Some(Sent::Own);
+                if let Some(own) = self.send_own() {
                     return Offered::Answer(own);
                 }
-                // Nothing selected and no words: nothing is sent.
+                if multiple {
+                    if at == Some(offers.len()) {
+                        return self.submit_choices(waiting);
+                    }
+                    if let Some(index) = at {
+                        self.toggle_offer(index);
+                    }
+                    return Offered::Moved;
+                }
                 let Some(offer) = at.and_then(|at| offers.get(at)) else {
                     return Offered::Pass;
                 };
@@ -310,15 +515,21 @@ impl Composer {
         Offered::Moved
     }
 
-    /// A press on the offer at `index` of `waiting`: it is selected and
-    /// nothing is sent. `false` when the offers take no selection now.
+    /// A press selects a radio option or toggles a checkbox; it sends nothing.
     pub(crate) fn select_offer(&mut self, waiting: &Waiting, index: usize) -> bool {
-        let listed = choice(waiting).is_some_and(|(_, _, offers)| index < offers.len());
-        if !listed || !self.offers_open(waiting) {
+        let Some((_, asked, offers)) = choice(waiting) else {
+            return false;
+        };
+        let multiple = matches!(asked.shape, Shape::Multiple(_));
+        let count = offers.len() + usize::from(multiple);
+        if index >= count || !self.offers_open(waiting) {
             return false;
         }
         self.answer.follow(waiting);
         self.answer.selected = Some(index);
+        if multiple && index < offers.len() {
+            self.toggle_offer(index);
+        }
         true
     }
 
@@ -334,8 +545,12 @@ impl Composer {
     /// as it was. Returns what was in flight.
     pub(crate) fn answer_returned(&mut self, not_taken: bool) -> Option<Sent> {
         let sent = self.answer.sent.take();
-        if sent == Some(Sent::Offer) && !not_taken {
-            self.answer = Answer::default();
+        if matches!(sent, Some(Sent::Offer | Sent::Own)) && !not_taken {
+            let suspended = self.answer.suspended.take();
+            self.answer = Answer {
+                suspended,
+                ..Answer::default()
+            };
         }
         sent
     }
@@ -384,6 +599,65 @@ mod tests {
         composer.set_focused(true);
         composer.follow(waiting);
         composer
+    }
+
+    fn action(witness: &str) -> Waiting {
+        let mut asked = Asked::new(
+            "Continue this run once?",
+            "",
+            true,
+            Shape::Choice(vec![
+                Offer::new("yes", "Run once"),
+                Offer::new("no", "Cancel this run"),
+            ]),
+            witness,
+            9,
+        );
+        asked.free_text = false;
+        Waiting::Action {
+            key: "run_cost".into(),
+            asked,
+        }
+    }
+
+    #[test]
+    fn a_finite_action_has_no_default_and_only_enter_sends_the_exact_key_once() {
+        let painted = action("action:1");
+        let mut composer = composer(&painted);
+        assert_eq!(composer.offer_selected(&painted), None);
+        assert_eq!(
+            composer.offer_key(&painted, key(KeyCode::Enter)),
+            Offered::Pass
+        );
+        assert_eq!(
+            composer.offer_key(&painted, key(KeyCode::Down)),
+            Offered::Moved
+        );
+        assert_eq!(composer.offer_selected(&painted), Some(0));
+        assert_eq!(
+            composer.offer_key(&painted, key(KeyCode::Enter)),
+            Offered::Answer("yes".into())
+        );
+        assert_eq!(
+            composer.offer_key(&painted, key(KeyCode::Enter)),
+            Offered::Pass
+        );
+        assert_eq!(composer.answer_returned(false), Some(Sent::Offer));
+        let next = action("action:2");
+        composer.follow(&next);
+        assert_eq!(
+            composer.offer_selected(&next),
+            None,
+            "new decision has no old yes selected"
+        );
+        assert_eq!(
+            composer.offer_key(&next, key(KeyCode::Enter)),
+            Offered::Pass
+        );
+        assert_eq!(
+            composer.offer_key(&next, key(KeyCode::Esc)),
+            Offered::Answer("no".into())
+        );
     }
 
     #[test]
@@ -663,3 +937,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod multi_tests;

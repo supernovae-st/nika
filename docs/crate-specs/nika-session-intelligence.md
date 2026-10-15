@@ -38,6 +38,11 @@ consumer.
   census of what this machine can serve now (presence only, read from the ONE probe); and the
   resolution that refuses a choice this machine cannot serve, with its fix, never replaces it.
   Each path names where the project context goes (the data locus).
+  API choices require a provider profile served by this binary. Category labels, unknown
+  providers and literal example models never become a preference; an explicit bare provider
+  still selects its catalog default. Provider model names otherwise remain provider-owned.
+  An unavailable known API names its actual key variables; retained invalid choices remain
+  unavailable and are never silently replaced.
 - `reasoner` — ONE inference over the selected intelligence, never a temporary workflow: a
   harness seat through the same infer-grade adapter `nika run` uses, an API or a local engine
   through the provider registry and the one-shot infer verb, a scripted stand-in, or none. The
@@ -83,6 +88,12 @@ consumer.
   install it; no production build carries it. A workspace-wide test or lint build unifies the
   feature into the binaries it builds, where the hook stays inert: nothing installs it.
 - This crate never depends on `nika-session`.
+
+`authoring::verify_presented_in` adds the exact proposal presentation to document
+qualification while `verify_in` retains its existing input. The presentation remains separate
+from the person's answers, the author/host selections and knowledge. It reaches every seat
+through the same document verifier and its decision receipt, but never the candidate-free
+interpretation of the request. It grants no Save, Run or human binding.
 
 ## 4. Tests
 

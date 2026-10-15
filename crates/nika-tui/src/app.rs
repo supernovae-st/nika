@@ -66,6 +66,7 @@ mod pointer;
 use crate::workspace::{conversation, project};
 
 mod acquire;
+mod action_read;
 mod commands;
 mod opening;
 mod progress;
@@ -436,8 +437,8 @@ enum Heard {
     Nothing,
 }
 
-/// The notice when a spending question clears the draft typed while Nika
-/// worked: that question takes only an answer typed after it shows.
+/// The notice when a spending question clears an existing draft: that question
+/// takes only an answer typed after it shows.
 fn cleared_notice(draft: &str, ascii: bool) -> String {
     let typed = typed_notice(draft, ascii);
     let kept = if ascii {
@@ -452,9 +453,9 @@ fn cleared_notice(draft: &str, ascii: bool) -> String {
     )
 }
 
-/// The notice that says where the typeahead went: what is in the box (the
-/// start of a long draft, on one line), and that it was not sent. The
-/// renderer's own marks take their ASCII twins under `ascii`.
+/// The notice that names the retained draft, without inferring when it was typed:
+/// what is in the box (the start of a long draft, on one line), and that it was
+/// not sent. The renderer's own marks take their ASCII twins under `ascii`.
 fn typed_notice(draft: &str, ascii: bool) -> String {
     const SHOWN: usize = 40;
     let words = draft.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -467,7 +468,7 @@ fn typed_notice(draft: &str, ascii: bool) -> String {
     if words.chars().count() > SHOWN {
         shown.push_str(cut);
     }
-    format!("you typed {open}{shown}{close} while Nika worked{sep}it is in the box, not sent")
+    format!("your draft {open}{shown}{close}{sep}it is in the box, not sent")
 }
 
 impl<C: Conversation + 'static> Shell<C> {
@@ -492,8 +493,12 @@ impl<C: Conversation + 'static> Shell<C> {
             let step = match event {
                 UiEvent::Key(key) => self.on_key(key, &mut broker)?,
                 UiEvent::Mouse(mouse) => {
-                    self.on_mouse(mouse);
-                    Step::Stay
+                    if let Some(said) = self.submit_pointed(mouse) {
+                        self.send_activated(said, &mut broker)?
+                    } else {
+                        self.on_mouse(mouse);
+                        Step::Stay
+                    }
                 }
                 UiEvent::Paste(text) => {
                     self.paste(&text);
@@ -652,10 +657,15 @@ impl<C: Conversation + 'static> Shell<C> {
     /// A typed question's answer takes the same path to its own door
     /// ([`Said`]); the echo says what was sent, never that it applied.
     fn submit_one(&mut self, said: &Said, broker: &mut Broker) -> io::Result<Submitted> {
+        let candidate = self.conversation()?.candidate();
+        let read = action_read::Request::capture(said, &self.state.waiting, candidate.as_ref());
         self.submitted += 1;
         let line = said.text();
         let prompt = render::own(self.state.waiting.prompt(), self.state.ascii);
-        let echo = format!("{prompt}{}", line.trim_end());
+        let echo = format!(
+            "{prompt}{}",
+            said.display_text(&self.state.waiting).trim_end()
+        );
         // A line sent from a scrolled transcript (a queued correction) keeps the reading position.
         self.keep_reading(|state, _| state.transcript.push(Committed::new(Kind::Human, echo)));
         self.commit_inline()?;
@@ -709,6 +719,12 @@ impl<C: Conversation + 'static> Shell<C> {
         } else {
             None
         };
+        let detail = if stopped {
+            None
+        } else {
+            let candidate = self.conversation()?.candidate();
+            read.and_then(|read| read.completed(&turn, candidate.as_ref()))
+        };
         let unsent = self.answered(&turn.beats);
         self.apply_all(turn.beats)?;
         if fresh {
@@ -722,6 +738,10 @@ impl<C: Conversation + 'static> Shell<C> {
         }
         // An answer not taken: its exact words first, what was typed after.
         self.give_back(unsent, fresh);
+        // An explicitly selected read-only act opens its own returned words above the menu.
+        if let Some(detail) = detail {
+            self.diagnostic = Some(detail);
+        }
         if self.options.exit_after == Some(self.submitted) {
             self.state.quit = true;
         }
@@ -1417,24 +1437,36 @@ mod typeahead_tests {
     fn a_cleared_draft_is_named_and_why() {
         assert_eq!(
             super::cleared_notice("yes", false),
-            "you typed « yes » while Nika worked · cleared: this cost question takes only an answer typed after it · kept in this conversation, whole:\nyes"
+            "your draft « yes » · cleared: this cost question takes only an answer typed after it · kept in this conversation, whole:\nyes"
         );
-        assert!(super::cleared_notice("yes", true).is_ascii());
+        let ascii = super::cleared_notice("yes", true);
+        assert_eq!(
+            ascii,
+            "your draft \"yes\" - cleared: this cost question takes only an answer typed after it - kept in this conversation, whole:\nyes"
+        );
+        assert!(ascii.is_ascii());
     }
 
     #[test]
     fn the_notice_says_what_is_in_the_box_in_the_glyph_column() {
         assert_eq!(
             typed_notice("yes", false),
-            "you typed « yes » while Nika worked · it is in the box, not sent"
+            "your draft « yes » · it is in the box, not sent"
         );
         assert_eq!(
             typed_notice("yes", true),
-            "you typed \"yes\" while Nika worked - it is in the box, not sent"
+            "your draft \"yes\" - it is in the box, not sent"
         );
         assert!(typed_notice("two\nlines", false).contains("« two lines »"));
         let long = typed_notice(&"word ".repeat(20), true);
-        assert!(long.is_ascii() && long.contains("...\" while"), "{long}");
+        assert!(
+            long.is_ascii() && long.starts_with("your draft \""),
+            "{long}"
+        );
+        assert!(
+            long.contains("...\" - it is in the box, not sent"),
+            "{long}"
+        );
     }
 }
 

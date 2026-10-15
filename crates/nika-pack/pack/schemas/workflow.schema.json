@@ -14,7 +14,10 @@
     "nika": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]*$",
-      "description": "The file's NAME · kebab-case · and the mark that says « this is a nika file ». One word, one meaning across both document types: `nika.yaml` carries the PROJECT name, a `*.nika` carries the WORKFLOW name. The document TYPE is read from `tasks:` — present means workflow, absent means project — so it survives a blob, a paste or an HTTP body where the filename does not travel. This key held the literal `v1` until the envelope nuke; it carried zero bits as a version (there is no `nika: v2` — ever) and now carries the file's most necessary field instead."
+      "description": "The file's NAME · kebab-case · and the mark that says « this is a nika file ». One word, one meaning across both document types: `nika.yaml` carries the PROJECT name, a `*.nika` carries the WORKFLOW name. The document TYPE is read from `tasks:` — present means workflow, absent means project — so it survives a blob, a paste or an HTTP body where the filename does not travel. This key held the literal `v1` until the envelope nuke; it carried zero bits as a version (there is no `nika: v2` — ever) and now carries the file's most necessary field instead. A retired version tag (`v1`, `v2`, …) is refused here as in the project file: the name is a word, never a version (NIKA-PARSE-003).",
+      "not": {
+        "pattern": "^v[0-9]+$"
+      }
     },
     "model": {
       "type": "string",
@@ -86,7 +89,7 @@
     },
     "secrets": {
       "type": "object",
-      "description": "Vault-backed masked references · `${{ secrets.X }}` · never inline literals.",
+      "description": "Masked references to a store · `${{ secrets.X }}` · never inline literals. The sources are `env` and `file`; `vault` is withdrawn until an engine resolves it (spec/01-envelope.md §secrets).",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
@@ -96,7 +99,6 @@
         "properties": {
           "source": {
             "enum": [
-              "vault",
               "env",
               "file"
             ],
@@ -104,7 +106,7 @@
           },
           "key": {
             "type": "string",
-            "description": "Store key (vault) or OS env var name (env)."
+            "description": "The OS environment variable that holds the value · env source only."
           },
           "path": {
             "type": "string",
@@ -443,7 +445,7 @@
               "description": "A ${{ }} CEL boolean expression (cel-subset/0.1 · spec/03-dag.md). Statically non-boolean-shaped roots are rejected (NIKA-VAR-005)."
             }
           ],
-          "description": "LOCAL business condition · false skips the task · evaluated POST-gate over {vars · env · with · item · index}. Referring to `tasks.*` is illegal here (NIKA-VAR-021 · hoist it into `with:`) · spec/03-dag.md §when."
+          "description": "LOCAL business condition · false skips the task · evaluated after the gate and BEFORE any fan-out, over `inputs` · `const` · `with` only: the `for_each` locals `item` / `index` are not bound yet (NIKA-VAR-001), and a `tasks.*` reference is refused (NIKA-VAR-021 · hoist it into `with:`) · spec/03-dag.md §when."
         },
         "for_each": {
           "type": "object",
@@ -451,7 +453,7 @@
           "required": [
             "items"
           ],
-          "description": "Fan this task out over a collection · ONE block, so the concurrency is visible where the fan-out is declared. `max_parallel` and `fail_fast` live here because they have no meaning without it.",
+          "description": "Fan this task out over a collection · ONE block, so the concurrency is visible where the fan-out is declared. `max_parallel`, `max_items` and `fail_fast` live here because they have no meaning without it.",
           "properties": {
             "items": {
               "type": [
@@ -464,6 +466,11 @@
               "type": "integer",
               "minimum": 1,
               "description": "Cap concurrent iterations · default unbounded · 1 = sequential."
+            },
+            "max_items": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "The fan's hard ceiling on the count axis · a longer collection fails the task before its first item (NIKA-VAR-006, naming the count and the cap), never a truncation · a literal list longer than the cap is refused at parse · spec/03-dag.md §for_each.max_items."
             },
             "fail_fast": {
               "type": "boolean",
@@ -589,31 +596,30 @@
       "additionalProperties": false,
       "properties": {
         "prompt": {
-          "type": "string"
+          "$ref": "#/$defs/promptText"
         },
         "system": {
           "description": "System prompt · the standing instruction, sent ahead of `prompt:` and unchanged by it.",
-          "type": "string"
+          "$ref": "#/$defs/promptText"
         },
         "model": {
           "type": "string"
         },
         "temperature": {
-          "type": [
-            "number",
-            "string"
-          ],
-          "description": "Sampling temperature · 0 is the steadiest the provider offers, 2 the loosest. A number in 0-2, or a `${{ }}` reference."
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature · 0 is the steadiest the provider offers, 2 the loosest. A literal number in 0-2: a `${{ }}` reference is refused at parse."
         },
         "max_tokens": {
-          "type": [
-            "integer",
-            "string"
-          ]
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "description": "Max output tokens · a literal non-negative integer: a `${{ }}` reference is refused at parse (spec/02-verbs.md §infer)."
         },
         "schema": {
-          "type": "object",
-          "description": "JSON Schema · the structured-output contract the model's reply must satisfy. The out-of-core hatch; the typed door is task-level `returns:` (both on one task is NIKA-TYPE-003)."
+          "description": "JSON Schema · the structured-output contract the model's reply must satisfy, inline or the schema of a project file. The out-of-core hatch; the typed door is task-level `returns:` (both on one task is NIKA-TYPE-003).",
+          "$ref": "#/$defs/schemaContract"
         },
         "thinking": {
           "description": "Extended thinking · `{ enabled, budget_tokens }` — reasoning the model may spend before it answers (spec/02-verbs.md §infer).",
@@ -807,11 +813,11 @@
       "additionalProperties": false,
       "properties": {
         "prompt": {
-          "type": "string"
+          "$ref": "#/$defs/promptText"
         },
         "system": {
           "description": "System prompt · the standing instruction, sent ahead of `prompt:` and unchanged by any turn of the loop.",
-          "type": "string"
+          "$ref": "#/$defs/promptText"
         },
         "model": {
           "type": "string"
@@ -831,28 +837,25 @@
           }
         },
         "max_turns": {
-          "type": [
-            "integer",
-            "string"
-          ]
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "Loop limit · a literal integer from 1 to 1000 · default 10 (spec/02-verbs.md §agent)."
         },
         "max_tokens_total": {
-          "description": "Cumulative token budget across every turn of the loop · the SPEND ceiling, where `max_turns` is the step ceiling. Default is engine-configurable (spec/02-verbs.md §agent).",
-          "type": [
-            "integer",
-            "string"
-          ]
+          "description": "Cumulative token budget across every turn of the loop · the SPEND ceiling, where `max_turns` is the step ceiling. A literal non-negative integer · default engine-configurable (spec/02-verbs.md §agent).",
+          "type": "integer",
+          "minimum": 0
         },
         "temperature": {
-          "type": [
-            "number",
-            "string"
-          ],
-          "description": "Sampling temperature for every turn of the loop · 0 is the steadiest the provider offers, 2 the loosest. A number in 0-2, or a `${{ }}` reference."
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature for every turn of the loop · 0 is the steadiest the provider offers, 2 the loosest. A literal number in 0-2: a `${{ }}` reference is refused at parse."
         },
         "schema": {
-          "type": "object",
-          "description": "JSON Schema · the contract the agent's FINAL message must satisfy. The out-of-core hatch; the typed door is task-level `returns:` (both on one task is NIKA-TYPE-003)."
+          "description": "JSON Schema · the contract the agent's FINAL message must satisfy, inline or the schema of a project file. The out-of-core hatch; the typed door is task-level `returns:` (both on one task is NIKA-TYPE-003).",
+          "$ref": "#/$defs/schemaContract"
         }
       }
     },
@@ -898,6 +901,55 @@
           }
         }
       }
+    },
+    "promptText": {
+      "description": "A prompt or system text · a string, or the text of a project file named as `{ file: <path> }` (spec 02 §Project files: a static relative path inside the naming file's directory tree, read at compose time inside `permits.fs.read`, UTF-8, at most 65,536 bytes, interpolated exactly as inline text).",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "file"
+          ],
+          "properties": {
+            "file": {
+              "description": "The project file whose text is the field's value · relative to the workflow file that names it.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "schemaContract": {
+      "description": "A JSON Schema · written inline, or the schema a project file holds, named as `{ file: <path> }` (spec 02 §Project files: a static relative path inside the naming file's directory tree, read at compose time inside `permits.fs.read`, UTF-8, at most 65,536 bytes, one JSON Schema as JSON or YAML whose `$ref`s are local). A mapping that holds `file` is the file form, closed.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "file"
+          ],
+          "properties": {
+            "file": {
+              "description": "The project file holding the schema · relative to the workflow file that names it.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "not": {
+            "required": [
+              "file"
+            ]
+          }
+        }
+      ]
     },
     "onError": {
       "type": "object",

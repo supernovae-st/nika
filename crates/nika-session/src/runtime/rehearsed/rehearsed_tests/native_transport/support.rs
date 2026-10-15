@@ -96,7 +96,7 @@ pub(super) fn peer() -> Peer {
     let question = json!([{"key":"const.note_text", "label":"What should the additional note say?", "answer_type":"text", "why":"The note's content is the human's choice."}]);
     let original = native(BASE, json!([]));
     let addition = native(ADDITION, question);
-    let judge = r#"{"choice":"faithful"}"#;
+    let judge = r#"{"choice":"faithful","model_parts":[]}"#;
     Peer::start(vec![
         (200, response(&original)),
         (200, response(judge)),

@@ -28,7 +28,9 @@ pub(crate) use nika_tui_view::workspace::candidate::{OR, Review};
 /// index: the latest block that carries a proposal identity, while a
 /// proposal waits. Every other proposal block is history.
 pub(crate) fn pending(state: &UiState) -> Option<usize> {
-    if !matches!(state.waiting, Waiting::Proposal) {
+    if state.waiting != Waiting::Proposal
+        && !matches!(&state.waiting, Waiting::Action { key, .. } if key == "save")
+    {
         return None;
     }
     let (index, block) = (state.transcript.iter().enumerate())

@@ -155,7 +155,7 @@ const TASKS: [&str; 2] = ["task-read_source", "task-write_output"];
 /// asked alone, the judge pointing to the task that does it differently.
 fn located_defect() -> Vec<(u16, Value)> {
     vec![
-        (200, response(r#"{"choice":"unfaithful"}"#)),
+        (200, response(r#"{"choice":"unfaithful","model_parts":[]}"#)),
         // The part asked alone, judged missing, then why: the task that does it differently,
         // the located defect a new authoring round starts from.
         (200, response(r#"{"choice":"missing"}"#)),
@@ -383,7 +383,7 @@ fn a_replayed_doubt_no_part_settles_is_never_written_again() {
     let held_sha = first_judged(&peer);
     // A later author request would be answered with the last reply, and counted below.
     let again = Peer::start(vec![
-        (200, response(r#"{"choice":"unfaithful"}"#)),
+        (200, response(r#"{"choice":"unfaithful","model_parts":[]}"#)),
         (200, response(r#"{"choice":"carried"}"#)),
         (200, response(r#"{"choice":"unlocated"}"#)),
     ]);
@@ -530,7 +530,7 @@ fn the_stronger_retry_after_a_held_replay_judges_the_held_bytes_with_its_own_jud
     let held_sha = first_judged(&peer);
     // The replay's verdict on the held bytes, then the stronger seat's own judge on those bytes.
     let script = vec![
-        (200, response(r#"{"choice":"unfaithful"}"#)),
+        (200, response(r#"{"choice":"unfaithful","model_parts":[]}"#)),
         (200, response(r#"{"choice":"carried"}"#)),
         (200, response(r#"{"choice":"only_requested"}"#)),
         (200, response(JUDGE_APPROVES)),
@@ -570,7 +570,7 @@ fn a_judge_call_refused_while_locating_keeps_the_held_words() {
         .iter()
         .map(|t| (200, response(t)))
         .collect();
-    script.push((200, response(r#"{"choice":"unfaithful"}"#)));
+    script.push((200, response(r#"{"choice":"unfaithful","model_parts":[]}"#)));
     script.push((400, json!({"error":{"message":"synthetic judge refused"}})));
     let peer = Peer::start(script);
     let _transport = test_transport::install(&peer.url);

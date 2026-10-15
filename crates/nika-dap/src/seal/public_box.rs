@@ -68,6 +68,16 @@ mod tests {
         let public = pair.pk.to_box().expect("public box").to_string();
         let secret = pair.sk.to_box(None).expect("secret box").to_string();
         std::fs::write(dir.path().join("key"), &secret).expect("fixture secret file");
+        // Private as `nika key init` writes it: a secret file others can read is refused.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::set_permissions(
+                dir.path().join("key"),
+                std::fs::Permissions::from_mode(0o600),
+            )
+            .expect("fixture secret file made private");
+        }
         (dir, public, secret)
     }
 

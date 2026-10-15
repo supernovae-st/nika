@@ -204,7 +204,7 @@ fn kind_of(body: &Value) -> Kind {
     if last.contains("asked a human for one value") || last.contains("asked a human to choose") {
         return Kind::Reading;
     }
-    if last.contains("One word only, nothing else.") {
+    if last.contains("One answer on one line, nothing else.") {
         return Kind::Pick;
     }
     Kind::Reply
@@ -221,6 +221,35 @@ struct Queues {
 }
 
 impl Queues {
+    /// The model-written parts a judge answers beside its choice when its schema asks for them:
+    /// the next scripted `model_parts:<json>` verdict, else none (the request needs no
+    /// model-written part). A scripted part names its result's sink; the answer gives the
+    /// schema's own choice that names it.
+    fn model_parts(&mut self, schema: &Value) -> Option<Value> {
+        let asked = &schema["properties"]["model_parts"];
+        if asked.is_null() {
+            return None;
+        }
+        let scripted = (self.verdicts.first())
+            .and_then(|verdict| verdict.strip_prefix("model_parts:"))
+            .and_then(|parts| serde_json::from_str::<Value>(parts).ok());
+        let Some(mut parts) = scripted else {
+            return Some(json!([]));
+        };
+        self.verdicts.remove(0);
+        let sinks = &asked["items"]["properties"]["sink"]["enum"];
+        for part in parts.as_array_mut().into_iter().flatten() {
+            let named = part["sink"].as_str().unwrap_or_default().to_owned();
+            let choice = (sinks.as_array().into_iter().flatten())
+                .filter_map(Value::as_str)
+                .find(|sink| *sink == named || sink.ends_with(&format!(":{named}")));
+            if let Some(choice) = choice {
+                part["sink"] = Value::String(choice.to_owned());
+            }
+        }
+        Some(parts)
+    }
+
     fn next_step(&mut self) -> Step {
         if self.agent.is_empty() {
             say("(the scripted author has nothing more to say)")
@@ -257,10 +286,19 @@ impl Queues {
                 }
             },
             Kind::Judge => {
-                let keys = &body["response_format"]["json_schema"]["schema"]["properties"]["choice"]
-                    ["enum"];
+                let schema = &body["response_format"]["json_schema"]["schema"];
+                let keys = &schema["properties"]["choice"]["enum"];
                 let offers =
                     |key: &str| keys.as_array().is_some_and(|k| k.iter().any(|k| k == key));
+                // The model-written parts beside the choice, when the judge's schema asks for them.
+                let parts = self.model_parts(schema);
+                let answer = |choice: &str| {
+                    let mut answer = json!({"choice": choice});
+                    if let Some(parts) = &parts {
+                        answer["model_parts"] = parts.clone();
+                    }
+                    text_completion(&answer.to_string())
+                };
                 // `unless-answered:<key>` doubts the whole request unless the judge's state
                 // carries the person's answer to <key>: a judge that reads an answered literal no
                 // word of the request names holds it as invented.
@@ -274,7 +312,7 @@ impl Queues {
                     } else {
                         "unfaithful"
                     };
-                    return text_completion(&json!({"choice": choice}).to_string());
+                    return answer(choice);
                 }
                 // A scripted verdict answers the first question that offers it.
                 let scripted = (self.verdicts.first()).is_some_and(|verdict| offers(verdict));
@@ -285,7 +323,7 @@ impl Queues {
                     let unlocated = offers(UNLOCATED).then_some(UNLOCATED);
                     approve.or(unlocated).unwrap_or("none").to_owned()
                 };
-                text_completion(&json!({"choice": choice}).to_string())
+                answer(&choice)
             }
             // The one-shot door is not how these scenarios author: it gets no document.
             Kind::Document => text_completion(

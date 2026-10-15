@@ -88,6 +88,13 @@ default and grants nothing. Records without the choice keep their bytes; a word
 this engine does not read is kept unchanged. Older engines whose closed format
 lacks `knowledge` refuse such records rather than silently discarding the choice.
 
+Speaker attribution is rebuilt from the existing operation boundaries, without a new
+serialized field. Retained inputs attributable to a `turn` or explicit `run` input are
+shown as human messages; consent actions, observations and recovery notices remain
+host context. A person may literally type `(run)` or `save & run`: the operation
+provenance, not those words, decides the label. Ambiguous occurrences in a full
+legacy tuple window remain neutral. This display projection grants no authority.
+
 ## Format and limits
 
 The private format is versioned and hash chained. Unknown versions/fields,

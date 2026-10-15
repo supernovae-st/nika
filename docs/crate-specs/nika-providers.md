@@ -307,6 +307,34 @@ OpenAI-compatible in-band error protocol, which is separate from HTTP rejection.
 Tests inject the kernel HTTP effect; no provider credentials or network calls
 are required.
 
+## Context overflow and window-full finishes
+
+A request over the model's context window is `ProviderError::ContextOverflow { limit, details }`
+(code 330, never transient). The shared non-2xx boundary types it from an overflow code in the
+closed vocabulary; `infer_reported` types a 400 `invalid_request_error` as one only when the
+request's text estimate (UTF-8 bytes of text, thinking, tool calls, results and definitions, four
+bytes a token; images and opaque reasoning state count nothing) reaches the window the provider
+catalog lists for the exact wire model, and fills `limit` with that window. An unknown window
+classifies nothing, and 429, 503 and 529 stay transient rejections whatever code rides them.
+
+A finish that says the context window was full keeps the `MaxTokens` semantics (never a normal
+end, its calls never run) and sets `InferResponse.window_full`; a success that reports more input
+than the catalog window also sets it (a silent overflow), whatever its stop. The Session carries
+it as `Reply.window_full`.
+
+Each signal and its evidence (provider documentation checked 2026-10-12):
+
+| Signal | Where it is read | Evidence |
+|---|---|---|
+| `context_length_exceeded` | `error.code` | observed structured on OpenAI Chat Completions (Microsoft's Azure documentation quotes the body); documented by OpenAI for Agents and Responses turn errors |
+| `context_length_exceeded` | `error.metadata.error_type` | documented by OpenRouter |
+| 400 `invalid_request_error` with no overflow code | status and `error.type`, with the request estimate | documented by Anthropic (« prompt is too long », a message) and Mistral (a codeless 400); observed on DeepSeek |
+| `model_context_window_exceeded` | Anthropic `stop_reason` | documented by Anthropic (since 2025-09-29) |
+| `model_length` | Mistral `finish_reason` | name only: listed without a documented meaning |
+
+No message text classifies anything. Gemini, which documents an overflow as a 500 `INTERNAL`
+in prose and answers 400 `INVALID_ARGUMENT` in practice, is not classified yet.
+
 ## Catalog-backed inference admission
 
 `InferenceAdmission` is a cloneable, mutex-protected account of nano-USD

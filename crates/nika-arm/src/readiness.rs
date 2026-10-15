@@ -24,6 +24,7 @@ use std::fmt::Write as _;
 use jiff::Zoned;
 use nika_cadence::firing::{ArmGeneration, SlotId};
 use nika_cadence::registry::{ArmRegistry, Beat, Cadence, Locus};
+use nika_cadence::tick::suspension_over;
 use nika_cadence::{TickDecision, next_slots, tick_decision, v0_unsupported};
 use serde_json::{Value, json};
 
@@ -398,23 +399,25 @@ impl<'a> ScheduleReadinessReceipt<'a> {
         all
     }
 
-    /// DORMANT when declared inactive; READY only when every axis in
-    /// [`STATUS_SCOPE`] is proven true; UNREADY otherwise (false OR unknown).
+    /// DORMANT while declared inactive and its `jusqu_au` holds (a suspension
+    /// that has passed wakes, as both firers wake it); UNREADY when a blocker
+    /// stands or an axis in [`STATUS_SCOPE`] is proven false; READY otherwise.
+    /// An axis left unknown never makes a beat UNREADY on its own: the firer
+    /// fires such a beat, so the receipt reads READY and names each unknown.
     #[must_use]
     pub fn status(&self) -> ReceiptStatus {
-        if !self.beat.is_active() {
+        if !self.beat.is_active() && !suspension_over(self.beat, &self.now) {
             return ReceiptStatus::Dormant;
         }
-        let proven = self.program.program_ready
-            && self.schedule.binding_ready == Some(true)
-            && self.program.required_inputs_ready == Some(true)
-            && self.program.model_cost_ready == Some(true)
-            && self.blockers().is_empty()
-            && self.unknowns().is_empty();
-        if proven {
-            ReceiptStatus::Ready
-        } else {
+        let refused = !self.program.program_ready
+            || self.schedule.binding_ready == Some(false)
+            || self.program.required_inputs_ready == Some(false)
+            || self.program.model_cost_ready == Some(false)
+            || !self.blockers().is_empty();
+        if refused {
             ReceiptStatus::Unready
+        } else {
+            ReceiptStatus::Ready
         }
     }
 
@@ -434,7 +437,8 @@ impl<'a> ScheduleReadinessReceipt<'a> {
         let blockers = self.blockers();
         let required = self.program.required_inputs_ready;
         // Never true: activation authority is not acquired by a report.
-        let arm_ready = (!blockers.is_empty() || !self.beat.is_active()).then_some(false);
+        let arm_ready =
+            (!blockers.is_empty() || self.status() == ReceiptStatus::Dormant).then_some(false);
         let mut document = json!({
             "label": self.identity.project.label,
             "workflow": self.beat.workflow,
@@ -533,10 +537,16 @@ impl<'a> ScheduleReadinessReceipt<'a> {
             lines.push(format!("         ? {unknown}"));
         }
         match status {
-            ReceiptStatus::Ready => lines.push(
-                "         · ready in the current configuration; OS activation not verified · authority not acquired"
-                    .to_owned(),
-            ),
+            ReceiptStatus::Ready => {
+                let named = match self.unknowns().len() {
+                    0 => String::new(),
+                    1 => " with 1 unknown named above".to_owned(),
+                    n => format!(" with {n} unknowns named above"),
+                };
+                lines.push(format!(
+                    "         · ready in the current configuration{named}; OS activation not verified · authority not acquired"
+                ));
+            }
             ReceiptStatus::Dormant => {
                 let why = self.beat.raison.as_deref().unwrap_or("sans raison");
                 let until = self.beat.jusqu_au.as_deref().unwrap_or("?");
@@ -551,7 +561,7 @@ impl<'a> ScheduleReadinessReceipt<'a> {
             lines.push(format!("         par: {par} — déclaré · non vérifié"));
         }
         // A dormant beat is REPORTED, never COMPUTED.
-        if self.beat.is_active() {
+        if status != ReceiptStatus::Dormant {
             lines.extend(self.slot_lines(slots_shown));
         }
         lines
@@ -640,14 +650,15 @@ impl<'a> ScheduleReadinessReceipt<'a> {
 fn schedule_side(beat: &Beat, cadence: Option<&Cadence>, now: &Zoned) -> ScheduleSide {
     let mut blockers = Vec::new();
     let mut unknowns = Vec::new();
-    let active = beat.is_active();
+    // A suspension whose `jusqu_au` has passed fires as an active beat.
+    let active = beat.is_active() || suspension_over(beat, now);
     if active && beat.locus() == Locus::Cloud {
         unknowns.push(
             "où: cloud — the cloud executor fires this beat, never this host (not observed)"
                 .to_owned(),
         );
     }
-    if let Some(date) = nika_cadence::tick::expiry_passed(beat, now).filter(|_| active) {
+    if let Some(date) = nika_cadence::tick::expiry_passed(beat, now).filter(|_| beat.is_active()) {
         blockers.push(Blocker::new(
             "schedule_expired",
             None,

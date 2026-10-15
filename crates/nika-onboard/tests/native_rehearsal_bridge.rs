@@ -51,7 +51,12 @@ impl ProviderInferDyn for Author {
             .into_iter()
             .find(|key| keys.is_some_and(|keys| keys.iter().any(|value| value == *key)));
         let answer = if let Some(choice) = approved {
-            json!({"choice": choice}).to_string()
+            let mut judged = json!({"choice": choice});
+            // The whole request's question asks the parts a model must write: none here.
+            if schema.is_some_and(|schema| schema["properties"]["model_parts"].is_object()) {
+                judged["model_parts"] = json!([]);
+            }
+            judged.to_string()
         } else {
             let at = self.calls.fetch_add(1, Ordering::SeqCst);
             if schema.is_some_and(|schema| schema["properties"]["supersedes"].is_object()) {

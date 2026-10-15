@@ -299,7 +299,7 @@ impl Diagnosis {
         self.attempts.push(row.clone());
         self.write();
         let started = Instant::now();
-        let result = runtime.block_on(seat.post(body));
+        let result = runtime.block_on(seat.post(bytes));
         row["ms"] = json!(millis(started));
         let out = match result {
             Err(failure) => {

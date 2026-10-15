@@ -329,6 +329,9 @@ impl Geometry {
     /// beside the object, or its title rule under the object.
     #[must_use]
     pub fn handle(&self, separator: Separator) -> Option<Rect> {
+        if separator != Separator::Aside && self.object.is_empty() {
+            return None;
+        }
         let talk = self.conversation;
         match separator {
             Separator::Aside => self

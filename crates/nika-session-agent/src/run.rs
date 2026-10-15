@@ -91,6 +91,11 @@ pub struct Reply {
     pub usage: Option<TokenUsage>,
     /// The model that answered, as reported.
     pub model: Option<String>,
+    /// The request filled the model's context window (the provider's
+    /// window-full marker): a cut at the window, or more input than the
+    /// window holds. Asking again needs a shorter conversation, not complete
+    /// arguments.
+    pub window_full: bool,
 }
 
 impl Reply {
@@ -102,7 +107,15 @@ impl Reply {
             stop,
             usage: None,
             model: None,
+            window_full: false,
         }
+    }
+
+    /// Whether the request filled the model's context window.
+    #[must_use]
+    pub fn with_window_full(mut self, window_full: bool) -> Self {
+        self.window_full = window_full;
+        self
     }
 
     /// The tokens it used, as reported.

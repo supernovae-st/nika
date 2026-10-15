@@ -40,6 +40,34 @@ fn verdict(id: &str, choice: &str) -> Reply {
     )
 }
 
+/// The whole request as the Session's verifier asks it of a seat that weighs: with [`WORK`]'s
+/// two sinks (its write and its `write_status` output), each in both option orders, which a
+/// program computes.
+const WHOLE_AND_SINKS: [(&str, &str); 5] = [
+    ("verify-request", "unfaithful"),
+    ("verify-sink-0", "computed"),
+    ("verify-sink-0-r", "computed"),
+    ("verify-sink-1", "computed"),
+    ("verify-sink-1-r", "computed"),
+];
+
+/// A System One answer to several questions of one request: each id, its choice.
+fn verdicts(answers: &[(&str, &str)]) -> Reply {
+    let answered: serde_json::Map<String, Value> = (answers.iter())
+        .map(|(id, choice)| {
+            (
+                (*id).to_owned(),
+                json!({"type": "choice", "choice": choice}),
+            )
+        })
+        .collect();
+    Reply::Json(
+        200,
+        json!({"model": "jev-test", "answers": answered,
+            "usage": {"input_tokens": 40, "output_tokens": 2}}),
+    )
+}
+
 /// The verifier's doubt of [`WORK`]'s candidate with no defect located: the whole request not
 /// carried, its one part carried (the read and the write are the request's own, so the engine's
 /// facts leave no task to ask about), and, asked where its doubt is, nowhere.
@@ -134,12 +162,9 @@ fn assert_doubt_read_back(carried: &Value, judge: &Value, sha: &str) {
 /// nor written. The goal keeps the one verdict, the original attempt.
 #[test]
 fn the_stronger_retry_that_authors_the_held_bytes_again_never_asks_their_verifier() {
-    let jev = SystemOne::start(
-        DOUBT
-            .iter()
-            .map(|(id, choice)| verdict(id, choice))
-            .collect(),
-    );
+    let mut replies = vec![verdicts(&WHOLE_AND_SINKS)];
+    replies.extend(DOUBT[1..].iter().map(|(id, choice)| verdict(id, choice)));
+    let jev = SystemOne::start(replies);
     let mut script: Vec<_> = semantic_create()
         .iter()
         .map(|t| (200, response(t)))
@@ -159,12 +184,18 @@ fn the_stronger_retry_that_authors_the_held_bytes_again_never_asks_their_verifie
         matches!(&out, TurnOutcome::Facts(words) if words == DOUBTED),
         "{out:?}"
     );
-    // The verifier was asked the held bytes' three questions, once.
+    // The verifier was asked the held bytes' questions, once: the whole request with each sink in
+    // both option orders, the part, then where its doubt is.
     let questions: Vec<Vec<String>> = (jev.requests().iter())
         .map(|(_, _, body)| body["questions"].as_object().into_iter().flatten())
         .map(|asked| asked.map(|(id, _)| id.clone()).collect())
         .collect();
-    let ids = DOUBT.map(|(id, _)| vec![id.to_owned()]);
+    let whole: Vec<String> = WHOLE_AND_SINKS.map(|(id, _)| id.to_owned()).to_vec();
+    let ids = [
+        whole,
+        vec![DOUBT[1].0.to_owned()],
+        vec![DOUBT[2].0.to_owned()],
+    ];
     assert_eq!(questions, ids);
     // The author: the default's document, then the stronger model's, never a closed choice.
     let bodies = peer.bodies();
@@ -187,7 +218,15 @@ fn the_stronger_retry_that_authors_the_held_bytes_again_never_asks_their_verifie
     let asked_roles: Vec<&Value> = (kept[0]["questions"].as_array().into_iter().flatten())
         .map(|question| &question["role"])
         .collect();
-    assert_eq!(asked_roles, ["judge_request", "judge_part", "judge_doubt"]);
+    let roles = [
+        "judge_sink",
+        "judge_sink",
+        "judge_sink",
+        "judge_sink",
+        "judge_request",
+    ];
+    assert_eq!(asked_roles[..5], roles);
+    assert_eq!(asked_roles[5..], ["judge_part", "judge_doubt"]);
     let held = s.last_outcome.as_ref().expect("the held outcome");
     let untried = format!("{UNRESOLVED}{UNTRIED}");
     assert_eq!(held_findings(held), [untried.as_str()]);
@@ -220,7 +259,7 @@ fn a_correction_of_a_held_request_asks_its_verifier_again_on_the_same_bytes() {
         .iter()
         .map(|t| (200, response(t)))
         .collect();
-    let doubt = DOUBT.map(|(_, choice)| (200, response(&json!({ "choice": choice }).to_string())));
+    let doubt = DOUBT.map(|(_, choice)| (200, response(&judge_answer(choice))));
     script.extend(doubt);
     script.extend(semantic_create().iter().map(|t| (200, response(t))));
     script.push((200, response(JUDGE_APPROVES)));

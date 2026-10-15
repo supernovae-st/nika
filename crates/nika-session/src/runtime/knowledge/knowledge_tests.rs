@@ -76,7 +76,7 @@ fn overridden(dir: &Path) -> AuthoringContext {
     AuthoringContext::from_settings(&AuthoringSettings::none(), &env)
 }
 
-/// A session on the `mock/echo` API seat, its reasoner recorded, under `context` and the
+/// A known API selection with a recorded `mock/echo` authoring fixture, under `context` and the
 /// continuous preparation every door opens with; `home` keeps its history when named.
 fn seated(
     root: &Path,
@@ -85,11 +85,11 @@ fn seated(
     home: Option<&Path>,
 ) -> SessionRuntime {
     let mut census = IntelligenceCensus::empty();
-    census.api_keys.push("mock".to_owned());
+    census.api_keys.push("deepseek".to_owned());
     let api = IntelligenceKind::Api {
-        provider: "mock".to_owned(),
+        provider: "deepseek".to_owned(),
     };
-    let pref = UserIntelligencePreference::new(api, Some("mock/echo".to_owned()));
+    let pref = UserIntelligencePreference::new(api, Some("deepseek/recorded-fixture".to_owned()));
     let recorder = Arc::clone(prompts);
     let mut session = SessionRuntime::open_with(
         root,

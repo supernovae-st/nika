@@ -94,3 +94,20 @@ twice.
   same protocol is exactly the upgrade path; the stamp refreshes.
 - A resident-side check of the SDK's version: rejected — the SDK
   pre-flights `/health` already (one handshake, client-side).
+
+## Amendment · machine protocol 2, 2026-10-12 (0.123)
+
+An engine that changes an object a published SDK reads closed (a key on a Job, a JobEvent, a
+receipt or its origin, journal evidence, the check acknowledgement, the workflow list or metadata,
+an error envelope; a value of a closed enum) raises `MACHINE_PROTOCOL_VERSION` in the same commit.
+The published SDK then refuses the engine at identity, before any job is admitted, instead of
+failing in the middle of a run (a Job it cannot read after admitting it, a cancel it reports
+failed after it applied). `nika-serve`'s published-SDK contract test holds the latest published
+SDK's closed sets (`server/openapi/published_sdk.json`, refreshed at each publication) and fails
+when the served document leaves them while no clock that SDK enforces moved.
+
+0.123 raises the protocol to 2: compile questions may be `choice`, which `@supernovae-st/nika`
+0.120.3 refuses. Through the writer's stamp, a 0.123 resident stamps its stores with 2 once it
+holds the lease, and an older resident then refuses them, as this ADR decides. The way back from
+0.123 is a copy of the state root taken before the upgrade, or a fresh `--state-root`. The doctor's
+resident row fails for stores a newer protocol wrote, running or not, and names those two ways out.

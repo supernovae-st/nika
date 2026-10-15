@@ -37,7 +37,8 @@ use serde_json::{Value, json};
 /// The verifier's closed choice, approved: the explicit answer scripted at
 /// the judge's position, after a candidate READY in its authoring round. The judge's call is a
 /// real call, counted like any other.
-const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
+/// It answers the whole request's `model_parts` too: no part a model must write.
+const JUDGE_APPROVES: &str = r#"{"choice":"faithful","model_parts":[]}"#;
 
 fn shell(path: &Path) -> String {
     format!("'{}'", path.display().to_string().replace('\'', "'\\''"))

@@ -325,6 +325,11 @@ impl DecisionSeat for SessionSeat {
         &self.word
     }
 
+    /// The seat's answers weigh their keys, when it may answer at all: consulted, with a seat.
+    fn weighs(&self) -> bool {
+        self.allowed.is_ok() && self.seat.is_some()
+    }
+
     fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
         Box::pin(async move {
             if let Err(why) = &self.allowed {
@@ -444,7 +449,7 @@ fn settled_one(question: &ChoiceQuestion, result: &Result<Exchange, ExchangeErro
             json!({
                 "question": question.id,
                 "options": question.keys(),
-                "options_sent": super::system_one::sent_order(question),
+                "options_sent": super::system_one::sent_order_in(question, question.order),
                 "sent": true,
                 "outcome": outcome,
                 "status": exchange.status,
@@ -493,6 +498,45 @@ mod batch_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A one-question receipt keeps the order that `request_bytes` sends, including the reversed
+    /// twin used to check whether a decision depends on option position.
+    #[test]
+    fn a_single_question_receipt_keeps_its_requested_wire_order() {
+        use nika_onboard::compile::decide::{ChoiceOption, system_one::Order};
+
+        let question = ChoiceQuestion::new(
+            "order",
+            "Pick one.",
+            json!({}),
+            vec![
+                ChoiceOption::new("zeta", "last"),
+                ChoiceOption::new("alpha", "first"),
+            ],
+        )
+        .in_order(Order::Reversed);
+        let result = Ok(Exchange {
+            answer: ChoiceAnswer::new("zeta", "fixture"),
+            status: 200,
+            billing_units: None,
+        });
+        let receipt = settled_one(&question, &result);
+        assert_eq!(receipt["options"], json!(["zeta", "alpha", "none"]));
+        assert_eq!(receipt["options_sent"], json!(["none", "alpha", "zeta"]));
+    }
+
+    /// A consulted seat weighs its answers; a refused one, or one with no seat, answers nothing
+    /// and weighs nothing, so a compile asks it the whole question alone.
+    #[test]
+    fn a_consulted_seat_weighs_only_when_it_may_answer() {
+        let base = Some("http://127.0.0.1:1");
+        let setup = DecisionSetup::with_key("typesafe/jev-test", Some("fixture".into()), base);
+        assert!(setup.consult(Ok(())).weighs());
+        assert!(!setup.consult(Err("the allowance is spent".into())).weighs());
+        let keyless = DecisionSetup::with_key("typesafe/jev-test", None, base);
+        assert!(!keyless.consult(Ok(())).weighs());
+    }
+
     #[test]
     #[allow(clippy::expect_used, clippy::panic, clippy::disallowed_methods)]
     fn a_poisoned_journal_refuses_before_transport() {

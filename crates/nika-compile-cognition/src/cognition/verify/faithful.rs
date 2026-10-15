@@ -3,7 +3,8 @@
 
 //! The whole request against the candidate (R4 A11, R5 R6 and A1). The whole-request verdict is
 //! the READY gate: « faithful » carries the request; a call that returns no admitted choice
-//! judges nothing and stays unknown; it is told what the bytes hold ([`Construction::shown`]).
+//! judges nothing and stays unknown; it is told what the bytes hold ([`Construction::shown`])
+//! and the model steps on each result's data path ([`model_parts::steps`]).
 //! An answer its seat weighed decides only as a confident rejection ([`Doubt::decides`],
 //! 2026-10-10): otherwise the parts decide, and what they overrule is stated.
 //!
@@ -31,16 +32,27 @@
 //! partial). Then, when every part is carried and no task does anything unasked, the whole
 //! request is asked over the run: consistent outputs carry it. With no run, every part settled
 //! and nothing extra, the judge is asked once where its rejection is ([`Doubt`]): a part or an
-//! open task it names is localized as above, nothing named leaves it unresolved. Otherwise, or
-//! with a part still open, the doubt stays: the request is contested when the judge rejected it,
-//! unknown when it only abstained, and the candidate is held, never READY.
+//! open task it names is localized as above, nothing named leaves it unresolved, unless the seat
+//! that rejected it is taken at its word (it does not weigh its answers and weighed none here):
+//! its parts then carry the request and its doubt is stated, as a weighed rejection under the
+//! holding probability is. Otherwise, or with a part still open, the doubt stays: the request is
+//! contested when the judge rejected it, unknown when it only abstained, and the candidate is
+//! held, never READY.
 //!
-//! « faithful » reads the bytes, not what they produced: over such a run it stands only once no
-//! part is shown missing or left unsettled there ([`confirmed`]).
+//! The whole question reads such a run from its first ask, beside the bytes, and its record keeps
+//! the run's receipts; a whole answer the verdict resumes, given over the bytes alone, is read
+//! back as given (R6), and a partial run never reaches it. « faithful » still stands over such a
+//! run only once no part is shown missing or left unsettled there ([`confirmed`]).
+
+mod interpreted;
+
+pub(super) fn interpretation_protocol() -> String {
+    interpreted::protocol()
+}
 
 use serde_json::{Value, json};
 
-use super::{Declined, Judge, Verdict, ask, parts, prefetch};
+use super::{Declined, Judge, Verdict, ask, assumed, model_parts, parts, prefetch, read_back};
 use crate::CompileOutcome;
 use crate::decide::{ChoiceOption, ChoiceQuestion};
 use crate::rehearse::trial_receipts;
@@ -178,9 +190,10 @@ struct Asked<'a, 'j, P: ProviderInferDyn> {
     effects: Option<&'a Effects>,
 }
 
-/// The whole-request verdict, then the localization and the trial run it may need
-/// (`observation`: this compile's run of the same bytes). The judgments, defects with their
-/// notes, unknowns and contested parts land in `verdict`.
+/// The whole-request verdict ([`judged_whole`]) and the parts of the requested result a model
+/// must write ([`model_parts`]): a provider judge states them with its whole answer; a seat that
+/// weighs its answers is asked each sink in both option orders, in the same request as the whole
+/// question. The parts settle after the verdict and its localization, which they never steer.
 pub(super) async fn whole<P: ProviderInferDyn>(
     intent: &str,
     (base, reference): (&Value, &str),
@@ -190,8 +203,54 @@ pub(super) async fn whole<P: ProviderInferDyn>(
     verdict: &mut Verdict,
     out: &mut CompileOutcome,
 ) {
-    verdict.whole_asked = true;
-    verdict.request = Some(intent.to_owned());
+    if base.get("request_interpretation").is_some() {
+        interpreted::whole(intent, (base, reference), judge, observation, verdict, out).await;
+        return;
+    }
+    let candidate = base["candidate_nika"].as_str().unwrap_or_default();
+    let paths = model_parts::walk(candidate);
+    let fact = paths.as_ref().map(model_parts::steps);
+    let alone = request_question(base, reference, (fact.clone(), None));
+    // A whole run of these bytes reaches the whole question from its first ask; an answer the
+    // verdict this resumes got over the bytes alone is read back, never asked again (R6).
+    let run = observation.filter(|observed| trial_whole(observed));
+    let request = match run {
+        Some(run) if read_back(verdict, &alone).is_none() => {
+            request_question(base, reference, (fact, Some(run)))
+        }
+        _ => alone,
+    };
+    let question = assumed::asked(judge, model_parts::asked(judge, paths.as_ref(), request));
+    let sinks = model_parts::sink_questions(judge, paths.as_ref(), base, intent);
+    if !sinks.is_empty() {
+        let step = [std::slice::from_ref(&question), sinks.as_slice()].concat();
+        prefetch(judge, "verify-request", &step, verdict).await;
+        model_parts::take(judge, &sinks, verdict, out).await;
+    }
+    let asked = (base, reference, &question);
+    Box::pin(judged_whole(
+        intent,
+        asked,
+        judge,
+        binding,
+        observation,
+        verdict,
+        out,
+    ))
+    .await;
+    verdict.assumed = assumed::read(verdict);
+    model_parts::settle(intent, judge, paths.as_ref(), &sinks, verdict);
+}
+
+/// The whole-request question: the candidate's bytes against the whole request, told what they
+/// hold ([`Construction::shown`]) and, when the walk read them, the model steps on each result's
+/// data path (`fact`, [`model_parts::steps`]): engine facts, never claims. Over `run`, a whole
+/// run of these bytes, it says first what the observation is, as every question over a run does.
+fn request_question(
+    base: &Value,
+    reference: &str,
+    (fact, run): (Option<Value>, Option<&Value>),
+) -> ChoiceQuestion {
     let options = vec![
         ChoiceOption::new(
             "faithful",
@@ -202,9 +261,41 @@ pub(super) async fn whole<P: ProviderInferDyn>(
             "something the request asks is missing, extra or different",
         ),
     ];
-    let (state, instructions) = Construction::shown(base, WHOLE);
+    let asks = if fact.is_some() {
+        format!("{WHOLE} {}", model_parts::MODEL_STEPS)
+    } else {
+        WHOLE.to_owned()
+    };
+    let asks = if run.is_some() {
+        format!("{RUN} {asks}")
+    } else {
+        asks
+    };
+    let (mut state, instructions) = Construction::shown(base, &asks);
+    if let Some(fact) = fact {
+        state["model_steps"] = fact;
+    }
+    if let Some(run) = run {
+        state["observation"] = run.clone();
+    }
     let instructions = told(base, reference, &instructions);
-    let question = ChoiceQuestion::new("verify-request", instructions, state, options);
+    ChoiceQuestion::new("verify-request", instructions, state, options)
+}
+
+/// The whole-request verdict over `question`, then the localization and the trial run it may
+/// need (`observation`: this compile's run of the same bytes). The judgments, defects with their
+/// notes, unknowns and contested parts land in `verdict`.
+async fn judged_whole<P: ProviderInferDyn>(
+    intent: &str,
+    (base, reference, question): (&Value, &str, &ChoiceQuestion),
+    judge: &Judge<'_, P>,
+    binding: &Binding,
+    observation: Option<&Value>,
+    verdict: &mut Verdict,
+    out: &mut CompileOutcome,
+) {
+    verdict.whole_asked = true;
+    verdict.request = Some(intent.to_owned());
     let carried = |question: &str| {
         Judgment::new(
             intent,
@@ -215,10 +306,15 @@ pub(super) async fn whole<P: ProviderInferDyn>(
             binding.clone(),
         )
     };
-    let returned = verdict.answers();
+    let (returned, before) = (verdict.answers(), verdict.records.len());
+    let answer = ask(judge, question, "judge_request", verdict, out).await;
+    // The whole question over a run keeps the run's receipts, never its texts.
+    if let Some(run) = question.state.get("observation") {
+        witnessed(verdict, before, run);
+    }
     // No admitted choice (a failed call, an unparsed answer, a choice no option offers): the
     // judge judged nothing, and nothing is asked of it further in this verdict.
-    let Some(answer) = ask(judge, &question, "judge_request", verdict, out).await else {
+    let Some(answer) = answer else {
         verdict.stopped |= verdict.answers() == returned;
         verdict.unknown.push(intent.to_owned());
         return;
@@ -277,16 +373,9 @@ async fn locate<P: ProviderInferDyn>(
     out: &mut CompileOutcome,
 ) -> Option<&'static str> {
     let intent = asked.intent;
-    let mut parts = split(intent);
+    let mut parts = interpreted::parts(asked.base).unwrap_or_else(|| split(intent));
     localize(&mut parts, asked, verdict, out).await;
-    // A part a repair attempt met, missing again where no whole-request answer decides: stated.
-    let mut restated = Vec::new();
-    for part in (parts.iter_mut()).filter(|part| matches!(part.state, State::Defect(_))) {
-        if verdict.doubt.is_empty() && verdict.repaired.contains(&part.text) {
-            restated.push(part.text.clone());
-            part.state = State::Settled;
-        }
-    }
+    let restated = restated_parts(&mut parts, asked.base, verdict);
     super::unread(verdict);
     let trial = observation.filter(|observed| trial_whole(observed));
     if let Some(run) = trial.filter(|_| !verdict.stopped) {
@@ -345,29 +434,103 @@ async fn locate<P: ProviderInferDyn>(
     };
     // No whole-request answer declined these bytes (a weighed one): its parts carry the request.
     if verdict.doubt.is_empty() && !open && undecided.is_none() {
-        let doubted: Vec<(String, String)> = (parts.iter())
-            .filter_map(|part| match &part.state {
-                State::Doubted(id) => Some((part.text.clone(), id.clone())),
-                _ => None,
-            })
-            .collect();
-        verdict.stated = Doubt::stated_with(&verdict.records, &restated, &doubted);
+        verdict.stated = Doubt::stated_with(&verdict.records, &restated, &doubted_parts(&parts));
         return Some("verify-parts");
     }
     // No run decides it, no part is open and nothing is extra: asked once where it is.
     if trial.is_none() && !open && undecided.is_none() && verdict.doubt == ["unfaithful"] {
-        match doubted(&parts, asked, verdict, out).await {
-            Some(false) => {}
-            Some(true) => return None,
-            None => {
-                verdict.unknown.push(intent.to_owned());
-                return None;
-            }
-        }
+        let doubt = (&parts[..], &restated[..], why);
+        return Box::pin(asked_where(doubt, asked, observation, verdict, out)).await;
     }
     verdict.unknown.extend(undecided);
     doubt_stays(intent, why, verdict);
     None
+}
+
+/// Where a rejection the parts left standing is, asked once of the judge when no whole run of
+/// these bytes decides it ([`doubted`]): located, it is a defect or a contested part, and a call
+/// with no answer leaves the request unknown. Located nowhere, a seat taken at its word holds
+/// nothing ([`taken_at_its_word`]), and a seat's weighed rejection with no run of these bytes at
+/// all holds them only at its bar ([`holds_unlocated`]): the parts carry the request, the doubt
+/// stated, settled by `verify-parts`. Otherwise the doubt stays, with `why` nothing decided it.
+async fn asked_where<P: ProviderInferDyn>(
+    (parts, restated, why): (&[Part], &[String], &str),
+    asked: &Asked<'_, '_, P>,
+    observation: Option<&Value>,
+    verdict: &mut Verdict,
+    out: &mut CompileOutcome,
+) -> Option<&'static str> {
+    match doubted(parts, asked, verdict, out).await {
+        Some(false) => {
+            let stated = taken_at_its_word(asked.judge, &verdict.records)
+                || (observation.is_none() && !holds_unlocated(asked.judge, verdict));
+            if stated {
+                let doubted = doubted_parts(parts);
+                verdict.stated = Doubt::stated_with(&verdict.records, restated, &doubted);
+                return Some("verify-parts");
+            }
+            doubt_stays(asked.intent, why, verdict);
+            None
+        }
+        Some(true) => None,
+        None => {
+            verdict.unknown.push(asked.intent.to_owned());
+            None
+        }
+    }
+}
+
+/// Whether a decision seat's weighed rejection of the whole request, located nowhere with no run
+/// of these bytes, holds them: only at [`Doubt::UNLOCATED_HOLDING_PROBABILITY`], the probability
+/// it reported, that bar and the outcome recorded on the verdict. A provider judge's rejection,
+/// or an answer weighed by nothing, holds as before.
+fn holds_unlocated<P: ProviderInferDyn>(judge: &Judge<'_, P>, verdict: &mut Verdict) -> bool {
+    let reported = Doubt::reported(&verdict.records, "verify-request");
+    let (Judge::Seat(_), Some(p)) = (judge, reported) else {
+        return true;
+    };
+    let bar = Doubt::UNLOCATED_HOLDING_PROBABILITY;
+    let outcome = if p >= bar { "held" } else { "stated" };
+    verdict.unlocated = Some(json!({"probability": p, "bar": bar, "outcome": outcome}));
+    p >= bar
+}
+
+/// Legacy repair receipts may restate parts only when no whole-request answer decides.
+/// Interpreted program obligations never inherit that exception from caller-carried repairs.
+fn restated_parts(parts: &mut [Part], base: &Value, verdict: &Verdict) -> Vec<String> {
+    let mut restated = Vec::new();
+    for part in parts
+        .iter_mut()
+        .filter(|part| matches!(part.state, State::Defect(_)))
+    {
+        if base.get("request_interpretation").is_none()
+            && verdict.doubt.is_empty()
+            && verdict.repaired.contains(&part.text)
+        {
+            restated.push(part.text.clone());
+            part.state = State::Settled;
+        }
+    }
+    restated
+}
+
+/// Each part the seat judged missing without deciding it, as `(part, question)`: stated with the
+/// proposal its parts carry.
+fn doubted_parts(parts: &[Part]) -> Vec<(String, String)> {
+    (parts.iter())
+        .filter_map(|part| match &part.state {
+            State::Doubted(id) => Some((part.text.clone(), id.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Whether a decision seat taken at its word rejected the whole request: one that does not weigh
+/// its answers and reported no weight for this one. Its rejection holds only what it locates
+/// (a point mass is no confidence); a provider judge keeps holding what it cannot locate.
+fn taken_at_its_word<P: ProviderInferDyn>(judge: &Judge<'_, P>, records: &[Value]) -> bool {
+    let unweighed = Doubt::reported(records, "verify-request").is_none();
+    matches!(judge, Judge::Seat(seat) if !seat.weighs()) && unweighed
 }
 
 /// Where a rejection nothing located is, asked once of the judge when no run of these bytes
@@ -476,7 +639,11 @@ async fn localize<P: ProviderInferDyn>(
 ) {
     let (count, base, reference) = (parts.len(), asked.base, asked.reference);
     let questions: Vec<ChoiceQuestion> = (parts.iter().enumerate())
-        .map(|(k, part)| part_question(k, count, &part.text, part.restricting, base, reference))
+        .map(|(k, part)| {
+            interpreted::question(k, base, reference).unwrap_or_else(|| {
+                part_question(k, count, &part.text, part.restricting, base, reference)
+            })
+        })
         .collect();
     prefetch(asked.judge, "verify-parts", &questions, verdict).await;
     for (k, (part, question)) in parts.iter_mut().zip(&questions).enumerate() {
@@ -792,7 +959,8 @@ async fn extra<P: ProviderInferDyn>(
     )];
     options.extend(open.iter().map(|task| unasked(task)));
     let mut state = asked.base.clone();
-    let said = effects.show(&mut state, &verdict.records, EXTRA);
+    let extra = interpreted::framed(asked.base, EXTRA);
+    let said = effects.show(&mut state, &verdict.records, &extra);
     let said = told(asked.base, asked.reference, &said);
     let question = ChoiceQuestion::new("verify-extra", said, state, options);
     let returned = verdict.answers();
@@ -861,7 +1029,10 @@ async fn observe<P: ProviderInferDyn>(
     options.extend(open.iter().map(|task| unasked(task)));
     let mut state = asked.base.clone();
     state["observation"] = run.clone();
-    let (mut shown, said) = (state.clone(), format!("{RUN} {OBSERVED}"));
+    let (mut shown, said) = (
+        state.clone(),
+        format!("{RUN} {}", interpreted::framed(asked.base, OBSERVED)),
+    );
     let mut said = Construction::of(asked.base).recall(&mut shown, &verdict.records, said);
     if let Some(effects) = asked.effects {
         said = effects.show(&mut shown, &verdict.records, &said);

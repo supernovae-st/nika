@@ -105,6 +105,8 @@ pub(crate) struct Pause {
     pub(crate) task: String,
     pub(crate) message: String,
     pub(crate) mode: String,
+    pub(crate) choices: Option<Vec<String>>,
+    pub(crate) approval: Option<nika_runtime::approval::ApprovalTicket>,
     /// The values its message shows (`values`) and the keys withheld with why (`withheld`),
     /// each a JSON object; `None` on a frame that carries none.
     pub(crate) shown: (Option<Value>, Option<Value>),
@@ -266,7 +268,32 @@ fn first_gate(frame: &Value) -> Option<Pause> {
         message: field("message").unwrap_or_else(|| "the run awaits your answer".to_owned()),
         mode: field("mode").unwrap_or_else(|| "text".to_owned()),
         shown: (object("values"), object("withheld")),
+        choices: field("choices").and_then(|text| serde_json::from_str(&text).ok()),
+        approval: pause_approval(frame),
     })
+}
+
+/// Display evidence only. Keep first-field semantics and the runtime's TTL law.
+fn pause_approval(frame: &Value) -> Option<nika_runtime::approval::ApprovalTicket> {
+    let field = |key| {
+        frame
+            .get("fields")?
+            .as_array()?
+            .iter()
+            .find(|row| row.get("key").and_then(Value::as_str) == Some(key))?
+            .get("value")
+    };
+    let minted = field("approval_minted_at_ms")?.as_i64()?;
+    if minted < 0 {
+        return None;
+    }
+    Some(nika_runtime::approval::ApprovalTicket::new(
+        field("approval_shown_hash")?.as_str()?.to_owned(),
+        field("approval_nonce")?.as_str()?.to_owned(),
+        field("task")?.as_str()?.to_owned(),
+        minted,
+        u32::try_from(field("approval_ttl_seconds")?.as_u64()?).ok()?,
+    ))
 }
 
 fn text(map: &BTreeMap<String, Value>, key: &str) -> Option<String> {
@@ -323,9 +350,15 @@ impl RunFacts {
                 facts.starts.push(text(&fields, "workflow_sha256"));
             }
             facts.absorb(kind, &fields);
-            if kind == "workflow_paused" && !paused {
-                paused = true;
-                facts.gate = first_gate(&frame);
+            if kind == "workflow_paused" {
+                if !paused {
+                    paused = true;
+                    facts.gate = first_gate(&frame);
+                } else if let Some(gate) = &mut facts.gate {
+                    // Session displays the first pause; runtime folds the last ticket.
+                    // Multiple pauses cannot establish one displayed ticket's expiry.
+                    gate.approval = None;
+                }
             }
         }
         (facts.events > 0).then_some(facts)
@@ -383,6 +416,25 @@ impl RunFacts {
     #[must_use]
     pub fn pause_shown(&self) -> (Option<&Value>, Option<&Value>) {
         (self.gate.as_ref()).map_or((None, None), |g| (g.shown.0.as_ref(), g.shown.1.as_ref()))
+    }
+
+    /// The exact string options of the first pause, when its first `choices` field
+    /// contains a JSON string array. Missing or malformed fields stay unknown;
+    /// later fields and pauses never supply replacements. This is display data,
+    /// not an approval or a claim that the trace is trusted.
+    #[must_use]
+    pub fn pause_choices(&self) -> Option<&[String]> {
+        self.gate.as_ref()?.choices.as_deref()
+    }
+
+    /// Whether the single paused gate's recorded ticket has expired at Unix
+    /// milliseconds `now_ms`, using the runtime's exact remaining-seconds law.
+    /// Missing/malformed timing, negative time or multiple pauses stay unknown.
+    /// This is display evidence, never a trust verdict or resume authority.
+    #[must_use]
+    pub fn pause_approval_expired(&self, now_ms: i64) -> Option<bool> {
+        (now_ms >= 0).then_some(())?;
+        Some(self.gate.as_ref()?.approval.as_ref()?.is_expired(now_ms))
     }
 
     fn task_mut(&mut self, id: &str) -> &mut TaskFact {
@@ -766,19 +818,32 @@ impl RunFacts {
             let _ = write!(view, "\n  {again}");
         }
         let _ = write!(view, "\n  « {message} »");
-        if gated.is_empty() {
-            view.push_str("\n  a yes lets happen · the tasks after this gate (the workflow's bytes name them)");
+        let after = if mode == "choice" {
+            "after your choice"
         } else {
-            let _ = write!(view, "\n  a yes lets happen · {}", gated.join(" · "));
+            "a yes lets happen"
+        };
+        if gated.is_empty() {
+            let _ = write!(
+                view,
+                "\n  {after} · the tasks after this gate (the workflow's bytes name them)"
+            );
+        } else {
+            let _ = write!(view, "\n  {after} · {}", gated.join(" · "));
         }
         let how = match mode {
             "confirm" => "yes or no",
             "choice" => "one of the choices, as written",
             _ => "in words",
         };
+        let outcome = if mode == "choice" {
+            "the chosen value resumes the run"
+        } else {
+            "a no ends the run there"
+        };
         let _ = write!(
             view,
-            "\n  a no ends the run there · nothing after the gate has happened yet\n  answer {how} · « why? » explains · nothing answers for you"
+            "\n  {outcome} · nothing after the gate has happened yet\n  answer {how} · « why? » explains · nothing answers for you"
         );
         view
     }

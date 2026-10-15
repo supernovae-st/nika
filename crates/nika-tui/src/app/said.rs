@@ -21,7 +21,7 @@ use crossterm::event::KeyEvent;
 use super::Shell;
 use crate::composer::Composer;
 use crate::composer::answer::{Offered, Sent};
-use crate::model::{Beat, Conversation, Turn, Waiting};
+use crate::model::{Beat, Conversation, Shape, Turn, Waiting};
 use crate::session::feed::Seen;
 
 /// What the human sent.
@@ -46,6 +46,56 @@ impl Said {
         }
     }
 
+    /// Echo valid picks by their displayed labels, without changing the answer sent.
+    /// Only the exact painted question can explain its keys; every other line stays raw.
+    pub(super) fn display_text(&self, waiting: &Waiting) -> String {
+        let (
+            Self::Answer { text, witness },
+            Waiting::QuestionDocument { asked, .. }
+            | Waiting::ProposalChoice { asked, .. }
+            | Waiting::Action { asked, .. },
+        ) = (self, waiting)
+        else {
+            return self.text().to_owned();
+        };
+        if witness != &asked.witness {
+            return text.clone();
+        }
+        let (offers, keys) = match &asked.shape {
+            Shape::Choice(offers) => (offers, vec![text.clone()]),
+            Shape::Multiple(offers) => {
+                let keys = if text.trim_start().starts_with('[') {
+                    match serde_json::from_str::<Vec<String>>(text) {
+                        Ok(keys) => keys,
+                        Err(_) => return text.clone(),
+                    }
+                } else {
+                    vec![text.clone()]
+                };
+                (offers, keys)
+            }
+            Shape::Text | Shape::Literal => return text.clone(),
+        };
+        if keys.is_empty()
+            || keys
+                .iter()
+                .enumerate()
+                .any(|(at, key)| keys[..at].contains(key))
+        {
+            return text.clone();
+        }
+        let labels = keys
+            .iter()
+            .map(|key| {
+                let mut matching = offers.iter().filter(|offer| offer.key == *key);
+                let offer = matching.next()?;
+                (matching.next().is_none() && !offer.label.is_empty())
+                    .then_some(offer.label.as_str())
+            })
+            .collect::<Option<Vec<_>>>();
+        labels.map_or_else(|| text.clone(), |labels| labels.join(", "))
+    }
+
     /// Send through the conversation's one door for this kind of line: a line
     /// to whatever waits, an answer by the identity painted.
     pub(super) fn send<C: Conversation + ?Sized>(
@@ -67,7 +117,9 @@ impl Said {
 /// intelligence, the free prompt).
 pub(super) fn routed(waiting: &Waiting, line: String) -> Said {
     match waiting {
-        Waiting::QuestionDocument { asked, .. } => Said::Answer {
+        Waiting::QuestionDocument { asked, .. }
+        | Waiting::ProposalChoice { asked, .. }
+        | Waiting::Action { asked, .. } => Said::Answer {
             text: line,
             witness: asked.witness.clone(),
         },
@@ -190,6 +242,7 @@ impl<C: Conversation + 'static> Shell<C> {
 }
 
 #[cfg(test)]
+#[allow(clippy::panic)]
 mod tests {
     use crossterm::event::{KeyCode, KeyModifiers};
 
@@ -486,5 +539,176 @@ mod tests {
                 "{hint}"
             );
         }
+    }
+
+    #[test]
+    fn multi_submit_binds_the_current_question_identity_and_settings_use_their_own_door() {
+        let shape = Shape::Multiple(vec![Offer::new("a", "First"), Offer::new("b", "Second")]);
+        let waiting = typed(shape.clone(), "new-identity");
+        let mut composer = Composer::new();
+        composer.set_focused(true);
+        composer.follow(&waiting);
+        composer.select_offer(&waiting, 1);
+        let Offered::Answer(text) = composer.submit_choices(&waiting) else {
+            panic!("explicit Submit");
+        };
+        assert_eq!(
+            routed(&waiting, text),
+            Said::Answer {
+                text: r#"["b"]"#.into(),
+                witness: "new-identity".into()
+            }
+        );
+        let settings = Waiting::Selection {
+            asked: Asked::new(
+                "Intelligence",
+                "",
+                false,
+                Shape::Choice(vec![Offer::new("2 deepseek", "DeepSeek")]),
+                "settings",
+                3,
+            ),
+        };
+        assert_eq!(
+            routed(&settings, "2 deepseek".into()),
+            Said::Line("2 deepseek".into())
+        );
+        let proposal = Waiting::proposal_choice(
+            "candidate",
+            "format",
+            Asked::new(
+                "Format",
+                "",
+                false,
+                Shape::Choice(vec![Offer::new("yes", "Markdown")]),
+                "composite-proposal-question",
+                3,
+            ),
+        );
+        assert_eq!(
+            routed(&proposal, "yes".into()),
+            Said::Answer {
+                text: "yes".into(),
+                witness: "composite-proposal-question".into()
+            }
+        );
+    }
+
+    #[test]
+    fn finite_action_echo_names_the_act_and_sends_the_same_scoped_protocol() {
+        let asked = Asked::new(
+            "Save?",
+            "",
+            true,
+            Shape::Choice(vec![Offer::new("yes", "Save workflow")]),
+            "action:7",
+            7,
+        );
+        let waiting = Waiting::Action {
+            key: "save".into(),
+            asked,
+        };
+        let said = routed(&waiting, "yes".into());
+        assert_eq!(said.display_text(&waiting), "Save workflow");
+        assert_eq!(said.text(), "yes");
+        let (busy, seen) = sinks();
+        let mut doors = Doors::default();
+        said.send(&mut doors, &busy, &seen);
+        assert_eq!(doors.used, ["answer_bound action:7 [yes]"]);
+        assert_eq!(
+            routed(&waiting, "change the title".into()).display_text(&waiting),
+            "change the title"
+        );
+    }
+
+    #[test]
+    fn choice_echo_uses_labels_but_sends_the_exact_keys_once() {
+        let single = Shape::Choice(vec![Offer::new("detaille", "Détaillé")]);
+        let multiple = Shape::Multiple(vec![
+            Offer::new("chiffre_affaires", "Chiffre d'affaires"),
+            Offer::new("classement_clients", "Classement clients"),
+        ]);
+        for (shape, raw, label) in [
+            (single, "detaille", "Détaillé"),
+            (
+                multiple,
+                r#"["chiffre_affaires","classement_clients"]"#,
+                "Chiffre d'affaires, Classement clients",
+            ),
+        ] {
+            for proposal in [false, true] {
+                let asked = Asked::new("Question", "", false, shape.clone(), "current", 1);
+                let waiting = if proposal {
+                    Waiting::proposal_choice("proposal", "detail", asked)
+                } else {
+                    Waiting::asked("detail", asked)
+                };
+                let said = routed(&waiting, raw.into());
+                assert_eq!(said.display_text(&waiting), label);
+                assert_eq!(said.text(), raw);
+                let (busy, seen) = sinks();
+                let mut doors = Doors::default();
+                said.send(&mut doors, &busy, &seen);
+                assert_eq!(doors.used, [format!("answer_bound current [{raw}]")]);
+            }
+        }
+    }
+
+    #[test]
+    fn choice_echo_preserves_invalid_free_and_stale_answers_verbatim() {
+        let waiting = typed(
+            Shape::Multiple(vec![
+                Offer::new("revenue", "Revenue"),
+                Offer::new("clients", "Customer ranking"),
+            ]),
+            "current",
+        );
+        for raw in [
+            "  only revenue, and do not run  ",
+            "unknown",
+            r#"["revenue","unknown"]"#,
+            r#"["revenue","revenue"]"#,
+            r#"["revenue",3]"#,
+            r#"["revenue""#,
+            "[]",
+        ] {
+            let said = routed(&waiting, raw.into());
+            assert_eq!(said.display_text(&waiting), raw);
+            assert_eq!(said.text(), raw);
+        }
+        let said = routed(&waiting, r#"["revenue","clients"]"#.into());
+        for other in [
+            typed(
+                Shape::Multiple(vec![
+                    Offer::new("revenue", "Other revenue"),
+                    Offer::new("clients", "Other clients"),
+                ]),
+                "stale",
+            ),
+            typed(Shape::Text, "current"),
+            typed(Shape::Literal, "current"),
+            Waiting::Free,
+        ] {
+            assert_eq!(said.display_text(&other), said.text());
+        }
+        let raw = r#"["revenue","clients"]"#;
+        assert_eq!(Said::Line(raw.into()).display_text(&waiting), raw);
+    }
+
+    #[test]
+    fn choice_echo_requires_exact_unambiguous_offer_keys() {
+        let waiting = typed(currencies(), "current");
+        assert_eq!(
+            routed(&waiting, " usd ".into()).display_text(&waiting),
+            "US dollar, the key keeps its spaces"
+        );
+        for raw in ["usd", " eur ", r#"["eur"]"#] {
+            assert_eq!(routed(&waiting, raw.into()).display_text(&waiting), raw);
+        }
+        let ambiguous = typed(
+            Shape::Choice(vec![Offer::new("a", "First"), Offer::new("a", "Second")]),
+            "current",
+        );
+        assert_eq!(routed(&ambiguous, "a".into()).display_text(&ambiguous), "a");
     }
 }

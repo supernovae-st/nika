@@ -24,7 +24,7 @@ pub(super) fn seat(runtime: &SessionRuntime) -> Option<String> {
     let chosen = &runtime.intelligence;
     let base = match (&chosen.kind, &chosen.locus) {
         (IntelligenceKind::None, _) => {
-            return Some(format!("none, the engine facts answer{checks}"));
+            return None;
         }
         (IntelligenceKind::Harness { seat, transport }, _) => {
             format!("{seat} {transport}, through your account")
@@ -169,13 +169,9 @@ mod tests {
             seat(runtime).expect("chosen")
         };
         let mut none = open(IntelligenceKind::None, None);
-        assert_eq!(line(&mut none, None), "none, the engine facts answer");
-        assert_eq!(
-            line(&mut none, Some(ready())),
-            format!(
-                "none, the engine facts answer; verifier: {JEV} selected, unused without an AI author"
-            )
-        );
+        assert_eq!(seat(&none), None);
+        none.set_authoring_context(AuthoringContext::default().with_decision(Some(ready())));
+        assert_eq!(seat(&none), None, "a judge alone is no conversation model");
         let mut author = open(api(), Some("deepseek/deepseek-chat"));
         assert_eq!(
             line(&mut author, None),

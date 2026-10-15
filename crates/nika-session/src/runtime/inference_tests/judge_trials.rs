@@ -44,7 +44,7 @@ fn doubted() -> Vec<(u16, Value)> {
         (200, response(&fills.to_string())),
     ];
     for choice in ["unfaithful", "carried", "consistent"] {
-        script.push((200, response(&json!({ "choice": choice }).to_string())));
+        script.push((200, response(&judge_answer(choice))));
     }
     script
 }
@@ -81,20 +81,17 @@ fn a_doubted_trial_run_reaches_the_configured_verifier_by_default() {
         .map(|body| asked(body).expect("a closed choice"))
         .collect();
     assert_localized(&judged);
-    assert!(
-        judged[..2]
-            .iter()
-            .all(|(state, _)| state["observation"].is_null())
-    );
-    // The run's texts reach the verifier in the observed question alone: no authoring call and
-    // no earlier question carries them.
-    let before = &bodies[..AUTHOR_CALLS + 2];
-    assert!(
-        before
-            .iter()
-            .all(|b| !b.to_string().contains("TRIAL-ROW-7"))
-    );
-    assert!(bodies[AUTHOR_CALLS + 2].to_string().contains("TRIAL-ROW-7"));
+    // The whole question reads the run from its first ask; the part asked alone does not.
+    assert_eq!(judged[0].0["observation"], judged[2].0["observation"]);
+    assert!(judged[1].0["observation"].is_null());
+    // The run's texts reach the verifier over the whole request and over the run: no authoring
+    // call and not the part asked alone carry them.
+    let shown: Vec<bool> = (bodies.iter())
+        .map(|body| body.to_string().contains("TRIAL-ROW-7"))
+        .collect();
+    let mut expected = vec![false; AUTHOR_CALLS];
+    expected.extend([true, false, true]);
+    assert_eq!(shown, expected);
     assert!(
         !dir.path().join("sortie.txt").exists(),
         "preparation never runs on the project"
@@ -126,6 +123,9 @@ fn assert_observed(s: &SessionRuntime, (state, options): &(Value, Vec<String>)) 
     assert_eq!(state["observation"], observation);
     let attempt = attempt(s);
     assert_eq!(attempt["doubt"], json!(["unfaithful"]));
+    // The peer states no model-written part: the law ran and found none, never « unrun ».
+    assert_eq!(attempt["model_parts"], json!([]), "{attempt:#}");
+    assert_eq!(attempt.get("model_parts_unrun"), None, "{attempt:#}");
     assert_eq!(attempt["settled_by"], "verify-observed");
     assert_eq!(attempt["candidate_sha256"], sha);
     for empty in ["defects", "unknown", "contested", "unsettled"] {
@@ -148,6 +148,7 @@ fn assert_observed(s: &SessionRuntime, (state, options): &(Value, Vec<String>)) 
         ],
     });
     assert_eq!(asked["observation"], receipt);
+    assert_eq!(attempt["questions"][0]["observation"], receipt);
     assert!(
         !asked.to_string().contains("TRIAL-ROW-7"),
         "a digest, never the text"
@@ -175,7 +176,7 @@ fn a_doubt_no_trial_run_can_decide_is_held_never_proposed_nor_replayed() {
         .map(|t| (200, response(t)))
         .collect();
     for choice in ["unfaithful", "carried", "unlocated"] {
-        script.push((200, response(&json!({ "choice": choice }).to_string())));
+        script.push((200, response(&judge_answer(choice))));
     }
     let peer = Peer::start(script);
     let _transport = test_transport::install(&peer.url);

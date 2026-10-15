@@ -44,6 +44,19 @@ const DEEP_GAPS: &[(&str, &str)] = &[
     // outcome-class spellings success·failure·skipped·terminal) — the 7
     // rows (001 · 007 · 023-027) deleted the day the rename landed, per
     // the ratchet. The ledger stands empty until the next wave.
+    // ── Child prompt and schema files (spec 02 §Project files): the pin carries the law before the engine side.
+    (
+        "composition/015-child-prompt-file-at-the-project-root-passes",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "composition/016-child-prompt-file-past-the-project-root-refused",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "composition/017-child-schema-file-without-a-schema-refused",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
 ];
 
 #[test]

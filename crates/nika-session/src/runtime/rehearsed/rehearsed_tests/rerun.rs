@@ -102,6 +102,40 @@ fn a_second_run_is_admitted_over_its_own_settled_output() {
 }
 
 #[test]
+fn restoring_the_exact_source_allows_a_fresh_run_without_recreating_the_workflow() {
+    let (root, mut session) = ran_once("succeeded", true, None);
+    let source = std::fs::read(root.path().join(SOURCE)).expect("original source");
+    let workflow = std::fs::read(root.path().join(LANDED)).expect("saved workflow");
+    let sha = sha256_hex(&workflow);
+    std::fs::remove_file(root.path().join(SOURCE)).expect("missing input");
+    let why = refused(session.turn(RUN));
+    assert!(why.text.contains("gone"), "{}", why.text);
+    write(root.path(), SOURCE, EDITED);
+    let changed = refused(session.turn(RUN));
+    assert!(changed.text.contains("changed"), "{}", changed.text);
+    std::fs::write(root.path().join(SOURCE), source).expect("restore exact input");
+    assert!(
+        session
+            .advance_rehearsal(Path::new(LANDED), &sha, &[TARGET.into()])
+            .is_err(),
+        "a late observation cannot revive the withdrawn proof"
+    );
+    let outcome = session.turn(RUN);
+    let TurnOutcome::RunRequested { run, .. } = outcome else {
+        panic!("a fresh request revalidates the restored world: {outcome:?}");
+    };
+    assert_eq!(run.workflow, PathBuf::from(LANDED));
+    assert_eq!(
+        std::fs::read(root.path().join(LANDED)).expect("unchanged workflow"),
+        workflow
+    );
+    assert!(
+        session.pending_proposal().is_none(),
+        "no new proposal or repeated consent"
+    );
+}
+
+#[test]
 fn a_foreign_change_after_the_run_still_withdraws_the_rehearsal() {
     let (root, mut s) = ran_once("succeeded", true, None);
     write(root.path(), TARGET, EDITED);

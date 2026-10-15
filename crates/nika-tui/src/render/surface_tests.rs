@@ -131,17 +131,199 @@ fn row(buffer: &Buffer, y: u16) -> String {
         .to_owned()
 }
 
+#[test]
+fn an_armed_exit_stays_visible_under_a_choice_or_command_surface() {
+    for presentation in [
+        Presentation::Inline,
+        Presentation::Focus,
+        Presentation::Workspace,
+    ] {
+        for ascii in [false, true] {
+            for commands in [false, true] {
+                let waiting = Waiting::Selection {
+                    asked: Asked::new(
+                        "Choose an AI connection",
+                        "",
+                        true,
+                        Shape::Choice(offers(25)),
+                        "intelligence",
+                        1,
+                    ),
+                };
+                let mut state = state(presentation, (80, 24), waiting, ascii);
+                let mut composer = composer(&state.waiting, "a draft kept apart");
+                if commands {
+                    composer.toggle_palette();
+                }
+                state.completion = Some("an older completion notice".into());
+                state.interrupt_armed = true;
+                let buffer = draw(&state, &composer);
+                let footer = row(&buffer, 23);
+                assert_eq!(
+                    footer,
+                    super::own("Ctrl+C again leaves · any key stays", ascii)
+                );
+                assert_eq!(composer.text(), "a draft kept apart");
+                assert_eq!(composer.offer_selected(&state.waiting), None);
+                state.interrupt_armed = false;
+                let buffer = draw(&state, &composer);
+                assert_eq!(row(&buffer, 23), "an older completion notice");
+            }
+        }
+    }
+}
+
 /// The offer whose exact row `text` is, with or without the selection mark.
 fn painted(text: &str, offers: &[Offer], ascii: bool) -> Option<usize> {
-    let (mark, sep) = if ascii {
-        ("> ", " - ")
+    let (mark, selected) = if ascii {
+        ("> ", "(*)")
     } else {
-        ("› ", " · ")
+        ("› ", "(●)")
     };
     offers.iter().position(|offer| {
-        let body = format!("{}{sep}{}", offer.key, offer.label);
-        text == format!("  {body}") || text == format!("{mark}{body}")
+        text == format!("  ( ) {}", offer.label)
+            || text == format!("{mark}{selected} {}", offer.label)
     })
+}
+
+#[test]
+fn long_settings_and_proposal_choices_keep_navigation_on_the_visible_page() {
+    for size in [(60, 18), (80, 24), (120, 40)] {
+        for proposal in [false, true] {
+            let asked = Asked::new(
+                "Choose a model",
+                "",
+                true,
+                Shape::Choice(offers(28)),
+                "composite",
+                1,
+            );
+            let waiting = if proposal {
+                Waiting::proposal_choice("candidate", "model", asked)
+            } else {
+                Waiting::selection(asked)
+            };
+            let state = state(Presentation::Focus, size, waiting.clone(), true);
+            let mut composer = composer(&waiting, "kept draft");
+            select(&mut composer, &waiting, 23);
+            let buffer = draw(&state, &composer);
+            let band = band_of(&state, &composer).expect("active surface");
+            let selected = (0..size.1)
+                .find(|y| row(&buffer, *y).contains("(*) label 23"))
+                .expect("the selected model remains visible");
+            assert_eq!(
+                hit(
+                    &state,
+                    &composer,
+                    band,
+                    Position::new(band.0.x + 2, selected)
+                ),
+                Some(Hit::Item(23))
+            );
+            assert_eq!(composer.text(), "kept draft");
+            assert_eq!(composer.offer_selected(&waiting), Some(23));
+        }
+    }
+}
+
+#[test]
+fn the_intelligence_guide_keeps_its_latest_feedback_visible_above_options() {
+    for feedback in [
+        "Your message is kept and will resume after your choice.",
+        "Unknown provider: no selection changed.",
+        "Help: /providers lists connections; /intelligence reopens this guide.",
+    ] {
+        let waiting = Waiting::selection(Asked::new(
+            "Choose an AI connection",
+            "",
+            true,
+            Shape::Choice(offers(18)),
+            "guide",
+            1,
+        ));
+        let mut state = state(Presentation::Focus, (80, 24), waiting.clone(), true);
+        if let Waiting::Selection { asked } = &mut state.waiting {
+            asked.retained = Some(Retained::new(
+                Some("the earlier request".into()),
+                Vec::new(),
+            ));
+        }
+        state.transcript.push(Committed::new(Kind::Reply, feedback));
+        let composer = composer(&waiting, "kept draft");
+        let buffer = draw(&state, &composer);
+        let screen = (0..24)
+            .map(|y| row(&buffer, y))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(screen.contains(feedback), "{screen}");
+        assert!(screen.contains("( ) label 0"), "{screen}");
+    }
+}
+
+#[test]
+fn grouped_choices_show_the_active_question_next_to_its_offers() {
+    const DETAIL: &str = "Quel niveau de détail ?";
+    const CONTENT: &str = "Quels éléments inclure ? (plusieurs possibles)";
+    let whole = format!("{DETAIL}\nUn choix pour la longueur du rapport.\n{CONTENT}");
+    for size in [(80, 24), (120, 40)] {
+        for multiple in [false, true] {
+            let (label, shape, first) = if multiple {
+                (
+                    CONTENT,
+                    Shape::Multiple(vec![
+                        Offer::new("revenue", "Chiffre d'affaires"),
+                        Offer::new("clients", "Classement clients"),
+                    ]),
+                    "[ ] Chiffre d'affaires",
+                )
+            } else {
+                (
+                    DETAIL,
+                    Shape::Choice(vec![
+                        Offer::new("short", "Court"),
+                        Offer::new("detailed", "Détaillé"),
+                    ]),
+                    "( ) Court",
+                )
+            };
+            let witness = if multiple {
+                "group:content"
+            } else {
+                "group:detail"
+            };
+            let asked = Asked::new(label, "", false, shape, witness, 1).retaining(Retained::new(
+                Some("Prepare the sales report".into()),
+                Vec::new(),
+            ));
+            let waiting = Waiting::asked("group", asked);
+            let mut state = state(Presentation::Workspace, size, waiting.clone(), false);
+            state.transcript.push(Committed::question(witness, &whole));
+            let composer = composer(&waiting, "kept draft");
+            let buffer = draw(&state, &composer);
+            let shown: Vec<_> = (0..size.1).map(|y| row(&buffer, y)).collect();
+            let first_offer = shown
+                .iter()
+                .position(|row| row.contains(first))
+                .expect("the first active offer is visible");
+            assert_eq!(
+                shown[..first_offer]
+                    .iter()
+                    .rfind(|row| !row.trim().is_empty())
+                    .expect("the question precedes its offers")
+                    .trim(),
+                label,
+                "the active question belongs directly above its offers: {size:?}\n{shown:#?}"
+            );
+            assert!(
+                shown
+                    .iter()
+                    .any(|row| row.contains("Request · Prepare the sales report"))
+            );
+            let full = super::question::asked_block(&state).expect("F2 keeps the full group");
+            assert_eq!(state.transcript[full].text, whole);
+            assert_eq!(composer.text(), "kept draft");
+        }
+    }
 }
 
 /// Opening a surface (the palette, the slash list, a typed choice, or the
@@ -305,7 +487,11 @@ fn the_selection_reads_without_colour_and_fills_only_while_armed() {
         let mut composer = composer(&state.waiting, "words waiting in my draft");
         select(&mut composer, &state.waiting, 1);
         let buffer = draw(&state, &composer);
-        let mark = if ascii { "> opt-1" } else { "› opt-1" };
+        let mark = if ascii {
+            "> (*) label 1"
+        } else {
+            "› (●) label 1"
+        };
         let y = (0..12)
             .find(|y| row(&buffer, *y).starts_with(mark))
             .expect("the selected row");
@@ -471,3 +657,414 @@ fn a_held_line_opens_the_surface_with_its_two_acts() {
     );
     assert!(act("cancel", "· drop your message"), "{shown:#?}");
 }
+
+#[test]
+fn multiple_checkboxes_and_explicit_submit_share_paint_and_hit_geometry() {
+    for size in [(60, 18), (80, 24), (120, 40)] {
+        for ascii in [false, true] {
+            let asked = Asked::new(LABEL, "", true, Shape::Multiple(offers(9)), "m1", 1);
+            let state = state(
+                Presentation::Focus,
+                size,
+                Waiting::asked("sources", asked),
+                ascii,
+            );
+            let mut composer = composer(&state.waiting, "ordinary draft");
+            assert!(composer.select_offer(&state.waiting, 0));
+            assert!(composer.select_offer(&state.waiting, 2));
+            let buffer = draw(&state, &composer);
+            let rows = (0..size.1).map(|y| row(&buffer, y)).collect::<Vec<_>>();
+            assert!(
+                rows.iter().any(|row| row.contains("[x] label 0")),
+                "{rows:?}"
+            );
+            assert!(
+                rows.iter().any(|row| row.contains("[ ] label 1")),
+                "{rows:?}"
+            );
+            assert!(
+                rows.iter().any(|row| row.contains("[x] label 2")),
+                "{rows:?}"
+            );
+            assert!(!rows.iter().any(|row| row.contains("ordinary draft")));
+            assert_eq!(
+                composer.offer_key(&state.waiting, key(KeyCode::Tab)),
+                crate::composer::answer::Offered::Moved
+            );
+            let buffer = draw(&state, &composer);
+            let band = band_of(&state, &composer).expect("band");
+            let y = (band.0.y..band.0.bottom())
+                .find(|y| row(&buffer, *y).contains("Submit"))
+                .expect("Submit remains reachable");
+            assert!(row(&buffer, y).contains("2 selected"));
+            assert_eq!(
+                hit(&state, &composer, band, Position::new(band.0.x + 1, y)),
+                Some(Hit::Item(9))
+            );
+            assert_eq!(composer.text(), "ordinary draft");
+            for y in 0..size.1 {
+                if ascii {
+                    assert!(row(&buffer, y).is_ascii());
+                }
+                for x in 0..size.0 {
+                    assert_eq!(
+                        (buffer[(x, y)].fg, buffer[(x, y)].bg),
+                        (Color::Reset, Color::Reset)
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a_native_cost_decision_keeps_amount_bounds_and_its_full_context_at_eighty_columns() {
+    let words = "Fresh Run cost decision · deepseek/fixture
+USD cost is unknown; a charge is possible.
+At most 1 request; at most 8192 output tokens and 120 seconds.
+Overrides only the shown $0.25 default; no hard cap is overridden.
+The complete route and input witness remain in this full question.
+Continue once? yes / no / details";
+    for ascii in [false, true] {
+        let mut asked = Asked::new(
+            "Continue this run once?",
+            "",
+            true,
+            Shape::Choice(vec![
+                Offer::new("yes", "Run once"),
+                Offer::new("no", "Cancel this run"),
+                Offer::new("details", "Read the full cost evidence"),
+            ]),
+            "action:9",
+            9,
+        );
+        asked.free_text = false;
+        let mut state = state(
+            Presentation::Workspace,
+            (80, 24),
+            Waiting::Action {
+                key: "run_cost".into(),
+                asked,
+            },
+            ascii,
+        );
+        state.transcript.push(Committed::new(Kind::Question, words));
+        let composer = composer(&state.waiting, "a draft kept apart");
+        let buffer = draw(&state, &composer);
+        let text = (0..24).map(|y| row(&buffer, y)).collect::<Vec<_>>().join(
+            "
+",
+        );
+        for fact in [
+            "USD cost is unknown",
+            "8192 output tokens",
+            "120 seconds",
+            "$0.25",
+            "Run once",
+            "Cancel this run",
+            "Read the full cost evidence",
+        ] {
+            assert!(text.contains(fact), "{fact}:\n{text}");
+        }
+        assert_eq!(composer.offer_selected(&state.waiting), None);
+        assert_eq!(composer.text(), "a draft kept apart");
+        let index = crate::render::question::asked_block(&state).expect("F2 context");
+        assert_eq!(
+            state.transcript[index].text, words,
+            "the F2 reader receives the exact owner block"
+        );
+    }
+}
+
+#[test]
+fn finite_gate_and_judgment_heads_and_f2_read_the_same_current_owner_context() {
+    for (key, kind, current) in [
+        (
+            "gate_choice",
+            Kind::Gate,
+            "Current gate: choose the output destination",
+        ),
+        (
+            "judgment",
+            Kind::Reply,
+            "Qualification incomplete: the candidate remains unjudged",
+        ),
+    ] {
+        let asked = Asked::new(
+            "Choose an action",
+            "",
+            true,
+            Shape::Choice(vec![Offer::new("retry", "First action")]),
+            "action:context",
+            22,
+        );
+        let mut state = state(
+            Presentation::Focus,
+            (80, 24),
+            Waiting::Action {
+                key: key.into(),
+                asked,
+            },
+            false,
+        );
+        state
+            .transcript
+            .push(Committed::new(Kind::Question, "Obsolete currency question"));
+        state
+            .transcript
+            .push(Committed::new(Kind::Gate, "Obsolete gate question"));
+        state.transcript.push(Committed::new(kind, current));
+        let expected = state.transcript.len() - 1;
+        // A later block of another kind cannot become this decision's context.
+        state.transcript.push(Committed::new(
+            Kind::Question,
+            "Other question unrelated to this decision",
+        ));
+        let composer = composer(&state.waiting, "retained draft");
+        let buffer = draw(&state, &composer);
+        let (band, _) = band_of(&state, &composer).expect("native decision band");
+        let text = (band.y..band.bottom())
+            .map(|y| row(&buffer, y))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(text.contains(current), "{key}: {text}");
+        assert!(
+            !text.contains("Obsolete") && !text.contains("Other question"),
+            "{text}"
+        );
+        state.presentation = Presentation::Workspace;
+        assert_eq!(crate::render::question::asked_block(&state), Some(expected));
+        assert_eq!(state.transcript[expected].text, current);
+        assert_eq!(composer.offer_selected(&state.waiting), None);
+        assert_eq!(composer.text(), "retained draft");
+    }
+}
+
+#[test]
+fn the_gate_prompt_precedes_long_run_metadata_while_f2_keeps_every_word() {
+    for (key, prompt, offers) in [
+        (
+            "gate_choice",
+            "Choose the exact report label",
+            vec![
+                Offer::new("\"true\"", "true"),
+                Offer::new("\"1\"", "1"),
+                Offer::new("\"  spaced label  \"", "  spaced label  "),
+                Offer::new("\"/quit\"", "/quit"),
+            ],
+        ),
+        (
+            "gate",
+            "Write the final report?",
+            vec![
+                Offer::new("yes", "Approve this step"),
+                Offer::new("no", "Refuse this step"),
+            ],
+        ),
+    ] {
+        let context = format!(
+            "run observed: exit 4\nPaused for a human answer\nResume the exact trace with its answer\nTrace: .nika/traces/a-long-run-identity.ndjson\nWorkflow: report.nika\nEarlier tasks and evidence remain recorded\n{prompt}\nDownstream: record writes the selected label"
+        );
+        let labels = offers
+            .iter()
+            .map(|offer| offer.label.trim().to_owned())
+            .collect::<Vec<_>>();
+        let mut asked = Asked::new(prompt, "", true, Shape::Choice(offers), "action:prompt", 23);
+        asked.free_text = false;
+        let mut state = state(
+            Presentation::Focus,
+            (80, 24),
+            Waiting::Action {
+                key: key.into(),
+                asked,
+            },
+            false,
+        );
+        state.transcript.push(Committed::new(Kind::Gate, &context));
+        let composer = composer(&state.waiting, "retained draft");
+        let buffer = draw(&state, &composer);
+        let (band, _) = band_of(&state, &composer).expect("native gate band");
+        let rows = (band.y..band.bottom())
+            .map(|y| row(&buffer, y))
+            .collect::<Vec<_>>();
+        let prompt_row = rows
+            .iter()
+            .position(|line| line.contains(prompt))
+            .expect("visible prompt");
+        let metadata_row = rows
+            .iter()
+            .position(|line| line.contains("run observed"))
+            .expect("metadata");
+        assert!(
+            prompt_row < metadata_row,
+            "the exact question comes first: {rows:?}"
+        );
+        let text = rows.join("\n");
+        for label in labels {
+            assert!(text.contains(&label), "{label}: {text}");
+        }
+        assert_eq!(composer.offer_selected(&state.waiting), None);
+        state.presentation = Presentation::Workspace;
+        let index = crate::render::question::asked_block(&state).expect("F2 gate");
+        assert_eq!(state.transcript[index].text, context);
+    }
+}
+
+/// The real stacked workspace geometry: an existing run object and pinned run,
+/// with only eight rows left for the native decision above the fixed composer.
+fn gate_workspace_frame(state: &UiState, composer: &Composer) -> (Buffer, (Rect, bool)) {
+    use crate::workspace::{
+        aside::{Aside, Tab},
+        conversation::Thread,
+        focus::Focus,
+        geometry::Geometry,
+        header::Place,
+        object::{Object, Paint},
+        pinned::Pinned,
+        screen::{self, Screen},
+    };
+    let screen = Screen::new(
+        Place::on("local").with_project("reports", "/project"),
+        Aside::new("reports", Tab::Nika, Vec::new(), true),
+        Object::Shown {
+            icon: crate::visual::icon::Icon::Run,
+            name: "run paused".into(),
+            lines: [
+                "choose · paused",
+                "invoke · nika:prompt",
+                "",
+                "record · scheduled",
+                "invoke · nika:write",
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+        },
+        Thread::new("reports", "this conversation"),
+    )
+    .pinning(Pinned::new(
+        "reports",
+        "choice.nika",
+        "run",
+        nika_display::state::TaskState::Paused,
+        "a gate asks you",
+    ));
+    let paint = Paint {
+        ascii: state.ascii,
+        color: false,
+        elapsed: std::time::Duration::ZERO,
+        reduced_motion: true,
+    };
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).expect("terminal");
+    terminal
+        .draw(|frame| {
+            assert!(screen::draw(
+                frame,
+                &screen,
+                paint,
+                &Focus::composing(),
+                state,
+                composer
+            ));
+        })
+        .expect("draw workspace");
+    let geometry = Geometry::of(Rect::new(0, 0, 80, 24), true).expect("stacked workspace");
+    let band = screen::band(&geometry, state, composer, &screen).expect("gate band");
+    assert_eq!(
+        band.0.height, 8,
+        "the real compact conversation, not the full-screen focus view"
+    );
+    (terminal.backend().buffer().clone(), band)
+}
+
+fn compact_gate_offers(key: &str) -> Vec<Offer> {
+    if key == "gate_choice" {
+        vec![
+            Offer::new("\"true\"", "true"),
+            Offer::new("\"1\"", "1"),
+            Offer::new("\"  spaced label  \"", "  spaced label  "),
+            Offer::new("\"/quit\"", "/quit"),
+        ]
+    } else {
+        vec![
+            Offer::new("yes", "Approve this step"),
+            Offer::new("no", "Refuse this step"),
+        ]
+    }
+}
+
+#[test]
+fn the_compact_workspace_keeps_the_gate_question_and_every_offer_reachable() {
+    const PROMPT: &str = "Choose the exact report label";
+    for key in ["gate_choice", "gate"] {
+        for (long, ascii) in [(false, false), (false, true), (true, false), (true, true)] {
+            let prompt = if long {
+                format!(
+                    "{PROMPT}: {}",
+                    "retain the selected report label and its exact spelling. ".repeat(6)
+                )
+            } else {
+                PROMPT.to_owned()
+            };
+            let offers = compact_gate_offers(key);
+            let labels: Vec<_> = offers.iter().map(|offer| offer.label.clone()).collect();
+            let mut asked = Asked::new(
+                &prompt,
+                "",
+                true,
+                Shape::Choice(offers),
+                "action:compact",
+                24,
+            );
+            asked.free_text = false;
+            let mut state = state(
+                Presentation::Workspace,
+                (80, 24),
+                Waiting::Action {
+                    key: key.into(),
+                    asked,
+                },
+                ascii,
+            );
+            let context = format!(
+                "run observed: exit 4\nPaused for a human answer\nResume the exact trace with its answer\nTrace: .nika/traces/run.ndjson\nWorkflow: choice.nika\nEarlier tasks remain recorded\n{prompt}\nDownstream: record writes the selected label"
+            );
+            state.transcript.push(Committed::new(Kind::Gate, &context));
+            let mut composer = composer(&state.waiting, "retained draft");
+            let (buffer, band) = gate_workspace_frame(&state, &composer);
+            let first = row(&buffer, band.0.y + 1);
+            assert!(
+                first.starts_with(PROMPT),
+                "active question precedes metadata: {first}"
+            );
+            let text = (band.0.y..band.0.bottom())
+                .map(|y| row(&buffer, y))
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert!(
+                text.contains("F2"),
+                "full question stays accessible: {text}"
+            );
+            for (index, label) in labels.iter().enumerate() {
+                let y = (band.0.y..band.0.bottom())
+                    .find(|y| row(&buffer, *y) == format!("  ( ) {label}").trim_end())
+                    .expect("every exact offer remains visible");
+                assert_eq!(
+                    hit(&state, &composer, band, Position::new(band.0.x + 2, y)),
+                    Some(Hit::Item(index))
+                );
+            }
+            assert_eq!(composer.offer_selected(&state.waiting), None);
+            select(&mut composer, &state.waiting, labels.len() - 1);
+            assert_eq!(
+                composer.offer_selected(&state.waiting),
+                Some(labels.len() - 1)
+            );
+            assert_eq!(composer.text(), "retained draft");
+            let owner = super::question::asked_block(&state).expect("F2 keeps the gate context");
+            assert_eq!(state.transcript[owner].text, context);
+        }
+    }
+}
+
+mod expiry;

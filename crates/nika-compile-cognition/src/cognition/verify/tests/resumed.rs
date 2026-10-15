@@ -266,3 +266,36 @@ async fn an_answer_read_back_keeps_what_its_seat_reported() {
     assert_eq!(resumed["probabilities"], weighed);
     assert_eq!(resumed["confidence"], json!(0.85));
 }
+
+/// The whole question reads a whole run of its bytes from its first ask, and its record keeps
+/// the run's receipts, never its texts. Resumed over the same run, that answer is read back with
+/// no call (R6 keys it by the run's digest); the part, asked over the bytes alone, is asked
+/// again, and the run carries the request.
+#[tokio::test]
+async fn the_whole_question_reads_a_whole_run_from_its_first_ask() {
+    let judge = Script::new([Some("unfaithful"), None]);
+    let request = CompileRequest::create(INTENT);
+    let sha = knowledge::sha256(ready().candidate.as_deref().unwrap());
+    let run = json!({"candidate_sha256": sha, "inputs": [], "outputs": [
+        {"path": "./out/result.txt", "text": "hello", "written": true, "read_whole": true}]});
+    let (first, stopped) = declined(verdict(&judge, &request, ready(), 0, Some(&run)).await);
+    assert!(stopped.stopped && stopped.rejected());
+    let earlier = attempts(&first)[0].clone();
+    let whole = &earlier["questions"][0];
+    assert_eq!(whole["question"], "verify-request", "{whole:#}");
+    let digest = knowledge::sha256(&run.to_string());
+    assert_eq!(whole["observation"]["sha256"], json!(digest), "{whole:#}");
+    let judge = Script::new([Some("carried"), Some("consistent")]);
+    let request = CompileRequest::create(INTENT).with_declined(vec![earlier]);
+    let Ok(out) = verdict(&judge, &request, ready(), 0, Some(&run)).await else {
+        panic!("the run carries the request");
+    };
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(judge.calls(), 2);
+    let questions = [
+        ("verify-request".to_owned(), true),
+        ("verify-part-0".to_owned(), false),
+        ("verify-observed".to_owned(), false),
+    ];
+    assert_eq!(asked(&attempts(&out)[0]), questions);
+}

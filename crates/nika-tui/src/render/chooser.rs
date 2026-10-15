@@ -32,9 +32,12 @@ pub(crate) fn context(state: &UiState) -> Option<&'static str> {
     }
     match &state.waiting {
         Waiting::Free => None,
+        Waiting::Action { .. } => Some("A decision waits · choose an action with the arrow keys"),
         Waiting::Proposal => Some("A proposal waits · no command answers it · yes + Enter: Save"),
         Waiting::Gate => Some("A gate waits · no command answers it · approve or refuse"),
-        Waiting::Choosing => Some("The intelligence choice waits · no command answers it"),
+        Waiting::Choosing | Waiting::Selection { .. } => {
+            Some("The intelligence choice waits · no command answers it")
+        }
         Waiting::Knowledge { .. } => {
             Some("Your message waits · /knowledge embedded resumes it · cancel drops it")
         }
@@ -43,7 +46,9 @@ pub(crate) fn context(state: &UiState) -> Option<&'static str> {
         {
             Some("A cost decision waits · no command approves it · only your yes does")
         }
-        Waiting::Question { .. } | Waiting::QuestionDocument { .. } => {
+        Waiting::Question { .. }
+        | Waiting::QuestionDocument { .. }
+        | Waiting::ProposalChoice { .. } => {
             Some("A question waits · no command answers it · your reply does")
         }
     }

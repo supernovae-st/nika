@@ -123,8 +123,8 @@ pub fn v0_unsupported(beat: &Beat) -> Option<(&'static str, &'static str)> {
 /// The shared pause-bound law: an ISO civil date strictly before the
 /// decision instant's own date ⇒ the bounded suspension is over. The
 /// arm-fire edge and the serve planner judge on the same instant's civil
-/// date (a bare `--now` rides UTC); a zone-exact reading in the cadence's
-/// own zone remains future work.
+/// date (a bare `--now` rides UTC); [`suspension_over`] reads the same law
+/// in the cadence's own zone.
 #[must_use]
 pub(crate) fn date_expired(raw: &str, now: &Zoned) -> bool {
     let Ok(date) = raw.parse::<jiff::civil::Date>() else {
@@ -140,6 +140,84 @@ pub(crate) fn date_expired(raw: &str, now: &Zoned) -> bool {
 pub fn expiry_passed(beat: &Beat, now: &Zoned) -> Option<String> {
     let raw = beat.jusqu_au.as_deref()?;
     date_expired(raw, now).then(|| raw.to_owned())
+}
+
+/// The bounded suspension is over: the beat's `jusqu_au` civil date is
+/// strictly before the decision instant's date in the cadence's own `TZ=`
+/// zone, whatever zone the instant arrives in. An `on-webhook` beat has no
+/// calendar and reads the UTC date. `false` without a `jusqu_au`, or when
+/// the date, the cadence or its zone does not resolve: validation refuses
+/// each of them before a beat is armed.
+#[must_use]
+pub fn suspension_over(beat: &Beat, now: &Zoned) -> bool {
+    let Some(Ok(date)) = beat
+        .jusqu_au
+        .as_deref()
+        .map(str::parse::<jiff::civil::Date>)
+    else {
+        return false;
+    };
+    let zone = match Cadence::parse(&beat.cadence) {
+        Ok(cadence) => match cadence.tz() {
+            Some(name) => crate::next::bundled_tz(name),
+            None => Some(jiff::tz::TimeZone::UTC),
+        },
+        Err(_) => None,
+    };
+    zone.is_some_and(|zone| date < now.with_time_zone(zone).date())
+}
+
+/// The zone a cadence expression reads its dates in, as `suspension_over`
+/// reads it: its own `TZ=`, UTC for an on-webhook beat, `None` when the
+/// cadence or its zone does not resolve.
+fn cadence_zone(expression: &str) -> Option<jiff::tz::TimeZone> {
+    match Cadence::parse(expression).ok()?.tz() {
+        Some(name) => crate::next::bundled_tz(name),
+        None => Some(jiff::tz::TimeZone::UTC),
+    }
+}
+
+/// The instant a suspension bounded by `until` ends: the start of the day
+/// after it, in the zone `expression` reads its dates in (UTC without one).
+pub(crate) fn wake_of(until: &str, expression: Option<&str>) -> Option<Zoned> {
+    let until = until.parse::<jiff::civil::Date>().ok()?;
+    let zone = match expression {
+        Some(expression) => cadence_zone(expression)?,
+        None => jiff::tz::TimeZone::UTC,
+    };
+    until.tomorrow().ok()?.to_zoned(zone).ok()
+}
+
+/// The suspension law for a resident definition's `pauseUntil`, the same as
+/// `suspension_over` reads a beat's `jusqu_au`: the civil date strictly
+/// before now's date in the cadence's own zone (UTC without a cadence).
+#[must_use]
+pub(crate) fn suspension_date_over(until: &str, expression: Option<&str>, now: &Zoned) -> bool {
+    let Ok(date) = until.parse::<jiff::civil::Date>() else {
+        return false;
+    };
+    let zone = match expression {
+        Some(expression) => cadence_zone(expression),
+        None => Some(jiff::tz::TimeZone::UTC),
+    };
+    zone.is_some_and(|zone| date < now.with_time_zone(zone).date())
+}
+
+/// The instant a suspended beat wakes (the start of the day after its
+/// `jusqu_au`, in its cadence's zone); `None` for an active beat or a
+/// suspension without a bound.
+#[must_use]
+pub(crate) fn wake_instant(beat: &Beat) -> Option<Zoned> {
+    if beat.is_active() {
+        return None;
+    }
+    wake_of(beat.jusqu_au.as_deref()?, Some(&beat.cadence))
+}
+
+/// Suspended and not yet woken: the beat sleeps.
+#[must_use]
+pub(crate) fn still_suspended(beat: &Beat, now: &Zoned) -> bool {
+    !beat.is_active() && !suspension_over(beat, now)
 }
 
 /// The named-beat decision, pure. Order: the file's own truth
@@ -158,10 +236,16 @@ pub fn tick_decision(
             line: "arm fire · engine fault: the label resolved past the registry".to_owned(),
         };
     };
-    if !beat.is_active() {
+    // A suspension sleeps until its `jusqu_au`, then the beat fires as an
+    // active one under the same laws.
+    if still_suspended(beat, now) {
         let why = beat.raison.as_deref().unwrap_or("sans raison");
+        let until = beat
+            .jusqu_au
+            .as_deref()
+            .map_or(String::new(), |date| format!(" · jusqu_au {date}"));
         return TickDecision::Skip {
-            line: format!("skipped {label} · inactive — {why}"),
+            line: format!("skipped {label} · inactive — {why}{until}"),
             reason: "inactive".to_owned(),
             slot: None,
             journal: true,
@@ -177,7 +261,9 @@ pub fn tick_decision(
             journal: true,
         };
     }
-    if let Some(expired) = expiry_passed(beat, now) {
+    if beat.is_active()
+        && let Some(expired) = expiry_passed(beat, now)
+    {
         return TickDecision::Skip {
             line: format!("skipped {label} · expired · jusqu_au {expired}"),
             reason: "expired".to_owned(),

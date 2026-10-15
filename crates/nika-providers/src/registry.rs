@@ -428,6 +428,10 @@ where
         request: InferRequest,
     ) -> Result<(InferResponse, TransportReport), (ProviderError, Box<TransportReport>)> {
         let mut report = TransportReport::new();
+        // A request over the window is told apart by the route's known window
+        // and the engine's own estimate, never by the provider's words.
+        let window = crate::overflow::route_window(self.profile.id, &self.wire_model);
+        let estimate = window.map_or(0, |_| crate::overflow::estimate_input_tokens(&request));
         if let Some(a) = &self.admission {
             if let Err(error) = a.check_route(self.profile.id, &self.wire_model, &self.base_url) {
                 return Err((a.refuse(&error.to_string()), Box::new(report)));
@@ -449,10 +453,14 @@ where
             report.attempts = u32::from(sent);
             return result
                 .map(|mut r| {
+                    crate::overflow::mark_silent_overflow(&mut r, window);
                     r.inference_calls.clone_from(&report.inference_calls);
                     (r, report.clone())
                 })
-                .map_err(|e| (e, Box::new(report)));
+                .map_err(|e| {
+                    let e = crate::overflow::classified(e, estimate, window);
+                    (e, Box::new(report))
+                });
         }
         let mut call = None;
         let mut route = None;
@@ -467,10 +475,14 @@ where
         report.record(call);
         match result {
             Ok(mut response) => {
+                crate::overflow::mark_silent_overflow(&mut response, window);
                 response.inference_calls.clone_from(&report.inference_calls);
                 Ok((response, report))
             }
-            Err(err) => Err((err, Box::new(report))),
+            Err(err) => Err((
+                crate::overflow::classified(err, estimate, window),
+                Box::new(report),
+            )),
         }
     }
 

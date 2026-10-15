@@ -8,8 +8,10 @@
 # the agent (exit 2, findings on stderr; Cursor: stderr, never a veto),
 # while a READY beat, a told suspension and a project with no beat stay
 # silent. A workflow edit keeps its own audit. The judge is NIKA_BIN,
-# else the PATH's nika; with neither, the test says SKIP: the hook stays
-# silent without a binary by design, so there is nothing to assert.
+# else this tree's own debug build, never the PATH's `nika`: a PATH
+# launcher can depend on the HOME this test replaces. With neither, the
+# test says SKIP visibly: the hook stays silent without a binary by
+# design, so there is nothing to assert.
 #
 # Usage: check-on-edit.test.sh  (exit 0 = all green or SKIP)
 set -uo pipefail
@@ -17,9 +19,22 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HERE/../check-on-edit.sh"
-JUDGE="${NIKA_BIN:-$(command -v nika || true)}"
-if [ -z "$JUDGE" ] || [ ! -x "$JUDGE" ]; then
-  printf 'SKIP check-on-edit.test: no nika binary (NIKA_BIN or PATH)\n'
+REPO="$(cd "$HERE/../../../../.." && pwd)"
+# The binary under test, most specific first, as check-taught-commands.sh
+# resolves it: an explicit NIKA_BIN, the session target dir, the repo's own
+# debug build.
+JUDGE=""
+for candidate in \
+  "${NIKA_BIN:-}" \
+  "${CARGO_TARGET_DIR:-}/debug/nika" \
+  "$REPO/target/debug/nika"; do
+  if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+    JUDGE="$candidate"
+    break
+  fi
+done
+if [ -z "$JUDGE" ]; then
+  printf 'SKIP check-on-edit.test: no nika to judge with (set NIKA_BIN, or build target/debug/nika); nothing was asserted\n'
   exit 0
 fi
 ROOT="$(mktemp -d)"
@@ -81,6 +96,17 @@ edit 'a told suspension stays silent' "$ROOT/suspended/nika.yaml" 0 ''
 
 project untold 'TZ=Europe/Paris 30 7 * * 1-5' $'    plafond: 0.20\n    manqué: sauter\n    actif: false\n    jusqu_au: 2099-12-31\n'
 edit 'a suspension without its reason reaches the agent' "$ROOT/untold/nika.yaml" 2 'cadence.suspension-sans-raison'
+
+if command -v python3 >/dev/null 2>&1; then
+  mkdir -p "$ROOT/nested/workflows"
+  printf 'nika: brief\npermits:\n  tools: ["nika:log"]\ntasks:\n  noop:\n    invoke: { tool: "nika:log", args: { message: "child" } }\n' \
+    >"$ROOT/nested/workflows/brief.nika"
+  printf 'nika: parent\npermits:\n  tools: ["nika:log"]\ntasks:\n  call:\n    invoke: { workflow: "./brief.nika" }\n' \
+    >"$ROOT/nested/workflows/parent.nika"
+  printf 'nika: my-project\narm:\n  - workflow: workflows/parent.nika\n    cadence: "TZ=Europe/Paris 30 7 * * 1-5"\n    plafond: 0.20\n    manqué: sauter\n' \
+    >"$ROOT/nested/nika.yaml"
+  edit 'a beat calling a child (an unknown, no blocker) stays silent' "$ROOT/nested/nika.yaml" 0 ''
+fi
 
 mkdir -p "$ROOT/starter" "$ROOT/nobeat"
 cat >"$ROOT/starter/nika.yaml" <<'YAML'

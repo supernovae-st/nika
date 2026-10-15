@@ -18,10 +18,9 @@
 //! an interruption cancels them without sending anything, and `details` reads
 //! the same review's evidence without answering it.
 //!
-//! Without a kept intelligence choice the runtime opens all the same
-//! (`open_unchosen`): the first screen is asked through the composer under
-//! the `›` prompt the first time a turn needs an intelligence, by the
-//! runtime's own `choose` law, and the line that waited resumes after it.
+//! The native conversation requires a ready intelligence. Without one the
+//! composer opens its current choices immediately, and keeps any interrupted
+//! request until a usable choice resumes it through the runtime's `choose` law.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -167,8 +166,8 @@ pub struct Live {
     /// The program the host named to run `nika:jq` in the observed room, given to every
     /// runtime this Live opens.
     jq: Option<nika_session::JqHelper>,
-    /// Set once the current turn hands a Run to its runner: the turn's stop
-    /// then answers that a Run is under way and cancels nothing.
+    /// True while the current turn's runner owns execution. Once it returns, Stop and
+    /// corrections can reach any preparation triggered by observing its failure.
     run_started: Arc<AtomicBool>,
     /// HOME display preferences, with no Session or Run authority.
     layout: layout::Store,
@@ -177,6 +176,10 @@ pub struct Live {
     shown: work::Waiting,
     /// Presentation scope for selections; runtime identity remains the strong shown token.
     question_epoch: u64,
+    /// A connection opened in the native intelligence catalogue, with no selection authority.
+    intelligence_group: Option<String>,
+    /// Exact finite decision painted; no authority beyond the Session door.
+    action: Option<actions::Pending>,
 }
 
 impl std::fmt::Debug for Live {
@@ -190,8 +193,8 @@ impl std::fmt::Debug for Live {
 
 impl Live {
     /// A conversation over `cwd`. `kept` is the intelligence choice found
-    /// under the home, when one exists; without it the runtime opens
-    /// unchosen and asks the first screen when a turn needs one.
+    /// under the home, when one exists; without a usable choice the opening
+    /// screen guides the person to the intelligence this conversation needs.
     #[must_use]
     pub fn new(
         cwd: PathBuf,
@@ -224,6 +227,8 @@ impl Live {
             layout,
             shown: work::Waiting::Free,
             question_epoch: 0,
+            intelligence_group: None,
+            action: None,
         };
         live.open_runtime(kept);
         live
@@ -345,9 +350,24 @@ impl Live {
             ))),
         }
         if let Some(notice) = runtime.restore_state() {
-            beats.push(Beat::Say(Committed::new(Kind::Notice, notice)));
+            // A restored live gate includes its exact question in this owner text.
+            let kind = if matches!(runtime.waiting(), work::Waiting::Gate { .. }) {
+                Kind::Gate
+            } else {
+                Kind::Notice
+            };
+            beats.push(Beat::Say(Committed::new(kind, notice)));
         }
-        beats.extend(earlier(runtime.kept_turns()));
+        if !intelligence::ready(runtime) {
+            let _ = runtime.turn("/intelligence");
+            beats.push(Beat::Say(Committed::new(
+                Kind::Notice,
+                intelligence::guidance(runtime),
+            )));
+        }
+        beats.extend(earlier(runtime.kept_turns(), |index| {
+            runtime.kept_turn_is_human(index)
+        }));
         let kept = runtime.kept_run();
         if let Some(line) = kept_line(kept.as_ref()) {
             beats.push(Beat::Say(Committed::new(Kind::Notice, line)));
@@ -388,9 +408,23 @@ impl Live {
         self.shown = snapshot
             .as_ref()
             .map_or(work::Waiting::Free, |work| work.waiting.clone());
-        Beat::Wait(snapshot.as_ref().map_or(Waiting::Free, |work| {
+        let mut waiting = snapshot.as_ref().map_or(Waiting::Free, |work| {
             asked::capture(work, self.question_epoch)
-        }))
+        });
+        if let Some(snapshot) = &snapshot {
+            intelligence::project(&mut waiting, snapshot, self.intelligence_group.as_deref());
+        }
+        self.action = None;
+        if let (Some(runtime), Some(snapshot)) = (&self.runtime, &snapshot)
+            && let Some((pending, native)) = actions::capture(runtime, snapshot)
+        {
+            self.action = Some(pending);
+            waiting = native;
+        }
+        if !matches!(waiting, Waiting::Selection { .. }) {
+            self.intelligence_group = None;
+        }
+        Beat::Wait(waiting)
     }
 
     /// Whether the runtime's prompt is quiet; a retained run keeps its own footer.
@@ -422,7 +456,6 @@ impl Live {
         reply: Option<&str>,
     ) -> (Vec<Beat>, Option<Handoff>) {
         let mut beats = Vec::new();
-        let mut handoff = None;
         match outcome {
             TurnOutcome::Quit => return (self.quit_beats(), None),
             TurnOutcome::RunReviewed { review, approve } => {
@@ -444,6 +477,11 @@ impl Live {
             // The first screen, in context or on `/intelligence`: the runtime
             // now waits for the choice (`waiting()` reads it).
             TurnOutcome::Ask(screen) => {
+                let screen = self
+                    .runtime
+                    .as_ref()
+                    .filter(|runtime| runtime.pending_choice())
+                    .map_or(screen, intelligence::guidance);
                 beats.push(Beat::Say(Committed::new(Kind::Reply, screen)));
             }
             // The choice landed and the waiting line resumed under it: the
@@ -470,11 +508,7 @@ impl Live {
                 );
                 beats.push(Beat::Say(Committed::new(Kind::Report, label.clone())));
                 let work = Work::Run(run);
-                if self.runner(&work).is_some() {
-                    beats.extend(self.run_inline(&work));
-                    return (beats, None);
-                }
-                handoff = Some(self.keep(work, label));
+                return self.run_or_handoff(work, label, beats);
             }
             TurnOutcome::Question { key, question, .. } => {
                 beats.push(Beat::Say(self.question(&key, question)));
@@ -495,11 +529,7 @@ impl Live {
                     trace,
                     answer,
                 };
-                if self.runner(&work).is_some() {
-                    beats.extend(self.run_inline(&work));
-                    return (beats, None);
-                }
-                handoff = Some(self.keep(work, label));
+                return self.run_or_handoff(work, label, beats);
             }
             TurnOutcome::Refusal(why) => {
                 beats.push(Beat::Say(Committed::new(Kind::Refusal, why.to_string())));
@@ -509,11 +539,24 @@ impl Live {
             TurnOutcome::Cancelled(note) => beats.push(Beat::Cancelled(note)),
             _ => {}
         }
-        if handoff.is_none() {
-            beats.extend(self.reply_footer(reply));
-            beats.push(self.wait());
+        beats.extend(self.reply_footer(reply));
+        beats.push(self.wait());
+        (beats, None)
+    }
+
+    /// Dispatch an admitted Run or resume without adding another reply footer or prompt.
+    fn run_or_handoff(
+        &mut self,
+        work: Work,
+        label: String,
+        mut beats: Vec<Beat>,
+    ) -> (Vec<Beat>, Option<Handoff>) {
+        if self.runner(&work).is_some() {
+            beats.extend(self.run_inline(&work));
+            (beats, None)
+        } else {
+            (beats, Some(self.keep(work, label)))
         }
-        (beats, handoff)
     }
 
     /// Preserve the cost wording or capture the logical question's strong identity.
@@ -624,6 +667,9 @@ impl Live {
         &mut self,
         (code, trace, story): (u8, Option<PathBuf>, Vec<String>),
     ) -> Vec<Beat> {
+        // Observation may begin model-led repair before this turn ends. The child has
+        // returned, so that preparation must be stoppable through the existing token.
+        self.run_started.store(false, Ordering::Release);
         let mut beats = Vec::new();
         if !story.is_empty() {
             beats.push(Beat::Say(Committed::new(Kind::Run, story.join("\n"))));
@@ -659,7 +705,7 @@ const REVIEW_CHOICE: &str = "Continue once? yes / no";
 const CHOICES: &str = "Continue once? yes / no / details";
 /// The recent turns HOME history kept, repainted as history: what was said
 /// in an earlier session, never replayed.
-fn earlier(turns: &[(String, String)]) -> Vec<Beat> {
+fn earlier(turns: &[(String, String)], human: impl Fn(usize) -> bool) -> Vec<Beat> {
     if turns.is_empty() {
         return Vec::new();
     }
@@ -667,8 +713,13 @@ fn earlier(turns: &[(String, String)]) -> Vec<Beat> {
         Kind::Notice,
         "earlier in this conversation · kept in your history · nothing is replayed",
     ))];
-    for (said, reply) in turns {
-        beats.push(Beat::Say(Committed::new(Kind::Human, said.clone())));
+    for (index, (said, reply)) in turns.iter().enumerate() {
+        let input = if human(index) {
+            Committed::new(Kind::Human, said.clone())
+        } else {
+            Committed::new(Kind::Notice, format!("earlier context · {said}"))
+        };
+        beats.push(Beat::Say(input));
         beats.push(Beat::Say(Committed::new(Kind::Reply, reply.clone())));
     }
     beats
@@ -827,8 +878,9 @@ impl Conversation for Live {
 
     /// A fresh preparation token for the turn about to start (the Session's
     /// `begin_preparation_turn`). A turn answering the retained Run review
-    /// arms none, and once this turn hands a Run to its runner the stop
-    /// cancels nothing: a Run keeps its own doors.
+    /// arms none. While this turn hands a Run to its runner the stop cancels
+    /// nothing: a Run keeps its own doors. After the runner returns, the same
+    /// token can stop model-led preparation of a repair.
     fn stopper(&mut self) -> Option<Stopper> {
         if self.pending_run.is_some() {
             return None;
@@ -1045,6 +1097,15 @@ impl Live {
 
     /// One submitted line to the state that waits for it.
     fn answer(&mut self, line: &str) -> Turn {
+        if let Some(outcome) = self.require_intelligence(line) {
+            let refused = matches!(outcome, TurnOutcome::Refusal(_));
+            let (mut beats, handoff) = self.map(outcome);
+            if refused && !line.trim().starts_with('/') {
+                beats.push(Beat::NotTaken(line.to_owned()));
+            }
+            return Turn { beats, handoff };
+        }
+        let choosing = matches!(self.shown, work::Waiting::IntelligenceChoice);
         let outcome = {
             let Some(runtime) = self.runtime.as_mut() else {
                 return Turn {
@@ -1069,7 +1130,18 @@ impl Live {
             };
             runtime.submit(line, &shown)
         };
-        let (beats, handoff) = self.map(outcome);
+        let retained = choosing
+            && self
+                .runtime
+                .as_ref()
+                .is_some_and(SessionRuntime::pending_choice)
+            && !line.trim().is_empty()
+            && !line.trim().starts_with('/')
+            && !nika_session::authoring::is_cancel(line);
+        let (mut beats, handoff) = self.map(outcome);
+        if retained {
+            beats.push(Beat::NotTaken(line.to_owned()));
+        }
         Turn { beats, handoff }
     }
 
@@ -1112,6 +1184,7 @@ impl Live {
                 answer,
             } => (self.runners.run_resume)(&root, workflow, trace, answer),
         };
+        self.run_started.store(false, Ordering::Release);
         let Some(runtime) = self.runtime.as_mut() else {
             return vec![Beat::Quit];
         };
@@ -1190,10 +1263,12 @@ fn governing(snapshot: &ProjectSnapshot, home: Option<&Path>) -> Manifest {
 }
 
 pub mod acquire;
+mod actions;
 mod asked;
 mod candidate;
 pub mod feed;
 mod footer;
+mod intelligence;
 mod layout;
 pub(crate) mod legs;
 mod look;

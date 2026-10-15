@@ -1468,3 +1468,32 @@ fn an_authoring_timeout_keeps_its_limit_without_an_allowance_or_goal_rewrite() {
     assert!(!dir.path().join("out/copy.md").exists());
     assert!(matches!(s.turn("what happened?"), TurnOutcome::Facts(ref again) if again == &card));
 }
+
+#[test]
+fn the_confirmation_projection_names_only_a_confirm_gate_and_never_answers_it() {
+    let dir = tree();
+    let mut session = ready_with(dir.path(), vec![]);
+    assert_eq!(session.waiting_confirm_gate(), None);
+    for mode in ["text", "choice", "confirm"] {
+        session.pending_gate = Some(PendingGate {
+            workflow: "gate.nika".into(),
+            trace: "paused.ndjson".into(),
+            task: "approval".into(),
+            message: "Proceed?".into(),
+            mode: mode.into(),
+            values: None,
+            withheld: None,
+        });
+        let before = session.pending_gate.clone();
+        let shown = session.waiting_confirm_gate();
+        assert_eq!(
+            shown,
+            if mode == "confirm" {
+                session.waiting_gate()
+            } else {
+                None
+            }
+        );
+        assert_eq!(session.pending_gate, before, "inspection is not an answer");
+    }
+}

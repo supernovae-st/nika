@@ -655,7 +655,7 @@ fn parse_nika_id(
     };
     let raw = scalar.as_str();
     let span = cx.span(scalar.span());
-    if !is_kebab_id(raw) {
+    if !is_kebab_id(raw) || nika_vocab::project::is_retired_version_tag(raw) {
         return Err(SchemaError::BadNikaId {
             id: raw.to_owned(),
             span,
@@ -806,6 +806,28 @@ model: anthropic/claude-sonnet-4-6
         }
     }
 
+    /// One name law for both documents (spec 01 rule 2): the retired schema tag is no workflow
+    /// name, and its refusal teaches the rename. Only the whole marker is refused.
+    #[test]
+    fn a_retired_schema_tag_is_no_workflow_name() {
+        for tag in ["v1", "v2", "v10"] {
+            let err = parse_strict(&format!("nika: {tag}\n")).expect_err("the retired tag");
+            assert!(
+                matches!(err, SchemaError::BadNikaId { .. }),
+                "{tag} → {err:?}"
+            );
+            let text = err.to_string();
+            assert!(
+                text.contains("retired schema tag") && text.contains("give the workflow a name"),
+                "{text}"
+            );
+        }
+        for name in ["vault", "v2ray", "v1-migration", "victor"] {
+            let wf = parse_strict(&format!("nika: {name}\n")).expect("an ordinary name");
+            assert_eq!(wf.workflow.expect("nika").value, name);
+        }
+    }
+
     #[test]
     fn parse_bad_nika_id_carries_span() {
         let err = parse_strict("nika: Not_Kebab\n").expect_err("bad id");
@@ -825,19 +847,31 @@ model: anthropic/claude-sonnet-4-6
         }
     }
 
+    /// Spec 01 rule 2 reserves whole `v` + digits tags in both parsing modes.
+    /// Lenient parsing relaxes unknown fields, not the workflow name contract.
     #[test]
-    fn the_dead_version_literals_are_now_ordinary_names() {
-        // DELIBERATE, and the inverse of what this file asserted before
-        // the envelope nuke: `v1` and `v2` are legal kebab-case ids. The
-        // old test refused `nika: v2` because the slot was a VERSION;
-        // the slot is a NAME now, so a file may legitimately be called
-        // `v2`. Nothing here blesses `nika: v1` as an envelope marker —
-        // it simply names a workflow `v1`, and spec 01 calls that an
-        // anti-pattern in prose, not a refusal.
-        for name in ["v1", "v2", "v999"] {
-            let yaml = format!("nika: {name}\n");
-            let wf = parse_strict(&yaml).expect("a version-shaped name is just a name");
-            assert_eq!(wf.workflow.expect("nika").value, name);
+    fn retired_version_tags_stay_reserved_in_both_parse_modes() {
+        for mode in [ParseMode::Strict, ParseMode::Lenient] {
+            for tag in ["v0", "v01", "v1", "v2", "v999"] {
+                let err = parse(&format!("nika: {tag}\n"), fid(), mode)
+                    .expect_err("a whole retired version tag is not a workflow name");
+                assert!(
+                    matches!(&err, SchemaError::BadNikaId { id, .. } if id == tag),
+                    "{mode:?}: {tag} → {err:?}"
+                );
+                assert_eq!(
+                    err.to_string(),
+                    format!(
+                        "`nika: {tag}` — `nika:` names the workflow; `{tag}` is the retired \
+                         schema tag: give the workflow a name (`nika: my-workflow`)"
+                    )
+                );
+            }
+            for name in ["v", "v0-tool", "v999backup"] {
+                let workflow = parse(&format!("nika: {name}\n"), fid(), mode)
+                    .expect("a version-prefixed ordinary name");
+                assert_eq!(workflow.workflow.expect("nika").value, name);
+            }
         }
     }
 

@@ -32,6 +32,8 @@ mod child;
 mod fragments;
 #[path = "open_ux_journeys/peer.rs"]
 mod peer;
+#[path = "open_ux_journeys/proposal_choices.rs"]
+mod proposal_choices;
 #[path = "open_ux_journeys/scenarios.rs"]
 mod scenarios;
 #[path = "open_ux_journeys/schedule_journeys.rs"]

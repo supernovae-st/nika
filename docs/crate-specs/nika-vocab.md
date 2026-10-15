@@ -53,6 +53,14 @@ obligation vocabulary — joined at the C2 flag-day; `type_expr` joins at
 R3b: the declaration `type:` speaks the full TypeExpr of 09-types, the
 flat 6-enum `VarType` is DEAD — `bool` the one boolean spelling.)
 
+`project::is_retired_version_tag` (2026-10-12) is the one name law for
+the retired schema tag (`v` + digits, the whole marker): the project
+reader and the workflow envelope (`nika-schema`, `NIKA-PARSE-003`) both
+refuse it. This reverses the earlier asymmetry that let a workflow keep
+the name `v1` because its pre-nuke form is refused on `workflow:`: authors
+and models trained on old examples still give `nika:` the retired tag, and
+a silent workflow named `v1` teaches nothing (spec 01 §Conformance rule 2).
+
 `#[non_exhaustive]` note: the CLOSED spec vocabularies the unit matches
 exhaustively (`AfterPredicate` · `DecodeMode` · `VarDecl` ·
 `OutputDecl` · `SecretSource` · `WhenGate` · `EgressRule`) dropped the

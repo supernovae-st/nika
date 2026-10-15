@@ -29,7 +29,7 @@ multi-agent swarm without ever leaving validated ground.
 | [`invoice-chaser`](invoice-chaser.nika) | finance / freelance | overdue reminders drafted · NOTHING sent without a yes | `nika:convert` · `nika:prompt` gate · `size()` |
 | [`support-triage`](support-triage.nika) | customer support | the overnight queue triaged before coffee | schema-over-list · jq post-filter · `nika:uuid` |
 | [`contract-guard`](contract-guard.nika) | legal / compliance | the contract **never leaves the machine** (local model) | `ollama/…` · `nika:validate` + `nika:assert` |
-| [`etl-quarantine`](etl-quarantine.nika) | data engineering | bad batches degrade to quarantine · the pipeline lives | `on_error: recover:` · `nika:validate` · jq group_by |
+| [`etl-quarantine`](etl-quarantine.nika) | data engineering | bad batches degrade to quarantine · the pipeline lives | `on_error: { recover: … }` · `nika:validate` · jq group_by |
 | [`model-bench`](model-bench.nika) | engineering / model selection | the same question, three local models, one MEASURED table | per-task `infer.model:` · `duration_ms` as data · jq fan-in |
 | [`release-radar`](release-radar.nika) | devops / dependencies | only the NEW ships reach you — human-gated since it crosses the trifecta | `mode: feed` · state-file diff · RFC 6902 |
 | [`csv-chart-report`](csv-chart-report.nika) | data → picture | paste the spreadsheet, get the slide — offline, deterministic | `nika:convert` · jq group_by · `nika:chart` |
@@ -71,7 +71,7 @@ rm -rf out                                                                    # 
   boundary a reviewer can check.
 - **Offline by default.** Any `infer:` file rehearses with `--model mock/echo`
   — deterministic, zero keys. Files that reach the network carry an
-  `on_error: recover:` sample so the run stays green with no network at all;
+  `on_error: { recover: … }` sample so the run stays green with no network at all;
   a recovery stands in for the RAW response, so the `extract:` jq bindings run
   over it unchanged.
 - **Every job checks green — including `release-radar`.** It crosses the

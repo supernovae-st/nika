@@ -52,6 +52,154 @@ const CORE_GAPS: &[(&str, &str)] = &[
     // bidirectional: adding a row here is a claim that the engine
     // CANNOT hold a verdict, and the suite proves that claim by
     // failing when the fixture starts passing.
+    // ── Prompt and system files (spec 02 §Prompt files): the pin carries the law
+    // before the engine reads `{ file }`; each row leaves with that engine side.
+    (
+        "prompt-files/001-prompt-file-inside-the-read-boundary-passes",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/002-agent-system-and-prompt-files-pass",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/003-prompt-file-templated-path-refused",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/004-prompt-file-glob-refused",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/005-prompt-file-parent-escape-refused",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/006-prompt-file-absolute-path-refused",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/007-prompt-file-hidden-segment-refused",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/008-prompt-file-dotted-name-passes",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/009-prompt-file-under-absent-permits-refused",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/010-prompt-file-outside-the-read-boundary-refused",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/011-prompt-file-missing-refused",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/012-prompt-file-over-the-cap-refused",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/013-prompt-file-at-the-cap-passes",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/014-prompt-file-not-utf8-refused",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/015-prompt-file-utf8-text-passes",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/016-prompt-file-task-read-outside-with-refused",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/017-prompt-file-with-binding-read-passes",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    (
+        "prompt-files/019-prompt-file-parent-segment-inside-the-root-passes",
+        "spec 02 §Project files: the engine reads only inline prompt and system text yet",
+    ),
+    // ── The withdrawn secret source (spec 01 §secrets): the parser still reads it.
+    (
+        "envelope/055-secret-source-vault-withdrawn-refused",
+        "spec 01 §secrets withdrew `vault`: the parser still accepts it",
+    ),
+    // ── Schema files (spec 02 §Project files) and the run facts (spec 04): the pin carries the law before the engine side.
+    (
+        "schema-files/001-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/002-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/003-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/004-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/005-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/006-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/007-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/008-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/009-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/010-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/011-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/012-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/013-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/014-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/016-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "schema-files/017-",
+        "spec 02 §Project files: the engine reads only an inline `schema:` yet",
+    ),
+    (
+        "variables/039-run-facts-valid",
+        "spec 04 §run.X: the engine does not bind the facts of this run yet",
+    ),
 ];
 
 #[test]

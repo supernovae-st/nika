@@ -52,18 +52,18 @@ fn beside_any_answer(line: &str) -> bool {
 }
 
 impl SessionRuntime {
-    /// What the next line answers, by the one precedence every host shares: a requested run's
-    /// cost review, the one-time cost decision, the choice of intelligence, the knowledge choice
+    /// What the next line answers, by the one precedence every host shares: an explicitly opened
+    /// intelligence choice, a requested run's cost review, the one-time cost decision, the knowledge choice
     /// a held line waits for, a proposal's consent, a run's gate, then the value an authoring
     /// question, a run input or an activation asks; else a new turn.
     #[must_use]
     pub fn waiting(&self) -> Waiting {
-        if let Some(review) = self.waiting_review() {
+        if self.pending_choice {
+            Waiting::IntelligenceChoice
+        } else if let Some(review) = self.waiting_review() {
             Waiting::RunReview { review }
         } else if self.waiting_cost_choice() {
             Waiting::CostChoice
-        } else if self.pending_choice {
-            Waiting::IntelligenceChoice
         } else if let Some(line) = &self.knowledge.held {
             Waiting::KnowledgeChoice { line: line.clone() }
         } else if let Some(proposal) = self.pending_proposal() {
@@ -113,6 +113,11 @@ impl SessionRuntime {
     /// never read as a new request.
     pub fn submit(&mut self, line: &str, shown: &Waiting) -> TurnOutcome {
         self.last_answer = None;
+        // Configuration suspends the displayed decision; it never answers that decision or
+        // starts a new work turn. The choice door records it and keeps the underlying identity.
+        if line.trim() == "/intelligence" || line.trim().starts_with("/intelligence ") {
+            return self.choose(line);
+        }
         match self.waiting() {
             Waiting::RunReview { review } => match shown {
                 Waiting::RunReview { review: seen } => self.answer_run_review(seen, line),
@@ -295,7 +300,11 @@ impl SessionRuntime {
             None => selected,
         };
         let selected = self.intelligence_chosen().then_some(selected);
-        Intelligence::new(selected, author, decision, effort)
+        let mut intelligence = Intelligence::new(selected, author, decision, effort);
+        if self.pending_choice {
+            intelligence.options = self.intelligence_options();
+        }
+        intelligence
     }
 }
 

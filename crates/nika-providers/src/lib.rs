@@ -45,6 +45,7 @@ pub mod authoring;
 pub mod census;
 pub mod dispatch_journal;
 pub mod model_choice;
+mod overflow;
 #[cfg(test)]
 mod parity_tests;
 pub mod plan;

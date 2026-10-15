@@ -12,6 +12,12 @@ use nika_session::intelligence::IntelligenceKind;
 use nika_session::{CostHostEvidence, ReasonError, Reply, ScriptedReasoner, SessionReasoner};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+mod history_speakers;
+mod native_actions;
+mod native_settings;
+mod restored_gate;
+mod run_input_choices;
+
 const MODEL: &str = "deepseek/s90-unpriced-fixture";
 const SOURCE: &str = "nika: fresh-run\nmodel: deepseek/s90-unpriced-fixture\ntasks:\n  answer:\n    infer: { prompt: Say OK, max_tokens: 32 }\noutputs:\n  result: ${{ tasks.answer.output }}\n";
 /// One challenge frame as the child's host review writes it (every identity
@@ -287,12 +293,7 @@ fn a_run_review_keeps_its_contract_and_details_leave_the_challenge_untouched() {
     ] {
         assert!(!first.contains(identity), "{identity}: {first}");
     }
-    assert_eq!(
-        waits(&asked),
-        Some(Waiting::Question {
-            key: "run_cost".to_owned(),
-        })
-    );
+    assert!(matches!(waits(&asked), Some(Waiting::Action { key, .. }) if key == "run_cost"));
     assert!(live.fresh_input_required());
     let details = question(&live.submit("details").beats);
     assert!(
@@ -349,10 +350,24 @@ fn reply_of(room: &Room) -> Vec<u8> {
     std::fs::read(room.0.join("reply.json")).unwrap_or_default()
 }
 
-fn run_cost_wait() -> Waiting {
-    Waiting::Question {
-        key: "run_cost".to_owned(),
-    }
+fn assert_native_action(beats: &[Beat], key: &str, expected: &[&str], free_text: bool) {
+    let Some(Waiting::Action { key: actual, asked }) = waits(beats) else {
+        panic!("expected native action {key}: {beats:?}")
+    };
+    assert_eq!(actual, key);
+    let crate::model::Shape::Choice(offers) = asked.shape else {
+        panic!("finite choices")
+    };
+    assert_eq!(
+        offers
+            .iter()
+            .map(|offer| offer.key.as_str())
+            .collect::<Vec<_>>(),
+        expected
+    );
+    assert_eq!(asked.free_text, free_text);
+    assert!(asked.mandatory);
+    assert!(asked.witness.starts_with("action:"));
 }
 
 /// `oui` answers the Run review exactly as it answers
@@ -399,7 +414,7 @@ fn an_unknown_line_asks_the_run_review_again_and_sends_nothing() {
             text.contains("`yes`/`oui` runs it once"),
             "{line:?}: {text}"
         );
-        assert_eq!(waits(&asked), Some(run_cost_wait()), "{line:?}");
+        assert_native_action(&asked, "run_cost", &["yes", "no", "details"], false);
         assert!(live.fresh_input_required(), "{line:?} ended the review");
         assert!(reply_of(&room).is_empty(), "{line:?} answered the child");
     }
@@ -419,14 +434,14 @@ fn local_commands_beside_a_run_review_answer_locally_and_keep_it() {
         "{text}"
     );
     assert!(text.contains("still waits"), "{text}");
-    assert_eq!(waits(&help), Some(run_cost_wait()));
+    assert_native_action(&help, "run_cost", &["yes", "no", "details"], false);
     let status = live.submit("/status").beats;
     assert!(
         joined(&status).starts_with("session\n"),
         "{}",
         joined(&status)
     );
-    assert_eq!(waits(&status), Some(run_cost_wait()));
+    assert_native_action(&status, "run_cost", &["yes", "no", "details"], false);
     let details = question(&live.submit("/details").beats);
     assert!(details.contains("challenge nonce-s90"), "{details}");
     assert!(live.fresh_input_required());
@@ -562,13 +577,12 @@ fn local_commands_beside_the_intelligence_choice_keep_it_waiting() {
     let unmetered = Arc::new(AtomicUsize::new(0));
     let mut live = session_live(&room, &unmetered);
     let asked = live.submit("/intelligence").beats;
-    assert_eq!(waits(&asked), Some(Waiting::Choosing));
+    assert!(matches!(waits(&asked), Some(Waiting::Selection { .. })));
     for line in ["/help", "/status", "/details"] {
         let beats = live.submit(line).beats;
         assert!(!joined(&beats).is_empty(), "{line}: nothing said");
-        assert_eq!(
-            waits(&beats),
-            Some(Waiting::Choosing),
+        assert!(
+            matches!(waits(&beats), Some(Waiting::Selection { .. })),
             "{line}: the choice stopped waiting"
         );
     }
@@ -697,7 +711,7 @@ fn a_run_is_observed_from_its_request_to_its_frames() {
     let room = Room::new("observed");
     let source = "nika: two\npermits: {}\ntasks:\n  first:\n    invoke: { tool: \"nika:log\", args: { message: one } }\n";
     std::fs::write(room.0.join("two.nika"), source).expect("workflow");
-    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let (census, selected) = crate::session::intelligence::fixture();
     let frames = [
         r#"{"correlation":null,"execution":{"uuid":"01a0ef11-0212-70de-a8b3-99de9427fccc"},"fields":[{"key":"workflow","value":"two"}],"id":{"uuid":"01a0ef11-03a1-73d9-a2bc-2548bdab1943"},"kind":"workflow_started","run":null,"timestamp":1}"#,
         "not a frame",
@@ -705,8 +719,8 @@ fn a_run_is_observed_from_its_request_to_its_frames() {
     ];
     let mut live = Live::new(
         room.0.clone(),
-        IntelligenceCensus::empty(),
-        Some(none),
+        census,
+        Some(selected),
         None,
         Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
         Runners {
@@ -781,11 +795,11 @@ fn a_story_only_tap_tells_its_story_and_no_frame() {
     let room = Room::new("story-only");
     let source = "nika: two\npermits: {}\ntasks:\n  first:\n    invoke: { tool: \"nika:log\", args: { message: one } }\n";
     std::fs::write(room.0.join("two.nika"), source).expect("workflow");
-    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let (census, selected) = crate::session::intelligence::fixture();
     let mut live = Live::new(
         room.0.clone(),
-        IntelligenceCensus::empty(),
-        Some(none),
+        census,
+        Some(selected),
         None,
         Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
         Runners {
@@ -827,13 +841,13 @@ fn the_typed_review_goes_first_and_only_after_the_session_admits_the_run() {
     let room = Room::new("precedence");
     let source = "nika: two\npermits: {}\ntasks:\n  first:\n    invoke: { tool: \"nika:log\", args: { message: one } }\n";
     std::fs::write(room.0.join("two.nika"), source).expect("workflow");
-    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let (census, selected) = crate::session::intelligence::fixture();
     let reviewed = Arc::new(AtomicUsize::new(0));
     let counted = Arc::clone(&reviewed);
     let mut live = Live::new(
         room.0.clone(),
-        IntelligenceCensus::empty(),
-        Some(none),
+        census,
+        Some(selected),
         None,
         Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
         Runners {
@@ -892,13 +906,11 @@ fn an_explicit_run_pin_reaches_the_typed_cost_gate_and_cannot_be_replaced_while_
     let reviewed = Arc::new(AtomicUsize::new(0));
     let counted = Arc::clone(&reviewed);
     let slot: ChildSlot = Arc::default();
+    let (census, selected) = crate::session::intelligence::fixture();
     let mut live = Live::new(
         room.0.clone(),
-        IntelligenceCensus::empty(),
-        Some(UserIntelligencePreference::new(
-            IntelligenceKind::None,
-            None,
-        )),
+        census,
+        Some(selected),
         None,
         Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
         runners(),
@@ -979,11 +991,11 @@ fn a_proposal_reply_label_does_not_predict_save_or_model_work() {
     );
     let _ = live.open();
     let proposed = live.submit("Read ./a.md and write it to ./b.md");
-    assert_eq!(
-        waits(&proposed.beats),
-        Some(Waiting::Proposal),
-        "{}",
-        joined(&proposed.beats)
+    assert_native_action(
+        &proposed.beats,
+        "save",
+        &["yes", "save & run", "no", "/show"],
+        true,
     );
     for line in ["no", "/show", "write it to ./c.md instead", "yes"] {
         assert_eq!(
@@ -1146,3 +1158,112 @@ fn a_turn_stop_cancels_its_preparation_and_never_a_run() {
 }
 
 mod last_turn;
+
+/// A finished runner can hand its failure to the author in the same turn. Corrections
+/// and Stop must address that preparation, not keep reporting a Run that already ended.
+#[test]
+fn a_finished_run_releases_stop_for_its_repair_in_the_same_turn() {
+    let room = Room::new("repair-stopper");
+    let mut live = run_live(&room);
+    let stop = live.stopper().expect("open runtime");
+    live.run_started.store(true, Ordering::Release);
+    assert_eq!(stop(), Stopping::RunUnderway);
+    let _ = live.run_result((1, None, vec!["source file missing".into()]));
+    assert_eq!(stop(), Stopping::Requested);
+    assert!(!room.0.join("reply.json").exists(), "no child was started");
+}
+
+#[test]
+fn intelligence_native_offers_use_session_choices_and_apply_once_without_a_provider_call() {
+    use crate::composer::Composer;
+    use crate::composer::answer::Offered;
+    use crate::model::Shape;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    let room = Room::new("native-intelligence");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &calls);
+    let groups = waits(&live.submit("/intelligence").beats).expect("connections");
+    let Waiting::Selection { asked } = groups else {
+        panic!("native connections")
+    };
+    let Shape::Choice(groups) = asked.shape else {
+        panic!("connection choices")
+    };
+    assert!(
+        groups
+            .iter()
+            .any(|offer| offer.key == "/intelligence models 2 deepseek")
+    );
+    let beats = live.submit("/intelligence models 2 deepseek").beats;
+    let waiting = waits(&beats).expect("a choice waits");
+    let Waiting::Selection { asked } = &waiting else {
+        panic!("native settings offers missing");
+    };
+    let Shape::Choice(offers) = &asked.shape else {
+        panic!("one intelligence is selected");
+    };
+    let owner = live
+        .runtime
+        .as_ref()
+        .expect("runtime")
+        .work()
+        .intelligence
+        .expect("intelligence");
+    assert_eq!(
+        offers
+            .iter()
+            .map(|o| (o.key.as_str(), o.label.as_str()))
+            .collect::<Vec<_>>(),
+        owner
+            .options
+            .iter()
+            .filter(|o| o.key == "2 deepseek" || o.key.starts_with("2 deepseek/"))
+            .map(|o| (o.key.as_str(), o.label.as_str()))
+            .chain([
+                ("/intelligence", "All connections"),
+                ("cancel", "Keep the current selection"),
+            ])
+            .collect::<Vec<_>>()
+    );
+    let selected_route = offers
+        .iter()
+        .position(|offer| offer.key == "2 deepseek")
+        .expect("configured route option");
+    assert!(offers.iter().all(|offer| offer.key != "4"));
+    assert!(asked.free_text, "models on a known connection can be named");
+    let mut composer = Composer::new();
+    composer.set_focused(true);
+    composer.paste("ordinary draft");
+    composer.follow(&waiting);
+    assert_eq!(composer.offer_selected(&waiting), None);
+    assert!(composer.select_offer(&waiting, selected_route));
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        live.runtime.as_ref().expect("runtime").intelligence.kind,
+        IntelligenceKind::Api {
+            provider: "deepseek".into()
+        }
+    );
+    let enter = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+    let Offered::Answer(answer) = composer.offer_key(&waiting, enter) else {
+        panic!("deliberate activation");
+    };
+    assert_eq!(answer, "2 deepseek");
+    let selected = live.submit(&answer);
+    assert!(selected.handoff.is_none());
+    assert_eq!(
+        live.runtime.as_ref().expect("runtime").intelligence.kind,
+        IntelligenceKind::Api {
+            provider: "deepseek".into()
+        }
+    );
+    assert_eq!(
+        composer.offer_key(&waiting, enter),
+        Offered::Pass,
+        "in-flight repeat sends nothing"
+    );
+    assert_eq!(composer.text(), "ordinary draft");
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+mod intelligence;

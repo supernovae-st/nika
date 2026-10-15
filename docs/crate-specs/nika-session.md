@@ -21,6 +21,17 @@ The workflow grammar · the builtin catalog · the model catalog · the error de
 
 ## Run facts: read here, owned by the trace reader
 
+The agent's saved workflow destination also survives a conversation reopen as
+historical context. A fresh request to rerun uses that target through the normal
+Run admission; opening the conversation never replays it or restores a pending
+consent. Project-relative path checks still reject an outside or traversing target.
+
+A changed or missing rehearsal input refuses the current Run attempt. Its witness
+is retained as evidence so a later explicit retry can observe the files again. If
+the exact source, workflow and output bytes have been restored, that new admission
+can proceed without preparing another workflow. Different bytes still refuse;
+late run observations cannot advance a withdrawn witness on their own.
+
 The workspace also consumes `RunFacts::of` and the canonical captured verifier
 through its own `nika-trace` dependency. Session re-exports only `KeptRun` for
 `SessionRuntime::observe_run_leg`; `kept_run` and `kept_turns` expose retained
@@ -151,6 +162,12 @@ the boundary were crate-private and are now public items of the member; the prov
 transport's test substitution reaches this crate's loopback suites through the member's
 `test-support` feature, which only the dev-dependency enables.
 
+The native intelligence options also expose known API providers before a key is configured.
+Such rows name the exact key variables and, where the inventory has no model listing, offer
+provider configuration without inventing a model. Choosing an API that cannot be served keeps
+the current intelligence and the exact waiting request, returns the configuration reason, and
+does not construct or call its reasoner. Discovery itself never probes a provider.
+
 ## Source basis at the yes (C9 · F4)
 
 A proposal is consented to as the program its recorded source facts justified.
@@ -191,8 +208,9 @@ between the yes and the run.
 
 ## One waiting state, one routing, one work snapshot
 
-`SessionRuntime::waiting` is the one precedence every host reads for the next line: the one-time
-cost decision, the choice of intelligence, a proposal's consent, a run's gate, then the value an
+`SessionRuntime::waiting` is the one precedence every host reads for the next line: an opened
+intelligence choice, a requested run's cost review, the one-time cost decision, a held knowledge
+choice, a proposal's consent, a run's gate, then the value an
 authoring question, a run input or an activation asks, else a new turn. `submit(line, shown)`
 routes that line to what waits, by the identity the host displayed: a consent answers the
 proposal shown (`consent_to`), a gate answer names the gate shown (`answer_gate_for`). With no
@@ -201,7 +219,10 @@ proposal shown, a declining or leaving line still declines and any other line is
 at a free prompt is a new turn: one typed for a question, gate, proposal or cost review shown
 goes to that state's identity door and is refused there as answered, decided or stale, and a
 value or choice no longer asked takes nothing, so an answer is never read as a new request;
-leaving and the read-only commands still pass. An authoring question's own identity
+leaving and the read-only commands still pass. An explicit `/intelligence` command opens the
+existing configuration door while preserving the suspended decision. Cancelling or adopting a
+model restores that decision's identity; neither action answers it or replays an older interrupted
+request past a pending proposal, gate or cost decision. An authoring question's own identity
 (`answer_question_for`) is refused as the wrong state while a run's cost review owns the next
 line, and the question keeps waiting. `work()` builds the typed snapshot
 (`nika_session_change::work`) from the session's own state; it audits nothing, reads no file and
@@ -210,8 +231,9 @@ check that cleared the run request or landed the consent, kept beside them when 
 `authoring` is the last compile outcome the session keeps, read as the compiler wrote it, so a
 failed or unfinished creation stays explainable after its card. The CLI plain loop and the
 terminal renderer route through these since 2026-10-08. A requested run's cost review is part
-of them: the host announces the child's challenge (`run_review_asked`), `waiting` names it first
-(`Waiting::RunReview`, its identity only), and `submit` reads the line with the one spending
+of them: the host announces the child's challenge (`run_review_asked`), `waiting` names it
+(`Waiting::RunReview`, its identity only) unless an explicitly opened intelligence choice
+suspends it, and `submit` reads the line with the one spending
 grammar: one shown yes returns `RunReviewed { approve: true }` and the host answers its child
 once; a decline, leaving or `decline_run_review` (an interruption) sends nothing; the evidence,
 `/help` and `/status` answer beside it. The host keeps only the live child and its pipe.
@@ -235,6 +257,13 @@ guarded public GET, the document operations and the judge (`judge_document`: the
 the pure Check and the fidelity laws against the person's words from the current request on, the
 author's selections read on those words, the Session's own verified ones judged for scope). The
 rehearsal room is not open to a conversation's candidate yet (`trial` says so).
+
+The verifier also receives the full pending choices of the author's proposal, after
+`Conversation::open_choices` has validated them. This presentation retains each question's
+identity, labels, keys, values, default and state with `selected: null`; it is neither a human
+answer nor authorization. The ready-verdict cache includes the full presentation, so changing
+an unselected alternative or a question identity requires another verification. Existing
+selected values keep their own provenance and the consent door remains authoritative.
 
 Every value a candidate binds carries its provenance, checked against the person's cited lines
 as the tree made them durable (the tree's lines are indexed as they are appended): words cited
@@ -614,21 +643,25 @@ money nor Save grants a Run. File lookup resolves symlink aliases to the saved
 path and checks the exact byte witness. Ambiguous or changed identities refuse;
 independent files with identical bytes do not inherit each other's decisions.
 
-A saved-file revision without a new amount uses the same in-memory binding
-only when the resolved file and exact compiled base bytes agree. Ambiguous,
-stale or unreadable bindings refuse before cognition. With no binding, revision
-keeps the existing change-money/default law; this does not restore a saved
-ceiling across restart or alter Run's journal-based refusal below.
+A saved-file revision without a new amount uses the same saved binding as Run,
+including after reopening, only when the resolved file and exact compiled base
+bytes agree. The latest durable Save precedes an older Session's RAM binding.
+Ambiguous, stale or unavailable saved constraints refuse before cognition. A
+file never linked to a Save keeps the existing change-money/default law; a new
+explicit monetary amendment retains priority.
 
-The existing consent journal proves which files Save wrote but does not persist
-their monetary constraints. When an in-memory binding is unavailable, including
-after reopening, Run checks that journal even if the host omitted `restore_state`.
-A previously saved file or its resolved alias requires an explicit Run ceiling
-or a fresh Prepare/review; Session never substitutes the default. An unreadable
-or unsupported journal also requires reconfirmation. An explicit Run override
-applies to that request only. The journal and state schemas are unchanged; this
-is refusal on unavailable evidence, not restoration of execution consent or a
-claim to recover constraints after the durable evidence itself has been removed.
+After an applied Save, a private `.nika/saved-money.ndjson` receipt records the
+execution ceiling and its provenance beside the existing consent journal. It
+binds that exact consent entry, proposal, path, resolved file identity and byte
+witness. Reopened Run reads both through `OwnedDir`, even if the host omitted
+`restore_state`, and uses only the latest Save's matching constraint. A changed
+file, incomplete Save, missing, corrupt or unsupported receipt refuses rather
+than substituting a default. Earlier Saves without this evidence stay unknown:
+the person must state an explicit Run ceiling or prepare and review again.
+The warning names that remedy when writing a receipt fails. An explicit Run
+override applies to that request only. The consent and state schemas stay
+unchanged; this receipt restores no inference account, allowance, proposal
+consent or Run authorization.
 
 Open-language replies to confirm gates pass monetary admission through both
 `answer_gate` and `answer_gate_for` before classification. Zero, positive and
@@ -1173,6 +1206,13 @@ Started/Finished/Cancelled state. Finished means returned, not semantically acce
 
 ### Unjudged candidate continuation
 
+`SessionRuntime::waiting_judgment` exposes a read-only presentation identity only while
+the questionless continuation owns the next free line. It binds the exact round, answers,
+opaque continuation and selected authoring context; another prompt hides it. A host can
+offer retry or discard beside a free correction, compare the identity again at submission,
+and use the existing Session door. The identity grants no judgment, Save or Run authority
+and does not replace a fresh host presentation nonce after reopening.
+
 An INCOMPLETE result carrying the compiler's Applied `verify_resume` finding is kept as an authoring round, never as a Save proposal or Run permission. `continue` or `retry` replays its exact semantic record and asks the judge without regenerating the author candidate. A new correction discards that candidate and enters the existing request-restatement path. The round's answers, obligations and provenance remain durable under the existing exact-digest record. Reopening makes no model call; `/restore` arms this questionless round without proposing it, and an explicit continuation asks the judge. An altered or withheld record still refuses. Ordinary clarification rounds retain their existing replay protocol.
 
 The compiler leaves that finding only when the verifier's call on the whole request returned
@@ -1272,3 +1312,107 @@ since, even at the same path, refuses the proposal with both places and the chan
 named; nothing is proposed or written. The check runs no child. Run keeps its own
 current-world admission: the composed check before a run judges the children again
 (`check_on_disk`).
+
+
+## Explicit preparation and recovery
+
+An initial request that explicitly asks Nika to create, save and run a workflow can
+cover those actions after the full candidate verification. The cited human line is
+read for that meaning independently of the author, is superseded by later human
+instructions, and is consumed once. Describing a workflow's behavior or approving
+an unseen proposal does not provide that mandate.
+
+A saved workflow's path and content witness survive conversation recovery. A
+revision of the same workflow lands at that path; an external change requires a
+fresh read before replacement. A natural request to run the current saved workflow
+unchanged goes through existing Run admission, including its inputs, cost and
+effect checks. It cannot answer or bypass a pending permission question.
+
+The intelligence selector projects usable options from the current model inventory
+and configured access routes. Moving through this list changes nothing; submitting
+one selection retains the existing Session-owned selection and persistence path.
+
+### Conversation authentication and recovery
+
+An authentication refusal from the conversation's selected provider retains the sanitized
+HTTP diagnosis and unknown usage/billing, and names that provider's credential variables or
+`/intelligence`. Workflow Run troubleshooting remains on its runtime diagnostic path.
+A completed operation whose only uncertainty is inference billing records that scope separately
+from unknown workflow effects. Reopening neither retries the call nor settles its charge;
+legacy unknown-effect records retain their broader uncertainty.
+
+A failed model turn keeps the exact human message and citation. On the next explicit human
+turn, current engine conversation instructions can replace identified engine instructions in
+the model projection: the tree appends a new System entry and a versioned ownership Fact with
+its entry id and SHA-256. Historical entries and human citations remain intact. Only the latest
+System reaches the provider. Custom instructions remain unchanged. Legacy migration accepts
+only the two known engine instruction assets and an exact current engine-rendered context
+suffix; unknown or customized historical systems are not rewritten. Reopening alone adds no
+instruction entry and calls no provider. Conversational requests are valid without a workflow
+candidate; missing workflow state is not evidence that a retained request is absent.
+
+Questions do not survive reopening. Before the next explicit human turn, a historical parked
+`ask` with no active conversation questions is closed by a durable tool reply, without a human
+answer or authority. The new message remains a User entry with its own citation. An active
+question and its validated answer identity retain the existing bound-answer path. A completed
+conversational reply ends the turn; unrequested workflow setup is not a continuation obligation.
+
+When closing an expired question, the host also projects the first retained human message in
+the current request's citation range, alongside its request boundary and candidate revision.
+This anchor is read with later human corrections; an old assistant claim that the request was
+missing cannot replace it. The observation grants no answer, consent or authority and does not
+create a candidate lookup obligation for a fully specified conversational reply. Independent
+Run observations remain in the same turn's context.
+
+A retained candidate whose bytes match the saved workflow witness does not trigger a reminder
+to propose it again after reopening. This comparison only suppresses that reminder; it restores
+no shown proposal, consent or Run authority. A changed or never-saved candidate still requires
+its normal proposal, and a failed Run may be explained without creating a new candidate.
+
+`SessionRuntime::waiting_confirm_gate()` is a read-only projection of the waiting
+`GateId` only when the trace declares mode `confirm`. Native consumers may offer
+Approve/Refuse for that identity; text and other gate modes remain unchanged.
+The accessor records no answer and grants no resume authority.
+
+`SessionRuntime::waiting_gate_choices()` projects an active `choice` gate, its
+exact recorded options and the SHA-256 of the same trace bytes. The task, mode,
+message and shown values must still match the pending gate. The host compares the
+identity and digest again before submitting. Secret-reference markers, empty or
+malformed options, and unreadable or older traces without options are not guessed;
+a new paused run is needed to recover native options in those cases. The runtime's
+existing resume, approval-ticket and choice-membership checks remain authoritative.
+
+`SessionRuntime::waiting_gate_prompt()` reads the pending gate's exact message and
+`GateId` without I/O or effects. A matching native control uses that message as its
+first question, including after reopening; technical run and lineage context stays
+available in the complete gate view. It grants no answer or resume authority.
+
+`SessionRuntime::waiting_input_choices()` projects only the active required Run input
+whose checked declaration is `bool` or a string `enum`. It returns the input name,
+exact typed values and an identity covering this admission, the pending Run request,
+given inputs, remaining inputs, cost, access and checked source. Each admission has
+its own process-local token: cancelling and requesting an identical Run cannot
+revive an earlier input presentation. Repainting the same request retains its token;
+the token is never persisted and grants no authority. Unavailable or changed source
+bytes produce no list. A consumer compares this presentation again before the
+existing `submit` door; it grants no input, approval or Run authority. The Run's
+checked-source and world admission still apply. Finite values retain their canonical
+JSON spelling through launch coercion, so enum strings such as `true`, `/quit`,
+`cancel` and `@env:NAME` remain data. Open input types keep their existing text
+protocol and quoted-word escape.
+
+`SessionRuntime::waiting_gate_expiry()` returns the pending GateId, recorded expiry
+status and SHA of the same trace bytes, only while prompt/mode/shown values still
+match. It reads no model and changes no state. Unknown timing stays unknown; the
+runtime alone admits an answer. If resume reaches an expired ticket, it refreshes
+that ticket without binding the answer; the fresh question needs a separate answer.
+Earlier trust, content or admission failures can still refuse the resume.
+
+A natural rerun or closed `run it` request after reopening can use the last settled
+Run as context when no saved workflow is current. The retained path must name a regular project workflow and its
+SHA-256 must match the observed bytes. The natural route still requires a fresh semantic RequestRun with no secondary
+act; the closed Run grammar retains its existing door. Shared Run admission compares its checked byte witness
+before adopting the target, money or inputs. Opening restores neither last_workflow
+nor consent from that evidence, and never starts a Run. Unreadable/partial evidence,
+changed bytes, escaping paths and links do not supply this fallback. Explicitly named
+files and a current saved workflow retain their existing admission behavior.

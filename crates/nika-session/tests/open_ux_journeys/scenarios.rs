@@ -128,6 +128,10 @@ pub(crate) enum Act {
     SubmitAsShownAfter(usize, &'static str),
     /// The question that waited after act `n`, answered by its identity.
     AnswerQuestionOf(usize, &'static str),
+    /// One choice from the proposal shown after act `n`, answered under both identities.
+    AnswerProposalChoiceOf(usize, usize, &'static str),
+    /// Those proposal and question identities presented to another Session.
+    AnswerProposalChoiceElsewhere(usize, usize, &'static str),
     /// The question that waited after act `n`, answered by its identity in another Session of
     /// the same project.
     AnswerElsewhere(usize, &'static str),
@@ -357,6 +361,7 @@ fn with_le_monde() -> Value {
 
 pub(crate) fn scenario(name: &str) -> Scenario {
     match name {
+        name if name.starts_with("proposal_choice_") => super::proposal_choices::scenario(name),
         "accept_offer" => accept_offer(),
         "delegated_sources" => delegated_sources(),
         "partial_correction" => partial_correction(),

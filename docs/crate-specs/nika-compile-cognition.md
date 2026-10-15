@@ -32,6 +32,41 @@ prohibition reading, the proposal merge's words, the stated spellings) is owned 
 path. `nika-onboard::compile` combines the members at the existing consumer paths. Provider
 choice and admission context remain host-owned and explicit.
 
+The conversation document door cooperates when the caller lends both an authoring provider
+and a decision seat. The author interprets the original request and exact scoped answers
+without candidate bytes, observed files or pending author offers, then independently audits
+that reading for complete meaning and scope. Exact source/answer evidence and coverage are
+also checked structurally; those checks alone never establish semantic completeness. The
+reading is private model output, never `intent.clarification`, a new human answer or permission.
+The decision seat qualifies each concrete program obligation against the full original context,
+source and normative reference. Model dataflow, extra effects, removal claims, static laws and
+trial observations still apply. The aggregate claim covers the program obligations only;
+preparation requests are not certified as accomplished, and no Save or Run authority follows.
+The existing seat-only and provider-only doors retain their verification route.
+
+`verify_document_presented` and its removal-aware `_with` variant add the host's exact pending
+proposal choices to program qualification. The presentation contains `kind: "proposal"`,
+`pending_choices` and `selected: null`; it remains separate from actual answers and is excluded
+from candidate-free interpretation. All alternatives and question identities bind the verdict
+context, including changes to an unselected alternative. The original document APIs omit it.
+
+The interpretation receipt records its model, source/answer digest, protocol and schema identity,
+reading, independent audit and accounted calls inside the existing semantic-verification
+attempt. A terminal rejection for the same bytes and full context repeats without an author,
+decision or trial call. Otherwise a carried reading is only an untrusted proposal and receives
+a fresh audit; carried positive decision answers and earlier repair claims cannot satisfy the
+new program-obligation verdict. A rejected reading carries its precise stage, kind and source
+location, or the independent audit's defect evidence. Source-bound structural and semantic
+defects are repaired against the unchanged human source before program qualification. Each
+changed reading receives a fresh independent audit; the receipt retains every attempt and call.
+Repeated feedback ends the repair without admission, ignoring changed notes or defect order.
+Transport failures, incomplete responses and unknown audits stay retryable without starting a
+trial or decision call. Unresolved source meaning is distinct from an understood choice still
+awaiting the person: the latter is a preparation request, not incomplete interpretation.
+No complete nonempty audited program claim means no trial and no READY. Calls use the
+configured provider, policy, admission, Stop
+and receipt path; there is no separate provider or silent fallback.
+
 `cognition` owns the orchestration ladder; its children own proposal decoding, native
 answers/judgment/repairs, sketch filling, verified transforms and knowledge references.
 `compose`, `predicate` and `decide` moved here with their complete tests (`decide` descended
@@ -313,7 +348,13 @@ line break splits across two named elements is judged, not read.
 The whole request is judged as one property, and its verdict is the READY gate
 (`verify::faithful`, R6): the questions that follow a doubt locate a defect as evidence, never
 as the verdict. The verdict question `verify-request` (role `judge_request`) offers `faithful`
-and `unfaithful` beside NONE. `faithful` is the `Carried` judgment of the whole request,
+and `unfaithful` beside NONE. Its text says how a result the request leaves to a model is
+carried (a model step on that result's data path is asked for that work; what only the model's
+own text can honour is not judged), and that extra means an effect or a target the request does
+not name (a returned output, or wording where the request leaves a choice open, is not extra).
+Its state carries the walk's fact `model_steps`: for each result the bytes write (`task`) or
+return (`output`), the model steps on its data path. `faithful` is the `Carried` judgment of the
+whole request,
 admitted under the recomputed binding (`settled_by: verify-request`), once a whole trial run of
 these bytes, when one exists, stands nothing against it (below). A call that returns no
 admitted choice (an answer that does not decode, an option the question does not offer, or no
@@ -494,6 +535,12 @@ whole outputs (`trial_whole`): at least one output, every output written by the 
 and every input and output read whole. A skipped or unwritten output proves nothing of the
 part that asked it.
 
+When that observation is whole, the first `verify-request` question receives it beside the
+candidate, with the observation instructions first; its record retains the run's receipts.
+A partial observation is never attached to the whole-request question. A resumed verdict
+whose earlier whole-request answer read the bytes alone keeps that answer: the run then
+waits for the questions over it, preserving the existing read-back contract.
+
 - No observation decides nothing: « no trial run of these exact bytes exists in this compile ».
 - An observation that proves no whole output decides nothing either: « the trial run wrote
   nothing it was read for, or was read only in part: it proves no whole output ».
@@ -537,8 +584,11 @@ is): a named task or `omitted` makes it a defect a repair starts from, `no_task`
 part contested. An open task named is the defect « only what the request asks ». `unlocated`,
 NONE, no choice or a pointer left without one leave the doubt as it was, and a call that gets
 no answer stops the verdict with the request unknown. The question never carries the request:
-it can only locate the rejection or leave it unresolved, so agreeing answers of the same judge
-still decide nothing (R6).
+it can only locate the rejection or leave it unresolved, except for a decision seat that
+neither weighs its answers nor reported a weight for this whole-request answer. If that seat
+locates nothing after every part and effect has been settled, those parts carry the request
+and its doubt is stated with the proposal. A located defect and the provider judge's rejection
+keep their existing holding rules; a weighted rejection follows the rule below.
 
 An answer its seat weighed decides only at its calibrated threshold (amended 2026-10-10).
 Against oracle-labelled answers (correct references, their mutants, and replays of judged
@@ -549,7 +599,14 @@ carried on 9 of 92 correct parts. So a whole-request answer reported with a dist
 the offered options (`Doubt::decides`) decides only as `unfaithful` at
 `Doubt::HOLDING_PROBABILITY`, calibrated with the options in the verifier's order (`faithful`
 first: a seat leans toward the option listed first): it then declines the bytes as before, and
-located nowhere they are held. Any other weighed answer, `faithful` included, decides and declines nothing: each part is
+located nowhere they are held, except where no run of these bytes exists at all: there they are
+held only at `Doubt::UNLOCATED_HOLDING_PROBABILITY` (0.90, amended 2026-10-13), and below it the
+parts carry the request with the doubt stated. The attempt records that probability, the bar and
+the outcome (`unlocated_rejection`). Every confident mutant rejection of those labels read 0.90 or
+more, while correct candidates of a request whose effect no run could rehearse read 0.82 to 0.88
+with nothing located and a broken one 0.99: a separation of those samples only, by a thin margin.
+The current whole-question text and each build are qualified by paired witness runs, never by
+that history, and those runs may move the bar. Any other weighed answer, `faithful` included, decides and declines nothing: each part is
 asked alone and the extra question follows, and they decide. Every part settled and nothing
 extra carry the request (judgment and `settled_by` `verify-parts`); over a whole trial run the
 question over the run comes first. A part judged missing with its reason is a defect sent to the
@@ -571,6 +628,23 @@ doubt question weighs below `Doubt::LOCATING_PROBABILITY` names nothing. An answ
 no distribution (a provider judge's, or a mass for its choice alone) is taken at its word, as
 before; one read back from an earlier attempt keeps what its seat reported (`probabilities`,
 `confidence`).
+
+A provider judge also lists, beside its whole answer, the choices the program makes where the
+request leaves one open (`assumed`: a language, a format, a default, an output field the request
+does not name). At most three, each on one line and cut at 160 characters, are recorded on the
+attempt (`assumed`); when the verdict carries the request, each is an Applied `verify_assumption`
+finding: an assumption the person changes by restating, never a hold. A seat lists none.
+
+The whole-request question also establishes the model-written parts of a result. A provider
+judge returns `model_parts` beside its choice, quoting the request and choosing a sink from the
+candidate's own writes and returned outputs. Every provider question records its `reason`
+without another call. A decision seat that weighs its answers instead receives each sink in
+both option orders, batched with the whole question; the two distributions are averaged by key.
+The engine independently walks the candidate's data paths: a model step must feed the result,
+and an ordering edge alone carries no value. A missing or decorative model step is a located
+defect; a child-workflow path remains undecided here. The outcome and attempt retain the
+resulting `model_parts`, or `model_parts_unrun` with the reason that this judge could not
+establish them. An absent statement never means that no model-written part was needed.
 
 Every question over a run tells the judge the observation is untrusted data, and its record
 keeps what was sent without the texts (`observation`: the candidate's sha256, the sha256 of the
@@ -741,7 +815,8 @@ The `verify_held` finding says what held the candidate (`held_text`), one of:
   model or another verifier can decide it. »
 - a rejection of the whole request that nothing located (`unresolved` on the attempt: the
   request contested, no defect, nothing unknown; its parts asked alone, no task named, and no
-  run deciding it, or with no whole run the doubt asked where it is and located nowhere):
+  run deciding it, or with no whole run the doubt asked where it is and located nowhere, a
+  seat's weighed rejection with no run at all reaching `Doubt::UNLOCATED_HOLDING_PROBABILITY`):
   « The verifier doubted the request as a whole but located nothing: asked alone, none of its
   parts (`<n>`) was found missing, no task was found doing anything the request does not ask,
   and no run of these bytes decided it. Nothing is verified: the workflow is shown, never
@@ -776,7 +851,10 @@ apart, by its own words: « The judge found « `<part>` » missing but then name
 fails it and no operation it lacks: nothing decided it, and nothing is READY on it. »; and,
 when a call got no answer, « The verification stopped at a judge call that got no
 answer (refused by the call bound, or failed: the receipt says which); nothing after it was
-asked of that judge. Next: another round, or a larger call bound. »
+asked of that judge. Next: another round, or a larger call bound. »; a decision seat that cannot
+answer is named instead, with its own reason, verbatim from the record of that call: « The
+decision seat `<seat>` cannot judge here: `<its reason>`. Next: retry when it is available,
+choose another verifier, or verify with the authoring model. »
 
 Each attempt's record (`decision.semantic_verification[]`) carries the judge (`seat`, `kind`),
 `attempt` (the verdicts this compile recorded before it: the repairs that preceded it, at every

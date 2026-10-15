@@ -54,6 +54,7 @@ fn ctx(tz: &str) -> EmitCtx {
         PathBuf::from("/usr/local/bin/nika"),
         PathBuf::from("/projet"),
         PathBuf::from("/projet/nika.yaml"),
+        "0a1b2c3d".to_owned(),
         None,
         PathBuf::from("/projet/.nika/arm/logs"),
         tz.to_owned(),

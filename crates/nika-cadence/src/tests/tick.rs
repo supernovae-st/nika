@@ -16,7 +16,7 @@
 use jiff::{Timestamp, Zoned, tz::TimeZone};
 
 use crate::registry::ArmRegistry;
-use crate::tick::{TickDecision, expiry_passed, tick_decision};
+use crate::tick::{TickDecision, expiry_passed, suspension_over, tick_decision};
 
 fn at(text: &str) -> Zoned {
     text.parse::<Timestamp>()
@@ -175,6 +175,66 @@ fn inactive_cloud_and_expired_beats_skip_with_their_reason() {
     }
 }
 
+/// A lawful paused beat on `cadence`, suspended until 12 October 2026.
+fn paused_until_the_12th(cadence: &str) -> ArmRegistry {
+    let text = format!(
+        "nika: proj\narm:\n  - workflow: workflows/doctor.nika\n    cadence: \"{cadence}\"\n    plafond: 0.25\n    manqué: sauter\n    actif: false\n    raison: \"travaux\"\n    jusqu_au: \"2026-10-12\"\n"
+    );
+    let registry = crate::parse_registry(&text).expect("parse");
+    assert!(
+        crate::validate(&registry).next().is_none(),
+        "the fixture must be lawful"
+    );
+    registry
+}
+
+fn over(cadence: &str, now: &Zoned) -> bool {
+    let registry = paused_until_the_12th(cadence);
+    suspension_over(registry.beats().next().expect("beat"), now)
+}
+
+/// The same instant, carried in Tokyo's zone (UTC+9 all year).
+fn from_tokyo(text: &str) -> Zoned {
+    at(text).with_time_zone(crate::next::bundled_tz("Asia/Tokyo").expect("zone"))
+}
+
+#[test]
+fn east_of_utc_a_suspension_ends_at_the_zone_midnight() {
+    // Auckland is UTC+13 on 12 October 2026: its 13th begins at 11:00Z on the 12th.
+    let cadence = "TZ=Pacific/Auckland 0 9 * * *";
+    assert!(!over(cadence, &at("2026-10-12T10:59:59Z")));
+    assert!(over(cadence, &at("2026-10-12T11:00:00Z")));
+}
+
+#[test]
+fn west_of_utc_a_suspension_outlives_the_utc_date() {
+    // Los Angeles is UTC-7 on 12 October 2026: its 13th begins at 07:00Z on the 13th.
+    let cadence = "TZ=America/Los_Angeles 0 9 * * *";
+    assert!(!over(cadence, &at("2026-10-13T06:59:59Z")));
+    assert!(over(cadence, &at("2026-10-13T07:00:00Z")));
+}
+
+#[test]
+fn the_instant_zone_never_moves_the_cadence_date() {
+    // Paris is UTC+2 on 12 October 2026: its 13th begins at 22:00Z, Tokyo's at 15:00Z.
+    let cadence = "TZ=Europe/Paris 0 9 * * *";
+    assert!(!over(cadence, &from_tokyo("2026-10-12T21:59:59Z")));
+    assert!(over(cadence, &from_tokyo("2026-10-12T22:00:00Z")));
+}
+
+#[test]
+fn a_webhook_beat_reads_the_utc_date() {
+    assert!(!over("on-webhook", &from_tokyo("2026-10-12T23:59:59Z")));
+    assert!(over("on-webhook", &from_tokyo("2026-10-13T00:00:00Z")));
+}
+
+#[test]
+fn a_beat_without_a_date_is_never_over() {
+    let registry = registry_with(BASE);
+    let beat = registry.beats().next().expect("beat");
+    assert!(!suspension_over(beat, &at("2099-01-01T00:00:00Z")));
+}
+
 #[test]
 fn expiry_is_strictly_before_the_decision_date() {
     let registry = registry_with("    manqué: sauter\n    jusqu_au: \"2026-08-19\"\n");
@@ -258,6 +318,7 @@ fn emit_and_tick_share_the_same_v0_policy_set() {
         PathBuf::from("/usr/local/bin/nika"),
         PathBuf::from("/projet"),
         PathBuf::from("/projet/nika.yaml"),
+        "0a1b2c3d".to_owned(),
         None,
         PathBuf::from("/projet/.nika/arm/logs"),
         "Europe/Paris".to_owned(),
@@ -291,4 +352,71 @@ fn schedule_decision_wire_is_closed_and_exact() {
         serde_json::from_str::<ScheduleDecision>("\"late\"").is_err(),
         "unknown provenance fails closed"
     );
+}
+
+/// A suspension sleeps until its `jusqu_au`, saying so, then the OS-unit
+/// firer wakes it as an active beat, its silence counted from the wake:
+/// the slots it slept through are never a catch-up.
+#[test]
+fn a_suspension_sleeps_until_its_date_then_fires_without_replaying_it() {
+    let registry = registry_with(concat!(
+        "    manqué: rattraper-une-fois\n",
+        "    actif: false\n",
+        "    raison: \"holidays\"\n",
+        "    jusqu_au: \"2026-08-31\"\n",
+    ));
+    let last = at("2026-07-01T03:00:00Z");
+    match tick_decision(
+        &registry,
+        0,
+        "doctor",
+        &at("2026-08-31T03:02:00Z"),
+        Some(&last),
+    ) {
+        TickDecision::Skip { reason, line, .. } => {
+            assert_eq!(reason, "inactive");
+            assert!(
+                line.contains("holidays") && line.contains("jusqu_au 2026-08-31"),
+                "{line}"
+            );
+        }
+        other => panic!("on its own date the suspension holds: {other:?}"),
+    }
+    match tick_decision(
+        &registry,
+        0,
+        "doctor",
+        &at("2026-09-01T03:02:00Z"),
+        Some(&last),
+    ) {
+        TickDecision::Fire { slot, slots } => {
+            assert_eq!(slot.timestamp().to_string(), "2026-09-01T03:00:00Z");
+            assert_eq!(
+                slots, None,
+                "on time: the slots it slept through are not missed"
+            );
+        }
+        other => panic!("the day after its date, it wakes: {other:?}"),
+    }
+}
+
+/// The bound reads the cadence's own zone: « until 31 October » in
+/// Europe/Paris ends at midnight Paris, whatever zone the instant rides.
+#[test]
+fn a_suspension_ends_at_midnight_in_the_cadence_zone() {
+    let registry = crate::parse_registry(concat!(
+        "nika: proj\narm:\n  - workflow: workflows/doctor.nika\n",
+        "    cadence: \"TZ=Europe/Paris 30 0 * * *\"\n",
+        "    plafond: 0.25\n    manqué: sauter\n",
+        "    actif: false\n    raison: \"holidays\"\n    jusqu_au: \"2026-10-31\"\n",
+    ))
+    .expect("parse");
+    // 22:40Z is 23:40 in Paris on 31 October: the suspension holds.
+    assert!(matches!(
+        tick_decision(&registry, 0, "doctor", &at("2026-10-31T22:40:00Z"), None),
+        TickDecision::Skip { .. }
+    ));
+    // 23:32Z is 00:32 in Paris on 1 November: the 00:30 slot is on time.
+    let woke = tick_decision(&registry, 0, "doctor", &at("2026-10-31T23:32:00Z"), None);
+    assert!(matches!(woke, TickDecision::Fire { .. }), "{woke:?}");
 }

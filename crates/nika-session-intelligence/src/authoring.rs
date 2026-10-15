@@ -33,7 +33,9 @@ use std::collections::BTreeMap;
 mod money_restatement_tests;
 use std::sync::Arc;
 
-use nika_compile_cognition::{compile_with_cognition_composed, verify_document};
+use nika_compile_cognition::{
+    compile_with_cognition_composed, verify_document, verify_document_presented,
+};
 use nika_compile_fidelity::fidelity::resolution::Resolution;
 use nika_compile_seats::foundry::ComponentCatalog;
 use nika_onboard::compile::{
@@ -667,6 +669,55 @@ pub fn verify_in(
     account: Option<&nika_providers::InferenceAdmission>,
     host: Option<&dyn Rehearse>,
 ) -> Result<CompileOutcome, AuthoringError> {
+    verify_request(
+        seat,
+        context,
+        (stated, answers, original),
+        declined,
+        (account, host),
+        Work::Verify(candidate, selections, None),
+    )
+}
+
+/// Verify a conversation's document with the exact still-open choices its author proposes.
+/// `presentation` is separate from human answers and selections: it describes the proposal,
+/// grants no Save or Run, and is read only when qualifying the candidate. It is never input
+/// to the candidate-free interpretation of the person's request. The remaining arguments
+/// have the same meaning as [`verify_in`]; callers without a presentation keep that door.
+///
+/// # Errors
+/// As [`verify_in`].
+#[allow(clippy::too_many_arguments)] // the conversation's document, its words and its seats
+pub fn verify_presented_in(
+    seat: &AuthoringSeat,
+    context: &AuthoringContext,
+    said: (&str, &BTreeMap<String, String>, Option<&str>),
+    (candidate, selections, presentation): (&str, (&[Resolution], &[Resolution]), &Value),
+    declined: Vec<Value>,
+    account: Option<&nika_providers::InferenceAdmission>,
+    host: Option<&dyn Rehearse>,
+) -> Result<CompileOutcome, AuthoringError> {
+    verify_request(
+        seat,
+        context,
+        said,
+        declined,
+        (account, host),
+        Work::Verify(candidate, selections, Some(presentation)),
+    )
+}
+
+fn verify_request(
+    seat: &AuthoringSeat,
+    context: &AuthoringContext,
+    (stated, answers, original): (&str, &BTreeMap<String, String>, Option<&str>),
+    declined: Vec<Value>,
+    admission: (
+        Option<&nika_providers::InferenceAdmission>,
+        Option<&dyn Rehearse>,
+    ),
+    work: Work<'_>,
+) -> Result<CompileOutcome, AuthoringError> {
     let mut request = CompileRequest::create(stated).with_declined(declined);
     for (key, literal) in answers {
         request = request.answer(key.as_str(), literal.as_str());
@@ -675,8 +726,7 @@ pub fn verify_in(
         request = request.with_original_intent(original);
     }
     let attach = Attach::Carried(None, stated);
-    let work = Work::Verify(candidate, selections);
-    attached(seat, context, &request, attach, (account, host), work)
+    attached(seat, context, &request, attach, admission, work)
 }
 
 /// What knowledge one seated compile attaches: a pack composed for an
@@ -695,7 +745,11 @@ enum Attach<'a> {
 #[derive(Clone, Copy)]
 pub(crate) enum Work<'a> {
     Compile,
-    Verify(&'a str, (&'a [Resolution], &'a [Resolution])),
+    Verify(
+        &'a str,
+        (&'a [Resolution], &'a [Resolution]),
+        Option<&'a Value>,
+    ),
 }
 
 /// A subscription seat's preflight. It holds no billed-provider admission, and a direct seat
@@ -865,16 +919,16 @@ fn unseated(
         Option<&dyn Rehearse>,
     ),
 ) -> Result<CompileOutcome, AuthoringError> {
-    let (candidate, selections) = match work {
+    let (candidate, selections, presentation) = match work {
         Work::Compile => return Ok(compile(request)?),
-        Work::Verify(candidate, selections) => (candidate, selections),
+        Work::Verify(candidate, selections, presentation) => (candidate, selections, presentation),
     };
     let consulted = (context.decision()).map(|s| s.consult(decision::admit(admission)));
     let judge = Cognition::<nika_compile_cognition::NoProvider> {
         provider: None,
         seat: (consulted.as_ref()).map(|s| s as &dyn nika_onboard::compile::decide::DecisionSeat),
     };
-    let verified = verify_document(request, candidate, selections, judge, host);
+    let verified = verify_work(request, candidate, selections, presentation, judge, host);
     let mut out = complete(Box::pin(verified))??;
     decision::finish(&mut out, request, consulted);
     Ok(out)
@@ -935,8 +989,13 @@ fn seated(
         Work::Compile => complete(Box::pin(compile_with_cognition_composed(
             request, cognition, host, catalog,
         )))??,
-        Work::Verify(candidate, selections) => complete(Box::pin(verify_document(
-            request, candidate, selections, cognition, host,
+        Work::Verify(candidate, selections, presentation) => complete(Box::pin(verify_work(
+            request,
+            candidate,
+            selections,
+            presentation,
+            cognition,
+            host,
         )))??,
     };
     decision::finish(&mut out, request, consulted);
@@ -949,6 +1008,34 @@ fn seated(
     }
     Ok(out)
 }
+
+/// Every seat uses the same explicit presentation door; legacy calls keep their old input.
+async fn verify_work<P: nika_kernel::ai::provider::ProviderInferDyn>(
+    request: &CompileRequest,
+    candidate: &str,
+    selections: (&[Resolution], &[Resolution]),
+    presentation: Option<&Value>,
+    cognition: Cognition<'_, P>,
+    host: Option<&dyn Rehearse>,
+) -> Result<CompileOutcome, CompileError> {
+    match presentation {
+        Some(presentation) => {
+            verify_document_presented(
+                request,
+                candidate,
+                selections,
+                presentation,
+                cognition,
+                host,
+            )
+            .await
+        }
+        None => verify_document(request, candidate, selections, cognition, host).await,
+    }
+}
+
+#[cfg(test)]
+mod presentation_tests;
 
 // Both subscription and API compilation use the Session's one async driver and Stop boundary.
 fn complete<F: std::future::Future>(future: F) -> Result<F::Output, AuthoringError> {

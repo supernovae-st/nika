@@ -413,6 +413,22 @@ mod builder {
                         "message": {"type": "string"},
                         "task": {"type": "string", "description": "The task that failed · absent for a run-level cause"}
                     }
+                },
+                "stopped_calls": {
+                    "type": "array",
+                    "minItems": 1,
+                    "description": "Every MCP call the run stopped waiting for, on every path (a task's timeout, an operator Stop, a task that continued or recovered after it): the task, the tool as the workflow names it, the call's id, and whether the call left. `unknown`: the call reached the server, which may have acted, so an effect's outcome is unknown; `not_sent`: it was stopped before it was sent. Absent when the run stopped no MCP call.",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["task", "tool", "call_id", "outcome"],
+                        "properties": {
+                            "task": {"type": "string"},
+                            "tool": {"type": "string", "description": "`mcp:<server>/<tool>`"},
+                            "call_id": {"type": "string"},
+                            "outcome": {"type": "string", "enum": ["unknown", "not_sent"]}
+                        }
+                    }
                 }
             }
         })
@@ -999,6 +1015,10 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod published_sdk_tests;
 
 /// The document is COMMITTED beside the crate (`crates/nika-serve/openapi.json`)
 /// so the docs site can publish the real contract instead of a starter

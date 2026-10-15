@@ -136,6 +136,8 @@ fn activity_role(index: usize, text: &str) -> Option<Role> {
         Some(Role::Strong)
     } else if text.starts_with("✓ ") {
         Some(Role::Good)
+    } else if text.starts_with("✗ ") || text.starts_with("x ") {
+        Some(Role::Bad)
     } else if text.starts_with("↻ ") {
         Some(Role::Warn)
     } else if text.starts_with("● ") {
@@ -481,6 +483,8 @@ fn status_line(state: &UiState, choosing: bool, width: u16, consent: Consent<'_>
             }
             let tone = if phase.starts_with("✓ ") {
                 Role::Good
+            } else if phase.starts_with("✗ ") {
+                Role::Bad
             } else if phase.starts_with("● ") {
                 Role::Accent
             } else if phase.starts_with("↻ ") {
@@ -581,14 +585,32 @@ fn narrower(waiting: &Waiting) -> &'static [&'static str] {
                 "yes approves once · no cancels",
             ]
         }
-        Waiting::QuestionDocument { .. } if crate::composer::answer::choice(waiting).is_some() => {
+        Waiting::Action { .. } => &["↑↓ choose · Enter acts", "Enter acts"],
+        Waiting::Selection { asked } if asked.mandatory => {
+            &["↑↓ choose · Enter applies", "Enter applies"]
+        }
+        Waiting::Selection { .. } => &[
+            "↑↓ choose · Enter applies · Esc cancels",
+            "Enter applies · Esc cancels",
+        ],
+        Waiting::QuestionDocument { asked, .. } | Waiting::ProposalChoice { asked, .. }
+            if matches!(asked.shape, crate::model::Shape::Multiple(_)) =>
+        {
+            &[
+                "Space toggles · Tab: Submit · Enter activates",
+                "Space toggles · Tab: Submit",
+            ]
+        }
+        Waiting::QuestionDocument { .. } | Waiting::ProposalChoice { .. }
+            if crate::composer::answer::choice(waiting).is_some() =>
+        {
             &[
                 "↑↓ choose · Enter answers · cancel drops it",
                 "Enter answers · cancel drops it",
                 "Enter answers",
             ]
         }
-        Waiting::QuestionDocument { .. } => &["Enter answers"],
+        Waiting::QuestionDocument { .. } | Waiting::ProposalChoice { .. } => &["Enter answers"],
         Waiting::Knowledge { .. } => &[
             "↑↓ choose · Enter acts · cancel drops your message",
             "Enter acts · cancel drops it",
@@ -598,8 +620,8 @@ fn narrower(waiting: &Waiting) -> &'static [&'static str] {
         Waiting::Proposal => &["yes + Enter: Save · no: cancel"],
         Waiting::Gate => &["approve or refuse"],
         Waiting::Choosing => &[
-            "1 account · 2 API · 3 local · 4 no AI\ncancel",
-            "1 to 4 chooses · cancel",
+            "connect an AI · /providers: connections",
+            "/providers: connections",
         ],
         Waiting::Free => &[],
     }
@@ -663,6 +685,17 @@ fn hint_lines(
     width: u16,
     (consent, listed): (Consent<'_>, bool),
 ) -> Vec<Line<'static>> {
+    if state.interrupt_armed
+        && (composer.listing().is_some()
+            || crate::composer::answer::choice(&state.waiting).is_some())
+    {
+        // The opaque picker covers the ordinary status row. Keep the next press's
+        // effect beside the composer, ahead of an older completion or choice hint.
+        return vec![Line::styled(
+            own("Ctrl+C again leaves · any key stays", state.ascii),
+            role::style(Role::Accent, state.color),
+        )];
+    }
     let choosing = (composer.listing())
         .filter(|_| listed)
         .map(|listing| chooser::hint(&listing, state.busy.is_some(), state.ascii, width));

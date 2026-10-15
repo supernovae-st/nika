@@ -42,6 +42,13 @@ pub(super) struct Guard {
 }
 
 impl Guard {
+    /// New words are a new human act, so their Enter is no longer the
+    /// repeated activation that started this turn.
+    pub(super) fn edited(&mut self) {
+        self.working = false;
+        self.until = None;
+    }
+
     /// The activation's turn returned at `now`: a bare `Enter` within
     /// [`REPEAT`] is its repeat.
     fn returned(&mut self, now: Instant) {
@@ -100,7 +107,14 @@ impl<C: Conversation + 'static> Shell<C> {
             && key.code == KeyCode::Enter
             && key.modifiers == KeyModifiers::NONE
         {
-            self.state.completion = Some(own(NOTHING_CHOSEN, self.state.ascii));
+            let notice = if crate::composer::answer::choice(&self.state.waiting)
+                .is_some_and(|(_, asked, _)| !asked.free_text)
+            {
+                "nothing sent · ↑↓ choose, then Enter"
+            } else {
+                NOTHING_CHOSEN
+            };
+            self.state.completion = Some(own(notice, self.state.ascii));
         }
         Some(Caught::Read)
     }
@@ -180,6 +194,29 @@ mod tests {
         guard.returned(now);
         assert!(!guard.repeats(&enter, now + REPEAT), "the window is past");
         assert!(!guard.working);
+    }
+
+    #[test]
+    fn editing_after_activation_lets_the_next_enter_queue_new_input_once() {
+        let mut guard = Guard {
+            working: true,
+            until: None,
+        };
+        assert!(guard.working, "an immediate repeated Enter is held");
+        guard.edited();
+        assert!(!guard.working, "new words may queue on Enter");
+        let now = Instant::now();
+        guard.returned(now);
+        let enter = key(KeyCode::Enter, KeyModifiers::NONE);
+        assert!(
+            guard.repeats(&enter, now),
+            "the next turn's activation still sends once"
+        );
+        guard.edited();
+        assert!(
+            !guard.repeats(&enter, now),
+            "fresh words are never swallowed"
+        );
     }
 
     /// The shell's own keys keep their place under a typed choice: Stop, the

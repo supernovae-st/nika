@@ -8,9 +8,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, mpsc};
 
 use nika_session::QuestionId;
-use nika_session::intelligence::{
-    IntelligenceCensus, IntelligenceKind, UserIntelligencePreference,
-};
 use nika_session::reasoner::NoReasoner;
 use nika_session::work;
 
@@ -38,13 +35,11 @@ impl Drop for Room {
 }
 
 fn live(root: &Path) -> Live {
+    let (census, selected) = crate::session::intelligence::fixture();
     let mut live = Live::new(
         root.to_path_buf(),
-        IntelligenceCensus::empty(),
-        Some(UserIntelligencePreference::new(
-            IntelligenceKind::None,
-            None,
-        )),
+        census,
+        Some(selected),
         None,
         Box::new(|_| Box::new(NoReasoner)),
         Runners {
@@ -174,6 +169,24 @@ fn a_different_painted_witness_refuses_before_any_session_change_and_returns_exa
     assert!(!room.0.join("compiled-workflow.nika").exists());
 }
 
+#[test]
+fn a_stale_group_never_borrows_an_unrelated_current_question() {
+    let room = Room::new();
+    let mut live = live(&room.0);
+    let (_, _, asked) = question(&mut live);
+    let before = snapshot(&live);
+    live.shown = work::Waiting::Questions {
+        ids: vec![QuestionId::new(
+            "earlier-group".into(),
+            &Arc::new(nika_session::outcome::Incarnation),
+        )],
+    };
+    let turn = answer(&mut live, "EUR", &asked.witness);
+    refused(&turn, "EUR");
+    assert_eq!(snapshot(&live), before);
+    answer_writes_no_file(&room.0);
+}
+
 fn answer_writes_no_file(room: &Path) {
     assert!(
         !room.join("aggregate-by-key.nika").exists(),
@@ -183,6 +196,28 @@ fn answer_writes_no_file(room: &Path) {
         !room.join("compiled-workflow.nika").exists(),
         "answer is not Save"
     );
+}
+
+#[test]
+fn a_proposal_without_the_painted_open_choice_never_takes_yes_as_consent() {
+    let room = Room::new();
+    let mut live = live(&room.0);
+    let (_, id, asked) = question(&mut live);
+    let _ = answer(&mut live, "EUR", &asked.witness);
+    let proposal = live
+        .runtime
+        .as_ref()
+        .expect("runtime")
+        .pending_proposal()
+        .expect("proposal");
+    let witness = super::super::asked::proposal_witness(&proposal, &id, live.question_epoch);
+    let before = snapshot(&live);
+    for text in ["yes", "save & run", r#"["yes"]"#, "my custom format"] {
+        let refused_answer = answer(&mut live, text, &witness);
+        refused(&refused_answer, text);
+        assert_eq!(snapshot(&live), before);
+        answer_writes_no_file(&room.0);
+    }
 }
 
 #[test]
@@ -243,8 +278,10 @@ fn a_bound_answer_changes_the_draft_once_and_the_old_identity_never_starts_a_tur
     assert_eq!(work.run, None, "binding is not an observed Run");
     answer_writes_no_file(&room.0);
     assert_ne!(runtime.pending_question_id(), Some(id.clone()));
+    let remembered = runtime.kept_turns().to_vec();
     let before = snapshot(&live);
-    // A screen still carrying the strong old id reaches the runtime refusal, never submit.
+    // The native proposal action now owns the surface. An old question's
+    // witness is refused by the host before Session sees a new answer or turn.
     live.shown = work::Waiting::Question {
         key,
         id: id.clone(),
@@ -255,27 +292,26 @@ fn a_bound_answer_changes_the_draft_once_and_the_old_identity_never_starts_a_tur
         &asked.witness,
     );
     refused(&again, "a fresh automation that must never start");
-    assert_eq!(
-        live.runtime.as_ref().expect("runtime").work().answered,
-        Some(work::Answered::new(
-            id.clone(),
-            work::AnswerAct::Refused {
-                class: nika_session::RefusalClass::AlreadyConsumed,
-            }
-        ))
+    assert!(matches!(again.beats.first(), Some(Beat::Say(c))
+        if c.kind == Kind::Refusal
+        && c.text == "This answer belongs to a question that is no longer shown. Nothing was sent."));
+    assert!(
+        matches!(again.beats.last(), Some(Beat::Wait(Waiting::Action { key, .. }))
+        if key == "save")
     );
-    let mut expected = before;
-    expected["answered"] = serde_json::json!({
-        "question": id.as_str(), "act": "refused", "class": "already_consumed",
-    });
     assert_eq!(
         snapshot(&live),
-        expected,
-        "only the refused answer act changes; draft, consent and effects stay exact"
+        before,
+        "host refusal preserves the accepted Bound act, draft, consent and effects exactly"
+    );
+    assert_eq!(
+        live.runtime.as_ref().expect("runtime").kept_turns(),
+        remembered,
+        "a stale native gesture never enters Session history"
     );
     assert!(!again.beats.iter().any(|b| matches!(b, Beat::Say(c)
         if c.kind == Kind::Notice && c.text.starts_with("Answer taken"))));
-    assert!(!room.0.join("compiled-workflow.nika").exists());
+    answer_writes_no_file(&room.0);
 }
 
 #[test]

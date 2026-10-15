@@ -248,7 +248,10 @@ fn a_request_in_flight_is_recorded_before_transport_and_its_restart_replays_noth
     assert_eq!(last["unknown_calls"], 1);
     assert_eq!(last["unknown_attempts"][0]["usage"], Value::Null);
     assert_eq!(last["billed_nano_usd"], Value::Null);
-    assert_eq!(last_history_event(home.path())["effect"], "unknown");
+    assert_eq!(
+        last_history_event(home.path())["effect"],
+        "inference_charge_unknown"
+    );
     drop(first);
     std::fs::write(dir.path().join(RECORD), &image).unwrap();
     restart_from_the_crash_image(dir.path(), history.path(), &peer);
@@ -329,7 +332,7 @@ fn history_and_record_agree_after_a_settled_or_contradicted_call() {
         let (state, effect) = if settled {
             ("Closed", "no_uncertainty_reported")
         } else {
-            ("Uncertain", "unknown")
+            ("Uncertain", "inference_charge_unknown")
         };
         assert_eq!(last["state"], state, "{served}");
         assert_eq!(
@@ -443,7 +446,10 @@ fn a_no_budget_request_in_flight_is_recorded_and_its_restart_keeps_the_model() {
     assert_eq!(last["unbudgeted"], true);
     assert_eq!(last["state"], "Uncertain", "abort is not completion");
     assert_eq!(last["attempts"][0]["usage"], Value::Null);
-    assert_eq!(last_history_event(home.path())["effect"], "unknown");
+    assert_eq!(
+        last_history_event(home.path())["effect"],
+        "inference_charge_unknown"
+    );
     drop(first);
     std::fs::write(dir.path().join(RECORD), &image).unwrap();
     restart_without_a_budget(dir.path(), history.path(), &peer);
@@ -515,7 +521,10 @@ fn a_contradicted_or_failed_no_budget_call_is_never_retried_or_priced() {
         assert_eq!(last["schema"], DURABLE, "{status}: the durable form (E35)");
         let estimated = &last["attempts"][0]["estimated_nano_usd"];
         assert_eq!(estimated, &Value::Null, "{status}: never an invented price");
-        assert_eq!(last_history_event(home.path())["effect"], "unknown");
+        assert_eq!(
+            last_history_event(home.path())["effect"],
+            "inference_charge_unknown"
+        );
         // No ceremony follows: the next operation observes afresh.
         let next = s.turn("hello");
         assert!(

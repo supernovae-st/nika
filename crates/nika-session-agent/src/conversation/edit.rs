@@ -22,8 +22,14 @@ pub fn edited(source: &str, pairs: &[(String, String)]) -> Result<String, String
     };
     let mut spans = Vec::with_capacity(pairs.len());
     for (k, (old, new)) in pairs.iter().enumerate() {
+        if old.is_empty() {
+            return Err(format!(
+                "{}`old` is empty: give the exact passage to replace, or use candidate_write to replace the whole document",
+                name(k)
+            ));
+        }
         let found = source.matches(old.as_str()).count();
-        let at = (source.find(old.as_str())).filter(|_| !old.is_empty() && found == 1);
+        let at = (source.find(old.as_str())).filter(|_| found == 1);
         let Some(at) = at else {
             return Err(format!(
                 "{}`old` must occur exactly once in the candidate; it occurs {found} times",

@@ -4,7 +4,7 @@
 //! The question document and its identity come from one Session work snapshot.
 //! Unsupported shapes keep the ordinary prompt; painting grants no answer or effect.
 
-use nika_session::{QuestionId, work};
+use nika_session::{ProposalId, QuestionId, work};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 // One process-local scope per native runtime incarnation. This is a painted
@@ -17,6 +17,10 @@ pub(super) fn epoch() -> u64 {
 
 pub(super) fn witness(id: &QuestionId, epoch: u64) -> String {
     format!("{epoch}:{}", id.as_str())
+}
+
+pub(super) fn proposal_witness(proposal: &ProposalId, id: &QuestionId, epoch: u64) -> String {
+    format!("{epoch}:proposal:{}:{}", proposal.as_str(), id.as_str())
 }
 
 use crate::model::{Asked, Committed, Kind, Offer, Retained, Shape, Waiting};
@@ -38,10 +42,37 @@ pub(super) fn capture(snapshot: &work::Work, epoch: u64) -> Waiting {
     match &snapshot.waiting {
         work::Waiting::RunReview { .. } => plain("run_cost"),
         work::Waiting::CostChoice => plain("unknown_cost"),
-        work::Waiting::IntelligenceChoice => Waiting::Choosing,
-        work::Waiting::Consent { .. } => Waiting::Proposal,
+        work::Waiting::IntelligenceChoice => intelligence_choice(snapshot, epoch),
+        work::Waiting::Consent { proposal } => {
+            let Some(question) = snapshot
+                .open_choices
+                .iter()
+                .find(|q| q.state == work::AskedState::Open)
+            else {
+                return Waiting::Proposal;
+            };
+            let mut asked = cooperative(
+                question,
+                epoch,
+                proposal_witness(proposal, &question.id, epoch),
+            );
+            asked.retained = retained(&snapshot.request, &question.question);
+            Waiting::proposal_choice(proposal.as_str(), &question.key, asked)
+        }
         work::Waiting::Gate { .. } => Waiting::Gate,
         work::Waiting::Question { key, id } => {
+            // The cooperative Session owns multiplicity and free-form permission.
+            // Match the strong identity as well as the semantic key; another
+            // question's options never lend a painted answer authority.
+            let current = snapshot
+                .questions
+                .iter()
+                .find(|q| q.id == *id && q.key == *key && q.state == work::AskedState::Open);
+            if let Some(q) = current {
+                let mut asked = cooperative(q, epoch, witness(id, epoch));
+                asked.retained = retained(&snapshot.request, &q.question);
+                return Waiting::asked(key.clone(), asked);
+            }
             let asked = snapshot
                 .question
                 .as_ref()
@@ -66,12 +97,21 @@ pub(super) fn capture(snapshot: &work::Work, epoch: u64) -> Waiting {
                         why: q.why.clone(),
                         mandatory: q.mandatory,
                         shape,
+                        free_text: true,
                         witness: witness(id, epoch),
                         epoch,
                         retained: retained(&snapshot.request, &q.label),
                     })
                 });
             asked.map_or_else(|| plain(key), |asked| Waiting::asked(key.clone(), asked))
+        }
+        work::Waiting::Questions { ids } => {
+            let Some(question) = grouped_question(snapshot, ids) else {
+                return Waiting::Free;
+            };
+            let mut asked = cooperative(question, epoch, witness(&question.id, epoch));
+            asked.retained = retained(&snapshot.request, &question.question);
+            Waiting::asked(&question.key, asked)
         }
         work::Waiting::KnowledgeChoice { line } => {
             knowledge(line, snapshot.knowledge.as_ref(), epoch)
@@ -80,6 +120,77 @@ pub(super) fn capture(snapshot: &work::Work, epoch: u64) -> Waiting {
         work::Waiting::Input { .. } => plain(""),
         _ => Waiting::Free,
     }
+}
+
+fn intelligence_choice(snapshot: &work::Work, epoch: u64) -> Waiting {
+    let Some(intelligence) = snapshot
+        .intelligence
+        .as_ref()
+        .filter(|i| !i.options.is_empty())
+    else {
+        return Waiting::Choosing;
+    };
+    let mut offers = intelligence
+        .options
+        .iter()
+        .map(|offer| Offer::new(offer.key.clone(), offer.label.clone()))
+        .collect::<Vec<_>>();
+    let usable = intelligence
+        .selected
+        .as_ref()
+        .is_some_and(|selected| selected.ready && selected.kind != "none");
+    if usable {
+        offers.push(Offer::new("cancel", "Keep the current selection"));
+    }
+    let asked = Asked::new(
+        "Choose the intelligence for this conversation",
+        "",
+        !usable,
+        Shape::Choice(offers),
+        format!("{epoch}:intelligence"),
+        epoch,
+    )
+    .retaining(Retained::new(snapshot.request.goal.clone(), Vec::new()));
+    Waiting::selection(asked)
+}
+
+/// A grouped ask lends one open question at a time, in the owner's order.
+/// Its offered labels are answers even when no workflow value is attached.
+pub(super) fn grouped_question<'a>(
+    snapshot: &'a work::Work,
+    ids: &[QuestionId],
+) -> Option<&'a work::AskedQuestion> {
+    ids.iter().find_map(|id| {
+        snapshot
+            .questions
+            .iter()
+            .find(|q| q.id == *id && q.state == work::AskedState::Open)
+    })
+}
+
+fn cooperative(question: &work::AskedQuestion, epoch: u64, witness: String) -> Asked {
+    let offers = question
+        .options
+        .iter()
+        .map(|offer| Offer::new(offer.key.clone(), offer.label.clone()))
+        .collect::<Vec<_>>();
+    let shape = if offers.is_empty() {
+        Shape::Text
+    } else if question.multi_select {
+        Shape::Multiple(offers)
+    } else {
+        Shape::Choice(offers)
+    };
+    let mut asked = Asked::new(
+        &question.question,
+        question.why.clone().unwrap_or_default(),
+        false,
+        shape,
+        witness,
+        epoch,
+    );
+    asked.free_text = question.free_text;
+    asked
 }
 
 /// The knowledge decision a held line waits for, from the same snapshot: the
@@ -174,3 +285,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod choice_tests;

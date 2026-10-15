@@ -142,7 +142,24 @@ mod tests {
             "{}",
             cut[0].text
         );
-        assert!(cut[1].text.len() <= 2_000);
+        // Each callable is its whole stdlib section, never more of the page, however long the Spec
+        // makes it: it starts at its own heading, and after that first line no heading of level 3
+        // or above (`#`, `##`, `###`) follows outside a code block.
+        let jq = &cut[1].text;
+        assert!(jq.starts_with("### `nika:jq`"), "{jq}");
+        let mut fenced = false;
+        let next_heading = jq.lines().skip(1).find(|line| {
+            if line.trim_start().starts_with("```") {
+                fenced = !fenced;
+                return false;
+            }
+            let hashes = line.len() - line.trim_start_matches('#').len();
+            !fenced && (1..=3).contains(&hashes) && line[hashes..].starts_with(' ')
+        });
+        assert!(
+            next_heading.is_none(),
+            "the cut stops before the next heading, {next_heading:?}: {jq}"
+        );
     }
 
     #[test]

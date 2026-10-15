@@ -22,15 +22,21 @@ struct Author {
 
 impl ProviderInferDyn for Author {
     async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
-        let keys = match &request.response_format {
-            ResponseFormat::JsonSchema(schema) => schema["properties"]["choice"]["enum"].as_array(),
+        let schema = match &request.response_format {
+            ResponseFormat::JsonSchema(schema) => Some(schema),
             _ => None,
         };
+        let keys = schema.and_then(|schema| schema["properties"]["choice"]["enum"].as_array());
         let approved = ["faithful", "carried"]
             .into_iter()
             .find(|key| keys.is_some_and(|keys| keys.iter().any(|value| value == *key)));
         let reply = if let Some(choice) = approved {
-            json!({"choice": choice})
+            let mut judged = json!({"choice": choice});
+            // The whole request's question asks the parts a model must write: none here.
+            if schema.is_some_and(|schema| schema["properties"]["model_parts"].is_object()) {
+                judged["model_parts"] = json!([]);
+            }
+            judged
         } else {
             self.calls.fetch_add(1, Ordering::SeqCst);
             json!({"candidate": self.candidate, "questions": [], "gaps": [], "notes": ""})

@@ -17,7 +17,7 @@ use std::sync::Arc;
 use super::{SessionRuntime, TurnOutcome};
 use crate::authoring::AuthoringRound;
 use crate::change::Witness;
-use crate::outcome::{Incarnation, QuestionId, Refusal, RefusalClass};
+use crate::outcome::{Incarnation, ProposalId, QuestionId, Refusal, RefusalClass};
 use crate::work::{AnswerAct, Answered};
 
 /// How many answered or dropped questions a session remembers, to say so
@@ -58,6 +58,57 @@ impl Identities {
 }
 
 impl SessionRuntime {
+    /// Answer one choice shown beside a proposal, under both identities. Selecting an offer
+    /// never enters the consent parser, even when its key is `yes` or `save & run`. The author
+    /// may revise the candidate; only independently verified human instructions authorize
+    /// saving or running that revision through the existing consent door.
+    pub fn answer_proposal_choice_for(
+        &mut self,
+        proposal: &ProposalId,
+        question: &QuestionId,
+        line: &str,
+    ) -> TurnOutcome {
+        self.last_answer = None;
+        if self.waiting_review().is_some()
+            || self.waiting_cost_choice()
+            || self.pending_choice
+            || self.knowledge.held.is_some()
+            || self.pending_gate.is_some()
+            || self.money.gate.is_some()
+            || self.run_inputs.is_some()
+            || self.activation.is_some()
+            || self.authoring.is_some()
+            || self.revising.is_some()
+        {
+            return self.refused_for(
+                question,
+                RefusalClass::WrongState,
+                "another prompt owns the next answer; the proposal choice is kept and nothing was sent".to_owned(),
+            );
+        }
+        if self.pending_proposal().as_ref() != Some(proposal)
+            || !question.asked_by(&self.questions.asker)
+            || !self.agent_proposal_asks(question)
+        {
+            return self.refused_for(
+                question,
+                RefusalClass::StaleRevision,
+                "this choice does not belong to the proposal shown now; nothing was read, saved or run".to_owned(),
+            );
+        }
+        let outcome = self.recorded(super::history::Operation::Turn, line, |session| {
+            session.agent_proposal_answer(question, line)
+        });
+        if !self.agent_proposal_asks(question) {
+            self.questions.close(Some(question.clone()));
+        }
+        match self.agent_authorized() {
+            Ok(Some((proposal, word))) => self.consent_to(&proposal, word),
+            Ok(None) => outcome,
+            Err(why) => super::durable::with_note(outcome, why),
+        }
+    }
+
     /// The identity of the authoring question the next line answers, when
     /// one waits (beside [`Self::pending_question`]): the question, its
     /// request revision, the intelligence and the seat that read its answer,
@@ -122,7 +173,12 @@ impl SessionRuntime {
                         ),
                     );
                 }
-                self.turn(line)
+                if asked && let Some(driver) = self.agent.as_mut() {
+                    driver.answering = Some(id.clone());
+                }
+                let outcome = self.turn(line);
+                if let Some(driver) = self.agent.as_mut() { driver.answering = None; }
+                outcome
             }
             Some(waiting) if elsewhere => self.refused_for(
                 id,

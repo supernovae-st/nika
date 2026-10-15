@@ -265,3 +265,47 @@ fn an_unobserved_run_is_not_reported_again_until_a_new_request_is_unobserved() {
     assert_eq!(notes(&history), 2);
     assert!(history.uncertain);
 }
+
+/// Later replies never settle an earlier charge; an actual unknown effect still wins the
+/// broader notice even when a model charge was already disclosed.
+#[test]
+fn inference_only_uncertainty_survives_reopen_without_hiding_unknown_effects() {
+    let root = project();
+    let home = tempfile::tempdir().expect("home");
+    let mut history = History::open(home.path(), root.path()).expect("new");
+    completed(
+        &mut history,
+        Operation::Turn,
+        RunState::Idle,
+        EffectState::InferenceChargeUnknown,
+        ("hello", "HTTP 401"),
+        "refusal",
+    );
+    drop(history);
+    let mut history = History::open(home.path(), root.path()).expect("reopen charge");
+    assert!(history.uncertain && history.effects == EffectState::InferenceChargeUnknown);
+    let recent = history.state.recent.clone();
+    assert_eq!(
+        recent.last().expect("note").1,
+        "[An earlier model request has unknown API usage or billing. This notice concerns inference, not an unobserved workflow effect. Your messages are kept; nothing was replayed.]"
+    );
+    drop(history);
+    history = History::open(home.path(), root.path()).expect("reopen without replay");
+    assert_eq!(history.state.recent, recent, "no duplicate notice");
+    completed(
+        &mut history,
+        Operation::Consent,
+        RunState::Idle,
+        EffectState::Unknown,
+        ("yes", "write may have happened"),
+        "io_refusal",
+    );
+    drop(history);
+    let history = History::open(home.path(), root.path()).expect("reopen effect");
+    assert!(history.uncertain && history.effects == EffectState::Unknown);
+    assert_eq!(
+        notes(&history),
+        1,
+        "actual effect retains the generic warning"
+    );
+}

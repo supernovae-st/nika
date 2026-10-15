@@ -35,11 +35,23 @@
 //!
 //! ## Custody
 //!
-//! OS keychain first (entry `nika/run-signing-key`, the minisign secret
-//! box as text); `~/.nika/keys/run-signing.key` (0600) as the no-backend
-//! fallback (CI without a session keyring). `nika key init|trust|rotate`
-//! manages the lifecycle; an absent key keeps the journal unsigned and
-//! says so — sealing is additive, never a gate.
+//! An explicit file pair first (`NIKA_RUN_KEY_FILE` · `NIKA_RUN_PUB_FILE`),
+//! then the OS keychain (entry `nika/run-signing-key`, the minisign secret
+//! box as text), then `~/.nika/keys/run-signing.key` (0600) as the
+//! no-backend fallback (CI without a session keyring). The keychain is
+//! opened only by a binary whose signature keeps a keychain grant (a
+//! Developer ID release, never an ad-hoc build, which the keychain would
+//! see as a new identity and ask for the password on every run), from a
+//! terminal, and never by a resident (`nika serve` seals from files). A
+//! secret key file other users can read is refused, as ssh refuses one.
+//! A release and the builds kept from the keychain sign with one key only
+//! when the 0600 files hold the keychain's: `nika key align`, from a signed
+//! release, makes them one (the replaced file key retired). A release
+//! records which key the keychain holds (`~/.nika/keys/keychain.json`, with
+//! the item's modification date) so those builds can compare while the item
+//! is unchanged. `nika key init|trust|rotate|align` manages the lifecycle;
+//! an absent key keeps the journal unsigned and says so — sealing is
+//! additive, never a gate.
 
 use std::fmt::Write as _;
 use std::io::{Cursor, Write as IoWrite};
@@ -54,6 +66,7 @@ mod key_files;
 mod public_box;
 #[cfg(test)]
 mod served_tests;
+mod signing;
 
 pub(crate) use key_files::keyring_entry;
 pub(crate) use public_box::parse_many as parse_public_boxes;
@@ -74,6 +87,50 @@ const KEYRING_SERVICE: &str = "nika";
 const KEYRING_USER: &str = "run-signing-key";
 pub(crate) const KEYRING_USER_PUB: &str = "run-signing-key.pub";
 
+/// The keychain's public run-key item, read at most once per process.
+/// Every public-only reader (key trust, the doctor, the memory fold, a seal
+/// grade, a workflow signature) reads this item alone, never the secret one.
+/// `None` when this process does not open the keychain or the item is absent.
+pub(crate) fn keychain_public_item() -> Option<String> {
+    static PUBLIC: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    PUBLIC
+        .get_or_init(|| keyring_entry(KEYRING_USER_PUB).and_then(|entry| entry.get_password().ok()))
+        .clone()
+}
+
+/// The keychain's secret run-key item, read at most once per process
+/// and only by the two readers that must open it: the signing loader and
+/// `nika key align`. Its text then stays in this process's memory, as a 0600
+/// file's text would.
+fn keychain_secret_item() -> Option<String> {
+    static SECRET: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    SECRET
+        .get_or_init(|| keyring_entry(KEYRING_USER).and_then(|entry| entry.get_password().ok()))
+        .clone()
+}
+
+/// Whether `nika key init` would clobber a keychain item: either run-key item
+/// is there, read from attributes alone (no data, no prompt). A process that
+/// writes the keychain (a signed release) reads an unknown answer (a locked
+/// keychain) as occupied: it never overwrites what it could not see. A test
+/// binary, a resident and the keychain off never ask.
+pub(crate) fn keychain_may_be_occupied() -> bool {
+    let keychain = keychain_use();
+    if !matches!(
+        keychain,
+        KeychainUse::Opened | KeychainUse::AdHoc | KeychainUse::NoTerminal
+    ) {
+        return false;
+    }
+    [KEYRING_USER, KEYRING_USER_PUB].into_iter().any(|user| {
+        match signing::keychain_item(KEYRING_SERVICE, user) {
+            Some(signing::KeychainItem::Present(_)) => true,
+            Some(signing::KeychainItem::Absent) => false,
+            None => keychain == KeychainUse::Opened,
+        }
+    })
+}
+
 /// Whether the OS keychain may be consulted at all · `NIKA_KEYCHAIN=off` skips it.
 ///
 /// WHY THIS OPT-OUT EXISTS · a macOS keychain ACL is bound to the requesting
@@ -88,27 +145,107 @@ pub(crate) const KEYRING_USER_PUB: &str = "run-signing-key.pub";
 /// its run-key in the keychain simply must not set this. Accepted values ·
 /// `off` · `0` · `false` · `no` (case-insensitive). Anything else, including
 /// absent, keeps the keychain in play.
+pub(crate) fn keychain_enabled() -> bool {
+    keychain_use() == KeychainUse::Opened
+}
+
+/// Whether this process opens the OS keychain for its run-key, and when it
+/// does not, why: the one decision every custody reader and `nika doctor`
+/// share.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum KeychainUse {
+    /// It opens it: the keychain is on, stderr is a terminal and this
+    /// binary's signature keeps its keychain grant.
+    Opened,
+    /// `NIKA_KEYCHAIN=off`.
+    Off,
+    /// A cargo test binary: a new identity on every compile.
+    TestBinary,
+    /// A resident (`nika serve`): it seals from files and never stops to ask
+    /// for a password.
+    Resident,
+    /// No terminal on stderr: a keychain prompt could never be answered.
+    NoTerminal,
+    /// This build's signature cannot keep a keychain grant (ad-hoc or
+    /// unsigned): the keychain would ask for its password on every run.
+    AdHoc,
+}
+
+/// Who this process is, for its keychain: a resident never opens it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Process {
+    /// A process a person attends (`nika run` · the Session · `nika doctor`).
+    Attended,
+    /// A resident (`nika serve`), once [`resident_custody`] said so.
+    Resident,
+}
+
+/// Set once by a resident at its start ([`resident_custody`]).
+static RESIDENT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// This process is a resident (`nika serve`): from now on it never opens the
+/// keychain, whatever its terminal or its signature — a resident
+/// cannot stop to ask for a password. Its run-key comes from the explicit
+/// pair or the 0600 files, and every keychain reader in it says so.
+pub fn resident_custody() {
+    RESIDENT.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Whether this process opens the OS keychain, and why not (see
+/// [`KeychainUse`]).
 // Env reads are CONFIG paths (a flag, never a secret value · the scoped
 // `env_flag` precedent).
 #[allow(clippy::disallowed_methods)]
-pub(crate) fn keychain_enabled() -> bool {
+#[must_use]
+pub fn keychain_use() -> KeychainUse {
+    let process = if RESIDENT.load(std::sync::atomic::Ordering::SeqCst) {
+        Process::Resident
+    } else {
+        Process::Attended
+    };
     // seam-bypass-ok: build-host flag · no secret crosses here
-    keychain_consults(
+    keychain_decision(
         keychain_flag(std::env::var("NIKA_KEYCHAIN").ok().as_deref()),
         running_as_a_cargo_test_binary(std::env::current_exe().ok().as_deref()),
+        process,
         std::io::IsTerminal::is_terminal(&std::io::stderr()),
+        signing::grant_can_stick,
     )
 }
 
 /// Whether the OS keychain may be opened for this process. Pure so the
-/// pipe/ACL hang is a fixture, not a session reproduction.
+/// pipe/ACL hang and the per-build password prompt are fixtures, not
+/// session reproductions.
 ///
 /// A captured stderr (pipe · CI · an agent `Popen`) cannot complete a
 /// macOS keychain ACL prompt. Asking anyway is a hang after a green
 /// card (`nika try 01-hello` piped · sampled 2026-08-22 on
-/// `SecKeychainFindGenericPassword`). File and env custody stay.
-fn keychain_consults(flag: bool, test_bin: bool, stderr_tty: bool) -> bool {
-    flag && !test_bin && stderr_tty
+/// `SecKeychainFindGenericPassword`). An ad-hoc build can answer it, but
+/// its « Always Allow » never sticks: the password returns on
+/// every run. A resident never stops to ask. File and env custody stay. The
+/// signature is asked last, so only a process that would otherwise open the
+/// keychain pays for it.
+fn keychain_decision(
+    flag: bool,
+    test_bin: bool,
+    process: Process,
+    stderr_tty: bool,
+    grant_sticks: impl FnOnce() -> bool,
+) -> KeychainUse {
+    if !flag {
+        KeychainUse::Off
+    } else if test_bin {
+        KeychainUse::TestBinary
+    } else if process == Process::Resident {
+        KeychainUse::Resident
+    } else if !stderr_tty {
+        KeychainUse::NoTerminal
+    } else if !grant_sticks() {
+        KeychainUse::AdHoc
+    } else {
+        KeychainUse::Opened
+    }
 }
 
 /// Is this process a cargo test binary? Cargo builds them at
@@ -208,6 +345,21 @@ pub fn fingerprint(pubkey_box: &str) -> String {
 /// public box contains decoded public-key material, never custody metadata.
 #[must_use]
 pub fn load_signing_key() -> Option<(minisign::SecretKey, String)> {
+    load_signing_key_from(true)
+}
+
+/// The signing half a resident seals with (`nika serve`): the explicit file
+/// pair, otherwise the 0600 files — never the keychain, whatever its
+/// terminal or its signature (a resident cannot stop to ask for a password).
+/// The same 0600 rule holds for every file it reads.
+#[must_use]
+pub fn load_served_signing_key() -> Option<(minisign::SecretKey, String)> {
+    load_signing_key_from(false)
+}
+
+/// The custody order, with the keychain in it only when `keychain` allows
+/// it (and [`keychain_enabled`] still guards its every entry).
+fn load_signing_key_from(keychain: bool) -> Option<(minisign::SecretKey, String)> {
     // An explicit key file wins (CI injects keys this way · hermetic tests
     // too — the OS keychain is never the only door).
     if let Some(files) = key_files::configured().ok()? {
@@ -215,12 +367,11 @@ pub fn load_signing_key() -> Option<(minisign::SecretKey, String)> {
     }
     // The keychain holds the minisign secret box as text (custody IS the
     // keychain's own encryption).
-    if let Some(entry) = keyring_entry(KEYRING_USER)
-        && let Ok(text) = entry.get_password()
+    if keychain
+        && let Some(text) = keychain_secret_item()
         && let Ok(boxed) = minisign::SecretKeyBox::from_string(&text)
         && let Some(sk) = open_secret_box(boxed, &key_password())
-        && let Some(pub_entry) = keyring_entry(KEYRING_USER_PUB)
-        && let Ok(pk_box) = pub_entry.get_password()
+        && let Some(pk_box) = keychain_public_item()
     {
         let pk_box = public_box::for_signing(&sk, &pk_box)?;
         return Some((sk, pk_box));
@@ -232,9 +383,9 @@ pub fn load_signing_key() -> Option<(minisign::SecretKey, String)> {
 }
 
 /// Load a (secret box, public box) pair from two files — `None` on any
-/// miss (absent file · unparseable box).
+/// miss (absent file · unparseable box · a secret file others can read).
 fn load_from_files(key: &Path, pub_: &Path) -> Option<(minisign::SecretKey, String)> {
-    let text = std::fs::read_to_string(key).ok()?;
+    let text = read_private(key)?;
     let boxed = minisign::SecretKeyBox::from_string(&text).ok()?;
     let sk = open_secret_box(boxed, &key_password())?;
     let pk_box = std::fs::read_to_string(pub_).ok()?;
@@ -290,15 +441,16 @@ pub(crate) fn open_fixture_box(boxed: &minisign::SecretKeyBox) -> Option<minisig
     plaintext_probe(&boxed.to_string())
 }
 
-/// The PUBLIC half of the run-key, when a usable PAIR exists on this
-/// machine — the same precedence as [`load_signing_key`] (env override,
-/// keychain, 0600 fallback) and the same pair honesty, WITHOUT ever
-/// decrypting: the secret half is probed parse-only
-/// (`secret_box_parses` — envelope shape + the crate's own structural
-/// parse; no password, no prompt, no `into_secret_key`). `key trust`,
-/// the init clobber check and the rotation ledger stay off the secret
-/// path, and an orphaned `.pub` (secret half gone or corrupt) is never
-/// announced as a key this machine can seal with.
+/// The PUBLIC half of the run-key — the same precedence as
+/// [`load_signing_key`] (env override, keychain, 0600 fallback), WITHOUT ever
+/// decrypting. A file pair is probed parse-only (`secret_box_parses` —
+/// envelope shape + the crate's own structural parse; no password, no
+/// `into_secret_key`), so an orphaned file `.pub` is never announced. The
+/// keychain tier reads its public item alone: proving that
+/// pair would open the secret item, a prompt no public question may cost, so
+/// a keychain `.pub` whose secret is gone is announced until a seal fails to
+/// open it. `key trust`, the doctor, the memory fold and the rotation ledger
+/// stay off the secret path.
 /// Public boxes are decoded and reconstructed: untrusted comments and trailing
 /// bytes cannot reach the trust output or retired ledger. Engine-generated
 /// boxes keep their bytes and fingerprint; custom comments are excluded from
@@ -306,23 +458,34 @@ pub(crate) fn open_fixture_box(boxed: &minisign::SecretKeyBox) -> Option<minisig
 /// public enrollment record when verifying older seals.
 #[must_use]
 pub fn load_public_box() -> Option<String> {
+    public_box_and_tier().map(|(pk_box, _)| pk_box)
+}
+
+/// The custody tier a public half came from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Tier {
+    Explicit,
+    Keychain,
+    Files,
+}
+
+/// [`load_public_box`] with the tier it read.
+fn public_box_and_tier() -> Option<(String, Tier)> {
     // The explicit file override IS the custody when both vars are set
     // (init writes there, load reads there) — a broken pair under it
     // answers "no usable key", never a silent fall-through to another
     // tier.
     if let Some(files) = key_files::configured().ok()? {
-        return public_from_files(&files.secret, &files.public);
+        return public_from_files(&files.secret, &files.public).map(|pk| (pk, Tier::Explicit));
     }
-    if let Some(entry) = keyring_entry(KEYRING_USER)
-        && let Ok(text) = entry.get_password()
-        && secret_box_parses(&text)
-        && let Some(pub_entry) = keyring_entry(KEYRING_USER_PUB)
-        && let Ok(pk_box) = pub_entry.get_password()
-    {
-        return public_box::canonical(&pk_box);
+    // The keychain tier reads its public item alone: proving
+    // the pair would open the secret item, the very prompt a public question
+    // must never cost. The signing loader proves the pair when it signs.
+    if let Some(pk_box) = keychain_public_item() {
+        return public_box::canonical(&pk_box).map(|pk| (pk, Tier::Keychain));
     }
     let path = fallback_key_path()?;
-    public_from_files(&path, &path.with_extension("pub"))
+    public_from_files(&path, &path.with_extension("pub")).map(|pk| (pk, Tier::Files))
 }
 
 /// Parse-only pair probe: the text has a minisign secret box's shape —
@@ -345,12 +508,274 @@ fn secret_box_parses(text: &str) -> bool {
 /// (absent or unparseable secret half · absent or invalid pub), mirroring
 /// [`load_from_files`] minus the decrypt.
 fn public_from_files(key: &Path, pub_: &Path) -> Option<String> {
-    let text = std::fs::read_to_string(key).ok()?;
+    let text = read_private(key)?;
     if !secret_box_parses(&text) {
         return None;
     }
     let pk_box = std::fs::read_to_string(pub_).ok()?;
     public_box::canonical(&pk_box)
+}
+
+/// A secret key file's text, read only when no one but its owner can read
+/// it (0600 or tighter), as ssh reads a private key: a secret other users
+/// can read is no custody, so the run stays unsigned and `nika doctor` says
+/// why. The mode is judged on the very handle the text is read from.
+fn read_private(path: &Path) -> Option<String> {
+    use std::io::Read as _;
+    // seam-bypass-ok: run-key custody read, never workflow I/O
+    let mut file = std::fs::File::open(path).ok()?;
+    if exposed_mode(&file.metadata().ok()?).is_some() {
+        return None;
+    }
+    let mut text = String::new();
+    file.read_to_string(&mut text).ok()?;
+    Some(text)
+}
+
+/// The permission bits of a key file others can read or write, when they
+/// can (unix group or other bits): `None` for a private one.
+#[cfg(unix)]
+fn exposed_mode(meta: &std::fs::Metadata) -> Option<u32> {
+    use std::os::unix::fs::PermissionsExt as _;
+    let mode = meta.permissions().mode() & 0o777;
+    // Unix group/other bits; the serve token's own mask.
+    #[allow(clippy::verbose_bit_mask)]
+    let exposed = mode & 0o077 != 0;
+    exposed.then_some(mode)
+}
+
+/// Off unix no mode bits say who can read a file: none is judged exposed.
+#[cfg(not(unix))]
+fn exposed_mode(_meta: &std::fs::Metadata) -> Option<u32> {
+    None
+}
+
+/// A secret key file, as custody finds it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum KeyFile {
+    /// Nothing at its path.
+    Absent,
+    /// Present and private (0600 or tighter): custody reads it.
+    Private,
+    /// Present and readable by others (its permission bits): refused.
+    Exposed(u32),
+    /// Present but its permissions could not be read: refused.
+    Unreadable,
+}
+
+/// Where this process takes its run-key from, and which key that is. Decided
+/// from configuration, file metadata and public halves: the keychain's data
+/// is read only by a process that opens it anyway, and a dev build learns
+/// whether the keychain holds a key from the item's attributes alone (a
+/// question about custody never costs a password).
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Custody {
+    /// The explicit pair, when `NIKA_RUN_KEY_FILE` · `NIKA_RUN_PUB_FILE`
+    /// name one: its secret file and state, or why the pair is refused.
+    pub explicit: Option<Result<(PathBuf, KeyFile), String>>,
+    /// Whether this process opens the keychain, and why not.
+    pub keychain: KeychainUse,
+    /// The 0600 fallback's secret file (`~/.nika/keys/run-signing.key`) and
+    /// its state, when a home names one.
+    pub fallback: Option<(PathBuf, KeyFile)>,
+    /// The fingerprint of the key this process would sign with, from its
+    /// public half, in the tier order sealing walks; `None` when no tier
+    /// holds a usable pair (runs stay unsigned).
+    pub signer: Option<String>,
+    /// Whether the keychain holds a run-key, from the item's attributes only:
+    /// never asked by a test binary, a resident or with the keychain off, nor
+    /// beside an explicit pair (`None`: unknown).
+    pub keychain_key: Option<bool>,
+    /// The keychain key's fingerprint, when this process read it (a signed
+    /// release): then it is also the signer.
+    pub keychain_fingerprint: Option<String>,
+    /// The keychain key's fingerprint as a signed release last recorded it
+    /// (`~/.nika/keys/keychain.json`), only while that record is fresh: the
+    /// item's modification date is still the one recorded. What a dev build
+    /// knows of the keychain key without reading it.
+    pub recorded: Option<String>,
+    /// The fingerprint of the pair in the 0600 files, what dev builds and
+    /// `nika serve` sign with, when a usable pair is there.
+    pub file_fingerprint: Option<String>,
+}
+
+impl Custody {
+    /// A custody from its three parts, naming no key yet: what [`custody`]
+    /// observes, or the fixture of a host that says it.
+    #[must_use]
+    pub fn new(
+        explicit: Option<Result<(PathBuf, KeyFile), String>>,
+        keychain: KeychainUse,
+        fallback: Option<(PathBuf, KeyFile)>,
+    ) -> Self {
+        Self {
+            explicit,
+            keychain,
+            fallback,
+            signer: None,
+            keychain_key: None,
+            keychain_fingerprint: None,
+            recorded: None,
+            file_fingerprint: None,
+        }
+    }
+
+    /// The same custody naming its keys: the signer's fingerprint, whether
+    /// the keychain holds a key, and the keychain and file keys'
+    /// fingerprints when known.
+    #[must_use]
+    pub fn with_keys(
+        mut self,
+        signer: Option<String>,
+        keychain_key: Option<bool>,
+        keychain_fingerprint: Option<String>,
+        file_fingerprint: Option<String>,
+    ) -> Self {
+        self.signer = signer;
+        self.keychain_key = keychain_key;
+        self.keychain_fingerprint = keychain_fingerprint;
+        self.file_fingerprint = file_fingerprint;
+        self
+    }
+
+    /// The same custody with the keychain key a fresh record names.
+    #[must_use]
+    pub fn with_record(mut self, recorded: Option<String>) -> Self {
+        self.recorded = recorded;
+        self
+    }
+}
+
+/// This process's run-key custody (see [`Custody`]).
+#[must_use]
+pub fn custody() -> Custody {
+    let explicit = match key_files::configured() {
+        Ok(None) => None,
+        Ok(Some(files)) => Some(Ok((files.secret.clone(), key_file(&files.secret)))),
+        Err(why) => Some(Err(why)),
+    };
+    let fallback = fallback_key_path().map(|path| {
+        let state = key_file(&path);
+        (path, state)
+    });
+    let keychain = keychain_use();
+    // One read of the tiers: the keychain's data only where this process
+    // opens it anyway (a signed release reads it to sign as well).
+    let signer = public_box_and_tier();
+    let keychain_fingerprint = signer
+        .as_ref()
+        .filter(|(_, tier)| *tier == Tier::Keychain)
+        .map(|(pk_box, _)| fingerprint(pk_box));
+    // An explicit pair is the whole custody: the keychain is not asked.
+    let item = explicit
+        .is_none()
+        .then(|| keychain_run_key(keychain))
+        .flatten();
+    let keychain_key = item
+        .as_ref()
+        .map(|item| *item != signing::KeychainItem::Absent);
+    let recorded = item.as_ref().and_then(recorded_keychain_key);
+    let file_fingerprint = fallback_key_path()
+        .and_then(|path| public_from_files(&path, &path.with_extension("pub")))
+        .map(|pk_box| fingerprint(&pk_box));
+    Custody::new(explicit, keychain, fallback)
+        .with_keys(
+            signer.map(|(pk_box, _)| fingerprint(&pk_box)),
+            keychain_key,
+            keychain_fingerprint,
+            file_fingerprint,
+        )
+        .with_record(recorded)
+}
+
+/// The keychain's run-key item, from its attributes alone (never its data,
+/// never a prompt): whether it is there and when it last changed. A test
+/// binary, a resident and the keychain off never touch the keychain at all
+/// and answer `None`.
+fn keychain_run_key(keychain: KeychainUse) -> Option<signing::KeychainItem> {
+    matches!(
+        keychain,
+        KeychainUse::Opened | KeychainUse::AdHoc | KeychainUse::NoTerminal
+    )
+    .then(|| signing::keychain_item(KEYRING_SERVICE, KEYRING_USER))
+    .flatten()
+}
+
+/// The record a signed release keeps for the builds that never open the
+/// keychain: which key the keychain holds, and when its item last changed.
+const KEYCHAIN_RECORD: &str = "keychain.json";
+
+/// The record's text: the keychain key's fingerprint and the item's
+/// modification date, as the keychain describes it.
+fn keychain_record(fingerprint: &str, modified: &str) -> String {
+    serde_json::json!({ "fingerprint": fingerprint, "modified": modified }).to_string()
+}
+
+/// The fingerprint a record names, only when it is fresh: written for the
+/// item as it is now (the same modification date). A stale, absent or
+/// malformed record names nothing, so it never claims one identity.
+fn fresh_record(text: &str, item: &signing::KeychainItem) -> Option<String> {
+    let signing::KeychainItem::Present(Some(modified)) = item else {
+        return None;
+    };
+    let record: serde_json::Value = serde_json::from_str(text).ok()?;
+    if record.get("modified")?.as_str()? != modified.as_str() {
+        return None;
+    }
+    let fingerprint = record.get("fingerprint")?.as_str()?;
+    let hex = fingerprint
+        .bytes()
+        .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'));
+    (fingerprint.len() == 16 && hex).then(|| fingerprint.to_owned())
+}
+
+/// The keychain key's fingerprint from this machine's record, when fresh.
+fn recorded_keychain_key(item: &signing::KeychainItem) -> Option<String> {
+    let path = keys_path(KEYCHAIN_RECORD)?;
+    let text = crate::anchor::read_owned(&path, KEY_FILE_CAP)
+        .ok()
+        .flatten()?;
+    fresh_record(&text, item)
+}
+
+/// Record, for the builds that never open the keychain, which key it now
+/// holds: written by a process that just wrote or read the keychain pair (a
+/// signed release, at init, rotate and align). Best effort: without a fresh
+/// record those builds say they do not know.
+fn record_keychain_key(pk_box: &str) {
+    let Some(signing::KeychainItem::Present(Some(modified))) =
+        signing::keychain_item(KEYRING_SERVICE, KEYRING_USER)
+    else {
+        return;
+    };
+    let Some(path) = keys_path(KEYCHAIN_RECORD) else {
+        return;
+    };
+    if let Some(parent) = path.parent() {
+        // seam-bypass-ok: run-key custody record, never workflow I/O
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let record = keychain_record(&fingerprint(pk_box), &modified);
+    let _ = key_files::write(&path, &record, true);
+}
+
+/// Whether `nika key init` would mint a second identity: this process does
+/// not open the keychain, so it would write the 0600 files beside the
+/// keychain key a signed release keeps signing with.
+fn init_splits_identity(keychain: KeychainUse, keychain_key: Option<bool>) -> bool {
+    matches!(keychain, KeychainUse::AdHoc | KeychainUse::NoTerminal) && keychain_key == Some(true)
+}
+
+/// A secret key file's state, from its metadata only (never its bytes).
+fn key_file(path: &Path) -> KeyFile {
+    // seam-bypass-ok: run-key custody metadata, never workflow I/O
+    match std::fs::metadata(path) {
+        Ok(meta) => exposed_mode(&meta).map_or(KeyFile::Private, KeyFile::Exposed),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => KeyFile::Absent,
+        Err(_) => KeyFile::Unreadable,
+    }
 }
 
 /// `nika key init` — generate + store a run-key (idempotent: refuses to
@@ -359,11 +784,24 @@ fn public_from_files(key: &Path, pub_: &Path) -> Option<String> {
 /// # Errors
 ///
 /// A refusal string for an invalid file override, existing custody material
-/// without `--force` (even an orphan or corrupt pair), or when
-/// generation/storage fails (keychain unavailable AND the 0600 fallback
-/// unwritable).
+/// without `--force` (even an orphan or corrupt pair, or a keychain key this
+/// process does not open), or when generation/storage fails (keychain
+/// unavailable AND the 0600 fallback unwritable).
 pub fn key_init(force: bool) -> Result<String, String> {
     let explicit = key_files::configured()?;
+    let keychain = keychain_use();
+    if !force
+        && explicit.is_none()
+        && init_splits_identity(
+            keychain,
+            keychain_run_key(keychain).map(|item| item != signing::KeychainItem::Absent),
+        )
+    {
+        return Err(
+            "the keychain holds a run-key, which this process does not open (a signed release on a terminal signs with it): `nika key align` from there gives every build that key; `--force` mints a second key for the builds that do not open the keychain"
+                .to_owned(),
+        );
+    }
     if !force && key_files::occupied(explicit.as_ref()) {
         return Err(
             "run-signing key material already exists — inspect or restore the pair; `--force` explicitly replaces it"
@@ -407,6 +845,13 @@ pub fn key_trust() -> Option<(String, String)> {
 pub fn key_rotate() -> Result<String, String> {
     let old_pk = load_public_box()
         .ok_or_else(|| "no run-signing key to rotate — `nika key init` first".to_owned())?;
+    retire(&old_pk)?;
+    key_init(true)
+}
+
+/// Append `pk` to the retired-pubkeys ledger, so every journal it sealed
+/// stays verifiable after another key takes its place.
+fn retire(pk: &str) -> Result<(), String> {
     if let Some(path) = retired_path() {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
@@ -417,9 +862,94 @@ pub fn key_rotate() -> Result<String, String> {
             .append(true)
             .open(&path)
             .map_err(|e| format!("cannot open {}: {e}", path.display()))?;
-        writeln!(file, "{old_pk}").map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+        writeln!(file, "{pk}").map_err(|e| format!("cannot write {}: {e}", path.display()))?;
     }
-    key_init(true)
+    Ok(())
+}
+
+/// What `nika key align` did.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Alignment {
+    /// The fingerprint every build on this machine now signs with.
+    pub fingerprint: String,
+    /// The fingerprint of the file key it replaced, now in the retired
+    /// ledger, when the files held another key.
+    pub retired: Option<String>,
+    /// The files already held this very key: nothing was written.
+    pub already: bool,
+}
+
+/// `nika key align` — one gesture so every build on this machine signs with
+/// one key. The keychain pair, the identity a signed release seals
+/// with, is written to the 0600 files every other build reads (a dev build, a
+/// resident); the file key it replaces is retired to the ledger first, so the
+/// journals that key sealed stay verifiable. Only a process that opens the
+/// keychain does it (a signed release, on a terminal), and it never mints a
+/// key. It records which key the keychain holds (`keychain.json`), so a dev
+/// build can say it signs with the same one while the item is unchanged.
+/// Afterwards any process running as this user can read the key from the
+/// 0600 files, as with every file custody.
+///
+/// # Errors
+///
+/// A refusal string when an explicit pair is this process's custody, when
+/// this process does not open the keychain, when the keychain holds no usable
+/// pair, or when the ledger or the files cannot be written.
+pub fn key_align() -> Result<Alignment, String> {
+    if key_files::configured()?.is_some() {
+        return Err(
+            "NIKA_RUN_KEY_FILE names this process's custody: align that pair by hand".to_owned(),
+        );
+    }
+    if keychain_use() != KeychainUse::Opened {
+        return Err(
+            "this process does not open the keychain: run `nika key align` from a signed release, on a terminal"
+                .to_owned(),
+        );
+    }
+    let (Some(sk_box), Some(pk_box)) = (keychain_secret_item(), keychain_public_item()) else {
+        return Err("the keychain holds no run-key pair to align with".to_owned());
+    };
+    // Pair honesty: the secret opens, and the public half is its own.
+    let boxed = minisign::SecretKeyBox::from_string(&sk_box)
+        .map_err(|_| "the keychain's secret half is not a minisign box".to_owned())?;
+    let sk = open_secret_box(boxed, &key_password())
+        .ok_or("the keychain's secret half does not open with the custody password")?;
+    let pk_box = public_box::for_signing(&sk, &pk_box)
+        .ok_or("the keychain's public half is not its secret's own")?;
+    let aligned = fingerprint(&pk_box);
+    let path = fallback_key_path().ok_or("no HOME for the key files")?;
+    let files = key_files::KeyFiles {
+        public: path.with_extension("pub"),
+        secret: path,
+    };
+    if load_from_files(&files.secret, &files.public)
+        .is_some_and(|(_, pk)| fingerprint(&pk) == aligned)
+    {
+        record_keychain_key(&pk_box);
+        return Ok(Alignment {
+            fingerprint: aligned,
+            retired: None,
+            already: true,
+        });
+    }
+    // The file key it replaces, retired first: the journals it sealed stay
+    // verifiable.
+    let replaced = std::fs::read_to_string(&files.public)
+        .ok()
+        .and_then(|pk| public_box::canonical(&pk))
+        .filter(|pk| fingerprint(pk) != aligned);
+    if let Some(pk) = &replaced {
+        retire(pk)?;
+    }
+    files.store(&sk_box, &pk_box, true)?;
+    record_keychain_key(&pk_box);
+    Ok(Alignment {
+        fingerprint: aligned,
+        retired: replaced.map(|pk| fingerprint(&pk)),
+        already: false,
+    })
 }
 
 /// Store both boxes — the env override first (init writes where load
@@ -438,6 +968,7 @@ fn store_key_boxes(
         && let Some(pub_entry) = keyring_entry(KEYRING_USER_PUB)
         && pub_entry.set_password(pk_box).is_ok()
     {
+        record_keychain_key(pk_box);
         return Ok(());
     }
     let path = fallback_key_path().ok_or("no HOME for the key fallback".to_owned())?;
@@ -1332,6 +1863,7 @@ mod tests {
         let pub_path = dir.path().join("run-signing.pub");
         std::fs::write(&key_path, pair.sk.to_box(None).expect("sk box").to_string())
             .expect("write key");
+        private(&key_path);
         let pk = pair.pk.to_box().expect("pk box").to_string();
         std::fs::write(&pub_path, &pk).expect("write pub");
 
@@ -1359,7 +1891,9 @@ mod tests {
             public_from_files(&key_path, &pub_path).is_none(),
             "absent secret half → no announcement"
         );
+        // Each secret half is private, so these refusals judge its parse, never its mode.
         std::fs::write(&key_path, "not a minisign box").expect("write junk");
+        private(&key_path);
         assert!(
             public_from_files(&key_path, &pub_path).is_none(),
             "unparseable secret half → no announcement"
@@ -1367,6 +1901,7 @@ mod tests {
         // Shaped like a box (comment + valid base64) but structurally
         // truncated — the crate-parse arm of the probe rejects it too.
         std::fs::write(&key_path, "untrusted comment: stub\nAAAA\n").expect("write stub");
+        private(&key_path);
         assert!(
             public_from_files(&key_path, &pub_path).is_none(),
             "truncated secret half → no announcement"
@@ -1380,6 +1915,7 @@ mod tests {
         let key_path = dir.path().join("run-signing.key");
         let pub_path = dir.path().join("run-signing.pub");
         std::fs::write(&key_path, sk.to_box(None).expect("sk box").to_string()).expect("write key");
+        private(&key_path);
         std::fs::write(&pub_path, &pk).expect("write pub");
 
         let (loaded_key, loaded_pub) =
@@ -1446,19 +1982,240 @@ mod tests {
     /// the card (sampled `nika try 01-hello` 2026-08-22).
     #[test]
     fn a_pipe_does_not_consult_the_keychain() {
-        assert!(
-            !keychain_consults(true, false, false),
+        let signed = || true;
+        let attended = Process::Attended;
+        assert_eq!(
+            keychain_decision(true, false, attended, false, signed),
+            KeychainUse::NoTerminal,
             "piped stderr · skip custody"
         );
-        assert!(keychain_consults(true, false, true), "a TTY still consults");
-        assert!(
-            !keychain_consults(true, true, true),
+        assert_eq!(
+            keychain_decision(true, false, attended, true, signed),
+            KeychainUse::Opened,
+            "a signed binary on a TTY still consults"
+        );
+        assert_eq!(
+            keychain_decision(true, true, attended, true, signed),
+            KeychainUse::TestBinary,
             "a cargo test binary never consults, TTY or not"
         );
-        assert!(
-            !keychain_consults(false, false, true),
+        assert_eq!(
+            keychain_decision(false, false, attended, true, signed),
+            KeychainUse::Off,
             "NIKA_KEYCHAIN=off still wins"
         );
+    }
+
+    /// A resident never opens the keychain, even a signed one on
+    /// a terminal: it cannot stop to ask for a password.
+    #[test]
+    fn a_resident_never_opens_the_keychain() {
+        assert_eq!(
+            keychain_decision(true, false, Process::Resident, true, || true),
+            KeychainUse::Resident
+        );
+    }
+
+    /// An ad-hoc build on a terminal never opens the keychain. Its
+    /// « Always Allow » is bound to an identity the next build no longer has,
+    /// so opening it was a password prompt on every run (red on 292c7bee0,
+    /// whose decision was `flag && !test_bin && stderr_tty`). A binary whose
+    /// signature keeps its grant (a Developer ID release) keeps the keychain;
+    /// `NIKA_KEYCHAIN=off` still wins over both.
+    #[test]
+    fn an_ad_hoc_build_on_a_terminal_never_opens_the_keychain() {
+        let attended = Process::Attended;
+        assert_eq!(
+            keychain_decision(true, false, attended, true, || false),
+            KeychainUse::AdHoc
+        );
+        assert_eq!(
+            keychain_decision(true, false, attended, true, || true),
+            KeychainUse::Opened,
+            "a stably signed binary keeps its keychain custody"
+        );
+        assert_eq!(
+            keychain_decision(false, false, attended, true, || true),
+            KeychainUse::Off
+        );
+        // The signature is asked last: only a process that would otherwise
+        // open the keychain pays for the code-signing check.
+        let asked = std::cell::Cell::new(false);
+        let probe = || {
+            asked.set(true);
+            true
+        };
+        assert_eq!(
+            keychain_decision(true, false, attended, false, probe),
+            KeychainUse::NoTerminal
+        );
+        assert!(!asked.get(), "no terminal: the signature is never asked");
+    }
+
+    /// A test binary, a resident and the keychain off never touch
+    /// the keychain, not even to learn from its attributes whether it holds a
+    /// key; and since this test binary is one, the gesture that copies the
+    /// keychain key to the files refuses here before reading anything.
+    #[test]
+    fn a_process_kept_from_the_keychain_never_asks_whether_it_holds_a_key() {
+        for kept in [
+            KeychainUse::TestBinary,
+            KeychainUse::Resident,
+            KeychainUse::Off,
+        ] {
+            assert_eq!(keychain_run_key(kept), None, "{kept:?}");
+        }
+        let refused = key_align().expect_err("a test binary never aligns");
+        assert!(
+            refused.starts_with("this process does not open the keychain")
+                || refused.contains("NIKA_RUN_KEY_FILE"),
+            "{refused}"
+        );
+    }
+
+    /// `nika key init` in a process that does not open the keychain,
+    /// while the keychain holds a key, would write a second identity to the
+    /// 0600 files beside the one a signed release keeps signing with. It
+    /// refuses unforced; a release, which opens the keychain, finds its key
+    /// itself.
+    #[test]
+    fn init_never_mints_a_second_identity_beside_the_keychain_key() {
+        for closed in [KeychainUse::AdHoc, KeychainUse::NoTerminal] {
+            assert!(init_splits_identity(closed, Some(true)), "{closed:?}");
+            assert!(!init_splits_identity(closed, Some(false)), "{closed:?}");
+            assert!(!init_splits_identity(closed, None), "{closed:?}");
+        }
+        for other in [
+            KeychainUse::Opened,
+            KeychainUse::TestBinary,
+            KeychainUse::Resident,
+            KeychainUse::Off,
+        ] {
+            assert!(!init_splits_identity(other, Some(true)), "{other:?}");
+        }
+    }
+
+    /// Every read of a keychain item's data is one of two
+    /// process-wide reads, so no item is read twice in one process, and only
+    /// the signing loader and `nika key align` read the secret item. A public
+    /// question (key trust, the doctor, the memory fold, a seal grade, a
+    /// workflow signature) reads the public item alone. A test process reads
+    /// neither.
+    #[test]
+    fn the_secret_item_is_read_by_the_signer_and_align_alone_once_per_process() {
+        let reads = ["get_pass", "word("].concat();
+        let secret = ["keychain_secret", "_item()"].concat();
+        let mut pending = vec![std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src")];
+        let (mut read_sites, mut secret_sites) = (Vec::new(), Vec::new());
+        while let Some(dir) = pending.pop() {
+            for entry in std::fs::read_dir(dir).expect("crate source directory") {
+                let path = entry.expect("source entry").path();
+                if path.is_dir() {
+                    pending.push(path);
+                } else if path.extension().is_some_and(|ext| ext == "rs") {
+                    let text = std::fs::read_to_string(&path).expect("source file");
+                    for line in text.lines() {
+                        if line.contains(&reads) {
+                            read_sites.push((path.clone(), line.trim().to_owned()));
+                        }
+                        if line.contains(&secret) {
+                            secret_sites.push(line.trim().to_owned());
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(read_sites.len(), 2, "{read_sites:#?}");
+        assert!(
+            read_sites
+                .iter()
+                .all(|(path, line)| path.ends_with("src/seal.rs") && line.contains("get_or_init")),
+            "every item read is a once-per-process read: {read_sites:#?}"
+        );
+        // Its definition, the signing loader and `key_align`: nothing else.
+        assert_eq!(secret_sites.len(), 3, "{secret_sites:#?}");
+        assert!(secret_sites.iter().any(|line| line.starts_with("fn ")));
+        assert!(
+            secret_sites
+                .iter()
+                .any(|line| line.contains("let Some(text)"))
+        );
+        assert!(
+            secret_sites
+                .iter()
+                .any(|line| line.contains("keychain_public_item()"))
+        );
+        assert_eq!(keychain_public_item(), None, "a test process reads no item");
+    }
+
+    /// A dev build learns the keychain key from the record a signed
+    /// release wrote, only while the item is still the one recorded (its
+    /// modification date unchanged). A stale, absent or malformed record names
+    /// no key, so it never claims one identity.
+    #[test]
+    fn a_keychain_record_names_the_key_only_while_the_item_is_unchanged() {
+        use signing::KeychainItem;
+        let at = "2026-08-20 10:11:12 +0000";
+        let record = keychain_record("0f1e2d3c4b5a6978", at);
+        let unchanged = KeychainItem::Present(Some(at.to_owned()));
+        assert_eq!(
+            fresh_record(&record, &unchanged).as_deref(),
+            Some("0f1e2d3c4b5a6978")
+        );
+        let changed = KeychainItem::Present(Some("2026-10-12 09:00:00 +0000".to_owned()));
+        assert_eq!(fresh_record(&record, &changed), None, "a later write");
+        assert_eq!(fresh_record(&record, &KeychainItem::Absent), None);
+        assert_eq!(fresh_record(&record, &KeychainItem::Present(None)), None);
+        assert_eq!(fresh_record("not json", &unchanged), None);
+        let forged = keychain_record("0F1E2D3C4B5A6978 ", at);
+        assert_eq!(fresh_record(&forged, &unchanged), None, "not a fingerprint");
+    }
+
+    /// Make a fixture's secret key file private (0600), as `nika key init` writes one: a file
+    /// other users can read is refused, which a test of its own judges.
+    fn private(path: &std::path::Path) {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+                .expect("fixture key file made private");
+        }
+        #[cfg(not(unix))]
+        let _ = path;
+    }
+
+    /// A secret key file other users can read is refused, as ssh
+    /// refuses a private key: custody never seals with it (the run stays
+    /// unsigned), never announces it as this machine's key, and `custody`
+    /// names it exposed with its bits. Made private again, it is the key.
+    #[cfg(unix)]
+    #[test]
+    fn a_key_file_others_can_read_is_refused_like_ssh_refuses_one() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let dir = tempfile::tempdir().expect("fixture directory");
+        let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("fixture keypair");
+        let key = dir.path().join("run-signing.key");
+        let public = dir.path().join("run-signing.pub");
+        std::fs::write(&key, pair.sk.to_box(None).expect("secret box").to_string())
+            .expect("fixture secret");
+        std::fs::write(&public, pair.pk.to_box().expect("public box").to_string())
+            .expect("fixture public");
+        std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o644))
+            .expect("loose fixture");
+        assert_eq!(key_file(&key), KeyFile::Exposed(0o644));
+        assert!(
+            load_from_files(&key, &public).is_none(),
+            "never sealed with"
+        );
+        assert!(
+            public_from_files(&key, &public).is_none(),
+            "never announced"
+        );
+        std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600))
+            .expect("private fixture");
+        assert_eq!(key_file(&key), KeyFile::Private);
+        assert!(load_from_files(&key, &public).is_some(), "0600 is the key");
+        assert_eq!(key_file(&dir.path().join("absent.key")), KeyFile::Absent);
     }
 
     /// The wiring, proven by the only witness that cannot be faked: THIS

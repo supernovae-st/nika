@@ -93,7 +93,7 @@ impl SessionRuntime {
                 nika_onboard::compile::program_records::Place::Proposal(&id.to_string()),
                 source,
                 out.provenance.plan.as_ref(),
-                &|text| crate::broker::redact(text).0,
+                &crate::broker::redact_for_record,
             );
         }
         self.basis = request.map(|request| ProposalBasis {

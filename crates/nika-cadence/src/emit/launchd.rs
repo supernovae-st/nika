@@ -13,7 +13,10 @@
 
 use std::fmt::Write as _;
 
-use super::{EmitCtx, EmitRefusal, MAX_INTERVALS, Target, Unit, header, sh_quote, xml_escape};
+use super::{
+    EmitCtx, EmitRefusal, MAX_INTERVALS, Target, Unit, beat_unit, header, serve_unit, sh_quote,
+    xml_escape,
+};
 use crate::cron::{CronSpec, Field};
 
 /// One interval dict: a component is present only when its field is
@@ -81,8 +84,14 @@ fn intervals(spec: &CronSpec) -> Vec<Interval> {
     out
 }
 
-/// A beat's plist — one unit, the interval budget enforced.
-pub(crate) fn per_beat(ctx: &EmitCtx, label: &str, spec: &CronSpec) -> Result<Unit, EmitRefusal> {
+/// A beat's plist — one unit, the interval budget enforced. It names its
+/// schedule revision in its header and hands it to the firer.
+pub(crate) fn per_beat(
+    ctx: &EmitCtx,
+    label: &str,
+    spec: &CronSpec,
+    rev: &str,
+) -> Result<Unit, EmitRefusal> {
     let count = dict_count(spec);
     if count > MAX_INTERVALS {
         return Err(EmitRefusal::TooManyIntervals {
@@ -90,15 +99,15 @@ pub(crate) fn per_beat(ctx: &EmitCtx, label: &str, spec: &CronSpec) -> Result<Un
             n: count,
         });
     }
-    let unit_label = format!("nika.arm.{label}");
-    let words = ["arm", "fire", label];
+    let unit_label = beat_unit(&ctx.project_key, label);
+    let words = ["arm", "fire", label, "--unit-rev", rev];
     let intervals = intervals(spec);
     Ok(Unit {
         file_name: format!("{unit_label}.plist"),
         body: plist(
             ctx,
             &unit_label,
-            &format!("beat {label}"),
+            &format!("beat {label} rev {rev}"),
             &words,
             Some(&intervals),
             false,
@@ -110,11 +119,12 @@ pub(crate) fn per_beat(ctx: &EmitCtx, label: &str, spec: &CronSpec) -> Result<Un
 /// The `nika.serve` plist — the daemon lands in W5, the unit is
 /// emitted by name today (`KeepAlive`: launchd re-launches it).
 pub(crate) fn serve(ctx: &EmitCtx) -> Unit {
+    let unit_label = serve_unit(&ctx.project_key);
     Unit {
-        file_name: "nika.serve.plist".to_owned(),
+        file_name: format!("{unit_label}.plist"),
         body: plist(
             ctx,
-            "nika.serve",
+            &unit_label,
             "serve",
             &["serve"],
             None,

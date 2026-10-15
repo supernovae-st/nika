@@ -76,10 +76,10 @@ pub enum SchemaError {
     /// do not write `nika: v1` · `nika: My_Workflow` · `nika: "1.0"`. »
     ///
     /// The code (`NIKA-PARSE-003`) SURVIVES the envelope nuke by
-    /// changing meaning: it judges an id now, no longer the literal.
-    #[error(
-        "invalid `nika:` id `{id}` — must match ^[a-z][a-z0-9-]*$ (kebab-case · the file's name)"
-    )]
+    /// changing meaning: it judges an id now, no longer the literal. The
+    /// retired schema tag itself (`v1`, `v2`, …) is kebab-shaped and still
+    /// refused, with its own teaching: one name law for both documents.
+    #[error("{}", bad_nika_id_text(.id))]
     BadNikaId {
         /// The rejected id.
         id: String,
@@ -758,6 +758,22 @@ pub enum SchemaError {
 // are message vocabulary, the vocabulary crate is their home · the
 // `keysets` precedent). This re-export keeps the `crate::error::DeadForm`
 // path byte-stable for every matcher (the CLI's fix verb included) ·
+/// The `NIKA-PARSE-003` text: the retired schema tag gets its own teaching
+/// (one name law across both documents · spec 01 rule 2); any other shape
+/// names the kebab-case grammar.
+fn bad_nika_id_text(id: &str) -> String {
+    if nika_vocab::project::is_retired_version_tag(id) {
+        format!(
+            "`nika: {id}` — `nika:` names the workflow; `{id}` is the retired schema tag: give \
+             the workflow a name (`nika: my-workflow`)"
+        )
+    } else {
+        format!(
+            "invalid `nika:` id `{id}` — must match ^[a-z][a-z0-9-]*$ (kebab-case · the file's name)"
+        )
+    }
+}
+
 // `foreign_namespace_teaching` rides `nika_vocab` directly since its only
 // caller descended to nika-check (2026-07-21).
 pub use nika_vocab::DeadForm;

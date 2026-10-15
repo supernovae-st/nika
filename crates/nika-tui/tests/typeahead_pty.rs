@@ -25,12 +25,19 @@
 
 use std::time::Duration;
 
+#[path = "qa_support/child.rs"]
+mod child;
 mod qa_support;
 
 use qa_support::{
     ANSWER, APPLY, FREE, GATE, JOURNEY, PROPOSAL, QUESTION, REPLY, RESULT, SAVED, Term,
     assert_restored, exit_code,
 };
+
+#[test]
+fn qa_child_host() {
+    child::host();
+}
 
 /// How long each scripted turn stays busy.
 const PACE_MS: &str = "900";
@@ -420,6 +427,19 @@ fn expanded_conversation_words(screen: &qa_support::vt::Screen) -> String {
 /// `F4` as a terminal sends it.
 const F4: &str = "\x1bOS";
 
+/// Select an actual object before asking it to expand during a conversation.
+/// Esc returns to the composer from either a wide aside or a folded preview.
+fn open_listed_workflow(term: &mut Term) {
+    term.send("\x1b[17;2~\x1b[B\r");
+    term.wait_workspace_frame("the listed workflow is the selected object", |screen| {
+        screen.contains("path   release.nika") && screen.contains("tasks  4")
+    });
+    term.send("\x1b");
+    term.wait_workspace_frame("the composer has the keys after the preview", |screen| {
+        screen.contains("[Conversation]") || screen.contains("Your message")
+    });
+}
+
 /// Contextual object expansion (`F4`) rearranges the same conversation:
 /// while typing, the two-line draft stays exact and nothing is sent; while
 /// Nika works it acts at once, and the words typed meanwhile wait, unsent,
@@ -446,11 +466,11 @@ fn contextual_expansion_while_typing_or_working_keeps_the_exact_draft() {
         })
     };
     for (cols, rows) in [(80, 24), (120, 40)] {
-        let mut term =
-            Term::proto_with(&["--demo-pace", PACE_MS], cols, rows, &[("NO_COLOR", "1")]);
-        term.wait_prompt(FREE);
-        term.send("\x14");
-        term.wait_text("[+] Expand · F4");
+        let release = child::Release::new(&format!("typeahead-expand-{cols}"));
+        let mut term = child::spawn("slow-demo:0:workspace", Some(release.path()), cols, rows);
+        term.wait_workspace_frame("the demo workspace before typing", |screen| {
+            screen.contains(FREE) && screen.contains("[+] Expand · F4")
+        });
         term.send("keep this\x1b\rexact draft");
         term.wait_workspace_frame("the draft", |screen| two_lines(screen));
         term.send(F4);
@@ -469,14 +489,16 @@ fn contextual_expansion_while_typing_or_working_keeps_the_exact_draft() {
         );
         term.send(&"\x7f".repeat("keep this\nexact draft".chars().count()));
         term.wait_workspace_frame("the draft erased", |screen| !screen.contains("keep this"));
+        open_listed_workflow(&mut term);
         term.send("digest my notes\r");
-        term.wait_text(HOLDS);
+        term.wait_text(child::BUSY);
         term.send("typed while busy");
         term.wait_text("typed while busy");
         term.send(F4);
         term.wait_workspace_frame("the expanded object while Nika works", |screen| {
-            screen.contains("[-] Restore · F4") && screen.contains(HOLDS)
+            screen.contains("[-] Restore · F4") && screen.contains(child::BUSY)
         });
+        release.open();
         // The compact conversation may scroll the question itself out of
         // view: its reply prompt and the typeahead notice name it.
         term.wait_workspace_frame("the question's prompt, the draft in its box", |screen| {
@@ -545,7 +567,7 @@ fn typeahead_set_aside_keeps_the_focus_reading_position() {
         term.dump()
     );
     term.send("\x1b[F");
-    term.wait_text("you typed");
+    term.wait_text("your draft « wvkx » · it is in the box, not sent");
     term.wait_prompt(APPLY);
     leave_term(&mut term);
 }

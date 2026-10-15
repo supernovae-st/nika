@@ -49,6 +49,7 @@ use nika_vocab::project;
 use super::VerbOutput;
 
 pub mod args;
+pub mod disarm;
 pub mod emit;
 pub mod fire;
 pub mod migrate;
@@ -67,7 +68,7 @@ pub fn run(args: args::ArmArgs) -> VerbOutput {
     match args.sub {
         Some(ArmSub::Fire(f)) => fire::run(&f),
         Some(ArmSub::Migrate) => migrate::run(),
-        Some(ArmSub::Disarm { label, write }) => emit::disarm(&label, write),
+        Some(ArmSub::Disarm { label, write }) => disarm::disarm(&label, write),
         None => {
             if let Some(target) = args.emit {
                 return emit::run(&args, target);
@@ -300,6 +301,17 @@ fn report(registry: &ArmRegistry, path: &std::path::Path) -> VerbOutput {
     for receipt in &receipts {
         let _ = writeln!(out, "\n{}", receipt.human_lines(SLOTS_SHOWN).join("\n"));
     }
+    // READY judges the file; an installed unit can still wake the old time.
+    let stale = emit::stale_unit_lines(registry, path);
+    if !stale.is_empty() {
+        let _ = writeln!(
+            out,
+            "\nunités périmées (elles ne réveillent pas l'horaire que nika.yaml donne):"
+        );
+        for line in stale {
+            let _ = writeln!(out, "{line}");
+        }
+    }
 
     let orphans = state::ArmState::at_project(&root).orphans(&fire::labels(registry));
     if !orphans.is_empty() {
@@ -439,7 +451,7 @@ mod tests {
     /// `tests/arm_emit.rs` in a spawned process.
     #[test]
     fn disarm_teaches_the_n4_gesture() {
-        let teach = emit::disarm("doctor", false);
+        let teach = disarm::disarm("doctor", false);
         assert_eq!(teach.code, exit::OK, "{}", teach.text);
         assert!(teach.text.contains("actif: false"), "{}", teach.text);
         assert!(teach.text.contains("jusqu_au"), "{}", teach.text);
