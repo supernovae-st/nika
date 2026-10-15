@@ -325,7 +325,7 @@ fn data_defs() -> Vec<ToolDef> {
             "Timestamp arithmetic · op-discriminated (now|add|subtract|format|parse|diff) · strftime grammar · ISO 8601 out.",
             serde_json::json!({
                 "op": s("now | add | subtract | format | parse | diff"),
-                "tz": s("IANA timezone (now · default UTC)"),
+                "tz": s("IANA zone · now: the result's offset · format: the fields' zone · add/subtract: the calendar's zone · default UTC (an input's own offset is not kept)"),
                 "base": s("ISO 8601 base (add/subtract)"),
                 "duration": s("ISO 8601 span like PT1h (add/subtract)"),
                 "input": s("the timestamp to render (format) or the text to read (parse)"),
