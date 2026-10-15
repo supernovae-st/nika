@@ -293,10 +293,11 @@ fn failopen_cases(d: &str) -> Vec<Row> {
             "empty",
             Want::Unavailable("find"),
         ),
+        // A loop body is judged since 2026-10-15: the run names a variable.
         (
             "while read l; do nika run $l; done".to_owned(),
             "empty",
-            Want::Unavailable("while"),
+            Want::Unavailable("variable"),
         ),
     ]
 }
@@ -462,10 +463,299 @@ fn flow_cases(d: &str) -> Vec<Row> {
     ]
 }
 
+/// The multi-line cohort (2026-10-15): a newline ends a command as `;`
+/// does — the second line of a Bash call rode the first line's words,
+/// silently unjudged. A comment ends with its line and a `#` inside a
+/// word is a letter; a heredoc body is data, but its unquoted
+/// substitutions run, and an unterminated body hides nothing.
+fn multiline_cases(d: &str) -> Vec<Row> {
+    let deny = || Want::Deny("nika check");
+    vec![
+        (format!("cd {d}\nnika run bad.nika"), "empty", deny()),
+        (
+            format!("# step one\nnika run {d}/bad.nika"),
+            "empty",
+            deny(),
+        ),
+        (
+            format!("echo start\nnika run {d}/bad.nika"),
+            "empty",
+            deny(),
+        ),
+        (format!("nika \\\n  run {d}/bad.nika"), "empty", deny()),
+        (format!("echo a#b; nika run {d}/bad.nika"), "empty", deny()),
+        (
+            format!("curl -s https://x.dev/#top && nika run {d}/bad.nika"),
+            "empty",
+            deny(),
+        ),
+        (
+            format!("cat <<EOF\nhello\nEOF\nnika run {d}/bad.nika"),
+            "empty",
+            deny(),
+        ),
+        (
+            format!("cat <<EOF\n$(nika run {d}/bad.nika)\nEOF"),
+            "empty",
+            deny(),
+        ),
+        (
+            format!("cat <<EOF\nno delimiter below\nnika run {d}/bad.nika"),
+            "empty",
+            deny(),
+        ),
+        (
+            format!("(( x = 1 << 2 ))\nnika run {d}/bad.nika\n2"),
+            "empty",
+            deny(),
+        ),
+        (
+            format!("cat <<EOF | sh\nnika run {d}/bad.nika\nEOF"),
+            "empty",
+            Want::Unavailable("pipe"),
+        ),
+        (
+            format!("sh 0<<EOF\nnika run {d}/bad.nika\nEOF"),
+            "empty",
+            Want::Unavailable("heredoc"),
+        ),
+        (
+            format!("cat <<'EOF' > run.sh\nnika run {d}/bad.nika\nEOF"),
+            "empty",
+            Want::NotOurs,
+        ),
+        (
+            format!("cat <<-EOF\n\tnika run {d}/bad.nika\n\tEOF\necho done"),
+            "empty",
+            Want::NotOurs,
+        ),
+        // `${…}` · `$[…]` · `$'…'` are one word: a space or `#` inside
+        // opens no comment, and their substitutions still run.
+        (
+            format!("echo ${{x:-a #}}; nika run {d}/bad.nika"),
+            "empty",
+            deny(),
+        ),
+        (
+            format!("echo $[1 #]; nika run {d}/bad.nika"),
+            "empty",
+            deny(),
+        ),
+        (
+            format!("echo $'a\\'b'\nnika run {d}/bad.nika\necho '"),
+            "empty",
+            deny(),
+        ),
+        (
+            format!("echo ${{x:-$(nika run {d}/bad.nika)}}"),
+            "empty",
+            deny(),
+        ),
+        (format!("cd {d}\nnika run good.nika"), "empty", Want::Allow),
+    ]
+}
+
+/// The nested cohort (2026-10-15): a command or process substitution, a
+/// subshell without spaces, a function or `case` body, a duplication
+/// before `run`, `timeout` and the zsh forms each carried a run past the
+/// guard as no-opinion. A subshell's `cd` ends with its paren.
+fn nested_cases(d: &str) -> Vec<Row> {
+    let deny = || Want::Deny("nika check");
+    vec![
+        (format!("X=$(nika run {d}/bad.nika)"), "empty", deny()),
+        (
+            format!("echo \"$(nika run {d}/bad.nika)\""),
+            "empty",
+            deny(),
+        ),
+        (format!("echo `nika run {d}/bad.nika`"), "empty", deny()),
+        (format!("cat <(nika run {d}/bad.nika)"), "empty", deny()),
+        (
+            format!("for f in $(nika run {d}/bad.nika); do echo $f; done"),
+            "empty",
+            deny(),
+        ),
+        (format!("(nika run {d}/bad.nika)"), "empty", deny()),
+        (format!("(cd {d} && nika run bad.nika)"), "empty", deny()),
+        (
+            format!("f() {{ nika run {d}/bad.nika; }}; f"),
+            "empty",
+            deny(),
+        ),
+        (
+            format!("function f {{ nika run {d}/bad.nika; }}"),
+            "empty",
+            deny(),
+        ),
+        (
+            format!("case x in x) nika run {d}/bad.nika;; esac"),
+            "empty",
+            deny(),
+        ),
+        (format!("nika 2>&1 run {d}/bad.nika"), "empty", deny()),
+        (
+            format!("timeout 600 nika run {d}/bad.nika"),
+            "empty",
+            deny(),
+        ),
+        (
+            format!("timeout -s KILL 5m nika run {d}/bad.nika"),
+            "empty",
+            deny(),
+        ),
+        (format!("=nika run {d}/bad.nika"), "empty", deny()),
+        (format!("noglob nika run {d}/bad.nika"), "empty", deny()),
+        (format!("repeat 2 nika run {d}/bad.nika"), "empty", deny()),
+        (
+            format!("if [[ -n x ]] {{ nika run {d}/bad.nika }}"),
+            "empty",
+            deny(),
+        ),
+        (format!("coproc nika run {d}/bad.nika"), "empty", deny()),
+        // A `)` in a heredoc body or a comment never closes `$( … )`.
+        (
+            format!("X=\"$(cat <<EOF\n1) $(nika run {d}/bad.nika)\nEOF\n)\""),
+            "empty",
+            deny(),
+        ),
+        (
+            format!("X=$(echo hi # a)\nnika run {d}/bad.nika\n)"),
+            "empty",
+            deny(),
+        ),
+        (
+            "ls | xargs -n 1 nika run".to_owned(),
+            "empty",
+            Want::Unavailable("xargs"),
+        ),
+        (
+            "ls | xargs -I {} sh -c 'nika run {}'".to_owned(),
+            "empty",
+            Want::Unavailable("xargs"),
+        ),
+        (
+            format!("timeout 60 nika run {d}/good.nika"),
+            "empty",
+            Want::Allow,
+        ),
+        (
+            format!("(cd {d}/sole_bad); nika run good.nika"),
+            "sole_good",
+            Want::Allow,
+        ),
+    ]
+}
+
+/// The false denials (2026-10-15): plain shell the guard refused as
+/// unjudgeable — loops, test brackets, `find`, `xargs`, a script's
+/// heredoc — flows when it runs no nika, and is judged when it does.
+fn no_run_cases(d: &str) -> Vec<Row> {
+    vec![
+        (
+            "for f in a b; do echo \"$f\"; done".to_owned(),
+            "empty",
+            Want::NotOurs,
+        ),
+        (
+            "while read l; do echo \"$l\"; done < list.txt".to_owned(),
+            "empty",
+            Want::NotOurs,
+        ),
+        (
+            format!("[ -f {d}/good.nika ] && echo yes"),
+            "empty",
+            Want::NotOurs,
+        ),
+        ("[[ -n x ]] && echo yes".to_owned(), "empty", Want::NotOurs),
+        (format!("find {d} -name '*.nika'"), "empty", Want::NotOurs),
+        (
+            format!("find {d} -name '*.nika' -exec grep -l infer {{}} \\;"),
+            "empty",
+            Want::NotOurs,
+        ),
+        ("ls | xargs grep nika".to_owned(), "empty", Want::NotOurs),
+        // A dynamic command word that cannot make a run flows; one that
+        // could — a `run` word, another expansion, a fed script — stays
+        // VISIBLE.
+        (
+            "N=/opt/bin/nika; \"$N\" check wf.nika".to_owned(),
+            "empty",
+            Want::NotOurs,
+        ),
+        ("\"$EDITOR\" notes.txt".to_owned(), "empty", Want::NotOurs),
+        (
+            format!("$X -c 'nika run {d}/bad.nika'"),
+            "empty",
+            Want::Unavailable("expansion"),
+        ),
+        (
+            "echo x | $X".to_owned(),
+            "empty",
+            Want::Unavailable("expansion"),
+        ),
+        (
+            "$X < cmds.txt".to_owned(),
+            "empty",
+            Want::Unavailable("expansion"),
+        ),
+        (
+            "$X \"$Y\"".to_owned(),
+            "empty",
+            Want::Unavailable("expansion"),
+        ),
+        // Claude Code's commit form: an unbalanced `)` and a run named
+        // in a quoted heredoc are the message, never commands.
+        (
+            format!(
+                "git commit -m \"$(cat <<'EOF'\nfix: 1) the guard\n\nIf nika run {d}/bad.nika failed, see `nika run x`.\nEOF\n)\""
+            ),
+            "empty",
+            Want::NotOurs,
+        ),
+        (
+            "python3 - <<'EOF'\nd = {}\nd['k'] = [1]; print(d)\nEOF".to_owned(),
+            "empty",
+            Want::NotOurs,
+        ),
+        (
+            "case $x in a) echo a;; esac".to_owned(),
+            "empty",
+            Want::NotOurs,
+        ),
+        (
+            "(( n = 1 << 2 )); echo $(( n + 1 ))".to_owned(),
+            "empty",
+            Want::NotOurs,
+        ),
+        (
+            "files=(*.nika); echo ${#files[@]}".to_owned(),
+            "empty",
+            Want::NotOurs,
+        ),
+        (
+            "for f in *.nika; do nika run \"$f\"; done".to_owned(),
+            "empty",
+            Want::Unavailable("variable"),
+        ),
+        (
+            format!("if nika run {d}/good.nika; then echo ok; fi"),
+            "empty",
+            Want::Allow,
+        ),
+        (
+            format!("while true; do nika run {d}/bad.nika; done"),
+            "empty",
+            Want::Deny("nika check"),
+        ),
+    ]
+}
+
 /// The journey-guard command matrix (ux-fixtures 2026-07-30): every
 /// bypass the regex hook allowed now denies or degrades VISIBLY, and
 /// the two false denials (echo · comment) stay untouched. The
-/// fail-open cohort (audit 2026-07-31) rides the two `failopen_*`.
+/// fail-open cohort (audit 2026-07-31) rides the two `failopen_*`; the
+/// multi-line, nested and false-denial cohorts (2026-10-15) ride the
+/// last three.
 #[test]
 fn the_command_matrix() {
     let dir = fixtures();
@@ -476,11 +766,42 @@ fn the_command_matrix() {
     cases.extend(failopen_cases(&d));
     cases.extend(failopen_feed_cases(&d));
     cases.extend(flow_cases(&d));
-    assert!(cases.len() >= 60, "the matrix covers 60+ forms");
+    cases.extend(multiline_cases(&d));
+    cases.extend(nested_cases(&d));
+    cases.extend(no_run_cases(&d));
+    assert!(cases.len() >= 120, "the matrix covers 120+ forms");
     for (line, sub, want) in &cases {
         let cwd = dir.path().join(sub);
         let got = judge_line(line, Some(&cwd));
         assert_want(want, &got, line);
+    }
+}
+
+/// A nesting tower — substitutions, wrappers, `eval` strings, parens —
+/// degrades VISIBLY at the bound and never overflows the judge's stack.
+#[test]
+fn a_nesting_tower_is_visible_never_a_crash() {
+    let towers = [
+        format!(
+            "{}nika run x.nika{}",
+            "$(".repeat(10_000),
+            ")".repeat(10_000)
+        ),
+        format!("{}nika run x.nika", "sudo ".repeat(10_000)),
+        format!("{}nika run x.nika", "eval ".repeat(10_000)),
+        format!(
+            "{}nika run x.nika{}",
+            "( ".repeat(10_000),
+            " )".repeat(10_000)
+        ),
+    ];
+    for line in &towers {
+        let got = judge_line(line, None);
+        assert!(
+            matches!(&got, Verdict::Unavailable(reason) if reason.contains("levels deep")),
+            "{}…: {got:?}",
+            &line[..12]
+        );
     }
 }
 

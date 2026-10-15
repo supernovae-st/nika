@@ -19,6 +19,10 @@ use std::path::{Path, PathBuf};
 use crate::display::theme::{Role, Theme};
 use crate::verbs::{VerbOutput, exit};
 
+mod lex;
+
+use lex::{Op, Seg, Tok, lex, segments, strip_redirects};
+
 /// The judge's four answers. `NotOurs` and `Allow` share the hook wire
 /// (the no-opinion shape); they differ only in the human reading.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,38 +56,6 @@ struct Input {
     dialect: Dialect,
 }
 
-/// The shell operators the lexer splits on — `Redirect` stays inside a
-/// segment (its target is never the workflow), the rest separate the
-/// simple commands of a `;`/`&&`/`||`/`|` line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Op {
-    And,
-    Or,
-    Seq,
-    Pipe,
-    Redirect,
-}
-
-/// One lexed token. `dynamic` marks an UNEXPANDED dynamic form (a
-/// variable · a command substitution · a glob outside quotes) — the
-/// guard judges what a run names, it never guesses an expansion.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Tok {
-    text: String,
-    dynamic: bool,
-    op: Option<Op>,
-}
-
-/// One simple command between operators, with the operators that open
-/// and close it (a `cd` inside a pipeline never reaches the parent
-/// shell's cwd).
-#[derive(Debug)]
-struct Seg {
-    toks: Vec<Tok>,
-    before: Option<Op>,
-    after: Option<Op>,
-}
-
 /// The deny reason's size budget (the old shim's 2000-byte protocol law).
 const PROTOCOL_BUDGET: usize = 2000;
 
@@ -113,240 +85,6 @@ fn read_payload(reader: &mut impl std::io::Read) -> Result<String, (String, Stri
     Ok(raw)
 }
 
-/// The shell tokenizer — quotes honoured, expansions MARKED never
-/// performed (the exact class the regex hook's whitespace split got
-/// wrong: a quoted path with spaces is ONE token; `$WF` is unknown,
-/// not empty).
-fn lex(line: &str) -> Vec<Tok> {
-    let chars: Vec<char> = line.chars().collect();
-    let mut toks = Vec::new();
-    let mut i = 0;
-    while i < chars.len() {
-        let c = chars[i];
-        if c.is_whitespace() {
-            i += 1;
-            continue;
-        }
-        // `#` at token start opens a comment to end-of-line — a
-        // commented `nika run` is text, not an execution.
-        if c == '#' {
-            break;
-        }
-        if let Some((op, len)) = operator_at(&chars, i) {
-            toks.push(Tok {
-                text: chars[i..i + len].iter().collect(),
-                dynamic: false,
-                op: Some(op),
-            });
-            i += len;
-            continue;
-        }
-        let (tok, next) = lex_word(&chars, i);
-        toks.push(tok);
-        i = next;
-    }
-    toks
-}
-
-/// An operator starting at `i`, with its length — `>&2`/`2>>`-style
-/// redirect clusters included.
-fn operator_at(chars: &[char], i: usize) -> Option<(Op, usize)> {
-    let c = chars[i];
-    let two = chars.get(i + 1);
-    match c {
-        '&' if two == Some(&'&') => Some((Op::And, 2)),
-        // A background `&` sequences just like `;` for the guard.
-        '&' | ';' => Some((Op::Seq, 1)),
-        '|' if two == Some(&'|') => Some((Op::Or, 2)),
-        '|' => Some((Op::Pipe, 1)),
-        '>' | '<' => {
-            let mut j = i;
-            while j < chars.len() && matches!(chars[j], '>' | '<' | '&' | '0'..='9') {
-                j += 1;
-            }
-            Some((Op::Redirect, j - i))
-        }
-        _ => None,
-    }
-}
-
-/// A single-quoted span from the quote at `i` — literal, never dynamic.
-fn lex_single_quote(chars: &[char], mut i: usize, text: &mut String) -> usize {
-    i += 1;
-    while i < chars.len() && chars[i] != '\'' {
-        text.push(chars[i]);
-        i += 1;
-    }
-    (i + 1).min(chars.len())
-}
-
-/// A double-quoted span — `\` honoured, `$`/backtick still expand in a
-/// real shell so the word is marked dynamic.
-fn lex_double_quote(chars: &[char], mut i: usize, text: &mut String) -> (usize, bool) {
-    let mut dynamic = false;
-    i += 1;
-    while i < chars.len() && chars[i] != '"' {
-        if chars[i] == '\\' && i + 1 < chars.len() {
-            text.push(chars[i + 1]);
-            i += 2;
-            continue;
-        }
-        if matches!(chars[i], '$' | '`') {
-            dynamic = true;
-        }
-        text.push(chars[i]);
-        i += 1;
-    }
-    ((i + 1).min(chars.len()), dynamic)
-}
-
-/// A `$( … )` command substitution — one dynamic span, spaces included.
-fn lex_dollar(chars: &[char], mut i: usize, text: &mut String) -> usize {
-    if chars.get(i + 1) != Some(&'(') {
-        text.push('$');
-        return i + 1;
-    }
-    let mut depth = 0i32;
-    while i < chars.len() {
-        match chars[i] {
-            '(' => depth += 1,
-            ')' => {
-                depth -= 1;
-                if depth == 0 {
-                    return i + 1;
-                }
-            }
-            ch => text.push(ch),
-        }
-        i += 1;
-    }
-    i
-}
-
-/// A backtick command substitution — one dynamic span.
-fn lex_backtick(chars: &[char], mut i: usize, text: &mut String) -> usize {
-    i += 1;
-    while i < chars.len() && chars[i] != '`' {
-        text.push(chars[i]);
-        i += 1;
-    }
-    (i + 1).min(chars.len())
-}
-
-/// One word from `start` — quotes delegated to the span helpers, unquoted
-/// `$`/`*?[`/backticks marked dynamic. A trailing digit-run before
-/// `>`/`<` folds into the redirect token (`2>/dev/null`).
-fn lex_word(chars: &[char], start: usize) -> (Tok, usize) {
-    let mut text = String::new();
-    let mut dynamic = false;
-    let mut i = start;
-    while i < chars.len() {
-        let c = chars[i];
-        if c.is_whitespace() || matches!(c, '&' | '|' | ';' | '#') {
-            break;
-        }
-        if c == '>' || c == '<' {
-            if !text.is_empty() && text.chars().all(|d| d.is_ascii_digit()) {
-                // `2>` — the fd prefix belongs to the redirect token.
-                let (op, len) = operator_at(chars, i).unwrap_or((Op::Redirect, 1));
-                text.push_str(&chars[i..i + len].iter().collect::<String>());
-                return (
-                    Tok {
-                        text,
-                        dynamic,
-                        op: Some(op),
-                    },
-                    i + len,
-                );
-            }
-            break;
-        }
-        match c {
-            '\'' => i = lex_single_quote(chars, i, &mut text),
-            '"' => {
-                let (next, span_dynamic) = lex_double_quote(chars, i, &mut text);
-                dynamic |= span_dynamic;
-                i = next;
-            }
-            '\\' if i + 1 < chars.len() => {
-                text.push(chars[i + 1]);
-                i += 2;
-            }
-            '$' => {
-                dynamic = true;
-                i = lex_dollar(chars, i, &mut text);
-            }
-            '`' => {
-                dynamic = true;
-                i = lex_backtick(chars, i, &mut text);
-            }
-            '*' | '?' | '[' => {
-                dynamic = true;
-                text.push(c);
-                i += 1;
-            }
-            _ => {
-                text.push(c);
-                i += 1;
-            }
-        }
-    }
-    (
-        Tok {
-            text,
-            dynamic,
-            op: None,
-        },
-        i,
-    )
-}
-
-/// Split the token stream into simple commands, remembering the joining
-/// operators (a `cd` only reaches segments the pipeline law allows).
-fn segments(toks: &[Tok]) -> Vec<Seg> {
-    let mut out = Vec::new();
-    let mut cur: Vec<Tok> = Vec::new();
-    let mut before: Option<Op> = None;
-    for t in toks {
-        match t.op {
-            Some(op) if op != Op::Redirect => {
-                out.push(Seg {
-                    toks: std::mem::take(&mut cur),
-                    before,
-                    after: Some(op),
-                });
-                before = Some(op);
-            }
-            _ => cur.push(t.clone()),
-        }
-    }
-    out.push(Seg {
-        toks: cur,
-        before,
-        after: None,
-    });
-    out
-}
-
-/// Redirects (`> log` · `2>/dev/null`) carry no command word — drop the
-/// operator and its target.
-fn strip_redirects(toks: &[Tok]) -> Vec<&Tok> {
-    let mut out = Vec::new();
-    let mut k = 0;
-    while k < toks.len() {
-        if toks[k].op == Some(Op::Redirect) {
-            k += 1;
-            if k < toks.len() && toks[k].op.is_none() {
-                k += 1; // the target word
-            }
-            continue;
-        }
-        out.push(&toks[k]);
-        k += 1;
-    }
-    out
-}
-
 /// A leading `NAME=value` environment assignment (`FOO=bar nika run …`
 /// runs nika all the same).
 fn is_assignment(t: &str) -> bool {
@@ -371,15 +109,56 @@ fn basename(t: &str) -> &str {
 /// must pass — the worst verdict wins (a deny anywhere denies; an
 /// unjudgeable run is visible; a judged-clean run flows).
 fn judge_line(line: &str, cwd: Option<&Path>) -> Verdict {
-    let segs = segments(&lex(line));
+    judge_line_at(line, cwd, 0)
+}
+
+/// How deep a line may nest — substitutions, wrappers, `sh -c` and
+/// `eval` strings, subshells — before the guard stops reading: a
+/// pathological tower gets a reason, never a stack overflow.
+const MAX_NESTING: usize = 64;
+
+fn too_deep() -> Verdict {
+    Verdict::Unavailable(format!(
+        "the command nests more than {MAX_NESTING} levels deep — the guard stops reading there"
+    ))
+}
+
+/// [`judge_line`] at a nesting `depth`. Every command substitution is
+/// judged where it sits (it runs before its command: `X=$(nika run x)`),
+/// and a `cd` inside `( … )` ends at the closing paren.
+fn judge_line_at(line: &str, cwd: Option<&Path>, depth: usize) -> Verdict {
+    if depth > MAX_NESTING {
+        return too_deep();
+    }
     let mut eff = cwd.map(Path::to_path_buf);
+    let mut opened: Vec<Option<PathBuf>> = Vec::new();
     let mut verdicts = Vec::new();
-    for seg in &segs {
-        if let Some(v) = analyze_segment(seg, &mut eff) {
+    for seg in &segments(&lex(line)) {
+        for sub in seg.toks.iter().flat_map(|t| &t.subs) {
+            verdicts.push(judge_line_at(sub, eff.as_deref(), depth + 1));
+        }
+        let parens = |which: &str| seg.toks.iter().filter(|t| is_paren(t, which)).count();
+        let opening = parens("(");
+        if opened.len() + opening > MAX_NESTING {
+            verdicts.push(too_deep());
+            break;
+        }
+        opened.extend(std::iter::repeat_n(eff.clone(), opening));
+        if let Some(v) = analyze_segment(seg, &mut eff, depth) {
             verdicts.push(v);
+        }
+        for _ in 0..parens(")") {
+            if let Some(before) = opened.pop() {
+                eff = before;
+            }
         }
     }
     fold(verdicts)
+}
+
+/// A subshell paren the lexer emitted — a quoted `")"` stays a word.
+fn is_paren(t: &Tok, which: &str) -> bool {
+    t.op == Some(Op::Paren) && t.text == which
 }
 
 /// The worst-of fold: first deny > first unavailable > first allow >
@@ -402,12 +181,13 @@ fn fold(verdicts: Vec<Verdict>) -> Verdict {
 /// needs beyond the words: a pipe ANYWHERE (the `cd` subshell law), a
 /// pipe INTO the segment (the shell's stdin is another command's
 /// output), and a script FEED (the shell's commands ride bytes the
-/// line does not show).
+/// line does not show) — and how deep the dispatch already nests.
 #[derive(Debug, Clone, Copy)]
 struct SegCtx {
     piped: bool,
     fed_by_pipe: bool,
     feed: Option<Feed>,
+    depth: usize,
 }
 
 /// The unseeable-bytes feed a segment carries, if any: a heredoc body
@@ -423,15 +203,16 @@ enum Feed {
 /// dispatch on the basename. Returns `None` when the segment is no
 /// affair of the guard's (a non-nika command is never judged — the
 /// echo/comment false-denial class, P0-15).
-fn analyze_segment(seg: &Seg, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
+fn analyze_segment(seg: &Seg, cwd: &mut Option<PathBuf>, depth: usize) -> Option<Verdict> {
     let is_redirect = |t: &Tok| t.op == Some(Op::Redirect);
     let ctx = SegCtx {
         piped: seg.before == Some(Op::Pipe) || seg.after == Some(Op::Pipe),
         fed_by_pipe: seg.before == Some(Op::Pipe),
+        // `<<` with or without an fd prefix (`0<<EOF`).
         feed: if seg
             .toks
             .iter()
-            .any(|t| is_redirect(t) && t.text.starts_with("<<"))
+            .any(|t| is_redirect(t) && t.text.contains("<<"))
         {
             Some(Feed::Heredoc)
         } else if seg
@@ -443,6 +224,7 @@ fn analyze_segment(seg: &Seg, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
         } else {
             None
         },
+        depth,
     };
     let words = strip_redirects(&seg.toks);
     analyze_command(&words, ctx, cwd)
@@ -451,38 +233,91 @@ fn analyze_segment(seg: &Seg, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
 /// The command dispatch, wrappers unwound: `env` prefixes, `sh -c` /
 /// `bash -lc` script strings (judged recursively), `cd` (tracked, never
 /// judged), `nika` (the gate). The fail-closed posture (audit
-/// 2026-07-31): a dynamic command word, a shell control-flow body, and
-/// the stdin/expression executors are UNJUDGEABLE — they degrade to
-/// `Unavailable`, never to the silent `NotOurs`.
+/// 2026-07-31): a dynamic command word and an executor that could carry
+/// a run (`find -exec nika …` · `xargs nika`) are UNJUDGEABLE — they
+/// degrade to `Unavailable`, never to the silent `NotOurs`. Control flow
+/// is judged inside (2026-10-15): newlines and `;` make its commands
+/// segments of their own, and a body after a header on the same line —
+/// `f() { …` · a `case` arm — is re-dispatched.
 fn analyze_command(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
-    let mut idx = 0;
-    while idx < words.len() && is_assignment(&words[idx].text) {
-        idx += 1;
+    if ctx.depth > MAX_NESTING {
+        return Some(too_deep());
     }
-    let words = &words[idx..];
-    let first = words.first()?;
-    // A dynamic command word (`$(echo nika) run x` · `$N run x`) is
-    // UNKNOWABLE — the guard never guesses an expansion into an allow.
-    if first.dynamic {
-        return Some(Verdict::Unavailable(format!(
-            "the command word rides an expansion (`{}`) — the guard judges the command a line names, it never guesses an expansion",
-            first.text
-        )));
-    }
-    // The basename compare is case-insensitive: APFS runs `NIKA` as
-    // nika, so the match must see it (a literal `NIKA` binary on a
-    // case-sensitive fs is a negligible false positive — it fails
-    // toward judgement).
-    let name = basename(&first.text).to_ascii_lowercase();
-    // Group/body openers (`( nika run x )` · `then …` · `! …`) carry no
-    // command of their own — strip and re-dispatch the rest.
-    if matches!(
-        name.as_str(),
-        "(" | "{" | "then" | "do" | "else" | "elif" | "!"
-    ) {
-        return analyze_command(&words[1..], ctx, cwd);
-    }
-    match name.as_str() {
+    let ctx = SegCtx {
+        depth: ctx.depth + 1,
+        ..ctx
+    };
+    let mut words = words;
+    let name = loop {
+        while words.first().is_some_and(|w| is_assignment(&w.text)) {
+            words = &words[1..];
+        }
+        let first = words.first()?;
+        // A dynamic command word (`$(echo nika) run x` · `$N run x`) is
+        // UNKNOWABLE — the guard never guesses an expansion into an allow.
+        // It stays no affair of the guard's only when nothing after it
+        // could make a run: no `run` word, no other expansion, no script
+        // fed by a pipe, a heredoc or a redirect (`"$EDITOR" notes.txt` ·
+        // `"$N" check wf.nika` were refused, and the refusal taught agents
+        // to hide their commands in script files the guard never sees).
+        if first.dynamic {
+            let may_run = ctx.fed_by_pipe
+                || ctx.feed.is_some()
+                || words[1..]
+                    .iter()
+                    .any(|w| w.dynamic || w.text.to_ascii_lowercase().contains("run"));
+            return may_run.then(|| {
+                Verdict::Unavailable(format!(
+                    "the command word rides an expansion (`{}`) — the guard judges the command a line names, it never guesses an expansion",
+                    first.text
+                ))
+            });
+        }
+        // The basename compare is case-insensitive: APFS runs `NIKA` as
+        // nika, so the match must see it (a literal `NIKA` binary on a
+        // case-sensitive fs is a negligible false positive — it fails
+        // toward judgement). zsh runs `=nika` as nika's own path.
+        let word = first.text.strip_prefix('=').unwrap_or(&first.text);
+        let name = basename(word).to_ascii_lowercase();
+        // Group/body openers (`( nika run x )` · `then …` · `! …`), the
+        // conditions (`if …` · `while …` · `until …` — a command, judged
+        // the same way) and the precommand words (`coproc` · zsh's
+        // `noglob` · `nocorrect` · `-`) carry no command of their own:
+        // strip them and read on.
+        if !matches!(
+            name.as_str(),
+            "(" | "{"
+                | "then"
+                | "do"
+                | "else"
+                | "elif"
+                | "!"
+                | "if"
+                | "while"
+                | "until"
+                | "coproc"
+                | "noglob"
+                | "nocorrect"
+                | "-"
+        ) {
+            break name;
+        }
+        words = &words[1..];
+    };
+    // A `)` closes the command (`(nika run x)`): the words after it are
+    // a body, never this command's argv.
+    let close = words
+        .iter()
+        .position(|w| is_paren(w, ")"))
+        .unwrap_or(words.len());
+    dispatch(&name, &words[..close], ctx, cwd).or_else(|| trailing_body(words, ctx, cwd))
+}
+
+/// The dispatch on the command's basename — `None` when the command is
+/// no affair of the guard's (a loop header · a `case` header · any
+/// non-nika command: their bodies are segments of their own).
+fn dispatch(name: &str, words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
+    match name {
         "cd" => {
             // A cd inside a pipeline runs in a subshell — the parent's
             // cwd (what later segments see) never changes.
@@ -504,23 +339,127 @@ fn analyze_command(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Op
         "nice" | "nohup" | "sudo" | "time" | "command" | "exec" | "stdbuf" | "setsid" => {
             wrapper_command(words, ctx, cwd)
         }
-        "eval" => eval_command(words, cwd),
-        // Shell keywords with bodies — the guard judges commands, it
-        // cannot see inside control flow: VISIBLE, never NotOurs.
-        "if" | "while" | "for" | "until" | "case" | "select" => {
-            Some(Verdict::Unavailable(format!(
-                "the `{name}` body is shell control flow — the guard judges commands, it cannot see inside it"
-            )))
-        }
+        // `timeout DURATION cmd …` (`gtimeout`: Homebrew coreutils) and
+        // zsh's `repeat N cmd …` — the command follows one value.
+        "timeout" | "gtimeout" => timeout_command(words, ctx, cwd),
+        "repeat" => analyze_command(words.get(2..).unwrap_or_default(), ctx, cwd),
+        "eval" => eval_command(words, ctx, cwd),
         // Executors whose argv rides stdin or a find expression.
-        "xargs" => Some(Verdict::Unavailable(
-            "xargs builds the argv from stdin — the run's file is unknowable".to_owned(),
-        )),
-        "find" => Some(Verdict::Unavailable(
-            "`find -exec` can carry a run — the guard cannot parse a find expression".to_owned(),
-        )),
+        "xargs" => xargs_command(words, ctx, cwd.as_deref()),
+        "find" => find_command(words, ctx, cwd.as_deref()),
         _ => None,
     }
+}
+
+/// A body after a header on the same segment — a function (`f() { …` ·
+/// `function f { …`), a `case` arm (`a) …`), a zsh short form
+/// (`if [[ … ]] { …` · `for f (a b) …`): the words after the first `{`
+/// or `)` are a command. That body may never run, so a `cd` in it
+/// leaves the cwd UNKNOWN, never moved.
+fn trailing_body(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
+    let at = words
+        .iter()
+        .skip(1)
+        .position(|w| is_paren(w, ")") || (w.op.is_none() && w.text == "{"))?;
+    let mut scratch = cwd.clone();
+    let verdict = analyze_command(&words[at + 2..], ctx, &mut scratch);
+    if scratch != *cwd {
+        *cwd = None;
+    }
+    verdict
+}
+
+/// `timeout [opts] DURATION cmd …` — the options with a value (`-s` ·
+/// `-k` and their long forms) swallow the next word; the command
+/// follows the duration.
+fn timeout_command(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
+    let mut k = 1;
+    while let Some(w) = words.get(k)
+        && w.text.starts_with('-')
+    {
+        let valued = matches!(w.text.as_str(), "-s" | "-k" | "--signal" | "--kill-after");
+        k += if valued { 2 } else { 1 };
+    }
+    analyze_command(words.get(k + 1..).unwrap_or_default(), ctx, cwd)
+}
+
+/// Whether `words`, run as a command, would be the guard's affair — the
+/// dispatch itself decides (nika · a shell · a wrapper · an expansion),
+/// on a scratch cwd. What an executor (`find -exec` · `xargs`) runs.
+fn judged(words: &[&Tok], ctx: SegCtx, cwd: Option<&Path>) -> bool {
+    let mut scratch = cwd.map(Path::to_path_buf);
+    analyze_command(words, ctx, &mut scratch).is_some_and(|v| v != Verdict::NotOurs)
+}
+
+/// `find … -exec CMD … ;` — only an exec-family action runs a command.
+/// One the guard would judge runs on paths only find knows: VISIBLE.
+/// Any other command (`-exec grep …`) and a plain listing flow.
+fn find_command(words: &[&Tok], ctx: SegCtx, cwd: Option<&Path>) -> Option<Verdict> {
+    let mut k = 1;
+    while k < words.len() {
+        let action = matches!(
+            words[k].text.as_str(),
+            "-exec" | "-execdir" | "-ok" | "-okdir"
+        );
+        k += 1;
+        if action {
+            let end = words[k..]
+                .iter()
+                .position(|w| matches!(w.text.as_str(), ";" | "+"))
+                .map_or(words.len(), |p| k + p);
+            if judged(&words[k..end], ctx, cwd) {
+                return Some(Verdict::Unavailable(
+                    "`find -exec` runs a judged command on paths only find knows — the guard cannot see them"
+                        .to_owned(),
+                ));
+            }
+            k = end + 1;
+        }
+    }
+    None
+}
+
+/// The xargs options that swallow the NEXT word as their value (BSD and
+/// GNU — attached forms like `-I{}` or `-n1` ride one word).
+const XARGS_VALUE_FLAGS: &[&str] = &[
+    "-E",
+    "-I",
+    "-J",
+    "-L",
+    "-n",
+    "-P",
+    "-R",
+    "-S",
+    "-s",
+    "-a",
+    "-d",
+    "--arg-file",
+    "--delimiter",
+    "--max-args",
+    "--max-procs",
+    "--max-chars",
+    "--process-slot-var",
+];
+
+/// `xargs [opts] CMD …` — the argv's tail rides stdin, so a command the
+/// guard would judge is unknowable (VISIBLE); any other command — or
+/// none: xargs then runs `echo` — is no affair of the guard's.
+fn xargs_command(words: &[&Tok], ctx: SegCtx, cwd: Option<&Path>) -> Option<Verdict> {
+    let mut k = 1;
+    while let Some(w) = words.get(k)
+        && w.text.starts_with('-')
+    {
+        k += if XARGS_VALUE_FLAGS.contains(&w.text.as_str()) {
+            2
+        } else {
+            1
+        };
+    }
+    judged(words.get(k..).unwrap_or_default(), ctx, cwd).then(|| {
+        Verdict::Unavailable(
+            "xargs builds the argv from stdin — the run's file is unknowable".to_owned(),
+        )
+    })
 }
 
 /// `cd <dir>` — absolute replaces, relative joins, a dynamic or missing
@@ -547,9 +486,8 @@ fn apply_cd(target: Option<&Tok>, cwd: &mut Option<PathBuf>) {
 /// redirect-fed script is bytes the line does not show — VISIBLE
 /// degradation, never the silent pass (audit 2026-07-31).
 fn shell_script(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
-    // The heredoc has no lexer model — its body words ride the segment
-    // like argv (a crafted body could even fake a `-c`), so a shell
-    // segment carrying `<<` is unjudgeable, full stop.
+    // A heredoc fed to a shell IS its script — bytes the lexer keeps as
+    // the command's data, never as commands: unjudgeable, full stop.
     if matches!(ctx.feed, Some(Feed::Heredoc)) {
         return Some(Verdict::Unavailable(
             "a heredoc script feeds the shell — the guard cannot see the bytes it would run"
@@ -561,7 +499,7 @@ fn shell_script(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Optio
         let text = words[k].text.as_str();
         if text == "-c" {
             let script = words.get(k + 1)?;
-            return Some(judge_line(&script.text, cwd.as_deref()));
+            return Some(judge_line_at(&script.text, cwd.as_deref(), ctx.depth));
         }
         if text.starts_with('-') && !text.starts_with("--") {
             let cluster = &text[1..];
@@ -571,10 +509,10 @@ fn shell_script(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Optio
                     // The attached form — `-cSCRIPT` · `bash -xcSCRIPT`
                     // (real getopt semantics: the rest of the cluster
                     // after `c` IS the script).
-                    return Some(judge_line(attached, cwd.as_deref()));
+                    return Some(judge_line_at(attached, cwd.as_deref(), ctx.depth));
                 }
                 let script = words.get(k + 1)?;
-                return Some(judge_line(&script.text, cwd.as_deref()));
+                return Some(judge_line_at(&script.text, cwd.as_deref(), ctx.depth));
             }
         }
         // The two long options that swallow the NEXT word as their file.
@@ -619,9 +557,9 @@ fn env_command(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option
         } else if t == "-S" || t == "--split-string" {
             // The NEXT word is the split string — judge its content.
             let script = words.get(k + 1)?;
-            return Some(judge_line(&script.text, cwd.as_deref()));
+            return Some(judge_line_at(&script.text, cwd.as_deref(), ctx.depth));
         } else if let Some(split) = t.strip_prefix("--split-string=") {
-            return Some(judge_line(split, cwd.as_deref()));
+            return Some(judge_line_at(split, cwd.as_deref(), ctx.depth));
         } else if t.starts_with('-')
             && !t.starts_with("--")
             && let Some(pos) = t[1..].find('S')
@@ -633,10 +571,10 @@ fn env_command(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option
             // closes the cluster (`-iS 'cmd'`).
             let attached = &t[1..][pos + 1..];
             if !attached.is_empty() {
-                return Some(judge_line(attached, cwd.as_deref()));
+                return Some(judge_line_at(attached, cwd.as_deref(), ctx.depth));
             }
             let script = words.get(k + 1)?;
-            return Some(judge_line(&script.text, cwd.as_deref()));
+            return Some(judge_line_at(&script.text, cwd.as_deref(), ctx.depth));
         } else if t.starts_with('-') || is_assignment(t) {
             k += 1;
         } else {
@@ -695,7 +633,7 @@ fn wrapper_command(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Op
 /// `eval` with static text judges the text itself — the same bytes the
 /// shell would re-parse (the arguments join on spaces, as eval does). A
 /// dynamic or missing string is unknowable, VISIBLE.
-fn eval_command(words: &[&Tok], cwd: &mut Option<PathBuf>) -> Option<Verdict> {
+fn eval_command(words: &[&Tok], ctx: SegCtx, cwd: &mut Option<PathBuf>) -> Option<Verdict> {
     let rest = &words[1..];
     if rest.is_empty() {
         return None; // a bare `eval` runs nothing
@@ -710,7 +648,7 @@ fn eval_command(words: &[&Tok], cwd: &mut Option<PathBuf>) -> Option<Verdict> {
         .map(|w| w.text.as_str())
         .collect::<Vec<_>>()
         .join(" ");
-    Some(judge_line(&joined, cwd.as_deref()))
+    Some(judge_line_at(&joined, cwd.as_deref(), ctx.depth))
 }
 
 /// A `nika …` invocation: skip the global flags (`--plain` · `--color
