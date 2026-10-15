@@ -42,6 +42,7 @@ nika-kernel = { path = "../nika-kernel", version = "0.123.0-preview.1" }        
 nika-runtime = { path = "../nika-runtime", version = "0.123.0-preview.1" }            # the ONE sandbox selection (#888 · L4→L3 — already transitive via nika-onboard, now explicit)
 nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.123.0-preview.1" }  # the macOS jail (sandbox-exec)
 nika-sandbox-landlock = { path = "../nika-sandbox-landlock", version = "0.123.0-preview.1" }  # the Linux jail (bwrap)
+nika-exec-runner = { path = "../nika-exec-runner", version = "0.123.0-preview.1" }    # the loopback egress proxy + its env contract — a server's network allowlist rides the exec arm's enforcement half (L4→L1)
 
 serde_json  = { workspace = true }   # JSON-RPC 2.0 messages (the only wire format · no SDK)
 serde       = { workspace = true }   # the lockfile/registry envelopes (pin.rs · client.rs)

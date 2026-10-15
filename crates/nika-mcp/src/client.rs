@@ -35,7 +35,8 @@
 //! The `network` field is the per-server network arm for the spawned child
 //! (see [`crate::sandbox`]): ABSENT is deny (a local MCP server needs no
 //! network — fail-closed), `"allow"` is the explicit escape hatch, and
-//! `{ "allowlist": [hosts…] }` reserves the host-granular arm. It is an
+//! `{ "allowlist": [hosts…] }` admits exactly those hosts through the
+//! loopback egress proxy the spawn starts. It is an
 //! ADDITIVE registry extension — `mcp_servers_format` stays 1 because old
 //! files parse unchanged (the field defaults to deny) and older engines
 //! ignore unknown entry fields (serde's posture), so no envelope bump is
