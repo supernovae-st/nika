@@ -221,6 +221,33 @@ impl<T> core::convert::From<T> for nika_exec_runner::EgressDecision
 pub fn nika_exec_runner::EgressDecision::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_exec_runner::EgressDecision where T: 'static
 pub fn nika_exec_runner::EgressDecision::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_exec_runner::EgressProxy
+impl nika_exec_runner::EgressProxy
+pub fn nika_exec_runner::EgressProxy::port(&self) -> u16
+pub fn nika_exec_runner::EgressProxy::start(allowlist: alloc::vec::Vec<alloc::string::String>, observer: nika_exec_runner::EgressObserver) -> core::io::error::Result<Self>
+impl core::fmt::Debug for nika_exec_runner::EgressProxy
+pub fn nika_exec_runner::EgressProxy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::ops::drop::Drop for nika_exec_runner::EgressProxy
+pub fn nika_exec_runner::EgressProxy::drop(&mut self)
+impl<D> owo_colors::OwoColorize for nika_exec_runner::EgressProxy
+impl<T, U> core::convert::Into<U> for nika_exec_runner::EgressProxy where U: core::convert::From<T>
+pub fn nika_exec_runner::EgressProxy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_exec_runner::EgressProxy where U: core::convert::Into<T>
+pub type nika_exec_runner::EgressProxy::Error = core::convert::Infallible
+pub fn nika_exec_runner::EgressProxy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_exec_runner::EgressProxy where U: core::convert::TryFrom<T>
+pub type nika_exec_runner::EgressProxy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_exec_runner::EgressProxy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_exec_runner::EgressProxy where T: 'static + ?core::marker::Sized
+pub fn nika_exec_runner::EgressProxy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_exec_runner::EgressProxy where T: ?core::marker::Sized
+pub fn nika_exec_runner::EgressProxy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_exec_runner::EgressProxy where T: ?core::marker::Sized
+pub fn nika_exec_runner::EgressProxy::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_exec_runner::EgressProxy
+pub fn nika_exec_runner::EgressProxy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_exec_runner::EgressProxy where T: 'static
+pub fn nika_exec_runner::EgressProxy::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_exec_runner::Lane
 impl nika_exec_runner::Lane
 pub async fn nika_exec_runner::Lane::collect(&self, program: &std::path::Path, args: &[&str], stdin: &[u8], caps: nika_exec_runner::Caps, deadline: std::time::Instant) -> core::io::error::Result<nika_exec_runner::Collected>
@@ -344,6 +371,8 @@ pub async fn nika_exec_runner::TokioShell::run(&self, command: nika_kernel_core:
 pub const nika_exec_runner::SERVE_FAILED: u8
 pub const nika_exec_runner::SERVE_NO_CPU_LIMIT: u8
 pub async fn nika_exec_runner::collect(program: &std::path::Path, args: &[&str], stdin: &[u8], caps: nika_exec_runner::Caps, deadline: std::time::Instant) -> core::io::error::Result<nika_exec_runner::Collected>
+pub fn nika_exec_runner::proxy_env(port: u16) -> [(&'static str, alloc::string::String); 13]
 pub fn nika_exec_runner::serve_stdio(cpu_seconds: u64, serve: impl core::ops::function::FnOnce(&mut dyn alloc::io::read::Read, &mut dyn core::io::write::Write) -> core::io::error::Result<()>) -> u8
+pub fn nika_exec_runner::stderr_journal_for(boundary: impl core::convert::Into<alloc::string::String>) -> nika_exec_runner::EgressObserver
 pub fn nika_exec_runner::terminate_owned_groups(grace: core::time::Duration, then: impl core::ops::function::FnOnce(&nika_exec_runner::Terminated))
 pub type nika_exec_runner::EgressObserver = alloc::sync::Arc<(dyn core::ops::function::Fn(&nika_exec_runner::EgressEvent) + core::marker::Send + core::marker::Sync)>

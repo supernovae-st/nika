@@ -83,7 +83,12 @@ mod process;
 pub mod sandbox_spec;
 mod scratch;
 
-pub use egress::{EgressDecision, EgressEvent, EgressObserver};
+// `EgressProxy` + `proxy_env` are `pub` for the second allowlisted spawn
+// site: a confined MCP server reaches its declared hosts through the same
+// proxy and env contract (the `nika-mcp` spawn · L4→L1).
+pub use egress::{
+    EgressDecision, EgressEvent, EgressObserver, EgressProxy, proxy_env, stderr_journal_for,
+};
 pub use process::{
     Caps, Collected, Ended, Lane, SERVE_FAILED, SERVE_NO_CPU_LIMIT, Terminated, collect,
     serve_stdio, terminate_owned_groups,
