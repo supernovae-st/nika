@@ -25,9 +25,12 @@
 //!   kernel's [`NetPolicy`] tri-state verbatim: ABSENT is
 //!   [`NetPolicy::Deny`] (a local MCP server needs no network — fail-closed),
 //!   `"allow"` is the explicit escape hatch, and `{ "allowlist": [hosts…] }`
-//!   reserves the host-granular arm — confining EXACTLY as `"allow"` until
-//!   the loopback egress proxy lands (the transitional mapping #658
-//!   documented for exec; `proxy_port` stays `None`).
+//!   is the host-granular arm, enforced as the exec arm enforces it: the
+//!   spawn starts a loopback egress proxy that serves exactly those hosts,
+//!   the jail's outbound fence admits only its port, and the child gets
+//!   the proxy env contract. A client that ignores the proxy env reaches
+//!   nothing on macOS; on Linux the namespace is shared, so the proxy
+//!   holds the boundary only for clients that use it (the exec posture).
 //! - **Environment** — the child gets a SCRUBBED environment: the spawn
 //!   site `env_clear`s every ambient value (provider API keys, session
 //!   tokens, the dangerous-floor injection vectors) and re-admits
@@ -58,16 +61,16 @@ pub fn platform_sandbox() -> Arc<dyn CommandSandbox> {
 
 /// The one-line sandbox mode note printed on every connect/verify —
 /// `sandboxed (seatbelt · net deny)` style. The allowlist arm names its
-/// transitional mapping (host-granular egress needs the loopback proxy —
-/// until it lands, the arm confines exactly as `allow`, loudly). A `noop`
-/// backend is the deliberate unconfined choice and the note SCREAMS it —
-/// "unconfined" is always a visible decision, never an accident.
+/// enforcement: the declared hosts, through the loopback egress proxy the
+/// spawn starts. A `noop` backend is the deliberate unconfined choice and
+/// the note SCREAMS it — "unconfined" is always a visible decision, never
+/// an accident.
 pub(crate) fn sandbox_note(backend: &str, net: &NetPolicy) -> String {
     let net_text = match net {
         NetPolicy::Deny => "net deny".to_owned(),
         NetPolicy::Allow => "net allow".to_owned(),
         NetPolicy::Allowlist(list) => format!(
-            "net allowlist ({} host(s) · proxyless transitional: confined as allow)",
+            "net allowlist ({} host(s) · through a loopback egress proxy)",
             list.hosts.len()
         ),
         // The #[non_exhaustive] law: a future arm fails CLOSED — the note
@@ -497,6 +500,82 @@ printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"ping","descri
         let _ = std::fs::remove_file(&probe); // belt: if the jail broke, clean up
     }
 
+    /// The allowlist arm, end to end on macOS: a REAL confined server
+    /// reaches its declared host through the loopback egress proxy (its env
+    /// points there), while a direct dial to the same host is fenced off.
+    /// Before the proxy was wired, the profile admitted loopback only and a
+    /// declared host was unreachable (even its name did not resolve).
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_real_seatbelt_allowlist_reaches_its_host_through_the_proxy() {
+        use std::io::{Read as _, Write as _};
+        if !nika_sandbox_seatbelt::SeatbeltSandbox::available()
+            || !Path::new("/usr/bin/curl").exists()
+        {
+            return; // no launcher or no curl on this host — the seam test carries the logic
+        }
+        // The declared host: a one-shot HTTP responder on the exact loopback
+        // literal (the proxy's documented carve-out for a declared literal).
+        let upstream = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("bind upstream");
+        let port = upstream.local_addr().expect("upstream addr").port();
+        std::thread::spawn(move || {
+            if let Ok((mut conn, _)) = upstream.accept() {
+                let mut buf = [0u8; 1024];
+                let _ = conn.read(&mut buf);
+                let _ = conn.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nPONG");
+            }
+        });
+        let dir = tmp("egress");
+        let script = dir.join("mock-mcp-egress.sh");
+        std::fs::write(
+            &script,
+            r#"#!/bin/sh
+# $1 = dump dir · $2 = the declared host's port. The env's NO_PROXY keeps
+# loopback direct, so the proxied call names the proxy and clears the list.
+/usr/bin/curl -s -m 5 --noproxy '*' "http://127.0.0.1:$2/" > "$1/direct.txt" 2>&1
+echo "direct exit $?" >> "$1/direct.txt"
+/usr/bin/curl -sS -m 5 --noproxy '' -p -x "$HTTPS_PROXY" "http://127.0.0.1:$2/" > "$1/proxied.txt" 2>&1
+read -r _init
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{},"serverInfo":{"name":"mock","version":"0.0.0"}}}'
+read -r _notif
+read -r _list
+printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"ping","description":"Ping","inputSchema":{"type":"object"}}]}}'
+"#,
+        )
+        .expect("write egress mock");
+        let cfg = McpServerConfig::stdio(
+            "mock",
+            "/bin/sh",
+            vec![
+                script.to_string_lossy().into_owned(),
+                dir.to_string_lossy().into_owned(),
+                port.to_string(),
+            ],
+        )
+        .with_network(NetPolicy::Allowlist(EgressAllowlist::new(vec![
+            "127.0.0.1".to_owned(),
+        ])));
+        let client = StdioMcpClient::new(&cfg).with_project_dir(dir.clone());
+        assert!(
+            client.sandbox_note().contains("egress proxy"),
+            "{}",
+            client.sandbox_note()
+        );
+        let tools = client.tools_list().expect("the confined server answers");
+        assert_eq!(tools.len(), 1);
+        let proxied = std::fs::read_to_string(dir.join("proxied.txt")).expect("proxied report");
+        assert_eq!(
+            proxied, "PONG",
+            "the declared host answers through the proxy"
+        );
+        let direct = std::fs::read_to_string(dir.join("direct.txt")).expect("direct report");
+        assert!(
+            !direct.contains("PONG") && !direct.contains("direct exit 0"),
+            "a dial around the proxy is fenced off: {direct}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn the_note_names_the_backend_and_the_net_arm() {
         assert_eq!(
@@ -517,8 +596,9 @@ printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"ping","descri
         assert!(
             allow.contains("allowlist")
                 && allow.contains("2 host(s)")
-                && allow.contains("confined as allow"),
-            "the transitional mapping is named loudly: {allow}"
+                && allow.contains("egress proxy")
+                && !allow.contains("confined as allow"),
+            "the note names the proxy that enforces the hosts: {allow}"
         );
         let loud = sandbox_note("noop", &NetPolicy::Deny);
         assert!(

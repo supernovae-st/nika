@@ -5234,6 +5234,7 @@ dependencies = [
  "nika-catalog",
  "nika-check",
  "nika-cli-host",
+ "nika-exec-runner",
  "nika-graph",
  "nika-harness",
  "nika-kernel",

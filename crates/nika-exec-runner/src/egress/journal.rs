@@ -18,17 +18,21 @@ use super::{EgressEvent, EgressObserver};
 /// Where a journal line goes (stderr in production, a probe in tests).
 type LineWriter = Arc<dyn Fn(&str) + Send + Sync>;
 
+/// The boundary the exec arm's REFUSED line names.
+const EXEC_BOUNDARY: &str = "permits.net.http";
+
 /// The one journal line for an event (pure — the [`stderr_journal`]
 /// wrapper's `eprintln` is the only impurity, so tests pin the EXACT
-/// shapes: the REFUSED row is the greppable security event, `allowed`
-/// the debug line, `closed` the metering row).
-fn journal_line(event: &EgressEvent) -> String {
+/// shapes: the REFUSED row is the greppable security event naming the
+/// `boundary` the host is missing from, `allowed` the debug line,
+/// `closed` the metering row).
+fn journal_line(event: &EgressEvent, boundary: &str) -> String {
     match event {
         EgressEvent::Decision(d) if d.allowed => {
             format!("nika:egress allowed {}:{}", d.host, d.port)
         }
         EgressEvent::Decision(d) => format!(
-            "nika:egress REFUSED {}:{} (not in permits.net.http)",
+            "nika:egress REFUSED {}:{} (not in {boundary})",
             d.host, d.port
         ),
         EgressEvent::Closed {
@@ -52,6 +56,14 @@ pub(crate) fn stderr_journal() -> EgressObserver {
     queued_journal(write_to_stderr)
 }
 
+/// The stderr journal for another declared boundary — a confined MCP
+/// server's registry allowlist: the REFUSED line names that boundary
+/// (`not in the `web` MCP server's network allowlist`), never a
+/// `permits.net.http` the server does not have.
+pub fn stderr_journal_for(boundary: impl Into<String>) -> EgressObserver {
+    queued_journal_for(boundary.into(), write_to_stderr)
+}
+
 #[allow(clippy::disallowed_macros, clippy::print_stderr)]
 fn write_to_stderr(line: &str) {
     eprintln!("{line}");
@@ -63,10 +75,18 @@ fn write_to_stderr(line: &str) {
 /// lines, never the connection. Should the thread fail to start, `write`
 /// runs inline and the connection waits for it, as it used to.
 pub(super) fn queued_journal(write: impl Fn(&str) + Send + Sync + 'static) -> EgressObserver {
+    queued_journal_for(EXEC_BOUNDARY.to_owned(), write)
+}
+
+/// [`queued_journal`] whose REFUSED lines name `boundary`.
+fn queued_journal_for(
+    boundary: String,
+    write: impl Fn(&str) + Send + Sync + 'static,
+) -> EgressObserver {
     let write: LineWriter = Arc::new(write);
     let queue: OnceLock<Option<Sender<String>>> = OnceLock::new();
     Arc::new(move |event: &EgressEvent| {
-        let line = journal_line(event);
+        let line = journal_line(event, &boundary);
         let line = match queue.get_or_init(|| start_journal(Arc::clone(&write))) {
             Some(sender) => match sender.send(line) {
                 Ok(()) => return,
@@ -103,30 +123,53 @@ mod tests {
         // F-P5 (b) · REFUSED is the security event, verbatim — the
         // composer greps this line; `allowed` and `closed` are the debug
         // and metering rows.
-        let refused = journal_line(&EgressEvent::Decision(EgressDecision {
-            host: "evil.com".to_owned(),
-            port: 443,
-            allowed: false,
-        }));
+        let refused = journal_line(
+            &EgressEvent::Decision(EgressDecision {
+                host: "evil.com".to_owned(),
+                port: 443,
+                allowed: false,
+            }),
+            EXEC_BOUNDARY,
+        );
         assert_eq!(
             refused,
             "nika:egress REFUSED evil.com:443 (not in permits.net.http)"
         );
-        let allowed = journal_line(&EgressEvent::Decision(EgressDecision {
-            host: "api.github.com".to_owned(),
-            port: 443,
-            allowed: true,
-        }));
+        let allowed = journal_line(
+            &EgressEvent::Decision(EgressDecision {
+                host: "api.github.com".to_owned(),
+                port: 443,
+                allowed: true,
+            }),
+            EXEC_BOUNDARY,
+        );
         assert_eq!(allowed, "nika:egress allowed api.github.com:443");
-        let closed = journal_line(&EgressEvent::Closed {
-            host: "api.github.com".to_owned(),
-            port: 443,
-            bytes_up: 128,
-            bytes_down: 4096,
-        });
+        let closed = journal_line(
+            &EgressEvent::Closed {
+                host: "api.github.com".to_owned(),
+                port: 443,
+                bytes_up: 128,
+                bytes_down: 4096,
+            },
+            EXEC_BOUNDARY,
+        );
         assert_eq!(
             closed,
             "nika:egress closed api.github.com:443 up=128 down=4096"
+        );
+        // Another boundary (an MCP server's registry allowlist) names
+        // itself in the REFUSED row; the other rows are the same.
+        let mcp = journal_line(
+            &EgressEvent::Decision(EgressDecision {
+                host: "evil.com".to_owned(),
+                port: 443,
+                allowed: false,
+            }),
+            "the `web` MCP server's network allowlist",
+        );
+        assert_eq!(
+            mcp,
+            "nika:egress REFUSED evil.com:443 (not in the `web` MCP server's network allowlist)"
         );
     }
 

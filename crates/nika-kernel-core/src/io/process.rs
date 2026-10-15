@@ -56,11 +56,11 @@ impl SandboxSpec {
 /// Derivation (`nika-runtime`'s `permits:` → [`SandboxSpec`] pass):
 ///
 /// - a declared `net.http` host list maps to [`NetPolicy::Allowlist`] —
-///   egress confined to exactly that set, enforced by the per-run loopback
-///   egress proxy (the child gets proxy env vars · the OS fence admits
-///   loopback only). Until the proxy lands, this arm confines EXACTLY as
-///   [`NetPolicy::Allow`] (the pre-tri-state `allow_network = true`
-///   behavior — zero regression, never a silent partial).
+///   egress confined to exactly that set, enforced by a loopback egress
+///   proxy (the child gets proxy env vars · the OS fence admits only the
+///   proxy's port). The exec runner starts one per run, and a confined MCP
+///   spawn one per server, for its registry `network` allowlist. A spec
+///   that reaches a jail without a proxy port is fenced to loopback only.
 /// - an absent `net:` block or an empty `net.http` maps to
 ///   [`NetPolicy::Deny`] — the default, fail-closed.
 /// - the bare `*` host entry (`net: { http: ["*"] }`) maps to
@@ -76,8 +76,8 @@ pub enum NetPolicy {
     /// Unrestricted outbound network — the explicit escape hatch, reached
     /// only by declaring the bare `*` host in `permits.net.http`.
     Allow,
-    /// Egress confined to the declared `permits.net.http` host set, via the
-    /// loopback egress proxy (see the enum doc for the transitional mapping).
+    /// Egress confined to the declared host set, via the loopback egress
+    /// proxy (see the enum doc for who starts it).
     Allowlist(EgressAllowlist),
 }
 

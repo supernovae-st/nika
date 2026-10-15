@@ -28,9 +28,15 @@ and every refusal names its remedy.
 - Exactly one transport per entry: `command` (+ `args`) for stdio. A `url`
   entry is refused honestly — the remote transport is not wired.
 - `network` is the child's egress arm: **absent = deny** (fail-closed),
-  `"allow"` is the explicit escape hatch, `{ "allowlist": [...] }` reserves
-  the host-granular arm (confined as `allow` until the loopback proxy lands,
-  and the receipt says so).
+  `"allow"` is the explicit escape hatch, `{ "allowlist": [...] }` admits
+  exactly those hosts through a loopback egress proxy the spawn starts. The
+  child receives `HTTPS_PROXY` and its siblings; the macOS jail admits only
+  the proxy's port, so a client that ignores the proxy env reaches nothing,
+  and neither does a dial to another local port. On Linux the network
+  namespace is shared and the proxy only holds clients that use it. A server
+  that needs a local service beside its hosts takes `"allow"`. A refused
+  host prints ``nika:egress REFUSED host:port (not in the `web` MCP
+  server's network allowlist)`` on stderr.
 - A workflow naming `mcp:<server>/…` whose server is not in this file fails
   `nika check` with `NIKA-INVOKE-001` (the C04 verdict), before any run.
 

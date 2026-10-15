@@ -68,6 +68,7 @@ use nika_kernel::process::EgressAllowlist;
 mod journal;
 
 pub(crate) use journal::stderr_journal;
+pub use journal::stderr_journal_for;
 
 /// Handshake-phase I/O deadline (greeting, CONNECT line, SOCKS request). A
 /// stalled handshake cannot hold a connection thread forever; the tunnel
@@ -124,13 +125,24 @@ pub enum EgressEvent {
 /// CONNECT waits with it.
 pub type EgressObserver = Arc<dyn Fn(&EgressEvent) + Send + Sync>;
 
-/// The per-run loopback proxy. Owns the accept thread; `Drop` stops the
-/// listener (no orphan listener outlives the runner — see `Drop`).
-pub(crate) struct EgressProxy {
+/// The loopback egress proxy for one allowlist boundary — per run for the
+/// exec runner, per server for a confined MCP spawn. Owns the accept
+/// thread; `Drop` stops the listener (no orphan listener outlives its
+/// owner — see `Drop`).
+pub struct EgressProxy {
     port: u16,
     allowlist: Arc<[String]>,
     shutdown: Arc<AtomicBool>,
     accept: Option<JoinHandle<()>>,
+}
+
+impl std::fmt::Debug for EgressProxy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EgressProxy")
+            .field("port", &self.port)
+            .field("allowlist", &self.allowlist)
+            .finish_non_exhaustive()
+    }
 }
 
 impl EgressProxy {
@@ -138,9 +150,9 @@ impl EgressProxy {
     ///
     /// # Errors
     /// The loopback bind or the accept-thread spawn failed — fail-closed:
-    /// the caller (the runner) refuses the command rather than run an
-    /// allowlisted child without its proxy.
-    pub(crate) fn start(allowlist: Vec<String>, observer: EgressObserver) -> std::io::Result<Self> {
+    /// the caller refuses the spawn rather than run an allowlisted child
+    /// without its proxy.
+    pub fn start(allowlist: Vec<String>, observer: EgressObserver) -> std::io::Result<Self> {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?;
         let port = listener.local_addr()?.port();
         let shutdown = Arc::new(AtomicBool::new(false));
@@ -161,7 +173,8 @@ impl EgressProxy {
     }
 
     /// The ephemeral loopback port the child env points at.
-    pub(crate) fn port(&self) -> u16 {
+    #[must_use]
+    pub fn port(&self) -> u16 {
         self.port
     }
 
@@ -515,7 +528,8 @@ fn socks_reply(rep: u8) -> [u8; 10] {
 /// `NO_PROXY` for the loopback + RFC1918 direct set (srt's verbatim list).
 /// Every name is SET (both cases), so an ambient inherited value can never
 /// outrank the boundary — the confined child's only egress is the proxy.
-pub(crate) fn proxy_env(port: u16) -> [(&'static str, String); 13] {
+#[must_use]
+pub fn proxy_env(port: u16) -> [(&'static str, String); 13] {
     let http = format!("http://127.0.0.1:{port}");
     let socks = format!("socks5h://127.0.0.1:{port}");
     let no_proxy = "localhost,127.0.0.1,::1,169.254.0.0/16,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16";

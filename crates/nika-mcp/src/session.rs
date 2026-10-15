@@ -35,8 +35,9 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex, PoisonError, mpsc};
 use std::time::Duration;
 
+use nika_exec_runner::{EgressProxy, proxy_env, stderr_journal_for};
 use nika_kernel::command_sandbox::CommandSandbox;
-use nika_kernel::process::ShellCommand;
+use nika_kernel::process::{NetPolicy, ShellCommand};
 use serde_json::{Value, json};
 
 use crate::client::McpServerConfig;
@@ -235,14 +236,17 @@ enum Line {
 /// The INV-011 guard for a std child (std's `Command` has no
 /// `kill_on_drop` — that is a tokio method): dropping the session SIGKILLs
 /// the server and reaps it, so a failed handshake, a drift refusal or a
-/// finished run never leaks a running subprocess.
+/// finished run never leaks a running subprocess. The server's loopback
+/// egress proxy, when its `network` is an allowlist, rides along and
+/// stops only once the child is killed and reaped.
 #[allow(clippy::disallowed_types)] // see the import-site exemption note
-struct KillOnDrop(Child);
+struct KillOnDrop(Child, Option<EgressProxy>);
 
 impl Drop for KillOnDrop {
     fn drop(&mut self) {
         let _ = self.0.kill(); // SIGKILL · idempotent on an already-dead child
         let _ = self.0.wait(); // reap the zombie
+        drop(self.1.take()); // then its egress proxy stops listening
     }
 }
 
@@ -481,7 +485,8 @@ fn spawn(
     let mut inner = ShellCommand::new(command);
     inner.args.clone_from(&config.args);
     inner.cwd = Some(project_dir.to_path_buf());
-    let spec = config.sandbox_spec(project_dir);
+    let mut spec = config.sandbox_spec(project_dir);
+    let egress = start_egress(config, &mut spec.net)?;
     let confined = sandbox
         .confine(&spec, inner)
         .map_err(|e| PinError::Sandbox {
@@ -491,6 +496,13 @@ fn spawn(
     let mut cmd = Command::new(&confined.program);
     cmd.args(&confined.args);
     apply_env_scrub(&mut cmd);
+    if let Some(proxy) = &egress {
+        // After the scrub: the boundary's env contract outranks any
+        // ambient proxy value, and the child's only egress is the proxy.
+        for (name, value) in proxy_env(proxy.port()) {
+            cmd.env(name, value);
+        }
+    }
     if let Some(cwd) = &confined.cwd {
         cmd.current_dir(cwd);
     }
@@ -513,7 +525,37 @@ fn spawn(
     let tail: StderrTail = Arc::new(Mutex::new(VecDeque::with_capacity(STDERR_TAIL_BYTES)));
     let sink = Arc::clone(&tail);
     std::thread::spawn(move || drain_tail(stderr, &sink));
-    Ok((KillOnDrop(child), rx, tail))
+    Ok((KillOnDrop(child, egress), rx, tail))
+}
+
+/// The network allowlist's enforcement half (ADR-095 Layer 6 · the exec
+/// arm's contract): a loopback egress proxy serves exactly the declared
+/// hosts, and its port scopes the jail's outbound fence. Without it the
+/// macOS profile admits loopback only and the server cannot even resolve
+/// a name. Any other `network` value starts nothing. A proxy that cannot
+/// start refuses the spawn — never an allowlisted server without its
+/// proxy.
+fn start_egress(
+    config: &McpServerConfig,
+    net: &mut NetPolicy,
+) -> Result<Option<EgressProxy>, PinError> {
+    let NetPolicy::Allowlist(allowlist) = net else {
+        return Ok(None);
+    };
+    // A refused host is the security event the exec arm journals too: one
+    // queued stderr line that names this server's allowlist (the server
+    // itself sees a refused CONNECT `403` or SOCKS reply).
+    let journal = stderr_journal_for(format!(
+        "the `{}` MCP server's network allowlist",
+        config.name
+    ));
+    let proxy =
+        EgressProxy::start(allowlist.hosts.clone(), journal).map_err(|e| PinError::Sandbox {
+            server: config.name.clone(),
+            why: format!("the loopback egress proxy for the network allowlist did not start: {e}"),
+        })?;
+    allowlist.proxy_port = Some(proxy.port());
+    Ok(Some(proxy))
 }
 
 /// Scrub the child's environment: `env_clear` drops EVERY ambient value the
@@ -660,5 +702,47 @@ mod tests {
         );
         let text = String::from_utf8_lossy(buf.make_contiguous()).into_owned();
         assert!(text.ends_with("npm ERR! last words\n"), "{text}");
+    }
+
+    /// A network allowlist starts the server's loopback egress proxy and
+    /// scopes the jail's fence to its port (without it the macOS profile
+    /// admits loopback only: the server cannot even resolve a host);
+    /// `deny` and `allow` start nothing and keep their arm.
+    #[test]
+    fn an_allowlist_starts_the_egress_proxy_and_scopes_the_fence() {
+        let allowlist =
+            nika_kernel::process::EgressAllowlist::new(vec!["api.example.com".to_owned()]);
+        let config = McpServerConfig::stdio("probe", "probe-server", Vec::new())
+            .with_network(NetPolicy::Allowlist(allowlist));
+        let mut spec = config.sandbox_spec(Path::new("/tmp/project"));
+        let proxy = start_egress(&config, &mut spec.net)
+            .expect("the proxy starts on loopback")
+            .expect("an allowlist starts a proxy");
+        let NetPolicy::Allowlist(scoped) = &spec.net else {
+            panic!("the arm stays an allowlist: {:?}", spec.net);
+        };
+        assert_eq!(
+            scoped.proxy_port,
+            Some(proxy.port()),
+            "the fence names the proxy's port"
+        );
+        std::net::TcpStream::connect(("127.0.0.1", proxy.port())).expect("the proxy listens");
+        let env = proxy_env(proxy.port());
+        assert!(
+            env.iter().any(|(name, value)| *name == "HTTPS_PROXY"
+                && *value == format!("http://127.0.0.1:{}", proxy.port())),
+            "the child is pointed at the proxy: {env:?}"
+        );
+        for net in [NetPolicy::Deny, NetPolicy::Allow] {
+            let config = McpServerConfig::stdio("probe", "probe-server", Vec::new())
+                .with_network(net.clone());
+            let mut spec = config.sandbox_spec(Path::new("/tmp/project"));
+            assert!(
+                start_egress(&config, &mut spec.net)
+                    .expect("no proxy to start")
+                    .is_none()
+            );
+            assert_eq!(spec.net, net, "the arm is untouched");
+        }
     }
 }
