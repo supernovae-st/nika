@@ -1217,6 +1217,64 @@ fn tallies_count_each_decision_across_journals() {
     assert_eq!(tallies([(&*versioned, true)]), Some((1, 1)));
 }
 
+/// Every decision kind is listed in journal order, `disarmed` included; a forged tail refuses
+/// the count as it refuses the tallies.
+#[test]
+fn decisions_list_every_kind_in_journal_order() {
+    let (skipped, skipped_hash) = line(1, "skipped", None, r#"{"slot":null}"#, None);
+    let (disarmed, disarmed_hash) = line(2, "disarmed", None, r"{}", Some(&skipped_hash));
+    let slot = "a".repeat(64);
+    let (claim, claim_hash) = line(
+        3,
+        "claimed",
+        Some(&slot),
+        r#"{"deadline":"2026-08-20T03:00:00Z","fencing":3,"gen":null}"#,
+        Some(&disarmed_hash),
+    );
+    let (fired, _) = line(
+        4,
+        "fired",
+        Some(&slot),
+        r#"{"slot":"2026-08-19T03:00:00Z","exit":0,"fencing":3,"gen":null}"#,
+        Some(&claim_hash),
+    );
+    let chain = format!("{skipped}\n{disarmed}\n{claim}\n{fired}\n");
+    let kinds = |found: Option<Vec<Decision>>| {
+        found.map(|found| found.into_iter().map(|d| d.kind).collect::<Vec<_>>())
+    };
+    assert_eq!(
+        kinds(decisions([(&*chain, true)])),
+        Some(vec![
+            DecisionKind::Skipped,
+            DecisionKind::Disarmed,
+            DecisionKind::Fired
+        ])
+    );
+    let read = decisions([(&*chain, true)]).expect("the chain");
+    assert_eq!(read[0].decided_at, Some(ts("2026-08-19T03:02:00Z")));
+    let legacy = concat!(
+        "{\"slot\":\"2026-08-19T03:00:00Z\",\"decided_at\":\"2026-08-19T03:02:00Z\",\"kind\":\"paused\",\"trace\":null,\"exit\":4}\n",
+        "{\"slot\":\"2026-08-19T04:00:00Z\",\"decided_at\":\"2026-08-19T04:02:00Z\",\"kind\":\"failed\",\"trace\":null,\"exit\":1}\n"
+    );
+    assert_eq!(
+        kinds(decisions([(legacy, false)])),
+        Some(vec![DecisionKind::Paused, DecisionKind::Failed])
+    );
+    let forged_tail = format!("{skipped}\n{{\"kind\":\"fired\"}}\n");
+    assert_eq!(decisions([(&*forged_tail, true)]), None);
+    // A skip says why and a catch-up how many slots it answered (supernovae-1c, 2026-10-17).
+    let said = concat!(
+        "{\"slot\":\"2026-08-19T03:00:00Z\",\"decided_at\":\"2026-08-19T04:30:00Z\",\"kind\":\"skipped\",\"reason\":\"missed:1\"}\n",
+        "{\"slot\":\"2026-08-20T03:00:00Z\",\"decided_at\":\"2026-08-20T05:00:00Z\",\"kind\":\"fired\",\"exit\":0,\"slots\":2}\n"
+    );
+    let read = decisions([(said, false)]).expect("legacy decisions");
+    assert_eq!(read[0].reason.as_deref(), Some("missed:1"));
+    assert_eq!(
+        (read[1].slots, read[1].decided_at),
+        (Some(2), Some(ts("2026-08-20T05:00:00Z")))
+    );
+}
+
 #[test]
 fn slotless_disarm_advances_only_the_watermark() {
     let (disarmed, _) = line_at(1, "2026-08-19T04:00:00Z", "disarmed", None, r"{}", None);

@@ -124,8 +124,55 @@ fn kinds(receipt: &ScheduleReadinessReceipt<'_>) -> Vec<String> {
     receipt.blockers().into_iter().map(|b| b.kind).collect()
 }
 
-/// READY needs every axis in scope PROVEN; an unknown axis is never ready,
-/// and READY itself never claims activation or authority.
+/// A beat whose only open question is an unknown (a parent calling a child
+/// whose model only the run decides) reads READY, as the firer fires it, and
+/// names the unknown in both views; a blocker alone makes a beat UNREADY.
+#[test]
+fn a_beat_with_only_an_unknown_reads_ready_with_the_unknown_named() {
+    let registry = registry(SAUTER);
+    let dir = project("unknown-only");
+    let mut facts = ready();
+    facts.model_cost_ready = None;
+    facts.unknowns = vec!["task `child`: only the run decides the child's model".to_owned()];
+    let unknown = receipt(&registry, dir.path(), "2026-09-28T03:00:10Z", facts);
+
+    assert_eq!(unknown.status(), ReceiptStatus::Ready);
+    assert!(unknown.blockers().is_empty());
+    let doc = unknown.to_json();
+    assert_eq!(doc["status"], "READY");
+    assert_eq!(
+        doc["unknowns"],
+        serde_json::json!(["task `child`: only the run decides the child's model"])
+    );
+    let human = unknown.human_lines(3);
+    assert_eq!(
+        human[0],
+        "  [READY] workflows/report.nika · TZ=UTC 0 3 * * *"
+    );
+    assert!(
+        human.iter().any(|line| line.contains("? task `child`")),
+        "{human:?}"
+    );
+    assert!(
+        human
+            .iter()
+            .any(|line| line
+                .contains("ready in the current configuration with 1 unknown named above")),
+        "{human:?}"
+    );
+
+    let mut refused = ready();
+    refused.model_cost_ready = Some(false);
+    let refused = receipt(&registry, dir.path(), "2026-09-28T03:00:10Z", refused);
+    assert_eq!(
+        refused.status(),
+        ReceiptStatus::Unready,
+        "an axis proven false"
+    );
+}
+
+/// READY needs no blocker and no axis in scope proven false; READY itself
+/// never claims activation or authority.
 #[test]
 fn every_axis_in_scope_must_be_proven_for_ready() {
     let registry = registry(SAUTER);
@@ -156,10 +203,10 @@ fn every_axis_in_scope_must_be_proven_for_ready() {
     let unknown = receipt(&registry, dir.path(), "2026-09-28T03:00:10Z", unknown_cost);
     assert_eq!(
         unknown.status(),
-        ReceiptStatus::Unready,
-        "unknown is never ready"
+        ReceiptStatus::Ready,
+        "an unknown alone never blocks: the firer fires the beat"
     );
-    assert!(!unknown.run_ready_now());
+    assert!(unknown.run_ready_now());
     let doc = unknown.to_json();
     assert_eq!(doc["model_cost_ready"], Value::Null);
     assert_eq!(
@@ -203,6 +250,22 @@ fn out_of_window_is_a_truthful_skip_and_leaves_the_status() {
     assert_eq!(doc["run_ready_now"], false);
 }
 
+/// A suspension whose `jusqu_au` has passed wakes: both firers fire it again,
+/// so the receipt reads it as armed, never DORMANT, with its next fire computed.
+#[test]
+fn a_suspension_past_its_date_reads_as_armed_again() {
+    let registry = registry(
+        "    manqué: sauter\n    actif: false\n    raison: vacances\n    jusqu_au: 2026-10-01\n",
+    );
+    let dir = project("woken");
+    let woken = receipt(&registry, dir.path(), "2026-10-02T03:00:10Z", ready());
+    assert_eq!(woken.status(), ReceiptStatus::Ready);
+    let doc = woken.to_json();
+    assert_eq!(doc["status"], "READY");
+    assert_eq!(doc["run_ready_now"], true, "{doc}");
+    assert_ne!(doc["next_fire"], Value::Null, "{doc}");
+}
+
 /// A dormant definition is registered, reported, and never computed or
 /// read as armed.
 #[test]
@@ -233,6 +296,22 @@ fn a_dormant_definition_never_reads_as_armed() {
     assert!(
         !human.iter().any(|l| l.contains('→')),
         "never computed: {human:?}"
+    );
+}
+
+/// The bounded catch-up `{ rattraper: N }` is a schedule blocker as
+/// `rattraper` is: this firer refuses it by name, the resident fires it.
+#[test]
+fn a_bounded_catch_up_is_a_schedule_blocker() {
+    let registry = registry("    manqué: { rattraper: 3 }\n");
+    let dir = project("bounded");
+    let refused = receipt(&registry, dir.path(), "2026-09-28T03:00:10Z", ready());
+    assert_eq!(refused.status(), ReceiptStatus::Unready);
+    assert_eq!(kinds(&refused), ["policy_unsupported"]);
+    let human = refused.human_lines(3).join("\n");
+    assert!(
+        human.contains("✗ manqué: { rattraper: N } is not supported by this firer"),
+        "{human}"
     );
 }
 

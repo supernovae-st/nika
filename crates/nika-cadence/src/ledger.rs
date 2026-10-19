@@ -77,6 +77,64 @@ impl DecisionKind {
             _ => None,
         }
     }
+
+    /// Parse a journal decision word, `disarmed` included.
+    fn parse_decision(word: &str) -> Option<Self> {
+        match word {
+            "disarmed" => Some(Self::Disarmed),
+            word => Self::parse_projection(word),
+        }
+    }
+}
+
+/// One decision journal texts record, read back: its kind, when it was decided, why a skip
+/// skipped (`missed:1`, `overlap`) and how many slots a catch-up answered, when the line says
+/// them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Decision {
+    /// The decision kind.
+    pub kind: DecisionKind,
+    /// The decision instant, when the line carries one.
+    pub decided_at: Option<Timestamp>,
+    /// The skip reason, when the line says one.
+    pub reason: Option<String>,
+    /// The slots one catch-up fire answered, when the line says them.
+    pub slots: Option<u32>,
+}
+
+impl Decision {
+    /// A decision of `kind` with nothing else said.
+    #[must_use]
+    pub const fn new(kind: DecisionKind) -> Self {
+        Self {
+            kind,
+            decided_at: None,
+            reason: None,
+            slots: None,
+        }
+    }
+
+    /// The decision one journal line records: the versioned envelope's `ts` and `payload`, or a
+    /// legacy line's own fields.
+    fn of_line(doc: &serde_json::Value) -> Option<Self> {
+        let word = doc.get("kind").and_then(serde_json::Value::as_str)?;
+        let kind = DecisionKind::parse_decision(word)?;
+        let fields = doc.get("payload").unwrap_or(doc);
+        let decided_at = envelope_ts(doc).or_else(|| {
+            (doc.get("decided_at").and_then(serde_json::Value::as_str))
+                .and_then(|at| at.parse::<Timestamp>().ok())
+        });
+        let reason = (fields.get("reason").and_then(serde_json::Value::as_str)).map(str::to_owned);
+        let slots = (fields.get("slots").and_then(serde_json::Value::as_u64))
+            .and_then(|n| u32::try_from(n).ok());
+        Some(Self {
+            kind,
+            decided_at,
+            reason,
+            slots,
+        })
+    }
 }
 
 /// One decision to append to the ledger.
@@ -438,8 +496,17 @@ pub fn unsettled(text: &str) -> Option<impl Iterator<Item = Unsettled> + use<>> 
 /// Count skipped and fired decisions across journal texts.
 #[must_use]
 pub fn tallies<'a>(journals: impl IntoIterator<Item = (&'a str, bool)>) -> Option<(usize, usize)> {
-    let mut skips = 0usize;
-    let mut fires = 0usize;
+    let decisions = decisions(journals)?;
+    let count = |kind: DecisionKind| decisions.iter().filter(|seen| seen.kind == kind).count();
+    Some((count(DecisionKind::Skipped), count(DecisionKind::Fired)))
+}
+
+/// Every decision journal texts record, in order: fired, skipped, paused, failed and disarmed
+/// alike, read as [`tallies`] reads them (a versioned chain up to its last verified line). `None`
+/// for a journal whose format or chain refuses.
+#[must_use]
+pub fn decisions<'a>(journals: impl IntoIterator<Item = (&'a str, bool)>) -> Option<Vec<Decision>> {
+    let mut out = Vec::new();
     for (text, versioned) in journals {
         let format = classify_journal(text)?;
         if versioned != matches!(format, JournalFormat::Versioned) {
@@ -461,14 +528,12 @@ pub fn tallies<'a>(journals: impl IntoIterator<Item = (&'a str, bool)>) -> Optio
             let Ok(doc) = serde_json::from_str::<serde_json::Value>(line) else {
                 continue;
             };
-            match doc.get("kind").and_then(serde_json::Value::as_str) {
-                Some("skipped") => skips += 1,
-                Some("fired") => fires += 1,
-                _ => {}
+            if let Some(decision) = Decision::of_line(&doc) {
+                out.push(decision);
             }
         }
     }
-    Some((skips, fires))
+    Some(out)
 }
 
 fn last_claim(events: &[FiringEvent]) -> Option<(FencingToken, Timestamp)> {

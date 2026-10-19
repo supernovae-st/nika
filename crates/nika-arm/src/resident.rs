@@ -22,6 +22,32 @@ use nika_cadence::{ArmGeneration, FencingToken, SlotId};
 
 use crate::state::{ArmState, LockLease, LockOutcome};
 
+/// Where a resident (`nika serve`) holds its server lease, below its default state root.
+const SERVER_LOCK: &str = ".nika/serve/jobs/server.lock";
+
+/// Whether a resident (`nika serve`) holds the server lease of the project at `project_root` now,
+/// at its default state root (`<project>/.nika/serve`). A read: no store is created.
+#[must_use]
+pub fn alive(project_root: &Path) -> bool {
+    lease_held(&project_root.join(SERVER_LOCK))
+}
+
+/// Whether a resident holds the server lease at `path`: a live resident holds it exclusively for
+/// its lifetime, so a non-blocking SHARED attempt is refused with `EWOULDBLOCK`. A free lock is
+/// taken and released at once.
+#[must_use]
+pub fn lease_held(path: &Path) -> bool {
+    use nix::fcntl::{Flock, FlockArg};
+    let Ok(file) = std::fs::OpenOptions::new().read(true).open(path) else {
+        return false;
+    };
+    match Flock::lock(file, FlockArg::LockSharedNonblock) {
+        Ok(_released_at_once) => false,
+        Err((_, nix::errno::Errno::EWOULDBLOCK)) => true,
+        Err(_) => false,
+    }
+}
+
 /// The deadline a resident claim carries when the cadence's next slot is
 /// not consulted: the edge's own fallback.
 const CLAIM_DEADLINE_FALLBACK: SignedDuration = SignedDuration::from_hours(24);

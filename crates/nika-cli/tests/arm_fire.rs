@@ -328,6 +328,30 @@ fn fire_runs_a_due_beat_and_records_it() {
             .all(|event| event.execution == Some(first_execution)),
         "every root event carries the admitted execution identity"
     );
+    // The run is told the slot it serves (spec 04 §`run`): its
+    // opening frame names the slot and where the instant came from.
+    let opening = recovered
+        .events
+        .iter()
+        .find(|event| event.kind.as_str() == "workflow_started")
+        .expect("the opening frame");
+    let told = |key: &str| {
+        opening
+            .fields
+            .iter()
+            .find(|field| field.key == key)
+            .map(|field| field.value.clone())
+    };
+    assert_eq!(
+        told("scheduled_for"),
+        Some(nika_types::resource::Value::String(
+            "2026-08-19T03:00:00.000Z".to_owned()
+        ))
+    );
+    assert_eq!(
+        told("scheduled_for_source"),
+        Some(nika_types::resource::Value::String("slot".to_owned()))
+    );
     assert_eq!(traces(&dir).len(), 1, "one fresh run = one trace (N2)");
 }
 
@@ -964,4 +988,72 @@ fn rattraper_une_fois_fires_one_run_for_the_whole_silence() {
     let last = last_json(&dir, "doctor").expect("last.json");
     assert_eq!(last["kind"], "fired");
     assert_eq!(last["slot"], "2026-08-19T03:00:00Z");
+    // The one run is told the silence it covers (spec 04 §`run`).
+    let trace = last["trace"].as_str().expect("a trace path");
+    let journal = std::fs::read_to_string(dir.join(trace)).expect("the run's journal");
+    let opening: serde_json::Value = journal
+        .lines()
+        .find(|line| line.contains("\"kind\":\"workflow_started\""))
+        .map(|line| serde_json::from_str(line).expect("one JSON event"))
+        .expect("the opening frame");
+    let missed = opening["fields"]
+        .as_array()
+        .expect("fields")
+        .iter()
+        .find(|field| field["key"] == "missed")
+        .and_then(|field| field["value"].as_str())
+        .expect("the silence is journaled");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(missed).expect("missed parses"),
+        serde_json::json!({
+            "count": 2,
+            "first": "2026-08-18T03:00:00.000Z",
+            "last": "2026-08-19T03:00:00.000Z",
+        })
+    );
+}
+
+/// A unit written for another schedule (its revision is not the one
+/// `nika.yaml` gives now) is refused as stale, loudly, and fires nothing;
+/// a unit whose revision matches fires as before, and a fire by hand,
+/// with no revision, is never judged stale.
+#[test]
+fn a_wake_from_a_stale_unit_is_refused_loudly() {
+    let dir = project("stale-unit", DAILY_3AM, &[("doctor.nika", TRUE)]);
+    let stale = nika_cadence::emit::unit_revision(
+        "TZ=UTC 0 9 * * *",
+        nika_cadence::emit::Target::SystemdUser,
+        "",
+    );
+    let out = bin()
+        .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
+        .args(["--unit-rev", &stale])
+        .current_dir(&dir)
+        .output()
+        .expect("spawn fire");
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    let said =
+        String::from_utf8_lossy(&out.stdout).into_owned() + &String::from_utf8_lossy(&out.stderr);
+    assert!(
+        said.contains("unité périmée") && said.contains(&stale) && said.contains("nika arm --emit"),
+        "{said}"
+    );
+    assert!(last_json(&dir, "doctor").is_none(), "nothing fired");
+
+    let current = nika_cadence::emit::unit_revision(
+        "TZ=UTC 0 3 * * *",
+        nika_cadence::emit::Target::SystemdUser,
+        "",
+    );
+    let out = bin()
+        .args(["arm", "fire", "doctor", "--now", "2026-08-19T10:00:00Z"])
+        .args(["--unit-rev", &current])
+        .current_dir(&dir)
+        .output()
+        .expect("spawn fire");
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(
+        assert_one_line(&out).starts_with("skipped doctor · not-due"),
+        "a current unit is judged as before"
+    );
 }

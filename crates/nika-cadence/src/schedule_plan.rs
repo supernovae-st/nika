@@ -10,6 +10,8 @@
 //! durable slot before claiming. This module performs no I/O, sleeping, clock
 //! read, overlap execution, or `afterSkip` execution.
 
+use std::num::NonZeroU32;
+
 use jiff::civil::DateTime;
 use jiff::tz::TimeZone;
 use jiff::{Timestamp, Zoned};
@@ -265,6 +267,8 @@ pub struct SchedulePlan {
     earliest_wake_hint: Option<Timestamp>,
     overlap: Overlap,
     after_skip: AfterSkip,
+    /// First slot of the due window, kept when the definition answers a silence with one run.
+    silence_first: Option<Timestamp>,
 }
 
 impl SchedulePlan {
@@ -308,6 +312,25 @@ impl SchedulePlan {
     #[must_use]
     pub const fn after_skip(&self) -> AfterSkip {
         self.after_skip
+    }
+
+    /// The silence a `rattraper-une-fois` catch-up answers for (spec 04 §`run`): the instant of
+    /// its first slot and how many slots it holds, saturated at the cadence cap. The slot the
+    /// catch-up fires is its last. `None` for any other verdict or miss policy.
+    #[must_use]
+    pub fn silence(&self) -> Option<(Timestamp, u32)> {
+        let ScheduleDueVerdict::CatchUp { missed_slots, .. } = &self.due else {
+            return None;
+        };
+        self.silence_first.map(|first| (first, *missed_slots))
+    }
+
+    /// Keep the due window's first slot when the definition answers a silence with one run.
+    fn covering(mut self, definition: &ScheduleDefinition, first: Option<Timestamp>) -> Self {
+        if definition.missed() == MissPolicy::RattraperUneFois {
+            self.silence_first = first;
+        }
+        self
     }
 }
 
@@ -407,13 +430,28 @@ pub fn plan_schedule(
     }
 }
 
-/// The declared pause bound, judged the arm-fire way: a `pauseUntil`
-/// strictly before the decision instant's own civil date means the
+/// The declared pause bound, judged by the one suspension law the arm-fire
+/// edge reads too: a `pauseUntil` strictly before now's civil date in the
+/// cadence's own zone (UTC for a one-shot or a webhook) means the
 /// suspension is over and the definition plans as active again.
 fn pause_expired(definition: &ScheduleDefinition, now: &Zoned) -> bool {
-    definition
-        .pause_until()
-        .is_some_and(|until| crate::tick::date_expired(until, now))
+    definition.pause_until().is_some_and(|until| {
+        crate::tick::suspension_date_over(until, definition.when().cadence_expression(), now)
+    })
+}
+
+/// The instant a lapsed pause woke (the start of the day after its
+/// `pauseUntil`, in the cadence's zone), for a definition still declared
+/// inactive: its window counts from there, never across the pause.
+fn pause_woke_at(definition: &ScheduleDefinition) -> Option<Timestamp> {
+    if definition.is_active() {
+        return None;
+    }
+    crate::tick::wake_of(
+        definition.pause_until()?,
+        definition.when().cadence_expression(),
+    )
+    .map(|wake| wake.timestamp())
 }
 
 fn paused_plan(definition: &ScheduleDefinition, now: &Zoned) -> SchedulePlan {
@@ -461,8 +499,9 @@ fn plan_once(
             now,
         );
     }
+    let first = slot.scheduled_for;
     let verdict = classify_due(definition, slot, 1, now);
-    complete_plan(definition, verdict, Vec::new(), None, now)
+    complete_plan(definition, verdict, Vec::new(), None, now).covering(definition, Some(first))
 }
 
 fn plan_cadence(
@@ -474,13 +513,21 @@ fn plan_cadence(
     limit: usize,
 ) -> SchedulePlan {
     let last = applicable_last(definition, state);
-    let window = cadence_window(definition, expression, cadence, now, last);
+    let since = window_start(last, pause_woke_at(definition));
+    let window = cadence_window(definition, expression, cadence, now, since);
+    let silence_first = window.as_ref().map(|window| window.first.scheduled_for);
     let verdict = window.map_or(ScheduleDueVerdict::NotDue, |window| {
-        let slot = match definition.missed() {
-            MissPolicy::Rattraper => window.first,
-            MissPolicy::RattraperUneFois | MissPolicy::Sauter => window.latest,
-        };
-        classify_due(definition, slot, window.count, now)
+        match definition.missed().latest_owed() {
+            // `{ rattraper: N }`, `rattraper` its N = 1 (spec 01 §`manqué`): the
+            // slots older than the N latest are dropped first, journaled as one
+            // skip; the N latest then fire one run each, oldest first.
+            Some(latest) if window.count > latest.get() => ScheduleDueVerdict::SkippedMissed {
+                slot: newest_dropped(definition, expression, cadence, &window, latest),
+                missed_slots: window.count - latest.get(),
+            },
+            Some(_) => classify_due(definition, window.first, window.count, now),
+            None => classify_due(definition, window.latest, window.count, now),
+        }
     });
     let basis = projection_basis(now, last);
     let first_future = cadence.next_after(&basis).map(|slot| slot.at.timestamp());
@@ -488,6 +535,7 @@ fn plan_cadence(
         .map(|slot| ScheduleSlot::cadence(definition, expression, &slot))
         .collect();
     complete_plan(definition, verdict, projection, first_future, now)
+        .covering(definition, silence_first)
 }
 
 struct DueWindow {
@@ -496,14 +544,58 @@ struct DueWindow {
     count: u32,
 }
 
+/// The newest slot a bounded catch-up drops: `latest` slots back from the
+/// window's latest, walked one cadence slot at a time and never past the
+/// window's first.
+fn newest_dropped(
+    definition: &ScheduleDefinition,
+    expression: &str,
+    cadence: &Cadence,
+    window: &DueWindow,
+    latest: NonZeroU32,
+) -> ScheduleSlot {
+    let mut at = window.latest.scheduled_for;
+    let mut reached = None;
+    for _ in 0..latest.get() {
+        let Some(previous) = at
+            .checked_sub(jiff::SignedDuration::from_nanos(1))
+            .ok()
+            .and_then(|before| cadence.prev_before(&before.to_zoned(TimeZone::UTC)))
+            .filter(|previous| previous.at.timestamp() >= window.first.scheduled_for)
+        else {
+            break;
+        };
+        at = previous.at.timestamp();
+        reached = Some(previous);
+    }
+    reached.map_or_else(
+        || window.first.clone(),
+        |slot| ScheduleSlot::cadence(definition, expression, &slot),
+    )
+}
+
+/// Where a definition's due window starts: its last decided slot, or for a
+/// lapsed pause the wake when that is later, so the slots a pause slept
+/// through are never counted as missed. A definition never decided has no
+/// window to count, woken or not: its on-time slot alone decides. The window
+/// is read strictly after its start, so a wake's start sits just before the
+/// wake: a slot AT the wake instant is owed.
+fn window_start(last: Option<&ScheduleLastSlot>, woke: Option<Timestamp>) -> Option<Timestamp> {
+    let woke = woke.and_then(|wake| wake.checked_sub(jiff::SignedDuration::from_nanos(1)).ok());
+    match (last.map(|last| last.scheduled_for), woke) {
+        (Some(slot), Some(woke)) => Some(slot.max(woke)),
+        (slot, _) => slot,
+    }
+}
+
 fn cadence_window(
     definition: &ScheduleDefinition,
     expression: &str,
     cadence: &Cadence,
     now: &Zoned,
-    last: Option<&ScheduleLastSlot>,
+    since: Option<Timestamp>,
 ) -> Option<DueWindow> {
-    let Some(last) = last else {
+    let Some(since) = since else {
         let slot = recent_slot(cadence, now)?;
         let slot = ScheduleSlot::cadence(definition, expression, &slot);
         return within_on_time(now, slot.scheduled_for).then(|| DueWindow {
@@ -512,7 +604,7 @@ fn cadence_window(
             count: 1,
         });
     };
-    let cursor = last.scheduled_for.to_zoned(TimeZone::UTC);
+    let cursor = since.to_zoned(TimeZone::UTC);
     let mut due = next_slots(cadence, &cursor, MISSED_SLOTS_CAP);
     let first = due.next().filter(|slot| slot.at <= *now)?;
     let mut latest = first.clone();
@@ -562,7 +654,7 @@ fn classify_due(
         };
     }
     match definition.missed() {
-        MissPolicy::Rattraper | MissPolicy::RattraperUneFois => {
+        MissPolicy::Rattraper | MissPolicy::RattraperDerniers(_) | MissPolicy::RattraperUneFois => {
             ScheduleDueVerdict::CatchUp { slot, missed_slots }
         }
         MissPolicy::Sauter => ScheduleDueVerdict::SkippedMissed { slot, missed_slots },
@@ -636,6 +728,7 @@ fn complete_plan(
         earliest_wake_hint,
         overlap: definition.overlap(),
         after_skip: definition.after_skip(),
+        silence_first: None,
     }
 }
 

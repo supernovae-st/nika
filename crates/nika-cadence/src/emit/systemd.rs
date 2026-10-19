@@ -11,7 +11,7 @@
 //! `Persistent=` carries the `manqué:` law: anything but `sauter` asks
 //! the timer to catch a miss up.
 
-use super::{EmitCtx, Target, Unit, header};
+use super::{EmitCtx, Target, Unit, beat_unit, header, serve_unit};
 use crate::cron::{CronSpec, Field};
 use crate::registry::{Beat, MissPolicy};
 
@@ -77,16 +77,18 @@ fn token(text: &str) -> String {
 
 /// A beat's pair: the timer (the calendar) and the service (the shot).
 /// The env file rides as `EnvironmentFile=` on the SERVICE (D7 — the
-/// systemd-native form, no shell wrap here).
+/// systemd-native form, no shell wrap here). Both name the schedule
+/// revision in their header, and the service hands it to the firer.
 pub(crate) fn per_beat(
     ctx: &EmitCtx,
     label: &str,
     beat: &Beat,
     tz: &str,
     spec: &CronSpec,
+    rev: &str,
 ) -> [Unit; 2] {
-    let unit_label = format!("nika.arm.{label}");
-    let head = header(ctx, &format!("beat {label}"), Target::SystemdUser);
+    let unit_label = beat_unit(&ctx.project_key, label);
+    let head = header(ctx, &format!("beat {label} rev {rev}"), Target::SystemdUser);
     let calendar = on_calendar(tz, spec);
     // `manqué: sauter` lets a miss die; anything else catches it up.
     let persistent = !matches!(beat.manque, Some(MissPolicy::Sauter));
@@ -107,7 +109,7 @@ pub(crate) fn per_beat(
         ctx,
         &head,
         &format!("nika arm fire · {label}"),
-        &["arm", "fire", label],
+        &["arm", "fire", label, "--unit-rev", rev],
         false,
     );
     [
@@ -127,7 +129,7 @@ pub(crate) fn per_beat(
 pub(crate) fn serve(ctx: &EmitCtx) -> Unit {
     let head = header(ctx, "serve", Target::SystemdUser);
     Unit {
-        file_name: "nika.serve.service".to_owned(),
+        file_name: format!("{}.service", serve_unit(&ctx.project_key)),
         body: service(
             ctx,
             &head,

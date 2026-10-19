@@ -43,6 +43,9 @@ pub struct ArmArgs {
     /// With `--emit`: the nika binary the unit invokes.
     #[arg(long, value_name = "BIN")]
     pub nika_bin: Option<PathBuf>,
+    /// With `--emit`: this beat's unit only (its label), every other beat's unit left as it is.
+    #[arg(long, value_name = "LABEL")]
+    pub beat: Option<String>,
 }
 
 /// The machine edge under `nika arm`.
@@ -79,12 +82,17 @@ pub struct FireArgs {
     /// a test are deterministic.
     #[arg(long, hide = true, value_name = "RFC3339")]
     pub now: Option<String>,
+    /// The schedule revision of the OS unit that woke the firer (the
+    /// emitted units pass it): a wake from a unit `nika.yaml` no longer
+    /// gives is refused as stale, never read as a slot that is not due.
+    #[arg(long, hide = true, value_name = "REV")]
+    pub unit_rev: Option<String>,
 }
 
 /// The OS an emitted unit targets — the W3 surface, declared now.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum EmitTarget {
-    /// macOS launchd user agent (`~/Library/LaunchAgents/nika.arm.<radical>.plist`).
+    /// macOS launchd user agent (`~/Library/LaunchAgents/nika.arm.<project key>.<radical>.plist`).
     Launchd,
     /// A systemd user timer + service pair.
     Systemd,

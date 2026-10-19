@@ -398,6 +398,30 @@ fn two_records_append_two_history_lines() {
     assert!(text.contains("\"reason\":\"missed:1\""), "{text}");
     // The tallies the report prints ride the same journal.
     assert_eq!(state.tallies("doctor"), Some((1, 1)));
+    // … and so does the count of every kind, a disarm included.
+    state
+        .record_disarm(
+            "doctor",
+            ts("2026-08-19T03:05:00Z"),
+            std::process::id(),
+            "removed",
+        )
+        .expect("disarm");
+    let seen = state
+        .inspect("doctor", &ts("2026-08-19T03:06:00Z"))
+        .expect("inspect");
+    let counts = [
+        FireKind::Fired,
+        FireKind::Skipped,
+        FireKind::Paused,
+        FireKind::Disarmed,
+    ]
+    .map(|kind| seen.count(kind));
+    assert_eq!(counts, [Some(1), Some(1), Some(0), Some(1)]);
+    let absent = state
+        .inspect("never", &ts("2026-08-19T03:06:00Z"))
+        .expect("an absent sidecar");
+    assert_eq!(absent.count(FireKind::Fired), Some(0));
     // … and last.json carries the LAST decision.
     let last = state
         .last("doctor")

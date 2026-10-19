@@ -63,6 +63,12 @@ pub fn run(fire: &FireArgs) -> VerbOutput {
             labels.join(" · ")
         ));
     };
+    if let Some(rev) = fire.unit_rev.as_deref()
+        && let Some(beat) = registry.beats().nth(index)
+        && let Some(refusal) = stale_unit(&fire.label, &beat.cadence, rev)
+    {
+        return refusal;
+    }
     let now = match parse_now(fire.now.as_deref()) {
         Ok(now) => now,
         Err(line) => return VerbOutput::file(line),
@@ -84,6 +90,29 @@ pub fn run(fire: &FireArgs) -> VerbOutput {
     let verdict = fire_beat(&ctx);
     let (text, code) = verdict.into_parts();
     VerbOutput { text, code }
+}
+
+/// A wake from a unit written for another schedule: the revision it carries
+/// is neither the one launchd nor the one systemd gets from `nika.yaml` now
+/// (the cadence was edited, or the machine zone a launchd unit was rendered
+/// in changed). Without this refusal the old unit wakes the beat at the old
+/// time, the beat skips as not due, and nothing ever wakes it at the new one.
+fn stale_unit(label: &str, cadence: &str, rev: &str) -> Option<VerbOutput> {
+    use nika_cadence::emit::{Target, unit_revision};
+    let zone = jiff::tz::TimeZone::system()
+        .iana_name()
+        .map(str::to_owned)
+        .unwrap_or_default();
+    let current = [
+        unit_revision(cadence, Target::Launchd, &zone),
+        unit_revision(cadence, Target::SystemdUser, &zone),
+    ];
+    if current.iter().any(|known| known == rev) {
+        return None;
+    }
+    Some(VerbOutput::file(format!(
+        "arm fire {label} · unité périmée — elle a été écrite pour un autre horaire (révision {rev}) et réveille ce beat quand nika.yaml ne le dit plus ({cadence}) · rien n'est tiré · remède: `nika arm --emit launchd --write` (ou systemd), puis recharge l'unité"
+    )))
 }
 
 fn parse_now(raw: Option<&str>) -> Result<Zoned, String> {

@@ -159,6 +159,20 @@ the FIRE set — the gap's advanced fire included — saturated at
 `SignedDuration`: absolute time, and `Span`'s builders are not `const`
 in jiff 0.2). `emit` is landed at the L4 adapter: cadence supplies the pure
 schedule and label inputs while `nika-cli` renders launchd/systemd units.
+Every unit name carries the project key (`beat_unit` spells
+`nika.arm.<key>.<label>`, `serve_unit` spells `nika.serve.<key>`), where
+`project_key` takes the first `PROJECT_KEY_LEN` characters of the root
+fingerprint the L4 edge computes; two projects arming a beat of the same name
+never share a unit. `generated_source` reads back the project file a unit's
+GENERATED header names, and `legacy_beat_unit` spells the pre-key name an L4
+edge reports and never writes.
+A beat unit also carries its schedule revision: `unit_revision` digests the
+cadence as written and, for launchd only, the machine zone the unit was
+rendered in (a systemd calendar names its own zone), `UNIT_REV_LEN` hex
+characters of SHA-256. The unit names it in its header (`revision_in_unit`
+reads it back) and passes it to the firer as `arm fire <label> --unit-rev
+<rev>`, so the L4 firer refuses a wake from a unit written for another
+schedule and `nika arm` names such a stale unit with the re-emit that fixes it.
 
 **W7 — the pure firing machine (`firing` module)**:
 `SlotId::derive(workflow, cadence, slot)` freezes the existing
