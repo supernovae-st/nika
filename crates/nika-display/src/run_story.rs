@@ -727,7 +727,7 @@ mod tests {
     /// workflow, a task, the status, counts, times) stay as they are, and a
     /// story told to no sink keeps English.
     #[test]
-    fn a_sink_says_the_storys_own_phrases_in_its_language() {
+    fn a_sink_says_the_story_phrases_in_its_language() {
         struct French(RefCell<Vec<String>>);
         impl RunSink for French {
             fn said(&self, line: String) {

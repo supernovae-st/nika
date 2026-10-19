@@ -62,6 +62,19 @@ fn table_parses_and_every_pull_has_one_owner() {
     }
 }
 
+/// An Anthropic key's first-run suggestion is the provider's catalog default, Claude
+/// Sonnet 5.5: a person reaches it without typing a model id.
+#[test]
+fn an_anthropic_key_suggests_its_catalog_default() {
+    let table: Table = serde_yaml_bw::from_str(TABLE_YAML).expect("models.yaml parses");
+    let row = (table.keys.iter())
+        .find(|row| row.env == "ANTHROPIC_API_KEY")
+        .expect("the Anthropic key row");
+    let anthropic = nika_catalog::find_provider("anthropic").expect("the anthropic row");
+    assert_eq!(row.model, "anthropic/claude-sonnet-5-5");
+    assert_eq!(row.model, format!("anthropic/{}", anthropic.default_model));
+}
+
 #[test]
 fn a_model_id_does_not_appear_under_two_owners_in_s3_surfaces() {
     let surfaces = [
@@ -686,7 +699,21 @@ mod cascade_oracle {
         ];
         let mut out = Vec::new();
         for (m, machine) in machines() {
-            let choice = collect_from(&machine);
+            let mut choice = collect_from(&machine);
+            if m == "no_adapter" {
+                // The live choice: the Anthropic key's catalog default, no ready harness.
+                assert_eq!(choice.arrow, "key");
+                assert_eq!(choice.chosen_model, "anthropic/claude-sonnet-5-5");
+                assert!(
+                    choice
+                        .rungs
+                        .iter()
+                        .any(|rung| rung.id == "harness" && !rung.ready)
+                );
+                // The pre-move captures were recorded when that default was
+                // claude-sonnet-4-6: the renderer is compared on that same input.
+                choice.chosen_model = "anthropic/claude-sonnet-4-6".to_owned();
+            }
             for (n, next) in nexts {
                 for (t, theme) in themes() {
                     let text = choice.render_human_next(theme, next);

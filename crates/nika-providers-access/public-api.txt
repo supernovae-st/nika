@@ -173,7 +173,9 @@ pub fn nika_providers_access::probe::ModelListing::as_any(&self) -> &(dyn core::
 pub nika_providers_access::probe::ProviderProbe::endpoint: alloc::string::String
 pub nika_providers_access::probe::ProviderProbe::fix_var: alloc::string::String
 pub nika_providers_access::probe::ProviderProbe::id: alloc::string::String
+pub nika_providers_access::probe::ProviderProbe::key_conflict: bool
 pub nika_providers_access::probe::ProviderProbe::key_present: bool
+pub nika_providers_access::probe::ProviderProbe::key_vars: alloc::vec::Vec<alloc::string::String>
 pub nika_providers_access::probe::ProviderProbe::product_present: bool
 pub nika_providers_access::probe::ProviderProbe::readiness: nika_providers_access::probe::ProviderReadiness
 pub nika_providers_access::probe::ProviderProbe::requires_key: bool
@@ -181,6 +183,8 @@ pub nika_providers_access::probe::ProviderProbe::serves: alloc::vec::Vec<alloc::
 pub nika_providers_access::probe::ProviderProbe::structured_native: bool
 impl nika_providers_access::probe::ProviderProbe
 pub fn nika_providers_access::probe::ProviderProbe::new(id: impl core::convert::Into<alloc::string::String>, requires_key: bool, key_present: bool, fix_var: impl core::convert::Into<alloc::string::String>, structured_native: bool, readiness: nika_providers_access::probe::ProviderReadiness, endpoint: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_providers_access::probe::ProviderProbe::with_key_conflict(self, conflict: bool) -> Self
+pub fn nika_providers_access::probe::ProviderProbe::with_key_vars(self, key_vars: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_providers_access::probe::ProviderProbe::with_product_present(self, present: bool) -> Self
 pub fn nika_providers_access::probe::ProviderProbe::with_serves(self, serves: alloc::vec::Vec<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_providers_access::probe::ProviderProbe
