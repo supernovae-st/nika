@@ -531,10 +531,12 @@ impl<T> core::convert::From<T> for nika_vocab::project::ArmLocus
 pub fn nika_vocab::project::ArmLocus::from(t: T) -> T
 #[non_exhaustive] pub enum nika_vocab::project::MissPolicy
 pub nika_vocab::project::MissPolicy::Rattraper
+pub nika_vocab::project::MissPolicy::RattraperDerniers(core::num::nonzero::NonZeroU32)
 pub nika_vocab::project::MissPolicy::RattraperUneFois
 pub nika_vocab::project::MissPolicy::Sauter
 impl nika_vocab::project::MissPolicy
 pub const fn nika_vocab::project::MissPolicy::as_str(self) -> &'static str
+pub const fn nika_vocab::project::MissPolicy::latest_owed(self) -> core::option::Option<core::num::nonzero::NonZeroU32>
 impl core::clone::Clone for nika_vocab::project::MissPolicy
 pub fn nika_vocab::project::MissPolicy::clone(&self) -> nika_vocab::project::MissPolicy
 impl core::cmp::Eq for nika_vocab::project::MissPolicy

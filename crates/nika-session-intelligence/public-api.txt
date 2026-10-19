@@ -217,6 +217,7 @@ pub fn nika_session_intelligence::authoring::AuthoringContext::refusal(&self) ->
 pub fn nika_session_intelligence::authoring::AuthoringContext::source(&self) -> &'static str
 pub fn nika_session_intelligence::authoring::AuthoringContext::strategy(&self) -> nika_compile::types::NativeMode
 pub fn nika_session_intelligence::authoring::AuthoringContext::with_decision(self, decision: core::option::Option<nika_cli_host_typesafe::session::DecisionSetup>) -> Self
+pub fn nika_session_intelligence::authoring::AuthoringContext::with_decision_replaced(self, decision: core::option::Option<nika_cli_host_typesafe::session::DecisionSetup>) -> Self
 pub fn nika_session_intelligence::authoring::AuthoringContext::with_embedded_knowledge(&self) -> Self
 pub fn nika_session_intelligence::authoring::AuthoringContext::with_project_root(self, root: impl core::convert::Into<std::path::PathBuf>) -> Self
 impl core::clone::Clone for nika_session_intelligence::authoring::AuthoringContext
@@ -339,6 +340,7 @@ impl<T> tracing::instrument::Instrument for nika_session_intelligence::authoring
 impl<T> tracing::instrument::WithSubscriber for nika_session_intelligence::authoring::AuthoringRound
 impl<T> typenum::type_operators::Same for nika_session_intelligence::authoring::AuthoringRound
 pub type nika_session_intelligence::authoring::AuthoringRound::Output = T
+pub const nika_session_intelligence::authoring::NO_AUTHORING: &str
 pub fn nika_session_intelligence::authoring::compile_deterministic(request: &nika_compile::types::CompileRequest) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session_intelligence::authoring::AuthoringError>
 pub fn nika_session_intelligence::authoring::compile_in(seat: &nika_session_intelligence::authoring::AuthoringSeat, context: &nika_session_intelligence::authoring::AuthoringContext, request: &nika_compile::types::CompileRequest, intent: &str) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session_intelligence::authoring::AuthoringError>
 pub fn nika_session_intelligence::authoring::compile_in_rehearsed(seat: &nika_session_intelligence::authoring::AuthoringSeat, context: &nika_session_intelligence::authoring::AuthoringContext, request: &nika_compile::types::CompileRequest, intent: &str, account: core::option::Option<&nika_providers::admission::InferenceAdmission>, host: core::option::Option<&dyn nika_compile_seats::rehearse::Rehearse>) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session_intelligence::authoring::AuthoringError>
@@ -346,6 +348,7 @@ pub fn nika_session_intelligence::authoring::compile_in_with_admission(seat: &ni
 pub fn nika_session_intelligence::authoring::compile_through(seat: &nika_session_intelligence::authoring::AuthoringSeat, request: &nika_compile::types::CompileRequest) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session_intelligence::authoring::AuthoringError>
 pub fn nika_session_intelligence::authoring::gateway_host(provider: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::authoring::openai_base_overridden() -> bool
+pub fn nika_session_intelligence::authoring::seat_cannot_author(seat: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_session_intelligence::authoring::session_policy(model: &str, harness: bool, strategy: nika_compile::types::NativeMode) -> nika_compile::types::AuthoringPolicy
 pub fn nika_session_intelligence::authoring::verify_in(seat: &nika_session_intelligence::authoring::AuthoringSeat, context: &nika_session_intelligence::authoring::AuthoringContext, (stated, answers, original): (&str, &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, core::option::Option<&str>), (candidate, selections): (&str, (&[nika_compile_fidelity::fidelity::resolution::Resolution], &[nika_compile_fidelity::fidelity::resolution::Resolution])), declined: alloc::vec::Vec<serde_json::value::Value>, account: core::option::Option<&nika_providers::admission::InferenceAdmission>, host: core::option::Option<&dyn nika_compile_seats::rehearse::Rehearse>) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session_intelligence::authoring::AuthoringError>
 pub fn nika_session_intelligence::authoring::verify_presented_in(seat: &nika_session_intelligence::authoring::AuthoringSeat, context: &nika_session_intelligence::authoring::AuthoringContext, said: (&str, &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, core::option::Option<&str>), (candidate, selections, presentation): (&str, (&[nika_compile_fidelity::fidelity::resolution::Resolution], &[nika_compile_fidelity::fidelity::resolution::Resolution]), &serde_json::value::Value), declined: alloc::vec::Vec<serde_json::value::Value>, account: core::option::Option<&nika_providers::admission::InferenceAdmission>, host: core::option::Option<&dyn nika_compile_seats::rehearse::Rehearse>) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session_intelligence::authoring::AuthoringError>
@@ -582,9 +585,11 @@ impl<T> typenum::type_operators::Same for nika_session_intelligence::intelligenc
 pub type nika_session_intelligence::intelligence::SeatSeen::Output = T
 #[non_exhaustive] pub struct nika_session_intelligence::intelligence::UserIntelligencePreference
 pub nika_session_intelligence::intelligence::UserIntelligencePreference::chosen_at: alloc::string::String
+pub nika_session_intelligence::intelligence::UserIntelligencePreference::decision: core::option::Option<alloc::string::String>
 pub nika_session_intelligence::intelligence::UserIntelligencePreference::kind: nika_session_intelligence::intelligence::IntelligenceKind
 pub nika_session_intelligence::intelligence::UserIntelligencePreference::model: core::option::Option<alloc::string::String>
 impl nika_session_intelligence::intelligence::UserIntelligencePreference
+pub fn nika_session_intelligence::intelligence::UserIntelligencePreference::deciding(self, decision: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_session_intelligence::intelligence::UserIntelligencePreference::load(home: &std::path::Path) -> core::option::Option<Self>
 pub fn nika_session_intelligence::intelligence::UserIntelligencePreference::new(kind: nika_session_intelligence::intelligence::IntelligenceKind, model: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_session_intelligence::intelligence::UserIntelligencePreference::path_under(home: &std::path::Path) -> std::path::PathBuf
@@ -640,6 +645,7 @@ impl<T> tracing::instrument::Instrument for nika_session_intelligence::intellige
 impl<T> tracing::instrument::WithSubscriber for nika_session_intelligence::intelligence::UserIntelligencePreference
 impl<T> typenum::type_operators::Same for nika_session_intelligence::intelligence::UserIntelligencePreference
 pub type nika_session_intelligence::intelligence::UserIntelligencePreference::Output = T
+pub const nika_session_intelligence::intelligence::AUTHOR_ALONE: &str
 pub fn nika_session_intelligence::intelligence::annotated_keys(keys: &[alloc::string::String], host_of: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> alloc::string::String
 pub fn nika_session_intelligence::intelligence::now_rfc3339() -> alloc::string::String
 pub fn nika_session_intelligence::intelligence::seat_answers_here(seat: &str) -> bool
@@ -1069,6 +1075,7 @@ pub fn nika_session_intelligence::reasoner::ScriptedReasoner::reason_label_with_
 pub fn nika_session_intelligence::reasoner::ScriptedReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session_intelligence::reasoner::Reply, nika_session_intelligence::reasoner::ReasonError>
 pub fn nika_session_intelligence::reasoner::ScriptedReasoner::supports_admission(&self) -> bool
 pub fn nika_session_intelligence::reasoner::block_on<F: core::future::future::Future>(fut: F) -> core::result::Result<<F as core::future::future::Future>::Output, nika_session_intelligence::reasoner::ReasonError>
+pub fn nika_session_intelligence::reasoner::check_api_key(provider: &str) -> core::result::Result<nika_providers::key_check::KeyCheck, nika_session_intelligence::reasoner::ReasonError>
 pub fn nika_session_intelligence::reasoner::provider_config() -> nika_providers::registry::ProvidersConfig
 pub mod nika_session_intelligence::trial
 pub use nika_session_intelligence::trial::Capture

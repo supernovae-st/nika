@@ -400,10 +400,16 @@ mod tests {
         syn::parse_file(&out).expect("Rust");
         assert!(
             out.contains("served_models: &[\"deepseek-v4-pro-0813\"]"),
-            "{out}"
+            "the row's served model is emitted"
         );
-        assert!(out.contains("cache_write: Some(1_650)"), "{out}");
-        assert!(out.contains("served_models: &[], input: 300"), "{out}");
+        assert!(
+            out.contains("cache_write: Some(1_650)"),
+            "its cache-write rate is emitted"
+        );
+        assert!(
+            out.contains("served_models: &[], input: 300"),
+            "the other rows serve no model"
+        );
         for bad in [
             row("served_models = [\"deepseek-v4-pro\"]\n"),
             row("served_models = [\"deepseek-flash\"]\n"),

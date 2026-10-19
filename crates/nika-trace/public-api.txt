@@ -936,20 +936,131 @@ pub type nika_trace::receipt::ReceiptAction::Output = T
 pub fn nika_trace::receipt::explain(file: &std::path::Path) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::receipt::run(action: nika_trace::receipt::ReceiptAction) -> nika_cli_host::output::VerbOutput
 pub mod nika_trace::run_view
+#[non_exhaustive] pub enum nika_trace::run_view::ComponentRun
+pub nika_trace::run_view::ComponentRun::Joined(alloc::vec::Vec<nika_trace::run_view::ComponentTask>)
+pub nika_trace::run_view::ComponentRun::OtherSource(alloc::string::String)
+pub nika_trace::run_view::ComponentRun::Unknown(alloc::string::String)
+impl nika_trace::run_view::ComponentRun
+pub fn nika_trace::run_view::ComponentRun::ran(&self) -> bool
+impl core::clone::Clone for nika_trace::run_view::ComponentRun
+pub fn nika_trace::run_view::ComponentRun::clone(&self) -> nika_trace::run_view::ComponentRun
+impl core::cmp::Eq for nika_trace::run_view::ComponentRun
+impl core::cmp::PartialEq for nika_trace::run_view::ComponentRun
+pub fn nika_trace::run_view::ComponentRun::eq(&self, other: &nika_trace::run_view::ComponentRun) -> bool
+impl core::fmt::Debug for nika_trace::run_view::ComponentRun
+pub fn nika_trace::run_view::ComponentRun::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_trace::run_view::ComponentRun
+impl<D> owo_colors::OwoColorize for nika_trace::run_view::ComponentRun
+impl<Q, K> equivalent::Equivalent<K> for nika_trace::run_view::ComponentRun where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_trace::run_view::ComponentRun::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_trace::run_view::ComponentRun where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_trace::run_view::ComponentRun::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_trace::run_view::ComponentRun where U: core::convert::From<T>
+pub fn nika_trace::run_view::ComponentRun::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::run_view::ComponentRun where U: core::convert::Into<T>
+pub type nika_trace::run_view::ComponentRun::Error = core::convert::Infallible
+pub fn nika_trace::run_view::ComponentRun::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::run_view::ComponentRun where U: core::convert::TryFrom<T>
+pub type nika_trace::run_view::ComponentRun::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::run_view::ComponentRun::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::run_view::ComponentRun where T: core::clone::Clone
+pub type nika_trace::run_view::ComponentRun::Owned = T
+pub fn nika_trace::run_view::ComponentRun::clone_into(&self, target: &mut T)
+pub fn nika_trace::run_view::ComponentRun::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::run_view::ComponentRun where T: 'static + ?core::marker::Sized
+pub fn nika_trace::run_view::ComponentRun::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::run_view::ComponentRun where T: ?core::marker::Sized
+pub fn nika_trace::run_view::ComponentRun::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::run_view::ComponentRun where T: ?core::marker::Sized
+pub fn nika_trace::run_view::ComponentRun::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::run_view::ComponentRun where T: core::clone::Clone
+pub unsafe fn nika_trace::run_view::ComponentRun::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::run_view::ComponentRun
+pub fn nika_trace::run_view::ComponentRun::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::run_view::ComponentRun where T: core::clone::Clone
+pub fn nika_trace::run_view::ComponentRun::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::run_view::ComponentRun where T: 'static
+pub fn nika_trace::run_view::ComponentRun::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::run_view::ComponentRun where T: ?core::marker::Sized
+pub fn nika_trace::run_view::ComponentRun::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::run_view::ComponentRun::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::run_view::ComponentRun
+impl<T> tracing::instrument::WithSubscriber for nika_trace::run_view::ComponentRun
+impl<T> typenum::type_operators::Same for nika_trace::run_view::ComponentRun
+pub type nika_trace::run_view::ComponentRun::Output = T
+#[non_exhaustive] pub struct nika_trace::run_view::ComponentTask
+impl nika_trace::run_view::ComponentTask
+pub fn nika_trace::run_view::ComponentTask::completed(&self) -> bool
+pub fn nika_trace::run_view::ComponentTask::id(&self) -> &str
+pub fn nika_trace::run_view::ComponentTask::settled(&self) -> &'static str
+impl core::clone::Clone for nika_trace::run_view::ComponentTask
+pub fn nika_trace::run_view::ComponentTask::clone(&self) -> nika_trace::run_view::ComponentTask
+impl core::cmp::Eq for nika_trace::run_view::ComponentTask
+impl core::cmp::PartialEq for nika_trace::run_view::ComponentTask
+pub fn nika_trace::run_view::ComponentTask::eq(&self, other: &nika_trace::run_view::ComponentTask) -> bool
+impl core::fmt::Debug for nika_trace::run_view::ComponentTask
+pub fn nika_trace::run_view::ComponentTask::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_trace::run_view::ComponentTask
+impl<D> owo_colors::OwoColorize for nika_trace::run_view::ComponentTask
+impl<Q, K> equivalent::Equivalent<K> for nika_trace::run_view::ComponentTask where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_trace::run_view::ComponentTask::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_trace::run_view::ComponentTask where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_trace::run_view::ComponentTask::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_trace::run_view::ComponentTask where U: core::convert::From<T>
+pub fn nika_trace::run_view::ComponentTask::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::run_view::ComponentTask where U: core::convert::Into<T>
+pub type nika_trace::run_view::ComponentTask::Error = core::convert::Infallible
+pub fn nika_trace::run_view::ComponentTask::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::run_view::ComponentTask where U: core::convert::TryFrom<T>
+pub type nika_trace::run_view::ComponentTask::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::run_view::ComponentTask::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::run_view::ComponentTask where T: core::clone::Clone
+pub type nika_trace::run_view::ComponentTask::Owned = T
+pub fn nika_trace::run_view::ComponentTask::clone_into(&self, target: &mut T)
+pub fn nika_trace::run_view::ComponentTask::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::run_view::ComponentTask where T: 'static + ?core::marker::Sized
+pub fn nika_trace::run_view::ComponentTask::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::run_view::ComponentTask where T: ?core::marker::Sized
+pub fn nika_trace::run_view::ComponentTask::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::run_view::ComponentTask where T: ?core::marker::Sized
+pub fn nika_trace::run_view::ComponentTask::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::run_view::ComponentTask where T: core::clone::Clone
+pub unsafe fn nika_trace::run_view::ComponentTask::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::run_view::ComponentTask
+pub fn nika_trace::run_view::ComponentTask::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::run_view::ComponentTask where T: core::clone::Clone
+pub fn nika_trace::run_view::ComponentTask::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::run_view::ComponentTask where T: 'static
+pub fn nika_trace::run_view::ComponentTask::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::run_view::ComponentTask where T: ?core::marker::Sized
+pub fn nika_trace::run_view::ComponentTask::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::run_view::ComponentTask::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::run_view::ComponentTask
+impl<T> tracing::instrument::WithSubscriber for nika_trace::run_view::ComponentTask
+impl<T> typenum::type_operators::Same for nika_trace::run_view::ComponentTask
+pub type nika_trace::run_view::ComponentTask::Output = T
 #[non_exhaustive] pub struct nika_trace::run_view::KeptRun
 pub nika_trace::run_view::KeptRun::chain_head: core::option::Option<alloc::string::String>
 pub nika_trace::run_view::KeptRun::chain_len: core::option::Option<u64>
 pub nika_trace::run_view::KeptRun::execution: core::option::Option<alloc::string::String>
 pub nika_trace::run_view::KeptRun::exit: core::option::Option<u8>
+pub nika_trace::run_view::KeptRun::job: core::option::Option<alloc::string::String>
+pub nika_trace::run_view::KeptRun::outputs: core::option::Option<serde_json::map::Map<alloc::string::String, serde_json::value::Value>>
+pub nika_trace::run_view::KeptRun::receipt: core::option::Option<alloc::boxed::Box<serde_json::map::Map<alloc::string::String, serde_json::value::Value>>>
+pub nika_trace::run_view::KeptRun::seal_verified: core::option::Option<bool>
+pub nika_trace::run_view::KeptRun::signed: core::option::Option<bool>
 pub nika_trace::run_view::KeptRun::trace: core::option::Option<alloc::string::String>
 pub nika_trace::run_view::KeptRun::trace_opaque: bool
 pub nika_trace::run_view::KeptRun::workflow: core::option::Option<alloc::string::String>
 pub nika_trace::run_view::KeptRun::workflow_sha256: core::option::Option<alloc::string::String>
 impl nika_trace::run_view::KeptRun
+pub fn nika_trace::run_view::KeptRun::component_run(&self, journal: &str, source_sha256: &str, tasks: &[&str]) -> nika_trace::run_view::ComponentRun
 pub fn nika_trace::run_view::KeptRun::ended(self, workflow: core::option::Option<&std::path::Path>, exit: u8, trace: core::option::Option<&std::path::Path>) -> Self
 pub fn nika_trace::run_view::KeptRun::from_value(value: &serde_json::value::Value) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_trace::run_view::KeptRun::new() -> Self
+pub fn nika_trace::run_view::KeptRun::served(self, job: &str, receipt: core::option::Option<serde_json::map::Map<alloc::string::String, serde_json::value::Value>>, outputs: core::option::Option<serde_json::map::Map<alloc::string::String, serde_json::value::Value>>) -> Self
 pub fn nika_trace::run_view::KeptRun::to_value(&self) -> serde_json::value::Value
+pub fn nika_trace::run_view::KeptRun::verified(self, verify: &serde_json::value::Value) -> Self
 impl core::clone::Clone for nika_trace::run_view::KeptRun
 pub fn nika_trace::run_view::KeptRun::clone(&self) -> nika_trace::run_view::KeptRun
 impl core::cmp::Eq for nika_trace::run_view::KeptRun

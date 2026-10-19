@@ -198,6 +198,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::arm::args::Emit
 impl<T> typenum::type_operators::Same for nika_cli::verbs::arm::args::EmitTarget
 pub type nika_cli::verbs::arm::args::EmitTarget::Output = T
 pub struct nika_cli::verbs::arm::args::ArmArgs
+pub nika_cli::verbs::arm::args::ArmArgs::beat: core::option::Option<alloc::string::String>
 pub nika_cli::verbs::arm::args::ArmArgs::emit: core::option::Option<nika_cli::verbs::arm::args::EmitTarget>
 pub nika_cli::verbs::arm::args::ArmArgs::env_file: core::option::Option<std::path::PathBuf>
 pub nika_cli::verbs::arm::args::ArmArgs::mode: core::option::Option<nika_cli::verbs::arm::args::EmitMode>
@@ -984,6 +985,7 @@ pub fn nika_cli::verbs::sign::run(args: &nika_cli::verbs::sign::SignArgs) -> nik
 pub mod nika_cli::verbs::test
 pub fn nika_cli::verbs::test::run(file: &str, update: bool, theme: nika_display::theme::Theme) -> u8
 pub fn nika_cli::verbs::test::run_case(file: &str, update: bool, answer: &[alloc::string::String], (vars, case): (&[alloc::string::String], core::option::Option<&str>), theme: nika_display::theme::Theme) -> u8
+pub fn nika_cli::verbs::test::run_case_at(file: &str, update: bool, answer: &[alloc::string::String], (vars, case): (&[alloc::string::String], core::option::Option<&str>), at: core::option::Option<&str>, theme: nika_display::theme::Theme) -> u8
 pub fn nika_cli::verbs::test::run_with_answers(file: &str, update: bool, answer: &[alloc::string::String], theme: nika_display::theme::Theme) -> u8
 pub mod nika_cli::verbs::tools
 pub fn nika_cli::verbs::tools::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput

@@ -13,6 +13,7 @@ pub nika_catalog::admission::InferenceTariff::model: &'static str
 pub nika_catalog::admission::InferenceTariff::output_token_param: &'static str
 pub nika_catalog::admission::InferenceTariff::provider: &'static str
 pub nika_catalog::admission::InferenceTariff::route_source: &'static str
+pub nika_catalog::admission::InferenceTariff::served_models: &'static [&'static str]
 pub nika_catalog::admission::InferenceTariff::source: &'static str
 pub nika_catalog::admission::InferenceTariff::source_sha256: &'static str
 impl nika_catalog::admission::InferenceTariff
@@ -21,8 +22,12 @@ pub fn nika_catalog::admission::InferenceTariff::is_declared_free(self) -> bool
 pub fn nika_catalog::admission::InferenceTariff::new(provider: &str, model: &str, endpoint: &str) -> core::option::Option<Self>
 pub fn nika_catalog::admission::InferenceTariff::price(self, input: u64, output: u64, cached: u64) -> core::option::Option<nika_types::cost::Cost>
 pub fn nika_catalog::admission::InferenceTariff::price_native(self, input: u64, output: u64, cached: u64) -> core::option::Option<i128>
+pub fn nika_catalog::admission::InferenceTariff::price_native_written(self, input: u64, output: u64, cached: u64, written: u64) -> core::option::Option<i128>
+pub fn nika_catalog::admission::InferenceTariff::price_written(self, input: u64, output: u64, cached: u64, written: u64) -> core::option::Option<nika_types::cost::Cost>
 pub fn nika_catalog::admission::InferenceTariff::reasons_beyond_bound(self) -> bool
 pub fn nika_catalog::admission::InferenceTariff::reserve(self, output: u32) -> core::option::Option<nika_types::cost::Cost>
+pub fn nika_catalog::admission::InferenceTariff::reserved_output(self, requested: u32) -> core::option::Option<u64>
+pub fn nika_catalog::admission::InferenceTariff::serves(self, model: &str) -> bool
 impl core::clone::Clone for nika_catalog::admission::InferenceTariff
 pub fn nika_catalog::admission::InferenceTariff::clone(&self) -> nika_catalog::admission::InferenceTariff
 impl core::cmp::Eq for nika_catalog::admission::InferenceTariff
@@ -10053,9 +10058,12 @@ pub fn nika_catalog::is_known_transform(name: &str) -> bool
 pub fn nika_catalog::model_capabilities(provider: &str, model: &str) -> nika_catalog::model::ModelCapabilities
 pub fn nika_catalog::model_facts(provider: &str, model: &str) -> core::option::Option<&'static nika_catalog::provider::ModelFacts>
 pub fn nika_catalog::model_output_limit(provider: &str, name: &str) -> core::option::Option<(u32, alloc::string::String)>
+pub fn nika_catalog::nickname_wire(provider: &str, name: &str) -> core::option::Option<&'static str>
 pub fn nika_catalog::output_caps(provider: &str, name: &str, room: u32) -> serde_json::value::Value
 pub fn nika_catalog::pasteable_for(bare: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_catalog::pricing_snapshot() -> &'static nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::refuses_sampling(provider: &str, name: &str) -> bool
+pub fn nika_catalog::refuses_thinking_budget(provider: &str, name: &str) -> bool
 pub fn nika_catalog::resolve_mcp_name(name: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_catalog::suggest(query: &str) -> alloc::vec::Vec<nika_catalog::suggest::Suggestion>
 pub fn nika_catalog::suggest_in(query: &str, namespace: nika_catalog::suggest::Namespace) -> alloc::vec::Vec<nika_catalog::suggest::Suggestion>

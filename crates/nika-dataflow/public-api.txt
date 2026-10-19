@@ -9,10 +9,12 @@ pub const fn nika_dataflow::expr::Scope<'a>::item(&self) -> core::option::Option
 pub const fn nika_dataflow::expr::Scope<'a>::permits(&self) -> core::option::Option<&'a nika_cap::permits::Permits>
 pub const fn nika_dataflow::expr::Scope<'a>::records(&self) -> &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_dataflow::record::TaskRecord>
 pub fn nika_dataflow::expr::Scope<'a>::resolve_expr(&self, reference: &str) -> core::result::Result<serde_json::value::Value, nika_dataflow::DataflowError>
+pub const fn nika_dataflow::expr::Scope<'a>::run(&self) -> core::option::Option<&'a serde_json::value::Value>
 pub const fn nika_dataflow::expr::Scope<'a>::secrets(&self) -> &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub const fn nika_dataflow::expr::Scope<'a>::value_bound(&self) -> core::option::Option<&'a nika_dataflow::ValueBound>
 pub fn nika_dataflow::expr::Scope<'a>::with_groups(self, groups: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<alloc::string::String>>) -> Self
 pub const fn nika_dataflow::expr::Scope<'a>::with_namespace(&self) -> core::option::Option<&'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>>
+pub fn nika_dataflow::expr::Scope<'a>::with_run(self, run: core::option::Option<&'a serde_json::value::Value>) -> Self
 pub fn nika_dataflow::expr::Scope<'a>::with_task_context(self, with_ns: core::option::Option<&'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>>, item: core::option::Option<&'a serde_json::value::Value>, index: core::option::Option<usize>, permits: core::option::Option<&'a nika_cap::permits::Permits>) -> Self
 pub fn nika_dataflow::expr::Scope<'a>::with_value_bound(self, bound: core::option::Option<&'a nika_dataflow::ValueBound>) -> Self
 pub fn nika_dataflow::expr::Scope<'a>::workflow_with_value_authorities(records: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_dataflow::record::TaskRecord>, inputs: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, consts: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, secrets: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
@@ -466,10 +468,12 @@ pub const fn nika_dataflow::expr::Scope<'a>::item(&self) -> core::option::Option
 pub const fn nika_dataflow::expr::Scope<'a>::permits(&self) -> core::option::Option<&'a nika_cap::permits::Permits>
 pub const fn nika_dataflow::expr::Scope<'a>::records(&self) -> &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_dataflow::record::TaskRecord>
 pub fn nika_dataflow::expr::Scope<'a>::resolve_expr(&self, reference: &str) -> core::result::Result<serde_json::value::Value, nika_dataflow::DataflowError>
+pub const fn nika_dataflow::expr::Scope<'a>::run(&self) -> core::option::Option<&'a serde_json::value::Value>
 pub const fn nika_dataflow::expr::Scope<'a>::secrets(&self) -> &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub const fn nika_dataflow::expr::Scope<'a>::value_bound(&self) -> core::option::Option<&'a nika_dataflow::ValueBound>
 pub fn nika_dataflow::expr::Scope<'a>::with_groups(self, groups: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<alloc::string::String>>) -> Self
 pub const fn nika_dataflow::expr::Scope<'a>::with_namespace(&self) -> core::option::Option<&'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>>
+pub fn nika_dataflow::expr::Scope<'a>::with_run(self, run: core::option::Option<&'a serde_json::value::Value>) -> Self
 pub fn nika_dataflow::expr::Scope<'a>::with_task_context(self, with_ns: core::option::Option<&'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>>, item: core::option::Option<&'a serde_json::value::Value>, index: core::option::Option<usize>, permits: core::option::Option<&'a nika_cap::permits::Permits>) -> Self
 pub fn nika_dataflow::expr::Scope<'a>::with_value_bound(self, bound: core::option::Option<&'a nika_dataflow::ValueBound>) -> Self
 pub fn nika_dataflow::expr::Scope<'a>::workflow_with_value_authorities(records: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_dataflow::record::TaskRecord>, inputs: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, consts: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, secrets: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
