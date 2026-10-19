@@ -113,6 +113,37 @@ fn a_trial_says_a_read_back_behind_an_unrun_step_is_no_result() {
 }
 
 #[test]
+fn a_trial_names_an_unrun_file_whose_path_is_a_constant() {
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    let saved = digest().replace(
+        "  post:\n",
+        "  save:\n    with: { text: \"${{ tasks.summarize.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"${{ const.out_path }}\", content: \"${{ with.text }}\" } }\n  post:\n",
+    );
+    let saved = saved.replace(
+        "tools: [\"nika:fetch\"]",
+        "tools: [\"nika:fetch\", \"nika:write\"]",
+    );
+    let saved = saved.replace(
+        "nika: digest\n",
+        "nika: digest\nconst: { out_path: ./out/digest.md }\n",
+    );
+    let trial = prepare(
+        &saved,
+        "x",
+        (std::env::temp_dir(), None),
+        &mut Observed::new(),
+        &serving(&asked),
+    );
+    let said = "what it read back of `./out/digest.md` comes from steps it did not run: never what a run writes";
+    assert_eq!(
+        trial.words.lines().filter(|line| *line == said).count(),
+        1,
+        "{}",
+        trial.words
+    );
+}
+
+#[test]
 fn a_source_is_observed_once_per_conversation() {
     let asked = Arc::new(Mutex::new(Vec::new()));
     let observe = serving(&asked);

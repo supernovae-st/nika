@@ -53,7 +53,7 @@ impl ReplayScreen {
         }
     }
 
-    /// The literal paths the `nika:write` steps of `workflow` write when the trial does not
+    /// The literal or constant paths the `nika:write` steps of `workflow` write when the trial does not
     /// exercise them or they read one it does not ([`Self::behind`]), each once in the
     /// workflow's order: what the trial reads back of them comes from what the room could not
     /// give, never what a run writes (live gauntlet wave 6 r07 B2, 2026-10-18: « _Aucun article
@@ -73,12 +73,17 @@ impl ReplayScreen {
             let RawInvokeTarget::Tool(tool) = &invoke.target else {
                 continue;
             };
-            let path = (invoke.args.as_ref()).and_then(|args| args.value["path"].as_str());
-            let literal = path.filter(|path| tool.value == "nika:write" && !path.contains("${{"));
-            if let Some(path) = literal
-                && !paths.iter().any(|known| known == path)
+            if tool.value != "nika:write" {
+                continue;
+            }
+            let path = (invoke.args.as_ref())
+                .and_then(|args| args.value.get("path"))
+                .and_then(|path| known(workflow, path))
+                .filter(|path| !path.contains("${{"));
+            if let Some(path) = path
+                && !paths.contains(&path)
             {
-                paths.push(path.to_owned());
+                paths.push(path);
             }
         }
         paths
