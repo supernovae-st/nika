@@ -6,6 +6,8 @@
 //! the `nika-session` unit (D-2026-07-09-N1 · ADR-144), placed below the
 //! session: `nika-session → nika-session-change`, never back.
 //!
+//! - [`arm`] — the `arm:` entries of `nika.yaml` rewritten as exact text: one entry's
+//!   cadence in another zone, or the entry removed.
 //! - [`change`] — the typed change set: built once from exact bytes,
 //!   consumed by BOTH the preview and the apply, witnessed against stale
 //!   targets, audited by the same facade `nika check` uses, landed below
@@ -39,6 +41,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod arm;
 pub mod change;
 mod closure;
 pub mod consent;
