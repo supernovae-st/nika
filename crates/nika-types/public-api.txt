@@ -988,7 +988,10 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::budget::BudgetDirective
 pub mod nika_types::cancel
 pub struct nika_types::cancel::CancelCtx
 impl nika_types::cancel::CancelCtx
+pub fn nika_types::cancel::CancelCtx::begin(&self) -> bool
 pub fn nika_types::cancel::CancelCtx::cancel(&self)
+pub fn nika_types::cancel::CancelCtx::cancel_begun(&self) -> bool
+pub fn nika_types::cancel::CancelCtx::child(&self) -> Self
 pub fn nika_types::cancel::CancelCtx::is_cancelled(&self) -> bool
 pub fn nika_types::cancel::CancelCtx::new() -> Self
 impl core::clone::Clone for nika_types::cancel::CancelCtx
@@ -1346,8 +1349,11 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::cost::InferenceCall whe
 pub nika_types::cost::InferenceRoute::endpoint: alloc::string::String
 pub nika_types::cost::InferenceRoute::model: alloc::string::String
 pub nika_types::cost::InferenceRoute::provider: alloc::string::String
+pub nika_types::cost::InferenceRoute::served_models: alloc::vec::Vec<alloc::string::String>
 impl nika_types::cost::InferenceRoute
+pub fn nika_types::cost::InferenceRoute::answered_by(&self, model: &str) -> bool
 pub fn nika_types::cost::InferenceRoute::new(provider: alloc::string::String, model: alloc::string::String, endpoint: alloc::string::String) -> Self
+pub fn nika_types::cost::InferenceRoute::with_served_models(self, served_models: alloc::vec::Vec<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_types::cost::InferenceRoute
 pub fn nika_types::cost::InferenceRoute::clone(&self) -> nika_types::cost::InferenceRoute
 impl core::cmp::Eq for nika_types::cost::InferenceRoute
@@ -3500,7 +3506,10 @@ pub fn nika_types::hash::BlobRef::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::hash::BlobRef where T: for<'de> serde_core::de::Deserialize<'de>
 pub struct nika_types::prelude::CancelCtx
 impl nika_types::cancel::CancelCtx
+pub fn nika_types::cancel::CancelCtx::begin(&self) -> bool
 pub fn nika_types::cancel::CancelCtx::cancel(&self)
+pub fn nika_types::cancel::CancelCtx::cancel_begun(&self) -> bool
+pub fn nika_types::cancel::CancelCtx::child(&self) -> Self
 pub fn nika_types::cancel::CancelCtx::is_cancelled(&self) -> bool
 pub fn nika_types::cancel::CancelCtx::new() -> Self
 impl core::clone::Clone for nika_types::cancel::CancelCtx
@@ -6759,7 +6768,10 @@ pub fn nika_types::hash::BlobRef::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::hash::BlobRef where T: for<'de> serde_core::de::Deserialize<'de>
 pub struct nika_types::CancelCtx
 impl nika_types::cancel::CancelCtx
+pub fn nika_types::cancel::CancelCtx::begin(&self) -> bool
 pub fn nika_types::cancel::CancelCtx::cancel(&self)
+pub fn nika_types::cancel::CancelCtx::cancel_begun(&self) -> bool
+pub fn nika_types::cancel::CancelCtx::child(&self) -> Self
 pub fn nika_types::cancel::CancelCtx::is_cancelled(&self) -> bool
 pub fn nika_types::cancel::CancelCtx::new() -> Self
 impl core::clone::Clone for nika_types::cancel::CancelCtx

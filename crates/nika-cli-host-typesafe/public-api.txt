@@ -58,6 +58,7 @@ pub fn nika_cli_host_typesafe::session::DecisionSetup::consult(&self, allowed: c
 pub fn nika_cli_host_typesafe::session::DecisionSetup::from_env() -> core::option::Option<Self>
 pub fn nika_cli_host_typesafe::session::DecisionSetup::line(&self) -> alloc::string::String
 pub fn nika_cli_host_typesafe::session::DecisionSetup::model(&self) -> &str
+pub fn nika_cli_host_typesafe::session::DecisionSetup::named(word: &str) -> Self
 pub fn nika_cli_host_typesafe::session::DecisionSetup::observations(&self) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_cli_host_typesafe::session::DecisionSetup::refusal(&self) -> core::option::Option<&str>
 pub fn nika_cli_host_typesafe::session::DecisionSetup::source(&self) -> &'static str

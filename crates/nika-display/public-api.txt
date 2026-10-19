@@ -1,5 +1,57 @@
 pub mod nika_display
 pub mod nika_display::activity
+#[non_exhaustive] pub enum nika_display::activity::CallCost
+pub nika_display::activity::CallCost::Priced(i128)
+pub nika_display::activity::CallCost::Unpriced
+impl core::clone::Clone for nika_display::activity::CallCost
+pub fn nika_display::activity::CallCost::clone(&self) -> nika_display::activity::CallCost
+impl core::cmp::Eq for nika_display::activity::CallCost
+impl core::cmp::PartialEq for nika_display::activity::CallCost
+pub fn nika_display::activity::CallCost::eq(&self, other: &nika_display::activity::CallCost) -> bool
+impl core::fmt::Debug for nika_display::activity::CallCost
+pub fn nika_display::activity::CallCost::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_display::activity::CallCost
+impl core::marker::StructuralPartialEq for nika_display::activity::CallCost
+impl<D> owo_colors::OwoColorize for nika_display::activity::CallCost
+impl<Q, K> equivalent::Equivalent<K> for nika_display::activity::CallCost where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::activity::CallCost::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::activity::CallCost where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::activity::CallCost::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::activity::CallCost where U: core::convert::From<T>
+pub fn nika_display::activity::CallCost::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::activity::CallCost where U: core::convert::Into<T>
+pub type nika_display::activity::CallCost::Error = core::convert::Infallible
+pub fn nika_display::activity::CallCost::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::activity::CallCost where U: core::convert::TryFrom<T>
+pub type nika_display::activity::CallCost::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::activity::CallCost::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::activity::CallCost where T: core::clone::Clone
+pub type nika_display::activity::CallCost::Owned = T
+pub fn nika_display::activity::CallCost::clone_into(&self, target: &mut T)
+pub fn nika_display::activity::CallCost::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::activity::CallCost where T: 'static + ?core::marker::Sized
+pub fn nika_display::activity::CallCost::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::activity::CallCost where T: ?core::marker::Sized
+pub fn nika_display::activity::CallCost::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::activity::CallCost where T: ?core::marker::Sized
+pub fn nika_display::activity::CallCost::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::activity::CallCost where T: core::clone::Clone
+pub unsafe fn nika_display::activity::CallCost::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::activity::CallCost
+pub fn nika_display::activity::CallCost::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::activity::CallCost where T: core::clone::Clone
+pub fn nika_display::activity::CallCost::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::activity::CallCost where T: 'static
+pub fn nika_display::activity::CallCost::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_display::activity::CallCost where T: core::marker::Copy
+pub fn nika_display::activity::CallCost::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::activity::CallCost where T: ?core::marker::Sized
+pub fn nika_display::activity::CallCost::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::activity::CallCost::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::activity::CallCost
+impl<T> tracing::instrument::WithSubscriber for nika_display::activity::CallCost
+impl<T> typenum::type_operators::Same for nika_display::activity::CallCost
+pub type nika_display::activity::CallCost::Output = T
 #[non_exhaustive] pub enum nika_display::activity::CallState
 pub nika_display::activity::CallState::Cancelled
 pub nika_display::activity::CallState::Finished
@@ -249,6 +301,7 @@ impl<T> typenum::type_operators::Same for nika_display::activity::ActivityScope
 pub type nika_display::activity::ActivityScope::Output = T
 #[non_exhaustive] pub struct nika_display::activity::CallMark
 pub nika_display::activity::CallMark::at_ms: core::option::Option<u64>
+pub nika_display::activity::CallMark::cost: core::option::Option<nika_display::activity::CallCost>
 pub nika_display::activity::CallMark::elapsed_ms: core::option::Option<u64>
 pub nika_display::activity::CallMark::input_tokens: core::option::Option<u64>
 pub nika_display::activity::CallMark::model: alloc::string::String
@@ -257,6 +310,7 @@ pub nika_display::activity::CallMark::output_tokens: core::option::Option<u64>
 pub nika_display::activity::CallMark::role: alloc::string::String
 pub nika_display::activity::CallMark::state: nika_display::activity::CallState
 impl nika_display::activity::CallMark
+pub fn nika_display::activity::CallMark::costing(self, cost: nika_display::activity::CallCost) -> Self
 pub fn nika_display::activity::CallMark::new(ordinal: u32, role: &str, model: &str, state: nika_display::activity::CallState) -> Self
 pub fn nika_display::activity::CallMark::timed(self, at_ms: u64, elapsed_ms: core::option::Option<u64>) -> Self
 pub fn nika_display::activity::CallMark::with_tokens(self, input: u64, output: u64) -> Self
@@ -352,10 +406,12 @@ pub nika_display::activity::ToolMark::name: alloc::string::String
 pub nika_display::activity::ToolMark::reply: core::option::Option<alloc::string::String>
 pub nika_display::activity::ToolMark::reply_bytes: core::option::Option<u64>
 pub nika_display::activity::ToolMark::state: nika_display::activity::ToolState
+pub nika_display::activity::ToolMark::verification: core::option::Option<serde_json::value::Value>
 impl nika_display::activity::ToolMark
 pub fn nika_display::activity::ToolMark::new(call: &str, name: &str, state: nika_display::activity::ToolState, elapsed_ms: core::option::Option<u64>) -> Self
 pub fn nika_display::activity::ToolMark::timed(self, at_ms: u64, reply_bytes: core::option::Option<u64>) -> Self
 pub fn nika_display::activity::ToolMark::with_reply(self, reply: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_display::activity::ToolMark::with_verification(self, verification: core::option::Option<serde_json::value::Value>) -> Self
 impl core::clone::Clone for nika_display::activity::ToolMark
 pub fn nika_display::activity::ToolMark::clone(&self) -> nika_display::activity::ToolMark
 impl core::cmp::Eq for nika_display::activity::ToolMark
@@ -405,6 +461,7 @@ pub type nika_display::activity::ToolMark::Output = T
 pub fn nika_display::activity::call_activity(ordinal: u32, role: &str, model: &str, state: nika_display::activity::CallState) -> nika_display::activity::Activity
 pub fn nika_display::activity::current_listener() -> core::option::Option<nika_display::activity::ActivityHook>
 pub fn nika_display::activity::tool_activity(call: &str, name: &str, state: nika_display::activity::ToolState, elapsed_ms: core::option::Option<u64>) -> nika_display::activity::Activity
+pub fn nika_display::activity::tool_words(name: &str) -> &str
 pub type nika_display::activity::ActivityHook = alloc::sync::Arc<(dyn core::ops::function::Fn(&nika_display::activity::Activity) + core::marker::Send + core::marker::Sync)>
 pub type nika_display::activity::TextHook = alloc::boxed::Box<(dyn core::ops::function::Fn(&str) + core::marker::Send)>
 pub mod nika_display::activity_card
@@ -462,6 +519,11 @@ impl<T> tracing::instrument::WithSubscriber for nika_display::activity_card::End
 impl<T> typenum::type_operators::Same for nika_display::activity_card::Ending
 pub type nika_display::activity_card::Ending::Output = T
 #[non_exhaustive] pub enum nika_display::activity_card::Update<'a>
+pub nika_display::activity_card::Update::Attempt
+pub nika_display::activity_card::Update::Attempt::note: &'a str
+pub nika_display::activity_card::Update::Attempt::phase: nika_display::activity::Phase
+pub nika_display::activity_card::Update::Attempt::state: nika_display::activity::ToolState
+pub nika_display::activity_card::Update::Attempt::tool: &'a str
 pub nika_display::activity_card::Update::Call
 pub nika_display::activity_card::Update::Call::at: core::time::Duration
 pub nika_display::activity_card::Update::Call::model: &'a str
@@ -479,6 +541,7 @@ pub nika_display::activity_card::Update::Tool::note: &'a str
 pub nika_display::activity_card::Update::Tool::phase: nika_display::activity::Phase
 pub nika_display::activity_card::Update::Tool::state: nika_display::activity::ToolState
 impl<'a> nika_display::activity_card::Update<'a>
+pub const fn nika_display::activity_card::Update<'a>::attempt(phase: nika_display::activity::Phase, tool: &'a str, note: &'a str, state: nika_display::activity::ToolState) -> Self
 pub const fn nika_display::activity_card::Update<'a>::call(ordinal: u32, role: &'a str, model: &'a str, phase: nika_display::activity::Phase, state: nika_display::activity::CallState, at: core::time::Duration) -> Self
 pub const fn nika_display::activity_card::Update<'a>::phase(phase: nika_display::activity::Phase, note: &'a str, done: bool) -> Self
 pub const fn nika_display::activity_card::Update<'a>::tool(phase: nika_display::activity::Phase, note: &'a str, state: nika_display::activity::ToolState) -> Self
@@ -527,6 +590,7 @@ pub type nika_display::activity_card::Update<'a>::Output = T
 impl nika_display::activity_card::ActivityCard
 pub fn nika_display::activity_card::ActivityCard::is_live(&self) -> bool
 pub fn nika_display::activity_card::ActivityCard::lines(&self, ascii: bool) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::activity_card::ActivityCard::lines_in(&self, ascii: bool, say: &dyn core::ops::function::Fn(&str) -> alloc::string::String) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::activity_card::ActivityCard::new() -> Self
 pub fn nika_display::activity_card::ActivityCard::observe(&mut self, update: nika_display::activity_card::Update<'_>) -> bool
 pub fn nika_display::activity_card::ActivityCard::settle(&mut self, ending: nika_display::activity_card::Ending, took: core::option::Option<core::time::Duration>) -> bool
@@ -583,8 +647,11 @@ pub type nika_display::activity_card::ActivityCard::NoneType = T
 pub fn nika_display::activity_card::ActivityCard::null_value() -> T
 pub const nika_display::activity_card::ROWS: usize
 pub fn nika_display::activity_card::correction_queued(text: &str, replaced: bool, ascii: bool) -> alloc::string::String
+pub fn nika_display::activity_card::correction_queued_in(text: &str, replaced: bool, ascii: bool, say: &dyn core::ops::function::Fn(&str) -> alloc::string::String) -> alloc::string::String
 pub fn nika_display::activity_card::correction_unsent(text: &str, kept_out: bool, ascii: bool) -> alloc::string::String
+pub fn nika_display::activity_card::correction_unsent_in(text: &str, kept_out: bool, ascii: bool, say: &dyn core::ops::function::Fn(&str) -> alloc::string::String) -> alloc::string::String
 pub fn nika_display::activity_card::quoted(text: &str, ascii: bool) -> alloc::string::String
+pub fn nika_display::activity_card::role_words(role: &str) -> &str
 pub fn nika_display::activity_card::took_words(took: core::time::Duration) -> alloc::string::String
 pub mod nika_display::check_render
 pub mod nika_display::check_render::review
@@ -1868,6 +1935,7 @@ pub mod nika_display::front_door::doctor
 pub enum nika_display::front_door::doctor::Level
 pub nika_display::front_door::doctor::Level::Fail
 pub nika_display::front_door::doctor::Level::Ok
+pub nika_display::front_door::doctor::Level::Unknown
 pub nika_display::front_door::doctor::Level::Warn
 impl core::clone::Clone for nika_display::front_door::doctor::Level
 pub fn nika_display::front_door::doctor::Level::clone(&self) -> nika_display::front_door::doctor::Level
@@ -3151,11 +3219,15 @@ pub type nika_display::run_story::Settled::Output = T
 pub const nika_display::run_story::STORY_KEPT: usize
 pub trait nika_display::run_story::RunSink
 pub fn nika_display::run_story::RunSink::frame(&self, _frame: nika_display::run_story::RunFrame)
+pub fn nika_display::run_story::RunSink::refused(&self, _why: &str)
 pub fn nika_display::run_story::RunSink::said(&self, line: alloc::string::String)
+pub fn nika_display::run_story::RunSink::say(&self, en: &str) -> alloc::string::String
 pub fn nika_display::run_story::RunSink::unread(&self, _why: &'static str)
 impl nika_display::run_story::RunSink for std::sync::mpsc::Sender<alloc::string::String>
 pub fn std::sync::mpsc::Sender<alloc::string::String>::frame(&self, _frame: nika_display::run_story::RunFrame)
+pub fn std::sync::mpsc::Sender<alloc::string::String>::refused(&self, _why: &str)
 pub fn std::sync::mpsc::Sender<alloc::string::String>::said(&self, line: alloc::string::String)
+pub fn std::sync::mpsc::Sender<alloc::string::String>::say(&self, en: &str) -> alloc::string::String
 pub fn std::sync::mpsc::Sender<alloc::string::String>::unread(&self, _why: &'static str)
 pub fn nika_display::run_story::started_on(event: &nika_event::event::Event, bytes: &[u8]) -> core::option::Option<bool>
 pub mod nika_display::shape
@@ -3550,6 +3622,7 @@ pub fn nika_display::vocab::at_most(ascii: bool) -> &'static str
 pub fn nika_display::vocab::count(n: usize, noun: &str) -> alloc::string::String
 pub fn nika_display::vocab::hint(theme: nika_display::theme::Theme, label: &str, command: &str) -> alloc::string::String
 pub fn nika_display::vocab::sober(theme: nika_display::theme::Theme, text: &str) -> alloc::string::String
+pub fn nika_display::vocab::stated_usd(amount: f64) -> alloc::string::String
 pub fn nika_display::vocab::usd(amount: f64) -> alloc::string::String
 pub mod nika_display::wires
 pub struct nika_display::wires::WireGraph

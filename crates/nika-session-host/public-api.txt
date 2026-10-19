@@ -299,13 +299,20 @@ impl<T> typenum::type_operators::Same for nika_session_host::run::JobDoor
 pub type nika_session_host::run::JobDoor::Output = T
 #[non_exhaustive] pub struct nika_session_host::run::JobEnd
 pub nika_session_host::run::JobEnd::chain_head: core::option::Option<alloc::string::String>
+pub nika_session_host::run::JobEnd::error: core::option::Option<nika_session_host::run::JobError>
 pub nika_session_host::run::JobEnd::execution: core::option::Option<alloc::string::String>
 pub nika_session_host::run::JobEnd::exit: u8
 pub nika_session_host::run::JobEnd::journal: core::option::Option<std::path::PathBuf>
+pub nika_session_host::run::JobEnd::outputs: core::option::Option<serde_json::map::Map<alloc::string::String, serde_json::value::Value>>
+pub nika_session_host::run::JobEnd::receipt: core::option::Option<serde_json::map::Map<alloc::string::String, serde_json::value::Value>>
+pub nika_session_host::run::JobEnd::refused: bool
 pub nika_session_host::run::JobEnd::trace: core::option::Option<alloc::string::String>
+pub nika_session_host::run::JobEnd::verdict: core::option::Option<serde_json::value::Value>
 impl nika_session_host::run::JobEnd
 pub fn nika_session_host::run::JobEnd::new(exit: u8, journal: core::option::Option<std::path::PathBuf>) -> Self
+pub fn nika_session_host::run::JobEnd::with_error(self, error: core::option::Option<nika_session_host::run::JobError>, refused: bool) -> Self
 pub fn nika_session_host::run::JobEnd::with_receipt(self, execution: core::option::Option<alloc::string::String>, trace: core::option::Option<alloc::string::String>, chain_head: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_session_host::run::JobEnd::with_served(self, receipt: core::option::Option<serde_json::map::Map<alloc::string::String, serde_json::value::Value>>, outputs: core::option::Option<serde_json::map::Map<alloc::string::String, serde_json::value::Value>>, verdict: core::option::Option<serde_json::value::Value>) -> Self
 impl core::clone::Clone for nika_session_host::run::JobEnd
 pub fn nika_session_host::run::JobEnd::clone(&self) -> nika_session_host::run::JobEnd
 impl core::cmp::Eq for nika_session_host::run::JobEnd
@@ -357,6 +364,57 @@ pub type nika_session_host::run::JobEnd::Output = T
 impl<T> zvariant::optional::NoneValue for nika_session_host::run::JobEnd where T: core::default::Default
 pub type nika_session_host::run::JobEnd::NoneType = T
 pub fn nika_session_host::run::JobEnd::null_value() -> T
+#[non_exhaustive] pub struct nika_session_host::run::JobError
+pub nika_session_host::run::JobError::code: alloc::string::String
+pub nika_session_host::run::JobError::message: alloc::string::String
+impl nika_session_host::run::JobError
+pub fn nika_session_host::run::JobError::new(code: impl core::convert::Into<alloc::string::String>, message: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_session_host::run::JobError
+pub fn nika_session_host::run::JobError::clone(&self) -> nika_session_host::run::JobError
+impl core::cmp::Eq for nika_session_host::run::JobError
+impl core::cmp::PartialEq for nika_session_host::run::JobError
+pub fn nika_session_host::run::JobError::eq(&self, other: &nika_session_host::run::JobError) -> bool
+impl core::fmt::Debug for nika_session_host::run::JobError
+pub fn nika_session_host::run::JobError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_session_host::run::JobError
+impl<D> owo_colors::OwoColorize for nika_session_host::run::JobError
+impl<Q, K> equivalent::Equivalent<K> for nika_session_host::run::JobError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_host::run::JobError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_session_host::run::JobError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_session_host::run::JobError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_session_host::run::JobError where U: core::convert::From<T>
+pub fn nika_session_host::run::JobError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session_host::run::JobError where U: core::convert::Into<T>
+pub type nika_session_host::run::JobError::Error = core::convert::Infallible
+pub fn nika_session_host::run::JobError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session_host::run::JobError where U: core::convert::TryFrom<T>
+pub type nika_session_host::run::JobError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session_host::run::JobError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session_host::run::JobError where T: core::clone::Clone
+pub type nika_session_host::run::JobError::Owned = T
+pub fn nika_session_host::run::JobError::clone_into(&self, target: &mut T)
+pub fn nika_session_host::run::JobError::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session_host::run::JobError where T: 'static + ?core::marker::Sized
+pub fn nika_session_host::run::JobError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session_host::run::JobError where T: ?core::marker::Sized
+pub fn nika_session_host::run::JobError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session_host::run::JobError where T: ?core::marker::Sized
+pub fn nika_session_host::run::JobError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session_host::run::JobError where T: core::clone::Clone
+pub unsafe fn nika_session_host::run::JobError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session_host::run::JobError
+pub fn nika_session_host::run::JobError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session_host::run::JobError where T: core::clone::Clone
+pub fn nika_session_host::run::JobError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session_host::run::JobError where T: 'static
+pub fn nika_session_host::run::JobError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session_host::run::JobError where T: ?core::marker::Sized
+pub fn nika_session_host::run::JobError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session_host::run::JobError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session_host::run::JobError
+impl<T> tracing::instrument::WithSubscriber for nika_session_host::run::JobError
+impl<T> typenum::type_operators::Same for nika_session_host::run::JobError
+pub type nika_session_host::run::JobError::Output = T
 pub struct nika_session_host::run::LaneRunDoor
 impl nika_session_host::run::LaneRunDoor
 pub fn nika_session_host::run::LaneRunDoor::new(exe: std::path::PathBuf) -> Self
@@ -460,7 +518,16 @@ pub fn nika_session_host::run::RunStop::stop(&self) -> nika_session_host::run::S
 pub type nika_session_host::run::JobFuture<'a, T> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = T> + core::marker::Send + 'a)>>
 pub mod nika_session_host::wire
 #[non_exhaustive] pub enum nika_session_host::wire::Command
+pub nika_session_host::wire::Command::Answer
+pub nika_session_host::wire::Command::Answer::command: alloc::string::String
+pub nika_session_host::wire::Command::Answer::line: alloc::string::String
+pub nika_session_host::wire::Command::Answer::question: alloc::string::String
+pub nika_session_host::wire::Command::Answer::snapshot: alloc::string::String
 pub nika_session_host::wire::Command::Close
+pub nika_session_host::wire::Command::Delegate
+pub nika_session_host::wire::Command::Delegate::command: alloc::string::String
+pub nika_session_host::wire::Command::Delegate::question: alloc::string::String
+pub nika_session_host::wire::Command::Delegate::snapshot: alloc::string::String
 pub nika_session_host::wire::Command::Details
 pub nika_session_host::wire::Command::FollowUp
 pub nika_session_host::wire::Command::FollowUp::command: alloc::string::String
@@ -532,6 +599,7 @@ pub nika_session_host::wire::Refused::SessionLive
 pub nika_session_host::wire::Refused::SessionNotFound
 pub nika_session_host::wire::Refused::SessionUnavailable
 pub nika_session_host::wire::Refused::StaleSnapshot
+pub nika_session_host::wire::Refused::UnknownQuestion
 pub nika_session_host::wire::Refused::UnknownSnapshot
 impl nika_session_host::wire::Refused
 pub const fn nika_session_host::wire::Refused::word(self) -> &'static str
@@ -637,10 +705,20 @@ impl<T> typenum::type_operators::Same for nika_session_host::wire::Frame
 pub type nika_session_host::wire::Frame::Output = T
 pub const nika_session_host::wire::CAPABILITY: &str
 pub const nika_session_host::wire::CONTRACT: &str
+pub const nika_session_host::wire::QUESTION_CAPABILITY: &str
 pub const nika_session_host::wire::SELECTION_CAPABILITY: &str
 pub const nika_session_host::wire::STEERING_CAPABILITY: &str
 #[non_exhaustive] pub enum nika_session_host::Command
+pub nika_session_host::Command::Answer
+pub nika_session_host::Command::Answer::command: alloc::string::String
+pub nika_session_host::Command::Answer::line: alloc::string::String
+pub nika_session_host::Command::Answer::question: alloc::string::String
+pub nika_session_host::Command::Answer::snapshot: alloc::string::String
 pub nika_session_host::Command::Close
+pub nika_session_host::Command::Delegate
+pub nika_session_host::Command::Delegate::command: alloc::string::String
+pub nika_session_host::Command::Delegate::question: alloc::string::String
+pub nika_session_host::Command::Delegate::snapshot: alloc::string::String
 pub nika_session_host::Command::Details
 pub nika_session_host::Command::FollowUp
 pub nika_session_host::Command::FollowUp::command: alloc::string::String
@@ -747,6 +825,7 @@ pub nika_session_host::Refused::SessionLive
 pub nika_session_host::Refused::SessionNotFound
 pub nika_session_host::Refused::SessionUnavailable
 pub nika_session_host::Refused::StaleSnapshot
+pub nika_session_host::Refused::UnknownQuestion
 pub nika_session_host::Refused::UnknownSnapshot
 impl nika_session_host::wire::Refused
 pub const fn nika_session_host::wire::Refused::word(self) -> &'static str
@@ -897,5 +976,6 @@ impl<T> typenum::type_operators::Same for nika_session_host::host::SessionHost
 pub type nika_session_host::host::SessionHost::Output = T
 pub const nika_session_host::CAPABILITY: &str
 pub const nika_session_host::CONTRACT: &str
+pub const nika_session_host::QUESTION_CAPABILITY: &str
 pub const nika_session_host::SELECTION_CAPABILITY: &str
 pub const nika_session_host::STEERING_CAPABILITY: &str

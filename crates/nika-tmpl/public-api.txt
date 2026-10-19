@@ -233,6 +233,7 @@ pub nika_tmpl::expression::NamespaceRef::Group(alloc::string::String)
 pub nika_tmpl::expression::NamespaceRef::Index
 pub nika_tmpl::expression::NamespaceRef::Inputs(alloc::string::String)
 pub nika_tmpl::expression::NamespaceRef::Item
+pub nika_tmpl::expression::NamespaceRef::Run(alloc::string::String)
 pub nika_tmpl::expression::NamespaceRef::Secrets(alloc::string::String)
 pub nika_tmpl::expression::NamespaceRef::Tasks
 pub nika_tmpl::expression::NamespaceRef::Tasks::field: core::option::Option<alloc::string::String>
@@ -347,6 +348,7 @@ impl<T> core::clone::CloneToUninit for nika_tmpl::expression::TemplateIsland whe
 pub unsafe fn nika_tmpl::expression::TemplateIsland::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_tmpl::expression::TemplateIsland
 pub fn nika_tmpl::expression::TemplateIsland::from(t: T) -> T
+pub const nika_tmpl::expression::RUN_FACTS: [&str; 2]
 pub fn nika_tmpl::expression::bare_task_refs(expr: &nika_tmpl::expression::Expr) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_tmpl::expression::expr_refs(expr: &nika_tmpl::expression::Expr) -> alloc::vec::Vec<nika_tmpl::expression::NamespaceRef>
 pub fn nika_tmpl::expression::is_boolean_shaped(expr: &nika_tmpl::expression::Expr) -> bool
