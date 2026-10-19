@@ -326,18 +326,8 @@ async fn judged<P: ProviderInferDyn>(
     let run = rehearsals.trial(reading, &out).await;
     let read = lexicon::read(&intent);
     // Boxed where it is built, as the native door's verdict is: its state machine is large.
-    let observation = run.as_ref();
-    match Box::pin(verify::verdict_by(
-        &intent,
-        &read,
-        judge,
-        reading,
-        out,
-        0,
-        observation,
-    ))
-    .await
-    {
+    let verdict = verify::verdict_by(&intent, &read, judge, reading, out, 0, run.as_ref());
+    match Box::pin(verdict).await {
         Ok(ready) => ready,
         Err(judged) => {
             let (mut judged, mut verdict) = *judged;
