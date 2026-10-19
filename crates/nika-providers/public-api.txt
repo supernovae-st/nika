@@ -1134,6 +1134,7 @@ pub mod nika_providers::authoring::preparation
 pub struct nika_providers::authoring::preparation::PreparationCosts
 impl nika_providers::authoring::preparation::PreparationCosts
 pub fn nika_providers::authoring::preparation::PreparationCosts::active() -> bool
+pub fn nika_providers::authoring::preparation::PreparationCosts::active_settled() -> core::option::Option<nika_providers::authoring::preparation::SettledCalls>
 pub fn nika_providers::authoring::preparation::PreparationCosts::begin_turn(&mut self) -> nika_types::cancel::CancelCtx
 pub async fn nika_providers::authoring::preparation::PreparationCosts::capture<F: core::future::future::Future>(future: F) -> <F as core::future::future::Future>::Output
 pub fn nika_providers::authoring::preparation::PreparationCosts::enter(&self) -> nika_providers::authoring::preparation::PreparationScope
@@ -1203,6 +1204,47 @@ impl<T> nika_error::traits::AsAny for nika_providers::authoring::preparation::Pr
 pub fn nika_providers::authoring::preparation::PreparationScope::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_providers::authoring::preparation::PreparationScope
 pub type nika_providers::authoring::preparation::PreparationScope::Output = T
+#[non_exhaustive] pub struct nika_providers::authoring::preparation::SettledCalls
+pub nika_providers::authoring::preparation::SettledCalls::known_nano_usd: i128
+pub nika_providers::authoring::preparation::SettledCalls::scope: alloc::string::String
+pub nika_providers::authoring::preparation::SettledCalls::unpriced: usize
+impl core::clone::Clone for nika_providers::authoring::preparation::SettledCalls
+pub fn nika_providers::authoring::preparation::SettledCalls::clone(&self) -> nika_providers::authoring::preparation::SettledCalls
+impl core::cmp::Eq for nika_providers::authoring::preparation::SettledCalls
+impl core::cmp::PartialEq for nika_providers::authoring::preparation::SettledCalls
+pub fn nika_providers::authoring::preparation::SettledCalls::eq(&self, other: &nika_providers::authoring::preparation::SettledCalls) -> bool
+impl core::default::Default for nika_providers::authoring::preparation::SettledCalls
+pub fn nika_providers::authoring::preparation::SettledCalls::default() -> nika_providers::authoring::preparation::SettledCalls
+impl core::fmt::Debug for nika_providers::authoring::preparation::SettledCalls
+pub fn nika_providers::authoring::preparation::SettledCalls::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::authoring::preparation::SettledCalls
+impl<D> owo_colors::OwoColorize for nika_providers::authoring::preparation::SettledCalls
+impl<T, U> core::convert::Into<U> for nika_providers::authoring::preparation::SettledCalls where U: core::convert::From<T>
+pub fn nika_providers::authoring::preparation::SettledCalls::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::authoring::preparation::SettledCalls where U: core::convert::Into<T>
+pub type nika_providers::authoring::preparation::SettledCalls::Error = core::convert::Infallible
+pub fn nika_providers::authoring::preparation::SettledCalls::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::authoring::preparation::SettledCalls where U: core::convert::TryFrom<T>
+pub type nika_providers::authoring::preparation::SettledCalls::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::authoring::preparation::SettledCalls::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::authoring::preparation::SettledCalls where T: core::clone::Clone
+pub type nika_providers::authoring::preparation::SettledCalls::Owned = T
+pub fn nika_providers::authoring::preparation::SettledCalls::clone_into(&self, target: &mut T)
+pub fn nika_providers::authoring::preparation::SettledCalls::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::authoring::preparation::SettledCalls where T: 'static + ?core::marker::Sized
+pub fn nika_providers::authoring::preparation::SettledCalls::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::authoring::preparation::SettledCalls where T: ?core::marker::Sized
+pub fn nika_providers::authoring::preparation::SettledCalls::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::authoring::preparation::SettledCalls where T: ?core::marker::Sized
+pub fn nika_providers::authoring::preparation::SettledCalls::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::authoring::preparation::SettledCalls where T: core::clone::Clone
+pub unsafe fn nika_providers::authoring::preparation::SettledCalls::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::authoring::preparation::SettledCalls
+pub fn nika_providers::authoring::preparation::SettledCalls::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::authoring::preparation::SettledCalls where T: 'static
+pub fn nika_providers::authoring::preparation::SettledCalls::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::authoring::preparation::SettledCalls
+pub type nika_providers::authoring::preparation::SettledCalls::Output = T
 pub mod nika_providers::authoring::requests
 pub struct nika_providers::authoring::requests::Envelope
 impl nika_providers::authoring::requests::Envelope
@@ -1475,6 +1517,52 @@ impl<T> nika_error::traits::AsAny for nika_providers::dispatch_journal::Dispatch
 pub fn nika_providers::dispatch_journal::DispatchJournal::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_providers::dispatch_journal::DispatchJournal
 pub type nika_providers::dispatch_journal::DispatchJournal::Output = T
+pub mod nika_providers::key_check
+#[non_exhaustive] pub enum nika_providers::key_check::KeyCheck
+pub nika_providers::key_check::KeyCheck::Refused
+pub nika_providers::key_check::KeyCheck::Refused::said: alloc::string::String
+pub nika_providers::key_check::KeyCheck::Refused::status: u16
+pub nika_providers::key_check::KeyCheck::Unknown
+pub nika_providers::key_check::KeyCheck::Unknown::why: alloc::string::String
+pub nika_providers::key_check::KeyCheck::Unreachable
+pub nika_providers::key_check::KeyCheck::Unreachable::why: alloc::string::String
+pub nika_providers::key_check::KeyCheck::Valid
+impl core::clone::Clone for nika_providers::key_check::KeyCheck
+pub fn nika_providers::key_check::KeyCheck::clone(&self) -> nika_providers::key_check::KeyCheck
+impl core::cmp::Eq for nika_providers::key_check::KeyCheck
+impl core::cmp::PartialEq for nika_providers::key_check::KeyCheck
+pub fn nika_providers::key_check::KeyCheck::eq(&self, other: &nika_providers::key_check::KeyCheck) -> bool
+impl core::fmt::Debug for nika_providers::key_check::KeyCheck
+pub fn nika_providers::key_check::KeyCheck::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::key_check::KeyCheck
+impl<D> owo_colors::OwoColorize for nika_providers::key_check::KeyCheck
+impl<T, U> core::convert::Into<U> for nika_providers::key_check::KeyCheck where U: core::convert::From<T>
+pub fn nika_providers::key_check::KeyCheck::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::key_check::KeyCheck where U: core::convert::Into<T>
+pub type nika_providers::key_check::KeyCheck::Error = core::convert::Infallible
+pub fn nika_providers::key_check::KeyCheck::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::key_check::KeyCheck where U: core::convert::TryFrom<T>
+pub type nika_providers::key_check::KeyCheck::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::key_check::KeyCheck::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::key_check::KeyCheck where T: core::clone::Clone
+pub type nika_providers::key_check::KeyCheck::Owned = T
+pub fn nika_providers::key_check::KeyCheck::clone_into(&self, target: &mut T)
+pub fn nika_providers::key_check::KeyCheck::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::key_check::KeyCheck where T: 'static + ?core::marker::Sized
+pub fn nika_providers::key_check::KeyCheck::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::key_check::KeyCheck where T: ?core::marker::Sized
+pub fn nika_providers::key_check::KeyCheck::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::key_check::KeyCheck where T: ?core::marker::Sized
+pub fn nika_providers::key_check::KeyCheck::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::key_check::KeyCheck where T: core::clone::Clone
+pub unsafe fn nika_providers::key_check::KeyCheck::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::key_check::KeyCheck
+pub fn nika_providers::key_check::KeyCheck::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::key_check::KeyCheck where T: 'static
+pub fn nika_providers::key_check::KeyCheck::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::key_check::KeyCheck
+pub type nika_providers::key_check::KeyCheck::Output = T
+pub async fn nika_providers::key_check::check_key<H: nika_kernel_core::io::http::HttpGetDyn>(http: &H, config: nika_providers::registry::ProvidersConfig, provider: &str, deadline: core::time::Duration) -> nika_providers::key_check::KeyCheck
 pub mod nika_providers::model_choice
 #[non_exhaustive] pub enum nika_providers::model_choice::Delegation
 pub nika_providers::model_choice::Delegation::Strongest
@@ -1733,6 +1821,7 @@ impl<T> nika_error::traits::AsAny for nika_providers::model_choice::ModelOffer w
 pub fn nika_providers::model_choice::ModelOffer::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_providers::model_choice::ModelOffer
 pub type nika_providers::model_choice::ModelOffer::Output = T
+pub fn nika_providers::model_choice::admitted_output_price(provider: &str, model: &str, endpoint: &str) -> core::option::Option<f64>
 pub mod nika_providers::plan
 #[non_exhaustive] pub enum nika_providers::plan::LaneVerdict
 pub nika_providers::plan::LaneVerdict::Admitted(nika_providers::plan::ResolvedLane)
@@ -2166,6 +2255,7 @@ pub struct nika_providers::registry::ProviderRegistry<H>
 impl nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>
 pub fn nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>::without_http(config: nika_providers::registry::ProvidersConfig) -> Self
 impl<H> nika_providers::registry::ProviderRegistry<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
+pub fn nika_providers::registry::ProviderRegistry<H>::key_conflict(&self, provider: &str) -> bool
 pub fn nika_providers::registry::ProviderRegistry<H>::new(http: alloc::sync::Arc<H>, config: nika_providers::registry::ProvidersConfig) -> Self
 pub fn nika_providers::registry::ProviderRegistry<H>::profiles(&self) -> &[nika_providers::profile::Profile]
 pub fn nika_providers::registry::ProviderRegistry<H>::resolve(&self, model: &str) -> core::result::Result<nika_providers::registry::ResolvedProvider<H>, nika_kernel_ai::provider::ProviderError>
@@ -2200,10 +2290,12 @@ impl<T> typenum::type_operators::Same for nika_providers::registry::ProviderRegi
 pub type nika_providers::registry::ProviderRegistry<H>::Output = T
 #[non_exhaustive] pub struct nika_providers::registry::ProvidersConfig
 impl nika_providers::registry::ProvidersConfig
+pub fn nika_providers::registry::ProvidersConfig::key_conflict(&self, provider: &str) -> bool
 pub fn nika_providers::registry::ProvidersConfig::new() -> Self
 pub fn nika_providers::registry::ProvidersConfig::resolve_refusal(&self, model: &str) -> core::option::Option<nika_providers::profile::ResolveRefusal>
 pub fn nika_providers::registry::ProvidersConfig::with_base_url(self, provider: impl core::convert::Into<alloc::string::String>, url: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_providers::registry::ProvidersConfig::with_key(self, provider: impl core::convert::Into<alloc::string::String>, key: nika_kernel_core::infra::secret::Secret) -> Self
+pub fn nika_providers::registry::ProvidersConfig::with_key_conflict(self, provider: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_providers::registry::ProvidersConfig
 pub fn nika_providers::registry::ProvidersConfig::clone(&self) -> nika_providers::registry::ProvidersConfig
 impl core::default::Default for nika_providers::registry::ProvidersConfig
@@ -2505,6 +2597,50 @@ impl<T> nika_error::traits::AsAny for nika_providers::model_choice::Delegation w
 pub fn nika_providers::model_choice::Delegation::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_providers::model_choice::Delegation
 pub type nika_providers::model_choice::Delegation::Output = T
+#[non_exhaustive] pub enum nika_providers::KeyCheck
+pub nika_providers::KeyCheck::Refused
+pub nika_providers::KeyCheck::Refused::said: alloc::string::String
+pub nika_providers::KeyCheck::Refused::status: u16
+pub nika_providers::KeyCheck::Unknown
+pub nika_providers::KeyCheck::Unknown::why: alloc::string::String
+pub nika_providers::KeyCheck::Unreachable
+pub nika_providers::KeyCheck::Unreachable::why: alloc::string::String
+pub nika_providers::KeyCheck::Valid
+impl core::clone::Clone for nika_providers::key_check::KeyCheck
+pub fn nika_providers::key_check::KeyCheck::clone(&self) -> nika_providers::key_check::KeyCheck
+impl core::cmp::Eq for nika_providers::key_check::KeyCheck
+impl core::cmp::PartialEq for nika_providers::key_check::KeyCheck
+pub fn nika_providers::key_check::KeyCheck::eq(&self, other: &nika_providers::key_check::KeyCheck) -> bool
+impl core::fmt::Debug for nika_providers::key_check::KeyCheck
+pub fn nika_providers::key_check::KeyCheck::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::key_check::KeyCheck
+impl<D> owo_colors::OwoColorize for nika_providers::key_check::KeyCheck
+impl<T, U> core::convert::Into<U> for nika_providers::key_check::KeyCheck where U: core::convert::From<T>
+pub fn nika_providers::key_check::KeyCheck::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::key_check::KeyCheck where U: core::convert::Into<T>
+pub type nika_providers::key_check::KeyCheck::Error = core::convert::Infallible
+pub fn nika_providers::key_check::KeyCheck::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::key_check::KeyCheck where U: core::convert::TryFrom<T>
+pub type nika_providers::key_check::KeyCheck::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::key_check::KeyCheck::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::key_check::KeyCheck where T: core::clone::Clone
+pub type nika_providers::key_check::KeyCheck::Owned = T
+pub fn nika_providers::key_check::KeyCheck::clone_into(&self, target: &mut T)
+pub fn nika_providers::key_check::KeyCheck::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::key_check::KeyCheck where T: 'static + ?core::marker::Sized
+pub fn nika_providers::key_check::KeyCheck::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::key_check::KeyCheck where T: ?core::marker::Sized
+pub fn nika_providers::key_check::KeyCheck::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::key_check::KeyCheck where T: ?core::marker::Sized
+pub fn nika_providers::key_check::KeyCheck::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::key_check::KeyCheck where T: core::clone::Clone
+pub unsafe fn nika_providers::key_check::KeyCheck::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::key_check::KeyCheck
+pub fn nika_providers::key_check::KeyCheck::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::key_check::KeyCheck where T: 'static
+pub fn nika_providers::key_check::KeyCheck::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::key_check::KeyCheck
+pub type nika_providers::key_check::KeyCheck::Output = T
 #[non_exhaustive] pub enum nika_providers::LaneVerdict
 pub nika_providers::LaneVerdict::Admitted(nika_providers::plan::ResolvedLane)
 pub nika_providers::LaneVerdict::Refused(nika_providers_access::resolve_access::AccessRefusal)
@@ -3241,6 +3377,7 @@ pub struct nika_providers::ProviderRegistry<H>
 impl nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>
 pub fn nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>::without_http(config: nika_providers::registry::ProvidersConfig) -> Self
 impl<H> nika_providers::registry::ProviderRegistry<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
+pub fn nika_providers::registry::ProviderRegistry<H>::key_conflict(&self, provider: &str) -> bool
 pub fn nika_providers::registry::ProviderRegistry<H>::new(http: alloc::sync::Arc<H>, config: nika_providers::registry::ProvidersConfig) -> Self
 pub fn nika_providers::registry::ProviderRegistry<H>::profiles(&self) -> &[nika_providers::profile::Profile]
 pub fn nika_providers::registry::ProviderRegistry<H>::resolve(&self, model: &str) -> core::result::Result<nika_providers::registry::ResolvedProvider<H>, nika_kernel_ai::provider::ProviderError>
@@ -3275,10 +3412,12 @@ impl<T> typenum::type_operators::Same for nika_providers::registry::ProviderRegi
 pub type nika_providers::registry::ProviderRegistry<H>::Output = T
 #[non_exhaustive] pub struct nika_providers::ProvidersConfig
 impl nika_providers::registry::ProvidersConfig
+pub fn nika_providers::registry::ProvidersConfig::key_conflict(&self, provider: &str) -> bool
 pub fn nika_providers::registry::ProvidersConfig::new() -> Self
 pub fn nika_providers::registry::ProvidersConfig::resolve_refusal(&self, model: &str) -> core::option::Option<nika_providers::profile::ResolveRefusal>
 pub fn nika_providers::registry::ProvidersConfig::with_base_url(self, provider: impl core::convert::Into<alloc::string::String>, url: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_providers::registry::ProvidersConfig::with_key(self, provider: impl core::convert::Into<alloc::string::String>, key: nika_kernel_core::infra::secret::Secret) -> Self
+pub fn nika_providers::registry::ProvidersConfig::with_key_conflict(self, provider: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_providers::registry::ProvidersConfig
 pub fn nika_providers::registry::ProvidersConfig::clone(&self) -> nika_providers::registry::ProvidersConfig
 impl core::default::Default for nika_providers::registry::ProvidersConfig
@@ -3574,6 +3713,7 @@ pub const nika_providers::CANONICAL_IDS: [&str; 18]
 pub const nika_providers::PREFIX_REFUSAL_CODE: &str
 pub const nika_providers::STAND_IN_MODEL: &str
 pub fn nika_providers::catalog_warning(model: &str) -> core::option::Option<alloc::string::String>
+pub async fn nika_providers::check_key<H: nika_kernel_core::io::http::HttpGetDyn>(http: &H, config: nika_providers::registry::ProvidersConfig, provider: &str, deadline: core::time::Duration) -> nika_providers::key_check::KeyCheck
 pub fn nika_providers::lifecycle_note(model: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::resolve_execution_plan(needs: &[nika_providers::plan::ModelNeed], probes: &[nika_providers_access::probe::ProviderProbe], pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_providers::resolve_execution_plan_declared(needs: &[nika_providers::plan::ModelNeed], probes: &[nika_providers_access::probe::ProviderProbe], pin: core::option::Option<&str>, verbs: nika_providers_access::resolve_access::VerbNeeds, requirement: core::option::Option<&nika_types::access::selection::AccessRequirement>) -> nika_providers::plan::ExecutionAccessPlan

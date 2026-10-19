@@ -3,6 +3,7 @@ pub mod nika_verb_invoke::mcp
 pub struct nika_verb_invoke::mcp::McpPlane
 impl nika_verb_invoke::mcp::McpPlane
 pub fn nika_verb_invoke::mcp::McpPlane::new(call: alloc::sync::Arc<nika_verb_invoke::mcp::McpCallFn>, defs: alloc::sync::Arc<nika_verb_invoke::mcp::McpDefsFn>) -> Self
+pub fn nika_verb_invoke::mcp::McpPlane::stoppable(call: alloc::sync::Arc<nika_verb_invoke::mcp::McpStoppableCallFn>, defs: alloc::sync::Arc<nika_verb_invoke::mcp::McpDefsFn>) -> Self
 pub fn nika_verb_invoke::mcp::McpPlane::tool_defs(&self) -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
 impl core::clone::Clone for nika_verb_invoke::mcp::McpPlane
 pub fn nika_verb_invoke::mcp::McpPlane::clone(&self) -> nika_verb_invoke::mcp::McpPlane
@@ -33,8 +34,47 @@ impl<T> core::convert::From<T> for nika_verb_invoke::mcp::McpPlane
 pub fn nika_verb_invoke::mcp::McpPlane::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_invoke::mcp::McpPlane where T: 'static
 pub fn nika_verb_invoke::mcp::McpPlane::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_verb_invoke::mcp::StoppedCallSlot(_)
+impl nika_verb_invoke::mcp::StoppedCallSlot
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::child(&self) -> Self
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::new() -> Self
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::reported_cost_usd(&self) -> core::option::Option<f64>
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::snapshot(&self) -> alloc::vec::Vec<nika_kernel_runtime::tool_executor::StoppedCall>
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::take(&self) -> core::option::Option<nika_kernel_runtime::tool_executor::StoppedCall>
+impl core::clone::Clone for nika_verb_invoke::mcp::StoppedCallSlot
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::clone(&self) -> nika_verb_invoke::mcp::StoppedCallSlot
+impl core::default::Default for nika_verb_invoke::mcp::StoppedCallSlot
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::default() -> nika_verb_invoke::mcp::StoppedCallSlot
+impl core::fmt::Debug for nika_verb_invoke::mcp::StoppedCallSlot
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_invoke::mcp::StoppedCallSlot
+impl<T, U> core::convert::Into<U> for nika_verb_invoke::mcp::StoppedCallSlot where U: core::convert::From<T>
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_invoke::mcp::StoppedCallSlot where U: core::convert::Into<T>
+pub type nika_verb_invoke::mcp::StoppedCallSlot::Error = core::convert::Infallible
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_invoke::mcp::StoppedCallSlot where U: core::convert::TryFrom<T>
+pub type nika_verb_invoke::mcp::StoppedCallSlot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_invoke::mcp::StoppedCallSlot where T: core::clone::Clone
+pub type nika_verb_invoke::mcp::StoppedCallSlot::Owned = T
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::clone_into(&self, target: &mut T)
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_invoke::mcp::StoppedCallSlot where T: 'static + ?core::marker::Sized
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_invoke::mcp::StoppedCallSlot where T: ?core::marker::Sized
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_invoke::mcp::StoppedCallSlot where T: ?core::marker::Sized
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_invoke::mcp::StoppedCallSlot where T: core::clone::Clone
+pub unsafe fn nika_verb_invoke::mcp::StoppedCallSlot::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_invoke::mcp::StoppedCallSlot
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_invoke::mcp::StoppedCallSlot where T: 'static
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub type nika_verb_invoke::mcp::McpCallFn = (dyn core::ops::function::Fn(nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError> + core::marker::Send + core::marker::Sync)
 pub type nika_verb_invoke::mcp::McpDefsFn = (dyn core::ops::function::Fn() -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef> + core::marker::Send + core::marker::Sync)
+pub type nika_verb_invoke::mcp::McpStoppableCallFn = (dyn core::ops::function::Fn(nika_kernel_runtime::tool_executor::ToolCall, &nika_types::cancel::CancelCtx) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError> + core::marker::Send + core::marker::Sync)
 #[non_exhaustive] pub enum nika_verb_invoke::VerbInvokeError
 pub nika_verb_invoke::VerbInvokeError::Dispatch
 pub nika_verb_invoke::VerbInvokeError::Dispatch::source: nika_kernel_runtime::tool_executor::ToolExecError
@@ -89,9 +129,12 @@ pub fn nika_verb_invoke::VerbInvokeError::as_any(&self) -> &(dyn core::any::Any 
 #[non_exhaustive] pub struct nika_verb_invoke::InvokeInput
 pub nika_verb_invoke::InvokeInput::args: serde_json::value::Value
 pub nika_verb_invoke::InvokeInput::call_id: core::option::Option<alloc::string::String>
+pub nika_verb_invoke::InvokeInput::stopped: core::option::Option<nika_verb_invoke::mcp::StoppedCallSlot>
+pub nika_verb_invoke::InvokeInput::timeout: core::option::Option<core::time::Duration>
 pub nika_verb_invoke::InvokeInput::tool: alloc::string::String
 impl nika_verb_invoke::InvokeInput
 pub fn nika_verb_invoke::InvokeInput::new(tool: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_verb_invoke::InvokeInput::with_stopped_slot(self, slot: nika_verb_invoke::mcp::StoppedCallSlot) -> Self
 impl core::clone::Clone for nika_verb_invoke::InvokeInput
 pub fn nika_verb_invoke::InvokeInput::clone(&self) -> nika_verb_invoke::InvokeInput
 impl core::fmt::Debug for nika_verb_invoke::InvokeInput
@@ -171,6 +214,7 @@ pub async fn nika_verb_invoke::InvokeVerb<T>::run(&self, input: nika_verb_invoke
 pub async fn nika_verb_invoke::InvokeVerb<T>::run_at(&self, input: nika_verb_invoke::InvokeInput, run_start: nika_kernel_runtime::tool_executor::ToolRunStart) -> core::result::Result<nika_verb_invoke::InvokeOutput, nika_verb_invoke::VerbInvokeError>
 impl<T> nika_verb_invoke::InvokeVerb<T>
 pub fn nika_verb_invoke::InvokeVerb<T>::install_mcp_plane(&self, plane: nika_verb_invoke::mcp::McpPlane) -> bool
+pub fn nika_verb_invoke::InvokeVerb<T>::install_run_stop(&self, stop: nika_types::cancel::CancelCtx) -> bool
 pub fn nika_verb_invoke::InvokeVerb<T>::mcp_tool_defs(&self) -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
 pub fn nika_verb_invoke::InvokeVerb<T>::new(executor: alloc::sync::Arc<T>) -> Self
 impl<T: core::fmt::Debug> core::fmt::Debug for nika_verb_invoke::InvokeVerb<T>
@@ -197,6 +241,7 @@ pub fn nika_verb_invoke::InvokeVerb<T>::as_any(&self) -> &(dyn core::any::Any + 
 pub struct nika_verb_invoke::McpPlane
 impl nika_verb_invoke::mcp::McpPlane
 pub fn nika_verb_invoke::mcp::McpPlane::new(call: alloc::sync::Arc<nika_verb_invoke::mcp::McpCallFn>, defs: alloc::sync::Arc<nika_verb_invoke::mcp::McpDefsFn>) -> Self
+pub fn nika_verb_invoke::mcp::McpPlane::stoppable(call: alloc::sync::Arc<nika_verb_invoke::mcp::McpStoppableCallFn>, defs: alloc::sync::Arc<nika_verb_invoke::mcp::McpDefsFn>) -> Self
 pub fn nika_verb_invoke::mcp::McpPlane::tool_defs(&self) -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
 impl core::clone::Clone for nika_verb_invoke::mcp::McpPlane
 pub fn nika_verb_invoke::mcp::McpPlane::clone(&self) -> nika_verb_invoke::mcp::McpPlane
@@ -227,3 +272,41 @@ impl<T> core::convert::From<T> for nika_verb_invoke::mcp::McpPlane
 pub fn nika_verb_invoke::mcp::McpPlane::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_invoke::mcp::McpPlane where T: 'static
 pub fn nika_verb_invoke::mcp::McpPlane::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_verb_invoke::StoppedCallSlot(_)
+impl nika_verb_invoke::mcp::StoppedCallSlot
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::child(&self) -> Self
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::new() -> Self
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::reported_cost_usd(&self) -> core::option::Option<f64>
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::snapshot(&self) -> alloc::vec::Vec<nika_kernel_runtime::tool_executor::StoppedCall>
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::take(&self) -> core::option::Option<nika_kernel_runtime::tool_executor::StoppedCall>
+impl core::clone::Clone for nika_verb_invoke::mcp::StoppedCallSlot
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::clone(&self) -> nika_verb_invoke::mcp::StoppedCallSlot
+impl core::default::Default for nika_verb_invoke::mcp::StoppedCallSlot
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::default() -> nika_verb_invoke::mcp::StoppedCallSlot
+impl core::fmt::Debug for nika_verb_invoke::mcp::StoppedCallSlot
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_invoke::mcp::StoppedCallSlot
+impl<T, U> core::convert::Into<U> for nika_verb_invoke::mcp::StoppedCallSlot where U: core::convert::From<T>
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_invoke::mcp::StoppedCallSlot where U: core::convert::Into<T>
+pub type nika_verb_invoke::mcp::StoppedCallSlot::Error = core::convert::Infallible
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_invoke::mcp::StoppedCallSlot where U: core::convert::TryFrom<T>
+pub type nika_verb_invoke::mcp::StoppedCallSlot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_invoke::mcp::StoppedCallSlot where T: core::clone::Clone
+pub type nika_verb_invoke::mcp::StoppedCallSlot::Owned = T
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::clone_into(&self, target: &mut T)
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_invoke::mcp::StoppedCallSlot where T: 'static + ?core::marker::Sized
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_invoke::mcp::StoppedCallSlot where T: ?core::marker::Sized
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_invoke::mcp::StoppedCallSlot where T: ?core::marker::Sized
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_invoke::mcp::StoppedCallSlot where T: core::clone::Clone
+pub unsafe fn nika_verb_invoke::mcp::StoppedCallSlot::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_invoke::mcp::StoppedCallSlot
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_invoke::mcp::StoppedCallSlot where T: 'static
+pub fn nika_verb_invoke::mcp::StoppedCallSlot::as_any(&self) -> &(dyn core::any::Any + 'static)

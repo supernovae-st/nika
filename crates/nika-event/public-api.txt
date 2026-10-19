@@ -844,6 +844,7 @@ pub nika_event::prelude::RunSettlement::elapsed_ms: core::option::Option<u64>
 pub nika_event::prelude::RunSettlement::error: core::option::Option<nika_event::settlement::SettlementError>
 pub nika_event::prelude::RunSettlement::spend: nika_event::settlement::Spend
 pub nika_event::prelude::RunSettlement::state: nika_event::settlement::RunState
+pub nika_event::prelude::RunSettlement::stopped_calls: alloc::vec::Vec<nika_event::settlement::StoppedCall>
 pub nika_event::prelude::RunSettlement::tasks: core::option::Option<nika_event::settlement::TaskTally>
 impl nika_event::settlement::RunSettlement
 pub fn nika_event::settlement::RunSettlement::fields(&self) -> alloc::vec::Vec<nika_types::resource::KeyValue>
@@ -854,6 +855,7 @@ pub const fn nika_event::settlement::RunSettlement::terminal_kind(&self) -> nika
 pub const fn nika_event::settlement::RunSettlement::with_elapsed_ms(self, elapsed_ms: u64) -> Self
 pub fn nika_event::settlement::RunSettlement::with_error(self, error: core::option::Option<nika_event::settlement::SettlementError>) -> Self
 pub fn nika_event::settlement::RunSettlement::with_spend(self, spend: nika_event::settlement::Spend) -> Self
+pub fn nika_event::settlement::RunSettlement::with_stopped_calls(self, stopped_calls: alloc::vec::Vec<nika_event::settlement::StoppedCall>) -> Self
 pub const fn nika_event::settlement::RunSettlement::with_tasks(self, tasks: nika_event::settlement::TaskTally) -> Self
 impl core::clone::Clone for nika_event::settlement::RunSettlement
 pub fn nika_event::settlement::RunSettlement::clone(&self) -> nika_event::settlement::RunSettlement
@@ -1213,12 +1215,60 @@ pub fn nika_event::settlement::RunState::as_any(&self) -> &(dyn core::any::Any +
 impl<T> serde_core::de::DeserializeOwned for nika_event::settlement::RunState where T: for<'de> serde_core::de::Deserialize<'de>
 impl<T> typenum::type_operators::Same for nika_event::settlement::RunState
 pub type nika_event::settlement::RunState::Output = T
+#[non_exhaustive] pub enum nika_event::settlement::StopOutcome
+pub nika_event::settlement::StopOutcome::NotSent
+pub nika_event::settlement::StopOutcome::Unknown
+impl nika_event::settlement::StopOutcome
+pub const fn nika_event::settlement::StopOutcome::as_str(self) -> &'static str
+pub fn nika_event::settlement::StopOutcome::parse(word: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_event::settlement::StopOutcome
+pub fn nika_event::settlement::StopOutcome::clone(&self) -> nika_event::settlement::StopOutcome
+impl core::cmp::Eq for nika_event::settlement::StopOutcome
+impl core::cmp::PartialEq for nika_event::settlement::StopOutcome
+pub fn nika_event::settlement::StopOutcome::eq(&self, other: &nika_event::settlement::StopOutcome) -> bool
+impl core::fmt::Debug for nika_event::settlement::StopOutcome
+pub fn nika_event::settlement::StopOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_event::settlement::StopOutcome
+impl core::marker::StructuralPartialEq for nika_event::settlement::StopOutcome
+impl serde_core::ser::Serialize for nika_event::settlement::StopOutcome
+pub fn nika_event::settlement::StopOutcome::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_event::settlement::StopOutcome
+pub fn nika_event::settlement::StopOutcome::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_event::settlement::StopOutcome
+impl<T, U> core::convert::Into<U> for nika_event::settlement::StopOutcome where U: core::convert::From<T>
+pub fn nika_event::settlement::StopOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::settlement::StopOutcome where U: core::convert::Into<T>
+pub type nika_event::settlement::StopOutcome::Error = core::convert::Infallible
+pub fn nika_event::settlement::StopOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::settlement::StopOutcome where U: core::convert::TryFrom<T>
+pub type nika_event::settlement::StopOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::settlement::StopOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::settlement::StopOutcome where T: core::clone::Clone
+pub type nika_event::settlement::StopOutcome::Owned = T
+pub fn nika_event::settlement::StopOutcome::clone_into(&self, target: &mut T)
+pub fn nika_event::settlement::StopOutcome::to_owned(&self) -> T
+impl<T> core::any::Any for nika_event::settlement::StopOutcome where T: 'static + ?core::marker::Sized
+pub fn nika_event::settlement::StopOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::settlement::StopOutcome where T: ?core::marker::Sized
+pub fn nika_event::settlement::StopOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::settlement::StopOutcome where T: ?core::marker::Sized
+pub fn nika_event::settlement::StopOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::settlement::StopOutcome where T: core::clone::Clone
+pub unsafe fn nika_event::settlement::StopOutcome::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::settlement::StopOutcome
+pub fn nika_event::settlement::StopOutcome::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::settlement::StopOutcome where T: 'static
+pub fn nika_event::settlement::StopOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_event::settlement::StopOutcome where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_event::settlement::StopOutcome
+pub type nika_event::settlement::StopOutcome::Output = T
 #[non_exhaustive] pub struct nika_event::settlement::RunSettlement
 pub nika_event::settlement::RunSettlement::cause: nika_event::settlement::RunCause
 pub nika_event::settlement::RunSettlement::elapsed_ms: core::option::Option<u64>
 pub nika_event::settlement::RunSettlement::error: core::option::Option<nika_event::settlement::SettlementError>
 pub nika_event::settlement::RunSettlement::spend: nika_event::settlement::Spend
 pub nika_event::settlement::RunSettlement::state: nika_event::settlement::RunState
+pub nika_event::settlement::RunSettlement::stopped_calls: alloc::vec::Vec<nika_event::settlement::StoppedCall>
 pub nika_event::settlement::RunSettlement::tasks: core::option::Option<nika_event::settlement::TaskTally>
 impl nika_event::settlement::RunSettlement
 pub fn nika_event::settlement::RunSettlement::fields(&self) -> alloc::vec::Vec<nika_types::resource::KeyValue>
@@ -1229,6 +1279,7 @@ pub const fn nika_event::settlement::RunSettlement::terminal_kind(&self) -> nika
 pub const fn nika_event::settlement::RunSettlement::with_elapsed_ms(self, elapsed_ms: u64) -> Self
 pub fn nika_event::settlement::RunSettlement::with_error(self, error: core::option::Option<nika_event::settlement::SettlementError>) -> Self
 pub fn nika_event::settlement::RunSettlement::with_spend(self, spend: nika_event::settlement::Spend) -> Self
+pub fn nika_event::settlement::RunSettlement::with_stopped_calls(self, stopped_calls: alloc::vec::Vec<nika_event::settlement::StoppedCall>) -> Self
 pub const fn nika_event::settlement::RunSettlement::with_tasks(self, tasks: nika_event::settlement::TaskTally) -> Self
 impl core::clone::Clone for nika_event::settlement::RunSettlement
 pub fn nika_event::settlement::RunSettlement::clone(&self) -> nika_event::settlement::RunSettlement
@@ -1367,6 +1418,53 @@ pub fn nika_event::settlement::Spend::as_any(&self) -> &(dyn core::any::Any + 's
 impl<T> serde_core::de::DeserializeOwned for nika_event::settlement::Spend where T: for<'de> serde_core::de::Deserialize<'de>
 impl<T> typenum::type_operators::Same for nika_event::settlement::Spend
 pub type nika_event::settlement::Spend::Output = T
+#[non_exhaustive] pub struct nika_event::settlement::StoppedCall
+pub nika_event::settlement::StoppedCall::call_id: alloc::string::String
+pub nika_event::settlement::StoppedCall::outcome: nika_event::settlement::StopOutcome
+pub nika_event::settlement::StoppedCall::task: alloc::string::String
+pub nika_event::settlement::StoppedCall::tool: alloc::string::String
+impl nika_event::settlement::StoppedCall
+pub fn nika_event::settlement::StoppedCall::new(task: impl core::convert::Into<alloc::string::String>, tool: impl core::convert::Into<alloc::string::String>, call_id: impl core::convert::Into<alloc::string::String>, outcome: nika_event::settlement::StopOutcome) -> Self
+impl core::clone::Clone for nika_event::settlement::StoppedCall
+pub fn nika_event::settlement::StoppedCall::clone(&self) -> nika_event::settlement::StoppedCall
+impl core::cmp::Eq for nika_event::settlement::StoppedCall
+impl core::cmp::PartialEq for nika_event::settlement::StoppedCall
+pub fn nika_event::settlement::StoppedCall::eq(&self, other: &nika_event::settlement::StoppedCall) -> bool
+impl core::fmt::Debug for nika_event::settlement::StoppedCall
+pub fn nika_event::settlement::StoppedCall::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_event::settlement::StoppedCall
+impl serde_core::ser::Serialize for nika_event::settlement::StoppedCall
+pub fn nika_event::settlement::StoppedCall::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_event::settlement::StoppedCall
+pub fn nika_event::settlement::StoppedCall::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_event::settlement::StoppedCall
+impl<T, U> core::convert::Into<U> for nika_event::settlement::StoppedCall where U: core::convert::From<T>
+pub fn nika_event::settlement::StoppedCall::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::settlement::StoppedCall where U: core::convert::Into<T>
+pub type nika_event::settlement::StoppedCall::Error = core::convert::Infallible
+pub fn nika_event::settlement::StoppedCall::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::settlement::StoppedCall where U: core::convert::TryFrom<T>
+pub type nika_event::settlement::StoppedCall::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::settlement::StoppedCall::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_event::settlement::StoppedCall where T: core::clone::Clone
+pub type nika_event::settlement::StoppedCall::Owned = T
+pub fn nika_event::settlement::StoppedCall::clone_into(&self, target: &mut T)
+pub fn nika_event::settlement::StoppedCall::to_owned(&self) -> T
+impl<T> core::any::Any for nika_event::settlement::StoppedCall where T: 'static + ?core::marker::Sized
+pub fn nika_event::settlement::StoppedCall::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::settlement::StoppedCall where T: ?core::marker::Sized
+pub fn nika_event::settlement::StoppedCall::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::settlement::StoppedCall where T: ?core::marker::Sized
+pub fn nika_event::settlement::StoppedCall::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_event::settlement::StoppedCall where T: core::clone::Clone
+pub unsafe fn nika_event::settlement::StoppedCall::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_event::settlement::StoppedCall
+pub fn nika_event::settlement::StoppedCall::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::settlement::StoppedCall where T: 'static
+pub fn nika_event::settlement::StoppedCall::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_event::settlement::StoppedCall where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_event::settlement::StoppedCall
+pub type nika_event::settlement::StoppedCall::Output = T
 #[non_exhaustive] pub struct nika_event::settlement::TaskTally
 pub nika_event::settlement::TaskTally::cancelled: u32
 pub nika_event::settlement::TaskTally::failed: u32

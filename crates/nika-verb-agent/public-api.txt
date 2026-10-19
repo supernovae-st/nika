@@ -148,6 +148,9 @@ pub nika_verb_agent::errors::VerbAgentError::MaxTurns::blame_source: &'static st
 pub nika_verb_agent::errors::VerbAgentError::MaxTurns::partial_output: alloc::string::String
 pub nika_verb_agent::errors::VerbAgentError::MaxTurns::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::MaxTurns::turns: u32
+#[non_exhaustive] pub nika_verb_agent::errors::VerbAgentError::OperatorStopped
+pub nika_verb_agent::errors::VerbAgentError::OperatorStopped::call: core::option::Option<alloc::boxed::Box<nika_kernel_runtime::tool_executor::StoppedCall>>
+pub nika_verb_agent::errors::VerbAgentError::OperatorStopped::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::SchemaValidation
 pub nika_verb_agent::errors::VerbAgentError::SchemaValidation::detail: alloc::string::String
 pub nika_verb_agent::errors::VerbAgentError::SchemaValidation::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
@@ -775,6 +778,9 @@ pub nika_verb_agent::VerbAgentError::MaxTurns::blame_source: &'static str
 pub nika_verb_agent::VerbAgentError::MaxTurns::partial_output: alloc::string::String
 pub nika_verb_agent::VerbAgentError::MaxTurns::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::MaxTurns::turns: u32
+#[non_exhaustive] pub nika_verb_agent::VerbAgentError::OperatorStopped
+pub nika_verb_agent::VerbAgentError::OperatorStopped::call: core::option::Option<alloc::boxed::Box<nika_kernel_runtime::tool_executor::StoppedCall>>
+pub nika_verb_agent::VerbAgentError::OperatorStopped::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::SchemaValidation
 pub nika_verb_agent::VerbAgentError::SchemaValidation::detail: alloc::string::String
 pub nika_verb_agent::VerbAgentError::SchemaValidation::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
@@ -875,6 +881,7 @@ pub fn nika_verb_agent::config::AgentConfig::__clone_box(&self, _: dyn_clone::se
 impl<T> nika_error::traits::AsAny for nika_verb_agent::config::AgentConfig where T: 'static
 pub fn nika_verb_agent::config::AgentConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_verb_agent::AgentInput
+pub nika_verb_agent::AgentInput::cancel: core::option::Option<nika_types::cancel::CancelCtx>
 pub nika_verb_agent::AgentInput::gate_answer: core::option::Option<serde_json::value::Value>
 pub nika_verb_agent::AgentInput::max_tokens_total: core::option::Option<u64>
 pub nika_verb_agent::AgentInput::max_turns: core::option::Option<u32>
@@ -884,6 +891,7 @@ pub nika_verb_agent::AgentInput::permits: core::option::Option<nika_cap::permits
 pub nika_verb_agent::AgentInput::prompt: alloc::string::String
 pub nika_verb_agent::AgentInput::requirement: core::option::Option<nika_types::access::selection::AccessRequirement>
 pub nika_verb_agent::AgentInput::schema: core::option::Option<serde_json::value::Value>
+pub nika_verb_agent::AgentInput::stopped: core::option::Option<nika_verb_invoke::mcp::StoppedCallSlot>
 pub nika_verb_agent::AgentInput::system: core::option::Option<alloc::string::String>
 pub nika_verb_agent::AgentInput::temperature: core::option::Option<f32>
 pub nika_verb_agent::AgentInput::timeout: core::option::Option<core::time::Duration>
