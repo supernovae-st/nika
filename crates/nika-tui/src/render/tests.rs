@@ -32,6 +32,91 @@ fn row(buffer: &Buffer, y: u16) -> String {
         .to_owned()
 }
 
+/// A reply's Markdown reads as a person reads it in the conversation: no `**` left around a
+/// bold word, list items behind a bullet, a simple table as aligned columns over a rule; in the
+/// ASCII column the bullet and the rule are ASCII. The person's own line stays as typed.
+#[test]
+fn a_reply_reads_its_markdown_in_the_conversation() {
+    let reply = "**Saved** `report.nika`\n- one\n| a | b |\n|---|---|\n| 1 | 2 |";
+    for (ascii, bullet, table, rule) in [
+        (false, "• one", "a │ b", "──┼──"),
+        (true, "- one", "a | b", "--+--"),
+    ] {
+        let mut state = UiState::new(Presentation::Focus, false, (60, 20));
+        state.ascii = ascii;
+        state
+            .transcript
+            .push(Committed::new(Kind::Human, "**typed** as is"));
+        state.transcript.push(Committed::new(Kind::Reply, reply));
+        let mut terminal = Terminal::new(TestBackend::new(60, 20)).expect("terminal");
+        terminal
+            .draw(|frame| draw_focus(frame, &state, &Composer::new()))
+            .expect("draws");
+        let buffer = terminal.backend().buffer().clone();
+        let rows: Vec<String> = (0..20).map(|y| row(&buffer, y)).collect();
+        for shown in ["Saved `report.nika`", bullet, table, rule, "1 │ 2"] {
+            let shown = if ascii {
+                shown.replace('│', "|")
+            } else {
+                shown.to_owned()
+            };
+            assert!(
+                rows.iter().any(|row| row.contains(&shown)),
+                "{shown}: {rows:#?}"
+            );
+        }
+        assert!(
+            !rows.iter().any(|row| row.contains("**Saved**")),
+            "{rows:#?}"
+        );
+        assert!(
+            rows.iter().any(|row| row.contains("**typed** as is")),
+            "{rows:#?}"
+        );
+    }
+}
+
+/// Where the workspace gave the keys another region than the conversation,
+/// the hint row says where they are and that typing writes in the
+/// conversation again, cut to a narrower form where the row is short; any
+/// notice keeps its place.
+#[test]
+fn the_hint_says_where_the_keys_are() {
+    let rows = |state: &UiState| {
+        let (width, height) = state.size;
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("terminal");
+        terminal
+            .draw(|frame| draw_focus(frame, state, &Composer::new()))
+            .expect("draws");
+        let buffer = terminal.backend().buffer().clone();
+        (0..height).map(|y| row(&buffer, y)).collect::<Vec<_>>()
+    };
+    for (width, cue) in [
+        (
+            120,
+            "keys: the project list · typing writes in the conversation · Esc returns",
+        ),
+        (44, "keys: the project list · Esc returns"),
+    ] {
+        let mut state = UiState::new(Presentation::Focus, false, (width, 24));
+        state.keys_on = Some("the project list");
+        let shown = rows(&state);
+        assert!(shown.iter().any(|row| row == cue), "{width}: {shown:#?}");
+    }
+    let mut state = UiState::new(Presentation::Focus, false, (120, 24));
+    state.keys_on = Some("the object in view");
+    state.completion = Some("a notice first".to_owned());
+    let shown = rows(&state);
+    assert!(
+        shown.iter().any(|row| row.contains("a notice first")),
+        "{shown:#?}"
+    );
+    assert!(
+        !shown.iter().any(|row| row.contains("keys: ")),
+        "{shown:#?}"
+    );
+}
+
 #[test]
 fn a_paste_beyond_terminal_height_keeps_its_text_and_draws_without_overflow() {
     let text = "input row\n".repeat(70_000) + "last input";
@@ -190,11 +275,8 @@ fn workspace_navigation_fits_one_row_and_yields_to_the_current_action() {
         }
     }
     for (waiting, narrow) in [
-        // The four choices keep their row; `cancel` takes the next.
-        (
-            Waiting::Choosing,
-            "1 account - 2 API - 3 local - 4 no AI\ncancel",
-        ),
+        // A missing connection keeps actionable local guidance visible.
+        (Waiting::Choosing, "connect an AI - /providers: connections"),
         (Waiting::Proposal, "yes + Enter: Save - no: cancel"),
         (Waiting::Gate, "approve or refuse"),
         (
@@ -658,6 +740,68 @@ fn activity_rows_wear_their_glyph_tone_and_keep_their_words() {
     assert_eq!(busy.spans[1].style, role::style(Role::Warn, true));
 }
 
+/// Failure remains readable without colour and never borrows the success tone.
+#[test]
+fn a_failed_tool_is_bad_in_the_activity_card_and_busy_row() {
+    for (ascii, text) in [
+        (false, "✗ Generating · read failed"),
+        (true, "x Generating - read failed"),
+    ] {
+        let block = Committed::new(Kind::Activity, format!("Working\n{text}"));
+        for color in [false, true] {
+            let lines = block_lines(&block, color, ascii);
+            assert_eq!(lines[1].spans[1].content.as_ref(), text);
+            assert_eq!(lines[1].spans[1].style, role::style(Role::Bad, color));
+        }
+    }
+    let mut state = UiState::new(Presentation::Workspace, true, (120, 40));
+    state.apply(Beat::Busy("✗ read failed".to_owned()));
+    assert_eq!(
+        status_line(&state, false, u16::MAX, None).spans[1].style,
+        role::style(Role::Bad, true)
+    );
+}
+
+/// A call the person stopped is their own act, never a failure: its row is never painted in
+/// the failure's red, in either glyph column, beside a failure that is.
+#[test]
+fn a_stopped_call_is_never_painted_as_a_failure() {
+    use nika_display::activity::{CallState, Phase};
+    use nika_display::activity_card::{ActivityCard, Update};
+    for ascii in [false, true] {
+        let mut card = ActivityCard::new();
+        let at = std::time::Duration::ZERO;
+        card.observe(Update::call(
+            1,
+            "fill",
+            "m",
+            Phase::Authoring,
+            CallState::Started,
+            at,
+        ));
+        card.observe(Update::call(
+            1,
+            "fill",
+            "m",
+            Phase::Authoring,
+            CallState::Cancelled,
+            at,
+        ));
+        let block = Committed::new(Kind::Activity, card.lines(ascii).join("\n"));
+        let lines = block_lines(&block, true, ascii);
+        let stop = &lines[1].spans[1];
+        assert!(
+            stop.content.ends_with("stopped, a charge may be unknown"),
+            "{stop:?}"
+        );
+        assert_ne!(
+            stop.style,
+            role::style(Role::Bad, true),
+            "ascii={ascii}: {stop:?}"
+        );
+    }
+}
+
 /// While a turn works, the hint says what typing and Ctrl+C do then, in words; the
 /// hint of what waits returns with the turn's end. A completion still wins.
 #[test]
@@ -841,8 +985,8 @@ fn the_rail_and_the_status_cut_visibly_on_a_narrow_row() {
     }
 }
 
-/// A decision's hint too wide for its row drops a whole cue, or the choices
-/// set `cancel` on a second row: what stays is whole rows whose every key
+/// A decision's hint too wide for its row drops a whole cue:
+/// what stays is whole rows whose every key
 /// keeps what it does, never a key at a row's end.
 #[test]
 fn a_decision_keeps_each_key_with_its_effect_on_narrow_rows() {
@@ -868,8 +1012,11 @@ fn a_decision_keeps_each_key_with_its_effect_on_narrow_rows() {
             let at = format!("{waiting:?} {width}: {text}");
             // Every row holds whole: none wraps.
             assert_eq!(usize::from(wrapped_rows(&hint, width)), hint.len(), "{at}");
-            let second = waiting == Waiting::Choosing && width == 44;
-            assert_eq!(hint.len(), 1 + usize::from(second), "{at}");
+            assert_eq!(hint.len(), 1, "{at}");
+            if waiting == Waiting::Choosing {
+                assert!(text.contains("/providers: connections"), "{at}");
+                assert!(!text.contains("cancel"), "{at}");
+            }
             let full = state.waiting.hint();
             let mut forms = std::iter::once(full).chain(narrower(&waiting).to_vec());
             assert!(forms.any(|form| form == text), "{at}");
@@ -997,7 +1144,9 @@ fn a_homed_question_takes_over_only_the_rows_that_repeat_it() {
     let asked = Asked::new("the currency code", "", true, Shape::Literal, "3:q", 3);
     let homed = Waiting::asked("const.currency", asked);
     let sentence = format!("{QUESTION_STATUS}the currency code");
-    let earlier = format!("{FIRST_QUESTION_RAIL} (earlier ✓)");
+    let (first, premier) = (first_question_rail(Lang::En), first_question_rail(Lang::Fr));
+    let earlier = format!("{first} (earlier ✓)");
+    let enregistre = "Brouillon ● · Enregistré ✓ · Vérifié ✓ · Actif ○ · Run ○";
     let saved = "Draft ● · Saved ✓ · Checked ✓ · Active ○ · Run ○";
     let declared = "Draft ● · Saved ✓ · Checked ○ · Active ◐ · Run ✓";
     let other = "Needs one answer · another value";
@@ -1007,12 +1156,14 @@ fn a_homed_question_takes_over_only_the_rows_that_repeat_it() {
         (areas.rail.height, areas.status.height)
     };
     for (rail, status, shown) in [
-        (FIRST_QUESTION_RAIL, sentence.as_str(), (0, 0)),
+        (first.as_str(), sentence.as_str(), (0, 0)),
+        (premier.as_str(), sentence.as_str(), (0, 0)),
         (saved, sentence.as_str(), (1, 0)),
+        (enregistre, sentence.as_str(), (1, 0)),
         (declared, sentence.as_str(), (1, 0)),
         (earlier.as_str(), sentence.as_str(), (1, 0)),
-        (FIRST_QUESTION_RAIL, other, (0, 1)),
-        (FIRST_QUESTION_RAIL, cost, (0, 1)),
+        (first.as_str(), other, (0, 1)),
+        (first.as_str(), cost, (0, 1)),
     ] {
         let at = format!("{rail} | {status}");
         let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
@@ -1039,7 +1190,7 @@ fn a_homed_question_takes_over_only_the_rows_that_repeat_it() {
     prose.waiting = Waiting::Question {
         key: "const.currency".to_owned(),
     };
-    prose.rail = FIRST_QUESTION_RAIL.to_owned();
+    prose.rail.clone_from(&first);
     prose.status = sentence.clone();
     assert_eq!(rows(&prose), (1, 1), "a question in prose");
     let mut proposal = UiState::new(Presentation::Workspace, false, (120, 40));
@@ -1135,14 +1286,19 @@ fn a_reviewed_proposal_lends_only_its_exact_empty_rail() {
     let composer = Composer::new();
     let live = Rect::new(0, 0, 44, 20);
     let empty = "Draft ✓ · Saved ○ · Checked ○ · Active ○ · Run ○";
+    assert_eq!(proposal_rail(Lang::En), empty, "the Session's own rail");
+    let vide = proposal_rail(Lang::Fr);
     let earlier = format!("{empty} (earlier ✓)");
     let ran = "Draft ✓ · Saved ✓ · Checked ✓ · Active ○ · Run ✓";
     let saved = "Draft ✓ · Saved ✓ · Checked ○ · Active ○ · Run ○";
+    let enregistre = "Brouillon ✓ · Enregistré ✓ · Vérifié ○ · Actif ○ · Run ○";
     for ascii in [false, true] {
         let review = reviewed_candidate(true, ascii);
         for (rail, reviewed, lent) in [
             (empty, true, true),
+            (vide.as_str(), true, true),
             (saved, true, false),
+            (enregistre, true, false),
             (ran, true, false),
             (earlier.as_str(), true, false),
             (empty, false, false),
@@ -1208,4 +1364,105 @@ fn a_cut_rail_keeps_its_newest_stages() {
         .expect("draw");
     let first = row(terminal.backend().buffer(), 0);
     assert_eq!(first, format!("… {kept}"));
+}
+
+/// The session's spend so far follows the stages on their row, dim like
+/// them; a row too short for it drops it first, then the stages give way as
+/// they always did. Nothing is said while the spend is unknown.
+#[test]
+fn the_stage_line_carries_the_spend_so_far_and_drops_it_first() {
+    let ran = "Draft ✓ · Saved ✓ · Checked ✓ · Active ○ · Run ✓";
+    let mut state = UiState::new(Presentation::Inline, false, (120, 40));
+    state.rail = ran.to_owned();
+    let text = |state: &UiState, width| {
+        let line = rail_line(state, width);
+        line.spans
+            .iter()
+            .map(|span| span.content.as_ref())
+            .collect::<String>()
+    };
+    assert_eq!(
+        text(&state, 80),
+        format!("{ran} · ? for shortcuts"),
+        "no spend is said while it is unknown"
+    );
+    state.spent = Some("$0.91".to_owned());
+    // Since this conversation opened: a reopened conversation counts again and says so.
+    assert_eq!(
+        text(&state, 100),
+        format!("{ran} · ~$0.91 spent since opening · ? for shortcuts")
+    );
+    assert_eq!(
+        text(&state, 80),
+        format!("{ran} · ~$0.91 spent since opening"),
+        "the right-most fact goes first"
+    );
+    assert_eq!(text(&state, 60), ran, "then the next");
+    assert_eq!(
+        text(&state, 44),
+        "… Saved ✓ · Checked ✓ · Active ○ · Run ✓",
+        "then the stages give way as before"
+    );
+    state.ascii = true;
+    assert!(text(&state, 100).ends_with(" - ~$0.91 spent since opening - ? for shortcuts"));
+    let line = rail_line(&state, 80);
+    assert!(
+        line.spans
+            .iter()
+            .all(|span| span.style.add_modifier.contains(Modifier::DIM))
+    );
+}
+
+/// A run card's lines wear their state's role from the theme's own glyph:
+/// a failure in the failure colour beside its words, a step done in the
+/// success colour; other report lines keep the report's own style.
+#[test]
+fn a_run_cards_failure_reads_in_the_failure_colour_with_its_words() {
+    use nika_display::theme::Role;
+    let card = "✖ Failed after 3.0s · 2 tasks\n✔ fetch · 1.2s\n✖ notify · failed: 500\n⊘ tidy · not run\nmodel · 1 call";
+    let block = Committed::new(Kind::Report, card);
+    let lines = block_lines(&block, true, false);
+    let words = |at: usize| lines[at].spans.last().expect("the words").style;
+    assert_eq!(words(0), crate::visual::role::style(Role::Bad, true));
+    assert_eq!(words(1), crate::visual::role::style(Role::Good, true));
+    assert_eq!(words(2), crate::visual::role::style(Role::Bad, true));
+    assert_eq!(words(3), crate::visual::role::style(Role::Dim, true));
+    assert_eq!(words(4), Style::default(), "no glyph, the report's style");
+    let ascii = Committed::new(Kind::Report, "X notify - failed: 500\nok fetch");
+    let lines = block_lines(&ascii, true, true);
+    assert_eq!(
+        lines[0].spans.last().expect("words").style,
+        crate::visual::role::style(Role::Bad, true)
+    );
+}
+
+/// In the focus view a reply's table wider than the terminal (live gauntlet 4, r09 B14) keeps
+/// one row for each of its rows, its widest column narrowed and its header cut on the cut mark,
+/// rather than its rows wrapping under one another; the inline scrollback lays it out at the
+/// terminal's width the same way.
+#[test]
+fn a_reply_table_wider_than_the_focus_view_keeps_one_row_for_each_of_its_rows() {
+    let table = "| Mois | Total (EUR) | Croissance vs mois précédent |\n|---|---:|---:|\n\
+                 | 2026-01 | 86273 | — |\n| 2026-02 | 87419 | 1.33 % |";
+    let mut state = UiState::new(Presentation::Focus, false, (36, 20));
+    state.transcript.push(Committed::new(Kind::Reply, table));
+    let mut terminal = Terminal::new(TestBackend::new(36, 20)).expect("terminal");
+    terminal
+        .draw(|frame| draw_focus(frame, &state, &Composer::new()))
+        .expect("draws");
+    let buffer = terminal.backend().buffer().clone();
+    let rows: Vec<String> = (0..20).map(|y| row(&buffer, y)).collect();
+    for shown in [
+        "Mois    │ Total (EUR) │ Croissance …",
+        "2026-01 │ 86273       │ —",
+        "2026-02 │ 87419       │ 1.33 %",
+    ] {
+        assert!(rows.iter().any(|row| row == shown), "{shown}\n{rows:#?}");
+    }
+    assert!(
+        !rows.iter().any(|row| row.contains("précédent")),
+        "{rows:#?}"
+    );
+    let lines = block_lines_within(&state.transcript[0], false, false, 36);
+    assert_eq!(wrapped_rows(&lines, 36), 4);
 }

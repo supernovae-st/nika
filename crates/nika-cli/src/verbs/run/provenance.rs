@@ -180,6 +180,10 @@ pub(crate) fn run_verdict(
         Ok(pair) => pair,
         Err(verdict) => return *verdict,
     };
+    // A resumed run keeps the ceiling it was admitted under, less what it spent, when the resume
+    // states none (live gauntlet r04 B8: the leg after a gate ran unbounded).
+    let max_cost_usd =
+        max_cost_usd.or_else(|| super::resume_setup::resumed_ceiling(resume, output_json || json));
     let (source, wf, report) =
         match provenance::capture_checked_source(file, host.repair_target, (output_json, json)) {
             Ok(checked) => checked,

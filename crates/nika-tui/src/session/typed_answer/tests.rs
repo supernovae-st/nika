@@ -8,9 +8,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, mpsc};
 
 use nika_session::QuestionId;
-use nika_session::intelligence::{
-    IntelligenceCensus, IntelligenceKind, UserIntelligencePreference,
-};
 use nika_session::reasoner::NoReasoner;
 use nika_session::work;
 
@@ -21,12 +18,18 @@ use crate::session::{Live, Runners};
 struct Room(PathBuf);
 impl Room {
     fn new() -> Self {
+        // Parallel tests can read the same clock tick: a count keeps each room its own, so no
+        // room's removal takes another's files.
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let stamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("clock")
             .as_nanos();
-        let root =
-            std::env::temp_dir().join(format!("nika-typed-answer-{}-{stamp}", std::process::id()));
+        let root = std::env::temp_dir().join(format!(
+            "nika-typed-answer-{}-{stamp}-{n}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&root).expect("room");
         Self(root)
     }
@@ -38,13 +41,16 @@ impl Drop for Room {
 }
 
 fn live(root: &Path) -> Live {
+    live_in(root, nika_session::Lang::En)
+}
+
+/// [`live`] on a machine whose locale names `locale`.
+fn live_in(root: &Path, locale: nika_session::Lang) -> Live {
+    let (census, selected) = crate::session::intelligence::fixture();
     let mut live = Live::new(
         root.to_path_buf(),
-        IntelligenceCensus::empty(),
-        Some(UserIntelligencePreference::new(
-            IntelligenceKind::None,
-            None,
-        )),
+        census,
+        Some(selected),
         None,
         Box::new(|_| Box::new(NoReasoner)),
         Runners {
@@ -52,7 +58,8 @@ fn live(root: &Path) -> Live {
             run_resume: Box::new(|_, _, _, _| panic!("no implicit resume")),
             run_tapped: None,
         },
-    );
+    )
+    .with_locale(locale);
     let _ = live.open();
     live
 }
@@ -154,6 +161,32 @@ fn the_question_carries_the_request_the_session_keeps() {
     assert!(retained.open.is_empty(), "{retained:?}");
 }
 
+/// A choice left to Nika that nothing takes comes back to the box as its echo said it, in the
+/// person's language (« Je laisse le choix à Nika. »), never the control's English words; the
+/// person's own words come back exactly as before.
+#[test]
+fn a_refused_delegation_comes_back_in_the_persons_language() {
+    for (locale, back) in [
+        (nika_session::Lang::Fr, "Je laisse le choix à Nika."),
+        (nika_session::Lang::En, crate::composer::answer::DELEGATION),
+    ] {
+        let room = Room::new();
+        let mut live = live_in(&room.0, locale);
+        let _ = question(&mut live);
+        let before = snapshot(&live);
+        let (tx, _rx) = mpsc::channel();
+        let (seen, _rx) = mpsc::sync_channel(16);
+        let seen = Seen::new(seen, Arc::new(Gap::default()));
+        let turn = live.delegate_bound("not-the-painted-identity", &tx, &seen);
+        refused(&turn, back);
+        assert_eq!(
+            snapshot(&live),
+            before,
+            "{locale:?}: nothing reached the Session"
+        );
+    }
+}
+
 #[test]
 fn a_different_painted_witness_refuses_before_any_session_change_and_returns_exact_text() {
     let room = Room::new();
@@ -174,6 +207,24 @@ fn a_different_painted_witness_refuses_before_any_session_change_and_returns_exa
     assert!(!room.0.join("compiled-workflow.nika").exists());
 }
 
+#[test]
+fn a_stale_group_never_borrows_an_unrelated_current_question() {
+    let room = Room::new();
+    let mut live = live(&room.0);
+    let (_, _, asked) = question(&mut live);
+    let before = snapshot(&live);
+    live.shown = work::Waiting::Questions {
+        ids: vec![QuestionId::new(
+            "earlier-group".into(),
+            &Arc::new(nika_session::outcome::Incarnation),
+        )],
+    };
+    let turn = answer(&mut live, "EUR", &asked.witness);
+    refused(&turn, "EUR");
+    assert_eq!(snapshot(&live), before);
+    answer_writes_no_file(&room.0);
+}
+
 fn answer_writes_no_file(room: &Path) {
     assert!(
         !room.join("aggregate-by-key.nika").exists(),
@@ -183,6 +234,28 @@ fn answer_writes_no_file(room: &Path) {
         !room.join("compiled-workflow.nika").exists(),
         "answer is not Save"
     );
+}
+
+#[test]
+fn a_proposal_without_the_painted_open_choice_never_takes_yes_as_consent() {
+    let room = Room::new();
+    let mut live = live(&room.0);
+    let (_, id, asked) = question(&mut live);
+    let _ = answer(&mut live, "EUR", &asked.witness);
+    let proposal = live
+        .runtime
+        .as_ref()
+        .expect("runtime")
+        .pending_proposal()
+        .expect("proposal");
+    let witness = super::super::asked::proposal_witness(&proposal, &id, live.question_epoch);
+    let before = snapshot(&live);
+    for text in ["yes", "save & run", r#"["yes"]"#, "my custom format"] {
+        let refused_answer = answer(&mut live, text, &witness);
+        refused(&refused_answer, text);
+        assert_eq!(snapshot(&live), before);
+        answer_writes_no_file(&room.0);
+    }
 }
 
 #[test]
@@ -243,8 +316,10 @@ fn a_bound_answer_changes_the_draft_once_and_the_old_identity_never_starts_a_tur
     assert_eq!(work.run, None, "binding is not an observed Run");
     answer_writes_no_file(&room.0);
     assert_ne!(runtime.pending_question_id(), Some(id.clone()));
+    let remembered = runtime.kept_turns().to_vec();
     let before = snapshot(&live);
-    // A screen still carrying the strong old id reaches the runtime refusal, never submit.
+    // The native proposal action now owns the surface. An old question's
+    // witness is refused by the host before Session sees a new answer or turn.
     live.shown = work::Waiting::Question {
         key,
         id: id.clone(),
@@ -255,27 +330,26 @@ fn a_bound_answer_changes_the_draft_once_and_the_old_identity_never_starts_a_tur
         &asked.witness,
     );
     refused(&again, "a fresh automation that must never start");
-    assert_eq!(
-        live.runtime.as_ref().expect("runtime").work().answered,
-        Some(work::Answered::new(
-            id.clone(),
-            work::AnswerAct::Refused {
-                class: nika_session::RefusalClass::AlreadyConsumed,
-            }
-        ))
+    assert!(matches!(again.beats.first(), Some(Beat::Say(c))
+        if c.kind == Kind::Refusal
+        && c.text == "This answer belongs to a question that is no longer shown. Nothing was sent."));
+    assert!(
+        matches!(again.beats.last(), Some(Beat::Wait(Waiting::Action { key, .. }))
+        if key == "save")
     );
-    let mut expected = before;
-    expected["answered"] = serde_json::json!({
-        "question": id.as_str(), "act": "refused", "class": "already_consumed",
-    });
     assert_eq!(
         snapshot(&live),
-        expected,
-        "only the refused answer act changes; draft, consent and effects stay exact"
+        before,
+        "host refusal preserves the accepted Bound act, draft, consent and effects exactly"
+    );
+    assert_eq!(
+        live.runtime.as_ref().expect("runtime").kept_turns(),
+        remembered,
+        "a stale native gesture never enters Session history"
     );
     assert!(!again.beats.iter().any(|b| matches!(b, Beat::Say(c)
         if c.kind == Kind::Notice && c.text.starts_with("Answer taken"))));
-    assert!(!room.0.join("compiled-workflow.nika").exists());
+    answer_writes_no_file(&room.0);
 }
 
 #[test]
@@ -509,5 +583,67 @@ fn a_prebinding_money_refusal_expires_the_question_without_restoring_a_free_answ
         snapshot(&live),
         before,
         "an old painted reply starts no new turn"
+    );
+}
+
+/// Words the author read and answered come back to no draft, even with the proposal's choice
+/// still open beside its reply; a refusal before it read them, or a turn that failed with the
+/// choice still open, returns them (live gauntlet r08 B4: « not taken · answer text restored
+/// for editing » after the author had answered).
+#[test]
+fn words_the_author_answered_never_come_back_to_the_draft() {
+    assert!(
+        !super::kept_back(true, false, false),
+        "read and answered, the choice still open"
+    );
+    assert!(!super::kept_back(false, false, false), "bound");
+    assert!(
+        !super::kept_back(false, false, true),
+        "a later refusal after binding"
+    );
+    assert!(
+        super::kept_back(true, false, true),
+        "a failed turn, the choice still open"
+    );
+    assert!(
+        super::kept_back(true, true, true),
+        "refused before the author read them"
+    );
+}
+
+/// A cancel word on its own line drops a proposal's choice, in English or French; a no, a
+/// sentence or an offer's label answers it, and an offer that is that very word answers it too.
+#[test]
+fn a_cancel_word_drops_a_proposal_choice_unless_an_offer_is_that_word() {
+    let offers = vec![
+        work::Offer::new("json", "./out/totaux.json", true),
+        work::Offer::new("report", "./out/rapport.json", false),
+    ];
+    for words in [
+        "cancel",
+        " Annuler ",
+        "annule",
+        "laisse tomber",
+        "never mind",
+    ] {
+        assert!(super::cancels(words, &offers), "{words}");
+    }
+    for words in [
+        "non",
+        "no",
+        "je voulais juste les lire ici",
+        "./out/rapport.json",
+    ] {
+        assert!(!super::cancels(words, &offers), "{words}");
+    }
+    let keyed = vec![work::Offer::new("drop", "Drop the empty rows", false)];
+    assert!(
+        !super::cancels("drop", &keyed),
+        "an offer's own key answers the choice"
+    );
+    let labelled = vec![work::Offer::new("halt", "Stop", false)];
+    assert!(
+        !super::cancels("stop", &labelled),
+        "an offer's own label answers it"
     );
 }

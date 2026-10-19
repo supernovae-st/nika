@@ -24,6 +24,36 @@ follow_ups: ["the admission evidence of the member, pending with its WIP unit", 
 
 # ADR-143: nika-tui size-cap member split — nika-tui-view
 
+## Amendment · 19 October 2026 · the TUI's words, the live run and the fired schedules
+
+The TUI rounds 1 to 9 (French throughout, the live run's faces, the schedules that fired) brought
+the renderer to 29,822 production lines against the 25,000 wall of ADR-154, which admits no
+exception. Under the rule that pure presentation lives in this member, four cohesive parts move
+down. No crate is added and no dependency edge is new: `nika-tui → nika-tui-view` stays the one
+edge, and the member adds only `jiff`, `jiff-tzdb` and `serde_json` as plain libraries.
+
+- **The TUI's own words** (`lang`): the French of its chrome, its counts and the voice that
+  says them. The member already held its viewers' own phrase table (`workspace::lang`); the two
+  tables can become one later, but that is a separate change.
+- **The live run in view** (`workspace::live`): the leg's fold, its faces, its task and child
+  views, and the values the host acquires for them (`workspace::live::acquired`: a file read
+  now, a journal's Proof, a child journal read). The host that reads the files and the journals,
+  and the verifier that judges them, stay in the renderer (`session::acquire`). It now builds
+  those values through public constructors. The fold's tests stay beside the desk that drives
+  it (`workspace::live_tests`, `live_task_tests`, `live_child_tests`). They read the leg through
+  its methods: `graph` is public, and the stream counts are read through `kept_counts`, hidden
+  from the docs.
+- **The schedules that fired** (`workspace::fired`), said from the Session's arm-ledger facts
+  and the embedded zone database. No ledger is read here.
+- **The provider and model names** (`names`) the intelligence list shows.
+
+The renderer re-exports each module at its historical path (`crate::lang`,
+`crate::workspace::live`, `crate::workspace::fired`, `session::intelligence::names`), so its
+callers do not change. A `Want` this renderer does not know acquires nothing. After the move the
+renderer measures 24,485 lines and the member 18,734. Both public-api snapshots are rendered in
+the same change.
+
+
 ## Amendment · 9 October 2026 · the object in view, the header and the project data
 
 The open-UX work adds the continuous composer surface and the agent-led

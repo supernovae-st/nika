@@ -4,6 +4,18 @@ Bare `nika` in an interactive terminal opens the workspace. Start typing in the
 conversation; opening a workflow or a Run object does not attach it to your next
 message. The project list, conversation and object are views of the same Session.
 
+Each screen tells one state of a Run. In the project list, a workflow wears its
+check verdict (`ok`, `2 findings`), or `run failed` when the last Run of it in
+this session failed. The live line follows a Run while it works; once the Run
+settles, the line says how it ended, as the Run's own header does, never that it
+is still running. The Run's card counts its tasks and states its cost as the
+Run's result does (`9 tasks ran (6 from cache) · 2 skipped · $0.0046`), so the
+card and the result never show two counts or two prices for one Run. While Nika prepares, the same line counts the author calls and
+sums what the returned ones cost as the Session priced them (`Preparing · 45s ·
+12 author calls · ~$0.12 · Ctrl+C stop`): an estimate at list price, never an
+invoice. Calls that returned without a price are counted beside the sum (`+ 2
+unpriced`), and no cost shows while no call is priced.
+
 ## Arrange the same work
 
 Use the selected object's **Expand** control, or `F4`, to give it more room.
@@ -83,7 +95,9 @@ The chooser lists the commands the Session exposes, with each command's scope.
 `/restore` appears only when the Session offers kept work for a fresh review.
 Model names do not establish route capabilities; authoring, decision and Run
 information retains its own scope. Choosing intelligence does not rewrite a
-previously observed Run.
+previously observed Run. The `/intelligence` list guides you in its own head
+while it is open (`Choose a connection below`); the conversation keeps only the
+intelligence you chose and what a picked row reported, such as a key check.
 
 `F2` opens the Session's own words over the whole screen, read only: the
 question waiting at your answer line, the proposal under review, or the latest
@@ -98,11 +112,21 @@ Contiguous messages from one speaker share a bubble. You stands to the right;
 Nika stands to the left. Roomy panels draw quiet outlines; short panels use a
 compact label row instead. Questions, proposals waiting for Save, approval
 requests and failures keep a framed card so the next decision remains visible.
+Nika's replies read their Markdown: bold and italic words in weight and slant
+without their markers, code spans with their backticks, headings in weight,
+list items behind a bullet (`•`, `-` in ASCII) and simple tables as aligned
+columns over a rule; fenced code stays as written, and your own lines stay
+exactly as you typed them.
 Scrolling preserves the complete text in either form. A framed card you scroll
 into part-way names itself on its first visible row and counts the rows above
 it when that row has room for both. While you read the latest messages, a conversation shorter than its panel
 rests on the panel's last row, so its latest message stays next to the
 decision or composer below it; reading earlier messages keeps your place.
+A choice or decision that covers the conversation opens on what Nika said
+since your last message: the whole reply where the card has room, otherwise its
+first row, marked as cut, then its latest lines. A decision on a proposal shown
+before your last message says `this proposal is unchanged since your last
+message`.
 On a tall, side-by-side workspace, the composer has a quiet frame and a
 `Your message` or `Your answer` caption; the caption is left out while a
 question card stands directly above the answer line, or while a proposal or
@@ -113,7 +137,11 @@ preparation intelligence has one home in the workspace header, shown as a
 fact: `/intelligence` changes it, and `/status` gives its full name and the
 project's location and configuration facts when the header is too narrow.
 The input cursor appears only while the composer holds the keys; the draft
-and its insertion position stay when focus moves to another panel.
+and its insertion position stay when focus moves to another panel. While the
+project list or the object holds the keys, the hint row names it (`keys: the
+project list`, `keys: the object in view`). A character typed there, other
+than the panel keys below and the separator keys, returns the keys to the
+composer, which takes it and the rest of your message.
 
 | Gesture | Effect |
 |---|---|
@@ -127,8 +155,10 @@ and its insertion position stay when focus moves to another panel.
 | `Left` / `Right` in the object | Change the object's face |
 | `Up` / `Down`, `PgUp` / `PgDn`, `Home` / `End` in the object | Scroll the object |
 | `r` in the object | Ask its host to read it again |
+| Any other character typed in the project list or the object (not `+`, `-` or `0`) | Return the keys to the composer, which takes the character |
 | `PgUp` / `PgDn` in the conversation | Read earlier or later messages |
 | `End` in the conversation while reading earlier messages, or the `↓ latest` marker | Return to the latest messages |
+| `Home` in the conversation with nothing typed, or `Ctrl+Home` | Read from the first message |
 | Mouse wheel over a panel | Scroll that panel |
 | Click | Focus a panel, open a listed entry or face, or select an offered answer; a click never sends, answers, saves or runs |
 | `Shift` + drag | Select text with your terminal, where it supports this |
@@ -178,12 +208,17 @@ with that question's identity and the Session decides what it is; an old or
 unrelated question cannot turn it into a new request or Save consent. An empty
 reply is refused unless the question's own words offer a default, such as
 keeping the model you already chose. Type `cancel` to drop the question.
+At a choice a proposal leaves open, words of your own are read by Nika, who
+answers them while the choice keeps waiting, and `cancel` (or `annuler`) on its
+own line discards that proposal, as its hint says; an offer named `cancel`
+answers the choice instead.
 Other questions keep their words in the conversation and take your reply as an
 ordinary line.
 
 If the Session does not take a reply and its question still waits, or the reply
 never reached that question, the exact text returns to the box before any newer
-unsent words, or the offered choice stays selected. Nothing is replayed
+unsent words, or the offered choice stays selected. Words Nika read and
+answered beside a proposal's choice stay said and do not return. Nothing is replayed
 automatically. When a cost decision takes the box, or when the question closes
 with a refusal, your words stay in the conversation instead. The workspace never
 infers from an outcome that an answer was applied: the hint describes
@@ -227,7 +262,11 @@ bytes no face shows), how the workflow was revised, what it reaches under one
 `when it runs` heading, where it reaches as declared and its rehearsal, and
 ends its facts with a quiet line naming the proposal and the identity of its
 exact bytes; scroll the conversation to read every fact. `F2` reads the
-Session's complete words and `/show` prints every byte.
+Session's complete words and `/show` prints every byte. When the proposal
+replaces a file, `/show` (« Inspect the exact changes ») opens on the lines it
+changes against that file as it is now, each change among the lines around it,
+before every byte; a file that changed since the proposal was made is not
+compared.
 
 Type `yes` and press Enter to write exactly those bytes; Nika checks them and
 runs nothing. `no` discards the proposal. You can then send `run it` under an
@@ -247,7 +286,9 @@ never saves or runs. See
 
 While Nika prepares a reply or a workflow, you can keep typing. The first
 `Ctrl+C` asks that preparation to stop; your conversation stays and the hint
-row says so. A stop request and an observed settlement are separate facts, and
+row says so. A second `Ctrl+C` leaves, even once the stop has settled; any
+other key keeps the session. A stop request and an observed settlement are
+separate facts, and
 a call already sent cannot be recalled. Words sent with `Enter` during a
 preparation also ask it to stop and are queued as a correction: they are sent
 at the next free prompt, returned to the box when a question, proposal,

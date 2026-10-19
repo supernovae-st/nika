@@ -17,6 +17,7 @@ use nika_display::activity::Activity;
 use nika_display::run_story::{RunFrame, RunSink};
 
 use super::legs::Legs;
+use crate::lang::Voice;
 use crate::workspace::inspect::Inspected;
 
 /// The most observations the queue holds; past it a frame is counted lost.
@@ -48,6 +49,9 @@ pub enum Observed {
     /// One typed activity the Session reported while the turn works: the
     /// shell's activity card and busy row read it; no run leg does.
     Activity(Box<Activity>),
+    /// The run was refused before its first frame: its reason, as the stream
+    /// said it. No frame is fabricated; the leg asked settles as refused.
+    Refused(String),
 }
 
 /// What could not reach the shell during one turn, counted beside the queue.
@@ -55,6 +59,9 @@ pub enum Observed {
 pub struct Gap {
     dropped: AtomicUsize,
     unread: AtomicUsize,
+    /// What the stream first said of a line the run's own trace could not keep
+    /// either (a step's output over the bound both share).
+    why: std::sync::Mutex<Option<&'static str>>,
 }
 
 impl Gap {
@@ -68,6 +75,12 @@ impl Gap {
     #[must_use]
     pub fn unread(&self) -> usize {
         self.unread.load(Ordering::Relaxed)
+    }
+
+    /// What the stream first said of a line the run's own trace could not keep
+    /// either, when it said it: why the run's journal can end there.
+    pub(crate) fn why(&self) -> Option<&'static str> {
+        self.why.lock().ok().and_then(|why| *why)
     }
 }
 
@@ -91,6 +104,14 @@ impl Seen {
             self.gap.dropped.fetch_add(1, Ordering::Relaxed);
         }
     }
+
+    /// Tell the shell one typed activity of the turn (a phase, an author
+    /// call), as a host reports what its Session does: the activity card and
+    /// the live line read it. Queued like a run's frame, counted lost when
+    /// the queue is full; it grants nothing.
+    pub fn activity(&self, activity: Activity) {
+        self.tell(Observed::Activity(Box::new(activity)));
+    }
 }
 
 /// The sink a run is told to: the busy row hears its story, the shell's queue
@@ -100,6 +121,8 @@ pub struct Feed {
     busy: Sender<String>,
     seen: Option<Seen>,
     legs: Option<Arc<Mutex<Legs>>>,
+    /// The voice the run's story says its own phrases in.
+    voice: Voice,
 }
 
 impl Feed {
@@ -110,7 +133,14 @@ impl Feed {
             busy,
             seen,
             legs: None,
+            voice: Voice::default(),
         }
+    }
+
+    /// The same feed, the run's story said in `voice` ([`RunSink::say`]).
+    pub(crate) const fn speaking(mut self, voice: Voice) -> Self {
+        self.voice = voice;
+        self
     }
 
     /// The same feed, also recording each leg in the host's own ledger.
@@ -163,6 +193,16 @@ impl RunSink for Feed {
         let _ = self.busy.send(line);
     }
 
+    fn say(&self, en: &str) -> String {
+        self.voice.say(en).to_owned()
+    }
+
+    fn refused(&self, why: &str) {
+        if let Some(seen) = &self.seen {
+            seen.tell(Observed::Refused(why.to_owned()));
+        }
+    }
+
     fn frame(&self, frame: RunFrame) {
         if let Some(mut legs) = self.legs.as_ref().and_then(|l| l.lock().ok()) {
             legs.frame(&frame);
@@ -172,9 +212,15 @@ impl RunSink for Feed {
         }
     }
 
-    fn unread(&self, _why: &'static str) {
+    fn unread(&self, why: &'static str) {
         if let Some(seen) = &self.seen {
             seen.gap.unread.fetch_add(1, Ordering::Relaxed);
+            // Only a line its trace could not keep either explains a journal lost there.
+            if why.contains("trace")
+                && let Ok(mut said) = seen.gap.why.lock()
+            {
+                said.get_or_insert(why);
+            }
         }
     }
 }
@@ -207,6 +253,69 @@ mod feed_tests {
         drop(rx);
         story.tell(FRAME, &feed);
         assert_eq!(gap.dropped(), 4, "a closed queue loses, never blocks");
+    }
+
+    /// A line the stream could not carry is counted unread; what it said of a
+    /// line the run's trace could not keep either is kept, the first one, and
+    /// nothing else is: a line that is no frame says nothing of the journal.
+    #[test]
+    fn a_line_the_trace_could_not_keep_keeps_its_reason() {
+        let (busy, _said) = std::sync::mpsc::channel();
+        let (tx, _rx) = std::sync::mpsc::sync_channel(2);
+        let gap = Arc::new(Gap::default());
+        let feed = Feed::new(busy, Some(Seen::new(tx, Arc::clone(&gap))));
+        let mut story = nika_display::run_story::RunStory::default();
+        story.tell("noise", &feed);
+        assert_eq!((gap.unread(), gap.why()), (1, None));
+        let oversize = "a step's output over 1 MiB is not shown, and the run's trace cannot keep \
+                        it either (1 MiB per line): the run goes on, its trace stops there";
+        feed.unread(oversize);
+        feed.unread("another line the trace could not keep");
+        assert_eq!((gap.unread(), gap.why()), (3, Some(oversize)));
+    }
+
+    /// The busy row hears the run's story in the voice of the turn: its own
+    /// phrases French, the workflow as it is.
+    #[test]
+    fn the_story_reaches_the_busy_row_in_the_turns_voice() {
+        let (busy, said) = std::sync::mpsc::channel();
+        let french = Voice {
+            lang: crate::lang::Lang::Fr,
+            ascii: false,
+        };
+        let feed = Feed::new(busy, None).speaking(french);
+        let mut story = nika_display::run_story::RunStory::default();
+        story.tell(
+            r#"{"kind":"workflow_started","fields":[{"key":"workflow","value":"w"}]}"#,
+            &feed,
+        );
+        assert_eq!(said.try_iter().collect::<Vec<_>>(), ["en cours · w"]);
+    }
+
+    /// A run refused before its first frame reaches the shell's queue as its refusal, by
+    /// its reason; the busy row still hears the story's line.
+    #[test]
+    fn a_refusal_before_the_start_reaches_the_queue_by_its_reason() {
+        let (busy, said) = std::sync::mpsc::channel();
+        let (tx, rx) = std::sync::mpsc::sync_channel(4);
+        let gap = Arc::new(Gap::default());
+        let feed = Feed::new(busy, Some(Seen::new(tx, Arc::clone(&gap))));
+        let mut story = nika_display::run_story::RunStory::default();
+        story.tell(
+            r#"{"error":{"message":"NIKA-1709 · floor over the ceiling"}}"#,
+            &feed,
+        );
+        let heard: Vec<String> = (rx.try_iter())
+            .filter_map(|observed| match observed {
+                Observed::Refused(why) => Some(why),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(heard, ["NIKA-1709 · floor over the ceiling"]);
+        assert_eq!(
+            said.try_iter().collect::<Vec<_>>(),
+            ["✖ refused · NIKA-1709 · floor over the ceiling"]
+        );
     }
 
     /// Without a shell's queue the feed is the busy row alone.

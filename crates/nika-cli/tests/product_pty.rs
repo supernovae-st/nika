@@ -618,7 +618,8 @@ fn the_review_reads_in_sections_and_meaning_holds_the_proposal() {
         .expect("apply? ›")
         .expect("still the consent prompt");
     session.send_line("no").expect("discard");
-    session.expect("discarded").expect("nothing written");
+    // The request is French: the Session says its discard in French.
+    session.expect("écarté").expect("nothing written");
     session.expect("nika ›").expect("prompt");
     session.send_line("/quit").expect("quit");
     session.expect(Eof).expect("closes");
@@ -630,9 +631,10 @@ fn the_review_reads_in_sections_and_meaning_holds_the_proposal() {
 }
 
 /// A schedule stated in the request is saved beside the program and
-/// activates nothing; « activate » asks the time zone, the missed policy
+/// activates nothing; « active-le » asks the time zone, the missed policy
 /// and the ceiling, proposes the `nika.yaml` declaration, a yes writes
-/// it, and the machine's own `nika arm` reads one declared beat.
+/// it, and the machine's own `nika arm` reads one declared beat. The
+/// request is French, so the Session says each of its sentences in French.
 #[test]
 fn a_stated_schedule_is_declared_only_when_activated() {
     let (project, home) = rig("activate");
@@ -649,35 +651,35 @@ fn a_stated_schedule_is_declared_only_when_activated() {
     session.expect("apply? ›").expect("the consent prompt");
     session.send_line("oui").expect("save");
     session
-        .expect("Saved · checked · not active · nothing has run")
+        .expect("Enregistré · vérifié · pas actif · rien n'a tourné")
         .expect("the three facts after a yes");
     session
-        .expect("say « activate »")
+        .expect("dites « active-le »")
         .expect("activation is its own gesture");
     session.expect("nika ›").expect("prompt");
     assert!(
         !project.path().join("nika.yaml").exists(),
         "saving the workflow declared nothing"
     );
-    session.send_line("activate").expect("activate");
+    session.send_line("active-le").expect("activate");
     session
-        .expect("Which time zone")
+        .expect("Quel fuseau horaire")
         .expect("the first value the sentence did not state");
     session.expect("reply ›").expect("its own prompt");
     session.send_line("Europe/Paris").expect("zone");
     session
-        .expect("If this machine is off")
+        .expect("Si cette machine est éteinte")
         .expect("the missed policy");
     // Only a line typed after its prompt answers it: earlier typeahead is discarded.
     session.expect("reply ›").expect("its own prompt");
     session.send_line("1").expect("run once when back");
     session
-        .expect("ceiling per scheduled run")
+        .expect("plafond par run planifié")
         .expect("the ceiling");
     session.expect("reply ›").expect("its own prompt");
     session.send_line("0.20").expect("ceiling");
     session
-        .expect("Nika proposes to declare the schedule in `nika.yaml`")
+        .expect("Nika propose de déclarer la planification dans `nika.yaml`")
         .expect("a proposal, not a write");
     session
         .expect("TZ=Europe/Paris 0 8 * * *")
@@ -687,10 +689,21 @@ fn a_stated_schedule_is_declared_only_when_activated() {
         !project.path().join("nika.yaml").exists(),
         "proposed, not written"
     );
-    session.send_line("yes").expect("declare");
+    session.send_line("oui").expect("declare");
     session
-        .expect("Declared in `nika.yaml` · not active")
+        .expect("Déclaré dans `nika.yaml` · pas actif")
         .expect("declared is not active");
+    // On a Mac, the declaration offers its trigger; this test never installs one.
+    if cfg!(target_os = "macos") {
+        session
+            .expect("Installer le déclencheur sur ce Mac ?")
+            .expect("the trigger is offered, never installed unasked");
+        session.expect("reply ›").expect("its own prompt");
+        session.send_line("2").expect("keep it declared");
+        session
+            .expect("gardé déclaré · rien n'a été installé")
+            .expect("nothing installed");
+    }
     session.expect("nika ›").expect("prompt");
     session.send_line("/quit").expect("quit");
     session.expect(Eof).expect("closes");
@@ -766,7 +779,7 @@ fn a_composite_paste_at_the_consent_prompt_is_one_datum() {
         .send("yes\nrun it\n/quit\n")
         .expect("three lines pasted as one burst");
     session
-        .expect("not a consent")
+        .expect("n'est pas un consentement")
         .expect("the burst is one line, and that line is not a yes");
     session
         .expect("apply? ›")
@@ -777,7 +790,9 @@ fn a_composite_paste_at_the_consent_prompt_is_one_datum() {
     );
     assert!(traces(project.path()).is_empty(), "nothing ran");
     session.send_line("no").expect("discard");
-    session.expect("discarded").expect("the human's own no");
+    session
+        .expect("écarté")
+        .expect("the human's own no, said in French");
     session.expect("nika ›").expect("prompt");
     session.send_line("/quit").expect("quit");
     session.expect(Eof).expect("closes");

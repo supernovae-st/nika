@@ -19,6 +19,10 @@ use expectrl::stream::log::LogStream;
 use expectrl::{Eof, Expect};
 
 #[path = "support/loopback_model.rs"]
+#[allow(
+    dead_code,
+    reason = "the Session PTY suite keeps the plain loopback, not its scripted reading"
+)]
 mod loopback_model;
 use loopback_model::{CHOICE, Model, SAID};
 
@@ -287,16 +291,21 @@ fn nika_thread_is_an_unrecognized_subcommand() {
 /// One gesture: bare `nika` on a real terminal opens the renderer (its
 /// probe asks the terminal's attributes, then the workspace takes the
 /// alternate screen); `NIKA_TUI=0` keeps the plain loop, which asks the
-/// terminal nothing.
+/// terminal nothing. The kept intelligence is the loopback model, so the
+/// workspace opens on its free prompt, never on the intelligence chooser a
+/// keyless home opens first; neither door asks it anything.
 #[test]
 fn bare_nika_opens_the_renderer_and_nika_tui_zero_keeps_the_plain_loop() {
     let (project, home) = rig("bare-door");
+    let model = Model::start();
+    Model::chosen_in(home.path());
     let mut cmd = Command::new(bin());
     cmd.current_dir(project.path())
         .env_remove("NIKA_TUI")
         .env("NO_COLOR", "1")
         .env("TERM", "xterm-256color")
-        .env("HOME", home.path());
+        .env("HOME", home.path())
+        .env("NIKA_VLLM_BASE_URL", model.base());
     let session = OsSession::spawn(cmd).expect("pty spawn");
     let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(60)));
@@ -321,7 +330,8 @@ fn bare_nika_opens_the_renderer_and_nika_tui_zero_keeps_the_plain_loop() {
         .env("NIKA_TUI", "0")
         .env("NO_COLOR", "1")
         .env("TERM", "xterm-256color")
-        .env("HOME", home.path());
+        .env("HOME", home.path())
+        .env("NIKA_VLLM_BASE_URL", model.base());
     let session = OsSession::spawn(cmd).expect("pty spawn");
     let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(60)));
@@ -332,6 +342,10 @@ fn bare_nika_opens_the_renderer_and_nika_tui_zero_keeps_the_plain_loop() {
     session.send_line("/quit").expect("quit");
     session.expect(Eof).expect("closes");
     assert_eq!(exit_code(&mut session), 0);
+    assert!(
+        model.bodies().is_empty(),
+        "both doors opened and closed on commands: no model request"
+    );
 }
 
 // ── Typeahead (C11): only a line typed after a question is shown answers it ─────────────────

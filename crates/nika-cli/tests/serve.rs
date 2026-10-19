@@ -1117,3 +1117,156 @@ fn an_unreviewed_api_route_refuses_before_any_job_effect() {
     assert_eq!(terminate(&mut child), Some(0));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+// ── An `mcp:` step on the served compile door: the binary's pin lookup ──
+
+const MCP_INTENT: &str = "Find the invoice email in my Gmail.";
+
+const MCP_CANDIDATE: &str = "nika: invoice-email\npermits:\n  tools: [\"mcp:abench/gmail_find_email\"]\ntasks:\n  find_email:\n    invoke:\n      tool: \"mcp:abench/gmail_find_email\"\n      args: { query: invoice }\n";
+
+/// The seat for [`MCP_CANDIDATE`]: the candidate for an authoring call, an approving choice for
+/// a judge's question.
+#[cfg(unix)]
+fn mcp_answer() -> impl Fn(&serde_json::Value) -> String + Send {
+    move |request| {
+        let format = &request["response_format"];
+        let schema = if format["json_schema"]["schema"].is_object() {
+            &format["json_schema"]["schema"]
+        } else {
+            &format["schema"]
+        };
+        match schema["properties"]["choice"]["enum"].as_array() {
+            Some(keys) => {
+                let approve = ["faithful", "carried"]
+                    .into_iter()
+                    .find(|key| keys.iter().any(|value| value == *key))
+                    .unwrap_or("none");
+                serde_json::json!({"choice": approve}).to_string()
+            }
+            None => serde_json::json!({
+                "candidate": MCP_CANDIDATE, "questions": [], "gaps": [], "notes": "mcp",
+            })
+            .to_string(),
+        }
+    }
+}
+
+/// The project registers `abench`; its launcher would leave `spawned` if it ever started.
+#[cfg(unix)]
+fn mcp_registered(dir: &std::path::Path) {
+    std::fs::create_dir_all(dir.join(".nika")).expect("the project state directory");
+    let launcher = dir.join("abench.sh");
+    std::fs::write(
+        &launcher,
+        format!("#!/bin/sh\ntouch '{}'\n", dir.join("spawned").display()),
+    )
+    .expect("the launcher");
+    let registry = serde_json::json!({"mcp_servers_format": 1, "servers": {"abench": {
+        "command": "/bin/sh", "args": [launcher.to_string_lossy()]}}});
+    std::fs::write(dir.join(".nika/mcp_servers.json"), registry.to_string()).expect("the registry");
+}
+
+/// The operator's approval of `abench`, as `nika mcp approve` records it: each tool's snapshot
+/// beside its own pin, which the lockfile's reader checks again, under the registry's identity.
+#[cfg(unix)]
+fn mcp_approved(dir: &std::path::Path) {
+    let schema = serde_json::json!({"type": "object", "properties": {"query": {"type": "string"}},
+        "required": ["query"]});
+    let pin = nika_mcp::pin::McpToolDef::new("gmail_find_email", "Find an email", schema.clone())
+        .pin_hash();
+    let launcher = dir.join("abench.sh");
+    let pins = serde_json::json!({"mcp_pins_format": 1, "servers": {"abench": {
+        "identity": {"command": "/bin/sh", "args": [launcher.to_string_lossy()]},
+        "pinned_at": "2026-10-13T08:00:00Z",
+        "tools": {"gmail_find_email": {"pin": pin, "description": "Find an email",
+            "inputSchema": schema}}}}});
+    std::fs::write(dir.join(".nika/mcp_pins.json"), pins.to_string()).expect("the pins");
+}
+
+/// A served candidate's `mcp:` step meets the pin lookup the binary installs, through the
+/// server's own project: held with the exact approval command while the project has not approved
+/// its server, judged once it has (read again, no restart), yet still held, never READY, because
+/// this server's runs make no MCP call. No MCP server is started for either.
+#[cfg(unix)]
+#[test]
+fn serve_judges_a_pinned_mcp_step_and_holds_an_unapproved_one() {
+    /// A failing assertion panics before the clean stop: this test's own server is then killed
+    /// and reaped on unwind, never left running.
+    struct OwnedServe(Option<std::process::Child>);
+    impl Drop for OwnedServe {
+        fn drop(&mut self) {
+            if let Some(mut child) = self.0.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+    }
+    let seat = seat_with(mcp_answer(), false);
+    let dir = project("native-mcp-pins", DAILY_3AM, &[("doctor.nika", TRUE)]);
+    secure_token(&dir);
+    mcp_registered(&dir);
+    let address = free_address();
+    let base = format!("127.0.0.1:{}", seat.port);
+    let mut serve = OwnedServe(Some(native_serve(
+        &dir,
+        &address,
+        &[
+            "--authoring-model",
+            "vllm/s06-seat",
+            "--authoring-max-calls",
+            "32",
+            "--authoring-max-tokens",
+            "2048",
+        ],
+        &[("NIKA_VLLM_BASE_URL", base.as_str())],
+    )));
+    let _health = healthy(&address, serve.0.as_mut().expect("owned serve"));
+    let fresh = serde_json::json!({
+        "compile_version": 2, "mode": "create", "cognition": "explicitProvider",
+        "intent": MCP_INTENT,
+    })
+    .to_string();
+    let verdict = |body: &str| -> (serde_json::Value, serde_json::Value) {
+        let document: serde_json::Value = serde_json::from_str(body).expect("document");
+        let tool = document["provenance"]["decision"]["mcp"][0]["tools"][0].clone();
+        (document["status"].clone(), tool)
+    };
+
+    let (status, _, body) = compile_post(&address, TOKEN_VALUE, &fresh);
+    assert_eq!(status, 200, "{body}");
+    let (status_word, held) = verdict(&body);
+    assert_eq!(status_word, "incomplete", "held, never READY: {body}");
+    assert_eq!(held["verdict"], "held", "{body}");
+    let reason = held["reason"].as_str().unwrap_or_default();
+    assert!(reason.contains("nika mcp approve abench"), "{body}");
+
+    mcp_approved(&dir);
+    let (status, _, body) = compile_post(&address, TOKEN_VALUE, &fresh);
+    assert_eq!(status, 200, "{body}");
+    let (status_word, judged) = verdict(&body);
+    assert_eq!(judged["verdict"], "judged", "{body}");
+    assert_eq!(
+        status_word, "incomplete",
+        "judged, still never READY here: {body}"
+    );
+    let document: serde_json::Value = serde_json::from_str(&body).expect("document");
+    let kept = document["provenance"]["decision"]["mcp"][0]["held"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(kept.contains("this server runs no MCP step"), "{body}");
+    assert!(
+        document["diagnostics"]
+            .to_string()
+            .contains("this server runs no MCP step"),
+        "{body}"
+    );
+    assert!(
+        document["provenance"]["decision"]["rehearsal"].is_null(),
+        "the pins-only host asks no rehearsal: {body}"
+    );
+
+    assert!(!dir.join("spawned").exists(), "no MCP server was started");
+    let mut child = serve.0.take().expect("owned serve");
+    assert_eq!(terminate(&mut child), Some(0));
+    let _ = std::fs::remove_dir_all(dir);
+}

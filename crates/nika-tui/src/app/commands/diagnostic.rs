@@ -24,6 +24,7 @@ use ratatui::widgets::{Block, Clear, Paragraph, Wrap};
 
 use super::catalog::DIAGNOSTIC_KEY;
 use crate::composer::Composer;
+use crate::lang::Voice;
 use crate::model::{Committed, Kind, Presentation, UiState};
 use crate::render::ASCII_BOX;
 use crate::visual::role;
@@ -98,11 +99,21 @@ pub(crate) enum Viewed {
     Passed,
 }
 
+/// The keys of the reader's frame, on its bottom edge.
+const READER_KEYS: &str = " ↑↓ PgUp/PgDn scroll · Esc/Enter returns ";
+
 /// The view, open over the frame.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Diagnostic {
     /// What the words are, named in the frame's title.
-    what: &'static str,
+    what: String,
+    /// The run they tell, by its execution's hex, after what they are: the
+    /// detail a run named by its time keeps (a run's story).
+    named: Option<String>,
+    /// Whose words they are, after it in the title.
+    whose: &'static str,
+    /// The keys of what is on screen ([`Diagnostic::keys`]): `?` closes it too.
+    keys: bool,
     /// The block's words, exactly as the Session said them.
     words: String,
     /// The first row shown.
@@ -122,12 +133,56 @@ impl Diagnostic {
             Kind::Run => "Full run story",
             _ => "Full diagnostic",
         };
+        let hex = (block.run.as_ref()).and_then(|fold| fold.hex.as_ref());
         Self {
-            what,
+            what: what.to_owned(),
+            named: hex.map(|hex| format!("run {hex}")),
+            whose: "the Session's words, read only",
+            keys: false,
             words: block.text.clone(),
             scroll: 0,
             last: usize::MAX,
         }
+    }
+
+    /// The view of the keys of what is on screen now (`?`,
+    /// [`super::keys`]), from its top: read only, closed by `?` as well.
+    pub(crate) fn keys(words: String) -> Self {
+        Self {
+            what: "Keys".to_owned(),
+            named: None,
+            whose: "for what is on screen now",
+            keys: true,
+            words,
+            scroll: 0,
+            last: usize::MAX,
+        }
+    }
+
+    /// The view of what `command`, sent beside a waiting decision or
+    /// question, made the Session say (`blocks`, in order), from their top:
+    /// the band that waiting holds hides the conversation, so the answer
+    /// reads here, and closing it returns to the band as it was.
+    pub(crate) fn answer(command: &str, blocks: &[&Committed]) -> Self {
+        let words = (blocks.iter())
+            .map(|block| block.text.as_str())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        Self {
+            what: format!("Answer to {command}"),
+            named: None,
+            whose: "the Session's words, read only",
+            keys: false,
+            words,
+            scroll: 0,
+            last: usize::MAX,
+        }
+    }
+
+    /// What the words are, as the frame's title names them.
+    #[cfg(test)]
+    pub(crate) fn what(&self) -> &str {
+        &self.what
     }
 
     /// The words shown.
@@ -138,11 +193,15 @@ impl Diagnostic {
 
     /// Read one key.
     pub(crate) fn key(&mut self, key: KeyEvent) -> Viewed {
-        if !key.modifiers.is_empty() {
+        // `?` arrives shifted on some keyboards; it closes the keys alone.
+        let shifted = key.modifiers == crossterm::event::KeyModifiers::SHIFT
+            && key.code == KeyCode::Char('?');
+        if !key.modifiers.is_empty() && !shifted {
             return Viewed::Passed;
         }
         self.scroll = match key.code {
             KeyCode::Esc | KeyCode::Enter => return Viewed::Closed,
+            KeyCode::Char('?') if self.keys => return Viewed::Closed,
             code if code == DIAGNOSTIC_KEY => return Viewed::Closed,
             KeyCode::Up => self.scroll.saturating_sub(1),
             KeyCode::Down => self.scroll.saturating_add(1),
@@ -172,19 +231,21 @@ impl Diagnostic {
     }
 
     /// Paint the view over `area`: a frame titled with what it is and how to
-    /// leave, the words wrapped inside, scrolled.
-    pub(crate) fn render(&self, frame: &mut Frame<'_>, area: Rect, ascii: bool, color: bool) {
+    /// leave, in `voice`, the words wrapped inside, scrolled.
+    pub(crate) fn render(&self, frame: &mut Frame<'_>, area: Rect, voice: Voice, color: bool) {
+        let ascii = voice.ascii;
         let (sep, set) = if ascii {
             (" - ", ASCII_BOX)
         } else {
             (" · ", border::PLAIN)
         };
-        let title = format!(" {}{sep}the Session's words, read only ", self.what);
-        let keys = if ascii {
-            " Up/Down PgUp/PgDn scroll - Esc/Enter returns "
-        } else {
-            " ↑↓ PgUp/PgDn scroll · Esc/Enter returns "
-        };
+        let named = (self.named.as_ref()).map_or_else(String::new, |named| format!("{sep}{named}"));
+        let title = format!(
+            " {}{named}{sep}{} ",
+            voice.say(&self.what),
+            voice.say(self.whose)
+        );
+        let keys = crate::render::own(voice.say(READER_KEYS), ascii);
         let block = Block::bordered()
             .border_set(set)
             .border_style(role::style(Role::Dim, color))
@@ -221,7 +282,10 @@ mod tests {
     /// A run's story folded at its commit under `label`.
     fn folded(label: &str, story: &str) -> Committed {
         let mut block = Committed::new(Kind::Run, story);
-        block.run = Some((label.to_owned(), "succeeded"));
+        block.run = Some(crate::model::Fold {
+            label: label.to_owned(),
+            hex: Some("01a148a70999".to_owned()),
+        });
         block
     }
 
@@ -350,12 +414,15 @@ mod tests {
         assert_eq!(view.words().as_bytes(), story.as_bytes());
         let mut terminal = Terminal::new(TestBackend::new(70, 8)).expect("terminal");
         terminal
-            .draw(|frame| view.render(frame, frame.area(), false, false))
+            .draw(|frame| view.render(frame, frame.area(), Voice::default(), false))
             .expect("draw");
         let top: String = (0..70)
             .map(|x| terminal.backend().buffer()[(x, 0)].symbol())
             .collect();
-        assert!(top.contains("Full run story"), "{top}");
+        assert!(
+            top.contains("Full run story · run 01a148a70999 · "),
+            "{top}"
+        );
         let untagged = Committed::new(Kind::Run, story);
         assert!(
             !summarized(&untagged),
@@ -452,7 +519,7 @@ mod tests {
         assert_eq!(view.words(), refusal.text);
         let mut terminal = Terminal::new(TestBackend::new(100, 12)).expect("terminal");
         terminal
-            .draw(|frame| view.render(frame, frame.area(), false, false))
+            .draw(|frame| view.render(frame, frame.area(), Voice::default(), false))
             .expect("draw");
         let buffer = terminal.backend().buffer();
         let shown: String = (0..12)
@@ -502,7 +569,9 @@ mod tests {
         ] {
             let mut terminal = Terminal::new(TestBackend::new(70, 8)).expect("terminal");
             terminal
-                .draw(|frame| Diagnostic::of(block).render(frame, frame.area(), false, false))
+                .draw(|frame| {
+                    Diagnostic::of(block).render(frame, frame.area(), Voice::default(), false);
+                })
                 .expect("draw");
             let top: String = (0..70)
                 .map(|x| terminal.backend().buffer()[(x, 0)].symbol())
@@ -522,8 +591,12 @@ mod tests {
         let view = Diagnostic::of(&block);
         for ascii in [false, true] {
             let mut terminal = Terminal::new(TestBackend::new(60, 8)).expect("terminal");
+            let voice = Voice {
+                ascii,
+                ..Voice::default()
+            };
             terminal
-                .draw(|frame| view.render(frame, frame.area(), ascii, false))
+                .draw(|frame| view.render(frame, frame.area(), voice, false))
                 .expect("draw");
             let buffer = terminal.backend().buffer();
             let rows: Vec<String> = (0..8)

@@ -24,6 +24,7 @@ use ratatui::text::{Line, Span};
 use unicode_width::UnicodeWidthStr;
 
 use super::{heading, message_lines};
+use crate::lang::Voice;
 use crate::model::{Committed, Kind};
 use crate::render::{content_rows, window};
 use crate::visual::role;
@@ -127,19 +128,25 @@ impl Bubble {
         area: Rect,
         form: Form,
         color: bool,
-        ascii: bool,
+        voice: Voice,
     ) -> Self {
+        let ascii = voice.ascii;
         let you = blocks
             .first()
             .is_some_and(|block| block.kind == Kind::Human);
         let label = blocks
             .first()
-            .and_then(|block| label(block.kind, you, ascii, color));
+            .and_then(|block| label(block.kind, you, voice, color));
+        let least = label.as_ref().map_or(0, Line::width);
+        // The most columns its words may take: a table among them fits them, its rows whole.
+        let room = columns(area, form, you, usize::MAX, least).3;
         let mut said = Vec::with_capacity(blocks.len());
         let mut was = None;
         for block in blocks {
-            let lead = was.map_or(Lead::Tight, |previous| lead(previous, block.kind, you));
-            said.push((lead, message_lines(block, color, ascii)));
+            let lead = was.map_or(Lead::Tight, |previous| {
+                lead(previous, block.kind, you, voice)
+            });
+            said.push((lead, message_lines(block, color, ascii, room)));
             was = Some(block.kind);
         }
         let widest = said
@@ -147,7 +154,6 @@ impl Bubble {
             .flat_map(|(lead, lines)| lines.iter().map(Line::width).chain([lead.width()]))
             .max()
             .unwrap_or(0);
-        let least = label.as_ref().map_or(0, Line::width);
         let (x, width, text_x, text_width) = columns(area, form, you, widest, least);
         let parts = said
             .into_iter()
@@ -335,33 +341,36 @@ fn columns(area: Rect, form: Form, you: bool, widest: usize, least: usize) -> (u
 /// The label of a bubble whose first block is of kind `first`: the speaker
 /// (`You`, `Nika`) and, when that block is not plain speech, its kind
 /// (`Nika · Run`); none when the opening banner leads, as it names itself.
-fn label(first: Kind, you: bool, ascii: bool, color: bool) -> Option<Line<'static>> {
+fn label(first: Kind, you: bool, voice: Voice, color: bool) -> Option<Line<'static>> {
     if first == Kind::Banner {
         return None;
     }
-    let (speaker, tone) = speaker(you);
-    let (kind, kind_tone) = heading(first);
+    let (speaker, tone) = speaker(you, voice);
+    let (kind, kind_tone) = heading(first, voice);
     let mut spans = vec![Span::styled(speaker, role::style(tone, color))];
     if kind != speaker {
-        spans.push(Span::styled(marks(ascii).0, role::style(Role::Dim, color)));
+        spans.push(Span::styled(
+            marks(voice.ascii).0,
+            role::style(Role::Dim, color),
+        ));
         spans.push(Span::styled(kind, role::style(kind_tone, color)));
     }
     Some(Line::from(spans))
 }
 
 /// The speaker's name and tone: the human's, or Nika's.
-fn speaker(you: bool) -> (&'static str, Role) {
-    heading(if you { Kind::Human } else { Kind::Reply })
+fn speaker(you: bool, voice: Voice) -> (&'static str, Role) {
+    heading(if you { Kind::Human } else { Kind::Reply }, voice)
 }
 
 /// What separates a block of kind `kind` from the one before it, of kind
 /// `was`, inside one bubble: the quiet name of a kind with a name of its own
 /// when the kind changes to it, nothing between a run's task lines, otherwise
 /// a row of air.
-fn lead(was: Kind, kind: Kind, you: bool) -> Lead {
-    let (before, _) = heading(was);
-    let (name, tone) = heading(kind);
-    if name != before && name != speaker(you).0 {
+fn lead(was: Kind, kind: Kind, you: bool, voice: Voice) -> Lead {
+    let (before, _) = heading(was, voice);
+    let (name, tone) = heading(kind, voice);
+    if name != before && name != speaker(you, voice).0 {
         Lead::Sublabel(name, tone)
     } else if name == before && kind == Kind::Run {
         Lead::Tight

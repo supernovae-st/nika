@@ -6,9 +6,11 @@
 //! It asks which sources to read, offering concrete values and recommending none, writes the
 //! candidate the picked option binds (its output file derived from the request), and proposes
 //! it; the snapshot types the question, the values' provenance and the proposal, and the
-//! person's `yes` through the consent door saves exactly the bytes shown, never a run. Keyless:
-//! an isolated HOME and an empty environment; the model is a double that scripts what an author
-//! decides, never what Nika checks.
+//! person's `yes` through the consent door saves exactly the bytes shown, never a run. Two
+//! questions asked together that offer the same keys: a reply bound to one of them by its identity
+//! (`answer`) reaches that question alone, while a plain line still answers every question it
+//! names. Keyless: an isolated HOME and an empty environment; the model is a double that scripts
+//! what an author decides, never what Nika checks.
 #![allow(clippy::expect_used, clippy::panic, clippy::disallowed_types)]
 
 use std::io::{BufRead as _, BufReader, Lines, Read as _, Write as _};
@@ -61,8 +63,32 @@ fn script() -> Vec<Value> {
     ]
 }
 
+/// Two questions asked together, both offering the keys `a` and `b`: the sources, the tone; then
+/// what the author says once an answer reached it.
+fn grouped() -> Vec<Value> {
+    let offer = |key: &str, label: &str, role: &str, value: &str| {
+        let values = json!([{"role": role, "value": value}]);
+        json!({"key": key, "label": label, "values": values})
+    };
+    vec![
+        json!({"tool": "ask", "args": {"questions": [
+            {"key": "sources", "question": "Quelles actualités dois-je résumer ?",
+             "options": [offer("a", "Tes sources", "read_source", SOURCE),
+                offer("b", "Tes notes", "read_source", NOTES)]},
+            {"key": "tone", "question": "Quel ton pour le résumé ?",
+             "options": [offer("a", "Neutre", "value", NEUTRAL),
+                offer("b", "Enthousiaste", "value", "enthousiaste")]}]}}),
+        json!({"say": "C'est noté."}),
+    ]
+}
+
+/// The second file of the project a grouped offer names.
+const NOTES: &str = "./news/notes.md";
+/// The tone the shared key `a` names.
+const NEUTRAL: &str = "neutre";
+
 /// A loopback model on the OpenAI-compatible wire the `vllm` override reaches: each request that
-/// offers tools takes the next step of the script; every body is kept.
+/// offers tools takes the next step of `script`; every body is kept.
 struct Author {
     port: u16,
     bodies: Arc<Mutex<Vec<Value>>>,
@@ -73,14 +99,14 @@ struct Author {
 impl Author {
     // The synchronous fixture owns this blocking socket thread and joins it on drop.
     #[allow(clippy::disallowed_methods)]
-    fn start() -> Self {
+    fn start(script: Vec<Value>) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("loopback author");
         let port = listener.local_addr().expect("address").port();
         let bodies = Arc::new(Mutex::new(Vec::new()));
         let stop = Arc::new(AtomicBool::new(false));
         let (seen, halt) = (Arc::clone(&bodies), Arc::clone(&stop));
         let server = std::thread::spawn(move || {
-            let mut steps = script().into_iter();
+            let mut steps = script.into_iter();
             for (calls, stream) in listener.incoming().enumerate() {
                 if halt.load(Ordering::SeqCst) {
                     break;
@@ -152,7 +178,7 @@ fn reply(body: &Value) -> Value {
     }
     let last = (body["messages"].as_array().into_iter().flatten()).next_back();
     let reading = (last.and_then(|message| message["content"].as_str()))
-        .is_some_and(|text| text.contains("One word only, nothing else."));
+        .is_some_and(|text| text.contains("One answer on one line, nothing else."));
     let content = if reading { "project" } else { "D'accord." };
     json!({"role": "assistant", "content": content})
 }
@@ -262,6 +288,23 @@ impl Door {
         let submitted = submit(command, &frame["snapshot"]["snapshot"], line);
         writeln!(self.stdin, "{submitted}").expect("submit");
         self.next("result")
+    }
+
+    /// A reply bound to the question `question` of `frame`'s snapshot: its settled result, or the
+    /// refusal answered at once.
+    fn answer(&mut self, command: &str, frame: &Value, question: &Value, line: &str) -> Value {
+        let answered = json!({
+            "contract": "nika/session-host@1", "op": "answer", "command": command,
+            "snapshot": frame["snapshot"]["snapshot"], "question": question, "line": line,
+        });
+        writeln!(self.stdin, "{answered}").expect("answer");
+        loop {
+            let line = self.lines.next().expect("a frame").expect("utf-8");
+            let frame: Value = serde_json::from_str(&line).expect("one JSON object per line");
+            if frame["frame"] == "result" || frame["frame"] == "refused" {
+                return frame;
+            }
+        }
     }
 
     /// Stdin ends: the door closes and exits cleanly.
@@ -396,7 +439,7 @@ fn the_agent_asks_writes_proposes_and_the_yes_saves_through_the_machine_door() {
     let news = project.path().join("news");
     std::fs::create_dir_all(&news).expect("news");
     std::fs::write(news.join("sources.md"), "# Tech\n- Rust 1.97 is out\n").expect("sources");
-    let author = Author::start();
+    let author = Author::start(script());
     let mut door = Door::open(project.path(), home.path(), &author);
     let opened = door.next("opened");
     let asked = door.submit("c-1", &opened, REQUEST);
@@ -419,5 +462,98 @@ fn the_agent_asks_writes_proposes_and_the_yes_saves_through_the_machine_door() {
         "Save is never a Run"
     );
     assert_no_authority_door(&author);
+    door.close();
+}
+
+/// The project's two files the grouped offers name, as the person keeps them.
+fn grouped_project() -> tempfile::TempDir {
+    let project = tempfile::tempdir().expect("project");
+    let news = project.path().join("news");
+    std::fs::create_dir_all(&news).expect("news");
+    std::fs::write(news.join("sources.md"), "# Tech\n- Rust 1.97 is out\n").expect("sources");
+    std::fs::write(news.join("notes.md"), "# Notes\n- a talk on Tuesday\n").expect("notes");
+    project
+}
+
+/// The binding of `value` the snapshot of `frame` holds, if any.
+fn bound<'a>(frame: &'a Value, value: &str) -> Option<&'a Value> {
+    (frame["snapshot"]["work"]["bindings"]
+        .as_array()
+        .into_iter()
+        .flatten())
+    .find(|binding| binding["value"] == value)
+}
+
+/// The two questions asked together, by key: their identities on the wire.
+fn asked_together(asked: &Value) -> (Value, Value) {
+    let work = &asked["snapshot"]["work"];
+    assert_eq!(work["waiting"]["kind"], "questions", "{asked}");
+    let id = |key: &str| {
+        (work["questions"].as_array().into_iter().flatten())
+            .find(|question| question["key"] == key)
+            .map_or_else(
+                || panic!("{key} is asked: {asked}"),
+                |question| question["id"].clone(),
+            )
+    };
+    let (sources, tone) = (id("sources"), id("tone"));
+    assert_eq!(work["waiting"]["ids"], json!([sources, tone]), "{asked}");
+    (sources, tone)
+}
+
+/// The tone named by its identity with the key both questions offer: that question alone takes
+/// it, the sources still wait under their own identity, and nothing else is bound; the same
+/// question named again, or one the Session never asked, is refused before it.
+#[test]
+fn an_answer_named_by_its_question_binds_that_question_alone() {
+    let project = grouped_project();
+    let home = tempfile::tempdir().expect("home");
+    let author = Author::start(grouped());
+    let mut door = Door::open(project.path(), home.path(), &author);
+    let opened = door.next("opened");
+    let asked = door.submit("c-1", &opened, REQUEST);
+    let (sources, tone) = asked_together(&asked);
+    let answered = door.answer("c-2", &asked, &tone, "a");
+    assert_eq!(answered["frame"], "result", "{answered}");
+    assert_eq!(answered["op"], "answer", "{answered}");
+    let binding = bound(&answered, NEUTRAL).unwrap_or_else(|| panic!("the tone: {answered}"));
+    assert_eq!(binding["provenance"]["kind"], "offered", "{binding}");
+    assert_eq!(binding["provenance"]["message"], "u2", "{binding}");
+    assert!(
+        bound(&answered, SOURCE).is_none(),
+        "the sources took nothing: {answered}"
+    );
+    let work = &answered["snapshot"]["work"];
+    assert_eq!(
+        (&work["waiting"]["kind"], &work["waiting"]["id"]),
+        (&json!("question"), &sources),
+        "the sources still wait: {answered}"
+    );
+    let seen = author.bodies().len();
+    let again = door.answer("c-3", &answered, &tone, "b");
+    assert_eq!(again["frame"], "refused", "{again}");
+    assert_eq!(again["error"], "unknown_question", "{again}");
+    let never = door.answer("c-4", &answered, &json!("0".repeat(64)), "a");
+    assert_eq!(never["error"], "unknown_question", "{never}");
+    assert_eq!(author.bodies().len(), seen, "the refusals reached no model");
+    door.close();
+}
+
+/// A plain line typed against the questions asked together is unchanged: it answers every
+/// question it names, here both through the key they share.
+#[test]
+fn a_plain_line_still_answers_every_question_asked_together_it_names() {
+    let project = grouped_project();
+    let home = tempfile::tempdir().expect("home");
+    let author = Author::start(grouped());
+    let mut door = Door::open(project.path(), home.path(), &author);
+    let opened = door.next("opened");
+    let asked = door.submit("c-1", &opened, REQUEST);
+    asked_together(&asked);
+    let answered = door.submit("c-2", &asked, "a");
+    for value in [SOURCE, NEUTRAL] {
+        let binding = bound(&answered, value).unwrap_or_else(|| panic!("{value}: {answered}"));
+        assert_eq!(binding["provenance"]["message"], "u2", "{binding}");
+    }
     door.close();
 }

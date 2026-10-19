@@ -28,6 +28,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 use super::chooser::fit;
 use super::{accent, own};
 use crate::composer::Composer;
+use crate::lang::Voice;
 use crate::model::{Asked, Kind, Presentation, Shape, UiState, Waiting};
 use crate::visual::role;
 use crate::workspace::cards::diagnostics::{Shown, shown};
@@ -48,6 +49,9 @@ pub(crate) fn word_cap(state: &UiState) -> usize {
 /// The last word row when the words do not all show: where they are read.
 pub(crate) const WHOLE: &str = "… the whole question: F2";
 
+/// That an answer is required, after a header's or a band title's name.
+pub(crate) const REQUIRED: &str = " · required";
+
 /// The typed question the card paints: the one [`waiting`], while no turn
 /// works, whatever a surface shows over it.
 fn painted(state: &UiState) -> Option<&Asked> {
@@ -61,7 +65,9 @@ fn painted(state: &UiState) -> Option<&Asked> {
 /// A typed choice opens the surface instead, and one that offers nothing has
 /// neither.
 fn waiting(state: &UiState) -> Option<&Asked> {
-    let Waiting::QuestionDocument { asked, .. } = &state.waiting else {
+    let (Waiting::QuestionDocument { asked, .. } | Waiting::ProposalChoice { asked, .. }) =
+        &state.waiting
+    else {
         return None;
     };
     matches!(asked.shape, Shape::Text | Shape::Literal).then_some(asked)
@@ -77,7 +83,12 @@ pub(crate) fn asked_block(state: &UiState) -> Option<usize> {
     {
         return None;
     }
-    let Waiting::QuestionDocument { asked, .. } = &state.waiting else {
+    if matches!(state.waiting, Waiting::Action { .. }) {
+        return action_block(state);
+    }
+    let (Waiting::QuestionDocument { asked, .. } | Waiting::ProposalChoice { asked, .. }) =
+        &state.waiting
+    else {
         return None;
     };
     let (index, block) = (state.transcript.iter().enumerate())
@@ -87,6 +98,27 @@ pub(crate) fn asked_block(state: &UiState) -> Option<usize> {
     let later =
         (state.transcript.iter().skip(index + 1)).any(|block| !matches!(shown(block), Shown::Said));
     (tied && !later).then_some(index)
+}
+
+/// The exact kind of owner context for a finite action, shared by its head and F2.
+/// Save has the proposal reader; unknown action kinds do not borrow old questions.
+pub(crate) fn action_block(state: &UiState) -> Option<usize> {
+    let Waiting::Action { key, .. } = &state.waiting else {
+        return None;
+    };
+    let kind = match key.as_str() {
+        "gate" | "gate_choice" => Kind::Gate,
+        "judgment" => Kind::Reply,
+        // The trigger's install decision reads its card: what installing does, and a scheduled
+        // run's keys the Session warns of, before the person picks an act.
+        "run_cost" | "unknown_cost" | "project.missed" | "project.ceiling" | "run.ceiling"
+        | "run_input" | "trigger.install" => Kind::Question,
+        _ => return None,
+    };
+    state
+        .transcript
+        .iter()
+        .rposition(|block| block.kind == kind)
 }
 
 /// Whether the card stands as the question's live home: a typed question tied
@@ -260,7 +292,7 @@ pub(crate) fn render(state: &UiState, area: Rect, buf: &mut Buffer) {
     let (ascii, color) = (state.ascii, state.color);
     let width = usize::from(area.width);
     let rows = layout(state, area);
-    let line = header(asked, width, rows.home, (ascii, color));
+    let line = header(asked, width, rows.home, (state.voice(), color));
     buf.set_line(area.x, area.y, &line, area.width);
     let mut y = area.y;
     let last = rows.words.len().saturating_sub(1);
@@ -275,7 +307,7 @@ pub(crate) fn render(state: &UiState, area: Rect, buf: &mut Buffer) {
     }
     if rows.whole == Whole::Row {
         y += 1;
-        let whole = fit(&own(WHOLE, ascii), width, ascii);
+        let whole = fit(&own(state.voice().say(WHOLE), ascii), width, ascii);
         let whole = Line::styled(whole, role::style(Role::Dim, color));
         buf.set_line(area.x, y, &whole, area.width);
     }
@@ -284,14 +316,16 @@ pub(crate) fn render(state: &UiState, area: Rect, buf: &mut Buffer) {
 /// What the header says: the question in the accent and the shape of the
 /// answer when the card carries the Session's words (`home`), else the shape
 /// alone; and whether it is required.
-fn header(asked: &Asked, width: usize, home: bool, (ascii, color): (bool, bool)) -> Line<'static> {
-    let shape = match &asked.shape {
+fn header(asked: &Asked, width: usize, home: bool, (voice, color): (Voice, bool)) -> Line<'static> {
+    let ascii = voice.ascii;
+    let shape = voice.say(match &asked.shape {
         Shape::Choice(_) => "Offered answers",
+        Shape::Multiple(_) => "Several answers",
         Shape::Text => "A text answer",
         Shape::Literal => "An exact value",
-    };
+    });
     let (title, style) = if home {
-        ("Question", accent(color))
+        (voice.say("Question"), accent(color))
     } else {
         (shape, role::style(Role::Strong, color))
     };
@@ -303,7 +337,7 @@ fn header(asked: &Asked, width: usize, home: bool, (ascii, color): (bool, bool))
         let _ = write!(facts, " · {shape}");
     }
     if asked.mandatory {
-        facts.push_str(" · required");
+        facts.push_str(voice.say(REQUIRED));
     }
     let facts = own(&facts, ascii);
     let room = width - title.width();

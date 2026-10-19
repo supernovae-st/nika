@@ -14,8 +14,8 @@ use crate::composer::Composer;
 use crate::model::{Asked, Presentation, Shape, Waiting};
 use crate::workspace::desk::{self, Desk};
 use crate::workspace::object::{Object, Paint};
-use crate::workspace::text::twins;
 use nika_session::ProposalId;
+use nika_tui_view::workspace::text::twins;
 use ratatui::style::Color;
 use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
 
@@ -441,7 +441,8 @@ fn the_current_proposal_reads_as_its_typed_review() {
                 assert!(!seen(&read, gone), "{case}: {gone}\n{read:#?}");
             }
             let (rows, _) = reviewed(&state, area, review.as_ref());
-            let foot = format!("proposal {} · F2: whole words", fixture::id());
+            // The proposal's name in the border's longest whole form, whichever it is.
+            let foot = format!("{} · F2", fixture::PATH);
             let foot = twins(&foot, ascii);
             let border = rows.iter().find(|row| row.contains(&foot));
             let low = if ascii { "+- " } else { "╰─ " };
@@ -456,19 +457,20 @@ fn the_current_proposal_reads_as_its_typed_review() {
     }
 }
 
-/// The current proposal's identity and reader key ride its bottom border one
-/// cell in, quiet beside the decision's edges, in the longest whole form the
-/// border holds and never cut: the card stays its words plus three rows, and
-/// a border too narrow for even the identity stays a plain rule.
+/// The current proposal's name (where it lands) and reader key ride its
+/// bottom border one cell in, quiet beside the decision's edges, in the
+/// longest whole form the border holds and never cut, never the hex of its
+/// identity: the card stays its words plus three rows, and a border too
+/// narrow for even the name stays a plain rule.
 #[test]
-fn the_reviewed_card_carries_its_identity_on_its_border() {
-    let id = fixture::id().to_string();
+fn the_reviewed_card_carries_its_name_on_its_border() {
+    let path = fixture::PATH;
     for (width, form) in [
-        (72, format!("proposal {id} · F2: whole words")),
-        (44, format!("proposal {id} · F2: whole words")),
-        (43, format!("proposal {id} · F2")),
-        (31, format!("proposal {id} · F2")),
-        (30, format!("{id} · F2")),
+        (72, format!("proposal {path} · F2: whole words")),
+        (54, format!("proposal {path} · F2: whole words")),
+        (53, format!("{path} · F2: whole words")),
+        (45, format!("{path} · F2: whole words")),
+        (44, format!("{path} · F2")),
     ] {
         for ascii in [false, true] {
             let at = format!("{width} ascii={ascii}");
@@ -539,6 +541,38 @@ fn a_proposal_no_longer_waited_on_is_titled_as_history() {
     assert_ne!(quiet, tone);
     let read = readings(&mut state, area, review.as_ref());
     assert!(seen(&read, fixture::COST), "its whole words: {read:#?}");
+}
+
+/// A line said beside a proposal that waited (« kept the default · … », a
+/// revision it could not make) reads that the proposal still waits only while
+/// one does: once the decision was taken, its card leaves that line out, the
+/// rest of its words as said, and the block keeps every word for `F2`.
+#[test]
+fn a_history_card_no_longer_says_a_proposal_still_waits_once_none_does() {
+    let area = Rect::new(0, 0, 68, 30);
+    let waits = "(the proposal still waits · `yes` applies it · `no` discards it)";
+    let said = format!("kept the default · EUR\n{waits}");
+    let held = Committed::new(Kind::Proposal, said.clone());
+    for (waiting, shows) in [
+        (Waiting::Proposal, true),
+        (Waiting::Free, false),
+        (Waiting::Gate, false),
+    ] {
+        let mut state = UiState::new(Presentation::Workspace, false, (68, 30));
+        state.transcript.push(held.clone());
+        state.waiting = waiting.clone();
+        let read = readings(&mut state, area, None);
+        assert!(
+            seen(&read, "kept the default · EUR"),
+            "{waiting:?}: {read:#?}"
+        );
+        assert_eq!(
+            seen(&read, "the proposal still waits"),
+            shows,
+            "{waiting:?}: {read:#?}"
+        );
+        assert_eq!(state.transcript[0].text, said, "the block keeps its words");
+    }
 }
 
 /// Anything but the current proposal keeps the Session's whole words:
@@ -691,7 +725,11 @@ fn the_object_leaves_its_facts_to_the_review_alone() {
         let object = object_text(&desk);
         assert_eq!(object.contains("33 lines"), facts, "{object}");
         assert_eq!(object.contains("what a yes answers"), facts, "{object}");
-        assert!(object.contains("these bytes 51835c93e564"), "{object}");
+        assert!(
+            object.contains("these bytes, the proposal's own"),
+            "{object}"
+        );
+        assert!(!object.contains("51835c93e564"), "{object}");
         for _ in 0..2 {
             let screen = capture(&desk, state);
             assert_eq!(screen.matches("33 lines").count(), 1, "{screen}");
@@ -704,20 +742,26 @@ fn the_object_leaves_its_facts_to_the_review_alone() {
 }
 
 /// In a pane too small for cards the current proposal still reads as its
-/// review, its identity and reader key on a last row of their own (no border
-/// carries them there), the measure counting exactly the lines painted, and
-/// the cost prose stays with the reader.
+/// review, its name and reader key on a last row of their own (no border
+/// carries them there), in the longest whole form the row holds, the measure
+/// counting exactly the lines painted, and the cost prose stays with the
+/// reader.
 #[test]
 fn a_short_split_reads_the_current_proposal_as_its_review() {
     let area = Rect::new(0, 0, 40, 5);
     let review = fixture::candidate(fixture::id(), false).review(false);
     let proposal = Committed::proposal(fixture::id(), fixture::PREVIEW);
     let state = fixture::state((40, 5), proposal, Waiting::Proposal);
-    let foot = format!("proposal {} · F2: whole words", fixture::id());
+    let foot = format!("{} · F2: whole words", fixture::PATH);
     let facts = (review.as_ref())
         .map(|review| review.lines(false, false, 40))
         .unwrap_or_default();
-    let human = card_lines(&Committed::new(Kind::Human, fixture::REQUEST), false, false);
+    let human = card_lines(
+        &Committed::new(Kind::Human, fixture::REQUEST),
+        false,
+        false,
+        40,
+    );
     let expected = content_rows(&[human, facts, vec![Line::raw(foot.clone())]].concat(), 40);
     assert_eq!(height(&state, area, (review.as_ref(), None)), expected);
     let (rows, _) = reviewed(&state, area, review.as_ref());
@@ -726,6 +770,61 @@ fn a_short_split_reads_the_current_proposal_as_its_review() {
     let read = rows.join(" ");
     assert!(read.contains("rehearsal · none bound"), "{rows:#?}");
     assert!(!read.contains(fixture::COST), "{rows:#?}");
+}
+
+/// The names a card and a bubble wear follow the person's language: a
+/// refusal's card reads « Impossible de continuer », the person's bubble
+/// « Vous » and a result « Nika · Résultat », folded under ASCII. The words
+/// inside are the person's and the Session's, kept as written even under
+/// ASCII; English keeps every name.
+#[test]
+fn card_and_bubble_names_follow_the_persons_language() {
+    use crate::lang::Lang;
+    let said = [
+        "résume mes notes",
+        "3 notes résumées",
+        "le modèle n'a pas répondu",
+    ];
+    for (lang, ascii, names) in [
+        (
+            Lang::En,
+            false,
+            ["Could not continue", "You", "Nika · Result"],
+        ),
+        (
+            Lang::Fr,
+            false,
+            ["Impossible de continuer", "Vous", "Nika · Résultat"],
+        ),
+        (
+            Lang::Fr,
+            true,
+            ["Impossible de continuer", "Vous", "Nika - Resultat"],
+        ),
+    ] {
+        let mut state = UiState::new(Presentation::Workspace, false, (72, 40));
+        (state.lang, state.ascii) = (lang, ascii);
+        for (kind, words) in [Kind::Human, Kind::Result, Kind::Refusal]
+            .into_iter()
+            .zip(said)
+        {
+            state.transcript.push(Committed::new(kind, words));
+        }
+        let (rows, _) = painted(&state, 72, 40);
+        let all = rows.join("\n");
+        for name in names {
+            assert!(all.contains(name), "{lang:?} ascii={ascii}: {name}\n{all}");
+        }
+        for words in said {
+            assert!(all.contains(words), "kept as written: {words}\n{all}");
+        }
+        let other = if lang == Lang::Fr {
+            "Could not continue"
+        } else {
+            "Impossible"
+        };
+        assert!(!all.contains(other), "{all}");
+    }
 }
 
 /// Short panes still distinguish a sent message from the assistant reply.
@@ -870,7 +969,7 @@ fn a_short_split_shows_the_summary_end() {
     state.transcript.push(block.clone());
     assert_eq!(
         height(&state, area, (None, None)),
-        content_rows(&card_lines(&block, false, false), 40)
+        content_rows(&card_lines(&block, false, false, 40), 40)
     );
     let mut terminal = Terminal::new(TestBackend::new(40, 5)).expect("terminal");
     terminal
@@ -889,7 +988,7 @@ fn a_provider_failure_card_paints_the_session_words() {
     let block = Committed::new(Kind::Refusal, provider_failure());
     for (color, ascii) in [(false, false), (true, true)] {
         assert_eq!(
-            card_lines(&block, color, ascii),
+            card_lines(&block, color, ascii, 120),
             block_lines(&block, color, ascii)
         );
     }
@@ -1220,7 +1319,7 @@ fn a_card_entered_part_way_names_itself_and_the_rows_above() {
         state.ascii = ascii;
         let gate = Committed::new(Kind::Gate, said.join("\n"));
         state.transcript.push(gate);
-        let lines = card_lines(&state.transcript[0], false, ascii);
+        let lines = card_lines(&state.transcript[0], false, ascii, area.width - 4);
         let rows = content_rows(&lines, area.width - 4);
         assert_eq!(rows, said.len(), "one row per line");
         assert_eq!(height(&state, area, (None, None)), card_height(rows));
@@ -1300,17 +1399,21 @@ fn a_cost_question_keeps_its_warning_and_the_carried_row_stays_quiet() {
     assert_eq!(cell.fg, warn, "{rows:#?}");
 }
 
-/// A run's story folded at its commit under `label`, settled `state`.
-fn folded(label: &str, state: &'static str, story: &str) -> Committed {
+/// A run's story folded at its commit under `label`.
+fn folded(label: &str, story: &str) -> Committed {
     let mut block = Committed::new(Kind::Run, story);
-    block.run = Some((label.to_owned(), state));
+    block.run = Some(crate::model::Fold {
+        label: label.to_owned(),
+        hex: None,
+    });
     block
 }
 
 /// A run's story folded at its commit reads as one quiet row under the run's
-/// sublabel: its label, its settled state and the reader key, in both glyph
-/// columns and both forms, none of the story's words painted; the same story
-/// untagged keeps every word and offers no key.
+/// sublabel: its label and the reader key, never a settled state word (a
+/// settlement says `succeeded` after a refused gate; the Session's block says
+/// how it ended), in both glyph columns and both forms, none of the story's
+/// words painted; the same story untagged keeps every word and offers no key.
 #[test]
 fn a_folded_run_story_reads_as_one_quiet_row() {
     for (tall, ascii) in [(14, false), (14, true), (24, false), (24, true)] {
@@ -1322,7 +1425,6 @@ fn a_folded_run_story_reads_as_one_quiet_row() {
             Committed::new(Kind::Report, "check · digest.nika · ok"),
             folded(
                 "run 0123456789ab",
-                "failed",
                 "running · digest\n  read_notes · 2 ms\nfailed · 0/1 tasks",
             ),
             Committed::new(Kind::Result, "the run failed: see its journal"),
@@ -1331,7 +1433,7 @@ fn a_folded_run_story_reads_as_one_quiet_row() {
         }
         let (rows, buffer) = painted(&state, 60, tall);
         let sep = if ascii { " - " } else { " · " };
-        let fold = format!("run 0123456789ab{sep}failed{sep}F2");
+        let fold = format!("run 0123456789ab{sep}F2");
         let at: Vec<usize> = (rows.iter().enumerate())
             .filter(|(_, row)| row.contains(&fold))
             .map(|(y, _)| y)
@@ -1407,5 +1509,147 @@ fn each_row_names_the_block_painted_on_it() {
             let whole = shown_at(&state, area, (None, None), 0..rows.len());
             assert_eq!(whole, named, "{area:?} scroll {scroll}");
         }
+    }
+}
+
+/// A reply's table wider than the bubble's words (live gauntlet 4, r09 B14) stands as a
+/// table, one row of the bubble for each of its rows: its widest column narrows and its
+/// header is cut on the cut mark, rather than its rows wrapping under one another, and the
+/// plan measures the rows it paints. The narrow columns keep every figure.
+#[test]
+fn a_reply_table_wider_than_the_bubble_keeps_one_row_for_each_of_its_rows() {
+    let table = "| Mois | Total (EUR) | Croissance vs mois précédent |\n|---|---:|---:|\n\
+                 | 2026-01 | 86273 | — |\n| 2026-02 | 87419 | 1.33 % |";
+    let mut state = UiState::new(Presentation::Workspace, false, (40, 24));
+    state.transcript.push(Committed::new(Kind::Reply, table));
+    // Its top edge, its four rows, its bottom edge and a row of air.
+    assert_eq!(height(&state, Rect::new(0, 0, 40, 24), (None, None)), 7);
+    let (rows, _) = painted(&state, 40, 24);
+    for shown in [
+        "│ Mois    │ Total (EUR) │ Croissance … │",
+        "│ ────────┼─────────────┼───────────── │",
+        "│ 2026-01 │ 86273       │ —            │",
+        "│ 2026-02 │ 87419       │ 1.33 %       │",
+    ] {
+        assert!(rows.iter().any(|row| row == shown), "{shown}\n{rows:#?}");
+    }
+    assert!(
+        !rows.iter().any(|row| row.contains("précédent")),
+        "{rows:#?}"
+    );
+}
+
+/// Every speaker's words reach the screen as written (live gauntlet 6, r02 and r08: « `--access
+/// &lt;seat&gt;` », « `save &amp; run` » quoted from the screen): `<`, `>` and `&` stay those
+/// characters in every block, in the conversation's cards and in the inline transcript alike,
+/// never an HTML entity, a code span included.
+#[test]
+fn angle_brackets_and_ampersands_paint_as_written_in_every_block() {
+    const SAID: &str = "`yes` saves it, `save & run` saves and runs it · `--access <seat>` · a > b";
+    let kinds = [
+        Kind::Human,
+        Kind::Reply,
+        Kind::Question,
+        Kind::Report,
+        Kind::Result,
+        Kind::Refusal,
+        Kind::Notice,
+        Kind::Activity,
+    ];
+    for kind in kinds {
+        let mut state = UiState::new(Presentation::Workspace, false, (160, 30));
+        state.transcript.push(Committed::new(kind, SAID));
+        let (rows, _) = drawn(&state, Rect::new(0, 0, 120, 30));
+        let card = words(&rows);
+        let inline = (crate::render::block_lines(&state.transcript[0], false, false).iter())
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        for shown in [&card, &inline] {
+            for written in ["`save & run`", "`--access <seat>`", "a > b"] {
+                assert!(shown.contains(written), "{kind:?}: {written}\n{shown}");
+            }
+            for entity in ["&amp;", "&lt;", "&gt;"] {
+                assert!(!shown.contains(entity), "{kind:?}: {entity}\n{shown}");
+            }
+        }
+    }
+}
+
+/// A proposal's card reads without the identity the Session names a `yes` by (live gauntlet 6,
+/// r01 B4: « identité 2df0f6a0c37c » on the decision card read like a code to keep; r08 B8:
+/// « identity ca2bf0a96222 »): the rest of its line stays, a line holding the identity alone
+/// goes, in the conversation's card and the inline transcript alike; the block keeps every word,
+/// which its whole words (`F2`) read.
+#[test]
+fn a_proposal_card_reads_without_its_identity() {
+    let said = "crée `nika.yaml` (6 lignes)\n  identité e90f82f921b0 · « oui » écrit exactement ces \
+                octets · « non » abandonne\nidentity 0bf7aa9d6449 · `/show` the exact bytes · `yes` \
+                applies · `no` discards\n  identité e90f82f921b0";
+    let block = Committed::proposal(ProposalId::of(said), said);
+    let mut state = UiState::new(Presentation::Workspace, false, (110, 30));
+    state.transcript.push(block.clone());
+    let (rows, _) = drawn(&state, Rect::new(0, 0, 110, 30));
+    let card = words(&rows);
+    let inline = (crate::render::block_lines(&block, false, false).iter())
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    for shown in [&card, &inline] {
+        for kept in [
+            "crée `nika.yaml` (6 lignes)",
+            "« oui » écrit exactement ces octets · « non » abandonne",
+            "`/show` the exact bytes · `yes` applies · `no` discards",
+        ] {
+            assert!(shown.contains(kept), "{kept}\n{shown}");
+        }
+        for hidden in ["e90f82f921b0", "0bf7aa9d6449", "identité", "identity"] {
+            assert!(!shown.contains(hidden), "{hidden}\n{shown}");
+        }
+    }
+    assert_eq!(state.transcript[0], block, "the block keeps every word");
+}
+
+/// The Session's line of the check's hints reads where they are shown, never a terminal (live
+/// gauntlet 6, r04, r08 B9: « 2 conseils pour l'améliorer · `nika-dev check x.nika` les
+/// affiche »): its count kept, the check face of the workflow in view and the key that brings
+/// it, in the line's own language; the block keeps the Session's words.
+#[test]
+fn the_checks_hints_read_where_the_workspace_shows_them() {
+    let hints = ["run-clock · …".to_owned(), "reasoning-cap · …".to_owned()];
+    for (french, here) in [
+        (
+            true,
+            "2 conseils pour l'améliorer · la face vérification les affiche · F6 puis Gauche/Droite",
+        ),
+        (
+            false,
+            "2 hints to improve it · the check face shows them · F6 then Left/Right",
+        ),
+    ] {
+        let line = nika_session::change::compact_hints_in(&hints, "veille.nika", french)
+            .expect("the Session's line of the hints");
+        let said = format!(
+            "applied · wrote `veille.nika`\n  check · `veille.nika` · clean ✔\n    · {line}"
+        );
+        let block = Committed::new(Kind::Reply, said.clone());
+        let mut state = UiState::new(Presentation::Workspace, false, (130, 20));
+        state.transcript.push(block);
+        let (rows, _) = drawn(&state, Rect::new(0, 0, 130, 20));
+        let shown = words(&rows);
+        assert!(shown.contains(here), "{here}\n{shown}");
+        assert!(
+            !shown.contains(" check veille.nika") && !shown.contains("`nika"),
+            "no terminal command: {shown}"
+        );
+        assert!(
+            shown.contains("check · `veille.nika` · clean ✔")
+                || shown.contains("check · veille.nika · clean ✔"),
+            "{shown}"
+        );
+        assert_eq!(
+            state.transcript[0].text, said,
+            "the block keeps the Session's words"
+        );
     }
 }

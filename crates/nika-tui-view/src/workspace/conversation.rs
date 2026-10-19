@@ -13,9 +13,11 @@
 //! never the thread, and never attaches it.
 
 use nika_display::theme::Role;
+use nika_session::Lang;
 use ratatui::text::{Line, Span};
 use unicode_width::UnicodeWidthStr;
 
+use super::lang::say;
 use super::text::{fit_head, marks};
 use crate::visual::icon::Icon;
 use crate::visual::role;
@@ -34,6 +36,8 @@ pub struct Thread {
     pub attached: Vec<String>,
     /// The selected intelligence, as observed by Session.
     pub intelligence: Option<String>,
+    /// The language the panel's own words follow ([`Thread::speaking`]).
+    lang: Lang,
 }
 
 impl Thread {
@@ -46,7 +50,17 @@ impl Thread {
             on_screen: None,
             attached: Vec::new(),
             intelligence: None,
+            lang: Lang::En,
         }
+    }
+
+    /// This conversation with the panel's own words (the recipient, what is
+    /// attached and what is on screen) said in `lang`; English by default.
+    /// Names and references keep their words.
+    #[must_use]
+    pub fn speaking(mut self, lang: Lang) -> Self {
+        self.lang = lang;
+        self
     }
 
     /// The selected model and access, without changing this conversation's recipient.
@@ -88,10 +102,12 @@ pub fn invitation(ascii: bool) -> &'static str {
 /// is known), in words a placeholder can carry.
 #[must_use]
 pub fn placeholder(thread: &Thread) -> String {
+    let said = |en: &str| say(thread.lang, false, en).to_owned();
     if thread.project.is_empty() {
-        format!("Message to {}", thread.name)
+        said("Message to {name}").replace("{name}", &thread.name)
     } else {
-        format!("Message to {} / {}", thread.project, thread.name)
+        (said("Message to {project} / {name}").replace("{name}", &thread.name))
+            .replace("{project}", &thread.project)
     }
 }
 
@@ -149,13 +165,19 @@ pub fn context(thread: &Thread, width: u16, ascii: bool, color: bool) -> Line<'s
     }
     let width = usize::from(width);
     let (sep, cut) = marks(ascii);
-    let (sent, whole) = attached(&thread.attached, width, cut);
+    let words = |en: &str| say(thread.lang, ascii, en).to_owned();
+    let (sent, whole) = attached(&thread.attached, width, (cut, &words));
     let room = width.saturating_sub(sent.width());
     let seen = thread
         .on_screen
         .as_ref()
         .filter(|object| whole && !thread.attached.contains(object))
-        .map(|object| format!("{sep}viewing {object}"))
+        .map(|object| {
+            format!(
+                "{sep}{}",
+                words("viewing {object}").replace("{object}", object)
+            )
+        })
         .filter(|seen| seen.width() <= room || room >= MIN_SEEN);
     let dim = role::style(Role::Dim, color);
     let mut spans = vec![Span::styled(sent, role::style(Role::Strong, color))];
@@ -166,7 +188,12 @@ pub fn context(thread: &Thread, width: u16, ascii: bool, color: bool) -> Line<'s
 /// The references the next message carries, in at most `width` cells, and
 /// whether every one is shown whole: as many whole as fit and how many more,
 /// else the first one cut and how many more, else their count alone.
-fn attached(references: &[String], width: usize, cut: &str) -> (String, bool) {
+fn attached(
+    references: &[String],
+    width: usize,
+    (cut, words): (&str, &dyn Fn(&str) -> String),
+) -> (String, bool) {
+    let attached = words(ATTACHED);
     let count = references.len();
     let more = |shown: usize| {
         if shown < count {
@@ -177,18 +204,21 @@ fn attached(references: &[String], width: usize, cut: &str) -> (String, bool) {
     };
     for shown in (1..=count).rev() {
         let listed = references[..shown].join(", ");
-        let words = format!("{ATTACHED}{listed}{}", more(shown));
-        if words.width() <= width {
-            return (words, shown == count);
+        let said = format!("{attached}{listed}{}", more(shown));
+        if said.width() <= width {
+            return (said, shown == count);
         }
     }
-    let room = width.saturating_sub(ATTACHED.width() + more(1).width());
+    let room = width.saturating_sub(attached.width() + more(1).width());
     match references.first() {
         Some(first) if room >= MIN_REFERENCE => (
-            format!("{ATTACHED}{}{}", fit_head(first, room, cut), more(1)),
+            format!("{attached}{}{}", fit_head(first, room, cut), more(1)),
             false,
         ),
-        _ => (fit_head(&format!("{count} attached"), width, cut), false),
+        _ => {
+            let counted = words("{n} attached").replace("{n}", &count.to_string());
+            (fit_head(&counted, width, cut), false)
+        }
     }
 }
 

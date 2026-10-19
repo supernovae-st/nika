@@ -30,6 +30,7 @@ fn a_run_is_followed_from_its_frames_before_it_settles() {
     std::fs::write(rig.path("slow.nika"), SLOW).expect("slow");
     let mut term = rig.spawn("13-live", 120, 36);
     followed_to_its_settlement(&mut term);
+    rig.no_model_call("an explicit run of a keyless workflow");
 }
 
 /// The same proof with the terminal read in 64-byte slices: the settlement
@@ -41,6 +42,7 @@ fn a_run_is_followed_to_a_complete_settled_frame_read_in_slices() {
     std::fs::write(rig.path("slow.nika"), SLOW).expect("slow");
     let mut term = rig.spawn("13-live-sliced", 120, 36).reading_at_most(64);
     followed_to_its_settlement(&mut term);
+    rig.no_model_call("an explicit run of a keyless workflow");
 }
 
 fn followed_to_its_settlement(term: &mut Term) {
@@ -65,6 +67,12 @@ fn followed_to_its_settlement(term: &mut Term) {
         assert!(shown.contains(said), "{said}\n{}", term.dump());
     }
     assert!(!shown.contains("graph not bound"), "{}", term.dump());
+    // The run settles before the turn that drives it ends: until the Session has read what
+    // the run left, the busy row still works, and a `Ctrl+C` asks that reading to stop. The
+    // door is left from the idle prompt the turn gives back, its status the Session's words.
+    term.wait_workspace_frame("the turn over, its run settled", |s| {
+        s.contains("Last Run · ")
+    });
     term.leave();
 }
 
@@ -83,14 +91,21 @@ outputs:
   written: ${{ tasks.write_output.output }}
 "#;
 
-/// The run's label the object region shows (`run <12 hex>`), when it shows one.
+/// The run's label the workspace shows, by when it began (`run 10-17 07:04:30`), when it
+/// shows one.
 fn run_label(screen: &str) -> Option<String> {
+    let timed = |when: &str| {
+        (when.char_indices()).all(|(at, c)| match at {
+            2 => c == '-',
+            5 => c == ' ',
+            8 | 11 => c == ':',
+            _ => c.is_ascii_digit(),
+        })
+    };
     screen.lines().find_map(|line| {
         line.match_indices("run ").find_map(|(at, _)| {
-            let hex = line.get(at + 4..at + 16)?;
-            hex.chars()
-                .all(|c| c.is_ascii_hexdigit())
-                .then(|| format!("run {hex}"))
+            let when = line.get(at + 4..at + 18)?;
+            timed(when).then(|| format!("run {when}"))
         })
     })
 }
@@ -99,9 +114,16 @@ fn run_label(screen: &str) -> Option<String> {
 fn visit_reopened_history(term: &mut Term, label: &str) {
     // History may span several cards: prove both markers are reachable,
     // without requiring them to occupy the same page or stay pinned forever.
+    // The history's marker is the Session's one notice that the conversation
+    // was restored; no header of the TUI's repeats it.
     let (mut saw_history, mut saw_run) = (false, false);
     for page in 0..=8 {
-        saw_history |= term.screen.contains("earlier in this conversation");
+        saw_history |= term.screen.contains("conversation restored");
+        assert!(
+            !term.screen.contains("earlier in this conversation"),
+            "one notice that the conversation was kept\n{}",
+            term.dump()
+        );
         saw_run |= term.screen.contains("(run)");
         assert!(
             term.text().contains(label),
@@ -222,6 +244,7 @@ fn a_run_result_its_file_and_proof_are_found_again_after_a_reopen() {
     assert_eq!(journal_bytes(&rig), kept, "no journal written or changed");
     assert_eq!(rig.tree(), files, "no file written or changed");
     again.leave();
+    rig.no_model_call("a run, its result and its proof, then a reopen");
 }
 
 /// Every journal under the project's traces, with its bytes.
@@ -313,6 +336,7 @@ fn the_shell_stays_live_while_a_run_proof_is_verified() {
     // The words are the draft alone: never echoed into the conversation.
     assert_eq!(term.text().matches("zz").count(), 1, "{}", term.dump());
     term.leave();
+    rig.no_model_call("a proof verified while words are typed");
 }
 
 /// Two tasks, the second reading a file that is not there: a run that fails
@@ -415,6 +439,9 @@ fn a_task_of_the_run_is_picked_read_and_left() {
         assert!(!raw.contains(hue), "a colour under NO_COLOR: {hue:?}");
     }
     ascii.leave();
+    // A failed run is observed, never repaired by a model the round driver
+    // does not lead (`after_run`, nika-session/src/runtime/agent.rs:434-438).
+    rig.no_model_call("a failed run and its task, twice");
 }
 
 /// A parent whose one task calls a child workflow: both may log (a
@@ -436,6 +463,48 @@ tasks:
     invoke: { tool: "nika:log", args: { message: hello } }
 "#;
 
+/// The execution the child's own journal records: the one `execution` its frames carry, in
+/// the one journal under the rig's `.nika/traces` whose run started the workflow `child`.
+fn child_execution(rig: &Rig) -> String {
+    let frames = |path: std::path::PathBuf| -> Vec<serde_json::Value> {
+        (std::fs::read_to_string(path).expect("journal").lines())
+            .filter_map(|line| serde_json::from_str(line).ok())
+            .collect()
+    };
+    let started_child = |frames: &Vec<serde_json::Value>| {
+        (frames.iter()).any(|frame| {
+            frame["kind"] == "workflow_started" && frame.to_string().contains("\"child\"")
+        })
+    };
+    let children: Vec<Vec<serde_json::Value>> = (std::fs::read_dir(rig.path(".nika/traces")))
+        .expect("traces")
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|e| e == "ndjson"))
+        .map(frames)
+        .filter(started_child)
+        .collect();
+    assert_eq!(children.len(), 1, "one journal of the child");
+    // Every execution a frame carries is an `ExecutionId`; the host names it by its Display.
+    let mut executions: Vec<nika_types::id::ExecutionId> = Vec::new();
+    let carried = (children[0].iter()).filter_map(|frame| frame.get("execution"));
+    for value in carried.filter(|value| !value.is_null()) {
+        let id: nika_types::id::ExecutionId =
+            serde_json::from_value(value.clone()).unwrap_or_else(|error| {
+                panic!("a frame's execution {value} is no ExecutionId: {error}")
+            });
+        if !executions.contains(&id) {
+            executions.push(id);
+        }
+    }
+    assert_eq!(
+        executions.len(),
+        1,
+        "the child's frames record one execution: {executions:?}"
+    );
+    executions[0].to_string()
+}
+
 /// The `.ndjson` journals under the rig's `.nika/traces`.
 fn journals(rig: &Rig) -> usize {
     (std::fs::read_dir(rig.path(".nika/traces")).expect("traces"))
@@ -446,8 +515,9 @@ fn journals(rig: &Rig) -> usize {
 
 /// 17 · From a task of the run, the child run its settle frame named is
 /// opened one level down: the host reads the journal that child really
-/// wrote, says its identity is not recorded (the local child route binds
-/// none), shows the verifier's verdict and the child's own task, and
+/// wrote, names the execution that journal records and leaves its identity
+/// uncompared (the parent's frame names none), shows the verifier's verdict
+/// and the child's own task, and
 /// Backspace returns to the parent's task, then its list, through a resize
 /// and the focus view, running and writing nothing.
 #[test]
@@ -471,10 +541,11 @@ fn a_child_run_is_opened_from_its_task_and_left_for_the_parent() {
     term.wait_until("the child's journal, read", |s| {
         s.contains("child ./child.nika") && s.contains("verdict ·") && s.contains("greet")
     });
+    let child = child_execution(&rig);
     assert!(
-        preview_text(&term.screen).contains(
-            "identity not compared: its execution is not recorded on its frames; the parent's frame names no child execution"
-        ),
+        preview_text(&term.screen).contains(&format!(
+            "identity not compared: it records execution {child}; the parent's frame names no child execution"
+        )),
         "{}",
         term.dump()
     );
@@ -519,6 +590,7 @@ fn a_child_run_is_opened_from_its_task_and_left_for_the_parent() {
         assert!(!raw.contains(hue), "a colour under NO_COLOR: {hue:?}");
     }
     ascii.leave();
+    rig.no_model_call("a composed run and its child journal, twice");
 }
 
 /// An explicit combined consent goes through the existing Session door from
@@ -534,24 +606,41 @@ fn an_explicit_save_and_run_lands_the_shown_bytes_and_one_real_result() {
     let mut term = rig.spawn("31-save-run", 120, 40);
     wait_workspace(&mut term);
     term.send("Read ./notes/brief.md and write it to ./out/copy.md\r");
+    // The decision offers the combined act only when the shown set can run
+    // once; the object shows the bytes it would save, its source face read here.
     term.wait_workspace_frame("the proposal before explicit Save and Run", |screen| {
-        screen.contains("Save?") && shown_bytes(&preview_text(screen)).is_some()
+        action_holds(screen)
+            && screen.contains("Save and run once")
+            && preview_text(screen).contains("these bytes, the proposal's own")
     });
-    let witness = shown_bytes(&preview_text(&term.screen)).expect("shown source witness");
+    term.keys(F6);
+    term.keys(LEFT);
+    term.keys(LEFT);
+    term.wait_workspace_frame("the source it would save", |screen| {
+        screen.contains("[source]") && source_rows(screen).len() >= 20
+    });
+    let source = source_rows(&term.screen);
+    term.keys(ESC);
     assert_eq!(rig.tree(), before, "preparation writes no project file");
     assert!(
         !rig.path(".nika/traces").exists(),
         "preparation starts no Run"
     );
-    term.send("save & run\r");
+    // « Save and run once » is the second offer (Save workflow · Save and run
+    // once · Discard · Inspect): nothing is preselected, so two Downs select
+    // it, and Enter sends its exact key (`save & run`) once.
+    term.send(&DOWN.repeat(2));
+    term.wait_workspace_frame("the combined act selected", |screen| {
+        action_holds(screen) && screen.contains("(●) Save and run once")
+    });
+    term.send("\r");
     term.wait_workspace_frame("the combined action's observed result", |screen| {
         screen.contains("settled · succeeded") && screen.contains("nika ›")
     });
-    let saved = std::fs::read(rig.path("compiled-workflow.nika")).expect("saved source");
-    assert_eq!(
-        short_witness(&saved),
-        witness,
-        "Run starts from the shown source"
+    let saved = std::fs::read_to_string(rig.path("compiled-workflow.nika")).expect("saved source");
+    assert!(
+        shows_source(&source, &saved, 20),
+        "Run starts from the shown source:\n{saved}\nshown: {source:#?}"
     );
     assert_eq!(
         std::fs::read(rig.path("out/copy.md")).expect("the Run's output"),
@@ -580,6 +669,7 @@ fn an_explicit_save_and_run_lands_the_shown_bytes_and_one_real_result() {
     term.leave();
     assert_eq!(journal_bytes(&rig), traces, "closing repeats no Run");
     assert_eq!(rig.tree(), files, "closing writes no file");
+    rig.no_model_call("a deterministic copy saved and run once");
 }
 
 /// 15 · A settled run's story folds to one row at its commit: the run's
@@ -606,6 +696,7 @@ fn an_old_folded_run_reads_whole_at_its_reading_position() {
         let mut term = rig.spawn_with(tag, args, cols, rows, env);
         an_old_run_read_at_its_position(&mut term, sep);
         term.leave();
+        rig.no_model_call(&format!("{tag}: runs, help and an old run read"));
     }
 }
 
@@ -613,8 +704,7 @@ fn an_old_folded_run_reads_whole_at_its_reading_position() {
 /// the diamond's folded story stands far above. Scrolled back to it, `F2`
 /// and a press on its row each open its words; closing returns the screen.
 fn an_old_run_read_at_its_position(term: &mut Term, sep: &str) {
-    let text = |screen: &vt::Screen| screen.lines().join("\n");
-    let folded = format!("{sep}succeeded{sep}F2");
+    let folded = format!("{sep}F2");
     // The project's list stands in the aside from 120 columns only: the
     // workspace is up at every size once its composer invites a line.
     term.wait_until("the workspace at this size", |s| {
@@ -630,6 +720,8 @@ fn an_old_run_read_at_its_position(term: &mut Term, sep: &str) {
     );
     let old = run_label(&term.text()).expect("the diamond's run");
     let fold = format!("{old}{folded}");
+    // A run is named by the second it began: the next one begins in a later second.
+    std::thread::sleep(std::time::Duration::from_millis(1_100));
     term.send("/help\r");
     // The help card's last word stands on its last row at every width.
     term.wait_workspace_frame("a long reply after it", |s| s.contains("read)."));
@@ -646,8 +738,15 @@ fn an_old_run_read_at_its_position(term: &mut Term, sep: &str) {
         }
         term.keys(PAGE_UP);
     }
+    // One folded run in view: a fold row is a run's name (`run <when>`) then the reader key.
+    let folds = |s: &vt::Screen| {
+        (s.lines().iter())
+            .filter_map(|line| run_label(line).map(|label| (line.clone(), label)))
+            .filter(|(line, label)| line.contains(&format!("{label}{folded}")))
+            .count()
+    };
     term.wait_workspace_frame("scrolled back to the diamond's folded story", |s| {
-        s.contains(&fold) && text(s).matches(&folded).count() == 1
+        s.contains(&fold) && folds(s) == 1
     });
     let before = term.text();
     let opened = |s: &vt::Screen| {

@@ -20,9 +20,12 @@
 pub mod aside;
 pub mod candidate;
 pub mod conversation;
+pub mod fired;
 pub mod geometry;
 pub mod header;
 pub mod inspect;
+pub(crate) mod lang;
+pub mod live;
 pub mod masthead;
 pub mod object;
 pub mod pinned;

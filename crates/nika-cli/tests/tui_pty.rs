@@ -8,12 +8,15 @@
 #![allow(clippy::disallowed_types)]
 //! The renderer's first five seconds (UX-2 · ADR-139): a human launches
 //! `nika` with `NIKA_TUI=inline`, the same session opens behind the inline viewport, a
-//! sentence becomes a proposal committed above the composer, `oui` lands the
-//! exact bytes and the real check runs, « run it » hands the terminal back
-//! to the plain run path and the observation returns into the viewport,
-//! `/quit` closes the door with the terminal restored. Keyless: the kept
-//! choice is « no AI in this conversation », the compiler is the frozen
-//! product base. The plain loop's own suites stay the law of bare `nika`.
+//! sentence becomes a proposal committed above the composer, `oui` typed at its
+//! decision lands the exact bytes and the real check runs, « run it » hands the
+//! terminal back to the plain run path and the observation returns into the
+//! viewport, `/quit` closes the door with the terminal restored. Keyless: the
+//! kept intelligence is a loopback model on 127.0.0.1 that keeps every request
+//! it receives, so the session opens on its free prompt, never on the
+//! intelligence chooser; a sentence meant for the compiler takes the round
+//! driver, whose compiler is the frozen product base, and reaches no model.
+//! The plain loop's own suites stay the law of bare `nika`.
 //!
 //! Two facts a real terminal supplies and this harness must: the inline
 //! viewport anchors on a cursor-position report (`ESC[6n`, answered here
@@ -26,6 +29,20 @@
 )]
 mod vt;
 
+#[path = "support/loopback_model.rs"]
+#[allow(
+    dead_code,
+    reason = "the inline suite keeps the loopback model as its intelligence, not its choice text"
+)]
+mod loopback_model;
+
+#[path = "support/finite_action.rs"]
+#[allow(
+    dead_code,
+    reason = "the inline suite reads the painted action and chooses with part of its keys"
+)]
+mod finite_action;
+
 use std::io::Write as _;
 use std::path::Path;
 use std::process::Command;
@@ -35,6 +52,7 @@ use expectrl::process::unix::{PtyStream, UnixProcess, WaitStatus};
 use expectrl::session::{OsSession, Session};
 use expectrl::stream::log::LogStream;
 use expectrl::{Eof, Expect};
+use loopback_model::{Model, SAID};
 
 type LoggedSession = Session<UnixProcess, LogStream<PtyStream, std::io::Stderr>>;
 
@@ -50,9 +68,11 @@ fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_nika")
 }
 
-/// A project root and a home whose kept choice is « no AI in this
-/// conversation »: authoring stays deterministic, no model is contacted.
-fn rig(tag: &str) -> (tempfile::TempDir, tempfile::TempDir) {
+/// A project root and a home whose kept intelligence is the loopback model
+/// (`vllm` on 127.0.0.1, every request it receives kept): the session opens on
+/// its free prompt, never on the intelligence chooser a keyless home opens
+/// first, and a line reaches the model only when a seat must answer it.
+fn rig(tag: &str) -> (tempfile::TempDir, tempfile::TempDir, Model) {
     let project = tempfile::Builder::new()
         .prefix(&format!("nika-tui-{tag}-"))
         .tempdir()
@@ -61,14 +81,19 @@ fn rig(tag: &str) -> (tempfile::TempDir, tempfile::TempDir) {
         .prefix(&format!("nika-tui-home-{tag}-"))
         .tempdir()
         .expect("home dir");
-    std::fs::create_dir_all(home.path().join(".nika")).expect("home .nika");
-    std::fs::write(
-        home.path().join(".nika").join("session-intelligence.json"),
-        "{\"kind\":{\"kind\":\"none\"},\"model\":null,\"chosen_at\":\"2026-09-20T00:00:00Z\"}",
-    )
-    .expect("kept choice");
-    (project, home)
+    let model = Model::start();
+    Model::chosen_in(home.path());
+    (project, home, model)
 }
+
+/// The round driver's conversation: a sentence the compiler settles becomes
+/// its own proposal with no model asked, where a ready seat would otherwise
+/// lead the conversation (`NIKA_SESSION_DRIVER`, read once at open).
+const ROUNDS: (&str, &str) = ("NIKA_SESSION_DRIVER", "rounds");
+
+/// A line with an accent, an emoji, CJK and diaereses: every cell width the
+/// composer meets, sent whole to the seat that answers it.
+const UNICODE_LINE: &str = "héllo 🦋 日本語 ünïcödé";
 
 /// The inline viewport asks where the cursor is; a terminal answers, so
 /// does this harness (row 24 of 24).
@@ -83,20 +108,19 @@ fn answer_cursor_report(session: &mut LoggedSession) {
     session.send("\x1b[24;1R").expect("answer the report");
 }
 
-/// Bare `nika` on a PTY in `project`, with `home` as the home. Returns the
-/// session and the time the banner took to reach the terminal.
-fn open_tui(project: &Path, home: &Path) -> (LoggedSession, Duration) {
-    let mut cmd = Command::new(bin());
-    cmd.current_dir(project)
-        .env_remove("CLICOLOR")
-        .env_remove("CLICOLOR_FORCE")
-        .env("NO_COLOR", "1")
-        .env("TERM", "xterm-256color")
-        .env("HOME", home)
-        .env("NIKA_KEYCHAIN", "off")
-        // This suite qualifies the inline door; bare `nika` opens the
-        // workspace (tests/workspace_pty.rs).
-        .env("NIKA_TUI", "inline");
+/// Bare `nika` on a PTY in `project`, with `home` as the home, `model` serving
+/// its kept intelligence and `env` beside it. Returns the session and the time
+/// the banner took to reach the terminal.
+fn open_tui(
+    project: &Path,
+    home: &Path,
+    model: &Model,
+    env: &[(&str, &str)],
+) -> (LoggedSession, Duration) {
+    let mut cmd = tui_command(project, home, model, "xterm-256color");
+    for (key, value) in env {
+        cmd.env(key, value);
+    }
     let started = Instant::now();
     let session = OsSession::spawn(cmd).expect("pty spawn");
     let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
@@ -139,13 +163,13 @@ fn compiled_candidate(project: &Path, intent: &str) -> String {
 /// bytes → check → run (the terminal handed back) → observation → quit.
 #[test]
 fn the_renderer_takes_a_sentence_to_a_file_and_gives_the_terminal_back() {
-    let (project, home) = rig("copy-fr");
+    let (project, home, model) = rig("copy-fr");
     let brief = "# Brief\n\nLe lancement passe en octobre. Budget : 12k.\n";
     std::fs::create_dir_all(project.path().join("notes")).expect("notes");
     std::fs::write(project.path().join("notes/brief.md"), brief).expect("brief");
     let intent = "Lis ./notes/brief.md et écris-le dans ./out/copie.md";
 
-    let (mut session, first_paint) = open_tui(project.path(), home.path());
+    let (mut session, first_paint) = open_tui(project.path(), home.path(), &model, &[ROUNDS]);
     let _ = writeln!(
         std::io::stderr(),
         "[tui_pty] first paint after spawn: {first_paint:?}"
@@ -162,9 +186,12 @@ fn the_renderer_takes_a_sentence_to_a_file_and_gives_the_terminal_back() {
     session
         .expect("compiled-workflow.nika")
         .expect("the proposal names the file it would write");
-    // The diff renderer skips the cell the two prompts share: assert on the
-    // word, never on the whole prompt.
-    session.expect("Save?").expect("the consent prompt");
+    // The consent is a finite action whose prompt the diff renderer parts from
+    // its first word: the painted `action ›` row is read whole, then the
+    // consent keeps its own word, typed in the decision's own field.
+    session
+        .expect(finite_action::PAINTED)
+        .expect("the consent decision is painted");
     session.send("oui\r").expect("consent");
     session
         .expect("compiled-workflow.nika")
@@ -205,14 +232,18 @@ fn the_renderer_takes_a_sentence_to_a_file_and_gives_the_terminal_back() {
         compiled_candidate(project.path(), intent),
         "the bytes the session landed are the compiler's own candidate"
     );
+    assert!(
+        model.bodies().is_empty(),
+        "the compiler proposed, the consent saved and the run ran: no model request"
+    );
 }
 
 /// C · `/help` answers from the engine, committed above the composer, and
 /// the prompt comes back free; no busy state is drawn for a slash command.
 #[test]
 fn help_is_answered_by_the_engine_inside_the_viewport() {
-    let (project, home) = rig("help");
-    let (mut session, _first_paint) = open_tui(project.path(), home.path());
+    let (project, home, model) = rig("help");
+    let (mut session, _first_paint) = open_tui(project.path(), home.path(), &model, &[]);
     session.send("/help\r").expect("help");
     session
         .expect("/intelligence")
@@ -222,13 +253,17 @@ fn help_is_answered_by_the_engine_inside_the_viewport() {
     session.send("/quit\r").expect("quit");
     session.expect(Eof).expect("closes");
     assert_eq!(exit_code(&mut session), 0);
+    assert!(
+        model.bodies().is_empty(),
+        "the engine answered the help: no model request"
+    );
 }
 
 /// B · a pipe never reaches the renderer: `--tui` on a pipe is the
 /// concierge, not a terminal owner, and prints no escape sequence.
 #[test]
 fn tui_on_a_pipe_keeps_the_concierge_and_writes_no_escape_sequence() {
-    let (project, home) = rig("pipe");
+    let (project, home, _model) = rig("pipe");
     let out = Command::new(bin())
         .current_dir(project.path())
         .env("NO_COLOR", "1")
@@ -305,8 +340,9 @@ impl Tee {
 
 type TeeSession = Session<UnixProcess, LogStream<PtyStream, Tee>>;
 
-/// The bare `nika` command on a PTY in `project` with `home`.
-fn tui_command(project: &Path, home: &Path, term: &str) -> Command {
+/// The bare `nika` command on a PTY in `project` with `home`, `model` serving
+/// its kept intelligence (the `vllm` route's base URL override).
+fn tui_command(project: &Path, home: &Path, model: &Model, term: &str) -> Command {
     let mut cmd = Command::new(bin());
     cmd.current_dir(project)
         .env_remove("CLICOLOR")
@@ -315,6 +351,9 @@ fn tui_command(project: &Path, home: &Path, term: &str) -> Command {
         .env("TERM", term)
         .env("HOME", home)
         .env("NIKA_KEYCHAIN", "off")
+        .env("NIKA_VLLM_BASE_URL", model.base())
+        // This suite qualifies the inline door; bare `nika` opens the
+        // workspace (tests/workspace_pty.rs).
         .env("NIKA_TUI", "inline");
     cmd
 }
@@ -323,19 +362,26 @@ fn tui_command(project: &Path, home: &Path, term: &str) -> Command {
 /// The size is set before the renderer's first paint; a `SIGWINCH` the
 /// child sees only makes it ask the cursor position once more, which the
 /// opener answers as a terminal would.
-fn spawn_sized(project: &Path, home: &Path, cols: u16, rows: u16) -> (TeeSession, Tee) {
-    spawn_sized_with(project, home, cols, rows, &[])
+fn spawn_sized(
+    project: &Path,
+    home: &Path,
+    model: &Model,
+    cols: u16,
+    rows: u16,
+) -> (TeeSession, Tee) {
+    spawn_sized_with(project, home, model, cols, rows, &[])
 }
 
 /// [`spawn_sized`] with extra environment (a seat's endpoint and key).
 fn spawn_sized_with(
     project: &Path,
     home: &Path,
+    model: &Model,
     cols: u16,
     rows: u16,
     env: &[(&str, &str)],
 ) -> (TeeSession, Tee) {
-    let mut cmd = tui_command(project, home, "xterm-256color");
+    let mut cmd = tui_command(project, home, model, "xterm-256color");
     for (key, value) in env {
         cmd.env(key, value);
     }
@@ -350,18 +396,50 @@ fn spawn_sized_with(
     (session, tee)
 }
 
+/// What [`answer_until`] waits for: words, or the painted `action ›` row of a
+/// finite action, whose two words the diff renderer may part with a cursor
+/// move ([`finite_action::PAINTED`]; the title's « action required » never
+/// matches it).
+#[derive(Clone, Copy)]
+enum Wanted<'a> {
+    Words(&'a str),
+    Action,
+}
+
 /// Answer cursor reports until `needle` shows: a terminal answers every
 /// `ESC[6n`, whether the viewport asked at entry or after a resize.
 fn answer_until(session: &mut TeeSession, tee: &Tee, rows: u16, needle: &str) {
+    answer_until_wanted(session, tee, rows, Wanted::Words(needle));
+}
+
+/// [`answer_until`] for a finite action's painted `action ›` row: its keys
+/// are sent only once it shows.
+fn answer_until_action(session: &mut TeeSession, tee: &Tee, rows: u16) {
+    answer_until_wanted(session, tee, rows, Wanted::Action);
+}
+
+fn answer_until_wanted(session: &mut TeeSession, tee: &Tee, rows: u16, wanted: Wanted<'_>) {
+    let what = match wanted {
+        Wanted::Words(needle) => format!("`{needle}`"),
+        Wanted::Action => "the painted `action ›`".to_owned(),
+    };
     for _ in 0..6 {
-        let found = match session.expect(expectrl::Any::boxed(vec![
-            Box::new(DA_QUERY),
-            Box::new(CURSOR_QUERY),
-            Box::new(needle.to_owned()),
-        ])) {
+        let asked = match wanted {
+            Wanted::Words(needle) => session.expect(expectrl::Any::boxed(vec![
+                Box::new(DA_QUERY),
+                Box::new(CURSOR_QUERY),
+                Box::new(needle.to_owned()),
+            ])),
+            Wanted::Action => session.expect(expectrl::Any::boxed(vec![
+                Box::new(DA_QUERY),
+                Box::new(CURSOR_QUERY),
+                Box::new(finite_action::PAINTED),
+            ])),
+        };
+        let found = match asked {
             Ok(found) => found,
             Err(error) => panic!(
-                "{error}: neither the cursor query nor `{needle}` came; the child wrote:\n{}",
+                "{error}: neither the cursor query nor {what} came; the child wrote:\n{}",
                 tee.text()
             ),
         };
@@ -376,7 +454,7 @@ fn answer_until(session: &mut TeeSession, tee: &Tee, rows: u16, needle: &str) {
             return;
         }
     }
-    panic!("the viewport kept asking where the cursor is instead of drawing `{needle}`");
+    panic!("the viewport kept asking where the cursor is instead of drawing {what}");
 }
 
 /// Read the terminal's painted state, including diff updates that do not
@@ -420,6 +498,35 @@ fn empty_composer(screen: &vt::Screen) -> bool {
     screen.lines().iter().any(|row| row.trim() == "nika ›")
 }
 
+/// A finite action holds the line: its `action ›` row is painted (a committed
+/// echo starts with `› `, never with the prompt) and the offer `label` shows
+/// above it. Its offers paint only once no turn works, so they take keys now.
+fn decision(screen: &vt::Screen, label: &str) -> bool {
+    screen.row_starting("action ›").is_some() && screen.contains(label)
+}
+
+/// The screen `tee` reads holds a finite action offering every one of
+/// `labels` ([`decision`]); `at` names the moment for the failure.
+fn assert_decision(tee: &Tee, labels: &[&str], at: &str) {
+    let screen = tee.screen.lock().expect("screen");
+    assert!(
+        labels.iter().all(|label| decision(&screen, label)),
+        "{at}: no finite action offering {labels:?}:\n{}",
+        screen.text()
+    );
+}
+
+/// [`assert_decision`] for acts that read in English or in the person's
+/// language: each act shows in one of its forms.
+fn assert_decision_in_either(tee: &Tee, acts: &[[&str; 2]], at: &str) {
+    let screen = tee.screen.lock().expect("screen");
+    assert!(
+        (acts.iter()).all(|forms| forms.iter().any(|label| decision(&screen, label))),
+        "{at}: no finite action offering {acts:?}:\n{}",
+        screen.text()
+    );
+}
+
 /// D · the renderer opens, helps and closes at three terminal sizes: the
 /// laptop split (60×20), the classic (80×24), the wide (120×40). The help
 /// card is committed above the viewport whole; the prompt comes back; the
@@ -427,8 +534,8 @@ fn empty_composer(screen: &vt::Screen) -> bool {
 #[test]
 fn the_renderer_opens_helps_and_closes_at_three_sizes() {
     for (cols, rows) in [(60u16, 20u16), (80, 24), (120, 40)] {
-        let (project, home) = rig(&format!("size-{cols}x{rows}"));
-        let (mut session, tee) = spawn_sized(project.path(), home.path(), cols, rows);
+        let (project, home, model) = rig(&format!("size-{cols}x{rows}"));
+        let (mut session, tee) = spawn_sized(project.path(), home.path(), &model, cols, rows);
         answer_until(&mut session, &tee, rows, "automate?");
         answer_until(&mut session, &tee, rows, "nika ›");
         session.send("/help\r").expect("help");
@@ -452,22 +559,31 @@ fn the_renderer_opens_helps_and_closes_at_three_sizes() {
 }
 
 /// E · a resize while a proposal waits: the viewport re-anchors (it asks
-/// the cursor position again), the consent prompt is drawn again at the
-/// new size, a `non` discards, the prompt comes back, the terminal is
-/// restored. Down to the laptop split, then up to the wide terminal.
+/// the cursor position again), the consent decision is drawn again at the
+/// new size, a `non` typed in its own field discards, the prompt comes back,
+/// the terminal is restored. Down to the laptop split, then up to the wide
+/// terminal.
 #[test]
 fn a_resize_while_a_proposal_waits_redraws_the_consent_prompt() {
-    let (project, home) = rig("resize");
+    let (project, home, model) = rig("resize");
     std::fs::create_dir_all(project.path().join("notes")).expect("notes");
     std::fs::write(project.path().join("notes/brief.md"), "brief\n").expect("brief");
-    let (mut session, tee) = spawn_sized(project.path(), home.path(), 80, 24);
+    let (mut session, tee) =
+        spawn_sized_with(project.path(), home.path(), &model, 80, 24, &[ROUNDS]);
     answer_until(&mut session, &tee, 24, "automate?");
     answer_until(&mut session, &tee, 24, "nika ›");
     session
         .send("Lis ./notes/brief.md et écris-le dans ./out/copie.md\r")
         .expect("the intent");
     answer_until(&mut session, &tee, 24, "compiled-workflow.nika");
-    answer_until(&mut session, &tee, 24, "Save?");
+    // The consent is a finite action: its offers, then its `action ›` row. The request is
+    // French, so the acts this host builds may read in French: either form is the same act.
+    let consent = [
+        ["Save workflow", "Enregistrer le workflow"],
+        ["Discard this proposal", "Écarter cette proposition"],
+    ];
+    answer_until_action(&mut session, &tee, 24);
+    assert_decision_in_either(&tee, &consent, "80x24");
     assert!(
         tee.saw("· action required"),
         "the title says « action required » while the consent waits"
@@ -477,10 +593,13 @@ fn a_resize_while_a_proposal_waits_redraws_the_consent_prompt() {
             .get_process_mut()
             .set_window_size(cols, rows)
             .expect("resize");
+        tee.screen.lock().expect("screen").resize(cols, rows);
         // The inline viewport re-anchors on a fresh cursor report, then
-        // draws the same waiting state at the new size.
-        answer_until(&mut session, &tee, rows, "Save?");
+        // draws the same waiting decision at the new size.
+        answer_until_action(&mut session, &tee, rows);
+        assert_decision_in_either(&tee, &consent, &format!("{cols}x{rows}"));
     }
+    // The consent keeps its free-text door: its own word, typed in its field.
     session.send("non\r").expect("discard");
     answer_until(&mut session, &tee, 40, "nika ›");
     assert!(
@@ -493,6 +612,10 @@ fn a_resize_while_a_proposal_waits_redraws_the_consent_prompt() {
     let text = tee.text();
     assert!(!text.contains("panicked"), "{text}");
     assert!(tee.saw("\x1b[?2004l"), "the terminal is restored");
+    assert!(
+        model.bodies().is_empty(),
+        "the compiler proposed and the discard sent nothing: no model request"
+    );
 }
 
 /// F · `TERM=dumb` on a real terminal: the renderer refuses the terminal,
@@ -500,9 +623,9 @@ fn a_resize_while_a_proposal_waits_redraws_the_consent_prompt() {
 /// cursor query, no CSI sequence, the human's question, the prompt.
 #[test]
 fn term_dumb_opens_the_plain_session_without_escape_sequences() {
-    let (project, home) = rig("dumb");
-    let session =
-        OsSession::spawn(tui_command(project.path(), home.path(), "dumb")).expect("pty spawn");
+    let (project, home, model) = rig("dumb");
+    let cmd = tui_command(project.path(), home.path(), &model, "dumb");
+    let session = OsSession::spawn(cmd).expect("pty spawn");
     let tee = Tee::new(80, 24);
     let mut session = expectrl::session::log(session, tee.clone()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(120)));
@@ -533,9 +656,9 @@ fn term_dumb_opens_the_plain_session_without_escape_sequences() {
 /// so once, and the plain session opens — never a frozen door.
 #[test]
 fn a_mute_cursor_report_falls_back_to_the_plain_session() {
-    let (project, home) = rig("mute");
-    let session = OsSession::spawn(tui_command(project.path(), home.path(), "xterm-256color"))
-        .expect("pty spawn");
+    let (project, home, model) = rig("mute");
+    let cmd = tui_command(project.path(), home.path(), &model, "xterm-256color");
+    let session = OsSession::spawn(cmd).expect("pty spawn");
     let tee = Tee::new(80, 24);
     let mut session = expectrl::session::log(session, tee.clone()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(120)));
@@ -572,53 +695,138 @@ fn a_mute_cursor_report_falls_back_to_the_plain_session() {
 
 // ── T8 · interruptions while a seat is called ───────────────────────────
 
-/// A loopback endpoint that accepts and never answers: the seat call it
-/// receives stalls until the door gives up (or the caller leaves). Returns
-/// the base URL a local engine route reads from `NIKA_OLLAMA_BASE_URL`.
-fn stall_server() -> String {
+/// The model of the local seat the stalling endpoint holds.
+const STALLED: &str = "stall-fixture";
+
+/// The requests the stalling endpoint holds, as each arrived whole.
+type Held = std::sync::mpsc::Receiver<String>;
+
+/// The stalling endpoint's answer to a `GET`: whole, empty, closed.
+const NOT_FOUND: &[u8] =
+    b"HTTP/1.0 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+
+/// Whether `request` arrived whole: its head ended, and its body is as long as
+/// its `Content-Length` says (none without one).
+fn complete(request: &[u8]) -> bool {
+    let Some(end) = request.windows(4).position(|window| window == b"\r\n\r\n") else {
+        return false;
+    };
+    let head = String::from_utf8_lossy(&request[..end]);
+    let length = (head.lines())
+        .filter_map(|line| line.split_once(':'))
+        .find(|(name, _)| name.trim().eq_ignore_ascii_case("content-length"))
+        .and_then(|(_, value)| value.trim().parse::<usize>().ok())
+        .unwrap_or(0);
+    request.len() >= end + 4 + length
+}
+
+/// A loopback endpoint for a local seat: it answers every `GET` at once (the
+/// transport's liveness check reads one byte of any answer before the first
+/// call; a mute endpoint is refused there and no call leaves) and holds every
+/// other request unanswered, until the door gives up (or the caller leaves).
+/// Returns the base URL a local engine route reads from
+/// `NIKA_OLLAMA_BASE_URL`, and each held request, read whole.
+fn stall_server() -> (String, Held) {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port");
     let port = listener.local_addr().expect("addr").port();
+    let (received, held) = std::sync::mpsc::channel();
     let _ = std::thread::Builder::new()
         .name("stall".to_owned())
         .spawn(move || {
             for stream in listener.incoming().flatten() {
+                let received = received.clone();
                 let _ = std::thread::Builder::new()
                     .name("stall-conn".to_owned())
                     .spawn(move || {
+                        let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+                        let mut request = Vec::new();
                         let mut sink = [0u8; 4096];
-                        let _ = std::io::Read::read(&mut &stream, &mut sink);
+                        while let Ok(read @ 1..) = std::io::Read::read(&mut &stream, &mut sink) {
+                            request.extend_from_slice(&sink[..read]);
+                            if complete(&request) || request.len() > 1 << 20 {
+                                break;
+                            }
+                        }
+                        if request.starts_with(b"GET ") {
+                            let _ = std::io::Write::write_all(&mut &stream, NOT_FOUND);
+                            return;
+                        }
+                        let _ = received.send(String::from_utf8_lossy(&request).into_owned());
                         std::thread::sleep(Duration::from_secs(120));
                         drop(stream);
                     });
             }
         });
-    format!("http://127.0.0.1:{port}")
+    (format!("http://127.0.0.1:{port}"), held)
+}
+
+/// The model a held request's JSON body names, when the request is a whole
+/// generation call (`POST /api/chat`, the Ollama wire).
+fn generation_model(request: &str) -> Option<String> {
+    let (head, body) = request.split_once("\r\n\r\n")?;
+    if !head.starts_with("POST /api/chat ") || !complete(request.as_bytes()) {
+        return None;
+    }
+    let body: serde_json::Value = serde_json::from_str(body).ok()?;
+    body.get("model")?.as_str().map(str::to_owned)
+}
+
+/// The first held generation call for [`STALLED`], within `wait`; every
+/// other request held meanwhile is named in the failure.
+fn held_call(held: &Held, wait: Duration) -> String {
+    let deadline = Instant::now() + wait;
+    let mut others = Vec::new();
+    while let Ok(request) = held.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+        if generation_model(&request).as_deref() == Some(STALLED) {
+            return request;
+        }
+        others.push(request);
+    }
+    panic!("no generation call for `{STALLED}` reached the stalling endpoint; it held {others:?}");
 }
 
 /// Drive the renderer to a seat call that stalls: the seat is a local engine
-/// (`3 ollama/…`) on the stalling endpoint, the line is a question only a
-/// seat answers. Not an API seat: an unknown-cost API route over plain HTTP
-/// is refused before any request leaves (`nika-providers` admission review ·
-/// exact HTTPS route and model), so a loopback stub never holds its call.
-fn stalled_turn(tag: &str) -> (TeeSession, Tee) {
-    let (project, home) = rig(tag);
-    let base = stall_server();
+/// (`3 ollama/…`) on the stalling endpoint, typed over the intelligence list
+/// as its expert route, which no row matches and `Enter` sends as typed
+/// (never the recommendation the list preselects); the line is a question
+/// only a seat answers. The setup returns once the endpoint holds that
+/// line's whole generation call naming the stalled model. Not an API seat:
+/// an unknown-cost API route over plain HTTP is refused before any request
+/// leaves (`nika-providers` admission review · exact HTTPS route and model),
+/// so a loopback stub never holds its call. The kept loopback model and the
+/// endpoint's later held requests come back for the caller to read.
+fn stalled_turn(tag: &str) -> (TeeSession, Tee, Model, Held) {
+    let (project, home, model) = rig(tag);
+    let (base, held) = stall_server();
     let (mut session, tee) = spawn_sized_with(
         project.path(),
         home.path(),
+        &model,
         80,
         24,
         &[("NIKA_OLLAMA_BASE_URL", base.as_str())],
     );
     answer_until(&mut session, &tee, 24, "automate?");
-    session.send("/intelligence\r").expect("the first screen");
-    screen_until(&mut session, &tee, "the intelligence choice", |screen| {
-        screen.contains("Needs your choice of intelligence")
-            && screen.contains("1 account · 2 API · 3 local · 4 no AI")
+    screen_until(&mut session, &tee, "the free prompt", empty_composer);
+    session.send("/intelligence\r").expect("the list");
+    screen_until(&mut session, &tee, "the intelligence list", |screen| {
+        screen.contains("Intelligence for this conversation")
+            && screen.row_starting("choice ›").is_some()
     });
+    let route = format!("3 ollama/{STALLED}");
     session
-        .send("3 ollama/stall-fixture\r")
+        .send(&route)
         .expect("a local seat on the stalling endpoint");
+    screen_until(
+        &mut session,
+        &tee,
+        "the route typed, matching no row",
+        |screen| {
+            screen.contains(&format!("choice › {route}"))
+                && screen.contains("Enter sends it as typed")
+        },
+    );
+    session.send("\r").expect("the route sent as typed");
     screen_until(
         &mut session,
         &tee,
@@ -628,6 +836,7 @@ fn stalled_turn(tag: &str) -> (TeeSession, Tee) {
                 && empty_composer(screen)
                 && !screen.contains("seating the intelligence")
                 && !screen.contains("Needs your choice")
+                && screen.row_starting("choice ›").is_none()
         },
     );
     session
@@ -636,23 +845,22 @@ fn stalled_turn(tag: &str) -> (TeeSession, Tee) {
     screen_until(&mut session, &tee, "the working turn", |screen| {
         screen.contains("working through your words")
     });
+    held_call(&held, Duration::from_secs(30));
     std::mem::forget(project);
     std::mem::forget(home);
-    (session, tee)
+    (session, tee, model, held)
 }
 
-/// H · a seat call that never returns: one `Ctrl+C` warns in the busy row
-/// (the call cannot be recalled), a second one leaves at once with the
-/// terminal restored — never a wait for the call.
-#[test]
-fn ctrl_c_twice_leaves_a_stalled_seat_call_at_once() {
-    let (mut session, tee) = stalled_turn("stall-ctrl-c");
-    // Let the loader turn a few frames (one every 100 ms) before interrupting.
-    std::thread::sleep(Duration::from_millis(350));
-    let pressed = Instant::now();
-    session.send("\x03").expect("Ctrl+C once");
-    answer_until(&mut session, &tee, 24, "again");
-    session.send("\x03").expect("Ctrl+C again");
+/// The door left a stalled seat call: 130, at once from the first press, the
+/// loader turned while the call stalled, the terminal restored, nothing sent
+/// to the kept model and the stopped call never sent again.
+fn left_the_stalled_call(
+    pressed: Instant,
+    session: &mut TeeSession,
+    tee: &Tee,
+    model: &Model,
+    held: &Held,
+) {
     if let Err(error) = session.expect(Eof) {
         panic!(
             "the door did not leave ({error}); the child wrote:\n{}",
@@ -660,7 +868,7 @@ fn ctrl_c_twice_leaves_a_stalled_seat_call_at_once() {
         );
     }
     let left = pressed.elapsed();
-    assert_eq!(exit_code(&mut session), 130, "left by an interruption");
+    assert_eq!(exit_code(session), 130, "left by an interruption");
     assert!(
         ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
             .iter()
@@ -678,13 +886,64 @@ fn ctrl_c_twice_leaves_a_stalled_seat_call_at_once() {
         tee.saw("\x1b[?2004l"),
         "the terminal is restored on the way out"
     );
+    assert!(
+        model.bodies().is_empty(),
+        "the line went to the chosen seat, never to the kept one"
+    );
+    let again: Vec<String> = held.try_iter().collect();
+    assert!(
+        again.is_empty(),
+        "the stopped call was sent again: {again:?}"
+    );
+}
+
+/// H · a seat call that never returns: one `Ctrl+C` asks the preparation to
+/// stop (the call already sent cannot be recalled) and says a second press
+/// leaves; the second one leaves at once with the terminal restored — never
+/// a wait for the call, whether or not the stopped turn has ended by then.
+/// The line is French, so the shell says its own words in French.
+#[test]
+fn ctrl_c_twice_leaves_a_stalled_seat_call_at_once() {
+    let (mut session, tee, model, held) = stalled_turn("stall-ctrl-c");
+    // Let the loader turn a few frames (one every 100 ms) before interrupting.
+    std::thread::sleep(Duration::from_millis(350));
+    let pressed = Instant::now();
+    session.send("\x03").expect("Ctrl+C once");
+    answer_until(&mut session, &tee, 24, "encore");
+    session.send("\x03").expect("Ctrl+C again");
+    left_the_stalled_call(pressed, &mut session, &tee, &model, &held);
+}
+
+/// H′ · the same stop, its second press made only once the stopped turn has
+/// settled at the free prompt: that prompt still says the next `Ctrl+C`
+/// leaves (any other key stays), and it does. The line is French, so the
+/// shell says its own words in French.
+#[test]
+fn a_stopped_seat_call_keeps_its_second_press_once_it_settles() {
+    let (mut session, tee, model, held) = stalled_turn("stall-settled");
+    std::thread::sleep(Duration::from_millis(350));
+    let pressed = Instant::now();
+    session.send("\x03").expect("Ctrl+C once");
+    screen_until(
+        &mut session,
+        &tee,
+        "the stopped turn settled, the next press still armed",
+        |screen| {
+            screen.contains("décrivez un travail")
+                && screen.contains("Ctrl+C encore quitte")
+                && screen.contains("autre touche reste")
+                && !screen.contains("arrêt de la préparation")
+        },
+    );
+    session.send("\x03").expect("Ctrl+C again");
+    left_the_stalled_call(pressed, &mut session, &tee, &model, &held);
 }
 
 /// I · `SIGTERM` while a seat call stalls: the door leaves at once with
 /// 143, the terminal restored, the call left to die with the process.
 #[test]
 fn sigterm_during_a_stalled_seat_call_leaves_with_143() {
-    let (mut session, tee) = stalled_turn("stall-sigterm");
+    let (mut session, tee, model, _held) = stalled_turn("stall-sigterm");
     let pid = session.get_process().pid().to_string();
     let sent = Instant::now();
     let killed = Command::new("kill")
@@ -703,15 +962,19 @@ fn sigterm_during_a_stalled_seat_call_leaves_with_143() {
         tee.saw("\x1b[?2004l"),
         "the terminal is restored on the way out"
     );
+    assert!(
+        model.bodies().is_empty(),
+        "the line went to the chosen seat, never to the kept one"
+    );
 }
 
 /// J · a gated run inside the viewport: the run pauses headless at its
-/// human gate, the gate view asks in the viewport with its own prompt,
-/// the human's `y` resumes through the same lane, the effect happens
-/// exactly once and the result says approved. No terminal handoff.
+/// human gate, the gate asks in the viewport as a finite action, the
+/// human's « Approve this step » resumes through the same lane, the effect
+/// happens exactly once and the result says approved. No terminal handoff.
 #[test]
 fn a_gated_run_pauses_inside_the_viewport_and_the_answer_resumes_it() {
-    let (project, home) = rig("gate-in-viewport");
+    let (project, home, model) = rig("gate-in-viewport");
     let draft = "the draft to publish\n";
     std::fs::write(project.path().join("draft.md"), draft).expect("draft");
     std::fs::write(
@@ -719,7 +982,7 @@ fn a_gated_run_pauses_inside_the_viewport_and_the_answer_resumes_it() {
         "nika: approve-then-write\npermits:\n  fs: { read: [\"./draft.md\"], write: [\"./final.md\"] }\n  tools: [\"nika:read\", \"nika:prompt\", \"nika:write\"]\ntasks:\n  read_draft:\n    invoke: { tool: \"nika:read\", args: { path: \"./draft.md\" } }\n  approve:\n    after: { read_draft: success }\n    invoke: { tool: \"nika:prompt\", args: { mode: confirm, message: \"Write final.md from the draft?\" } }\n  write_final:\n    after: { approve: success }\n    with: { go: \"${{ tasks.approve.output }}\", text: \"${{ tasks.read_draft.output }}\" }\n    when: \"${{ with.go == true }}\"\n    invoke: { tool: \"nika:write\", args: { path: \"./final.md\", content: \"${{ with.text }}\" } }\n",
     )
     .expect("gated workflow");
-    let (mut session, tee) = spawn_sized(project.path(), home.path(), 100, 30);
+    let (mut session, tee) = spawn_sized(project.path(), home.path(), &model, 100, 30);
     answer_until(&mut session, &tee, 30, "automate?");
     session.send("run approve.nika\r").expect("the run line");
     answer_until(&mut session, &tee, 30, "$0.25");
@@ -728,10 +991,14 @@ fn a_gated_run_pauses_inside_the_viewport_and_the_answer_resumes_it() {
         !project.path().join("final.md").exists(),
         "nothing is written before the human answers"
     );
-    answer_until(&mut session, &tee, 30, "answer");
+    // A confirm gate takes no typed word: « Approve this step » is its first
+    // offer, chosen with the arrows once the decision is painted.
+    let gate = ["Approve this step", "Refuse this step", "Explain this step"];
+    answer_until_action(&mut session, &tee, 30);
+    assert_decision(&tee, &gate, "the gate");
     session
-        .send("y\r")
-        .expect("the human answers in the viewport");
+        .send(finite_action::choose(0))
+        .expect("the human approves in the viewport");
     answer_until(&mut session, &tee, 30, "resuming");
     answer_until(&mut session, &tee, 30, "approved");
     answer_until(&mut session, &tee, 30, "observed");
@@ -760,12 +1027,13 @@ fn a_gated_run_pauses_inside_the_viewport_and_the_answer_resumes_it() {
 
 /// K · `Tab` completes a slash command from the session's own list and
 /// the completed line runs; the title names the project. T05 · a line
-/// with an accent, an emoji and CJK goes through the composer and comes
-/// back whole in the committed echo.
+/// with an accent, an emoji and CJK goes through the composer, comes
+/// back whole in the committed echo and reaches the seat that answers it
+/// whole.
 #[test]
 fn tab_completes_a_slash_command_and_unicode_goes_through_whole() {
-    let (project, home) = rig("polish");
-    let (mut session, tee) = spawn_sized(project.path(), home.path(), 100, 30);
+    let (project, home, model) = rig("polish");
+    let (mut session, tee) = spawn_sized(project.path(), home.path(), &model, 100, 30);
     answer_until(&mut session, &tee, 30, "automate?");
     assert!(
         tee.saw("\x1b]0;nika · "),
@@ -777,7 +1045,7 @@ fn tab_completes_a_slash_command_and_unicode_goes_through_whole() {
     session.send("\r").expect("run the completed command");
     answer_until(&mut session, &tee, 30, "observed");
     session
-        .send("héllo 🦋 日本語 ünïcödé\r")
+        .send(format!("{UNICODE_LINE}\r"))
         .expect("a line with wide and combined characters");
     // the committed echo: a wide glyph is its own cell run (the diff moves
     // the cursor after each), so the needle is the last word, then every
@@ -786,7 +1054,11 @@ fn tab_completes_a_slash_command_and_unicode_goes_through_whole() {
     for glyph in ["héllo", "🦋", "日", "本", "語", "ünïcödé"] {
         assert!(tee.saw(glyph), "`{glyph}` never came back:\n{}", tee.text());
     }
-    answer_until(&mut session, &tee, 30, "conversational");
+    // Only a seat answers the line: the loopback model's words come back
+    // committed above the free prompt, the turn over.
+    screen_until(&mut session, &tee, "the seat's reply", |screen| {
+        screen.contains(SAID) && empty_composer(screen)
+    });
     session.send("/quit\r").expect("quit");
     session.expect(Eof).expect("closes");
     assert_eq!(exit_code(&mut session), 0);
@@ -810,6 +1082,13 @@ fn tab_completes_a_slash_command_and_unicode_goes_through_whole() {
         pushed < set && set < popped,
         "push, set, pop in that order: {pushed} {set} {popped}"
     );
+    let bodies = model.bodies();
+    assert!(
+        bodies
+            .iter()
+            .any(|body| body.to_string().contains(UNICODE_LINE)),
+        "the seat was asked with the exact line: {bodies:#?}"
+    );
 }
 
 /// A run the door refuses before its first frame — here the cost floor
@@ -819,7 +1098,7 @@ fn tab_completes_a_slash_command_and_unicode_goes_through_whole() {
 /// check sees is named by the session before any lane starts.)
 #[test]
 fn a_refused_run_names_its_reason_inside_the_viewport() {
-    let (project, home) = rig("refused-run");
+    let (project, home, model) = rig("refused-run");
     // A directly priced route reaches the floor; an unpriced route asks for
     // a fresh cost decision instead, which is exercised by tui_run_cost.
     std::fs::write(
@@ -827,7 +1106,7 @@ fn a_refused_run_names_its_reason_inside_the_viewport() {
         "nika: floor\nmodel: deepseek/deepseek-flash\npermits: {}\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 5000 }\n",
     )
     .expect("a priced workflow");
-    let (mut session, tee) = spawn_sized(project.path(), home.path(), 100, 30);
+    let (mut session, tee) = spawn_sized(project.path(), home.path(), &model, 100, 30);
     answer_until(&mut session, &tee, 30, "automate?");
     session
         .send("run floor.nika with a ceiling of 0.000001\r")
@@ -881,8 +1160,8 @@ fn record_until(session: &mut TeeSession, raw: &mut Vec<u8>, rows: u16, needle: 
 /// is left out: it is the same line under both flags and no glyph of the
 /// renderer.
 fn door_text(flag: &str, prompt: &str, leave: &[(&str, &str)]) -> (String, i32) {
-    let (project, home) = rig(flag.trim_start_matches('-'));
-    let mut cmd = tui_command(project.path(), home.path(), "xterm-256color");
+    let (project, home, model) = rig(flag.trim_start_matches('-'));
+    let mut cmd = tui_command(project.path(), home.path(), &model, "xterm-256color");
     cmd.arg(flag);
     let mut session = OsSession::spawn(cmd).expect("pty spawn");
     session
@@ -976,13 +1255,14 @@ fn ascii_keeps_the_renderer_in_its_twins_and_plain_keeps_the_loop() {
 /// remains on the normal terminal after restoration and leaves the holder usable.
 #[test]
 fn a_locked_history_refusal_survives_fullscreen_exit_and_preserves_its_owner() {
-    let (project, home) = rig("locked-history");
-    let (mut owner, owner_tee) = spawn_sized(project.path(), home.path(), 120, 40);
+    let (project, home, model) = rig("locked-history");
+    let (mut owner, owner_tee) = spawn_sized(project.path(), home.path(), &model, 120, 40);
     answer_until(&mut owner, &owner_tee, 40, "nika ›");
     owner.send("/hel").expect("type without submitting");
     let (mut refused, tee) = spawn_sized_with(
         project.path(),
         home.path(),
+        &model,
         120,
         40,
         &[("NIKA_TUI", "workspace")],

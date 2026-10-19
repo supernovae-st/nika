@@ -5805,9 +5805,13 @@ version = "0.123.0-preview.1"
 dependencies = [
  "crossterm",
  "expectrl",
+ "jiff",
+ "nika-arm",
+ "nika-cadence",
  "nika-cli-host",
  "nika-display",
  "nika-fs",
+ "nika-runtime",
  "nika-session",
  "nika-trace",
  "nika-tui-view",
@@ -5836,10 +5840,13 @@ dependencies = [
 name = "nika-tui-view"
 version = "0.123.0-preview.1"
 dependencies = [
+ "jiff",
+ "jiff-tzdb",
  "nika-cli-host",
  "nika-display",
  "nika-session",
  "ratatui",
+ "serde_json",
  "sha2 0.10.9",
  "unicode-width 0.2.2",
 ]

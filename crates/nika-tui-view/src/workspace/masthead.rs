@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The header's composition: one quiet row with the brand, the project's
-//! identity and, one blank cell before its right end, the intelligence
+//! The header's composition: one quiet row with the brand (the wordmark
+//! `nika.`, its dot in the exec hue), the project's identity and, one blank
+//! cell before its right end, the intelligence
 //! selected for preparation, its one home on the screen (the region names
 //! follow it while the project list is folded). A two-row header draws a
 //! thin rule under that row, or that intelligence whole where the first row
@@ -10,6 +11,7 @@
 //! `/status`'s; a refused `nika.yaml` stays, it needs action.
 
 use nika_display::theme::Role;
+use nika_session::Lang;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
@@ -17,8 +19,10 @@ use ratatui::widgets::{Paragraph, Widget};
 use unicode_width::UnicodeWidthStr;
 
 use crate::visual::icon::Icon;
-use crate::visual::role;
+use crate::visual::logomark;
+use crate::visual::role::{self, Depth};
 use crate::workspace::header::{self, Manifest, Place};
+use crate::workspace::lang::say;
 use crate::workspace::text::marks;
 
 /// The cells of a name kept at least before the cut mark.
@@ -40,14 +44,20 @@ const REFUSED: &str = "  nika.yaml refused";
 /// The command that says the intelligence, the location and the facts whole.
 const DETAILS: &str = "/status";
 
-/// The brand opening the header, then its air.
-const fn brand(ascii: bool) -> &'static str {
-    if ascii { "NIKA  " } else { "◆ NIKA  " }
+/// The air after the brand that opens the header.
+const BRAND_AIR: &str = "  ";
+
+/// The brand opening the header, the same wordmark in both glyph columns,
+/// then its air: the name in the accent, its dot in the exec hue.
+fn brand(color: bool) -> Line<'static> {
+    let mut lead = logomark::wordmark(role::style(Role::Accent, color), Depth::of_palette(color));
+    lead.spans.push(Span::raw(BRAND_AIR));
+    lead
 }
 
 /// The cells of the project's glyph and whole name.
 fn named(place: &Place, ascii: bool) -> usize {
-    let name = place.project.as_deref().unwrap_or("no project");
+    let name = (place.project.as_deref()).unwrap_or_else(|| say(place.lang(), ascii, "no project"));
     Icon::Project.glyph(ascii).width() + 1 + name.width()
 }
 
@@ -56,15 +66,15 @@ fn named(place: &Place, ascii: bool) -> usize {
 /// whole).
 #[must_use]
 pub fn least_place(place: &Place, ascii: bool) -> usize {
-    let name = place.project.as_deref().unwrap_or("no project");
+    let name = (place.project.as_deref()).unwrap_or_else(|| say(place.lang(), ascii, "no project"));
     let start = name.width().min(NAME_KEPT) + marks(ascii).1.width();
     (Icon::Project.glyph(ascii).width() + 1 + start).min(named(place, ascii))
 }
 
 /// The cells a refused `nika.yaml` adds to the place.
-fn refusal(place: &Place) -> usize {
+fn refusal(place: &Place, ascii: bool) -> usize {
     if place.manifest == Some(Manifest::Refused) {
-        REFUSED.width()
+        say(place.lang(), ascii, REFUSED).width()
     } else {
         0
     }
@@ -75,8 +85,8 @@ fn refusal(place: &Place) -> usize {
 /// own words (the name strong, what it is quieter: that gives way first,
 /// then the brand, then the end of the name, marked as cut) and a refusal.
 fn place_line(place: &Place, room: usize, ascii: bool, color: bool) -> Line<'static> {
-    let rest = room.saturating_sub(refusal(place));
-    let lead = brand(ascii);
+    let rest = room.saturating_sub(refusal(place, ascii));
+    let lead = brand(color);
     let branded = rest >= lead.width() + named(place, ascii);
     let kept = rest - if branded { lead.width() } else { 0 };
     let kept = u16::try_from(kept).unwrap_or(u16::MAX);
@@ -85,11 +95,12 @@ fn place_line(place: &Place, room: usize, ascii: bool, color: bool) -> Line<'sta
         .next();
     let mut spans = Vec::new();
     if branded {
-        spans.push(Span::styled(lead, role::style(Role::Accent, color)));
+        spans.extend(lead.spans);
     }
     spans.extend(identity.unwrap_or_default().spans);
-    if refusal(place) > 0 {
-        spans.push(Span::styled(REFUSED, role::style(Role::Warn, color)));
+    if refusal(place, ascii) > 0 {
+        let refused = say(place.lang(), ascii, REFUSED).to_owned();
+        spans.push(Span::styled(refused, role::style(Role::Warn, color)));
     }
     Line::from(spans)
 }
@@ -104,16 +115,16 @@ fn place_line(place: &Place, room: usize, ascii: bool, color: bool) -> Line<'sta
 fn intelligence_line(
     seat: Option<&str>,
     room: usize,
-    ascii: bool,
-    color: bool,
+    (ascii, color, lang): (bool, bool, Lang),
 ) -> Option<Line<'static>> {
     let (sep, cut) = marks(ascii);
     let quiet = role::style(Role::Dim, color);
-    let label = || Span::styled(PREPARE_WITH, quiet);
+    let prepare = say(lang, ascii, PREPARE_WITH);
+    let label = || Span::styled(prepare.to_owned(), quiet);
     let forms = if let Some(seat) = seat {
         let details = || Span::styled(format!("{sep}{DETAILS}"), quiet);
         let tail = sep.width() + DETAILS.len();
-        let budget = room.saturating_sub(PREPARE_WITH.len() + tail);
+        let budget = room.saturating_sub(prepare.width() + tail);
         let mut forms = vec![vec![label(), Span::raw(seat.to_owned())]];
         forms.extend(
             words_head(seat, budget, cut).map(|start| vec![label(), Span::raw(start), details()]),
@@ -121,7 +132,10 @@ fn intelligence_line(
         forms.push(vec![Span::styled(DETAILS, quiet)]);
         forms
     } else {
-        let none = || Span::styled("not selected", role::style(Role::Strong, color));
+        let none = || {
+            let words = say(lang, ascii, "not selected").to_owned();
+            Span::styled(words, role::style(Role::Strong, color))
+        };
         let choose = || Span::styled(format!("{sep}/intelligence"), quiet);
         vec![
             vec![label(), none(), choose()],
@@ -168,9 +182,10 @@ fn compose(
     (width, rows): (usize, u16),
     (ascii, color): (bool, bool),
 ) -> Composed {
-    let whole = intelligence_line(seat, usize::MAX, ascii, color);
+    let said = (ascii, color, place.lang());
+    let whole = intelligence_line(seat, usize::MAX, said);
     let cells = whole.as_ref().map_or(0, Line::width);
-    let floor = refusal(place) + GAP;
+    let floor = refusal(place, ascii) + GAP;
     if room >= named(place, ascii) + floor + cells {
         return Composed {
             place: place_line(place, room - GAP - cells, ascii, color),
@@ -184,11 +199,10 @@ fn compose(
         return Composed {
             place: place_line(place, room, ascii, color),
             beside: None,
-            under: intelligence_line(seat, under, ascii, color),
+            under: intelligence_line(seat, under, said),
         };
     }
-    let fit =
-        |kept: usize| intelligence_line(seat, room.saturating_sub(kept + floor), ascii, color);
+    let fit = |kept: usize| intelligence_line(seat, room.saturating_sub(kept + floor), said);
     let beside = fit(named(place, ascii)).or_else(|| fit(least_place(place, ascii)));
     let used = beside.as_ref().map_or(0, |line| line.width() + GAP);
     Composed {

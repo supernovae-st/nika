@@ -18,7 +18,9 @@ pub(super) fn reply_label(outcome: &TurnOutcome) -> Option<&'static str> {
 
 impl Live {
     /// Only a quiet reply beside a retained Run needs the distinction. A pending
-    /// proposal, question or gate keeps its own actionable status, unchanged.
+    /// proposal, question or gate keeps its own actionable status, unchanged. The label is
+    /// said in the person's language, before the Session's own status (live gauntlet 6, r05,
+    /// r08, r09: « Latest reply above · Dernier run · … »).
     pub(super) fn reply_footer(&self, label: Option<&str>) -> Vec<Beat> {
         let mut beats = self.footer();
         let run = self
@@ -30,6 +32,11 @@ impl Live {
                 .as_ref()
                 .is_some_and(|r| r.as_ref().is_ok_and(|r| r.exit.is_some()));
         if let Some(label) = label.filter(|_| run && self.quiet_prompt()) {
+            let voice = crate::lang::Voice {
+                lang: self.lang(),
+                ascii: self.ascii,
+            };
+            let label = voice.say(label);
             for beat in &mut beats {
                 if let Beat::Status(status) = beat {
                     *status = format!("{label} · {status}");

@@ -8,6 +8,11 @@
 //! still belong to `nika_display`, while these RGB hues belong only to the
 //! TUI: the renderer and every viewer paint with this one mapping, and the
 //! CLI keeps its own terminal-theme mapping. `NO_COLOR` carries no hue.
+//!
+//! The brand's own tones ([`Tone`]) are the shared design tokens' values:
+//! the butterfly's ice and glow, and the exec hue of the wordmark's dot.
+//! They alone follow the terminal's [`Depth`]: their own hue in 24-bit
+//! colour, the nearest xterm-256 index, the nearest bright ANSI slot.
 
 use nika_display::theme::Role;
 use ratatui::style::{Color, Modifier, Style};
@@ -22,6 +27,86 @@ const PANEL: Color = Color::Rgb(16, 22, 33);
 const BORDER: Color = Color::Rgb(45, 59, 82);
 /// The fill of the selected or active object.
 const SELECTION: Color = Color::Rgb(20, 45, 73);
+
+/// `brand.color.mark.ice`: the butterfly's identity tone on dark surfaces.
+const ICE: Color = Color::Rgb(0x9f, 0xd0, 0xff);
+/// `brand.color.mark.glow`: light the reveal has just lit.
+const GLOW: Color = Color::Rgb(0xcf, 0xe6, 0xff);
+/// `verbs.exec.color`: the exec hue the wordmark's dot wears.
+const EXEC: Color = Color::Rgb(0xff, 0x7a, 0x3c);
+
+/// A tone of the brand lockup, the one place the brand's own hues appear.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Tone {
+    /// The butterfly at rest.
+    Ice,
+    /// A part of the butterfly the reveal has just lit, before it settles.
+    Glow,
+    /// The dot that closes the wordmark.
+    Dot,
+}
+
+/// How many hues a terminal cell can wear, as its caller read them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Depth {
+    /// No hue: `NO_COLOR`, or colour refused.
+    None,
+    /// The 16 ANSI slots, whose hues the user's theme decides.
+    Ansi16,
+    /// The xterm 256-colour palette.
+    Ansi256,
+    /// 24-bit colour.
+    Rgb,
+}
+
+impl Depth {
+    /// The depth a caller's readings prove: none without `color`, 24-bit
+    /// where `truecolor` says `COLORTERM` read `truecolor` or `24bit`, the
+    /// 256 colours a `term` such as `xterm-256color` names, else the 16 slots.
+    #[must_use]
+    pub fn of(color: bool, truecolor: bool, term: Option<&str>) -> Self {
+        if !color {
+            Self::None
+        } else if truecolor {
+            Self::Rgb
+        } else if term.is_some_and(|term| term.contains("256color")) {
+            Self::Ansi256
+        } else {
+            Self::Ansi16
+        }
+    }
+
+    /// The depth the workspace palette itself assumes: 24-bit wherever
+    /// colour is allowed, as every role above.
+    #[must_use]
+    pub const fn of_palette(color: bool) -> Self {
+        if color { Self::Rgb } else { Self::None }
+    }
+}
+
+/// The style of a brand `tone` at `depth`: the token's own hue in 24-bit
+/// colour; its nearest xterm-256 index (least RGB distance over the cube and
+/// the grey ramp); in the 16 slots, bright cyan for the butterfly at rest
+/// (the nearest bright blue or cyan), bright white for new light and the exec
+/// verb's own bright yellow for the dot; no hue at all without colour.
+#[must_use]
+pub fn tone(tone: Tone, depth: Depth) -> Style {
+    let hue = match (depth, tone) {
+        (Depth::None, _) => return Style::default(),
+        (Depth::Rgb, Tone::Ice) => ICE,
+        (Depth::Rgb, Tone::Glow) => GLOW,
+        (Depth::Rgb, Tone::Dot) => EXEC,
+        (Depth::Ansi256, Tone::Ice) => Color::Indexed(153),
+        (Depth::Ansi256, Tone::Glow) => Color::Indexed(189),
+        (Depth::Ansi256, Tone::Dot) => Color::Indexed(209),
+        (Depth::Ansi16, Tone::Ice) => Color::LightCyan,
+        (Depth::Ansi16, Tone::Glow) => Color::White,
+        (Depth::Ansi16, Tone::Dot) => Color::LightYellow,
+    };
+    Style::default().fg(hue)
+}
 
 /// The style of `role`. The secondary RGB text stays legible on dark
 /// surfaces. Without colour, dim and strong retain only their text weights.
@@ -153,6 +238,103 @@ mod tests {
         };
         assert!(light(GROUND) < light(PANEL) && light(PANEL) < light(SELECTION));
         assert!(light(SELECTION) < light(BORDER));
+    }
+
+    /// The value `key: "#rrggbb"` takes in the vendored design tokens, read
+    /// after the line `section` (the shared vocabulary is spec-first: a hue
+    /// changes there and this table follows).
+    fn token(section: &str, key: &str) -> Color {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../nika-pack/pack/design-tokens.yaml");
+        let tokens = std::fs::read_to_string(&path).expect("the vendored design tokens");
+        let hex = tokens
+            .split_once(section)
+            .and_then(|(_, rest)| {
+                rest.lines()
+                    .find_map(|line| line.trim().strip_prefix(&format!("{key}: \"#")))
+            })
+            .and_then(|rest| rest.get(..6))
+            .unwrap_or_else(|| panic!("{key} under {section:?} in {}", path.display()));
+        let channel = |at: usize| u8::from_str_radix(&hex[at..at + 2], 16).expect("hex");
+        Color::Rgb(channel(0), channel(2), channel(4))
+    }
+
+    #[test]
+    fn brand_tones_are_the_shared_design_tokens() {
+        assert_eq!(token("    mark:\n", "ice"), ICE);
+        assert_eq!(token("    mark:\n", "glow"), GLOW);
+        assert_eq!(token("  exec:\n", "color"), EXEC);
+        assert_eq!(tone(Tone::Ice, Depth::Rgb), Style::default().fg(ICE));
+        assert_eq!(tone(Tone::Glow, Depth::Rgb), Style::default().fg(GLOW));
+        assert_eq!(tone(Tone::Dot, Depth::Rgb), Style::default().fg(EXEC));
+    }
+
+    /// The xterm-256 colour of `index` (16 to 255: the 6×6×6 cube, then the
+    /// grey ramp).
+    fn xterm(index: u8) -> (i32, i32, i32) {
+        const LEVELS: [i32; 6] = [0, 95, 135, 175, 215, 255];
+        let i = usize::from(index);
+        if i >= 232 {
+            let grey = 8 + 10 * (i32::from(index) - 232);
+            return (grey, grey, grey);
+        }
+        let cube = i - 16;
+        (LEVELS[cube / 36], LEVELS[cube / 6 % 6], LEVELS[cube % 6])
+    }
+
+    #[test]
+    fn every_smaller_palette_takes_the_nearest_slot() {
+        for brand in [Tone::Ice, Tone::Glow, Tone::Dot] {
+            let Some(Color::Rgb(red, green, blue)) = tone(brand, Depth::Rgb).fg else {
+                panic!("{brand:?} has no 24-bit hue");
+            };
+            let wanted = [red, green, blue].map(i32::from);
+            let distance = |index: u8| {
+                let (cube_red, cube_green, cube_blue) = xterm(index);
+                [cube_red, cube_green, cube_blue]
+                    .iter()
+                    .zip(wanted)
+                    .map(|(slot, want)| (slot - want).pow(2))
+                    .sum::<i32>()
+            };
+            let nearest = (16..=255).min_by_key(|index| distance(*index));
+            assert_eq!(
+                tone(brand, Depth::Ansi256).fg,
+                nearest.map(Color::Indexed),
+                "{brand:?}"
+            );
+        }
+        // The 16 slots are the user's theme: the mark keeps a bright blue or
+        // cyan, new light the brightest slot, the dot the exec verb's own.
+        assert_eq!(tone(Tone::Ice, Depth::Ansi16).fg, Some(Color::LightCyan));
+        assert_eq!(tone(Tone::Glow, Depth::Ansi16).fg, Some(Color::White));
+        assert_eq!(tone(Tone::Dot, Depth::Ansi16).fg, Some(Color::LightYellow));
+        let exec = nika_display::theme::Theme::new(true, false, false).paint(Role::VerbExec, "");
+        assert!(exec.starts_with("\x1b[93m"), "{exec:?}");
+    }
+
+    #[test]
+    fn without_colour_no_tone_carries_a_hue() {
+        for brand in [Tone::Ice, Tone::Glow, Tone::Dot] {
+            assert_eq!(tone(brand, Depth::None), Style::default(), "{brand:?}");
+        }
+    }
+
+    #[test]
+    fn the_depth_follows_what_its_caller_read() {
+        let xterm = Some("xterm-256color");
+        assert_eq!(Depth::of(false, true, xterm), Depth::None);
+        assert_eq!(Depth::of(true, true, xterm), Depth::Rgb);
+        assert_eq!(Depth::of(true, true, None), Depth::Rgb);
+        assert_eq!(Depth::of(true, false, xterm), Depth::Ansi256);
+        assert_eq!(
+            Depth::of(true, false, Some("tmux-256color")),
+            Depth::Ansi256
+        );
+        assert_eq!(Depth::of(true, false, Some("xterm")), Depth::Ansi16);
+        assert_eq!(Depth::of(true, false, None), Depth::Ansi16);
+        assert_eq!(Depth::of_palette(true), Depth::Rgb);
+        assert_eq!(Depth::of_palette(false), Depth::None);
     }
 
     #[test]

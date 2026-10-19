@@ -19,7 +19,7 @@
 //! Nothing here retries, turns the knowledge off or changes a model: the way
 //! on is a step the human takes.
 
-use crate::model::{Committed, Kind};
+use crate::model::{Committed, Fold, Kind};
 
 /// What a workspace card paints of one block.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,8 +32,8 @@ pub(crate) enum Shown {
     /// block's text is the detail.
     Banner(String),
     /// A run's story folded at its commit (`Committed::run`): one quiet row
-    /// of the run's label and settled state; the block's text is the detail.
-    Folded((String, &'static str)),
+    /// of the run's label and the reader key; the block's text is the detail.
+    Folded(Fold),
 }
 
 /// A recognised refusal, in four parts.

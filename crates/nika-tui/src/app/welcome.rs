@@ -2,19 +2,20 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The welcome's one-shot clock belongs to the shell, never to the renderer.
-//! Only the next distinct frame wakes an idle shell: the last reveal frame is
-//! the final mark, so the reveal's end draws nothing new and wakes nothing.
+//! Only the next distinct frame wakes an idle shell for the reveal: the last
+//! reveal frame is the final mark, so the reveal's end draws nothing new and
+//! wakes nothing ([`super::idle`] waits for it, beside its own light ask).
 //! Ordinary input uses the same broker and interrupts that wait. Hiding the
 //! welcome stops its wakeups without restarting the reveal when it returns.
 
-use std::io;
-use std::sync::mpsc::RecvTimeoutError;
 use std::time::{Duration, Instant};
 
-use super::{Broker, Conversation, Paint, Presentation, Shell, UiEvent, project};
+use super::{Conversation, Paint, Presentation, Shell, project};
+use crate::model::{Committed, Kind};
 use crate::visual::logomark::{REVEAL_AT, REVEAL_ENDS};
 use crate::workspace::focus::Region;
 use crate::workspace::geometry::{self, ASIDE_MIN_WIDTH};
+use crate::workspace::object::Object;
 
 #[derive(Debug, Default)]
 pub(super) struct Reveal {
@@ -47,12 +48,39 @@ impl Reveal {
         elapsed
     }
 
-    fn wait(&self, now: Instant) -> Option<Duration> {
+    pub(super) fn wait(&self, now: Instant) -> Option<Duration> {
         self.next.map(|at| at.saturating_duration_since(now))
     }
 }
 
 impl<C: Conversation + 'static> Shell<C> {
+    /// `/welcome`: the welcome again ([`super::WELCOME`]). In the workspace it stands as the
+    /// object in view, beside the conversation, until another object takes its place
+    /// ([`crate::workspace::desk::Desk::welcome_again`]); elsewhere its words are said in the
+    /// conversation, its mark aside. Nothing reaches the Session.
+    pub(super) fn welcome_again(&mut self) -> std::io::Result<()> {
+        if self.state.presentation == Presentation::Workspace && geometry::fits(self.state.size) {
+            self.desk.welcome_again();
+            return Ok(());
+        }
+        let view = self.desk.view.as_ref();
+        let welcome =
+            crate::workspace::project::welcome_in(view, self.state.ascii, self.state.lang);
+        let Object::Welcome { words } = welcome else {
+            return Ok(());
+        };
+        let said = (words.iter().skip(1).map(String::as_str)).collect::<Vec<_>>();
+        let said = said
+            .join(
+                "
+",
+            )
+            .trim()
+            .to_owned();
+        self.keep_reading(|state, _| state.transcript.push(Committed::new(Kind::Notice, said)));
+        self.commit_inline()
+    }
+
     pub(super) fn welcome_paint(&mut self) -> Paint {
         let visible = self.state.presentation == Presentation::Workspace
             && geometry::fits(self.state.size)
@@ -74,27 +102,12 @@ impl<C: Conversation + 'static> Shell<C> {
             reduced_motion: self.options.reduced_motion,
         }
     }
-
-    pub(super) fn next_event(&mut self, broker: &mut Broker) -> io::Result<Option<UiEvent>> {
-        loop {
-            if let Some(event) = self.deferred.pop_front() {
-                return Ok(Some(event));
-            }
-            let Some(wait) = self.welcome.wait(Instant::now()) else {
-                return Ok(broker.recv());
-            };
-            match broker.recv_timeout(wait) {
-                Ok(event) => return Ok(Some(event)),
-                Err(RecvTimeoutError::Disconnected) => return Ok(None),
-                Err(RecvTimeoutError::Timeout) => self.draw()?,
-            }
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::visual::logomark::Glyphs;
 
     #[test]
     fn only_reveal_boundaries_wake_the_shell_then_it_blocks() {
@@ -106,12 +119,15 @@ mod tests {
             let next = REVEAL_AT.get(index + 1).map(|next| *next - at);
             assert_eq!(reveal.wait(start + at), next, "frame {index}");
         }
-        // The last frame is the final mark at every size: the end wakes nothing.
+        // The last frame is the final mark at every size in both glyph sets:
+        // the end wakes nothing.
         for size in crate::visual::logomark::Size::ALL {
-            assert_eq!(
-                size.at(REVEAL_ENDS, false),
-                size.at(REVEAL_AT[REVEAL_AT.len() - 1], false)
-            );
+            for glyphs in [Glyphs::Ramp, Glyphs::Braille] {
+                assert_eq!(
+                    size.at(glyphs, REVEAL_ENDS, false),
+                    size.at(glyphs, REVEAL_AT[REVEAL_AT.len() - 1], false)
+                );
+            }
         }
         assert_eq!(reveal.paint(start + REVEAL_ENDS, true, false), REVEAL_ENDS);
         assert_eq!(reveal.wait(start + REVEAL_ENDS), None);

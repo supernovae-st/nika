@@ -38,6 +38,46 @@ Today the crate renders the live Session: `nika-session` turn outcomes
 become typed beats, and the CLI door injects the runners. The
 `nika-tui-core` board law and the tachyonfx effects are not wired yet.
 
+Finite Session decisions use `Waiting::Action` and the same native choice control:
+Save, eligible Save-and-Run, discard and inspection; one-use cost decisions;
+confirmation and structured choice gates; the schedule's missed-run policy; and
+retry/discard for an exact unjudged continuation. Nothing is preselected,
+arrow keys only move, and Enter sends the exact existing Session protocol token.
+Esc never answers a decision or a question: it empties the own reply, then the
+selection, then sends nothing and says so; its no, cancel and discard rows are
+sent only by Enter on them.
+The echo names the displayed act. A private presentation nonce and the owner's
+waiting identity scope each act; cost evidence and the activation context are
+checked again before dispatch. Consent also requires the exact visible proposal.
+Stale or repeated answers never become new intent. Native inspection, cost evidence
+and confirmation explanations open the existing full reader on the exact block
+returned by that validated act. The renewed menu remains underneath, with no pick
+selected; Escape, Enter or F2 returns to it without answering. Refused or stale
+acts, interrupted turns, handoffs and replacement proposals never open an old
+block. Details keep the decision open, and F2 retains its full cost or gate context. Consent keeps an optional free reply
+for revisions, and qualification keeps one for corrections. A saved workflow whose run was
+refused for a drift from its rehearsal (`stale_saved_run`) offers one act, a request to
+adapt it to the files as they are now, beside a free reply; it is proposed and admitted
+afresh, never run on the withdrawn proof. The optional offer about the last result
+(`Work.feedback.offer`) is such an act at the free prompt, a multiple choice for an
+adjustment, where « Nothing to change » and « Later » stand alone (checking one clears the
+others, checking another clears it). A selected row or checked set leaves the shell as a pick
+(`Conversation::pick_bound`, an act; a conversation without it gets the keys as an answer)
+and answers the offer by its identity; words typed there, whatever they read as, go to the
+conversation as the person's next line, and Esc sends nothing. Choice gates encode each
+exact string as a JSON string for the existing resume protocol, so slash-like or
+boolean-like values remain choices. Both confirmation and choice controls start
+with the matching Session gate's exact message; technical run or restoration
+metadata follows it, and F2 retains the full owner context. Their trace digest and exact options are
+revalidated before dispatch. Missing, malformed or secret-marker options are never
+inferred from prose. Timezone, ceiling and text gates stay free inputs.
+These controls appear only when Session already waits; they add no confirmation
+to an already authorized Save or Run, and expose no new effect authority.
+`/intelligence` suspends an open decision without answering it. Returning keeps the
+proposal, gate or cost review and the unsent draft, but renews the presentation
+witness so a gesture from the older menu cannot act on the returned one.
+
+
 ## 2. The semantic layer becomes enforceable here
 
 The roles remain the engine's closed set, `nika_display::theme::Role`
@@ -49,6 +89,12 @@ red failure, and readable secondary text. The renderer and viewer share the
 viewer's pure visual owner through compatibility paths (ADR-143). The CLI retains
 its terminal-theme palette. Under `NO_COLOR` no role carries a hue; dim and
 strong remain weights. Roles and words still carry meaning without colour.
+The brand's own tones, `visual::role::tone` (the butterfly's ice and glow, the
+wordmark dot's exec hue, all three the shared design tokens' values), alone
+follow the terminal's `Depth`: their own hue where `COLORTERM` proves 24-bit
+colour, else the nearest xterm-256 index where `TERM` names 256 colours, else
+bright cyan, bright white and the exec verb's bright yellow; no hue without
+colour.
 The existing 100ms busy tick turns the native orbit only while work is active;
 every frame wears the one accent hue. Reduced motion keeps a still marker with
 measured seconds, phase and armed-exit facts retained; idle views stay silent.
@@ -67,10 +113,20 @@ same kind of borrowing:
   icons: their glyphs are the theme seam's `◇ ▷ ◆ ✦` and state column.
 - `visual::logomark` holds the Supernovae butterfly, the only brand mark:
   five renditions (12×6 to 48×20) sampled from `media/brand/nika-logomark.svg`
-  (a test pins its sha256, so a changed mark flags stale renditions), chosen
+  (a test pins its sha256, so a changed mark flags stale renditions), each in
+  two `Glyphs` read from the same 12×24 samples per cell: Unicode braille
+  (2×4 dots per cell, a dot drawn where half its samples are inside) and, in
+  the ASCII column, the density ramp. The sampler is itself a test
+  (`logomark/sample.rs`, no dependency added) that regenerates every
+  rendition and fails on any difference. A size is chosen
   whole by `Size::largest_within`, revealed once through five ordered-dither
-  frames between 0 and 1,400 ms, holding the final mark without another wake, shown final at once under
-  reduced motion. It never loops and never stands for work in progress.
+  frames (over the ramp's cells or the braille's dots) between 0 and 1,400 ms,
+  holding the final mark without another wake, shown final at once under
+  reduced motion. It wears the brand's ice; what a frame has just lit glows
+  until the last frame settles it. It never loops and never stands for work
+  in progress. The wordmark it is locked up with, `nika.` in both glyph
+  columns (the name, then its dot in the exec hue), stands under it on the
+  welcome and opens the header in place of the former `◆ NIKA`.
 
 Nothing in `visual` reads the clock, the environment or a file; the caller
 passes the elapsed time, the colour and ASCII choices and reduced motion. Where
@@ -84,6 +140,9 @@ When a run's own task lines are said, the card that showed them live gives way
 (unless the inline view already printed it), so each step reads once, after the
 run's check and announcement; any other block leaves the card in place, settled.
 Run, result, questions and the brand use the existing semantic color roles.
+Tool failures retain their typed failure state through the card: `✗` (ASCII
+`x`) and the failure role, with the Session's words intact. A failed tool does
+not by itself mark the whole turn as failed.
 
 ### The workspace screen (native entry and parent workflow inspection)
 
@@ -111,22 +170,32 @@ Desk, preserving input, focus, selection and reading. The header offers concrete
 Project/Conversation/Object access only while the project region is folded.
 Bounded separators have pointer and keyboard routes;
 resize clamps the rendered geometry without changing the chosen proportions.
+After the first human message, while no object exists, the conversation takes
+the welcome's space. Painting, pointer hits and scroll bounds share that
+transient geometry; no object separator or Expand action remains there. The
+project aside stays visible where it fits. Explicit navigation can still visit
+the welcome or folded project list. The first object immediately restores the
+chosen shares, without saving a preference or changing the draft.
 The Live host keeps only settled display choices in a versioned HOME preference
 file through `OwnedDir`. Painting performs no I/O; restoring an arrangement
 restores no Session authority. The command chooser names the conversation's
 supported commands and their effect/scope. `Enter` runs the selected command
 once (the palette's without touching the draft; while a turn works it waits
 in the box instead) and `Tab` inserts it without submitting; a repeated
-`Enter` after a surface's activation counts once (taken while that turn works,
-and for half a second after it returns unless another key comes first).
+`Enter` after a surface's activation counts once (taken while that turn works
+unless the human edits or pastes a new draft, and for half a second after it
+returns unless another key or a nonempty paste comes first). A new paste and
+its immediate Enter remain a new act even inside that repeat window.
 `Ctrl+O` (or `Tab` in an empty composer) opens the palette. The palette, the slash list and a typed choice's offers open as one
 opaque surface above the composer (`render::surface`, its plan in
 `nika_tui_view::workspace::surface`): a band from the transcript's first row
 down to the composer, joined to its box, sized from facts at rest, so
 opening, searching or closing it moves no row and the transcript keeps its
 rows and reading position under it. The band takes every pointer event over
-it (a press selects, the wheel moves the selection), nothing under it takes a
-key, and only an inline frame grows for it. `F2` opens a read-only reader of
+it: a press selects a radio option or toggles a checkbox, and the wheel moves
+only the cursor. A deliberate press on the multiple-choice Submit row sends
+the checked set once. Nothing under the band takes a key, and only an inline
+frame grows for it. `F2` opens a read-only reader of
 the Session's complete words for
 the typed question at the answer line, the current proposal under review or the
 latest summarized refusal. The [workspace guide](../terminal-workspace.md) owns
@@ -186,6 +255,9 @@ adds no child usage to the parent's measurements. Live child frames, a produced
 child execution identity and a failed-child summary remain outside this slice.
 
 Reopening repaints retained turns as history and exposes the last observed run.
+Only inputs Session attributes to a recorded human turn receive a `You` bubble.
+Automatic consent, Run observations and uncertain historical origins appear as
+earlier context; text resembling a command is not used to infer its speaker.
 Until this session observes a run or a gate, and while only a choice waits, the
 footer tells that kept run apart from this session's facts: the rail's Run field
 adds its stage (`Run ○ (earlier ✓)`) and the status row opens with it
@@ -290,8 +362,102 @@ a stamped integrated build or a paid model route.
   `Prepare with:`; it does not attribute a local action or a reply to that model.
   It names the explicitly configured model, or the authoring seat's resolved
   provider model when no model was named; an unresolved default stays explicit.
-  During intelligence selection the fixed composer hint names all four numbered
-  routes (account, API, local, no AI), even when the menu is above the viewport.
+  During intelligence selection the same continuous surface lists the Session's
+  current inventory as radio options: model, access and billing descriptions
+  come from `Work.intelligence.options`. A settings list's filled radio is the
+  value in use (`Offer::in_use`: the model the Session marks current, the
+  decision seat consulted, the Run model requested), wherever the cursor
+  stands; the cursor alone says where `Enter` goes. A model row reads the model's display
+  name, derived deterministically from its id for known families (`Claude
+  Sonnet 5.5`, `GPT-6.1 Sol`, `DeepSeek Flash`; any other id as it is), then a
+  quiet column of the option's typed facts (`ModelFacts`): its marks (current,
+  legacy), its input and output prices per million tokens when stated (the
+  qualified tariff of the route, else the catalogue's list row on a metered
+  route; an unknown price is said, never zero; a plan or local route states no
+  price), its context window, and a key it still needs. The offer's key is
+  always the exact id sent. A connection lists its current generation first:
+  earlier generations (a lower major version than its family's newest there),
+  dated snapshots and legacy models fold behind one `Older models (N)…` row,
+  except the model in use and the recommended one; the older list goes back
+  to the current one.
+  `/intelligence` opens a short home screen: `Recommended for you · <model>`
+  first, selected where a first choice is required, so one Enter applies the
+  Session's recommendation (`Work.intelligence.recommended`); `Keep current ·
+  <model>` (the Session's `cancel`), selected when the picker is reopened, so
+  one Enter keeps the choice in use; `Other choice…` (every connection, then one connection's
+  models); then the three roles always shown with their values, each row
+  opening its change: `Author` (every connection), `Decision` (Jev, as the
+  host named it and unavailable with its reason when it cannot be consulted,
+  or the author deciding alone, through `choose_decision`) and `Run` (each
+  ready model once; no Session field holds a preference for the next
+  workflows' AI steps, so the choice closes the picker with the author kept
+  and is said to the author as the person's own line, then shown as
+  requested); and `Set as default` (`save_operator_default`), marked once it
+  is. Browsing applies nothing: only an option's key or one named Session door
+  changes anything. The list's own guide (« Choose a connection below. No
+  selection has changed. ») stands in its head while it is open
+  (`Asked::guide`), never in the conversation, which keeps only the choice
+  made and what a picked row said. API rows (the recommendation's detail, a provider among
+  every connection) name the key variable that supplies the key, from the
+  census probe's names (`key: NIKA_ANTHROPIC_API_KEY`), and warn when two set
+  variables differ (`⚠ A and B differ · Nika uses A`); no value is read. A
+  subscription seat the Session says cannot write workflows
+  (`nika_session::authoring::NO_AUTHORING` among its option's ` · ` parts, from
+  `seat_cannot_author`, the static authoring admission) says so on its
+  connection's row and on its own, before any choice. A
+  `Test the key` row, on the current API connection and an opened one, sends
+  the host's one free check (`Live::with_key_check`, wired at the composition
+  root to `check_api_key`) only when picked, never at open, and shows its
+  verdict inline: valid, refused (status), unreachable or unknown, never the
+  key. Esc steps back from models to connections to home, and at
+  home keeps the current choice. Only a settings list opens on a selection; a
+  decision or a question never does. The first page groups the full catalogue
+  by connection, with the current model directly available. Opening a connection
+  only browses its models; every owner-supplied model remains available, with an
+  All connections return. The guide keeps its latest confirmation, refusal or
+  help text above the options under the existing text cap; F2 reads the details.
+  An API connection needing a key says so and names the accepted environment
+  variables. A setup offer without a known model is labelled Configure API,
+  never counted as a model; its guidance asks for the key, not a missing model.
+  Arrows or a press select without
+  applying; Enter applies one choice. Typing filters a settings list: the rows
+  whose key or label holds every typed term, case aside; those whose provider or
+  access words hold them come first (`xai` finds the xAI connection and its
+  models before a Hugging Face model whose id holds the word), then the others,
+  each provider's rows together where its first one stands, otherwise in their
+  offered order; the row whose key is exactly the typed words, else the first
+  match, is selected and Enter applies it. Each provider marks one model: the
+  one the Session recommends, else the newest generation of the family it lists
+  first (`newest Grok`); a legacy model or dated snapshot is never the newest,
+  and a family is marked once in a list that holds several connections, on the
+  newest of their proposals. Recency reads the version as a person does: a
+  minor is a decimal (`4.7` after `4.20`), and a date written in digits
+  (`0528`, `250731`) is a snapshot, never a version.
+  Lists where a model writes (the author, the Run) never offer a model that
+  writes nothing: one the catalogue prices for input alone, or whose name says
+  it embeds or reranks. Paint, pointer and keys read the same rows, a
+  selection keeps its offer's own index, and the title counts the matches.
+  Words matching no row are sent as typed, as is a `/` command line, which
+  never filters. From home and from every connection, typed words also find a
+  model by its display name under any connection (rows listed only while a
+  filter finds them), and Enter applies that model's own key. An explicit
+  custom model choice on a configured connection
+  (`/intelligence 2 provider/model`) stays an expert fallback the guide and its
+  hints never teach, since every offered model is a row. Questions and
+  decisions never filter: there the field is the human's reply.
+  Before a usable intelligence exists, other messages enter the Session's
+  `request_before_intelligence` door: their exact text is kept and resumes once
+  after the choice. Numeric choice syntax and slash commands stay with the choice
+  parser, so a malformed choice never turns into a request. Further messages
+  append in order; cancellation or reopening the guide preserves them.
+  The native conversation requires an intelligence:
+  no selection, an unavailable selection or a kept offline selection opens this
+  guide immediately. It offers no No-AI mode. Esc steps back one level: it
+  empties the own reply, then the selection, then returns from an opened
+  connection to all connections; at the top, Esc or cancel preserves a usable
+  current setting. Before one exists, Esc says a choice is required and the
+  guide and any interrupted request stay intact. Without available options, the guide explains how to connect one.
+  `/intelligence` refreshes the choice in place without losing the request.
   The selection has no second copy in the conversation and does not change its
   scroll bounds. An unknown selection stays explicit; the renderer makes no
   provider call. Beside the object, a sufficiently tall panel gives the composer
@@ -350,8 +516,10 @@ a stamped integrated build or a paid model route.
   loader (`| / - \`, `*` when still), the live prompt marker, the focus rule,
   the separators of its own status and hints, and the door's title
   (`nika - <project>`). One renderer text keeps its `·` so far: the
-  « action required » title suffix. The echo of a sent line repeats the waiting
-  prompt in its ASCII twin (`nika > `). The CLI proof checks a listed set of
+  « action required » title suffix. The echo of a sent line carries the
+  person's words alone, never the waiting prompt (`nika ›`, `action ›`,
+  `choice ›`) they were typed after, under the block's own marker (`>` in the
+  ASCII column). The CLI proof checks a listed set of
   renderer glyphs; it does not claim an all-ASCII frame. The Session's words
   (the banner, replies, the
   status line, the lifecycle rail) are shown as written, never rewritten, so
@@ -359,30 +527,80 @@ a stamped integrated build or a paid model route.
 
 ### Typed clarification and conversation groups
 
-The native host captures the compiler's question document from one `Work`
-snapshot. Its label, reason, required flag, ordered offers and exact offer keys
-remain compiler facts. A painted question routes both a selected offer and the
+The native host captures each question from one `Work` snapshot. Cooperative
+questions come from the current `Work.questions` entry matching both the strong
+identity and the key; its ordered offers, `multi_select` and `free_text` are
+Session facts. The legacy compiler question remains the fallback, preserving
+its label, reason, required flag, offers and exact keys. A painted question routes both a selected offer and the
 human's own words through `answer_question_for` with the captured strong
 `QuestionId`, never the general submission door. The native painted token has a
 runtime-local presentation scope; matching serialized words from another live
 Session cannot substitute for the strong identity, whose equality also includes
 its incarnation. Untyped Run/cost questions keep their existing owners and doors.
 
+For `Waiting::Questions`, the first still-open question in the Session's ordered
+identity list owns the surface. Both painting and submission resolve that same
+entry; answering it exposes the next question, even if the author completed an
+intervening turn. Unlisted, closed, stale or foreign questions provide no options
+and cannot lend their identity to an answer.
+
 A typed choice opens the continuous surface above the line (choice mode):
 `Question`, `required` and the page of offers when they do not all show, then
 what the Session keeps of the request the question serves, from the same
 `Work` snapshot (`model::Retained`: the goal as kept, then the other questions
-still open; it grants nothing), then the Session's exact words under one
+still open; it grants nothing), then the active question's exact label under one
 frame-aware cap (`question::word_cap`: six rows, or a quarter of the frame's
 rows when that is more, past it a `… the whole question: F2` row), then the
-offers on whole pages. The ordinary draft waits out of view, untouched with
-its caret and selection, and the line shows the choice's own reply field. The
-offers take keys whatever the draft holds (`Up`, `Down`, `Home`, `End`);
-`Enter` sends the own reply when it holds words, else the selected offer's
-exact key, once, and the offers are inert while that answer is in flight; a
-press selects without sending. An own reply not taken comes back to its
-field. The palette opened over a typed choice suspends it and `Esc` restores
-it, selection and own reply kept; no slash list opens over it. Keys other than
+offers on whole pages. A grouped question's complete transcript block remains
+available through the F2 reader; another question's wording never labels these
+offers. The human transcript echoes a valid selection with its offered labels
+only while the painted question identity still matches. Exact keys remain the
+answer sent to Session; free text, unknown or duplicate keys, malformed sets and
+stale identities retain their raw echo. A row of the intelligence list echoes
+as `Intelligence: <name>`, the plainest label among the rows that share its key
+(the recommended row and the model found under it), never its key. The ordinary draft waits out of view,
+untouched with its caret and selection, and the line shows the choice's own reply field. The
+offers take keys whatever the draft holds (`Up`, `Down`, `Home`, `End`, and
+`PgUp`/`PgDn`, which move a page of the inline band, eight rows). A question
+the author asked opens on its recommendation (selected, or each one checked in a
+multiple choice) and lists « Let Nika choose » after its offers; anything else
+opens with nothing preselected. A single choice uses radio marks: Enter sends the selected
+offer's exact key once, and a press only selects it. A multiple choice uses
+checkboxes: Space or a press toggles that option without sending. Enter on any
+row, or a press on the explicit Submit row (Tab or End reaches it), validates
+the whole selection: all checked keys once, in offered order, as a JSON string
+array. Enter with nothing checked sends nothing and says that Space checks an
+answer. The Session admits that whole set only
+against the current offers and rejects unknown or duplicate keys and conflicting
+single-valued bindings.
+
+Choices attached to a proposal (`Work.open_choices`) use the same single/multiple
+surface as `Waiting::ProposalChoice`. Each answer carries both the proposal and
+question identities through `answer_proposal_choice_for`; even an offered key
+named `yes` is a choice answer. Save and Run remain the Session's separate acts.
+The next open choice follows, then the ordinary proposal prompt when none remains.
+A changed proposal clears pending selections even when the offered keys are equal.
+
+« Let Nika choose » is the person's act, never words a label could name: Enter on
+that row sends no key, and the shell binds the act to the painted identities
+(`Conversation::delegate_bound`), which the native host routes through
+`delegate_question_for`, or `delegate_proposal_choice_for` for a choice a proposal
+shows. The Session binds the recommended offer as delegated whatever an offer's
+label reads; on a shown choice that is the default the candidate carries, so a
+request that asked to save and run keeps that mandate. The transcript echoes the
+act's own words, « I leave the choice to Nika. ».
+
+Where `free_text` permits it, the own reply field remains available beside the
+offers, and Enter sends its exact words when it contains a reply. Typing or
+pasting never submits. An own reply not taken comes back to its field; a rejected
+checked set retains its checks only for the same logical question. All offers
+are inert while an answer is in flight. The palette opened over a typed choice
+suspends it and Esc restores it, selection and own reply kept; no slash list
+opens over it. A settings selector also suspends the question's pending input.
+Returning restores it only while the session, question key, wording, retained
+request, offers, multiplicity and free-text permission still match. The semantic
+door is part of this scope, so a question named `intelligence` cannot collide
+with the settings surface. Keys other than
 the shell's own (`Ctrl+C`, `Ctrl+O`, `Ctrl+T`, `Ctrl+L`, `Shift+Tab`, the
 function keys) are the choice's, so none reaches the hidden transcript or
 leaves the workspace.
@@ -425,8 +643,16 @@ proposal keeps its rail.
 The public `Waiting::Question { key }` constructor retains its legacy shape.
 Typed documents use the additive, non-exhaustive `QuestionDocument` variant,
 constructed with `Waiting::asked(key, asked)`. A legacy question never acquires
-identity-bound offer routing. The default `Conversation::answer_bound` sends
-nothing and returns the exact input as `Beat::NotTaken`; a host must implement
+identity-bound offer routing. Settings use the additive non-exhaustive
+`Waiting::Selection` variant, built with `Waiting::selection(asked)`, whose
+activation goes through the current settings submission door. `Shape::Multiple`
+extends the existing non-exhaustive answer shape. `Asked::free_text` is additive.
+`Waiting::ProposalChoice`, built with `Waiting::proposal_choice`, additionally
+scopes the answer to a proposal and uses its dedicated Session door.
+`Asked::new` keeps free replies enabled for existing consumers, and the live
+projection overrides it from the Session's explicit permission. No presentation
+field grants an answer, Save or Run authority. The default
+`Conversation::answer_bound` sends nothing and returns the exact input as `Beat::NotTaken`; a host must implement
 its own identity-bound door to take it.
 
 The reply returned as `Beat::NotTaken` preserves its exact bytes ahead of any
@@ -472,15 +698,21 @@ offset stay as measured.
 
 The conversation arms one preparation stop per turn from the Session. While a
 preparation works, the first `Ctrl+C` asks it to stop and arms the second
-press, which leaves with the terminal restored; `Enter` with words in the box
-asks the same stop and queues those words as a correction. A command the
+press, which leaves with the terminal restored, also once the stopped turn has
+settled: the idle row says so, and any other key keeps the session. `Enter`
+with words in the box asks the same stop and queues those words as a
+correction, sent as the next line, which keeps no press. A command the
 conversation knows is never a correction: it waits in the box. A queued
 correction is sent as the next line only at the free prompt; when a decision is
 on screen it returns to the box unsent, and under a spending question it is kept
-whole in the conversation instead. Once a turn hands a Run to its runner, this
-key stops nothing: the hint says so and a second press leaves. At rest,
+whole in the conversation instead. While a Run's runner owns execution, this
+key stops nothing: the hint says so and a second press leaves. Once the runner
+returns, any model-led diagnosis or repair is preparation again: Stop and a
+queued correction reach it through the same turn's token. A failed Run must
+not leave the composer claiming that execution is still under way. At rest,
 `Ctrl+C` declines a pending Run review or unknown-cost choice, and otherwise
-arms the press that leaves. The [workspace guide](../terminal-workspace.md)
+arms the press that leaves. Its armed-exit notice stays in the visible footer
+when a command or choice surface covers the ordinary status row. The [workspace guide](../terminal-workspace.md)
 states the user-facing contract.
 
 ## 3. What is ported as is (the map, §5 · planned)
@@ -609,3 +841,21 @@ read, copy, fetch or image generation. Inline raster display is not implied.
 ### Turn worker stack
 
 The shell's `nika-tui-turn` worker explicitly reserves 8 MiB of stack for the complete synchronous Session entry point and the nested Compiler/provider future it polls. The UI input owner stays separate. This addresses ordinary nested authoring frames overflowing the smaller platform worker stack; it does not add a preparation limit, alter Stop semantics, grant authority, or change the provider. The hermetic regression exercises the same worker constructor with more than 3 MiB live and checks return of its owned conversation across consecutive turns. A real ACP replay remains a separate integration check.
+
+Required Run inputs declared as bool or string enums use the same unselected single
+choice control. The head names the input and its type; blank strings have a visible
+JSON label. The exact typed JSON key is submitted through Session, separately from
+an explicit Cancel this run action. A literal enum `cancel` therefore cannot cancel,
+and `/quit` remains a value. The checked source, admission identity and entire pending Run context must
+still match at submission. Navigation and an unselected Enter bind nothing. Strings,
+numbers, paths and other open inputs retain their ordinary input field.
+
+A gate with known expired approval shows its exact question and an expiry notice
+before its unchanged native offers. At 80×24 both rows remain visible; F2 retains
+the complete gate context and long questions are visibly shortened. Projection
+reads the trace; painting performs no I/O. Expiry status and trace identity belong
+to the presentation witness: a gesture from a now-expired menu sends nothing and
+repaints before another answer. Opening never refreshes or resumes a gate. When
+the runtime admits the expired-ticket path, its fresh question needs another
+answer. The notice promises no successful resume: it is not a Refresh action
+and does not weaken TTL or manufacture an answer.

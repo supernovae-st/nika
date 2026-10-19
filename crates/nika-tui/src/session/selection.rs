@@ -24,7 +24,7 @@ pub(super) fn seat(runtime: &SessionRuntime) -> Option<String> {
     let chosen = &runtime.intelligence;
     let base = match (&chosen.kind, &chosen.locus) {
         (IntelligenceKind::None, _) => {
-            return Some(format!("none, the engine facts answer{checks}"));
+            return None;
         }
         (IntelligenceKind::Harness { seat, transport }, _) => {
             format!("{seat} {transport}, through your account")
@@ -52,25 +52,28 @@ pub(super) fn seat(runtime: &SessionRuntime) -> Option<String> {
     Some(format!("{model}{base}{ready}{checks}"))
 }
 
-/// Who judges a prepared candidate. The compiler judges through the operator's decision seat
-/// when one is selected — consulted only for a finite choice, so it is named as selected, never
-/// as having answered — and through the authoring model itself otherwise. A deterministic or
-/// unavailable author calls no judge: a selected seat is said to sit unused, and nothing else.
+/// Who makes the typed decisions and judges a prepared candidate, by the seat's display name.
+/// The compiler consults the decision seat when one is selected (only for a finite choice, so
+/// it is named as selected, never as having answered) and the authoring model itself
+/// otherwise. A deterministic or unavailable author calls none: a selected seat is said to sit
+/// unused, and nothing else.
 fn verifier(author: &AuthoringSeat, selected: Option<&DecisionSetup>) -> Option<String> {
     let authors = matches!(
         author,
         AuthoringSeat::Provider { .. } | AuthoringSeat::Harness { .. }
     );
+    let named = |setup: &DecisionSetup| super::intelligence::seat_name(setup.model());
     match selected {
-        Some(setup) if setup.refusal().is_some() => {
-            Some(format!("verifier: {} refused, see /status", setup.model()))
-        }
-        Some(setup) if authors => Some(format!("verifier: {} (selected)", setup.model())),
-        Some(setup) => Some(format!(
-            "verifier: {} selected, unused without an AI author",
-            setup.model()
+        Some(setup) if setup.refusal().is_some() => Some(format!(
+            "Decision: {} unavailable, see /status",
+            named(setup)
         )),
-        None if authors => Some("verifier: same model".to_owned()),
+        Some(setup) if authors => Some(format!("Decision: {}", named(setup))),
+        Some(setup) => Some(format!(
+            "Decision: {} selected, unused without an AI author",
+            named(setup)
+        )),
+        None if authors => Some("Decision: same model".to_owned()),
         None => None,
     }
 }
@@ -115,22 +118,22 @@ mod tests {
         };
         let deterministic = AuthoringSeat::Deterministic { why: None };
         let unavailable = AuthoringSeat::Unavailable { why: "no".into() };
-        let unused = format!("verifier: {JEV} selected, unused without an AI author");
+        let unused = "Decision: Jev 1.13.0 selected, unused without an AI author".to_owned();
         for (author, selected, expected) in [
-            (&provider, None, Some("verifier: same model".to_owned())),
+            (&provider, None, Some("Decision: same model".to_owned())),
             (&deterministic, None, None),
             (&unavailable, None, None),
             (
                 &provider,
                 Some(ready()),
-                Some(format!("verifier: {JEV} (selected)")),
+                Some("Decision: Jev 1.13.0".to_owned()),
             ),
             (&deterministic, Some(ready()), Some(unused.clone())),
             (&unavailable, Some(ready()), Some(unused)),
             (
                 &provider,
                 Some(DecisionSetup::with_key(JEV, None, None)),
-                Some(format!("verifier: {JEV} refused, see /status")),
+                Some("Decision: Jev 1.13.0 unavailable, see /status".to_owned()),
             ),
         ] {
             let words = verifier(author, selected.as_ref());
@@ -169,21 +172,17 @@ mod tests {
             seat(runtime).expect("chosen")
         };
         let mut none = open(IntelligenceKind::None, None);
-        assert_eq!(line(&mut none, None), "none, the engine facts answer");
-        assert_eq!(
-            line(&mut none, Some(ready())),
-            format!(
-                "none, the engine facts answer; verifier: {JEV} selected, unused without an AI author"
-            )
-        );
+        assert_eq!(seat(&none), None);
+        none.set_authoring_context(AuthoringContext::default().with_decision(Some(ready())));
+        assert_eq!(seat(&none), None, "a judge alone is no conversation model");
         let mut author = open(api(), Some("deepseek/deepseek-chat"));
         assert_eq!(
             line(&mut author, None),
-            "deepseek/deepseek-chat - deepseek API, metered; verifier: same model"
+            "deepseek/deepseek-chat - deepseek API, metered; Decision: same model"
         );
         assert_eq!(
             line(&mut author, Some(ready())),
-            format!("deepseek/deepseek-chat - deepseek API, metered; verifier: {JEV} (selected)")
+            "deepseek/deepseek-chat - deepseek API, metered; Decision: Jev 1.13.0"
         );
         let _ = std::fs::remove_dir_all(&root);
     }

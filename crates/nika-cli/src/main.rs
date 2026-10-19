@@ -159,6 +159,10 @@ enum Command {
         /// so one workflow carries a whole rule table (#1400).
         #[arg(long, value_name = "NAME")]
         case: Option<String>,
+        /// Place the run at this instant (RFC 3339): `${{ run.scheduled_for }}`
+        /// reads it, as in a run fired for that slot.
+        #[arg(long, value_name = "INSTANT")]
+        at: Option<String>,
     },
     /// Static anatomy: tasks · verbs · wave groups · cost · permits —
     /// and the ONE graph projector (`--format json|mermaid|dot` for the
@@ -775,7 +779,38 @@ fn main() -> std::process::ExitCode {
     pipe_hygiene::guard(real_main)
 }
 
+/// `nika-mcp`'s read of a tool's pins in the compile door's words. An unreadable registry or
+/// lockfile, or a verdict this binary does not know, offers nothing: the step keeps its
+/// source-only hold.
+fn compile_pin(
+    root: &std::path::Path,
+    server: &str,
+    tool: &str,
+) -> nika_onboard::compile::room::PinnedTool {
+    use nika_mcp::pin::PinVerdict;
+    use nika_onboard::compile::room::PinnedTool;
+    match nika_mcp::pin::pinned_tool(root, server, tool) {
+        PinVerdict::Pinned {
+            input_schema,
+            approved_at,
+        } => PinnedTool::Pinned {
+            input_schema,
+            output_schema: None,
+            approved_at,
+        },
+        PinVerdict::Unregistered => PinnedTool::Unregistered,
+        PinVerdict::Unapproved => PinnedTool::Unapproved,
+        PinVerdict::Repointed => PinnedTool::Repointed,
+        PinVerdict::NotPinned { pinned } => PinnedTool::NotPinned { pinned },
+        _ => PinnedTool::Unoffered,
+    }
+}
+
 fn real_main() -> std::process::ExitCode {
+    // The pins every compile room judges an `mcp:` step on, read from the project's files and
+    // never the server: this binary is the one place that names both crates.
+    let _installed =
+        nika_onboard::compile::room::install_pin_lookup(std::sync::Arc::new(compile_pin));
     // RAMS-13 · the full surface on demand: `--help --all` prints the
     // SAME tree with nothing hidden (the craft plus the documented
     // `arm` door lead the default help; protocols · trust cycle ·
@@ -860,7 +895,8 @@ fn dispatch_verb(
             answer,
             var,
             case,
-        } => test_arm(file, update, &answer, (&var, case.as_deref()), plain_theme),
+            at,
+        } => test_arm(file, update, &answer, (&var, case, at), plain_theme),
         Command::Inspect { file, format } => inspect_arm(&file, format, plain_theme),
         // The mirror's two depths — the greeting, or the whole workspace truth.
         Command::Welcome { json, deep } => emit(&if deep {

@@ -15,6 +15,8 @@
 //! The screen is `qa_support::vt::Screen`: what a terminal shows after the
 //! bytes, so a proof reads rows and words, not escape fragments.
 
+#[path = "qa_support/child.rs"]
+mod child;
 mod qa_support;
 
 use nika_tui::workspace::geometry::Geometry;
@@ -24,6 +26,11 @@ use qa_support::{
     SAVED, SIZES, Step, Term, assert_restored, exit_code,
 };
 use ratatui::layout::Rect;
+
+#[test]
+fn qa_child_host() {
+    child::host();
+}
 
 /// Two `Ctrl+C` from an idle prompt: the terminal comes back with 130.
 fn leave(term: &mut Term) {
@@ -217,9 +224,9 @@ fn inline_hint_sits_right_under_the_composer() {
     }
 }
 
-/// B2 · a line the human sent is echoed with one marker.
+/// B2 · a line the human sent is echoed with one marker: its own words, never the prompt
+/// they were typed after (live gauntlet r07 B9).
 #[test]
-#[ignore = "defect: B2 · the echo reads `› nika › digest my monday notes` (two markers) · terminal rendering"]
 fn a_human_line_is_echoed_with_one_marker() {
     let mut term = Term::proto(&[], 80, 24);
     term.wait_prompt(FREE);
@@ -371,6 +378,17 @@ fn rule_at(screen: &Screen, x: u16, rows: std::ops::Range<u16>) -> bool {
         >= 10
 }
 
+/// Open the listed workflow through the project, without submitting the draft:
+/// contextual expansion needs a selected object (`F4` is inert without one).
+fn open_listed_workflow(term: &mut Term) {
+    term.send(SHIFT_F6); // Conversation -> project.
+    term.send("\x1b[B\r"); // The first workflow follows the conversation.
+    term.wait_workspace_frame("the listed workflow is the selected object", |s| {
+        s.contains("path   release.nika") && s.contains("tasks  4")
+    });
+    term.send(F6); // Project -> conversation.
+}
+
 /// One step of the demo journey in the workspace, whose prompts are inset.
 fn step_in_workspace(term: &mut Term, step: &Step) {
     term.send(step.send);
@@ -475,20 +493,49 @@ fn prove_settled_bounds(term: &mut Term, cols: u16, rows: u16) {
     assert_eq!(term.screen.beyond(), 0, "settled redraw at {cols}x{rows}");
 }
 
+/// The workspace conversation reads from its start with `Home` while nothing is typed, and
+/// `End` brings its latest rows back (live gauntlet r07: `PgUp` and `Home` left the person
+/// inside the last card, with no key back to the start of the conversation).
+#[test]
+fn home_reads_the_workspace_conversation_from_its_start() {
+    const START: &str = "What do you want to automate?";
+    let mut term = child::spawn("demo:0:workspace", None, 80, 24);
+    term.wait_workspace_frame("the workspace before the journey", |s| {
+        s.on_alt() && s.contains(FREE)
+    });
+    for step in &JOURNEY {
+        step_in_workspace(&mut term, step);
+    }
+    assert!(
+        !term.screen.contains(START),
+        "the start is out of view\n{}",
+        term.dump()
+    );
+    term.send("\x1b[H");
+    term.wait_workspace_frame("the start of the conversation", |s| s.contains(START));
+    term.send("\x1b[F");
+    term.wait_workspace_frame("the latest rows again", |s| {
+        s.contains(RESULT) && !s.contains(START)
+    });
+    leave(&mut term);
+}
+
 /// Layout changes are view changes: with a consent-shaped draft in the
-/// composer, neither the proposal nor the gate is answered by `F4`, the
-/// object's control, a dragged separator, the separator keys or a resize; the
-/// draft stays unsent until `Enter`, and each decision is then the human's.
+/// composer and a listed workflow as the selected object, neither the proposal
+/// nor the gate is answered by `F4`, the object's control, a dragged
+/// separator, the separator keys or a resize; the draft stays unsent until
+/// `Enter`, and each decision is then the human's.
 #[test]
 fn contextual_expansion_and_sizing_keep_the_draft_unsent_and_decisions_waiting() {
-    let mut term = Term::proto(&[], 120, 40);
-    term.wait_prompt(FREE);
-    term.send("\x14");
-    term.wait_text(EXPAND_CONTROL);
+    let mut term = child::spawn("demo:0:workspace", None, 120, 40);
+    term.wait_workspace_frame("the workspace before the journey", |s| {
+        s.on_alt() && s.contains(EXPAND_CONTROL) && s.contains(FREE)
+    });
     for step in &JOURNEY[..2] {
         step_in_workspace(&mut term, step);
     }
     term.send("yes");
+    open_listed_workflow(&mut term);
     rearrange(&mut term, "Save? › yes");
     assert!(
         term.screen.contains(PROPOSAL),

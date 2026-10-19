@@ -8,10 +8,11 @@
 //! deterministic reading) holds the line with the request the Session keeps
 //! above the question; its keys never reach the words typed ahead, which
 //! wait out of view through every native size and a trip below the minimum,
-//! and come back once one offer's exact key was sent. A command chosen while
-//! a Run works waits in the box for the human's turn, and `Ctrl+C` says the
-//! Run is not stopped there. Keyless: nothing is saved or run that the proof
-//! did not ask for.
+//! and through the proposal's decision that one offer's exact key yields;
+//! they come back once that decision is answered (its `no` offer discards it). A
+//! command chosen while a Run works waits in the box for the human's turn,
+//! and `Ctrl+C` says the Run is not stopped there. Keyless: nothing is saved
+//! or run that the proof did not ask for.
 
 use super::*;
 
@@ -101,6 +102,7 @@ fn the_palette_opens_over_a_fixed_composer_and_gives_back_the_exact_draft() {
     );
     assert_eq!(rig.tree(), before, "the palette writes nothing");
     terminate(&mut term);
+    rig.no_model_call("the palette opened and closed over a draft");
 }
 
 /// One palette round trip at `size` over the draft `keep these words`, its
@@ -203,11 +205,16 @@ fn palette_pages(term: &mut Term, at: &str) {
 /// 41 · A real typed choice holds the line: the Session's question, the
 /// request it keeps and the observed columns, in a band over the
 /// conversation, while the words typed during the request's turn wait out
-/// of view. `Enter` with nothing chosen sends nothing and says so; the own
-/// reply takes letters, never the draft; `PgUp` moves nothing hidden. The
+/// of view. It opens on its first offer, the one `Enter` would send; the own
+/// reply takes letters (no radio filled meanwhile), never the draft; `PgUp`
+/// moves nothing hidden. The
 /// selection survives each native size and a trip below the minimum, and
 /// `Enter` sends its exact key once: the Session takes it as an offered
-/// answer, the proposal follows with the draft back in the box, and nothing
+/// answer and the proposal follows as a decision that holds the line, the
+/// draft still out of view. The decision's `no` offer (« Discard this
+/// proposal »), selected where the offers put it and sent with `Enter`
+/// (`Esc` never answers a decision): the draft is back in the box, the
+/// conversation keeps the Session's record of the offered key, and nothing
 /// is saved.
 #[test]
 fn a_real_typed_choice_holds_the_line_and_gives_the_draft_back_once_answered() {
@@ -229,7 +236,7 @@ fn a_real_typed_choice_holds_the_line_and_gives_the_draft_back_once_answered() {
         term.resize(size.0, size.1);
         let what = format!("{}x{}: the choice and its selection", size.0, size.1);
         let held = |screen: &vt::Screen| {
-            sized(screen, size) && screen.contains("› status") && !screen.contains(AHEAD)
+            sized(screen, size) && screen.contains("› 2 (●) status") && !screen.contains(AHEAD)
         };
         // Below the minimum the focus view draws it; a workspace frame ends hidden.
         if geometry_fits(size) {
@@ -244,14 +251,92 @@ fn a_real_typed_choice_holds_the_line_and_gives_the_draft_back_once_answered() {
         term.dump()
     );
     term.send("\r");
-    // The Session's own record of the value: the offered key, exact.
-    term.wait_workspace_frame("one offer's key sent, the draft back", |screen| {
-        (screen.lines().iter()).any(|row| row.contains("Save? ›") && row.contains(AHEAD))
-            && screen.contains("«status»")
-            && screen.contains("one of the offered answers")
-    });
+    // The proposal's decision holds the line now; its band covers the
+    // conversation and the words typed ahead stay out of view.
+    term.wait_workspace_frame(
+        "one offer's key sent, the decision holds the line",
+        |screen| {
+            action_holds(screen) && screen.contains("What should happen") && !screen.contains(AHEAD)
+        },
+    );
     assert_eq!(rig.tree(), before, "binding is neither Save nor Run");
+    // The decision's `no` offer, selected natively: Discard asks once, the second `Enter`
+    // discards.
+    select_offer(&mut term, "Discard this proposal");
+    term.send("\r");
+    term.wait_workspace_frame("Discard asks once", |screen| {
+        screen.contains("Discard this proposal? Enter again")
+    });
+    assert_eq!(rig.tree(), before, "asking discards nothing");
+    term.send("\r");
+    term.wait_workspace_frame("the proposal discarded, the draft back", |screen| {
+        screen.contains("discarded · nothing was written")
+            && (screen.lines().iter()).any(|row| row.contains("nika ›") && row.contains(AHEAD))
+    });
+    recorded(&mut term, &["«status»", "one of the offered answers"]);
+    assert_eq!(rig.tree(), before, "a discarded proposal writes nothing");
     terminate(&mut term);
+    rig.no_model_call("an offered key bound, its proposal discarded");
+}
+
+/// The Session's own record of a value, every one of `words` in it (« Answer taken · …
+/// «status» one of the offered answers »), in the conversation the decision no longer
+/// covers: read from the latest row back, eight pages at most, then the latest row again.
+fn recorded(term: &mut Term, words: &[&str]) {
+    let mut seen = vec![false; words.len()];
+    for page in 0..=8 {
+        for (seen, word) in seen.iter_mut().zip(words) {
+            *seen |= term.screen.contains(word);
+        }
+        if seen.iter().all(|seen| *seen) {
+            break;
+        }
+        if page < 8 {
+            term.keys(PAGE_UP);
+        }
+    }
+    assert!(
+        seen.iter().all(|seen| *seen),
+        "the record {words:?} within eight pages\n{}",
+        term.dump()
+    );
+    term.keys(END);
+}
+
+/// The offers a proposal's decision paints, in their order (`save & run` only when the
+/// change can run).
+const DECISION_OFFERS: [&str; 5] = [
+    "Save workflow",
+    "Save these changes",
+    "Save and run once",
+    "Discard this proposal",
+    "Inspect the exact changes",
+];
+
+/// Select the decision's offer `label` with `Down`, as many presses as the painted offers
+/// put between the selected one (`› `) and it (one more when none is selected yet: the first
+/// `Down` selects the first offer), then wait until it is the selected one.
+fn select_offer(term: &mut Term, label: &str) {
+    let rows = term.screen.lines();
+    let painted: Vec<&String> = (rows.iter())
+        .filter(|row| DECISION_OFFERS.iter().any(|offer| row.contains(offer)))
+        .collect();
+    let from = (painted.iter()).position(|row| row.contains("› "));
+    let to = (painted.iter()).position(|row| row.contains(label));
+    let Some(to) = to else {
+        panic!("the decision's offer `{label}`\n{}", term.dump());
+    };
+    let presses = match from {
+        Some(from) if from <= to => to - from,
+        Some(_) => panic!("`{label}` above the selection\n{}", term.dump()),
+        None => to + 1,
+    };
+    for _ in 0..presses {
+        term.send(DOWN);
+    }
+    term.wait_workspace_frame(&format!("`{label}` selected"), |screen| {
+        (screen.lines().iter()).any(|row| row.contains("› ") && row.contains(label))
+    });
 }
 
 /// The request and the words typed while its turn works leave in ONE write:
@@ -276,38 +361,46 @@ fn ask_the_column(term: &mut Term) {
     );
 }
 
-/// `Enter` with nothing chosen sends nothing; the own reply's field takes
-/// letters and gives them back; `PgUp` scrolls nothing under the band.
+/// The question opens on its first offer, the one `Enter` would send; the
+/// own reply's field takes letters (the radio unfilled while they would be
+/// sent) and gives them back; `PgUp` reads the conversation behind the card,
+/// the line still the own reply's, and any other key brings the card back as
+/// it was, its first offer selected, the key spent.
 fn nothing_reaches_the_draft(term: &mut Term) {
-    term.send("\r");
-    term.wait_workspace_frame("nothing chosen, nothing sent", |screen| {
-        screen.contains("nothing sent · ↑↓ choose an answer")
+    term.wait_workspace_frame("the question opened on its first offer", |screen| {
+        screen.contains("› 1 (●) id")
     });
     term.send("usd");
     term.wait_workspace_frame("the own reply's letters", |screen| {
-        screen.contains("reply › usd") && !screen.contains(AHEAD)
+        screen.contains("reply › usd") && screen.contains("› 1 ( ) id") && !screen.contains(AHEAD)
     });
     term.send("\x7f\x7f\x7f");
     term.wait_workspace_frame("the own reply emptied", |screen| {
-        screen.contains("type your own reply") && !screen.contains("usd")
+        screen.contains("type your own reply")
+            && !screen.contains("usd")
+            && screen.contains("› 1 (●) id")
     });
     let shown = term.screen.lines();
-    term.keys(PAGE_UP);
-    assert_eq!(
-        term.screen.lines(),
-        shown,
-        "a key reached the hidden transcript"
-    );
+    term.send(PAGE_UP);
+    // Behind the card the conversation reads whole (the notice that the draft waits in the
+    // box included); the line keeps the own reply's empty field, never the draft.
+    term.wait_workspace_frame("the conversation behind the card", |screen| {
+        screen.contains("back to the card")
+            && !screen.contains("1 (●) id")
+            && screen.contains("or type your own reply")
+    });
+    term.send("x");
+    term.wait_workspace_frame("the card back as it was", |screen| screen.lines() == shown);
 }
 
-/// The arrows walk the three offers, `Home` and `End` reach either end, and
-/// `status` stays selected, filled.
+/// From the first offer the question opened on, the arrows walk the three offers,
+/// `Home` and `End` reach either end, and `status` stays selected, filled.
 fn walk_the_offers(term: &mut Term) {
     for (key, offer) in [
-        (DOWN, "› id"),
-        (END, "› amount"),
-        (HOME, "› id"),
-        (DOWN, "› status"),
+        (DOWN, "› 2 (●) status"),
+        (END, "› 3 (●) amount"),
+        (HOME, "› 1 (●) id"),
+        (DOWN, "› 2 (●) status"),
     ] {
         term.send(key);
         term.wait_workspace_frame(&format!("{offer} selected"), |screen| {
@@ -323,15 +416,26 @@ fn walk_the_offers(term: &mut Term) {
 
 /// 42 · The same choice without colour, then in ASCII, at 80 × 24: no colour
 /// run under `NO_COLOR`, nothing beyond ASCII with `--ascii`, the question,
-/// the kept request and the selection readable.
+/// the kept request and the selection readable: it opens on its first offer
+/// and `Down` reaches the second.
 #[test]
 fn the_typed_choice_reads_without_colour_and_in_ascii() {
-    type Case<'a> = (&'a str, &'a [&'a str], &'a str);
+    type Case<'a> = (&'a str, &'a [&'a str], &'a str, &'a str);
     let cases: &[Case<'_>] = &[
-        ("42-open-ux-choice-no-color", &[], "› id"),
-        ("43-open-ux-choice-ascii", &["--ascii"], "> id"),
+        (
+            "42-open-ux-choice-no-color",
+            &[],
+            "› 1 (●) id",
+            "› 2 (●) status",
+        ),
+        (
+            "43-open-ux-choice-ascii",
+            &["--ascii"],
+            "> 1 (*) id",
+            "> 2 (*) status",
+        ),
     ];
-    for (tag, args, selected) in cases {
+    for (tag, args, selected, second) in cases {
         let rig = Rig::new(tag);
         std::fs::write(rig.path("tickets.csv"), TICKETS).expect("tickets");
         let env = [("NO_COLOR", "1"), ("NIKA_REDUCED_MOTION", "1")];
@@ -344,9 +448,12 @@ fn the_typed_choice_reads_without_colour_and_in_ascii() {
         term.wait_workspace_frame("the typed choice without colour", |screen| {
             screen.contains("Question") && screen.contains("Request")
         });
-        term.send(DOWN);
-        term.wait_workspace_frame("the first offer selected", |screen| {
+        term.wait_workspace_frame("the first offer selected as it opens", |screen| {
             screen.contains(selected)
+        });
+        term.send(DOWN);
+        term.wait_workspace_frame("Down reaches the second offer", |screen| {
+            screen.contains(second) && !screen.contains(selected)
         });
         if !args.is_empty() {
             assert_renderer_ascii(&term.text());
@@ -359,6 +466,7 @@ fn the_typed_choice_reads_without_colour_and_in_ascii() {
             );
         }
         terminate(&mut term);
+        rig.no_model_call(&format!("{tag}: the typed choice asked and selected"));
     }
 }
 
@@ -406,4 +514,5 @@ fn a_command_chosen_while_a_run_works_waits_for_the_turn() {
         screen.contains("Ask, change, or run")
     });
     terminate(&mut term);
+    rig.no_model_call("a run, the palette and a waiting command");
 }

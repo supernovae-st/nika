@@ -46,6 +46,12 @@ fn signing_key(dir: &Path) -> [(String, String); 3] {
     let key = dir.join("run-signing.key");
     let pub_ = dir.join("run-signing.pub");
     std::fs::write(&key, pair.sk.to_box(None).expect("sk box").to_string()).expect("write key");
+    // A secret key other users can read is refused, as ssh refuses one: the hermetic key is 0600.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).expect("key mode");
+    }
     std::fs::write(&pub_, pair.pk.to_box().expect("pk box").to_string()).expect("write pub");
     [
         (

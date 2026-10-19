@@ -117,7 +117,7 @@ pub(crate) fn inline(text: &str, color: bool) -> Vec<Span<'static>> {
 }
 
 /// The fence a line opens (its character and length), if it opens one.
-fn opens_fence(trimmed: &str) -> Option<(char, usize)> {
+pub(crate) fn opens_fence(trimmed: &str) -> Option<(char, usize)> {
     let c = trimmed.chars().next().filter(|c| matches!(c, '`' | '~'))?;
     let n = trimmed.chars().take_while(|x| *x == c).count();
     (n >= 3).then_some((c, n))
@@ -130,7 +130,7 @@ fn is_rule(trimmed: &str) -> bool {
 }
 
 /// A list item's marker (as drawn) and the text after it.
-fn list_item(trimmed: &str, ascii: bool) -> Option<(String, &str)> {
+pub(crate) fn list_item(trimmed: &str, ascii: bool) -> Option<(String, &str)> {
     let bullet = if ascii { "-" } else { "•" };
     if let Some(rest) = trimmed.strip_prefix(['-', '*', '+'])
         && let Some(text) = rest.strip_prefix(' ')

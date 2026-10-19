@@ -42,6 +42,9 @@ jobs:
         id: hygiene
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Vector 46 runs the kit's hook tests with the CLI built above,
+          # never a PATH `nika` (the runner has none, so they would skip).
+          NIKA_BIN: ${{ github.workspace }}/target/debug/nika
         run: |
           chmod +x scripts/hygiene/*.sh
           set +e

@@ -17,6 +17,7 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::composer::chooser::Entry;
+use crate::lang::Voice;
 use crate::model::{Kind, Presentation};
 use crate::workspace::geometry::Layout;
 
@@ -83,8 +84,8 @@ const COMMANDS: &[Words] = &[
     (
         "/intelligence",
         "Choose the AI this session reasons with",
-        "this session · your next line chooses",
-        "Shows the intelligence choices again; the next line you send is your choice.",
+        "this session · choose from the list",
+        "Browse the AI connections and models available to this session.",
         "intelligence model ai provider access seat choose change switch",
     ),
     (
@@ -93,6 +94,20 @@ const COMMANDS: &[Words] = &[
         "kept from your last session",
         "The kept preparation or proposal, for a fresh review; no AI asked, nothing written until yes.",
         "restore kept draft previous last session round",
+    ),
+    (
+        "/new",
+        "Begin a new conversation",
+        "no decision waiting · this project",
+        "Keeps this conversation and begins an empty one; workflows, schedules and runs carry over.",
+        "new conversation fresh start begin again reset clear",
+    ),
+    (
+        "/welcome",
+        "Show the welcome again",
+        "any time · this screen",
+        "Its steps and the example it offers return as the object in view; nothing is sent.",
+        "welcome start begin intro steps example demo home first",
     ),
     (
         "/quit",
@@ -147,24 +162,25 @@ impl Read {
 }
 
 /// Everything to choose from: the conversation's `commands`, then the view
-/// keys of `view`.
-pub(crate) fn offered(commands: &[String], view: View) -> Vec<Entry> {
-    let mut entries: Vec<Entry> = commands.iter().map(|name| command(name)).collect();
-    entries.extend(keys(view));
+/// keys of `view`, their words said in `voice` (each name as typed).
+pub(crate) fn offered(commands: &[String], view: View, voice: Voice) -> Vec<Entry> {
+    let mut entries: Vec<Entry> = commands.iter().map(|name| command(name, voice)).collect();
+    entries.extend(keys(view, voice));
     entries
 }
 
 /// One command the conversation answers, in words.
-fn command(name: &str) -> Entry {
+fn command(name: &str, voice: Voice) -> Entry {
+    let say = |en: &'static str| voice.say(en);
     match COMMANDS.iter().find(|words| words.0 == name) {
         Some(&(name, effect, scope, help, words)) => {
-            Entry::command(name, effect, scope, help, words)
+            Entry::command(name, say(effect), say(scope), say(help), words)
         }
         None => Entry::command(
             name,
-            "A command this conversation answers",
-            "/help describes it",
-            "Send it alone on a line; the Session's help card says what it does.",
+            say("A command this conversation answers"),
+            say("/help describes it"),
+            say("Send it alone on a line; the Session's help card says what it does."),
             "",
         ),
     }
@@ -181,7 +197,7 @@ fn press(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
 /// question waiting at the answer line, the current proposal the cards
 /// review, a summarized refusal or a folded run's story, at the reading
 /// position.
-fn details(view: View) -> Option<Entry> {
+fn details(view: View, voice: Voice) -> Option<Entry> {
     let (effect, scope, help, words) = match view.read? {
         Read::Question => (
             "Full question",
@@ -209,11 +225,20 @@ fn details(view: View) -> Option<Entry> {
         ),
     };
     let pressed = press(DIAGNOSTIC_KEY, KeyModifiers::NONE);
-    Some(Entry::key(pressed, "F2", effect, scope, help, words))
+    let say = |en: &'static str| voice.say(en);
+    Some(Entry::key(
+        pressed,
+        "F2",
+        say(effect),
+        say(scope),
+        say(help),
+        words,
+    ))
 }
 
 /// The view keys `view` routes: none sends, answers or grants anything.
-fn keys(view: View) -> Vec<Entry> {
+fn keys(view: View, voice: Voice) -> Vec<Entry> {
+    let say = |en: &'static str| voice.say(en);
     let full = view.presentation != Presentation::Inline;
     let workspace = view.presentation == Presentation::Workspace && view.fits;
     let none = KeyModifiers::NONE;
@@ -224,13 +249,13 @@ fn keys(view: View) -> Vec<Entry> {
         let words = view.object.map(|next| {
             if next == Layout::Workbench {
                 (
-                    "Expand the object",
-                    "Gives the object more room; the conversation keeps its composer and your draft; nothing is sent.",
+                    say("Expand the object"),
+                    say("Gives the object more room; the conversation keeps its composer and your draft; nothing is sent."),
                 )
             } else {
                 (
-                    "Restore the object",
-                    "Gives the conversation its room back; the object and your draft stay; nothing is sent.",
+                    say("Restore the object"),
+                    say("Gives the conversation its room back; the object and your draft stay; nothing is sent."),
                 )
             }
         });
@@ -239,7 +264,7 @@ fn keys(view: View) -> Vec<Entry> {
                 press(KeyCode::F(4), none),
                 "F4",
                 effect,
-                "workspace · view only",
+                say("workspace · view only"),
                 help,
                 "expand restore object larger room layout arrange view",
             ));
@@ -247,9 +272,9 @@ fn keys(view: View) -> Vec<Entry> {
         keys.push(Entry::key(
             press(KeyCode::F(6), none),
             "F6",
-            "Next panel",
-            "workspace · view only",
-            "Moves the keys to the project list, the conversation or the preview; Shift+F6 goes back.",
+            say("Next panel"),
+            say("workspace · view only"),
+            say("Moves the keys to the project list, the conversation or the preview; Shift+F6 goes back."),
             "panel focus region project list files preview object aside inspect open workflow",
         ));
     }
@@ -257,49 +282,78 @@ fn keys(view: View) -> Vec<Entry> {
         keys.push(Entry::key(
             press(KeyCode::PageUp, none),
             "PgUp",
-            "Earlier messages",
-            "full screen · view only",
-            "Moves the conversation a page back, PgDn a page forward; new messages keep your place.",
+            say("Earlier messages"),
+            say("full screen · view only"),
+            say("Moves the conversation a page back, PgDn a page forward; new messages keep your place."),
             "scroll page older earlier history transcript pgdn",
         ));
         if view.scrolled {
             keys.push(Entry::key(
                 press(KeyCode::End, none),
                 "End",
-                "Back to the latest message",
-                "when scrolled back · view only",
-                "Returns the conversation to its newest row.",
+                say("Back to the latest message"),
+                say("when scrolled back · view only"),
+                say("Returns the conversation to its newest row."),
                 "latest live bottom newest end",
             ));
         }
     }
-    keys.extend(details(view));
+    keys.extend(details(view, voice));
+    keys.extend(held(full, voice));
+    keys
+}
+
+/// The keys every presentation holds: the presentation switched (`full`: back inline, else to a
+/// full screen), a new conversation, everything redrawn, and the keys of the screen.
+fn held(full: bool, voice: Voice) -> Vec<Entry> {
+    let say = |en: &'static str| voice.say(en);
+    let mut keys = Vec::new();
     let (effect, help) = if full {
         (
-            "Back inline",
-            "Returns to the inline view, whose finished lines stay in your scrollback; the draft stays.",
+            say("Back inline"),
+            say(
+                "Returns to the inline view, whose finished lines stay in your scrollback; the draft stays.",
+            ),
         )
     } else {
         (
-            "Full screen",
-            "Opens the workspace, or the focus view on a small terminal; the draft stays.",
+            say("Full screen"),
+            say("Opens the workspace, or the focus view on a small terminal; the draft stays."),
         )
     };
     keys.push(Entry::key(
         press(KeyCode::Char('t'), KeyModifiers::CONTROL),
         "Ctrl+T",
         effect,
-        "the draft stays · view only",
+        say("the draft stays · view only"),
         help,
         "full screen inline workspace focus presentation switch",
     ));
     keys.push(Entry::key(
+        press(KeyCode::Char('n'), KeyModifiers::CONTROL),
+        "Ctrl+N",
+        say("New conversation"),
+        say("no decision waiting · this project"),
+        say(
+            "Keeps this conversation and begins an empty one; workflows, schedules and runs carry over.",
+        ),
+        "new conversation fresh start begin again reset",
+    ));
+    keys.push(Entry::key(
         press(KeyCode::Char('l'), KeyModifiers::CONTROL),
         "Ctrl+L",
-        "Redraw the screen",
-        "view only",
-        "Paints every cell again, for a terminal that lost part of the screen.",
+        say("Redraw the screen"),
+        say("view only"),
+        say("Paints every cell again, for a terminal that lost part of the screen."),
         "redraw repaint refresh",
+    ));
+    keys.push(Entry::key(
+        press(KeyCode::Char('?'), KeyModifiers::NONE),
+        "?",
+        say("The keys of this screen"),
+        say("with nothing typed · read only"),
+        say("Lists the keys of what is on screen now and the ones that always hold; Esc returns."),
+        "keys shortcuts help bindings what can i press",
     ));
     keys
 }
@@ -308,6 +362,45 @@ fn keys(view: View) -> Vec<Entry> {
 mod tests {
     use super::*;
     use crate::composer::chooser::Act;
+
+    /// The view keys of `view`, in English.
+    fn keys(view: View) -> Vec<Entry> {
+        super::keys(view, Voice::default())
+    }
+
+    /// In French every entry says what it does, where and its one sentence of
+    /// help in French; its name and the words a search finds stay, and a
+    /// command these words do not know says so in French too.
+    #[test]
+    fn every_entry_speaks_the_persons_language_and_keeps_its_name() {
+        let french = Voice {
+            lang: crate::lang::Lang::Fr,
+            ascii: false,
+        };
+        let commands = ["/help".to_owned(), "/quit".to_owned(), "/later".to_owned()];
+        let entries = offered(&commands, view(Presentation::Inline), french);
+        let english = offered(&commands, view(Presentation::Inline), Voice::default());
+        let help = &entries[0];
+        assert_eq!(help.name, "/help");
+        assert_eq!(
+            help.effect,
+            "Ce que vous pouvez demander, et chaque commande"
+        );
+        assert_eq!(help.scope, "à tout moment · lecture seule");
+        assert_eq!(help.words, english[0].words);
+        assert_eq!(entries[1].effect, "Fermer la session");
+        assert_eq!(entries[2].name, "/later");
+        assert_eq!(
+            entries[2].effect,
+            "Une commande à laquelle cette conversation répond"
+        );
+        for (french, english) in entries.iter().zip(&english) {
+            assert_eq!(french.name, english.name);
+            assert_eq!(french.act, english.act);
+            assert_ne!(french.effect, english.effect, "{}", english.name);
+            assert_ne!(french.help, english.help, "{}", english.name);
+        }
+    }
 
     fn view(presentation: Presentation) -> View {
         View {
@@ -330,6 +423,10 @@ mod tests {
     fn the_words_cover_exactly_the_session_commands() {
         let mut session: Vec<&str> = nika_session::runtime::SLASH_COMMANDS.to_vec();
         session.push("/restore");
+        // The new conversation's door, which the TUI lists beside the Session's commands, and
+        // this screen's own way back to the welcome.
+        session.push("/new");
+        session.push("/welcome");
         let mut described: Vec<&str> = COMMANDS.iter().map(|words| words.0).collect();
         session.sort_unstable();
         described.sort_unstable();
@@ -348,11 +445,12 @@ mod tests {
     #[test]
     fn the_conversation_commands_lead_in_their_own_order() {
         let commands = ["/status", "/help", "/future"].map(str::to_owned);
-        let entries = offered(&commands, view(Presentation::Workspace));
+        let entries = offered(&commands, view(Presentation::Workspace), Voice::default());
         assert_eq!(
             names(&entries),
             [
-                "/status", "/help", "/future", "F4", "F6", "PgUp", "Ctrl+T", "Ctrl+L"
+                "/status", "/help", "/future", "F4", "F6", "PgUp", "Ctrl+T", "Ctrl+N", "Ctrl+L",
+                "?"
             ]
         );
         assert_eq!(entries[0].act, Act::Insert("/status".to_owned()));
@@ -366,7 +464,7 @@ mod tests {
             }
         }
         assert!(
-            offered(&[], view(Presentation::Workspace))
+            offered(&[], view(Presentation::Workspace), Voice::default())
                 .iter()
                 .all(|entry| matches!(entry.act, Act::Press(_)))
         );
@@ -380,17 +478,20 @@ mod tests {
     fn view_keys_follow_what_the_presentation_routes() {
         assert_eq!(
             names(&keys(view(Presentation::Inline))),
-            ["Ctrl+T", "Ctrl+L"]
+            ["Ctrl+T", "Ctrl+N", "Ctrl+L", "?"]
         );
         assert_eq!(
             names(&keys(view(Presentation::Focus))),
-            ["PgUp", "Ctrl+T", "Ctrl+L"]
+            ["PgUp", "Ctrl+T", "Ctrl+N", "Ctrl+L", "?"]
         );
         let small = View {
             fits: false,
             ..view(Presentation::Workspace)
         };
-        assert_eq!(names(&keys(small)), ["PgUp", "Ctrl+T", "Ctrl+L"]);
+        assert_eq!(
+            names(&keys(small)),
+            ["PgUp", "Ctrl+T", "Ctrl+N", "Ctrl+L", "?"]
+        );
         let busy_reading = View {
             scrolled: true,
             read: Some(Read::Diagnostic),
@@ -398,7 +499,9 @@ mod tests {
         };
         assert_eq!(
             names(&keys(busy_reading)),
-            ["F4", "F6", "PgUp", "End", "F2", "Ctrl+T", "Ctrl+L"]
+            [
+                "F4", "F6", "PgUp", "End", "F2", "Ctrl+T", "Ctrl+N", "Ctrl+L", "?"
+            ]
         );
         let inline = keys(view(Presentation::Inline));
         assert_eq!(inline[0].effect, "Full screen");

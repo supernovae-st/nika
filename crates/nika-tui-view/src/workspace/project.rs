@@ -15,13 +15,17 @@
 //! the viewers; [`workflow_object`] is the seam they replace. What an aside
 //! entry opens stays with the renderer, which holds the live run.
 
+use nika_session::Lang;
+
 use super::aside::Verdict;
 use super::conversation::Thread;
 use super::header::{Manifest, Place};
+use super::lang::say;
 use super::object::Object;
 use super::pinned::Pinned;
 use super::text::marks;
 use crate::visual::icon::Icon;
+use crate::visual::logomark::WORDMARK;
 
 /// The name the workspace gives the one conversation a Session holds: no
 /// catalogue of conversations is lent yet, so none is named for it.
@@ -101,6 +105,10 @@ pub struct ProjectView {
     pub seat: Option<String>,
     /// The run that asks for attention, when one really does.
     pub pinned: Option<Pinned>,
+    /// What the trigger of each schedule `nika.yaml` declares decided, as the Session's
+    /// arm-ledger reader says it (`SessionRuntime::schedule_history`, read only): empty
+    /// without one.
+    pub schedules: Vec<nika_session::ScheduleHistory>,
 }
 
 impl ProjectView {
@@ -122,6 +130,7 @@ impl ProjectView {
             complete: false,
             seat: None,
             pinned: None,
+            schedules: Vec::new(),
         }
     }
 
@@ -161,6 +170,13 @@ impl ProjectView {
         self
     }
 
+    /// This view with what the trigger of each declared schedule decided.
+    #[must_use]
+    pub fn scheduling(mut self, schedules: Vec<nika_session::ScheduleHistory>) -> Self {
+        self.schedules = schedules;
+        self
+    }
+
     /// The listed workflow at `path`.
     #[must_use]
     pub fn workflow(&self, path: &str) -> Option<&WorkflowView> {
@@ -196,31 +212,42 @@ pub fn thread(view: Option<&ProjectView>, on_screen: Option<&str>) -> Thread {
 /// The demo the welcome offers: an exact skeleton of the pack whose records
 /// travel inside the example, so following it needs no file of the user's, no
 /// service and no model; its one open value (the currency) is asked. Typed as
-/// a line, it reaches the Session like any other request.
-pub const DEMO: &str = "aggregate-by-key";
+/// a line, it reaches the Session like any other request. It is the Session's
+/// own [`nika_session::WELCOME_DEMO`], the one it gives a person asking for
+/// « l'exemple de l'écran d'accueil »: the screen and that answer cannot drift.
+pub const DEMO: &str = nika_session::WELCOME_DEMO;
 
 /// The welcome explains the work once. The aside owns inventory, the
 /// conversation owns intelligence/context, and its hint owns the keys. The
 /// example it offers brings its own data; a request about the user's own
 /// files names them.
 #[must_use]
-pub fn welcome(view: Option<&ProjectView>, _ascii: bool) -> Object {
+pub fn welcome(view: Option<&ProjectView>, ascii: bool) -> Object {
+    welcome_in(view, ascii, Lang::En)
+}
+
+/// [`welcome`] in `lang`, the person's language once the Session reads it (live gauntlet 5: the
+/// welcome stayed English beside a French conversation), in the glyph column in use; the
+/// example's name stays as it is.
+#[must_use]
+pub fn welcome_in(view: Option<&ProjectView>, ascii: bool, lang: Lang) -> Object {
+    let said = |en: &str| say(lang, ascii, en).to_owned();
     let mut words = vec![
-        "N I K A".to_owned(),
-        "Turn an intention into a workflow.".to_owned(),
+        WORDMARK.to_owned(),
+        said("Turn an intention into a workflow."),
         String::new(),
-        "1  Describe the outcome in the conversation.".to_owned(),
-        "2  Answer questions; inspect the proposed plan.".to_owned(),
-        "3  Save, then Run with the workflow's models.".to_owned(),
+        said("1  Describe the outcome in the conversation."),
+        said("2  Answer questions; inspect the proposed plan."),
+        said("3  Save, then Run with the workflow's models."),
         String::new(),
-        format!("Try: {DEMO}"),
-        "a demo with its own records: totals per".to_owned(),
-        "region, you name the currency.".to_owned(),
-        "For your own data, name the files to read.".to_owned(),
+        said("Try: {demo}").replace("{demo}", DEMO),
+        said("a demo with its own records: totals per"),
+        said("region, you name the currency."),
+        said("For your own data, name the files to read."),
         String::new(),
     ];
     if view.is_none() {
-        words.push("no project is known to this conversation".to_owned());
+        words.push(said("no project is known to this conversation"));
     }
     Object::Welcome { words }
 }
@@ -274,5 +301,46 @@ pub fn run_object(run: &Pinned, ascii: bool) -> Object {
         icon: Icon::Run,
         name: format!("{} {}", run.run, run.workflow),
         lines,
+    }
+}
+
+#[cfg(test)]
+mod welcome_tests {
+    use super::*;
+
+    /// The words of `object`, a welcome.
+    fn words(object: &Object) -> Vec<String> {
+        match object {
+            Object::Welcome { words } => words.clone(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// The welcome speaks the person's language once the Session reads it (live gauntlet 5:
+    /// it stayed English beside a French conversation): its line, its three steps, the example
+    /// (whose name stays) and the absence of a project, the accents folded in the ASCII column;
+    /// English stays the default.
+    #[test]
+    fn the_welcome_speaks_the_persons_language() {
+        let french = words(&welcome_in(None, false, Lang::Fr));
+        for line in [
+            "Transformez une intention en workflow.",
+            "1  Décrivez le résultat voulu dans la conversation.",
+            "2  Répondez aux questions ; examinez le plan proposé.",
+            "3  Enregistrez, puis lancez avec les modèles du workflow.",
+            "aucun projet n'est connu de cette conversation",
+        ] {
+            assert!(french.iter().any(|said| said == line), "{line}: {french:?}");
+        }
+        assert!(french.contains(&format!("Essayez : {DEMO}")), "{french:?}");
+        let plain = words(&welcome_in(None, true, Lang::Fr));
+        assert!(
+            plain.contains(&"1  Decrivez le resultat voulu dans la conversation.".to_owned()),
+            "{plain:?}"
+        );
+        assert_eq!(welcome(None, false), welcome_in(None, false, Lang::En));
+        assert!(
+            words(&welcome(None, false)).contains(&"Turn an intention into a workflow.".to_owned())
+        );
     }
 }

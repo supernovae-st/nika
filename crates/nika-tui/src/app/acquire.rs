@@ -4,7 +4,8 @@
 //! What the run in view's face needs (a file it wrote, read now; its journal,
 //! captured and verified) acquired on a worker thread, as a turn is computed:
 //! the shell keeps hearing keys and drawing meanwhile (the composer takes
-//! words, a bare Enter waits, the page keys scroll, `Ctrl+C` twice leaves).
+//! words, a bare Enter is retained for the ordinary idle route, the page
+//! keys scroll, `Ctrl+C` twice leaves).
 //! The result is applied only to the leg and the reading it was asked for: a
 //! leg read again (`r`) since, or another leg, leaves it unapplied, and a
 //! child's journal applies only to the opening that asked it (closed and
@@ -14,7 +15,11 @@
 use std::io;
 use std::sync::mpsc;
 
-use super::{BUSY_POLL, Broker, Exit, Heard, Shell, busy_text_with, spinner_frame};
+use crossterm::event::{KeyCode, KeyModifiers};
+
+use super::{BUSY_POLL, Broker, Exit, Heard, Shell, armed_text, spinner_frame};
+use crate::composer::Composer;
+use crate::events::UiEvent;
 use crate::model::Conversation;
 use crate::workspace::desk::{Desk, Got, Reading, acquire_all};
 use nika_display::run_story::ExecutionId;
@@ -53,6 +58,15 @@ const NOT_ADOPTED: &str = "this host did not adopt this reading";
 /// The busy row while the run's face is acquired.
 const ACQUIRING: &str = "● reading what the run left";
 
+/// Reading an earlier run never consumes a fresh act on the idle composer.
+const ENTER_KEPT: &str = "Enter kept · your request follows this read · Ctrl+C cancels";
+
+/// Stop and a lost terminal remain immediate, even after input was retained.
+fn urgent(event: &UiEvent) -> bool {
+    matches!(event, UiEvent::Signal(_) | UiEvent::Closed)
+        || matches!(event, UiEvent::Key(key) if super::is_ctrl_c(key))
+}
+
 impl<C: Conversation + 'static> Shell<C> {
     /// Acquire what the run in view's face still needs, when it needs
     /// something and the conversation is here; `Some(exit)` when the human
@@ -72,8 +86,10 @@ impl<C: Conversation + 'static> Shell<C> {
                 let _ = done_tx.send((conversation, got));
             })?;
         let started = std::time::Instant::now();
-        let mut armed = false;
+        let mut armed = self.state.interrupt_armed;
         let mut shown = u64::MAX;
+        let mut incoming = std::mem::take(&mut self.deferred);
+        let mut retained = Vec::new();
         loop {
             match done_rx.recv_timeout(BUSY_POLL) {
                 Ok((mut conversation, got)) => {
@@ -81,7 +97,13 @@ impl<C: Conversation + 'static> Shell<C> {
                     self.conversation = Some(conversation);
                     self.state.busy = None;
                     self.typed_live = false;
-                    if self.state.completion.as_deref() == Some(super::ENTER_WAITS) {
+                    self.state.interrupt_armed = armed;
+                    self.deferred.extend(incoming);
+                    self.deferred.extend(retained);
+                    if matches!(
+                        self.state.completion.as_deref(),
+                        Some(super::ENTER_WAITS | ENTER_KEPT)
+                    ) {
                         self.state.completion = None;
                     }
                     // The main loop waits for the next event: what was read
@@ -98,8 +120,8 @@ impl<C: Conversation + 'static> Shell<C> {
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
             }
             let was_armed = armed;
-            while let Some(event) = broker.try_recv() {
-                match self.hear(event, &mut armed) {
+            while let Some(event) = incoming.pop_front().or_else(|| broker.try_recv()) {
+                match self.hear_acquiring(event, &mut armed, &mut retained) {
                     Heard::Leave(exit) => return Ok(Some(exit)),
                     Heard::Redraw => shown = u64::MAX,
                     Heard::Repaint => {
@@ -118,10 +140,104 @@ impl<C: Conversation + 'static> Shell<C> {
             if secs != shown || frame != self.state.spinner || armed != was_armed {
                 shown = secs;
                 self.state.spinner = frame;
-                self.state.busy = Some(busy_text_with(None, Some(ACQUIRING), secs, armed));
+                let voice = self.state.voice();
+                let acquiring = voice.say(ACQUIRING);
+                self.state.busy = Some(if armed {
+                    armed_text(acquiring, secs, voice)
+                } else if secs >= 2 {
+                    format!(
+                        "{acquiring} · {secs}s · {}",
+                        voice.say("Ctrl+C twice leaves")
+                    )
+                } else {
+                    acquiring.to_owned()
+                });
                 self.draw()?;
             }
         }
+    }
+
+    /// Freeze the draft at its first idle activation, then retain the remaining
+    /// events in order. The ordinary loop replays them after this read; it still
+    /// owns routing, choice witnesses and submission. Navigation stays live until
+    /// then, and the busy-turn law is unchanged.
+    fn hear_acquiring(
+        &mut self,
+        event: UiEvent,
+        armed: &mut bool,
+        retained: &mut Vec<UiEvent>,
+    ) -> Heard {
+        // Apply the idle repeat guard when a key is heard: navigation ends its
+        // window, and a slow read cannot turn a repeated activation into a new one.
+        if let UiEvent::Key(key) = &event
+            && self.repeated_enter(key)
+        {
+            return Heard::Nothing;
+        }
+        if urgent(&event) {
+            self.cancel_acquired_input(retained);
+            return self.hear(event, armed);
+        }
+        if !retained.is_empty() {
+            let resized = matches!(event, UiEvent::Resize(_, _));
+            retained.push(event);
+            return if resized {
+                Heard::Repaint
+            } else {
+                Heard::Nothing
+            };
+        }
+        if let UiEvent::Key(key) = &event
+            && key.code == KeyCode::Enter
+            && key.modifiers == KeyModifiers::NONE
+            && (self.composer_has_keys()
+                || self.composer.palette_open()
+                || self.diagnostic.is_some())
+        {
+            retained.push(event);
+            self.state.completion = Some(ENTER_KEPT.to_owned());
+            return Heard::Redraw;
+        }
+        if let UiEvent::Key(key) = &event
+            && self.composer_has_keys()
+            && key.modifiers.contains(KeyModifiers::CONTROL)
+            && Composer::text_key(key)
+        {
+            // This is an idle read, so editor shortcuts take effect before
+            // the next character, just as they do outside the acquisition.
+            self.state.completion = None;
+            self.typed_live = true;
+            let before = self.composer.text();
+            let _ = self.composer.handle(*key);
+            if self.composer.text() != before {
+                self.guard.edited();
+            }
+            return Heard::Redraw;
+        }
+        self.hear(event, armed)
+    }
+
+    /// Cancelling retained input keeps its edits and pastes as a draft, never
+    /// its activation or old pointer coordinates. Terminal events keep their
+    /// ordinary order through the existing typeahead helper.
+    fn cancel_acquired_input(&mut self, retained: &mut Vec<UiEvent>) {
+        if retained.is_empty() {
+            return;
+        }
+        for event in std::mem::take(retained) {
+            // Editor shortcuts must precede later text too: for example,
+            // Ctrl+A then C inserts C at the beginning, never at the end.
+            if let UiEvent::Key(key) = &event
+                && Composer::text_key(key)
+            {
+                let _ = self.composer.handle(*key);
+            } else {
+                let kept = super::set_aside(&mut self.composer, vec![event]);
+                self.deferred.extend(kept);
+            }
+        }
+        self.guard.edited();
+        self.state.completion = None;
     }
 }
 

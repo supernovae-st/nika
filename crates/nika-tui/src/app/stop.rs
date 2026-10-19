@@ -5,10 +5,12 @@
 //!
 //! The conversation arms one stop per turn before it moves to its worker
 //! ([`Conversation::stopper`]). While the turn runs, the first `Ctrl+C` asks the
-//! preparation to stop and arms the second press, which still leaves; `Enter`
-//! with words in the box asks the same stop and queues those words as a
-//! correction. A command the conversation knows (`/details`, `/status`, …)
-//! is not a correction: it reads and never redirects the work, so it stops
+//! preparation to stop and arms the second press, which still leaves, also once
+//! the stopped turn has settled: the idle row keeps that press armed, and any
+//! other key disarms it there. `Enter` with words in the box asks the same stop
+//! and queues those words as a correction, which keeps no press. A command the
+//! conversation knows (`/details`, `/status`, …) is not a correction: it reads
+//! and never redirects the work, so it stops
 //! nothing and waits in the box for the turn's end. A Run is never stopped
 //! here: the stop says so and only the usual warning applies. The Session
 //! answers the stopped turn itself. Until the turn ends, a requested stop
@@ -30,7 +32,7 @@ use std::io;
 
 use super::said::Said;
 use super::{ENTER_WAITS, Exit, Shell, Submitted};
-use nika_display::activity_card::{correction_queued, correction_unsent};
+use nika_display::activity_card::{correction_queued_in, correction_unsent_in};
 
 use crate::events::Broker;
 use crate::model::{Committed, Conversation, Kind, Stopper, Stopping, Waiting};
@@ -54,9 +56,10 @@ fn command_typed<'c>(draft: &str, commands: &'c [String]) -> Option<&'c str> {
         .find(|known| *known == first)
 }
 
-/// The hint when `Enter` keeps a command in the box while Nika works.
-pub(super) fn command_waits(command: &str) -> String {
-    format!("Nika keeps working · {command} waits for your turn")
+/// The hint when `Enter` keeps a command in the box while Nika works, in `voice`.
+pub(super) fn command_waits(command: &str, voice: crate::lang::Voice) -> String {
+    let phrase = voice.say("Nika keeps working · {command} waits for your turn");
+    crate::lang::fill(phrase, &[("{command}", command)])
 }
 
 /// The notice a view change leaves while a turn works: once a stop was
@@ -96,6 +99,17 @@ impl Hold {
     /// The preparation of the running turn was asked to stop.
     pub(super) fn stopping(&self) -> bool {
         self.stopping
+    }
+
+    /// Whether the first `Ctrl+C` stops the running turn's preparation: it
+    /// holds a stop, not yet asked.
+    pub(super) fn can_stop(&self) -> bool {
+        self.stopper.is_some() && !self.stopping
+    }
+
+    /// Whether a correction waits to be sent as the next line.
+    pub(super) fn queued(&self) -> bool {
+        self.queued.is_some()
     }
 
     /// The turn ended: its stop is spent; the correction it queued, if any.
@@ -206,7 +220,7 @@ impl<C: Conversation + 'static> Shell<C> {
             return;
         }
         if let Some(command) = command_typed(&self.composer.text(), &self.commands) {
-            self.state.completion = Some(command_waits(command));
+            self.state.completion = Some(command_waits(command, self.state.voice()));
             return;
         }
         let was = self.hold.stopping();
@@ -220,7 +234,9 @@ impl<C: Conversation + 'static> Shell<C> {
         // Taken as `Enter` takes a line: whole, and kept in history.
         let draft = self.composer.take();
         let replaced = self.hold.queued.replace(draft.clone()).is_some();
-        let notice = correction_queued(&draft, replaced, self.state.ascii);
+        let voice = self.state.voice();
+        let said = |words: &str| voice.say(words).to_owned();
+        let notice = correction_queued_in(&draft, replaced, voice.ascii, &said);
         crate::scroll::preserve_reading(&mut self.state, &self.desk, &self.composer, |state| {
             state.transcript.push(Committed::new(Kind::Notice, notice));
         });
@@ -230,7 +246,8 @@ impl<C: Conversation + 'static> Shell<C> {
     /// The human's stop, as a row of the live activity card (the workspace's).
     fn note_stop(&mut self) {
         crate::scroll::preserve_reading(&mut self.state, &self.desk, &self.composer, |state| {
-            state.observe_activity(STOP_ASKED);
+            let asked = state.voice().say(STOP_ASKED);
+            state.observe_activity(asked);
         });
     }
 
@@ -250,7 +267,10 @@ impl<C: Conversation + 'static> Shell<C> {
             self.hold.chained = Some(queued);
             return Ok(());
         }
-        let notice = correction_unsent(&queued, fate == Fate::Transcript, self.state.ascii);
+        let voice = self.state.voice();
+        let said = |words: &str| voice.say(words).to_owned();
+        let kept_out = fate == Fate::Transcript;
+        let notice = correction_unsent_in(&queued, kept_out, voice.ascii, &said);
         // A scrolled transcript keeps its reading position: the draft's rows
         // and the notice land below it.
         self.keep_reading(|state, composer| {
@@ -372,7 +392,15 @@ mod tests {
         ] {
             assert_eq!(command_typed(correction, &commands), None, "{correction}");
         }
-        let hint = command_waits("/intelligence");
+        let hint = command_waits("/intelligence", crate::lang::Voice::default());
+        let french = crate::lang::Voice {
+            lang: crate::lang::Lang::Fr,
+            ascii: false,
+        };
+        assert_eq!(
+            command_waits("/intelligence", french),
+            "Nika continue · /intelligence attend votre tour"
+        );
         assert!(hint.chars().count() <= 80, "{hint}");
     }
 

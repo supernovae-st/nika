@@ -14,9 +14,10 @@
 //! by identity, as its typed review ([`review`]), its identity and reader key
 //! on its bottom border; any other proposal is history, quietly titled. Each
 //! block keeps the Session's words whole, and measuring and painting use the
-//! same lines. The question the live card carries with its words
-//! (`render::question`) reads one quiet row where its block stands, the block
-//! itself untouched.
+//! same lines; a proposal block said beside a proposal that waited no longer
+//! reads that it still waits once none does ([`decided`]). The question the
+//! live card carries with its words (`render::question`) reads one quiet row
+//! where its block stands, the block itself untouched.
 
 // The presenter's file sits beside the root modules; the cards that paint it
 // own the module.
@@ -41,12 +42,15 @@ use self::diagnostics::{Shown, Summary};
 use self::review::Review;
 use super::text::{fit_head, marks};
 
-use crate::model::{Committed, Kind, UiState};
-use crate::render::{block_lines, content_rows, window};
+use crate::lang::Voice;
+use crate::model::{Committed, Kind, UiState, Waiting};
+use crate::render::{block_lines, block_lines_within, content_rows, window};
 use crate::visual::role;
 
-fn heading(kind: Kind) -> (&'static str, Role) {
-    match kind {
+/// The name a card or a bubble wears for a block of `kind`, said in `voice`,
+/// and the role its title wears.
+fn heading(kind: Kind, voice: Voice) -> (&'static str, Role) {
+    let (name, role) = match kind {
         Kind::Human => ("You", Role::Dim),
         Kind::Question => ("Question", Role::Warn),
         Kind::Proposal => ("Review before saving", Role::Warn),
@@ -58,43 +62,52 @@ fn heading(kind: Kind) -> (&'static str, Role) {
         Kind::Activity => ("Activity", Role::Accent),
         Kind::Banner => ("Nika", Role::VerbAgent),
         Kind::Notice | Kind::Reply => ("Nika", Role::Accent),
-    }
+    };
+    (voice.say(name), role)
 }
 
 /// The title a card wears: a proposal reads as the decision under review only
 /// while the Session waits on it (`pending`); any other proposal is history.
-fn card_heading(block: &Committed, pending: bool) -> (&'static str, Role) {
+fn card_heading(block: &Committed, pending: bool, voice: Voice) -> (&'static str, Role) {
     if block.kind == Kind::Proposal && !pending {
-        ("Proposal", Role::Dim)
+        (voice.say("Proposal"), Role::Dim)
     } else {
-        heading(block.kind)
+        heading(block.kind, voice)
     }
 }
 
-/// The lines one card paints: the Session's words, or the summary of a
-/// recognised refusal; the block itself is never rewritten.
-fn card_lines(block: &Committed, color: bool, ascii: bool) -> Vec<Line<'static>> {
+/// The lines one card paints in rows `width` cells wide: the Session's
+/// words, or the summary of a recognised refusal; the block itself is never
+/// rewritten. A line pointing to a terminal for the check's hints reads the
+/// key that shows them here ([`hints_here`]).
+fn card_lines(block: &Committed, color: bool, ascii: bool, width: u16) -> Vec<Line<'static>> {
     match diagnostics::shown(block) {
-        Shown::Said => block_lines(block, color, ascii),
-        Shown::Banner(text) => block_lines(&Committed::new(block.kind, text), color, ascii),
+        Shown::Said => match hints_here(&block.text) {
+            Some(text) => {
+                block_lines_within(&Committed::new(block.kind, text), color, ascii, width)
+            }
+            None => block_lines_within(block, color, ascii, width),
+        },
+        Shown::Banner(text) => {
+            block_lines_within(&Committed::new(block.kind, text), color, ascii, width)
+        }
         Shown::Refusal(summary) => summary_lines(block.kind, summary, color, ascii),
-        Shown::Folded((run, state)) => {
+        Shown::Folded(fold) => {
+            // How the run ended is the Session's block's to say, never a settlement's word.
             let (sep, dim) = (marks(ascii).0, role::style(Role::Dim, color));
-            vec![Line::styled(format!("{run}{sep}{state}{sep}F2"), dim)]
+            vec![Line::styled(format!("{}{sep}F2", fold.label), dim)]
         }
     }
 }
 
-/// The visible speaker label replaces the compact sent-message marker.
-fn message_lines(block: &Committed, color: bool, ascii: bool) -> Vec<Line<'static>> {
+/// The visible speaker label replaces the compact sent-message marker; the
+/// lines are painted in rows `width` cells wide.
+fn message_lines(block: &Committed, color: bool, ascii: bool, width: u16) -> Vec<Line<'static>> {
     if block.kind == Kind::Human {
-        block_lines(
-            &Committed::new(Kind::Reply, block.text.clone()),
-            color,
-            ascii,
-        )
+        let said = Committed::new(Kind::Reply, block.text.clone());
+        block_lines_within(&said, color, ascii, width)
     } else {
-        card_lines(block, color, ascii)
+        card_lines(block, color, ascii, width)
     }
 }
 
@@ -152,10 +165,86 @@ fn summary_lines(kind: Kind, summary: &Summary, color: bool, ascii: bool) -> Vec
     lines
 }
 
+/// The Session's line of the check's hints, its count and the command that prints them in a
+/// terminal, in each language it says it, and how the workspace says where they are shown: the
+/// check face of the workflow in view, one key away (live gauntlet 6, r04 and r08 B9: « 2
+/// conseils pour l'améliorer · `nika-dev check x.nika` les affiche » sent a person who never
+/// opened a terminal to one).
+const HINTS: [(&str, &str, &str); 4] = [
+    (
+        " hints to improve it",
+        "` prints them",
+        "the check face shows them · F6 then Left/Right",
+    ),
+    (
+        " hint to improve it",
+        "` prints it",
+        "the check face shows it · F6 then Left/Right",
+    ),
+    (
+        " conseils pour l'améliorer",
+        "` les affiche",
+        "la face vérification les affiche · F6 puis Gauche/Droite",
+    ),
+    (
+        " conseil pour l'améliorer",
+        "` l'affiche",
+        "la face vérification l'affiche · F6 puis Gauche/Droite",
+    ),
+];
+
+/// `text` as the workspace reads it when a line of it is the Session's line of the check's
+/// hints ([`HINTS`]): the count kept, the terminal's command replaced by the key that shows
+/// them on the check face, in the line's own language; `None` when no line is. The block keeps
+/// the Session's words, which its whole words (`F2`) read.
+fn hints_here(text: &str) -> Option<String> {
+    let pointed = |line: &str| {
+        let (head, command) = line.split_once(" · `")?;
+        HINTS.iter().find_map(|(phrase, tail, here)| {
+            (head.ends_with(phrase) && command.ends_with(tail) && command.contains(" check "))
+                .then(|| format!("{head} · {here}"))
+        })
+    };
+    if !text.lines().any(|line| pointed(line).is_some()) {
+        return None;
+    }
+    let lines: Vec<String> = (text.lines())
+        .map(|line| pointed(line).unwrap_or_else(|| line.to_owned()))
+        .collect();
+    Some(lines.join("\n"))
+}
+
+/// How a line said beside a waiting proposal begins: « (the proposal still waits · `yes`
+/// applies it · `no` discards it) ».
+const STILL_WAITS: &str = "(the proposal still waits";
+
+/// Whether the Session waits on a proposal now: its consent, its save decision or one of its
+/// open choices.
+fn proposal_waits(waiting: &Waiting) -> bool {
+    matches!(waiting, Waiting::Proposal | Waiting::ProposalChoice { .. })
+        || matches!(waiting, Waiting::Action { key, .. } if key == "save")
+}
+
+/// A proposal block said beside a proposal that waited, as its card reads it once no proposal
+/// waits: without the line saying it still waits, a decision since taken. `None` keeps the
+/// block as said; the block itself keeps every word, and the reader (`F2`) reads them. The
+/// focus view reads its blocks the same way.
+pub(crate) fn decided(block: &Committed, waiting: &Waiting) -> Option<Committed> {
+    if block.kind != Kind::Proposal || proposal_waits(waiting) || !block.text.contains(STILL_WAITS)
+    {
+        return None;
+    }
+    let kept: Vec<&str> = (block.text.lines())
+        .filter(|line| !line.trim_start().starts_with(STILL_WAITS))
+        .collect();
+    Some(Committed::new(block.kind, kept.join("\n")))
+}
+
 /// The lines `block`, at `index` in the transcript, paints `width` cells
 /// wide: the candidate's review for the current proposal (`current`), its
 /// identity and reader key on a row of their own where no border carries them
-/// (`bare`), else the card's own lines.
+/// (`bare`), else the card's own lines (a proposal block that said it still
+/// waits, without that line once no proposal waits).
 fn shown_lines(
     state: &UiState,
     (index, block): (usize, &Committed),
@@ -173,7 +262,10 @@ fn shown_lines(
             }
             lines
         }
-        _ => card_lines(block, color, ascii),
+        _ => match decided(block, &state.waiting) {
+            Some(now) => card_lines(&now, color, ascii, width),
+            None => card_lines(block, color, ascii, width),
+        },
     }
 }
 
@@ -244,7 +336,7 @@ impl Piece {
 /// carried block as the live question's one row.
 fn plan(state: &UiState, area: Rect, (review, carried): Context<'_>, from: usize) -> Vec<Piece> {
     let form = Form::of(area);
-    let (color, ascii) = (state.color, state.ascii);
+    let (color, ascii, voice) = (state.color, state.ascii, state.voice());
     let current = review::summarized(state, review);
     let pending = review::pending(state);
     let words = area.width.saturating_sub(4);
@@ -257,7 +349,7 @@ fn plan(state: &UiState, area: Rect, (review, carried): Context<'_>, from: usize
             .first()
             .is_some_and(|first| bound || (first.kind == Kind::Human) != you)
         {
-            pieces.push(Piece::Bubble(Bubble::of(&group, area, form, color, ascii)));
+            pieces.push(Piece::Bubble(Bubble::of(&group, area, form, color, voice)));
             group.clear();
         }
         if bound && carried == Some(index) {
@@ -267,7 +359,7 @@ fn plan(state: &UiState, area: Rect, (review, carried): Context<'_>, from: usize
             let reviewed = current.filter(|(at, _)| *at == index);
             let room = usize::from(area.width).saturating_sub(5);
             pieces.push(Piece::Card(Card {
-                heading: card_heading(block, pending == Some(index)),
+                heading: card_heading(block, pending == Some(index), voice),
                 rows: content_rows(&lines, words),
                 lines,
                 foot: reviewed.map(|(_, review)| review.foot(room, ascii)),
@@ -277,7 +369,7 @@ fn plan(state: &UiState, area: Rect, (review, carried): Context<'_>, from: usize
         }
     }
     if !group.is_empty() {
-        pieces.push(Piece::Bubble(Bubble::of(&group, area, form, color, ascii)));
+        pieces.push(Piece::Bubble(Bubble::of(&group, area, form, color, voice)));
     }
     pieces
 }
@@ -419,14 +511,13 @@ fn lift(state: &UiState, area: Rect, rows: usize) -> u16 {
 /// The heading of a card entered part-way, `above` rows of its words over the
 /// first one shown, in `room` cells: its label, cut if need be, and the count
 /// whole; `None` when the row cannot hold both.
-fn continued(label: &str, above: usize, room: usize, ascii: bool) -> Option<String> {
-    let (sep, up, cut) = if ascii {
+fn continued(label: &str, above: usize, room: usize, voice: Voice) -> Option<String> {
+    let (sep, up, cut) = if voice.ascii {
         ("-", "^", "...")
     } else {
         ("·", "↑", "…")
     };
-    let plural = if above == 1 { "" } else { "s" };
-    let count = format!(" {sep} {up} {above} row{plural}");
+    let count = format!(" {sep} {up} {}", voice.count(above, "row"));
     let name = room
         .checked_sub(count.width())
         .filter(|cells| *cells > cut.width())?;
@@ -457,7 +548,7 @@ fn paint_card(frame: &mut Frame<'_>, card: &Card, area: Rect, offset: usize, sta
     };
     let room = usize::from(area.width).saturating_sub(5);
     let entered = if offset > 0 && offset <= rows && height >= 2 {
-        continued(label, offset, room, state.ascii)
+        continued(label, offset, room, state.voice())
     } else {
         None
     };

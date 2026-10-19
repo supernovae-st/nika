@@ -29,6 +29,8 @@
 //!   ([`classify()`]), and shown honestly: an image or a sound by the facts
 //!   its header states, never guessed and never drawn through a terminal
 //!   image protocol; an opaque file by its facts and a short hex head;
+//! - the TUI's own words in the language the person writes ([`lang`]: the
+//!   French of its chrome, its counts and the voice that says them);
 //! - the workspace vocabulary ([`visual`]: the palette, the icons, the
 //!   brand mark and the state glyphs) and the pure parts of the workspace
 //!   screen ([`workspace`]: its geometry, header, aside, pinned run, object
@@ -43,6 +45,7 @@
 //! column, and a control character in a file reaches the screen as a
 //! visible mark, never as a command to the terminal.
 
+use nika_session::Lang;
 use ratatui::text::Line;
 
 mod artifact;
@@ -52,10 +55,13 @@ mod data;
 mod diff;
 mod graph_cards;
 mod json;
+pub mod lang;
 mod markdown;
 mod mask;
 mod media;
+pub mod names;
 mod opaque;
+pub mod reply;
 mod role;
 mod secret;
 mod source;
@@ -192,6 +198,8 @@ pub struct Canvas {
     pub color: bool,
     /// The decoders' bounds.
     pub limits: Limits,
+    /// The language the viewer's own words follow ([`Canvas::speaking`]).
+    pub(crate) lang: Lang,
 }
 
 impl Canvas {
@@ -203,6 +211,7 @@ impl Canvas {
             ascii,
             color,
             limits: Limits::default(),
+            lang: Lang::En,
         }
     }
 
@@ -211,6 +220,21 @@ impl Canvas {
     pub fn with_limits(mut self, limits: Limits) -> Self {
         self.limits = limits;
         self
+    }
+
+    /// The same canvas with the viewer's own words (a workflow face's facts
+    /// and headings, its notes, the check's reasons) said in `lang`; English
+    /// by default and as the fallback. Names, values, codes and the engine's
+    /// own words keep theirs.
+    #[must_use]
+    pub fn speaking(mut self, lang: Lang) -> Self {
+        self.lang = lang;
+        self
+    }
+
+    /// The viewer's phrase `en` in this canvas's language and glyph column.
+    pub(crate) fn say(self, en: &str) -> &str {
+        workspace::lang::say(self.lang, self.ascii, en)
     }
 }
 
@@ -280,11 +304,11 @@ pub enum Note {
         /// Columns in the widest row read.
         total: usize,
     },
-    /// `shown` of `total` table rows are drawn.
+    /// `shown` of `total` table rows are drawn, the header aside.
     RowsCut {
-        /// Rows drawn.
+        /// Records drawn under the header.
         shown: usize,
-        /// Rows read.
+        /// Records read under the header.
         total: usize,
     },
 }
@@ -303,53 +327,79 @@ impl Note {
     /// The note in words.
     #[must_use]
     pub fn text(&self, ascii: bool) -> String {
+        self.said(Canvas::new(0, ascii, false))
+    }
+
+    /// The note in words, in `canvas`'s language and glyph column: each
+    /// phrase whole, its values (counts, sizes, widths, the declared type)
+    /// set in after it is said.
+    pub(crate) fn said(&self, canvas: Canvas) -> String {
+        // The phrase for one or for any other count, its `{n}` set in after.
+        let counted = |n: usize, one: &str, many: &str| {
+            let phrase = if n == 1 { one } else { many };
+            canvas.say(phrase).replace("{n}", &n.to_string())
+        };
         match self {
-            Self::BytesCut { read, total } => format!(
-                "read the first {} of {}; the rest was not read",
-                cells::size_words(*read),
-                cells::size_words(*total)
+            Self::BytesCut { read, total } => (canvas)
+                .say("read the first {read} of {total}; the rest was not read")
+                .replace("{read}", &cells::size_words_in(*read, canvas))
+                .replace("{total}", &cells::size_words_in(*total, canvas)),
+            Self::LinesCut { shown } => counted(
+                *shown,
+                "the first 1 line shown; more follow",
+                "the first {n} lines shown; more follow",
             ),
-            Self::LinesCut { shown } => {
-                format!(
-                    "the first {} shown; more follow",
-                    cells::count(*shown, "line")
-                )
-            }
-            Self::WidthCut { lines, width } => format!(
-                "{} wider than {width} columns, cut at the edge",
-                cells::count(*lines, "line")
+            Self::WidthCut { lines, width } => counted(
+                *lines,
+                "1 line wider than {width} columns, cut at the edge",
+                "{n} lines wider than {width} columns, cut at the edge",
+            )
+            .replace("{width}", &width.to_string()),
+            Self::InvalidUtf8 { sequences } => counted(
+                *sequences,
+                "1 byte sequence not UTF-8, one {mark} per sequence",
+                "{n} byte sequences not UTF-8, one {mark} per sequence",
+            )
+            .replace("{mark}", cells::invalid_mark(canvas.ascii)),
+            Self::Controls { count } => counted(
+                *count,
+                "1 control character made visible",
+                "{n} control characters made visible",
             ),
-            Self::InvalidUtf8 { sequences } => format!(
-                "{} not UTF-8, one {} per sequence",
-                cells::count(*sequences, "byte sequence"),
-                cells::invalid_mark(ascii)
-            ),
-            Self::Controls { count } => {
-                format!("{} made visible", cells::count(*count, "control character"))
-            }
-            Self::Masked { count } => format!(
-                "{} masked: secret-looking in a protected object",
-                cells::count(*count, "value")
+            Self::Masked { count } => counted(
+                *count,
+                "1 value masked: secret-looking in a protected object",
+                "{n} values masked: secret-looking in a protected object",
             ),
             Self::Mismatch { declared, found } => {
-                let declared = cells::clean(declared, ascii).0;
-                match found {
+                let declared = cells::clean(declared, canvas.ascii).0;
+                let said = match found {
                     Format::Opaque => {
-                        format!("declared {declared}, but the bytes do not carry its signature")
+                        canvas.say("declared {declared}, but the bytes do not carry its signature")
                     }
-                    found => format!("declared {declared}, but the bytes are {}", found.label()),
-                }
+                    _ => canvas.say("declared {declared}, but the bytes are {found}"),
+                };
+                // The declared type is the caller's text: set in last.
+                (said.replace("{found}", canvas.say(found.label())))
+                    .replace("{declared}", &declared)
             }
-            Self::Fallback { to, why } => format!("shown as {}: {why}", to.label()),
-            Self::Changed => "the object changed since it was recorded".to_owned(),
-            Self::DepthCapped { depth } => format!(
-                "nesting deeper than {} keeps the last indent",
-                cells::count(*depth, "level")
-            ),
-            Self::ColumnsCut { shown, total } => {
-                format!("the width holds {shown} of {total} columns")
-            }
-            Self::RowsCut { shown, total } => format!("rows drawn: the first {shown} of {total}"),
+            Self::Fallback { to, why } => (canvas.say("shown as {to}: {why}"))
+                .replace("{to}", canvas.say(to.label()))
+                .replace("{why}", canvas.say(why)),
+            Self::Changed => canvas
+                .say("the object changed since it was recorded")
+                .to_owned(),
+            Self::DepthCapped { depth } => (canvas)
+                .say("nesting deeper than {levels} keeps the last indent")
+                .replace("{levels}", &cells::count_in(*depth, "level", canvas)),
+            Self::ColumnsCut { shown, total } => (canvas)
+                .say("the width holds {shown} of {total} columns")
+                .replace("{shown}", &shown.to_string())
+                .replace("{total}", &total.to_string()),
+            Self::RowsCut { shown, total } => (canvas)
+                .say("rows drawn: the first {shown} of {total}")
+                .replace("{shown}", &shown.to_string())
+                .replace("{total}", &total.to_string()),
         }
     }
 }

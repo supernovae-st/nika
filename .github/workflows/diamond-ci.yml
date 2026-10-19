@@ -235,6 +235,15 @@ jobs:
             --binary target/debug/nika --out "$RUNNER_TEMP/authoring-gauntlet/project-schema.json"
           "$RUNNER_TEMP/authoring-python/bin/python" scripts/authoring-gauntlet.py \
             --binary target/debug/nika --out "$RUNNER_TEMP/authoring-gauntlet"
+      # The plugin's check-on-edit hook ships into users' editors; its test judges with the
+      # `nika` the step above built, so every PR runs it, not only the nightly hygiene run.
+      - name: Kit hook test judged by this build
+        if: matrix.job == 'tests'
+        timeout-minutes: 3
+        env:
+          NIKA_BIN: ${{ github.workspace }}/target/debug/nika
+          NIKA_KEYCHAIN: 'off'
+        run: bash .agents/plugins/nika/scripts/tests/check-on-edit.test.sh
       - name: Preserve authoring evidence
         if: always() && matrix.job == 'tests'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

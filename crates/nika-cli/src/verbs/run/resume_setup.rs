@@ -26,6 +26,8 @@ use crate::verbs::exit;
 pub(super) struct ResumeSetup {
     /// The folded skip plan (`None` = no `--resume` requested).
     pub plan: Option<ResumePlan>,
+    /// Facts recorded by the continued run; absent on a fresh or older trace.
+    pub run_facts: Option<nika_runtime::RunFacts>,
     /// The validated `--answer task=value` map (empty without answers).
     pub answers: BTreeMap<String, Value>,
     /// The F-P4 resume authority (NEP-0013) — the approval ticket folded
@@ -83,6 +85,7 @@ impl ResumeSetup {
     const fn fresh() -> Self {
         Self {
             plan: None,
+            run_facts: None,
             answers: BTreeMap::new(),
             paused: None,
             compat: None,
@@ -212,6 +215,20 @@ pub(super) fn resume_setup(
         .bind_durable(wf, output_json)
 }
 
+/// The ceiling a resumed run continues under when the resume states none: what the ceiling its
+/// paused leg was admitted under leaves after that leg's spend (live gauntlet r04 B8, 2026-10-17:
+/// the leg after a gate ran unbounded, « budget: none journaled »). `None` for a fresh run, a
+/// trace that cannot be read, or a leg admitted under no ceiling. Said on stderr unless `machine`.
+pub(super) fn resumed_ceiling(resume: Option<&ResumeRequest>, machine: bool) -> Option<f64> {
+    let trace = resume?.trace.as_deref()?;
+    let facts = nika_trace::run_view::RunFacts::read(trace)?;
+    let left = facts.ceiling_left()?;
+    if !machine {
+        eprintln!("resumed under the run's own ceiling: ${left:.4} left");
+    }
+    Some(left)
+}
+
 /// Read, validate and fold the resume without opening or pruning durable claims.
 /// Run can reject a changed access lane before asking for spending authority.
 /// The returned setup must bind its durable replay protection before execution.
@@ -316,6 +333,8 @@ fn load_resume_plan(
     };
     judge_seat(&recovered.events, model_override, output_json)?;
     judge_access(&recovered.events, access, &label, output_json)?;
+    // Facts fold only after the existing trust, project, source and access judgments.
+    let run_facts = super::resume_facts::from_trace(&recovered.events).map_err(refuse)?;
     let fold = nika_dap::resume::fold_plan(&recovered.events);
     if fold.plan.is_empty() {
         // Nothing skippable — an older engine's trace or a run with no
@@ -334,6 +353,7 @@ fn load_resume_plan(
     }
     Ok(ResumeSetup {
         plan: Some(plan),
+        run_facts,
         answers: BTreeMap::new(),
         paused: fold.paused,
         compat,

@@ -80,11 +80,18 @@ pub(crate) fn test_arm(
     file: Option<String>,
     update: bool,
     answer: &[String],
-    (vars, case): (&[String], Option<&str>),
+    (vars, case, at): (&[String], Option<String>, Option<String>),
     plain_theme: Theme,
 ) -> u8 {
     match resolve_lazy_target(file, "test") {
-        Ok(file) => verbs::test::run_case(&file, update, answer, (vars, case), plain_theme),
+        Ok(file) => verbs::test::run_case_at(
+            &file,
+            update,
+            answer,
+            (vars, case.as_deref()),
+            at.as_deref(),
+            plain_theme,
+        ),
         Err(code) => code,
     }
 }

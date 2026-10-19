@@ -11,6 +11,7 @@
 use nika_dap::journal::TraceFileSink;
 use nika_runtime::EventSink;
 use nika_service_execution::{ChildTrace, ChildTraceFactory, ChildTraceMetadata};
+use nika_types::id::{ExecutionId, TraceId};
 
 pub(super) struct CliChildTraceFactory {
     enabled: bool,
@@ -25,7 +26,9 @@ impl CliChildTraceFactory {
 impl ChildTraceFactory for CliChildTraceFactory {
     fn create(&self) -> Box<dyn ChildTrace> {
         let sink = if self.enabled {
+            let execution = ExecutionId::generate();
             TraceFileSink::new(nika_dap::store::TRACE_DIR)
+                .for_execution(execution, TraceId::from(execution))
         } else {
             TraceFileSink::disabled()
         };

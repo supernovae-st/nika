@@ -22,15 +22,16 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use std::sync::{
     Arc,
-    atomic::{AtomicUsize, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use std::time::{Duration, Instant};
 
 use nika_tui::app::{self, Options};
 use nika_tui::model::{
-    Beat, Committed, Conversation, Handoff, Kind, Presentation, Script, Stopper, Stopping, Turn,
-    Waiting, demo_project,
+    Asked, Beat, Committed, Conversation, Handoff, Kind, Offer, Presentation, Script, Shape,
+    Stopper, Stopping, Turn, Waiting, demo_project,
 };
+use nika_tui::session::feed::Seen;
 
 use crate::qa_support::{Term, sized};
 
@@ -52,6 +53,20 @@ pub(crate) const STOPPED: &str = "qa Stop observed · calls=1";
 pub(crate) const BANNER: &str = "qa child · ready";
 /// The longest a held turn waits for its release.
 const HOLD_MAX: Duration = Duration::from_secs(30);
+/// The `questions` mode's first question: its witness, words and offers.
+pub(crate) const FIRST_QUESTION: (&str, &str, [(&str, &str); 2]) = (
+    "qa-q1",
+    "qa first · which colour?",
+    [("red", "Red"), ("blue", "Blue")],
+);
+/// The second question, asked by the first's answer.
+pub(crate) const SECOND_QUESTION: (&str, &str, [(&str, &str); 2]) = (
+    "qa-q2",
+    "qa second · which size?",
+    [("small", "Small"), ("large", "Large")],
+);
+/// What answering the second question says.
+pub(crate) const SECOND_ANSWERED: &str = "qa second answered";
 
 /// The controlled conversation.
 pub(crate) struct Child {
@@ -66,6 +81,67 @@ pub(crate) struct Child {
     /// Only `slow-stop` lends a stoppable preparation. Settlement still waits
     /// for the proof's release, so requesting and observing Stop stay distinct.
     stop_calls: Option<Arc<AtomicUsize>>,
+    /// Only `questions`: two finite questions ([`Questions`]).
+    questions: Option<Questions>,
+}
+
+/// The `questions` mode: any line asks [`FIRST_QUESTION`], whose answer asks
+/// [`SECOND_QUESTION`]. The shell's first read of the spend once it applied the second
+/// (the end of its batch of beats, after the turn's typeahead drain and before
+/// the question's first frame) holds until the release, so a proof can queue
+/// keys that arrive before the second question shows.
+pub(crate) struct Questions {
+    /// Every bound answer, one `witness key` line each.
+    answers: PathBuf,
+    /// Written once the hold begins.
+    held: PathBuf,
+    /// The file whose appearance ends the hold.
+    release: PathBuf,
+    /// The second question was just asked: the next spend read holds.
+    hold_next: AtomicBool,
+}
+
+impl Questions {
+    /// The mode's files, beside the proof's release file.
+    pub(crate) fn at(release: &Path) -> Self {
+        Self {
+            answers: release.with_extension("answers"),
+            held: release.with_extension("held"),
+            release: release.to_owned(),
+            hold_next: AtomicBool::new(false),
+        }
+    }
+
+    /// The answers bound so far, as the proof reads them.
+    pub(crate) fn bound(&self) -> String {
+        std::fs::read_to_string(&self.answers).unwrap_or_default()
+    }
+
+    /// Whether the hold has begun.
+    pub(crate) fn holding(&self) -> bool {
+        self.held.exists()
+    }
+}
+
+impl Drop for Questions {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.answers);
+        let _ = std::fs::remove_file(&self.held);
+    }
+}
+
+/// The turn that asks `question` ([`FIRST_QUESTION`] or [`SECOND_QUESTION`]).
+fn asking((witness, label, offers): (&str, &str, [(&str, &str); 2])) -> Turn {
+    let offers = offers
+        .iter()
+        .map(|(key, label)| Offer::new(*key, *label))
+        .collect();
+    let asked = Asked::new(label, "", true, Shape::Choice(offers), witness, 1);
+    let mut script = Script::new(
+        Vec::new(),
+        vec![vec![Beat::Wait(Waiting::asked(witness, asked))]],
+    );
+    <Script as Conversation>::submit(&mut script, "")
 }
 
 impl Child {
@@ -117,6 +193,9 @@ impl Conversation for Child {
     }
 
     fn submit(&mut self, line: &str) -> Turn {
+        if self.questions.is_some() {
+            return asking(FIRST_QUESTION);
+        }
         if self.fresh_at_gate && self.gate_waits && !matches!(line.trim(), "yes" | "no") {
             let mut waiting = Script::new(Vec::new(), vec![vec![Beat::Wait(Waiting::Gate)]]);
             return <Script as Conversation>::submit(&mut waiting, line);
@@ -162,6 +241,50 @@ impl Conversation for Child {
     fn perform(&mut self, _handoff: &Handoff) -> Vec<Beat> {
         Vec::new()
     }
+
+    fn answer_bound(
+        &mut self,
+        text: &str,
+        witness: &str,
+        busy: &Sender<String>,
+        seen: &Seen,
+    ) -> Turn {
+        let Some(questions) = self.questions.as_ref() else {
+            return <Script as Conversation>::answer_bound(
+                &mut self.script,
+                text,
+                witness,
+                busy,
+                seen,
+            );
+        };
+        let line = format!("{}{witness} {text}\n", questions.bound());
+        let _ = std::fs::write(&questions.answers, line);
+        if witness == FIRST_QUESTION.0 {
+            questions.hold_next.store(true, Ordering::SeqCst);
+            return asking(SECOND_QUESTION);
+        }
+        let mut said = Script::new(
+            Vec::new(),
+            vec![vec![
+                say(Kind::Reply, format!("{SECOND_ANSWERED} · {text}")),
+                Beat::Wait(Waiting::Free),
+            ]],
+        );
+        <Script as Conversation>::submit(&mut said, "")
+    }
+
+    fn spend(&self) -> Option<f64> {
+        let questions = self.questions.as_ref()?;
+        if questions.hold_next.swap(false, Ordering::SeqCst) {
+            let _ = std::fs::write(&questions.held, b"held");
+            let started = Instant::now();
+            while !questions.release.exists() && started.elapsed() < HOLD_MAX {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+        None
+    }
 }
 
 fn say(kind: Kind, text: impl Into<String>) -> Beat {
@@ -186,6 +309,8 @@ fn diagnostic() -> Option<Beat> {
 /// (the workspace mode lends the demo project):
 /// `slow-free` · `slow-gate` · `slow-gate-fresh` (the gate asks for fresh
 /// input) · `slow-stop` (stoppable preparation) · `slow-diagnostic` (opening raw evidence) · `big` (no held turn)
+/// · `demo` / `slow-demo` (the complete scripted question/review journey,
+/// with the same project listing; `slow-demo` holds its first turn)
 /// open on `n` transcript lines; `flood`
 /// sends `n` busy labels in its first turn.
 pub(crate) fn conversation_for(mode: &str, release: Option<PathBuf>) -> (Child, Presentation) {
@@ -215,8 +340,15 @@ pub(crate) fn conversation_for(mode: &str, release: Option<PathBuf>) -> (Child, 
     } else {
         vec![say(Kind::Reply, SECOND), Beat::Wait(Waiting::Free)]
     };
+    let questions = (release.as_deref())
+        .filter(|_| kind == "questions")
+        .map(Questions::at);
     let child = Child {
-        script: Script::new(opening, vec![first, second]),
+        script: if matches!(kind, "demo" | "slow-demo") {
+            Script::demo()
+        } else {
+            Script::new(opening, vec![first, second])
+        },
         release: if kind.starts_with("slow") {
             release
         } else {
@@ -228,6 +360,7 @@ pub(crate) fn conversation_for(mode: &str, release: Option<PathBuf>) -> (Child, 
         gate_waits: false,
         lends_project: presentation == Presentation::Workspace,
         stop_calls: (kind == "slow-stop").then(|| Arc::new(AtomicUsize::new(0))),
+        questions,
     };
     (child, presentation)
 }

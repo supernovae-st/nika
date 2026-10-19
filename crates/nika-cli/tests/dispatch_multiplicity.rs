@@ -30,6 +30,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
+#[path = "support/finite_action.rs"]
+#[allow(dead_code, reason = "this suite uses part of the shared action keys")]
+mod finite_action;
+
 const MODEL: &str = "deepseek/b12-unpriced-fixture";
 const FAN: &str = r#"nika: fan-run
 model: deepseek/b12-unpriced-fixture
@@ -351,16 +355,21 @@ fn ask(p: &mut LoggedPty, needles: &[&str]) {
     for needle in ["Fresh", "decision"].iter().chain(needles) {
         p.expect(*needle).unwrap();
     }
-    p.expect("reply ›").unwrap();
+    // A finite action: keys answer it only once its prompt is painted.
+    p.expect(finite_action::PAINTED).unwrap();
 }
+/// The painted Run cost decision answered by its offer: « Run once » or « Cancel this run ».
 fn answer(p: &mut LoggedPty, yes: bool) {
-    p.send(if yes { "yes\r" } else { "no\r" }).unwrap();
     if yes {
+        p.send(finite_action::choose(0)).unwrap();
         p.expect("tasks").unwrap();
         p.expect("ms").unwrap();
     } else {
+        p.send(finite_action::choose(1)).unwrap();
         p.expect("nothing").unwrap();
         p.expect("sent").unwrap();
+        // The declined Run's own line, never the hint a bare Enter leaves.
+        p.expect("declined").unwrap();
     }
     p.expect("nika ›").unwrap();
 }

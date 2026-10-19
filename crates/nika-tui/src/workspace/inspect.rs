@@ -38,10 +38,6 @@ pub(crate) fn read(
 /// hints in the check's order, the identity and the grade.
 fn checked(audit: &Audit) -> Checked {
     let (report, verdict) = (&audit.report, &audit.verdict);
-    let mut unknown = NOT_CAPTURED.to_owned();
-    if !verdict.children.is_empty() {
-        unknown = format!("{unknown}; it names {}", verdict.children.join(", "));
-    }
     let task = |task: &str| format!("task {task}");
     let mut findings: Vec<Said> = (report.findings.iter())
         .map(|f| {
@@ -71,9 +67,10 @@ fn checked(audit: &Audit) -> Checked {
     Checked::new(
         verdict.layers.clone(),
         report.waves.clone(),
-        unknown,
+        NOT_CAPTURED.to_owned(),
         verdict.grade.as_str(),
     )
+    .importing(verdict.children.clone())
     .named(audit.wf.workflow.as_ref().map(|n| n.value.clone()))
     .listing(findings, hints)
     .identified(report.workflow_semantic.clone())

@@ -25,6 +25,8 @@
 mod chooser;
 #[cfg(test)]
 mod chooser_tests;
+#[cfg(test)]
+mod french_tests;
 pub(crate) mod question;
 #[cfg(test)]
 mod question_tests;
@@ -45,6 +47,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Paragraph, Widget, Wrap};
 
 use crate::composer::Composer;
+use crate::lang::{Lang, Voice};
 use crate::model::{Committed, Kind, Presentation, UiState, Waiting};
 use crate::visual::role;
 use crate::workspace::cards::review::Review;
@@ -130,12 +133,17 @@ fn status_rows(state: &UiState, choosing: bool, width: u16, lent: bool) -> u16 {
 }
 
 /// The role of one line of an activity card: its heading, then each row by
-/// the Session's glyph (the busy row's reading); a run's step keeps `None`.
+/// the Session's glyph (the busy row's reading); a run's step keeps `None`. A
+/// failure a later attempt recovered (`↺`) is muted, never the failure's red.
 fn activity_role(index: usize, text: &str) -> Option<Role> {
     if index == 0 {
         Some(Role::Strong)
     } else if text.starts_with("✓ ") {
         Some(Role::Good)
+    } else if text.starts_with("✗ ") || text.starts_with("x ") {
+        Some(Role::Bad)
+    } else if text.starts_with("↺ ") {
+        Some(Role::Dim)
     } else if text.starts_with("↻ ") {
         Some(Role::Warn)
     } else if text.starts_with("● ") {
@@ -145,14 +153,66 @@ fn activity_role(index: usize, text: &str) -> Option<Role> {
     }
 }
 
-/// The lines of one block, the glyph on its first line only.
+/// The role of a report's line that opens on a state's own glyph (a run
+/// card's step, its ending): that state's role, a failure's red with its
+/// words, never colour alone.
+fn state_role(text: &str, ascii: bool) -> Option<Role> {
+    crate::visual::state::STATES.into_iter().find_map(|state| {
+        let (glyph, role) = crate::visual::state::cell(state, ascii);
+        let rest = text.strip_prefix(glyph)?;
+        rest.starts_with(' ').then_some(role)
+    })
+}
+
+/// The lines of one block, the glyph on its first line only. A reply reads its Markdown as a
+/// person reads it ([`nika_tui_view::reply::lines`]): one line for each of its own, every word
+/// kept, its tables at their natural width.
 #[must_use]
 pub fn block_lines(block: &Committed, color: bool, ascii: bool) -> Vec<Line<'static>> {
+    lines_of(block, color, ascii, usize::MAX)
+}
+
+/// [`block_lines`] painted in rows `width` cells wide: a reply's table fits them
+/// ([`nika_tui_view::reply::lines_within`]), its widest columns narrowed and their wider
+/// cells cut on the cut mark, so a row of the table never wraps.
+#[must_use]
+pub fn block_lines_within(
+    block: &Committed,
+    color: bool,
+    ascii: bool,
+    width: u16,
+) -> Vec<Line<'static>> {
+    lines_of(block, color, ascii, usize::from(width))
+}
+
+/// The lines of one block in rows `width` cells wide ([`block_lines_within`]).
+fn lines_of(block: &Committed, color: bool, ascii: bool, width: usize) -> Vec<Line<'static>> {
     let (glyph, style) = face(block.kind, color, ascii);
     let indent = " ".repeat(glyph.chars().count());
-    block
-        .text
-        .lines()
+    if block.kind == Kind::Reply {
+        let room = width.saturating_sub(indent.len());
+        let said = nika_tui_view::reply::lines_within(&block.text, color, ascii, room);
+        return (said.into_iter())
+            .enumerate()
+            .map(|(i, spans)| {
+                let head = if i == 0 {
+                    glyph.to_owned()
+                } else {
+                    indent.clone()
+                };
+                let mut line = vec![Span::styled(head, style)];
+                line.extend(spans);
+                Line::from(line)
+            })
+            .collect();
+    }
+    // A proposal's card reads without the identity's hex; the reader (`F2`) keeps every word.
+    let said: Vec<std::borrow::Cow<'_, str>> = if block.kind == Kind::Proposal {
+        block.text.lines().filter_map(without_identity).collect()
+    } else {
+        block.text.lines().map(std::borrow::Cow::Borrowed).collect()
+    };
+    (said.iter())
         .enumerate()
         .map(|(i, text)| {
             let head = if i == 0 {
@@ -160,16 +220,46 @@ pub fn block_lines(block: &Committed, color: bool, ascii: bool) -> Vec<Line<'sta
             } else {
                 indent.clone()
             };
-            let tone = (block.kind == Kind::Activity)
-                .then(|| activity_role(i, text))
-                .flatten()
-                .map_or(style, |tone| role::style(tone, color));
+            let tone = match block.kind {
+                Kind::Activity => activity_role(i, text),
+                Kind::Report => state_role(text, ascii),
+                _ => None,
+            }
+            .map_or(style, |tone| role::style(tone, color));
             Line::from(vec![
                 Span::styled(head, style),
-                Span::styled(text.to_owned(), tone),
+                Span::styled(text.to_string(), tone),
             ])
         })
         .collect()
+}
+
+/// A proposal's line as its card reads it: without the identity the Session names a `yes` by
+/// (« identity 2df0f6a0c37c · … », « identité … · … »), whose hex names nothing a person acts on
+/// and read like a code to keep or type back (live gauntlet 6, r01 B4, r08 B8); the rest of the
+/// line stays. `None` for a line that held the identity alone. Every card, the focus view and
+/// the inline transcript read a proposal so; its whole words (`F2`) keep the identity.
+fn without_identity(line: &str) -> Option<std::borrow::Cow<'_, str>> {
+    let body = line.trim_start();
+    let indent = line.get(..line.len() - body.len()).unwrap_or_default();
+    let named = ["identity ", "identité "]
+        .into_iter()
+        .find_map(|word| body.strip_prefix(word))
+        .and_then(|rest| {
+            let hex = rest.get(..12)?;
+            hex.chars()
+                .all(|c| c.is_ascii_hexdigit())
+                .then(|| rest.get(12..))
+                .flatten()
+        });
+    match named {
+        None => Some(std::borrow::Cow::Borrowed(line)),
+        Some("") => None,
+        Some(after) => match after.strip_prefix(" · ") {
+            Some(rest) => Some(std::borrow::Cow::Owned(format!("{indent}{rest}"))),
+            None => Some(std::borrow::Cow::Borrowed(line)),
+        },
+    }
 }
 
 /// The rows `lines` take at `width` once wrapped, at least one.
@@ -185,7 +275,7 @@ pub(crate) fn content_rows(lines: &[Line<'_>], width: u16) -> usize {
 
 /// Draw a block into a buffer (the `insert_before` callback).
 pub fn render_block(block: &Committed, color: bool, ascii: bool, buf: &mut Buffer) {
-    Paragraph::new(block_lines(block, color, ascii))
+    Paragraph::new(block_lines_within(block, color, ascii, buf.area.width))
         .wrap(Wrap { trim: false })
         .render(buf.area, buf);
 }
@@ -218,7 +308,7 @@ pub(crate) fn panel_rows(
     // An inline frame grows for a surface's band; a full screen paints the
     // band over its transcript and keeps every row ([`band`]).
     let band = if state.presentation == Presentation::Inline {
-        usize::from(surface::demand(state, composer, width))
+        usize::from(surface::demand(state, composer, width, consent))
     } else {
         0
     };
@@ -273,7 +363,7 @@ pub(crate) fn panel_rows(
 /// chooser and work never move the regions.
 pub(crate) fn rest_rows(state: &UiState, width: u16, consent: Consent<'_>) -> u16 {
     let card = question::rest_rows(state, width);
-    let hint = decision_hint(&state.waiting, consent, state.ascii, width);
+    let hint = decision_hint(&state.waiting, consent, state.voice(), width);
     let words = own(hint, state.ascii);
     let lines: Vec<Line<'_>> = words.split('\n').map(Line::raw).collect();
     // At rest no exit is armed: the same rule the live rows read ([`Lent`]).
@@ -283,15 +373,33 @@ pub(crate) fn rest_rows(state: &UiState, width: u16, consent: Consent<'_>) -> u1
     rail + status + card + 1 + wrapped_rows(&lines, width).min(3)
 }
 
-/// The lifecycle rail of a first question on a new draft: the draft being
-/// composed, nothing saved, checked, active or run. Only this exact rail
-/// says nothing the question's live home and the object's standing do not.
-const FIRST_QUESTION_RAIL: &str = "Draft ● · Saved ○ · Checked ○ · Active ○ · Run ○";
+/// The lifecycle rail of a first question on a new draft, as the Session draws
+/// it in `lang`: the draft being composed, nothing saved, checked, active or
+/// run. Only this exact rail says nothing the question's live home and the
+/// object's standing do not.
+fn first_question_rail(lang: Lang) -> String {
+    let mut facts = nika_session::LifecycleFacts::new();
+    facts.composing = true;
+    lang.rail(&nika_session::Lifecycle::from_facts(&facts))
+}
 
-/// The lifecycle rail while a proposal waits and nothing else stands: the
-/// draft proposed, nothing saved, checked, active or run. Only this exact
-/// rail says nothing the reviewed proposal's standing does not.
-const PROPOSAL_RAIL: &str = "Draft ✓ · Saved ○ · Checked ○ · Active ○ · Run ○";
+/// The lifecycle rail while a proposal waits and nothing else stands, as the
+/// Session draws it in `lang`: the draft proposed, nothing saved, checked,
+/// active or run. Only this exact rail says nothing the reviewed proposal's
+/// standing does not.
+fn proposal_rail(lang: Lang) -> String {
+    let mut facts = nika_session::LifecycleFacts::new();
+    facts.proposal_waits = true;
+    lang.rail(&nika_session::Lifecycle::from_facts(&facts))
+}
+
+/// Whether `rail` is the one `drawn` gives in a language the Session names its
+/// stages in: the rows a rail lends follow the person's language.
+fn drawn_as(rail: &str, drawn: fn(Lang) -> String) -> bool {
+    [Lang::En, Lang::Fr]
+        .into_iter()
+        .any(|lang| rail == drawn(lang))
+}
 
 /// The Session's own status while a typed question waits, before the
 /// question's label (`SessionRuntime::status_line`): the one status the
@@ -300,8 +408,8 @@ const QUESTION_STATUS: &str = "Needs one answer · ";
 
 /// The live area's state rows a homed typed question or the reviewed proposal
 /// takes over: the lifecycle rail while it is exactly a first question's
-/// ([`FIRST_QUESTION_RAIL`]) or exactly the waiting proposal's own
-/// ([`PROPOSAL_RAIL`], its standing on the status row), and, for the
+/// ([`first_question_rail`]) or exactly the waiting proposal's own
+/// ([`proposal_rail`], its standing on the status row), and, for the
 /// question, the status while it is exactly the Session's sentence for it
 /// ([`QUESTION_STATUS`] and its label), never while an exit is armed. Any
 /// other rail or status (an earlier run, a saved or active workflow, a cost,
@@ -321,7 +429,7 @@ impl Lent {
     fn of(state: &UiState, homed: bool, armed: bool, consent: Consent<'_>) -> Self {
         if consent.is_some() && state.waiting == Waiting::Proposal {
             return Self {
-                rail: state.rail == PROPOSAL_RAIL,
+                rail: drawn_as(&state.rail, proposal_rail),
                 status: false,
             };
         }
@@ -332,7 +440,7 @@ impl Lent {
             return Self::default();
         }
         Self {
-            rail: state.rail == FIRST_QUESTION_RAIL,
+            rail: drawn_as(&state.rail, first_question_rail),
             status: !armed && state.status == format!("{QUESTION_STATUS}{}", asked.label),
         }
     }
@@ -382,11 +490,12 @@ const fn inner_width(width: u16, boxed: bool) -> u16 {
 
 /// The slim caption over the boxed composer: what the next line is.
 fn caption_of(state: &UiState) -> &'static str {
-    if state.waiting == Waiting::Free {
+    let caption = if state.waiting == Waiting::Free {
         "Your message"
     } else {
         "Your answer"
-    }
+    };
+    state.voice().say(caption)
 }
 
 /// The loader's frames: the theme seam's own braille orbit, one motion for the
@@ -404,12 +513,67 @@ fn rail_shown(state: &UiState) -> bool {
 
 /// The lifecycle rail, dim like the chrome: five facts, never one badge, on a
 /// row `width` cells wide, cut with a visible mark rather than clipped
-/// ([`newest`]).
+/// ([`newest`]). Its stages are the Session's words in the person's language,
+/// painted as they came. The facts of this session that have no other home
+/// follow them ([`footer_facts`]); a row too short for them drops the
+/// right-most first, and the stages keep their own way of giving way.
 fn rail_line(state: &UiState, width: u16) -> Line<'static> {
+    let sep = own(" · ", state.ascii);
+    let rail = state.rail.as_str();
+    let mut facts = footer_facts(state);
+    let text = loop {
+        if facts.is_empty() {
+            break newest(rail, width, state.ascii);
+        }
+        let whole = format!("{rail}{sep}{}", facts.join(&sep));
+        if unicode_width::UnicodeWidthStr::width(whole.as_str()) <= usize::from(width) {
+            break whole;
+        }
+        facts.pop();
+    };
     Line::from(Span::styled(
-        newest(&state.rail, width, state.ascii),
+        text,
         Style::default().add_modifier(Modifier::DIM),
     ))
+}
+
+/// The session's facts with no other home, in the order a short row gives
+/// them up last to first: what it spent so far, a known estimate, once it
+/// spent anything, then where its keys are read. The model and the decision
+/// seat have theirs, the header.
+fn footer_facts(state: &UiState) -> Vec<String> {
+    let voice = state.voice();
+    let mut facts: Vec<String> = (state.spent.iter())
+        .map(|amount| voice.say(SPENT).replace("{amount}", amount))
+        .collect();
+    facts.push(voice.say(SHORTCUTS).to_owned());
+    facts
+}
+
+/// What the session spent since this conversation opened, `{amount}` as a person reads it:
+/// the count starts again when the conversation is opened again, and says so (live gauntlet
+/// 5, r09 B7: « ~$1.10 dépensés » read beside the Session's day total, and restarted from zero
+/// after a reopening without a word).
+const SPENT: &str = "~{amount} spent since opening";
+
+/// Where the keys of what is on screen are read (`?`, with nothing typed).
+const SHORTCUTS: &str = "? for shortcuts";
+
+/// USD as a person reads a small spend: cents, a third decimal under a
+/// dollar when it says something (`$0.012`, `$0.25`, `$1.50`), and a spend
+/// too small for it said as such, never `$0.00`.
+pub(crate) fn money(usd: f64) -> String {
+    if usd >= 1.0 {
+        return format!("${usd:.2}");
+    }
+    if usd > 0.0 && usd < 0.0005 {
+        return "<$0.001".to_owned();
+    }
+    let thousandths = format!("{usd:.3}");
+    match thousandths.strip_suffix('0') {
+        Some(cents) => format!("${cents}"),
+        None => format!("${thousandths}"),
+    }
 }
 
 /// `rail` on a row of `width` cells, its newest stages kept: whole when it
@@ -469,7 +633,7 @@ fn status_line(state: &UiState, choosing: bool, width: u16, consent: Consent<'_>
         // only when nothing was interrupted (an interrupted turn and a
         // cancelled decision say so in their own words), so this row may sit
         // under a turn that just succeeded.
-        let words = own("Ctrl+C again leaves · any key stays", state.ascii);
+        let words = own(state.voice().say(ARMED), state.ascii);
         return Line::from(Span::styled(cut(&words, width, state.ascii), accent));
     }
     if let Some(marker) = activity_marker(state) {
@@ -481,6 +645,8 @@ fn status_line(state: &UiState, choosing: bool, width: u16, consent: Consent<'_>
             }
             let tone = if phase.starts_with("✓ ") {
                 Role::Good
+            } else if phase.starts_with("✗ ") {
+                Role::Bad
             } else if phase.starts_with("● ") {
                 Role::Accent
             } else if phase.starts_with("↻ ") {
@@ -501,12 +667,13 @@ fn status_line(state: &UiState, choosing: bool, width: u16, consent: Consent<'_>
     } else if state.waiting == Waiting::Proposal {
         // Reviewed, the standing alone in its longest whole form; else what a
         // plain `yes` does, never what else may be asked for.
+        let voice = state.voice();
         let words = match consent {
-            Some(_) => STANDING
-                .into_iter()
+            Some(_) => (STANDING.into_iter())
+                .map(|words| voice.say(words))
                 .find(|words| fits_row(words, state.ascii, width))
-                .unwrap_or(STANDING[1]),
-            None => PROPOSAL_STATUS,
+                .unwrap_or_else(|| voice.say(STANDING[1])),
+            None => voice.say(PROPOSAL_STATUS),
         };
         let words = own(words, state.ascii);
         let style = role::style(Role::Warn, state.color).add_modifier(Modifier::BOLD);
@@ -525,7 +692,7 @@ fn status_line(state: &UiState, choosing: bool, width: u16, consent: Consent<'_>
             Presentation::Workspace if state.waiting != Waiting::Free => "",
             Presentation::Workspace => "workspace · F6 panel · Esc back",
         };
-        let mode = own(mode, state.ascii);
+        let mode = own(state.voice().say(mode), state.ascii);
         let sep = own(" · ", state.ascii);
         let text = match (state.status.is_empty(), mode.is_empty()) {
             (true, _) => mode,
@@ -555,8 +722,31 @@ fn earlier_cue(state: &UiState) -> Option<String> {
         && state.presentation != Presentation::Inline
         && !(state.presentation == Presentation::Workspace
             && crate::workspace::geometry::fits(state.size)))
-    .then(|| own(" · reading earlier messages · End: latest", state.ascii))
+    .then(|| own(state.voice().say(EARLIER), state.ascii))
 }
+
+/// The cue that the full-screen transcript is scrolled back ([`earlier_cue`]).
+const EARLIER: &str = " · reading earlier messages · End: latest";
+
+/// What the next `Ctrl+C` does once one press armed the exit, and that any
+/// other key stays.
+const ARMED: &str = "Ctrl+C again leaves · any key stays";
+
+/// Where the keys are when the workspace gives them to another region, and
+/// that typing writes in the conversation again, longest first: `{place}` is
+/// the region ([`UiState::keys_on`]).
+const KEYS_ELSEWHERE: [&str; 3] = [
+    "keys: {place} · typing writes in the conversation · Esc returns",
+    "keys: {place} · Esc returns",
+    "keys: {place}",
+];
+
+/// What `Enter` does at a decision whose act is selected, longest first:
+/// `{act}` is the act's own label ([`enter_does`]).
+const ENTER_ACTS: [&str; 2] = [
+    "Enter acts: {act} · ↑↓ choose · Esc clears",
+    "Enter acts: {act}",
+];
 
 /// Preparation has Stop and queued corrections; a Run keeps its separate controls.
 /// The action's resulting notice still replaces this hint when the human acts.
@@ -581,6 +771,31 @@ fn narrower(waiting: &Waiting) -> &'static [&'static str] {
                 "yes approves once · no cancels",
             ]
         }
+        Waiting::Action { .. } => &["↑↓ choose · Enter acts", "Enter acts"],
+        Waiting::Selection { asked } if asked.back.is_some() => &[
+            "↑↓ choose · Enter applies · Esc back",
+            "Enter applies · Esc back",
+        ],
+        Waiting::Selection { asked } if asked.mandatory => {
+            &["↑↓ choose · Enter applies", "Enter applies"]
+        }
+        Waiting::Selection { .. } => &[
+            "↑↓ choose · Enter applies · Esc keeps current",
+            "Enter applies · Esc keeps current",
+        ],
+        Waiting::QuestionDocument { asked, .. } | Waiting::ProposalChoice { asked, .. }
+            if matches!(asked.shape, crate::model::Shape::Multiple(_)) =>
+        {
+            &[
+                "Space toggles · Enter validates all checked",
+                "Space toggles · Enter validates",
+            ]
+        }
+        Waiting::ProposalChoice { .. } if crate::composer::answer::choice(waiting).is_some() => &[
+            "↑↓ choose · Enter answers · cancel discards it",
+            "Enter answers · cancel discards it",
+            "Enter answers",
+        ],
         Waiting::QuestionDocument { .. } if crate::composer::answer::choice(waiting).is_some() => {
             &[
                 "↑↓ choose · Enter answers · cancel drops it",
@@ -588,7 +803,7 @@ fn narrower(waiting: &Waiting) -> &'static [&'static str] {
                 "Enter answers",
             ]
         }
-        Waiting::QuestionDocument { .. } => &["Enter answers"],
+        Waiting::QuestionDocument { .. } | Waiting::ProposalChoice { .. } => &["Enter answers"],
         Waiting::Knowledge { .. } => &[
             "↑↓ choose · Enter acts · cancel drops your message",
             "Enter acts · cancel drops it",
@@ -598,8 +813,8 @@ fn narrower(waiting: &Waiting) -> &'static [&'static str] {
         Waiting::Proposal => &["yes + Enter: Save · no: cancel"],
         Waiting::Gate => &["approve or refuse"],
         Waiting::Choosing => &[
-            "1 account · 2 API · 3 local · 4 no AI\ncancel",
-            "1 to 4 chooses · cancel",
+            "connect an AI · /providers: connections",
+            "/providers: connections",
         ],
         Waiting::Free => &[],
     }
@@ -607,11 +822,12 @@ fn narrower(waiting: &Waiting) -> &'static [&'static str] {
 
 /// The form of `waiting`'s hint a row `width` cells wide holds ([`narrower`]),
 /// the narrowest when none does.
-fn waiting_hint(waiting: &Waiting, ascii: bool, width: u16) -> &'static str {
+fn waiting_hint(waiting: &Waiting, voice: Voice, width: u16) -> &'static str {
     let (full, forms) = (waiting.hint(), narrower(waiting));
     (std::iter::once(full).chain(forms.iter().copied()))
-        .find(|hint| fits_row(hint, ascii, width))
-        .unwrap_or_else(|| forms.last().copied().unwrap_or(full))
+        .map(|hint| voice.say(hint))
+        .find(|hint| fits_row(hint, voice.ascii, width))
+        .unwrap_or_else(|| voice.say(forms.last().copied().unwrap_or(full)))
 }
 
 /// The decision row while the reviewed proposal's `save & run` is admitted
@@ -631,14 +847,51 @@ const SAVE_RUN_HINTS: [&str; 5] = [
 /// proposal's every consent word while its `save & run` is admitted
 /// ([`SAVE_RUN_HINTS`]); else `waiting`'s own hint ([`waiting_hint`]). Words
 /// only: nothing here sends, saves or runs.
-fn decision_hint(waiting: &Waiting, consent: Consent<'_>, ascii: bool, width: u16) -> &'static str {
+fn decision_hint(
+    waiting: &Waiting,
+    consent: Consent<'_>,
+    voice: Voice,
+    width: u16,
+) -> &'static str {
     if *waiting != Waiting::Proposal || !consent.is_some_and(Review::runs) {
-        return waiting_hint(waiting, ascii, width);
+        return waiting_hint(waiting, voice, width);
     }
     let last = SAVE_RUN_HINTS[SAVE_RUN_HINTS.len() - 1];
     (SAVE_RUN_HINTS.into_iter())
-        .find(|hint| fits_row(hint, ascii, width))
-        .unwrap_or(last)
+        .map(|hint| voice.say(hint))
+        .find(|hint| fits_row(hint, voice.ascii, width))
+        .unwrap_or_else(|| voice.say(last))
+}
+
+/// What `Enter` does at a decision whose act is selected, named on the hint
+/// row: the act a key would do is never only a mark beside a row.
+fn enter_does(state: &UiState, composer: &Composer, width: u16) -> Option<String> {
+    if !matches!(state.waiting, Waiting::Action { .. }) {
+        return None;
+    }
+    let (_, _, offers) = crate::composer::answer::choice(&state.waiting)?;
+    let act = &offers.get(composer.offer_selected(&state.waiting)?)?.label;
+    let voice = state.voice();
+    let [whole, short] = ENTER_ACTS.map(|form| voice.say(form).replace("{act}", act));
+    Some(if fits_row(&whole, state.ascii, width) {
+        whole
+    } else {
+        short
+    })
+}
+
+/// `hint` and, where a card covers the conversation ([`surface::covers`]), the key that reads
+/// it behind the card, when the row holds both.
+fn behind(hint: String, state: &UiState, width: u16) -> String {
+    if !surface::covers(state) {
+        return hint;
+    }
+    let both = format!("{hint} · {}", state.voice().say(surface::PEEK_CUE));
+    if fits_row(&both, state.ascii, width) {
+        both
+    } else {
+        hint
+    }
 }
 
 /// Whether each row of `text` holds in `width` cells as the row paints it: in
@@ -663,11 +916,34 @@ fn hint_lines(
     width: u16,
     (consent, listed): (Consent<'_>, bool),
 ) -> Vec<Line<'static>> {
+    let voice = state.voice();
+    if state.interrupt_armed
+        && (composer.listing().is_some()
+            || crate::composer::answer::choice(&state.waiting).is_some())
+    {
+        // The opaque picker covers the ordinary status row. Keep the next press's
+        // effect beside the composer, ahead of an older completion or choice hint.
+        return vec![Line::styled(
+            own(voice.say(ARMED), state.ascii),
+            role::style(Role::Accent, state.color),
+        )];
+    }
+    if let Some(place) = state.keys_on.filter(|_| state.completion.is_none()) {
+        // The keys are elsewhere: where, and that typing writes here again.
+        let place = voice.say(place);
+        let cues = KEYS_ELSEWHERE.map(|cue| voice.say(cue).replace("{place}", place));
+        let fits = cues.iter().find(|cue| fits_row(cue, state.ascii, width));
+        let cue = fits.unwrap_or(&cues[2]);
+        return vec![Line::styled(
+            own(cue, state.ascii),
+            role::style(Role::Accent, state.color),
+        )];
+    }
     let choosing = (composer.listing())
         .filter(|_| listed)
-        .map(|listing| chooser::hint(&listing, state.busy.is_some(), state.ascii, width));
+        .map(|listing| chooser::hint(&listing, state.busy.is_some(), voice, width));
     let idle = if state.busy.is_some() {
-        WORKING_HINT.to_owned()
+        voice.say(WORKING_HINT).to_owned()
     } else if state.waiting == Waiting::Free
         && state.presentation == Presentation::Workspace
         && crate::workspace::geometry::fits(state.size)
@@ -688,25 +964,29 @@ fn hint_lines(
                 PALETTE_HINT,
             ]
         };
-        let last = hints[hints.len() - 1];
-        hints
-            .into_iter()
+        let last = voice.say(hints[hints.len() - 1]);
+        (hints.into_iter())
+            .map(|hint| voice.say(hint))
             .find(|hint| fits_row(hint, state.ascii, width))
             .unwrap_or(last)
             .to_owned()
     } else if state.waiting == Waiting::Free {
-        let hint = format!("{} · {PALETTE_HINT}", state.waiting.hint());
+        let free = voice.say(state.waiting.hint());
+        let hint = format!("{free} · {}", voice.say(PALETTE_HINT));
         if fits_row(&hint, state.ascii, width) {
             hint
         } else {
-            state.waiting.hint().to_owned()
+            free.to_owned()
         }
+    } else if let Some(enter) = enter_does(state, composer, width) {
+        behind(enter, state, width)
     } else {
         // A narrower row drops a whole cue, never a key from what it does.
-        decision_hint(&state.waiting, consent, state.ascii, width).to_owned()
+        let hint = decision_hint(&state.waiting, consent, voice, width).to_owned();
+        behind(hint, state, width)
     };
     let text = match (&state.completion, choosing) {
-        (Some(notice), _) => own(notice, state.ascii),
+        (Some(notice), _) => own(voice.say(notice), state.ascii),
         (None, Some(choosing)) => choosing,
         (None, None) => own(&idle, state.ascii),
     };
@@ -869,7 +1149,7 @@ pub(crate) fn paint_band(
     panel: Panel<'_>,
 ) {
     if let Some(band) = band(state, composer, ceiling, live, panel) {
-        surface::render(state, composer, band, frame.buffer_mut());
+        surface::render(state, composer, band, frame.buffer_mut(), panel.consent);
     }
 }
 
@@ -877,9 +1157,9 @@ pub(crate) fn paint_band(
 /// the palette's search while it is open.
 fn prompt_of(state: &UiState, composer: &Composer) -> &'static str {
     if composer.palette_open() {
-        chooser::SEARCH_PROMPT
+        state.voice().say(chooser::SEARCH_PROMPT)
     } else {
-        state.waiting.prompt()
+        state.voice().say(state.waiting.prompt())
     }
 }
 
@@ -887,7 +1167,8 @@ fn prompt_of(state: &UiState, composer: &Composer) -> &'static str {
 /// palette's search paints in the same row without changing how the line
 /// wraps, so opening it moves nothing.
 fn editor_width(state: &UiState, width: u16) -> u16 {
-    let prompt = u16::try_from(state.waiting.prompt().chars().count()).unwrap_or(8);
+    let prompt = state.voice().say(state.waiting.prompt());
+    let prompt = u16::try_from(prompt.chars().count()).unwrap_or(8);
     width.saturating_sub(prompt).max(8)
 }
 
@@ -923,7 +1204,7 @@ pub(crate) fn render_panel_live(
         areas.status,
     );
     if let Some(aside) = composer.aside().filter(|_| areas.aside.height > 0) {
-        let line = chooser::aside_line(aside, areas.aside.width, state.ascii, state.color);
+        let line = chooser::aside_line(aside, areas.aside.width, state.voice(), state.color);
         frame.render_widget(Paragraph::new(line), areas.aside);
     }
     question::render(state, areas.card, frame.buffer_mut());
@@ -1002,7 +1283,14 @@ pub(crate) fn render_transcript(frame: &mut Frame<'_>, state: &UiState, area: Re
     }
     let mut lines: Vec<Line<'static>> = Vec::new();
     for block in &state.transcript {
-        lines.extend(block_lines(block, state.color, state.ascii));
+        // A line saying a proposal still waits reads only while one does.
+        let now = crate::workspace::cards::decided(block, &state.waiting);
+        lines.extend(block_lines_within(
+            now.as_ref().unwrap_or(block),
+            state.color,
+            state.ascii,
+            area.width,
+        ));
         lines.push(Line::default());
     }
     let skip = content_rows(&lines, area.width)

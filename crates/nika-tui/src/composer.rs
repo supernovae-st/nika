@@ -71,6 +71,8 @@ pub struct Composer {
     aside: Option<String>,
     /// The offer selected for the typed choice on screen (`answer`).
     answer: answer::Answer,
+    /// The language and glyph column the own reply's placeholder takes.
+    voice: crate::lang::Voice,
 }
 
 impl Default for Composer {
@@ -95,6 +97,16 @@ impl Composer {
             chooser: chooser::Chooser::default(),
             aside: None,
             answer: answer::Answer::default(),
+            voice: crate::lang::Voice::default(),
+        }
+    }
+
+    /// Say the composer's own words (an own reply's placeholder) in `voice`:
+    /// the field on screen at once, its words kept, and every field after it.
+    pub(crate) fn speak(&mut self, voice: crate::lang::Voice) {
+        if self.voice != voice {
+            self.voice = voice;
+            self.answer.speak(voice);
         }
     }
 
@@ -153,6 +165,14 @@ impl Composer {
         self.area.set_placeholder_style(PLACEHOLDER);
     }
 
+    /// Whether a character key belongs to the text editor rather than to the
+    /// shell. The editor owns its shortcuts as well as ordinary characters.
+    pub(crate) fn text_key(key: &KeyEvent) -> bool {
+        matches!(key.code, KeyCode::Char(c)
+            if !(key.modifiers.contains(KeyModifiers::CONTROL)
+                && matches!(c, 'c' | 't' | 'o' | 'l' | 'd' | 'z')))
+    }
+
     /// Handle one key press. An open palette closes first: the draft is never
     /// edited out of view.
     pub fn handle(&mut self, key: KeyEvent) -> ComposerAction {
@@ -172,9 +192,7 @@ impl Composer {
             KeyCode::Enter => self.submit(),
             KeyCode::Up if self.at_first_line() => self.recall_older(),
             KeyCode::Down if self.at_last_line() => self.recall_newer(),
-            KeyCode::Char(c) if ctrl && matches!(c, 'c' | 't' | 'o' | 'l' | 'd' | 'z') => {
-                ComposerAction::Ignored
-            }
+            KeyCode::Char(_) if !Self::text_key(&key) => ComposerAction::Ignored,
             KeyCode::Tab => ComposerAction::Complete,
             KeyCode::Esc | KeyCode::PageUp | KeyCode::PageDown | KeyCode::BackTab => {
                 ComposerAction::Ignored

@@ -6,5 +6,6 @@
 //! renderer's callers unchanged.
 
 pub use nika_tui_view::visual::logomark::{
-    REVEAL_AT, REVEAL_ENDS, SOURCE_PATH, SOURCE_SHA256, Size, revealing,
+    Glyphs, REVEAL_AT, REVEAL_ENDS, SOURCE_PATH, SOURCE_SHA256, Size, WORDMARK, frame_at,
+    revealing, wordmark,
 };

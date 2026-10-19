@@ -23,6 +23,7 @@
 //! | `r` (object)               | the Session reads the file again   | the composer                    |
 //! | `Enter`                    | opens the aside entry · the task   | sends the line                  |
 //! | `Backspace` (task detail)  | back to the run's tasks            | the composer (erases)           |
+//! | any other typed character  | back to the composer, which takes it | the composer                  |
 //! | `Tab` and any other key    | ignored                            | the composer (`Tab` completes)  |
 //!
 //! On the run face of the run in view, the task list takes `Up`/`Down` (the
@@ -41,7 +42,7 @@
 //! when the size allows. Nothing here reads a file, a clock or the
 //! environment.
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use nika_tui_view::Face;
 use ratatui::Frame;
 use ratatui::text::Line;
@@ -49,9 +50,11 @@ use ratatui::text::Line;
 use super::candidate::Proposed;
 use super::cards::review::{self, Review};
 use super::live::{LiveRun, Pick, RunFace, Want};
-use crate::model::Conversation;
+use crate::lang::{Lang, Voice};
+use crate::model::{Conversation, Fold};
 use crate::session::acquire::{ChildRead, Fetched, Proven};
 use crate::session::feed::{Gap, Observed};
+use crate::workspace::conversation::Thread;
 use nika_display::run_story::{ExecutionId, RunState};
 use nika_session::KeptRun;
 
@@ -64,7 +67,7 @@ use super::object::{Object, Paint};
 use super::project::{self, Opened, ProjectView, Target};
 use super::screen::{self, Screen};
 use crate::composer::Composer;
-use crate::model::{Presentation, UiState};
+use crate::model::{Kind, Presentation, UiState};
 
 mod layout;
 use layout::Drag;
@@ -93,6 +96,10 @@ pub(crate) enum Route {
 /// The workspace's own state.
 #[derive(Debug)]
 #[non_exhaustive]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "These flags track independent display facts, not mutually exclusive workspace states."
+)]
 pub(crate) struct Desk {
     /// The project the conversation last lent; `None` when it lends none.
     pub(crate) view: Option<ProjectView>,
@@ -132,6 +139,16 @@ pub(crate) struct Desk {
     /// ([`Desk::prepare_for`], read through [`Desk::folds`]); another
     /// candidate drops it.
     fold: Option<((u16, u16), Arrangement, bool)>,
+    /// The welcome yields its space once the human starts the conversation,
+    /// or a choice they must read is open.
+    conversation_started: bool,
+    /// The language the person writes, which the workspace's own words follow.
+    pub(crate) lang: Lang,
+    /// The zone whose clock names the runs: the machine's once the shell runs, UTC until then.
+    pub(crate) zone: jiff::tz::TimeZone,
+    /// The person asked for the welcome again (`/welcome`): it stands as the object in view,
+    /// the conversation beside it, until another object takes its place.
+    welcomes: bool,
 }
 
 /// The reading a request was made for: the leg's reading, and the child
@@ -166,49 +183,64 @@ pub(crate) fn acquire_all<C: Conversation + ?Sized>(
     execution: &ExecutionId,
     wants: Vec<Want>,
 ) -> Vec<Got> {
+    // A want this renderer does not know (the view may add one) acquires nothing.
     (wants.into_iter())
-        .map(|want| match want {
-            Want::File(path) => Got::File(
-                (conversation.fetch(execution, &path))
-                    .unwrap_or_else(|| Fetched::refused(&path, "this conversation reads no file")),
-            ),
-            Want::Proof => {
-                Got::Proof((conversation.prove(execution)).unwrap_or_else(|| {
-                    Proven::refused("", "this conversation verifies no journal")
-                }))
-            }
-            Want::Child { task, relation } => {
-                let read = (conversation.child(execution, &task, &relation)).unwrap_or_else(|| {
-                    ChildRead::refused("", "this conversation reads no child journal")
-                });
-                Got::Child {
-                    task,
-                    relation,
-                    read: Box::new(read),
+        .filter_map(|want| {
+            Some(match want {
+                Want::File(path) => {
+                    Got::File((conversation.fetch(execution, &path)).unwrap_or_else(|| {
+                        Fetched::refused(&path, "this conversation reads no file")
+                    }))
                 }
-            }
+                Want::Proof => Got::Proof((conversation.prove(execution)).unwrap_or_else(|| {
+                    Proven::refused("", "this conversation verifies no journal")
+                })),
+                Want::Child { task, relation } => {
+                    let read =
+                        (conversation.child(execution, &task, &relation)).unwrap_or_else(|| {
+                            ChildRead::refused("", "this conversation reads no child journal")
+                        });
+                    Got::Child {
+                        task,
+                        relation,
+                        read: Box::new(read),
+                    }
+                }
+                _ => return None,
+            })
         })
         .collect()
+}
+
+/// What one face was rendered for: a change to any of it renders the face again.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)] // a cache key: each flag is one input of the rendering
+struct Rendering {
+    /// What was rendered: a look's path, or a candidate's identity.
+    from: String,
+    /// The witness of its bytes.
+    witness: Option<String>,
+    face: Face,
+    run_face: RunFace,
+    /// The region's width.
+    width: u16,
+    ascii: bool,
+    color: bool,
+    /// The short graph format.
+    compact: bool,
+    /// The conversation reviews the candidate shown: its facts live there alone.
+    reviewed: bool,
+    /// The language the faces' own words follow.
+    lang: Lang,
+    /// The object holds the keys: the faces' key cues name them.
+    here: bool,
 }
 
 /// One face of one look rendered for one region: what the frame paints.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Drawn {
-    /// What was rendered (a look's path, or a candidate's identity) and the
-    /// witness of its bytes, the face, the region's width, the glyph column,
-    /// the colour, the short graph format, and whether the conversation
-    /// reviews the candidate shown (its facts then live there alone).
-    key: (
-        String,
-        Option<String>,
-        Face,
-        RunFace,
-        u16,
-        bool,
-        bool,
-        bool,
-        bool,
-    ),
+    /// What it was rendered for.
+    key: Rendering,
     title: Line<'static>,
     body: Vec<Line<'static>>,
     /// The body line of the picked task, when the run's list shows one.
@@ -261,7 +293,21 @@ impl Desk {
             drag: None,
             unsettled: false,
             fold: None,
+            conversation_started: false,
+            lang: Lang::En,
+            zone: jiff::tz::TimeZone::UTC,
+            welcomes: false,
         }
+    }
+
+    /// The welcome again, as the object in view (`/welcome`; live gauntlet 5, r08 B16: it left
+    /// after the first exchange with no way back to the example it offered): whatever was
+    /// opened gives way, and the welcome stays beside the conversation until another object
+    /// takes its place.
+    pub(crate) fn welcome_again(&mut self) {
+        self.opened = None;
+        self.welcomes = true;
+        self.focus.scroll = 0;
     }
 
     /// Whether a run is pinned: the leg the shell observes, else the view's.
@@ -294,7 +340,8 @@ impl Desk {
                     let earlier = (self.past.iter())
                         .find(|leg| !resume && leg.workflow() == workflow)
                         .map(LiveRun::named);
-                    let leg = LiveRun::asked(workflow, resume, typed, look.map(|l| *l));
+                    let leg = LiveRun::asked(workflow, resume, typed, look.map(|l| *l))
+                        .zoned(self.zone.clone());
                     self.live = Some(leg.reaching(world.map(|w| *w)).after(earlier));
                     self.opened = Some(Target::Live);
                     self.run_face = RunFace::Run;
@@ -304,6 +351,13 @@ impl Desk {
                 Observed::Frame(frame) => {
                     if let Some(leg) = self.live.as_mut() {
                         leg.apply(frame);
+                        // A resumed leg keeps the name of the launch it continues.
+                        leg.continuing(&self.past);
+                    }
+                }
+                Observed::Refused(why) => {
+                    if let Some(leg) = self.live.as_mut() {
+                        leg.refuse(why);
                     }
                 }
                 // The shell's card reads the Session's activity; no run leg does.
@@ -315,19 +369,29 @@ impl Desk {
 
     /// The end of a turn: every observation still queued is folded before
     /// the turn's result is handled (a settlement already sent is never
-    /// dropped), then what the queue could not carry is recorded.
+    /// dropped), then what the queue could not carry is recorded. No frame
+    /// outlives its turn: a leg still without its settlement has ended.
     pub(crate) fn close_turn(&mut self, queued: &std::sync::mpsc::Receiver<Observed>, gap: &Gap) {
         self.observe(queued.try_iter());
         self.lost(gap.dropped(), gap.unread());
+        if let Some(leg) = self.live.as_mut() {
+            if let Some(why) = gap.why() {
+                leg.told(why);
+            }
+            leg.ended();
+        }
     }
 
-    /// What a run's story said now folds under: the label and state word of
-    /// the leg this turn observed, once it came typed, whole and settled; a
-    /// paused, partial or untyped leg folds nothing and its story stays whole.
-    pub(crate) fn folded(&self) -> Option<(String, &'static str)> {
+    /// What a run's story said now folds under: the label and hex of the leg
+    /// this turn observed, once it came typed, whole and settled; a paused,
+    /// partial or untyped leg folds nothing and its story stays whole.
+    pub(crate) fn folded(&self) -> Option<Fold> {
         let leg = self.live.as_ref().filter(|leg| leg.whole())?;
-        let state = leg.reported().filter(|state| *state != RunState::Paused)?;
-        Some((leg.label(), state.as_str()))
+        leg.reported().filter(|state| *state != RunState::Paused)?;
+        Some(Fold {
+            label: leg.label_in(self.lang),
+            hex: leg.hex(),
+        })
     }
 
     /// What the turn's queue could not carry, to the leg in flight.
@@ -365,6 +429,13 @@ impl Desk {
     /// frame, whether that decision or the live question folds the stacked
     /// object ([`Desk::folds`]): the face is rendered for the cells it gets.
     pub(crate) fn prepare_for(&mut self, state: &UiState, ascii: bool, color: bool) {
+        // A choice the person must read (the first run's required intelligence
+        // list) starts the exchange too: its rows take the welcome's width.
+        self.conversation_started = (state.transcript.iter())
+            .any(|block| block.kind == Kind::Human)
+            || crate::composer::answer::choice(&state.waiting).is_some();
+        // The welcome asked for again stays until another object takes its place.
+        self.welcomes &= self.shown().is_none();
         let review = self.review(ascii);
         let reviewed = state.presentation == Presentation::Workspace
             && review::summarized(state, review.as_ref()).is_some();
@@ -389,6 +460,8 @@ impl Desk {
             return;
         };
         let reviewed = reviewed && matches!(self.shown(), Some(Opened::Candidate(_)));
+        // The faces' key cues name the keys from where they are: the box needs `F6` first.
+        let here = self.focus.region == Region::Object;
         // The face is rendered for the cells the object paints it in.
         let width = screen::object_body(&geometry).width;
         let height = geometry.object.height;
@@ -398,17 +471,19 @@ impl Desk {
                 self.shown(),
                 Some(Opened::Candidate(_) | Opened::Workflow(_))
             );
-        let key = (
+        let key = Rendering {
             from,
             witness,
-            self.face,
-            self.run_face,
+            face: self.face,
+            run_face: self.run_face,
             width,
             ascii,
             color,
             compact,
             reviewed,
-        );
+            lang: self.lang,
+            here,
+        };
         if let Some(drawn) = self.drawn.as_mut().filter(|d| d.key == key) {
             // The same lines in another viewport: a picked task stays in view.
             let rows = usize::from(super::object::content_rows(drawn.body.len(), height)).max(1);
@@ -424,23 +499,23 @@ impl Desk {
         // face with and without its facts. Start the reading at its top when
         // either changes; keep source and focus.
         if self.drawn.as_ref().is_some_and(|drawn| {
-            drawn.key.0 == key.0
-                && drawn.key.1 == key.1
-                && drawn.key.2 == key.2
-                && (drawn.key.7 != compact || drawn.key.8 != reviewed)
+            drawn.key.from == key.from
+                && drawn.key.witness == key.witness
+                && drawn.key.face == key.face
+                && (drawn.key.compact != compact || drawn.key.reviewed != reviewed)
         }) {
             self.focus.scroll = 0;
         }
         let mut picked_line = None;
         let lines = match (self.shown(), &self.look) {
-            (Some(Opened::Candidate(c)), _) if reviewed => {
-                c.reviewed_face_lines(self.face, width, ascii, color, compact)
-            }
+            (Some(Opened::Candidate(c)), _) if reviewed => (c.clone().keys_here(here))
+                .reviewed_face_lines(self.face, width, ascii, color, compact),
             (Some(Opened::Candidate(c)), _) => {
-                c.face_lines_in(self.face, width, ascii, color, compact)
+                (c.clone().keys_here(here)).face_lines_in(self.face, width, ascii, color, compact)
             }
             (Some(Opened::Live(leg)), _) => {
-                let lines = leg.view(self.run_face, &self.pick, width, ascii, color);
+                let voice = self.voice(ascii);
+                let lines = leg.view(self.run_face, &self.pick, width, (voice, here), color);
                 if self.run_face == RunFace::Run && !self.pick.is_open() {
                     // The list is the run face's last rows, one per task.
                     let listed = leg.listed();
@@ -450,11 +525,12 @@ impl Desk {
                 }
                 lines
             }
-            (_, Some(look)) => look.face_lines_in(self.face, width, ascii, color, compact),
+            (_, Some(look)) => (look.clone().speaking(self.lang).keys_here(here))
+                .face_lines_in(self.face, width, ascii, color, compact),
             (_, None) => return,
         };
         let rows = usize::from(super::object::content_rows(lines.1.len(), height)).max(1);
-        let resized = (self.drawn.as_ref()).is_some_and(|d| d.key.4 != width || d.rows != rows);
+        let resized = (self.drawn.as_ref()).is_some_and(|d| d.key.width != width || d.rows != rows);
         if let (Some(line), true) = (picked_line, self.pick.follows() || resized) {
             // A moved pick, or one a new size shows elsewhere, stays in
             // view: the scroll follows it once, never the page keys.
@@ -539,7 +615,7 @@ impl Desk {
             return;
         };
         if let Some(execution) = crate::session::legs::execution_of(&run) {
-            self.live = Some(LiveRun::kept(run, execution));
+            self.live = Some(LiveRun::kept(run, execution).zoned(self.zone.clone()));
             self.opened = Some(Target::Live);
             self.run_face = RunFace::Run;
             self.pick = Pick::new();
@@ -621,7 +697,8 @@ impl Desk {
     fn object_of(&self, opened: Opened<'_>, ascii: bool) -> Object {
         let current = self.rendered_from();
         let drawn = self.drawn.as_ref().filter(|d| {
-            current.as_ref() == Some(&(d.key.0.clone(), d.key.1.clone())) && d.key.2 == self.face
+            current.as_ref() == Some(&(d.key.from.clone(), d.key.witness.clone()))
+                && d.key.face == self.face
         });
         match drawn {
             Some(drawn) => Object::Workflow {
@@ -656,32 +733,51 @@ impl Desk {
         let view = self.view.as_ref();
         let shown = self.shown();
         let object = shown.map_or_else(
-            || project::welcome(view, ascii),
+            || project::welcome_in(view, ascii, self.lang),
             |s| self.object_of(s, ascii),
         );
-        let label = shown.map(Opened::label);
+        let voice = self.voice(ascii);
         let opened = shown.and(self.opened.as_ref());
         let candidate = self.candidate.as_ref();
         let screen = Screen::new(
-            project::place(view),
+            project::place(view).speaking(self.lang),
             project::aside(
                 view,
                 self.focus.tab,
                 opened,
                 candidate,
                 (self.live.as_ref(), &self.past),
+                (voice, &self.zone),
             ),
             object,
-            project::thread(view, label.as_deref()),
+            self.thread(voice),
         );
         let project = view.map_or("", |v| v.name.as_str());
-        let pinned = (self.live.as_ref().map(|leg| leg.pinned(project)))
+        let pinned = (self.live.as_ref().map(|leg| leg.pinned_in(project, voice)))
             .or_else(|| view.and_then(|v| v.pinned.clone()));
         let screen = screen.reviewing(self.review(ascii));
         match pinned {
             Some(run) => screen.pinning(run),
             None => screen,
         }
+    }
+
+    /// The voice the workspace's own words take: the person's language, in
+    /// the glyph column `ascii`.
+    pub(crate) const fn voice(&self, ascii: bool) -> Voice {
+        Voice {
+            lang: self.lang,
+            ascii,
+        }
+    }
+
+    /// The conversation panel's thread, the object in view named in `voice`
+    /// and this conversation's own name said in it.
+    pub(crate) fn thread(&self, voice: Voice) -> Thread {
+        let label = self.shown().map(|shown| shown.label(voice));
+        let mut thread = project::thread(self.view.as_ref(), label.as_deref()).speaking(voice.lang);
+        thread.name = voice.say(&thread.name).to_owned();
+        thread
     }
 
     /// The candidate a consent can name, as the conversation reviews it: the
@@ -756,6 +852,13 @@ impl Desk {
                 } else {
                     Route::Repaint
                 }
+            }
+            // A letter typed where the keys are not the composer's (the project list, the
+            // object) is never dropped: the keys go back to the conversation, whose composer
+            // takes it, and every letter after it.
+            Action::Ignored | Action::Again if typed(key) => {
+                self.focus.region = Region::Conversation;
+                Route::Compose
             }
             _ => Route::Nothing,
         }
@@ -884,6 +987,15 @@ impl Desk {
     }
 }
 
+/// Whether `key` types a character: a letter, a digit, a mark or a space, with
+/// no `Ctrl` or `Alt` held.
+fn typed(key: KeyEvent) -> bool {
+    matches!(key.code, KeyCode::Char(_))
+        && !key
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+}
+
 /// A key in the composer's region of a full screen (the workspace's, or the
 /// focus view's whole screen): `Esc` leaves, the page keys scroll the
 /// transcript, `F4` changes nothing (no object is drawn there), the composer
@@ -919,6 +1031,7 @@ pub(crate) fn draw(
             arrangement: desk.arrangement,
             dragging: desk.dragging(),
             folded: desk.folds((area.width, area.height)),
+            conversation_only: desk.conversation_only(),
         },
     )
 }
@@ -960,3 +1073,7 @@ mod layout_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod fold_tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod conversation_tests;

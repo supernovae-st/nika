@@ -22,13 +22,15 @@
 //! words as said.
 
 use crate::model::{Kind, UiState, Waiting};
-pub(crate) use nika_tui_view::workspace::candidate::{OR, Review};
+pub(crate) use nika_tui_view::workspace::candidate::Review;
 
 /// The block of `state`'s transcript the Session waits on for consent, by
 /// index: the latest block that carries a proposal identity, while a
 /// proposal waits. Every other proposal block is history.
 pub(crate) fn pending(state: &UiState) -> Option<usize> {
-    if !matches!(state.waiting, Waiting::Proposal) {
+    if state.waiting != Waiting::Proposal
+        && !matches!(&state.waiting, Waiting::Action { key, .. } if key == "save")
+    {
         return None;
     }
     let (index, block) = (state.transcript.iter().enumerate())
@@ -80,7 +82,10 @@ pub(crate) mod fixture {
     /// adapter words a change (a count bound to its unit).
     pub(crate) const CREATES: &str = "creates compiled-workflow.nika (33\u{a0}lines)";
     pub(crate) const REPLACES: &str =
-        "replaces ./notes/plan.md (4\u{a0}lines) · over the bytes witnessed 0123456789ab";
+        "replaces ./notes/plan.md (4\u{a0}lines) · over its bytes as read";
+
+    /// Where [`candidate`] lands: the name a consent's border reads.
+    pub(crate) const PATH: &str = "compiled-workflow.nika";
     pub(crate) const READS: &str = "reads ./notes/brief.md";
     pub(crate) const REACH: &str = "api.example.com, a connected service";
 
@@ -90,7 +95,7 @@ pub(crate) mod fixture {
     pub(crate) fn candidate(id: ProposalId, aside: bool) -> Proposed {
         let witness = "51835c93e564aaaabbbbccccddddeeeeffff0000".to_owned();
         let source = "nika: copy\n".to_owned();
-        let look = Inspected::unjudged("compiled-workflow.nika", witness, source);
+        let look = Inspected::unjudged(PATH, witness, source);
         Proposed::new(id, aside, look)
             .changing(vec![CREATES.to_owned(), REPLACES.to_owned()])
             .reaching(Some(vec![READS.to_owned()]))

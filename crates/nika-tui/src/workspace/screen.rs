@@ -42,7 +42,7 @@ use super::pinned::{self, Pinned};
 use crate::composer::Composer;
 use crate::model::UiState;
 use crate::render::{Consent, Panel, activity_marker, panel_rows, render_panel_live, rest_rows};
-use crate::visual::role;
+use crate::visual::role::{self, Depth};
 use nika_tui_view::workspace::masthead;
 
 /// Everything one workspace frame shows, as the Session projects it.
@@ -128,6 +128,21 @@ pub(crate) struct Chrome {
     pub(crate) dragging: Option<Separator>,
     /// The stacked object folds to its strip ([`crate::workspace::desk::Desk::folds`]).
     pub(crate) folded: bool,
+    /// An active exchange before an object exists takes the welcome’s space.
+    pub(crate) conversation_only: bool,
+}
+
+/// Before an object exists, its welcome gives its space to the exchange.
+/// Explicit navigation can still visit the welcome or the folded project list.
+/// Drawing, pointer hits and scroll bounds consume this same projection.
+#[must_use]
+pub(crate) fn conversation_only(mut geometry: Geometry, focus: Region) -> Geometry {
+    if focus == Region::Object || (focus == Region::Aside && geometry.aside.is_none()) {
+        return geometry;
+    }
+    geometry.conversation = geometry.conversation.union(geometry.object);
+    geometry.object = Rect::default();
+    geometry
 }
 
 /// The rows a folded object keeps: its title, one row and the continuation cue.
@@ -164,6 +179,7 @@ pub fn draw(
         arrangement: Arrangement::of(geometry::Layout::Session),
         dragging: None,
         folded: false,
+        conversation_only: false,
     };
     draw_in(frame, screen, paint, focus, state, composer, chrome)
 }
@@ -183,6 +199,9 @@ pub(crate) fn draw_in(
     let Some(mut geometry) = Geometry::arranged(area, pinned, &chrome.arrangement) else {
         return false;
     };
+    if chrome.conversation_only {
+        geometry = conversation_only(geometry, focus.region);
+    }
     if chrome.folded {
         geometry = folded(geometry);
     }
@@ -200,9 +219,18 @@ pub(crate) fn draw_in(
         geometry.aside.is_none().then_some(focus.region),
         (ascii, color),
     );
-    let next = toggled(area, pinned, &chrome.arrangement, chrome.folded);
-    let action = object_action(&screen.object, &geometry, focus.region, next, ascii);
-    aside_and_object(frame, screen, &geometry, paint, focus, action.is_some());
+    let next = (!geometry.object.is_empty())
+        .then(|| toggled(area, pinned, &chrome.arrangement, chrome.folded))
+        .flatten();
+    let action = object_action(&screen.object, &geometry, focus.region, next, state.voice());
+    aside_and_object(
+        frame,
+        screen,
+        &geometry,
+        (paint, state.depth),
+        focus,
+        action.is_some(),
+    );
     if let Some((cells, words)) = action {
         // A secondary view action: the object and selected face lead.
         let line = Line::styled(words, role::style(Role::Dim, color));
@@ -233,12 +261,13 @@ pub(crate) fn draw_in(
 /// object while it holds the keys) and the object in view, its title row
 /// lifted while it holds the keys (underlined without colour). The welcome, which has no title,
 /// leaves its first row to the object's action while one is offered
-/// (`acting`): its own fitting lays the mark and the words out below.
+/// (`acting`): its own fitting lays the mark and the words out below, the
+/// brand's tones at the terminal's `depth`.
 fn aside_and_object(
     frame: &mut Frame<'_>,
     screen: &Screen,
     geometry: &Geometry,
-    paint: Paint,
+    (paint, depth): (Paint, Depth),
     focus: &Focus,
     acting: bool,
 ) {
@@ -282,6 +311,9 @@ fn aside_and_object(
         );
         frame.render_widget(Paragraph::new(rows), area);
     }
+    if geometry.object.is_empty() {
+        return;
+    }
     let body = object_body(geometry);
     if geometry.aside.is_some() || selected.is_none() {
         let mut area = body;
@@ -293,7 +325,7 @@ fn aside_and_object(
             &screen.object,
             area,
             frame.buffer_mut(),
-            paint,
+            (paint, depth),
             focus.scroll,
         );
     }
@@ -439,8 +471,9 @@ pub(crate) fn object_action(
     geometry: &Geometry,
     focused: Region,
     next: Option<geometry::Layout>,
-    ascii: bool,
-) -> Option<(Rect, &'static str)> {
+    voice: crate::lang::Voice,
+) -> Option<(Rect, String)> {
+    let ascii = voice.ascii;
     let area = object_body(geometry);
     let next = next?;
     if geometry.aside.is_none() && focused == Region::Aside {
@@ -462,12 +495,15 @@ pub(crate) fn object_action(
         lines.first().map_or(0, Line::width)
     };
     let expanded = next == geometry::Layout::Session;
-    let forms = match (expanded, ascii) {
-        (false, false) => ["[+] Expand · F4", "[+] F4"],
-        (false, true) => ["[+] Expand - F4", "[+] F4"],
-        (true, false) => ["[-] Restore · F4", "[-] F4"],
-        (true, true) => ["[-] Restore - F4", "[-] F4"],
+    let (whole, short) = if expanded {
+        ("[-] Restore · F4", "[-] F4")
+    } else {
+        ("[+] Expand · F4", "[+] F4")
     };
+    let forms = [
+        crate::render::own(voice.say(whole), ascii),
+        short.to_owned(),
+    ];
     let body = object::length(shown);
     let cue = area.height >= 3 && body > usize::from(area.height - 1);
     // No cue: the last row is free only while the body lines are strictly
@@ -478,10 +514,10 @@ pub(crate) fn object_action(
     rows.into_iter()
         .take(1 + usize::from(cue || free))
         .find_map(|(y, used)| {
-            forms.into_iter().find_map(|words| {
+            forms.iter().find_map(|words| {
                 let cells = u16::try_from(words.width()).ok()?;
                 let fits = used + 1 + usize::from(cells) <= usize::from(area.width);
-                fits.then(|| (Rect::new(area.right() - cells, y, cells, 1), words))
+                fits.then(|| (Rect::new(area.right() - cells, y, cells, 1), words.clone()))
             })
         })
 }
@@ -546,7 +582,7 @@ fn panel(
 ) {
     let (ascii, color) = (paint.ascii, paint.color);
     let area = geometry.conversation;
-    if !geometry.stacked {
+    if !geometry.stacked && !geometry.object.is_empty() {
         // The rule follows a free gutter at the right edge, beside the preview.
         let [_, _, edge] = Layout::horizontal([
             Constraint::Length(1),
@@ -736,7 +772,7 @@ mod tests {
     use super::*;
     use crate::model::{Presentation, Script};
     use crate::visual::icon::Icon;
-    use crate::visual::logomark::{REVEAL_ENDS, Size};
+    use crate::visual::logomark::{Glyphs, REVEAL_ENDS, Size};
     use crate::workspace::aside::{Entry, Tab};
 
     /// The four sizes the terminal matrix qualifies.
@@ -956,7 +992,8 @@ mod tests {
         let screen = screen(welcome());
         for ((width, height), size) in [((80, 24), Size::Compact), ((120, 40), Size::Board)] {
             let (_, rows) = draw_at(&screen, width, height, paint(false));
-            let mark = size.lines();
+            // The Unicode column draws the braille rendition.
+            let mark = size.lines(Glyphs::Braille);
             let middle = mark[mark.len() / 2].trim();
             let at = find(&rows, middle).expect("mark drawn");
             let words = find(&rows, "Describe the work you want to").expect("words");
@@ -1246,7 +1283,7 @@ mod tests {
                 let mut state = UiState::new(Presentation::Workspace, false, (width, height));
                 state.ascii = ascii;
                 state.waiting = Waiting::Choosing;
-                let menu = nika_session::intelligence::IntelligenceCensus::empty().first_screen();
+                let menu = "Connect an account or configure an API provider.\n".repeat(30);
                 state.apply(Beat::Say(Committed::new(Kind::Reply, menu)));
                 let composer = Composer::new();
                 let mut terminal =
@@ -1270,16 +1307,16 @@ mod tests {
                 let choices = rows
                     .iter()
                     .find(|row| {
-                        ["1 account", "2 API", "3 local", "4 no AI"]
+                        ["connect an AI", "/providers"]
                             .iter()
                             .all(|choice| row.contains(choice))
                     })
-                    .expect("the fixed hint names all four choices together");
+                    .expect("the connection guide stays reachable without scrolling");
                 assert!(
                     !choices.contains("Prepare with:"),
                     "the cue does not claim a model answered"
                 );
-                assert!(rows.iter().any(|row| row.contains("cancel")), "{rows:#?}");
+                assert!(!rows.iter().any(|row| row.contains("4 no AI")), "{rows:#?}");
                 assert_eq!(state.focus_scroll, 0, "no manual scroll needed");
             }
         }
