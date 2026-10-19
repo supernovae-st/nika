@@ -214,6 +214,31 @@ fn render_unknown_reference_is_1702() {
     ));
 }
 
+/// The facts of the run (spec 04 §`run`): `${{ run.<fact> }}` reads the one
+/// object the engine bound, in a value and in a condition; a scope with none
+/// bound leaves `run` unresolved (1702 · loud), never a guessed instant.
+#[test]
+fn the_run_facts_resolve_where_the_engine_bound_them() {
+    let (records, inputs) = fixture();
+    let facts = serde_json::json!({"scheduled_for": "2026-10-16T09:00:00.000Z", "missed": null});
+    let scope = Scope::workflow(&records, &inputs).with_run(Some(&facts));
+    assert_eq!(
+        render("day ${{ run.scheduled_for }}", &scope).expect("bound"),
+        "day 2026-10-16T09:00:00.000Z"
+    );
+    assert_eq!(
+        scope
+            .resolve_expr("run.missed == null")
+            .expect("a condition"),
+        Value::Bool(true)
+    );
+    let unbound = Scope::workflow(&records, &inputs);
+    assert!(matches!(
+        render("${{ run.scheduled_for }}", &unbound).expect_err("nothing bound"),
+        DataflowError::UnresolvedTemplate { .. }
+    ));
+}
+
 /// The fan-in fold (spec 03 §group): `${{ group.<name> }}` resolves
 /// to ONE array of member records in DECLARATION order — the source
 /// order of `tasks:`, which is NOT the records map's key order
@@ -677,6 +702,12 @@ fn render_json_single_island_preserves_value_type() {
     // Mixed text → textual render.
     let v = render_json(&serde_json::json!("x ${{ inputs.source }}"), &scope).expect("renders");
     assert_eq!(v, serde_json::json!("x ./news.json"));
+    // Whitespace around the island is text too: the newline after a value is kept, and a value
+    // between spaces renders as its text between them.
+    let v = render_json(&serde_json::json!("${{ inputs.source }}\n"), &scope).expect("renders");
+    assert_eq!(v, serde_json::json!("./news.json\n"));
+    let v = render_json(&serde_json::json!(" ${{ inputs.urls }}\n\n"), &scope).expect("renders");
+    assert_eq!(v, serde_json::json!(" [\"a\",\"b\"]\n\n"));
     // Nested leaves resolve · non-strings untouched.
     let v = render_json(
         &serde_json::json!({"path": "${{ inputs.source }}", "n": [7, true]}),

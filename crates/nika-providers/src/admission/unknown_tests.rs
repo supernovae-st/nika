@@ -519,3 +519,201 @@ async fn a_noncanonical_route_reaches_no_transport() {
         assert_eq!(sent, 0, "{endpoint}: a request crossed the transport");
     }
 }
+
+/// A paid reply on an explicit unknown-cost `OpenRouter` route records the
+/// provider-reported charge as its known USD, with that provenance. At a configured gateway the
+/// same reply stays USD-unknown: a gateway's `cost` is its own claim.
+#[test]
+fn an_unknown_cost_route_records_the_providers_reported_charge() {
+    const MODEL: &str = "anthropic/claude-sonnet-4.6";
+    for (endpoint, known) in [
+        ("https://openrouter.ai/api/v1/chat/completions", true),
+        ("https://gateway.test/api/v1/chat/completions", false),
+    ] {
+        let choice = UnknownCostChoice::new(
+            "candidate-a".into(),
+            "invocation-a".into(),
+            "openrouter".into(),
+            MODEL.into(),
+            endpoint.into(),
+            1,
+            8192,
+            Duration::from_secs(10),
+        )
+        .expect("choice");
+        let a = InferenceAdmission::new_unknown(choice, policy())
+            .expect("account")
+            .for_scope("candidate-a", "invocation-a")
+            .expect("bind");
+        let mut call = a
+            .reserve("openrouter", MODEL, endpoint, 8192)
+            .expect("request");
+        call.sent().expect("send");
+        let mut r = complete();
+        r.gen_ai.response_model = Some(MODEL.into());
+        r.cost = Some(Cost::new(1_200_000));
+        call.settle(&r).expect("settle");
+        let receipt = a.snapshot().expect("receipt");
+        let attempt = &receipt.unknown_attempts[0];
+        if known {
+            assert_eq!(attempt.estimated, Some(Cost::new(1_200_000)), "{endpoint}");
+            assert_eq!(attempt.native_estimated_nano, Some(1_200_000));
+            assert_eq!(attempt.currency.as_deref(), Some("USD"));
+            assert_eq!(attempt.pricing["kind"], "provider_reported_charge");
+            assert_eq!(receipt.estimated, Cost::new(1_200_000));
+            assert_eq!(receipt.unknown_calls, 0);
+        } else {
+            assert_eq!(attempt.estimated, None, "{endpoint}");
+            assert_eq!(attempt.pricing["kind"], "unknown");
+            assert_eq!(receipt.unknown_calls, 1);
+        }
+    }
+}
+
+/// A native route whose model only an admission tariff prices (Gemini 4 Argon, newer than the
+/// vendored snapshot) is priced, never sent to the unknown-cost review; an unpriced native model
+/// still has no judgment.
+#[test]
+fn a_native_route_priced_only_by_its_tariff_is_priced() {
+    let config = crate::ProvidersConfig::new();
+    assert!(crate::admission::native_catalog_price_known(
+        "gemini/gemini-4-argon",
+        config.clone()
+    ));
+    assert_eq!(
+        crate::admission::unknown_cost_route("gemini/gemini-4-argon", config.clone()),
+        Ok(None)
+    );
+    assert!(!crate::admission::native_catalog_price_known(
+        "gemini/gemini-0-unlisted",
+        config.clone()
+    ));
+    assert!(crate::admission::unknown_cost_route("gemini/gemini-0-unlisted", config).is_err());
+}
+
+/// An explicit unknown-cost choice settles only when its own model answers or, with an exact
+/// tariff, a model that tariff documents as served for it. A guessed dated variant on a
+/// tariff-backed route, or another name on an untariffed one, contradicts the choice.
+#[test]
+fn only_the_choice_or_a_documented_served_model_answers_an_unknown_cost_route() {
+    const ROUTER: &str = "https://openrouter.ai/api/v1/chat/completions";
+    for (provider, model, endpoint, guessed) in [
+        ("deepseek", "deepseek-v4-pro", URL, "deepseek-v4-pro-0813"),
+        (
+            "openrouter",
+            "anthropic/claude-sonnet-4.6",
+            ROUTER,
+            "anthropic/claude-sonnet-4.6-20260101",
+        ),
+    ] {
+        let tariff = nika_catalog::admission::InferenceTariff::new(provider, model, endpoint);
+        assert_eq!(
+            tariff.is_some(),
+            provider == "deepseek",
+            "{provider}/{model}"
+        );
+        assert!(
+            tariff.is_none_or(|t| !t.serves(guessed)),
+            "{guessed} is undocumented"
+        );
+        for (answer, answers) in [(model, true), (guessed, false)] {
+            let choice = UnknownCostChoice::new(
+                "candidate-a".into(),
+                "invocation-a".into(),
+                provider.into(),
+                model.into(),
+                endpoint.into(),
+                1,
+                8192,
+                Duration::from_secs(10),
+            )
+            .expect("choice");
+            let a = InferenceAdmission::new_unknown(choice, policy())
+                .expect("account")
+                .for_scope("candidate-a", "invocation-a")
+                .expect("bind");
+            let mut call = a.reserve(provider, model, endpoint, 8192).expect("request");
+            call.sent().expect("send");
+            let mut r = complete();
+            r.gen_ai.response_model = Some(answer.into());
+            assert_eq!(
+                call.settle(&r).is_ok(),
+                answers,
+                "{provider}/{model} by {answer}"
+            );
+        }
+    }
+}
+
+/// An explicit unknown-cost choice on `OpenAI`'s tariff-backed gpt-4o-mini route settles when the
+/// reply names the dated snapshot that tariff documents, with its native estimate; an
+/// undocumented date or another model contradicts the choice. On an untariffed route the same
+/// dated name does not answer: only the exact model does.
+#[test]
+fn a_documented_snapshot_answers_an_explicit_unknown_cost_choice() {
+    const OPENAI: &str = "https://api.openai.com/v1/chat/completions";
+    const ROUTER: &str = "https://openrouter.ai/api/v1/chat/completions";
+    for (provider, model, endpoint, answer, answers) in [
+        (
+            "openai",
+            "gpt-4o-mini",
+            OPENAI,
+            "gpt-4o-mini-2024-07-18",
+            true,
+        ),
+        (
+            "openai",
+            "gpt-4o-mini",
+            OPENAI,
+            "gpt-4o-mini-2099-01-01",
+            false,
+        ),
+        ("openai", "gpt-4o-mini", OPENAI, "gpt-4o", false),
+        (
+            "openrouter",
+            "openai/gpt-4o-mini",
+            ROUTER,
+            "openai/gpt-4o-mini-2024-07-18",
+            false,
+        ),
+        (
+            "openrouter",
+            "openai/gpt-4o-mini",
+            ROUTER,
+            "openai/gpt-4o-mini",
+            true,
+        ),
+    ] {
+        let choice = UnknownCostChoice::new(
+            "candidate-a".into(),
+            "invocation-a".into(),
+            provider.into(),
+            model.into(),
+            endpoint.into(),
+            1,
+            8192,
+            Duration::from_secs(10),
+        )
+        .expect("choice");
+        let a = InferenceAdmission::new_unknown(choice, policy())
+            .expect("account")
+            .for_scope("candidate-a", "invocation-a")
+            .expect("bind");
+        let mut call = a.reserve(provider, model, endpoint, 8192).expect("request");
+        call.sent().expect("send");
+        let mut r = complete();
+        r.gen_ai.response_model = Some(answer.into());
+        assert_eq!(
+            call.settle(&r).is_ok(),
+            answers,
+            "{provider}/{model} by {answer}"
+        );
+        if answers && provider == "openai" {
+            let receipt = a.snapshot().expect("receipt");
+            let attempt = &receipt.unknown_attempts[0];
+            assert_eq!(attempt.native_estimated_nano, Some(100 * 150 + 20 * 600));
+            assert_eq!(attempt.estimated, Some(Cost::new(100 * 150 + 20 * 600)));
+            assert_eq!(attempt.currency.as_deref(), Some("USD"));
+        }
+    }
+}

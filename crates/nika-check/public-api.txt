@@ -2678,6 +2678,7 @@ pub nika_check::TaskCost::iterations: u64
 pub nika_check::TaskCost::max_tokens: core::option::Option<u64>
 pub nika_check::TaskCost::min_path_usd: core::option::Option<f64>
 pub nika_check::TaskCost::model: core::option::Option<alloc::string::String>
+pub nika_check::TaskCost::reasoning_beyond: bool
 pub nika_check::TaskCost::task: alloc::string::String
 pub nika_check::TaskCost::unbounded_reason: core::option::Option<nika_check::UnboundedReason>
 pub nika_check::TaskCost::usd: core::option::Option<f64>

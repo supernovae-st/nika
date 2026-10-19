@@ -22,11 +22,9 @@ async fn hash_schema_reaches_each_wire_unchanged() {
         .expect("hash definition");
     for (provider, model, pointer) in [
         ("anthropic", "anthropic/sonnet", "/tools/0/input_schema"),
-        (
-            "openai",
-            "openai/gpt-4.1-mini",
-            "/tools/0/function/parameters",
-        ),
+        // OpenAI's own endpoint takes function tools through its Responses API, whose tool
+        // carries its schema at `parameters` beside its name.
+        ("openai", "openai/gpt-4.1-mini", "/tools/0/parameters"),
         (
             "gemini",
             "gemini/flash-25",

@@ -293,7 +293,11 @@ impl InferenceAdmission {
             }
             Ok(())
         } else {
-            Self::qualify(provider, model, endpoint).map(|_| ())
+            Self::qualify(provider, model, endpoint)?;
+            if s.tariff_below_charge(provider, model, endpoint) {
+                return Err(denied(super::TARIFF_BELOW_CHARGE));
+            }
+            Ok(())
         }
     }
     pub(crate) fn declared_tariff(&self) -> Result<Option<super::DeclaredTariff>, ProviderError> {
@@ -381,6 +385,31 @@ impl UnknownAttempt {
         s.unknown_attempts[self.id].sent = true;
         Ok(())
     }
+    /// The provider's own account charge, reported with complete usage at its own
+    /// seeded endpoint: it outranks every catalog or declared estimate.
+    fn reported_charge(&self, r: &InferResponse, identity_ok: bool) -> Option<Cost> {
+        r.cost.filter(|_| {
+            identity_ok
+                && r.usage_completeness == UsageCompleteness::Complete
+                && r.usage.output_tokens <= u64::from(self.output)
+                && crate::retry::official(
+                    &self.choice.provider,
+                    &self.choice.model,
+                    &self.choice.endpoint,
+                )
+        })
+    }
+    /// Provenance of a settled reported charge on this choice's exact route.
+    fn reported_pricing(&self) -> serde_json::Value {
+        crate::retry::BillingRoute::new(
+            self.choice.provider.clone(),
+            self.choice.model.clone(),
+            self.choice.endpoint.clone(),
+        )
+        .map_or(serde_json::Value::Null, |route| {
+            crate::wire::admission::reported_charge_observation(&route)
+        })
+    }
     pub(super) fn settle(&mut self, r: &InferResponse) -> Result<(), ProviderError> {
         if !self.sent || self.done {
             return Err(denied("attempt must be sent exactly once"));
@@ -390,36 +419,32 @@ impl UnknownAttempt {
             &self.choice.model,
             &self.choice.endpoint,
         );
-        let identity_ok = r.gen_ai.response_model.as_deref() == Some(self.choice.model.as_str());
-        let mut estimate = tariff
+        // With an exact tariff, a model it documents as served for the choice's model answers
+        // too, as on every priced path; without one, only the choice's own model does.
+        let identity_ok =
+            r.gen_ai.response_model.as_deref().is_some_and(|model| {
+                tariff.map_or(model == self.choice.model, |t| t.serves(model))
+            });
+        // A tariff prices a cache write only at the write rate it states.
+        let priced = tariff
             .filter(|t| {
                 identity_ok
                     && r.usage_completeness == UsageCompleteness::Complete
                     && r.usage.input_tokens <= t.context_tokens
                     && r.usage.output_tokens <= u64::from(self.output)
             })
-            .and_then(|t| {
-                t.price(
-                    r.usage.input_tokens,
-                    r.usage.output_tokens,
-                    r.usage.cache_read_tokens.unwrap_or(0),
-                )
-            });
-        let mut native_estimate = tariff
-            .filter(|t| {
-                identity_ok
-                    && r.usage_completeness == UsageCompleteness::Complete
-                    && r.usage.input_tokens <= t.context_tokens
-                    && r.usage.output_tokens <= u64::from(self.output)
-            })
-            .and_then(|t| {
-                t.price_native(
-                    r.usage.input_tokens,
-                    r.usage.output_tokens,
-                    r.usage.cache_read_tokens.unwrap_or(0),
-                )
-            });
+            .zip(crate::retry::cache_writes(&r.usage));
+        let split = (
+            r.usage.input_tokens,
+            r.usage.output_tokens,
+            r.usage.cache_read_tokens.unwrap_or(0),
+        );
+        let mut estimate =
+            priced.and_then(|(t, written)| t.price_written(split.0, split.1, split.2, written));
+        let mut native_estimate = priced
+            .and_then(|(t, written)| t.price_native_written(split.0, split.1, split.2, written));
         let mut currency = tariff.map(|t| t.currency.to_owned());
+        let reported = self.reported_charge(r, identity_ok);
         if let Some(declared) = &self.choice.declared_tariff {
             native_estimate = (identity_ok
                 && r.usage_completeness == UsageCompleteness::Complete
@@ -439,6 +464,12 @@ impl UnknownAttempt {
                 .filter(|_| declared.currency() == "USD")
                 .map(Cost::new);
         }
+        if let Some(charge) = reported {
+            estimate = Some(charge);
+            native_estimate = Some(charge.nano_usd);
+            currency = Some("USD".into());
+        }
+        let pricing = reported.map(|_| self.reported_pricing());
         let mut s = self.account.lock()?;
         let a = &mut s.unknown_attempts[self.id];
         a.usage = Some(r.usage.clone());
@@ -447,6 +478,9 @@ impl UnknownAttempt {
         a.estimated = estimate;
         a.native_estimated_nano = native_estimate;
         a.currency = currency;
+        if let Some(pricing) = pricing {
+            a.pricing = pricing;
+        }
         a.note = if estimate.is_some() {
             "complete usage priced; invoice unknown"
         } else {

@@ -49,6 +49,37 @@ fn a_review_names_each_effect_class_then_the_spend() {
         !rows.iter().any(|r| r.contains("$0")),
         "no zero claimed: {rows:?}"
     );
+    // The missing bound is named: a task without `max_tokens`, or a fan-out whose item count is
+    // known only at run time beside a declared `max_tokens` (live gauntlet r07, 2026-10-16).
+    assert!(
+        rows.iter().any(|r| r
+            == "model output estimate · unbounded: `draft` declare(s) no `max_tokens`; Run admission is separate"),
+        "{rows:?}"
+    );
+    let fanned = "nika: fanned\nmodel: anthropic/claude-haiku-5-5\npermits: { tools: [\"nika:read\"], fs: { read: [\"./feeds.json\"] } }\ntasks:\n  feeds:\n    invoke: { tool: \"nika:read\", args: { path: \"./feeds.json\" } }\n  sum:\n    with: { list: \"${{ tasks.feeds.output }}\" }\n    for_each: { items: \"${{ with.list }}\" }\n    infer: { prompt: \"Summarize ${{ item }}\", max_tokens: 4096 }\n";
+    let rows = effect_rows(&report(fanned));
+    assert!(
+        rows.iter().any(|r| r.starts_with("model output estimate · unbounded: `sum` run(s) once per item of a list known only when the workflow runs")),
+        "{rows:?}"
+    );
+}
+
+/// A workflow that computes its paths shows the grant in force, not the floor its literal paths
+/// leave, and says that it removes files (live gauntlet r05 B3).
+#[test]
+fn computed_paths_show_the_grant_and_removals_are_named() {
+    let moves = "nika: moves\npermits:\n  tools: [\"nika:glob\", \"nika:write\", \"nika:remove_file\"]\n  fs:\n    read: [\"./inbox\", \"./inbox/*.txt\"]\n    write: [\"./journal.md\", \"./traites/**\", \"./inbox/*\"]\ntasks:\n  messages:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"./inbox/*.txt\" } }\n  journal:\n    invoke: { tool: \"nika:write\", args: { path: \"./journal.md\", content: \"x\", overwrite: true } }\n  copies:\n    with: { items: \"${{ tasks.messages.output }}\" }\n    for_each: { items: \"${{ with.items }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"./traites/${{ item }}\", content: \"x\", overwrite: true } }\n  remove:\n    with: { items: \"${{ tasks.messages.output }}\" }\n    for_each: { items: \"${{ with.items }}\" }\n    invoke: { tool: \"nika:remove_file\", args: { path: \"${{ item }}\" } }\n";
+    let rows = effect_rows(&report(moves));
+    assert!(
+        rows.iter()
+            .any(|r| r == "writes ./journal.md · ./traites/** · ./inbox/*"),
+        "{rows:?}"
+    );
+    assert!(
+        rows.iter()
+            .any(|r| r == "removes files · within ./journal.md · ./traites/** · ./inbox/*"),
+        "{rows:?}"
+    );
 }
 
 /// C10 · a review lists the report's first findings (`code · message`, at most eight) and hints
@@ -88,6 +119,21 @@ fn a_builtin_face_is_what_it_does_never_its_id() {
     ] {
         assert!(!builtin_face(tool).contains(':'), "{tool}");
     }
+}
+
+/// A fetch that sends says so; a read keeps its face (live gauntlet r04 B6).
+#[test]
+fn a_fetch_that_sends_says_it_sends() {
+    let source = "nika: post\npermits: { tools: [\"nika:fetch\"], net: { http: [\"httpbin.org\"] } }\ntasks:\n  get:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://httpbin.org/get\" } }\n  post:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://httpbin.org/post\", method: \"POST\", body: \"x\" } }\n";
+    let wf = parse(source, FileId::new(0), ParseMode::Strict).expect("parses");
+    let face = |id: &str| {
+        let task = (wf.tasks.iter())
+            .find(|t| t.value.id.value == id)
+            .expect("task");
+        task_face(&task.value, None)
+    };
+    assert_eq!(face("get"), "fetches from the web");
+    assert_eq!(face("post"), "sends to the web");
 }
 
 /// The review-text byte oracle: every expected row below was captured by

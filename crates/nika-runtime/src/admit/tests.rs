@@ -916,3 +916,34 @@ fn breakdown_counts_only_the_unbounded_tasks() {
     );
     assert!(msg.contains("unpriced model"));
 }
+
+/// Spec 02 §Project files: a run never starts on a project file no compose step read; the
+/// launch refuses before the prologue, and the composed workflow clears that gate.
+#[test]
+fn a_run_never_starts_on_an_unread_project_file() {
+    let wf = parse(
+        "nika: f\npermits: { fs: { read: [\"prompts/**\"] } }\ntasks:\n  a:\n    infer: { prompt: { file: \"prompts/a.md\" }, model: \"anthropic/claude-sonnet-5\" }\n",
+    );
+    let report = nika_check::check(&wf);
+    let err = gates(
+        &wf,
+        &report,
+        &BTreeMap::new(),
+        None,
+        None,
+        (None, &[], None),
+    )
+    .expect_err("an unread project file refuses the launch");
+    let RuntimeError::ReportMismatch { detail } = &err else {
+        panic!("the launch refusal names the unread file: {err:?}");
+    };
+    assert!(
+        detail.contains("project files") && detail.contains("prompts/a.md"),
+        "{detail}"
+    );
+    let mut read =
+        |_: &str| -> Result<Vec<u8>, nika_schema::ProjectFileRead> { Ok(b"Summarize".to_vec()) };
+    let composed = nika_schema::compose_project_files(&wf, ".", &mut read);
+    assert!(composed.findings.is_empty(), "{:?}", composed.findings);
+    assert!(unread_project_files_refusal(&composed.workflow).is_none());
+}

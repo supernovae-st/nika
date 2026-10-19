@@ -55,6 +55,10 @@ pub struct AgentInput {
     /// native-loop turn, or the harness session's own option) or refused
     /// before the first model call, and the output carries the receipt.
     pub requirement: Option<nika_types::access::AccessRequirement>,
+    /// The caller's genuine operator Stop; never inferred from model or tool text.
+    pub cancel: Option<nika_kernel::CancelCtx>,
+    /// Typed MCP witnesses kept outside a dropped agent/task attempt.
+    pub stopped: Option<nika_verb_invoke::StoppedCallSlot>,
 }
 
 impl AgentInput {
@@ -75,6 +79,8 @@ impl AgentInput {
             gate_answer: None,
             native_only: false,
             requirement: None,
+            cancel: None,
+            stopped: None,
         }
     }
 

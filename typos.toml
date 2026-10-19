@@ -52,7 +52,13 @@ extend-ignore-identifiers-re = [
 # The French stemmer's witnesses: the recall request `les commandes importées` and the
 # held-out requests' `sur nos blogs suivis`, `l'adresse et le SIRET`, `des contrats
 # scannés` and `chaque adresse email de la liste est valide`: those phrases only.
-extend-ignore-re = ["Remplace \\./sortie\\.txt par \\./revised\\.txt ou \\./reviewed\\.txt", "\\bcopie\\.txt\\b", "\\bgarde tout le reste\\b", "\\bcopie les octets dans autre\\.txt\\b", "« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder", "\"falso\"", "`falso`", "Copie entree", "Copie\\ \\./data/input\\.csv\\ vers\\ \\./out/copy\\.csv\\.\\ Le\\ budget\\ est\\ de\\ 2\\ dollars\\.", "la copie", "copie-2\\.md", "copie\\.csv", "pas maintenant", "\"quantite\"", "colonne quantite", "\"remplace\"", "remplace explicitement", "salaire_confidentiel", "aout\\.csv", "\"wdth\"", "[123]thr=", "modèles\\|exemples\\|templates", "\\\\u\\{7f\\}ect", "\"thre\"", "les demandes", "demandes-bilan", "demandes-en-souffrance", "demandes bilan enregistre liste", "\"verison\"", "additionne le reste", "copie-b\\.txt", "\"acess\"", "\"protocl\"", "\"efort\"", "acess: \\{ via: codex \\}", "protocl: acp", "efort: high", "a typo'd `protocl:`", "\"ttached\"", "fourni par le futur pilote", "\\bD'abord une question\\b", "\\bje sais pas\\b", "\\bpar exemple\\b", "\\bsans rien inventer\\b", "\\ble reste ne change pas\\b", "\\bl'adresse HTTPS du webhook\\b", "\\bUne adresse privée que seule? (ton équipe|le support) connaît\\b", "\\bl'adresse du support\\b", "\\bIl me manque encore celle-ci\\b", "\\bconfirme l'enregistrement\\b", "les commandes importées", "sur nos blogs suivis", "l'adresse et le SIRET", "des contrats scannés", "chaque adresse email de la liste est valide"]
+# The Session's French request that asks to create, save and run in one line (`Crée le
+# workflow, enregistre et lance maintenant`), the natural-rerun witness that a later
+# confirmation is a fresh request (`Si je confirme demain, tu pourras relancer.`), and the
+# finite-choice fixtures' French revenue option (`Chiffre d'affaires`, its value
+# `chiffre_affaires`): those phrases and that value only. `maintenant`, `confirme` and
+# `affaires` stay checked everywhere else.
+extend-ignore-re = ["Remplace \\./sortie\\.txt par \\./revised\\.txt ou \\./reviewed\\.txt", "\\bcopie\\.txt\\b", "\\bgarde tout le reste\\b", "\\bcopie les octets dans autre\\.txt\\b", "« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder", "\"falso\"", "`falso`", "Copie entree", "Copie\\ \\./data/input\\.csv\\ vers\\ \\./out/copy\\.csv\\.\\ Le\\ budget\\ est\\ de\\ 2\\ dollars\\.", "la copie", "copie-2\\.md", "copie\\.csv", "pas maintenant", "\"quantite\"", "colonne quantite", "\"remplace\"", "remplace explicitement", "salaire_confidentiel", "aout\\.csv", "\"wdth\"", "[123]thr=", "modèles\\|exemples\\|templates", "\\\\u\\{7f\\}ect", "\"thre\"", "les demandes", "demandes-bilan", "demandes-en-souffrance", "demandes bilan enregistre liste", "\"verison\"", "additionne le reste", "copie-b\\.txt", "\"acess\"", "\"protocl\"", "\"efort\"", "acess: \\{ via: codex \\}", "protocl: acp", "efort: high", "a typo'd `protocl:`", "\"ttached\"", "fourni par le futur pilote", "\\bD'abord une question\\b", "\\bje sais pas\\b", "\\bpar exemple\\b", "\\bsans rien inventer\\b", "\\ble reste ne change pas\\b", "\\bl'adresse HTTPS du webhook\\b", "\\bUne adresse privée que seule? (ton équipe|le support) connaît\\b", "\\bl'adresse du support\\b", "\\bIl me manque encore celle-ci\\b", "\\bconfirme l'enregistrement\\b", "les commandes importées", "sur nos blogs suivis", "l'adresse et le SIRET", "des contrats scannés", "chaque adresse email de la liste est valide", "\\bCrée le workflow, enregistre et lance maintenant\\b", "\\bSi je confirme demain, tu pourras relancer\\.", "\\bChiffre d'affaires\\b", "\\bchiffre_affaires\\b"]
 
 [default.extend-words]
 # Speaches is a real project (speaches.ai · OpenAI-compat speech server), not a typo of "Speeches".
@@ -178,7 +184,9 @@ extend-exclude = [
   # its patterns authored in French. They cannot be edited for a spell-check, and an English
   # dictionary judging French prose is noise, not a gate.
   "crates/nika-onboard-knowledge/assets/knowledge-release-r2/",
-  # The embedded r3.2 knowledge release, for the same reason: issued bytes, French patterns.
+  # The embedded r3.5 knowledge release and the r3.2 one it retains, for the same reason: issued bytes,
+  # French patterns and families.
+  "crates/nika-onboard-knowledge/assets/knowledge-release-0.123.0-r3.5-foundry-20261016/",
   "crates/nika-onboard-knowledge/assets/knowledge-release-0.123.0-r3.2-foundry-20261012/",
   # The Compile core reads six languages by design: its cue tables, its closed rule
   # grammar and its intent fixtures are French, Spanish, Portuguese, German and

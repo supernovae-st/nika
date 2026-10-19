@@ -17,6 +17,8 @@
 //!
 //! Only the cancellation primitive and the separate payload are instrumented.
 //! This model does not prove scheduler progress, process shutdown or effects.
+//! The `begin` model proves the one claim a stopped call's outcome rests on:
+//! a cancel that finds the guarded effect not begun is never followed by it.
 
 use crate::cancel::CancelCtx;
 use loom::{
@@ -65,6 +67,40 @@ fn cancel_propagates_across_three_clones() {
         let _observed = t_observe.join().unwrap();
 
         assert!(root.is_cancelled());
+    });
+}
+
+/// `begin` racing `cancel_begun`: whatever the interleaving, the cancel
+/// reports the effect begun exactly when `begin` let it go ahead.
+#[test]
+fn begin_and_cancel_begun_agree_under_all_interleavings() {
+    loom::model(|| {
+        let ctx = CancelCtx::new();
+        let worker = ctx.clone();
+
+        let t = thread::spawn(move || worker.begin());
+        let reported = ctx.cancel_begun();
+        let began = t.join().unwrap();
+
+        assert_eq!(began, reported, "the cancel's report matches the effect");
+        assert!(ctx.is_cancelled());
+    });
+}
+
+/// A parent's cancellation reaches a child derived before it, once the
+/// cancelling thread is joined.
+#[test]
+fn a_parent_cancel_reaches_its_child() {
+    loom::model(|| {
+        let run = CancelCtx::new();
+        let call = run.child();
+        let operator = run.clone();
+
+        let t = thread::spawn(move || operator.cancel());
+        let _seen = call.is_cancelled();
+        t.join().unwrap();
+
+        assert!(call.is_cancelled());
     });
 }
 

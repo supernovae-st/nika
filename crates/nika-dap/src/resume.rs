@@ -442,8 +442,15 @@ pub fn parse_answers(
         // not fill an input gate (the GATED resume e2e).
         let value = match confirm_yes_no(&task.value, raw) {
             Some(flag) => serde_json::Value::Bool(flag),
-            None => serde_json::from_str(raw)
-                .unwrap_or_else(|_| serde_json::Value::String(raw.to_owned())),
+            None => match serde_json::from_str(raw) {
+                Ok(serde_json::Value::String(text)) => serde_json::Value::String(text),
+                // A gate that takes text takes what was typed: `--answer review=42` picks the
+                // choice `42` the resume line prints, where a shell cannot pass a JSON string
+                // without a second quoting (`'"42"'` still gives its text).
+                Ok(_) if takes_text(&task.value) => serde_json::Value::String(raw.to_owned()),
+                Ok(parsed) => parsed,
+                Err(_) => serde_json::Value::String(raw.to_owned()),
+            },
         };
         // #1284 · a duplicate flag for ONE task: identical values dedupe
         // (a retried CI line is not an error); conflicting ones refuse —
@@ -481,6 +488,23 @@ fn confirm_yes_no(task: &nika_schema::raw::RawTask, raw: &str) -> Option<bool> {
         "no" | "n" => Some(false),
         _ => None,
     }
+}
+
+/// Whether `task` is a `nika:prompt` whose literal mode takes text (`input` or `choice`): its
+/// answer is the text typed, never a number or a boolean it happens to spell.
+fn takes_text(task: &nika_schema::raw::RawTask) -> bool {
+    let nika_schema::raw::RawAction::Invoke(invoke) = &task.action else {
+        return false;
+    };
+    if invoke.tool().map(|t| t.value.as_str()) != Some("nika:prompt") {
+        return false;
+    }
+    matches!(
+        (invoke.args.as_ref())
+            .and_then(|a| a.value.get("mode"))
+            .and_then(serde_json::Value::as_str),
+        Some("input" | "choice")
+    )
 }
 
 fn is_confirm_prompt(task: &nika_schema::raw::RawTask) -> bool {

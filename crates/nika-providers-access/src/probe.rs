@@ -235,6 +235,13 @@ pub struct ProviderProbe {
     /// (W3-F1: the two were one fact, and the dry-run blessed a seat whose
     /// product was gone). A provider row mirrors `key_present`.
     pub product_present: bool,
+    /// The NAMES of the candidate key variables set (non-empty) for this provider, in the order
+    /// the run's ladder reads them (`NIKA_<ID>_API_KEY` first): the first one supplies the key.
+    /// Names only, never a value. Empty when none is set, or on a row that names none.
+    pub key_vars: Vec<String>,
+    /// Two of [`Self::key_vars`] hold different values: the run uses the first. The composition
+    /// root compared them in memory and kept only this flag; no value is read or kept here.
+    pub key_conflict: bool,
 }
 
 impl ProviderProbe {
@@ -260,7 +267,24 @@ impl ProviderProbe {
             endpoint: endpoint.into(),
             serves: Vec::new(),
             product_present: key_present,
+            key_vars: Vec::new(),
+            key_conflict: false,
         }
+    }
+
+    /// Name the candidate key variables set for this provider, in the ladder's order (names
+    /// only, never a value).
+    #[must_use]
+    pub fn with_key_vars(mut self, key_vars: Vec<String>) -> Self {
+        self.key_vars = key_vars;
+        self
+    }
+
+    /// Flag that two set key variables hold different values (the run uses the first).
+    #[must_use]
+    pub fn with_key_conflict(mut self, conflict: bool) -> Self {
+        self.key_conflict = conflict;
+        self
     }
 
     /// Name the product binary's presence (a harness row · W3-F1).

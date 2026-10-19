@@ -74,7 +74,7 @@ fn active_and_unknown_reservations_never_reopen_even_when_their_price_is_zero() 
             let mut call = if free {
                 a.reserve(
                     "openrouter",
-                    "qwen/qwen3.8-27b:free",
+                    "nvidia/nemotron-3-super-120b-a12b:free",
                     "https://openrouter.ai/api/v1/chat/completions",
                     512,
                 )
@@ -195,4 +195,58 @@ fn unknown_cost_choice_cannot_become_a_numeric_checkpoint() {
         .for_scope("candidate", "invocation")
         .unwrap();
     assert!(a.checkpoint(PROJECT).is_err());
+}
+/// A settlement at the provider-reported charge, here above its zero reservation,
+/// round-trips with its catalog comparison; once the restored account reopens, the route it
+/// billed above its tariff still refuses, while another route admits.
+#[test]
+fn a_reported_charge_round_trips_and_its_stale_route_stays_refused() {
+    const OPENROUTER: &str = "https://openrouter.ai/api/v1/chat/completions";
+    const FREE: &str = "nvidia/nemotron-3-super-120b-a12b:free";
+    let a = funded();
+    let mut call = a.reserve("openrouter", FREE, OPENROUTER, 512).unwrap();
+    call.sent().unwrap();
+    let mut r = response();
+    r.gen_ai.response_model = Some(FREE.into());
+    r.cost = Some(Cost::new(10_000_000));
+    call.settle(&r).unwrap();
+    drop(call);
+    let old = a.snapshot().unwrap();
+    assert_eq!(old.state, AdmissionState::Open);
+    assert_eq!(old.estimated, Cost::new(10_000_000));
+    assert_eq!(old.attempts[0].reported_estimate, Some(Cost::zero()));
+    let raw = a.checkpoint(PROJECT).unwrap();
+    let (again, observed) = InferenceAdmission::from_checkpoint(&raw, PROJECT).unwrap();
+    assert_eq!(observed, old.durable_observation());
+    assert_eq!(again.snapshot().unwrap().attempts, old.attempts);
+    again.amend(Cost::new(4_000_000_000)).unwrap();
+    let Err(refused) = again.reserve("openrouter", FREE, OPENROUTER, 512) else {
+        panic!("the stale route refuses its next admission");
+    };
+    assert!(refused.to_string().contains("refresh it"), "{refused}");
+    let mut other = reserve(&again);
+    other.sent().unwrap();
+    other.settle(&response()).unwrap();
+}
+
+/// A settlement answered by `OpenAI`'s documented dated snapshot round-trips: the restored account
+/// keeps its attempts and its estimate on the exact route.
+#[test]
+fn a_documented_snapshot_settlement_round_trips() {
+    const OPENAI: &str = "https://api.openai.com/v1/chat/completions";
+    let a = funded();
+    let mut call = a.reserve("openai", "gpt-4o-mini", OPENAI, 512).unwrap();
+    call.sent().unwrap();
+    let mut r = response();
+    r.gen_ai.response_model = Some("gpt-4o-mini-2024-07-18".into());
+    call.settle(&r).unwrap();
+    drop(call);
+    let old = a.snapshot().unwrap();
+    assert_eq!(old.estimated, Cost::new(100 * 150 + 20 * 600));
+    let raw = a.checkpoint(PROJECT).unwrap();
+    let (again, observed) = InferenceAdmission::from_checkpoint(&raw, PROJECT).unwrap();
+    assert_eq!(observed, old.durable_observation());
+    let kept = again.snapshot().unwrap();
+    assert_eq!(kept.attempts, old.attempts);
+    assert_eq!(kept.estimated, old.estimated);
 }

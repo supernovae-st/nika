@@ -977,7 +977,8 @@ where
         let step = task.id.value.as_str();
         // Hash the resolved question, but keep secrets as markers.
         let base =
-            Scope::workflow_with_value_authorities(records, inputs, consts, resume_ctx.markers());
+            Scope::workflow_with_value_authorities(records, inputs, consts, resume_ctx.markers())
+                .with_run(resume_ctx.run_value());
         let gated = self.approvals.gated_for(step);
         let (mode, content) = canonical_content(task, &gated, &base);
         let question = content["approval"]["message"].as_str().map(str::to_owned);

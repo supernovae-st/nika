@@ -1,0 +1,6 @@
+{"data": {"id": "vendor/zero-axisless", "endpoints": [
+ {"tag": "vendor-a", "context_length": 131072, "max_completion_tokens": 32768,
+  "pricing": {"prompt": "0", "completion": "0"}},
+ {"tag": "vendor-b", "context_length": 131072, "max_completion_tokens": 32768,
+  "pricing": {"prompt": "0"}}
+]}}

@@ -15,7 +15,7 @@ pub use crate::data::generated::find_embedding;
 #[cfg(feature = "mcp")]
 pub use crate::data::generated::find_mcp_server;
 #[cfg(feature = "providers")]
-pub use crate::data::generated::find_provider;
+pub use crate::data::generated::{find_provider, model_facts};
 #[cfg(feature = "capabilities")]
 pub use crate::data::models::model_capabilities;
 #[cfg(feature = "pricing")]

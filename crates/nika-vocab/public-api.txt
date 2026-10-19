@@ -886,6 +886,7 @@ pub fn nika_vocab::project::discover_from_cwd() -> core::result::Result<core::op
 pub fn nika_vocab::project::discover_reachable(start: &std::path::Path) -> core::result::Result<nika_vocab::project::Discovery, nika_vocab::project::ProjectError>
 pub fn nika_vocab::project::is_kebab_id(s: &str) -> bool
 pub fn nika_vocab::project::is_project_document(yaml: &str) -> bool
+pub fn nika_vocab::project::is_retired_version_tag(s: &str) -> bool
 pub fn nika_vocab::project::parse(text: &str) -> core::result::Result<nika_vocab::project::Project, nika_vocab::project::ProjectError>
 pub mod nika_vocab::registry_ref
 #[non_exhaustive] pub enum nika_vocab::registry_ref::RefDefect

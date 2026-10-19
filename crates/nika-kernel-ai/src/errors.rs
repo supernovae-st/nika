@@ -74,7 +74,9 @@ impl NikaErrorCode for ProviderError {
                 429 => NIKA_332,
                 _ => NIKA_330,
             },
-            Self::Api { .. } => NIKA_330,
+            // A request over the window is a provider API refusal; the variant
+            // carries the meaning a loop compacts on.
+            Self::Api { .. } | Self::ContextOverflow { .. } => NIKA_330,
             Self::ModelNotFound { .. } => NIKA_331,
             Self::RateLimited { .. } => NIKA_332,
             Self::AuthFailed { .. } => NIKA_333,
@@ -195,6 +197,24 @@ mod tests {
         .nika_code();
         let _ = ProviderError::AuthFailed { reason: "".into() }.nika_code();
         let _ = ProviderError::Other { reason: "".into() }.nika_code();
+    }
+
+    /// A context overflow is a provider API refusal (330), never transient:
+    /// the same request overflows again.
+    #[test]
+    fn a_context_overflow_is_a_terminal_provider_api_refusal() {
+        let overflow = ProviderError::ContextOverflow {
+            limit: Some(200_000),
+            details: None,
+        };
+        assert_eq!(overflow.nika_code(), NIKA_330);
+        assert!(!overflow.is_transient());
+        assert!(!NikaErrorCode::is_transient(&overflow));
+        assert_eq!(
+            overflow.to_string(),
+            "the request exceeds the model's context window (200000 tokens): shorten the input or \
+             compact the conversation"
+        );
     }
 
     #[test]

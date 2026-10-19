@@ -5,8 +5,15 @@
 
 use serde::ser::SerializeMap as _;
 
-/// Current additive machine-protocol generation.
-pub const MACHINE_PROTOCOL_VERSION: u32 = 1;
+/// Current machine-protocol generation. A change to an object a published SDK
+/// reads closed (a key, an enum value) raises it in the same commit, so that SDK
+/// refuses this engine at identity (`/health`, `--sdk-identity`), before any job
+/// is admitted, never in the middle of a run (the published-SDK contract test in
+/// `nika-serve`). 2 since 0.123: compile questions may be `choice`, which
+/// `@supernovae-st/nika` 0.120.3 refuses. A resident stamps its stores with it
+/// (`nika_serve::WriterStamp`), and an older resident never serves stores a
+/// newer generation wrote.
+pub const MACHINE_PROTOCOL_VERSION: u32 = 2;
 
 /// Snapshot wire generation understood by this engine build.
 ///
@@ -29,6 +36,7 @@ const SUPPORTED_CAPABILITIES: &[&str] = &[
     "sessionHost",
     "sessionIntelligence",
     "sessionSteering",
+    "sessionQuestion",
 ];
 
 /// The engine, source and machine-protocol identity compiled into this build.

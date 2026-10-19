@@ -1,0 +1,38 @@
+# Synthetic routes for refresh_admission.py --selftest: one per law.
+schema = "nika/admission-sources@1"
+endpoint = "https://router.example/api/v1/chat/completions"
+route_source = "https://router.example/docs/chat"
+
+[[routes]]
+model = "vendor/peak"
+context = "bound"
+
+[[routes]]
+model = "vendor/full"
+context = "full"
+
+[[routes]]
+model = "vendor/windows"
+context = "bound"
+
+[[routes]]
+model = "vendor/free:free"
+context = "bound"
+
+[[routes]]
+model = "vendor/metered-image"
+context = "bound"
+
+[[routes]]
+model = "vendor/vanished"
+context = "bound"
+
+# A valid zero price beside an endpoint that lists none: never free.
+[[routes]]
+model = "vendor/zero-unpriced"
+context = "bound"
+
+# A valid zero price beside an endpoint without a completion price.
+[[routes]]
+model = "vendor/zero-axisless"
+context = "bound"

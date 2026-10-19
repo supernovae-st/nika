@@ -100,6 +100,9 @@ infer it ·
 | `stamper_kind` | the event-identity seam the `run:` declaration resolved to · `deterministic` \| `system` |
 | `clock` | the resolved run clock ([01](./01-envelope.md) §`run`) · `virtual` \| `system` |
 | `seed` | present exactly under a determinism demand (`seeded: N` → `N` · `none` → the zero stream); an ambient run carries **no** seed claim |
+| `scheduled_for` | on every run: the value of `${{ run.scheduled_for }}` ([04](./04-variables.md)), RFC 3339 UTC |
+| `scheduled_for_source` | where `scheduled_for` came from · `slot` (the run was fired for a schedule slot) \| `at` (`nika test --at`) \| `start` (the run's own start) |
+| `missed` | present exactly under `manqué: rattraper-une-fois`: the silence the run covers, `{ first, last, count }`, the value of `${{ run.missed }}` |
 
 **A manifest claims only what exists.** Where a fact has no recording
 surface the field is ABSENT and a reader says « unrecorded » — never a

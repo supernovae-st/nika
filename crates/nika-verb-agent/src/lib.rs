@@ -440,6 +440,11 @@ where
             .await;
         out.map(|out| (out.with_inference_calls(inference_calls.clone())).with_selection(receipt))
             .map_err(|e| {
+                let reported_tools = e
+                    .spend()
+                    .and_then(|spend| spend.tools_cost_usd)
+                    .unwrap_or(0.0);
+                let tools_cost_usd = tools_cost_usd + reported_tools;
                 e.with_spend(
                     SpendOnFailure::new(
                         usage_total,
@@ -474,9 +479,9 @@ where
         // Continuing turns check their budget before dispatch or re-asking;
         // terminal turns may still conclude on the final allowed turn.
         loop {
+            stop_if_requested(&input)?;
             st.turns += 1;
             observer.on_event(&AgentEvent::TurnStarted { turn: st.turns });
-
             // Per-turn routing: rank the universe against the LIVE task
             // context (prompt + last words + last observations · budgeted).
             let query = routing_query(&input.prompt, &st.last_text, &st.last_observations);
@@ -544,7 +549,7 @@ where
                             response,
                             (&mut router, &mut guard),
                             &mut st,
-                            run_start,
+                            (&input, run_start),
                         )
                         .await?;
                     continue;
@@ -578,7 +583,7 @@ where
         response: InferResponse,
         intelligence: (&mut ToolRouter, &mut Guard),
         st: &mut turn::LoopState,
-        run_start: Option<ToolRunStart>,
+        control: (&AgentInput, Option<ToolRunStart>),
     ) -> Result<f64, VerbAgentError> {
         let (router, guard) = intelligence;
         budget.check(st.turns, &st.last_text)?;
@@ -594,7 +599,7 @@ where
                 guard,
                 &mut st.messages,
                 &st.last_text,
-                run_start,
+                control,
             )
             .await?;
         st.last_observations = digest;
@@ -675,6 +680,7 @@ where
         inference_calls: &mut Vec<nika_types::cost::InferenceCall>,
         input: &AgentInput,
     ) -> Result<InferResponse, VerbAgentError> {
+        stop_if_requested(input)?;
         let model = request.model.clone();
         let response = self.provider.infer(request).await.map_err(|source| {
             inference_calls.extend_from_slice(source.inference_calls());
@@ -855,10 +861,10 @@ where
         guard: &mut Guard,
         messages: &mut Vec<Message>,
         last_text: &str,
-        run_start: Option<ToolRunStart>,
+        control: (&AgentInput, Option<ToolRunStart>),
     ) -> Result<(String, f64), VerbAgentError> {
         let batch = self
-            .run_batch(observer, turn, tool_uses, router, guard, run_start)
+            .run_batch(observer, turn, tool_uses, router, guard, control)
             .await?;
         // Consult the guard BEFORE pushing, so a nudge rides INSIDE the
         // same user message as the tool results — never a second adjacent
@@ -937,7 +943,7 @@ where
         tool_uses: Vec<ToolUse>,
         router: &mut ToolRouter,
         guard: &mut Guard,
-        run_start: Option<ToolRunStart>,
+        control: (&AgentInput, Option<ToolRunStart>),
     ) -> Result<BatchOutcome, VerbAgentError> {
         use futures_util::{StreamExt, TryStreamExt};
         let cap = self.config.max_parallel_tools.max(1);
@@ -951,14 +957,33 @@ where
                 (u, gate)
             })
             .collect();
-        let resolved: Vec<Resolved> = futures_util::stream::iter(
-            gated
-                .into_iter()
-                .map(|(u, gate)| self.resolve_tool(u, gate, run_start)),
-        )
-        .buffered(cap)
-        .try_collect()
-        .await?;
+        // One batch receipt outlives every resolve future. MCP handoffs and
+        // inline invokes each record their physical completion exactly once;
+        // a ready-but-unpolled sibling cannot disappear on short-circuit.
+        let receipts = control.0.stopped.as_ref().map_or_else(
+            nika_verb_invoke::StoppedCallSlot::new,
+            nika_verb_invoke::StoppedCallSlot::child,
+        );
+        let collected = {
+            let batch = futures_util::stream::iter(gated.into_iter().map(|(u, gate)| {
+                let receipts = &receipts;
+                async move {
+                    self.resolve_tool(u, gate, (control.0, control.1, receipts))
+                        .await
+                }
+            }))
+            .buffered(cap);
+            batch.try_collect::<Vec<Resolved>>().await
+        };
+        // The collection scope has ended: pending siblings have already
+        // dropped and committed any available handoff facts before this read.
+        let resolved = collected.map_err(|error| {
+            error.with_spend(SpendOnFailure::new(
+                TokenUsage::default(),
+                receipts.reported_cost_usd(),
+                None,
+            ))
+        })?;
 
         let mut fold = BatchFold::new(resolved.len());
         for r in resolved {
@@ -975,8 +1000,13 @@ where
         &self,
         u: ToolUse,
         gate: guard::EffectGate,
-        run_start: Option<ToolRunStart>,
+        control: (
+            &AgentInput,
+            Option<ToolRunStart>,
+            &nika_verb_invoke::StoppedCallSlot,
+        ),
     ) -> Result<Resolved, VerbAgentError> {
+        stop_if_requested(control.0)?;
         if gate == guard::EffectGate::Replay {
             // #1470 · refused in place: the executor never sees a replay.
             let block = ContentBlock::ToolResult {
@@ -1003,7 +1033,7 @@ where
             ))
         } else {
             let (block, cost_usd) = self
-                .dispatch(&u.id, &u.name, u.args.clone(), run_start)
+                .dispatch(&u.id, &u.name, u.args.clone(), control)
                 .await?;
             Ok(Resolved::new(block, u.name, u.args, cost_usd, None, gate))
         }
@@ -1090,9 +1120,16 @@ where
         id: &str,
         name: &str,
         args: serde_json::Value,
-        run_start: Option<ToolRunStart>,
+        control: (
+            &AgentInput,
+            Option<ToolRunStart>,
+            &nika_verb_invoke::StoppedCallSlot,
+        ),
     ) -> Result<(ContentBlock, Option<f64>), VerbAgentError> {
+        stop_if_requested(control.0)?;
+        let (input, run_start, receipts) = control;
         let mut call = InvokeInput::new(name);
+        call.stopped = Some(receipts.clone());
         call.args = args;
         call.call_id = Some(id.to_owned());
         let invoked = match run_start {
@@ -1120,6 +1157,21 @@ where
                 ))
             }
             Err(err) => {
+                if input
+                    .cancel
+                    .as_ref()
+                    .is_some_and(nika_kernel::CancelCtx::is_cancelled)
+                    && let Some(call) = err
+                        .details()
+                        .and_then(|details| details.stopped_call.as_deref())
+                    && call.tool == name
+                    && call.call_id == id
+                {
+                    return Err(VerbAgentError::OperatorStopped {
+                        call: Some(Box::new(call.clone())),
+                        spend: Box::default(),
+                    });
+                }
                 // A security-boundary refusal is NEVER negotiation
                 // material for the model (spec §permits ·
                 // `security_error` · one invariant, stated at
@@ -1424,6 +1476,21 @@ fn validate_params(input: &AgentInput) -> Result<(), VerbAgentError> {
         return Err(VerbAgentError::InvalidParam {
             param: "max_turns",
             detail: format!("max_turns must be 1-{MAX_TURNS_CEILING}, got {max_turns}"),
+        });
+    }
+    Ok(())
+}
+
+/// Operator control is caller-owned; a coded error or model sentence never supplies it.
+fn stop_if_requested(input: &AgentInput) -> Result<(), VerbAgentError> {
+    if input
+        .cancel
+        .as_ref()
+        .is_some_and(nika_kernel::CancelCtx::is_cancelled)
+    {
+        return Err(VerbAgentError::OperatorStopped {
+            call: None,
+            spend: Box::default(),
         });
     }
     Ok(())

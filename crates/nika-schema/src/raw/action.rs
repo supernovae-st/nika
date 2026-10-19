@@ -81,6 +81,30 @@ pub enum VisionInput {
     },
 }
 
+/// A field kept in a project file (spec `02-verbs.md` §Project files): the closed
+/// `{ file: <path> }` form of `prompt:`, `system:` or `schema:`. The parser keeps the path;
+/// [`crate::project_file::compose_project_files`] replaces the field by the file's content and
+/// marks the reference composed. A run never starts on a reference no compose step read.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct ProjectFileRef {
+    /// The path as the naming workflow writes it.
+    pub path: Spanned<String>,
+    /// Whether a compose step replaced the field by the file's content.
+    pub composed: bool,
+}
+
+impl ProjectFileRef {
+    /// A reference no compose step has read yet.
+    #[must_use]
+    pub fn new(path: Spanned<String>) -> Self {
+        Self {
+            path,
+            composed: false,
+        }
+    }
+}
+
 /// `infer:` — a single LLM call (spec `02-verbs.md` §infer).
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -102,6 +126,12 @@ pub struct RawInferAction {
     pub thinking: Option<Spanned<Thinking>>,
     /// `vision:` — image inputs.
     pub vision: Vec<Spanned<VisionInput>>,
+    /// `prompt: { file }` — `prompt` holds the file's text once composed.
+    pub prompt_file: Option<ProjectFileRef>,
+    /// `system: { file }` — `system` holds the file's text once composed.
+    pub system_file: Option<ProjectFileRef>,
+    /// `schema: { file }` — `schema` holds the file's JSON Schema once composed.
+    pub schema_file: Option<ProjectFileRef>,
 }
 
 impl RawInferAction {
@@ -117,6 +147,9 @@ impl RawInferAction {
             schema: None,
             thinking: None,
             vision: Vec::new(),
+            prompt_file: None,
+            system_file: None,
+            schema_file: None,
         }
     }
 }
@@ -312,6 +345,12 @@ pub struct RawAgentAction {
     pub temperature: Option<Spanned<f64>>,
     /// `schema:` — JSON Schema · validates the **final message**.
     pub schema: Option<Spanned<serde_json::Value>>,
+    /// `prompt: { file }` — `prompt` holds the file's text once composed.
+    pub prompt_file: Option<ProjectFileRef>,
+    /// `system: { file }` — `system` holds the file's text once composed.
+    pub system_file: Option<ProjectFileRef>,
+    /// `schema: { file }` — `schema` holds the file's JSON Schema once composed.
+    pub schema_file: Option<ProjectFileRef>,
 }
 
 impl RawAgentAction {
@@ -328,6 +367,9 @@ impl RawAgentAction {
             max_tokens_total: None,
             temperature: None,
             schema: None,
+            prompt_file: None,
+            system_file: None,
+            schema_file: None,
         }
     }
 }

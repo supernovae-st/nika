@@ -124,12 +124,14 @@ scope = { providers = ["openai", "openrouter"] }
 match = { kind = "prefix_any", prefixes = ["gpt-5-", "gpt-5."] }
 caps  = { token_limit_param = "max-completion-tokens", reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 
-# Observed OpenAI request validation requires this token-budget parameter.
-# This rule makes no additional capability claims for the model or its family.
+# Observed OpenAI request validation requires this token-budget parameter: gpt-6-astra, then
+# gpt-6-sol and gpt-6.1-sol (measured 2026-10-16 on /v1/chat/completions: « 'max_tokens' is not
+# supported with this model. Use 'max_completion_tokens' instead. », HTTP 400). Exact names
+# only: this rule makes no additional capability claims for the models or their family.
 [[rules]]
 name  = "openai-gpt6-astra-token-budget"
 scope = { providers = ["openai"] }
-match = { kind = "exact_any", models = ["gpt-6-astra"] }
+match = { kind = "exact_any", models = ["gpt-6-astra", "gpt-6-sol", "gpt-6.1-sol"] }
 caps  = { token_limit_param = "max-completion-tokens" }
 
 # OpenAI gpt-oss-120b under the openai provider id, as the Scaleway Generative APIs serve it.
@@ -173,6 +175,29 @@ name  = "openai-gpt4-family"
 scope = { providers = ["openai", "openrouter"] }
 match = { kind = "prefix_any", prefixes = ["gpt-4"] }
 caps  = { tokenizer = "cl100k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+
+# [8-claude-5] The Claude 5 models on Anthropic's own API (official model pages, thinking
+#      troubleshooting table and effort page, 2026-10-15): adaptive thinking only, so a
+#      `thinking.type: enabled` budget is refused with HTTP 400 (no thinking-budget
+#      parameter here), and fixed sampling, so a temperature, top_p or top_k other than the
+#      default is refused with HTTP 400 (supports_temperature = false). They think by default
+#      and the thinking counts in max_tokens. Claude Fable 5.1, Fable 5 and Opus 5.5 keep
+#      thinking always on; the others document a lower setting (`disabled`, or
+#      `between_tools` on Sonnet 5.5) that this engine does not send. Effort steers how much
+#      they think (`output_config.effort`): each documents low, medium, high, xhigh and max;
+#      the levels this engine names are recorded (low, high, max). Exact ids only, and
+#      ⚠ BEFORE [8a], which they would otherwise fall into.
+[[rules]]
+name  = "claude-5-always-thinking-on-anthropic"
+scope = { providers = ["anthropic"] }
+match = { kind = "exact_any", models = ["claude-fable-5-1", "claude-fable-5", "claude-opus-5-5"] }
+caps  = { supports_temperature = false, reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "reasoning-effort", "streaming-thinking"], json_mode = "schema", reasoning_efforts = ["low", "high", "max"], reasoning_facts = { by_default = true, in_output_cap = true, off = "never" } }
+
+[[rules]]
+name  = "claude-5-adaptive-thinking-on-anthropic"
+scope = { providers = ["anthropic"] }
+match = { kind = "exact_any", models = ["claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5", "claude-sonnet-5"] }
+caps  = { supports_temperature = false, reasoning = true, tokenizer = "claude-v3", input_modalities = ["image", "pdf", "text"], output_modalities = ["text"], supported_parameters = ["prompt-caching", "reasoning-effort", "streaming-thinking"], json_mode = "schema", reasoning_efforts = ["low", "high", "max"], reasoning_facts = { by_default = true, in_output_cap = true, off = "not-reached" } }
 
 # [8a] Claude on Anthropic's own API: the caps of [9], plus the reasoning facts of the
 #      Anthropic wire: no thinking unless a task's thinking budget asks, and thinking counts

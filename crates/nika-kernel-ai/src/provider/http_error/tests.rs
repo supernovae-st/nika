@@ -148,3 +148,38 @@ fn a_long_message_is_cut_at_its_bound() {
         );
     }
 }
+
+/// The documented overflow code is kept and recognized; the same words in the
+/// provider's prose classify nothing, and a status waiting may help (429,
+/// 5xx) is never an overflow, whatever code rides it.
+#[test]
+fn only_the_documented_code_marks_a_context_overflow() {
+    let coded = ProviderHttpError::new(
+        400,
+        Some("context_length_exceeded"),
+        Some("invalid_request_error"),
+        None,
+    );
+    assert!(coded.is_context_overflow());
+    assert_eq!(coded.code(), Some("context_length_exceeded"));
+    let prose = said(
+        400,
+        "This model's maximum context length is 128000 tokens: context_length_exceeded",
+        &[],
+    );
+    assert!(!prose.is_context_overflow(), "prose is never classified");
+    for status in [429, 503, 529] {
+        let transient = ProviderHttpError::new(status, Some("context_length_exceeded"), None, None);
+        assert!(
+            !transient.is_context_overflow(),
+            "{status} stays a transient rejection"
+        );
+        assert!(transient.is_transient(), "{status}");
+    }
+    let invalid = ProviderHttpError::new(400, None, Some("invalid_request_error"), None);
+    assert!(invalid.is_invalid_request() && !invalid.is_context_overflow());
+    assert!(
+        !ProviderHttpError::new(422, None, Some("invalid_request_error"), None)
+            .is_invalid_request()
+    );
+}

@@ -145,10 +145,11 @@ where
         // fold consumes the dispatch.
         let child = failed.child.clone();
         let retry_forbidden = failed.retry_forbidden;
+        let operator_cancelled = failed.operator_cancelled;
         // Debits PER ATTEMPT — a retry storm is never invisible.
         let error = failed.debit_and_fold(ledger, failed_cost, failed_unpriced);
         // An effect replay veto wins over `on_codes`, after the attempt is debited.
-        let delay = if retry_forbidden {
+        let delay = if retry_forbidden || operator_cancelled {
             None
         } else {
             self.retry_delay(task, &error, attempt, max_attempts, jitter_key)
@@ -156,6 +157,7 @@ where
         let Some(delay) = delay else {
             return Err(Box::new(
                 FailedOutcome::new(error, *failed_cost, *failed_unpriced, evidence)
+                    .with_operator_cancelled(operator_cancelled)
                     .with_access(access)
                     .with_access_refused(access_refused)
                     .with_usage(usage)

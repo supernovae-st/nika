@@ -223,40 +223,40 @@ pub const PROVIDERS: &[Entry] = &[
         doc: "Mistral AI (EU, open-weight models available).",
     },
     Entry {
-        name: "groq",
-        doc: "Groq inference (cloud, low-latency).",
-    },
-    Entry {
-        name: "deepseek",
-        doc: "DeepSeek models (cloud).",
-    },
-    Entry {
-        name: "openrouter",
-        doc: "OpenRouter (cloud router across many providers/models).",
-    },
-    Entry {
         name: "huggingface",
         doc: "Hugging Face Inference Providers router (open-weight catalog · 18 backends · :provider or :fastest/:cheapest suffix).",
-    },
-    Entry {
-        name: "nvidia",
-        doc: "NVIDIA API (Nemotron 3 family · Open Model License · NIM self-hostable).",
-    },
-    Entry {
-        name: "anthropic",
-        doc: "Anthropic Claude models (cloud).",
     },
     Entry {
         name: "openai",
         doc: "OpenAI GPT models (cloud).",
     },
     Entry {
+        name: "xai",
+        doc: "xAI Grok models (cloud).",
+    },
+    Entry {
+        name: "anthropic",
+        doc: "Anthropic Claude models (cloud).",
+    },
+    Entry {
+        name: "deepseek",
+        doc: "DeepSeek models (cloud).",
+    },
+    Entry {
         name: "gemini",
         doc: "Google Gemini models (cloud).",
     },
     Entry {
-        name: "xai",
-        doc: "xAI Grok models (cloud).",
+        name: "groq",
+        doc: "Groq inference (cloud, low-latency).",
+    },
+    Entry {
+        name: "nvidia",
+        doc: "NVIDIA API (Nemotron 3 family · Open Model License · NIM self-hostable).",
+    },
+    Entry {
+        name: "openrouter",
+        doc: "OpenRouter (cloud router across many providers/models).",
     },
     Entry {
         name: "mock",

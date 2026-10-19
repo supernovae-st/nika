@@ -34,6 +34,17 @@ pub enum CallState {
     /// Its owning preparation was dropped before return.
     Cancelled,
 }
+/// What a returned call cost, as its producer settled it: an estimate at the route's list
+/// price, never an invoice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum CallCost {
+    /// Every request the call made settled at a known price: this many nano-USD.
+    Priced(i128),
+    /// The call returned, but a request it made has no price its producer can state.
+    Unpriced,
+}
+
 /// Producer-reported identity, without prompt, answer or credentials.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -54,6 +65,9 @@ pub struct CallMark {
     pub input_tokens: Option<u64>,
     /// The output tokens the provider reported for it, reasoning included.
     pub output_tokens: Option<u64>,
+    /// What it cost once it returned, when its producer settled it ([`CallCost`]); `None`
+    /// while it runs, or when its producer states nothing.
+    pub cost: Option<CallCost>,
 }
 impl CallMark {
     /// Preserve the producer's exact role and requested identity.
@@ -68,6 +82,7 @@ impl CallMark {
             elapsed_ms: None,
             input_tokens: None,
             output_tokens: None,
+            cost: None,
         }
     }
 
@@ -86,6 +101,13 @@ impl CallMark {
         self.output_tokens = Some(output);
         self
     }
+
+    /// What the returned call cost, as its producer settled it.
+    #[must_use]
+    pub fn costing(mut self, cost: CallCost) -> Self {
+        self.cost = Some(cost);
+        self
+    }
 }
 /// Where one tool step of a conversation's run is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -102,6 +124,7 @@ pub enum ToolState {
 /// One tool the conversation's intelligence called, as the Session's run observed it: the
 /// call's identity, the tool, where it is and the time it took — never its arguments, and of its
 /// reply only why it failed, as its producer showed it (bounded, the secret shapes redacted).
+/// A finished proposal can separately retain original compiler verification for machine readers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ToolMark {
@@ -119,6 +142,8 @@ pub struct ToolMark {
     pub reply_bytes: Option<u64>,
     /// Why it failed: its reply's excerpt as the run reported it; `None` unless it failed.
     pub reply: Option<String>,
+    /// Original semantic verification, unchanged; machine evidence, never the activity's prose.
+    pub verification: Option<serde_json::Value>,
 }
 
 impl ToolMark {
@@ -133,6 +158,7 @@ impl ToolMark {
             at_ms: None,
             reply_bytes: None,
             reply: None,
+            verification: None,
         }
     }
 
@@ -141,6 +167,13 @@ impl ToolMark {
     pub fn timed(mut self, at_ms: u64, reply_bytes: Option<u64>) -> Self {
         self.at_ms = Some(at_ms);
         self.reply_bytes = reply_bytes;
+        self
+    }
+
+    /// Preserve the proposal producer's verification without interpreting it.
+    #[must_use]
+    pub fn with_verification(mut self, verification: Option<serde_json::Value>) -> Self {
+        self.verification = verification;
         self
     }
 
@@ -319,6 +352,33 @@ pub fn call_activity(ordinal: u32, role: &str, model: &str, state: CallState) ->
     activity
 }
 
+/// A conversation tool in plain words (`writing the draft` for `candidate_write`): what a door
+/// tells a person it does. The exact name stays in the [`ToolMark`] and the receipts; a tool
+/// this map does not know is shown as it came.
+#[must_use]
+pub fn tool_words(name: &str) -> &str {
+    match name {
+        "read" => "reading a project file",
+        "candidate_read" => "reading the draft",
+        "candidate_write" => "writing the draft",
+        "candidate_edit" => "editing the draft",
+        "check" => "checking the draft",
+        "inspect" => "reading the draft's steps",
+        "explain" => "explaining a finding",
+        "language" => "looking up the language",
+        "models" => "listing the models",
+        "knowledge" => "searching Nika's knowledge",
+        "observe" => "fetching a web address",
+        "compose" => "composing from components",
+        "verify" => "verifying the draft",
+        "trial" => "trying the draft",
+        "ask" => "asking you",
+        "propose" => "proposing the workflow",
+        "new_request" => "taking up your new request",
+        other => other,
+    }
+}
+
 /// Present one real tool step of a conversation's run; the phase is the tool's family, the
 /// note names the tool and, once it answered, the time it took.
 #[must_use]
@@ -395,6 +455,9 @@ mod tests {
             mark.output_tokens,
         );
         assert_eq!(kept, (Some(1_000), Some(250), Some(4_570), Some(41)));
+        assert_eq!(mark.cost, None, "a cost is the producer's to state");
+        let priced = mark.clone().costing(CallCost::Priced(120_000_000));
+        assert_eq!(priced.cost, Some(CallCost::Priced(120_000_000)));
         assert_eq!(call.line(), before);
         let tool =
             ToolMark::new("toolu_1", "verify", ToolState::Finished, Some(42)).timed(900, Some(312));

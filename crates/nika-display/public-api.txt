@@ -474,9 +474,14 @@ pub nika_display::activity_card::Update::Phase::done: bool
 pub nika_display::activity_card::Update::Phase::note: &'a str
 pub nika_display::activity_card::Update::Phase::phase: nika_display::activity::Phase
 pub nika_display::activity_card::Update::Step(&'a str)
+pub nika_display::activity_card::Update::Tool
+pub nika_display::activity_card::Update::Tool::note: &'a str
+pub nika_display::activity_card::Update::Tool::phase: nika_display::activity::Phase
+pub nika_display::activity_card::Update::Tool::state: nika_display::activity::ToolState
 impl<'a> nika_display::activity_card::Update<'a>
 pub const fn nika_display::activity_card::Update<'a>::call(ordinal: u32, role: &'a str, model: &'a str, phase: nika_display::activity::Phase, state: nika_display::activity::CallState, at: core::time::Duration) -> Self
 pub const fn nika_display::activity_card::Update<'a>::phase(phase: nika_display::activity::Phase, note: &'a str, done: bool) -> Self
+pub const fn nika_display::activity_card::Update<'a>::tool(phase: nika_display::activity::Phase, note: &'a str, state: nika_display::activity::ToolState) -> Self
 impl<'a> core::clone::Clone for nika_display::activity_card::Update<'a>
 pub fn nika_display::activity_card::Update<'a>::clone(&self) -> nika_display::activity_card::Update<'a>
 impl<'a> core::fmt::Debug for nika_display::activity_card::Update<'a>
@@ -583,6 +588,7 @@ pub fn nika_display::activity_card::quoted(text: &str, ascii: bool) -> alloc::st
 pub fn nika_display::activity_card::took_words(took: core::time::Duration) -> alloc::string::String
 pub mod nika_display::check_render
 pub mod nika_display::check_render::review
+pub fn nika_display::check_render::review::effect_row_fr(row: &str) -> alloc::string::String
 pub fn nika_display::check_render::review::effect_rows(report: &nika_check::CheckReport) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::check_render::review::external_effects(candidate: &str, boundary: core::option::Option<&nika_check::effective::EffectivePermits>) -> alloc::string::String
 pub fn nika_display::check_render::review::finding_rows(report: &nika_check::CheckReport) -> (alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>)

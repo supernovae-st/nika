@@ -8820,6 +8820,9 @@ says WHY, and the operator gets a real budget lever.
   the oracle now serves 8 read-only tools, and the server speaks MCP
   2026-07-28 natively ([PR 171](https://github.com/supernovae-st/nika/pull/171)) while
   accepting 2025-11-25 clients ([PR 185](https://github.com/supernovae-st/nika/pull/185)).
+  *Corrected in 0.123: the server never spoke 2026-07-28. It speaks the
+  handshake revisions 2024-11-05 to 2025-11-25; the final 2026-07-28 revision
+  has no handshake, and none of its MUSTs were implemented.*
 - **Honest money** — real per-task spend: `cost_usd` rides `task_completed`
   ([PR 168](https://github.com/supernovae-st/nika/pull/168) · absent for mock/local,
   never a fake zero) and agent loops meter tool-reported cost

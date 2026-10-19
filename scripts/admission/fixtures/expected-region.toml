@@ -1,0 +1,133 @@
+# OpenRouter routes. A paid OpenRouter reply settles at its own reported
+# `usage.cost` (non-BYOK, complete meters); these rows only reserve and admit
+# the exact route. Each row is read from the saved
+# GET /api/v1/models/<slug>/endpoints body that both hashes name: rates are the
+# peak per field over every endpoint and every applicable override, the input
+# rate also covering a cache write; limits are the smallest context and
+# max_completion_tokens over the endpoints. The model is the public id from
+# GET /api/v1/models, which the reply echoes, never the dated canonical slug.
+# An endpoint `discount` is not assumed: the peak is the undiscounted price.
+# A route free at every axis of every endpoint is declared free, for bounded
+# text requests to that exact variant only: never inferred from a `:free`
+# suffix, an absent price or a 0/0 snapshot row.
+
+# vendor/peak: 2 endpoints; long-prompt override from 200000 excluded; input rate is the cache-write peak.
+[[tariffs]]
+provider = "openrouter"
+billing_provider = "openrouter"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "vendor/peak"
+endpoints = ["https://router.example/api/v1/chat/completions"]
+source = "https://openrouter.ai/api/v1/models/vendor/peak-20260101/endpoints"
+limits_source = "https://openrouter.ai/api/v1/models/vendor/peak-20260101/endpoints"
+route_source = "https://router.example/docs/chat"
+as_of = "2026-01-02"
+source_sha256 = "a27c246978e353ea7e3097a1f443f7aa1b4693f4b558999d76cfef186f8f5c04"
+limits_sha256 = "a27c246978e353ea7e3097a1f443f7aa1b4693f4b558999d76cfef186f8f5c04"
+context_tokens = 199999
+max_output_tokens = 100000
+input_nano_per_token = 1250
+output_nano_per_token = 4000
+cached_nano_per_token = 120
+
+# vendor/full: 1 endpoint; long-prompt override in the peak.
+[[tariffs]]
+provider = "openrouter"
+billing_provider = "openrouter"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "vendor/full"
+endpoints = ["https://router.example/api/v1/chat/completions"]
+source = "https://openrouter.ai/api/v1/models/vendor/full-20260101/endpoints"
+limits_source = "https://openrouter.ai/api/v1/models/vendor/full-20260101/endpoints"
+route_source = "https://router.example/docs/chat"
+as_of = "2026-01-02"
+source_sha256 = "0b585c4c2315324642d2b6af3f9cb5dbf258a9f616671d4495b47e139ca45823"
+limits_sha256 = "0b585c4c2315324642d2b6af3f9cb5dbf258a9f616671d4495b47e139ca45823"
+context_tokens = 1000000
+max_output_tokens = 50000
+input_nano_per_token = 1000
+output_nano_per_token = 3000
+cached_nano_per_token = 100
+
+# vendor/windows: 2 endpoints; web_search not admitted; time windows in the peak; output peak 1000.1 rounded up; an endpoint has no cache-read rate: no discount.
+[[tariffs]]
+provider = "openrouter"
+billing_provider = "openrouter"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "vendor/windows"
+endpoints = ["https://router.example/api/v1/chat/completions"]
+source = "https://openrouter.ai/api/v1/models/vendor/windows-20260101/endpoints"
+limits_source = "https://openrouter.ai/api/v1/models/vendor/windows-20260101/endpoints"
+route_source = "https://router.example/docs/chat"
+as_of = "2026-01-02"
+source_sha256 = "86b385d20c1744ec68d86950f7b7c0da78872c67c381626157a19e8d0b25c246"
+limits_sha256 = "86b385d20c1744ec68d86950f7b7c0da78872c67c381626157a19e8d0b25c246"
+context_tokens = 131072
+max_output_tokens = 16384
+input_nano_per_token = 350
+output_nano_per_token = 1001
+cached_nano_per_token = 350
+
+# vendor/free:free: 1 endpoint.
+[[tariffs]]
+provider = "openrouter"
+billing_provider = "openrouter"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "vendor/free:free"
+endpoints = ["https://router.example/api/v1/chat/completions"]
+source = "https://openrouter.ai/api/v1/models/vendor/free:free/endpoints"
+limits_source = "https://openrouter.ai/api/v1/models/vendor/free:free/endpoints"
+route_source = "https://router.example/docs/chat"
+as_of = "2026-01-02"
+source_sha256 = "61afad489c1a2c88f8f3361616f7431d3a2707c8d18a9b06cb35de5fb53ec4de"
+limits_sha256 = "61afad489c1a2c88f8f3361616f7431d3a2707c8d18a9b06cb35de5fb53ec4de"
+context_tokens = 262144
+max_output_tokens = 65536
+declared_free = true
+input_nano_per_token = 0
+output_nano_per_token = 0
+cached_nano_per_token = 0
+
+# vendor/vanished: 1 endpoint.
+[[tariffs]]
+provider = "openrouter"
+billing_provider = "openrouter"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "vendor/vanished"
+endpoints = ["https://router.example/api/v1/chat/completions"]
+source = "https://openrouter.ai/api/v1/models/vendor/vanished-20250101/endpoints"
+limits_source = "https://openrouter.ai/api/v1/models/vendor/vanished-20250101/endpoints"
+route_source = "https://router.example/docs/chat"
+as_of = "2025-01-01"
+source_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+limits_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+context_tokens = 8192
+max_output_tokens = 4096
+input_nano_per_token = 10
+output_nano_per_token = 20
+cached_nano_per_token = 10
+
+# vendor/zero-unpriced: 2 endpoints.
+[[tariffs]]
+provider = "openrouter"
+billing_provider = "openrouter"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "vendor/zero-unpriced"
+endpoints = ["https://router.example/api/v1/chat/completions"]
+source = "https://openrouter.ai/api/v1/models/vendor/zero-unpriced-20250101/endpoints"
+limits_source = "https://openrouter.ai/api/v1/models/vendor/zero-unpriced-20250101/endpoints"
+route_source = "https://router.example/docs/chat"
+as_of = "2025-01-01"
+source_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+limits_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+context_tokens = 8192
+max_output_tokens = 4096
+input_nano_per_token = 30
+output_nano_per_token = 60
+cached_nano_per_token = 30

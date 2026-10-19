@@ -124,8 +124,14 @@ pub fn collect_provider_probes(registry: &ProviderRegistry) -> Vec<ProviderProbe
         .map(|p| {
             let candidates = p.env_candidates();
             // PRESENT-NOT-PRINTED: only presence is observed · the
-            // value is never bound.
-            let key_present = candidates.iter().any(|v| env_present(v));
+            // value is never bound. The set names keep the ladder's order:
+            // the first one supplies the key a run sends.
+            let key_vars: Vec<String> = candidates
+                .iter()
+                .filter(|v| env_present(v))
+                .cloned()
+                .collect();
+            let key_present = !key_vars.is_empty();
             // The URL a run would ACTUALLY hit — the operator override
             // when present, else the seed (the registry already folds).
             let endpoint = registry.effective_base_url(p.id).unwrap_or(p.base_url);
@@ -154,6 +160,8 @@ pub fn collect_provider_probes(registry: &ProviderRegistry) -> Vec<ProviderProbe
                 ),
                 endpoint.to_owned(),
             )
+            .with_key_vars(key_vars)
+            .with_key_conflict(registry.key_conflict(p.id))
         })
         .collect()
 }

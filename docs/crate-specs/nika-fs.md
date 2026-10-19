@@ -50,8 +50,8 @@ impl FsMetaDyn  for TokioFs { metadata }
 impl FsListDyn  for TokioFs { list_dir (sorted) · glob (literal_separator · sorted) }
 
 impl OwnedDir {
-  create · try_clone · open_lock · read[_optional] · append_line
-  write_atomic · names · exists · hard_link · remove
+  create · try_clone · open_lock · read[_optional] · append_line · append_line_at
+  write_atomic · write_once[_bytes] · names · exists · hard_link · remove
 }
 ```
 
@@ -68,6 +68,15 @@ then synchronizes the file. A short write is reported as an uncertain partial
 effect; it is never completed by a second write that could interleave another
 writer's row. This mechanism does not replace a caller's transaction lease,
 and arbitrary filesystems still need their own append/locking guarantees.
+
+`OwnedDir::append_line_at(name, line, at)` serves a log whose caller holds its
+durable end `at`, the end of its last complete line, as the log's only writer.
+Bytes after `at`, left by a write that did not complete, are cut; then the line
+and its newline go in one append write, the file is synchronized and the new
+durable end is returned. A file shorter than `at` refuses with `InvalidData`,
+unwritten. A short write is reported and never completed: the next call cuts it.
+`OwnedDir::write_once_bytes` is `write_once` for bytes that need not be UTF-8
+(a line cut inside a character), kept exactly.
 
 ### Reserved private logs
 

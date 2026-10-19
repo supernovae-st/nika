@@ -79,8 +79,12 @@ pub enum BudgetDirective { Inherit, Override(Budget), None }
 pub struct Budget { /* dollar/token/walltime caps */ }
 
 // ── Cancellation (cancel.rs) ───────────────────────────────────
-pub struct CancelCtx { /* Arc<AtomicBool> */ }
-impl CancelCtx { pub fn new() -> Self; pub fn cancel(&self); pub fn is_cancelled(&self) -> bool; }
+pub struct CancelCtx { /* one AtomicU8 (cancelled · begun) + the parent it derives from */ }
+impl CancelCtx {
+    pub fn new() -> Self; pub fn child(&self) -> Self;
+    pub fn cancel(&self); pub fn is_cancelled(&self) -> bool;
+    pub fn begin(&self) -> bool; pub fn cancel_begun(&self) -> bool;
+}
 
 // ── Baggage (baggage.rs) ───────────────────────────────────────
 pub const MAX_ENTRIES: usize = 64;
@@ -126,7 +130,7 @@ crates/nika-types/
     lib.rs           (~80 LOC — pub mod + re-exports)
     baggage.rs       W3C Baggage header types
     budget.rs        Budget caps + BudgetDirective enum
-    cancel.rs        CancelCtx (Arc<AtomicBool>)
+    cancel.rs        CancelCtx (one atomic state · child contexts · begin / cancel_begun)
     checkpoint.rs    Agent checkpoint + tool-call records
     compression.rs   Compression policy
     cost.rs          Cost per request (tokens, dollars, walltime, trust)

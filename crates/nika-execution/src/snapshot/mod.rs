@@ -790,6 +790,7 @@ impl<'a, S: ByteSource> SnapshotBuilder<'a, S> {
         let workflows = self.workflow_texts()?;
         for (logical_path, text) in workflows {
             let workflow = parse_workflow(&logical_path, &text)?;
+            crate::service::refuse_project_files(&logical_path, &workflow)?;
             let mut reader = |path: &str| {
                 self.units
                     .get(path)

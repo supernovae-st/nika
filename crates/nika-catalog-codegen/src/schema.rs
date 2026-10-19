@@ -37,7 +37,13 @@ pub const MCP_SERVERS_SCHEMA: &str = "nika/mcp-servers@1.1";
 /// schema never carried policy"; under `@1.1` it means "no sourced policy
 /// has been vendored for this provider". The bump is what makes absence
 /// readable.
-pub const LLM_PROVIDERS_SCHEMA: &str = "nika/llm-providers@1.1";
+///
+/// `@1.2` (2026-10-12): optional per-model facts — `limits_source` with
+/// `as_of` (where and when the two token limits were read) and a
+/// `lifecycle` table (a published retirement floor and its successor wire).
+/// Under `@1.2` an absent source means "curated limits with no recorded
+/// source", never "unknown limits".
+pub const LLM_PROVIDERS_SCHEMA: &str = "nika/llm-providers@1.2";
 
 /// Schema version for `data/embeddings.toml`.
 pub const EMBEDDINGS_SCHEMA: &str = "nika/embeddings@1.0";
@@ -144,7 +150,7 @@ mod tests {
         // Lock the exact string — any drift here breaks parity with
         // legacy nika-catalog/build.rs output (Gate 10).
         assert_eq!(MCP_SERVERS_SCHEMA, "nika/mcp-servers@1.1");
-        assert_eq!(LLM_PROVIDERS_SCHEMA, "nika/llm-providers@1.1");
+        assert_eq!(LLM_PROVIDERS_SCHEMA, "nika/llm-providers@1.2");
         assert_eq!(EMBEDDINGS_SCHEMA, "nika/embeddings@1.0");
         assert_eq!(CAPABILITIES_SCHEMA, "nika/model-capabilities@1.0");
         assert_eq!(PRICING_SCHEMA, "nika/model-pricing@1.3");

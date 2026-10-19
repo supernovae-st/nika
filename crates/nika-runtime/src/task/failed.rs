@@ -38,6 +38,9 @@ impl crate::task::RunResult {
 /// these fields feed the terminal frame).
 pub(crate) struct FailedOutcome {
     pub record: TaskErrorRecord,
+    /// Genuine operator control, classified at the typed dispatch boundary.
+    /// A cancelled run token alone never converts a completed verb error.
+    pub operator_cancelled: bool,
     pub cost_usd: Option<f64>,
     pub cost_unpriced: Option<nika_types::cost::UnpricedReason>,
     /// F-P6 · the commit gate's binding evidence (`Fired` — a verb error
@@ -64,6 +67,7 @@ impl FailedOutcome {
     ) -> Self {
         Self {
             record,
+            operator_cancelled: false,
             cost_usd,
             cost_unpriced,
             evidence,
@@ -72,6 +76,12 @@ impl FailedOutcome {
             access_refused: None,
             child: None,
         }
+    }
+
+    /// Carry the typed operator classification past debit and retry handling.
+    pub(crate) fn with_operator_cancelled(mut self, cancelled: bool) -> Self {
+        self.operator_cancelled = cancelled;
+        self
     }
 
     /// Attach the child-run summary a failed `invoke: workflow:` call carried.

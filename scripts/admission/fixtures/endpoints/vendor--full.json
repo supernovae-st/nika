@@ -1,0 +1,6 @@
+{"data": {"id": "vendor/full", "endpoints": [
+ {"tag": "vendor-a", "context_length": 1000000, "max_completion_tokens": 50000,
+  "pricing": {"prompt": "0.0000005", "completion": "0.000002", "input_cache_read": "0.00000005",
+   "overrides": [{"min_prompt_tokens": 128000, "prompt": "0.000001", "completion": "0.000003",
+    "input_cache_read": "0.0000001"}]}}
+]}}

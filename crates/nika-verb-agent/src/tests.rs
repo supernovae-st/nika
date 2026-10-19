@@ -1442,3 +1442,6 @@ async fn an_unreported_zero_on_an_unpriced_model_proceeds() {
         .expect("the carve-out proceeds");
     assert_eq!(out.output, AgentValue::Text("honest zero".to_owned()));
 }
+
+#[path = "tests/operator_stop.rs"]
+mod operator_stop;

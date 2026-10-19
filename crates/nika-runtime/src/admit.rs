@@ -40,6 +40,9 @@ pub(crate) fn gates_with_transport(
     planless_harness: bool,
 ) -> Result<(), RuntimeError> {
     crate::trust::check_report(wf, report)?;
+    if let Some(err) = unread_project_files_refusal(wf) {
+        return Err(err);
+    }
     if let Some(err) = required_inputs_refusal(wf, overrides) {
         return Err(err);
     }
@@ -80,6 +83,25 @@ pub(crate) fn gates_with_transport(
         }
     }
     Ok(())
+}
+
+/// Spec 02 §Project files: a run never starts on a project file no compose step read; its
+/// field would reach the provider empty. Refused before the prologue: zero events, zero spend.
+fn unread_project_files_refusal(wf: &RawWorkflow) -> Option<RuntimeError> {
+    let unread: Vec<String> = nika_schema::project_file_refs(wf)
+        .into_iter()
+        .filter(|(_, _, file)| !file.composed)
+        .map(|(task, field, file)| format!("task `{task}` {field} `{}`", file.path.value))
+        .collect();
+    if unread.is_empty() {
+        return None;
+    }
+    Some(RuntimeError::ReportMismatch {
+        detail: format!(
+            "the workflow names project files no compose step read ({}): a run never starts on an unread file (spec 02 §Project files)",
+            unread.join(" · ")
+        ),
+    })
 }
 
 /// Existing gate fixtures use the ordinary provider path unless a plan says otherwise.

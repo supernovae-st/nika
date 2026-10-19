@@ -388,3 +388,29 @@ fn unresolved_home_grants_fail_closed_at_the_production_launcher() {
         }
     }
 }
+
+/// Spec 02 §Project files: the dispatch of an `infer:` or `agent:` refuses a field kept in a
+/// project file no compose step read, before any render or send; a composed one passes.
+#[test]
+fn an_unread_project_file_never_reaches_a_provider() {
+    use nika_schema::raw::{ProjectFileRef, RawAction, RawAgentAction, RawInferAction};
+    let text = || nika_schema::Spanned::new(String::new(), nika_schema::Span::default());
+    let path = nika_schema::Spanned::new("prompts/a.md".to_owned(), nika_schema::Span::default());
+    let mut infer = RawInferAction::new(text());
+    infer.system_file = Some(ProjectFileRef::new(path.clone()));
+    let refused =
+        super::Dispatched::unread_file(&RawAction::Infer(Box::new(infer.clone()))).expect("infer");
+    let Err(failed) = &refused.result else {
+        panic!("refused before any send");
+    };
+    assert_eq!(failed.record.code, "NIKA-FILE-002");
+    assert!(!failed.record.transient);
+    assert!(failed.record.message.contains("prompts/a.md"));
+    let mut agent = RawAgentAction::new(text());
+    agent.schema_file = Some(ProjectFileRef::new(path));
+    assert!(super::Dispatched::unread_file(&RawAction::Agent(Box::new(agent))).is_some());
+    if let Some(file) = infer.system_file.as_mut() {
+        file.composed = true;
+    }
+    assert!(super::Dispatched::unread_file(&RawAction::Infer(Box::new(infer))).is_none());
+}

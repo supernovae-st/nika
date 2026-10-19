@@ -25,7 +25,7 @@
 //! the sandbox wrapper) used to surface as a bare « closed the pipe » with
 //! the cause invisible (#1376).
 
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 // The `std::process` / `std::thread` exemption below is deliberate and
@@ -33,11 +33,13 @@ use std::path::{Path, PathBuf};
 #[allow(clippy::disallowed_types)]
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex, PoisonError, mpsc};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use nika_exec_runner::{EgressProxy, proxy_env, stderr_journal_for};
+use nika_kernel::CancelCtx;
 use nika_kernel::command_sandbox::CommandSandbox;
 use nika_kernel::process::{NetPolicy, ShellCommand};
+use nika_kernel::tool_executor::StopOutcome;
 use serde_json::{Value, json};
 
 use crate::client::McpServerConfig;
@@ -60,6 +62,14 @@ pub const DEFAULT_CALL_TIMEOUT: Duration = Duration::from_secs(120);
 /// transport error — enough for a launcher's last complaint, never a log.
 const STDERR_TAIL_BYTES: usize = 4096;
 
+/// How long a reply wait that can be stopped stays idle before it looks at
+/// its stop again: a std channel cannot wake on the token's flag.
+const STOP_POLL: Duration = Duration::from_millis(50);
+
+/// How many stopped calls a session remembers, so that their late replies
+/// are dropped without counting against a later wait's byte budget.
+const ABANDONED_KEPT: usize = 64;
+
 /// What one `tools/call` returned, mapped off the wire: the text view the
 /// model reads, the typed value when the server sent `structuredContent`,
 /// and the MCP `isError` flag (a TOOL failure is a successful reply — the
@@ -74,6 +84,8 @@ pub struct CallOutcome {
     pub structured: Option<Value>,
     /// The server's `isError` flag.
     pub is_error: bool,
+    /// Set when the run stopped waiting for the call: whether it was sent.
+    pub stopped: Option<StopOutcome>,
 }
 
 impl CallOutcome {
@@ -84,12 +96,44 @@ impl CallOutcome {
             content: content.into(),
             structured,
             is_error,
+            stopped: None,
         }
     }
 
-    /// Map a `tools/call` RESULT payload onto the outcome.
+    /// A call the run stopped waiting for: a failed outcome saying `content`
+    /// and whether the call was sent.
+    #[must_use]
+    pub fn stopped(content: impl Into<String>, outcome: StopOutcome) -> Self {
+        Self {
+            stopped: Some(outcome),
+            ..Self::new(content, None, true)
+        }
+    }
+
+    /// Map a `tools/call` RESULT payload onto the outcome. A result whose
+    /// `resultType` is not `complete` (an `input_required` or a `task`, the
+    /// 2026-07-28 shapes) asks for a continuation this client never declared
+    /// it could give: a failed call, never an empty success. An
+    /// absent `resultType` is a complete result, as every earlier revision
+    /// writes it.
     #[must_use]
     pub fn from_result(result: &Value) -> Self {
+        match result.get("resultType") {
+            None => {}
+            Some(Value::String(kind)) if kind == "complete" => {}
+            Some(kind) => {
+                return Self::new(
+                    format!(
+                        "the server answered `tools/call` with resultType {}, which this client \
+                         cannot continue (it declared no capability for it): the call did not \
+                         complete",
+                        bounded(kind)
+                    ),
+                    None,
+                    true,
+                );
+            }
+        }
         let mut lines = Vec::new();
         if let Some(blocks) = result.get("content").and_then(Value::as_array) {
             for block in blocks {
@@ -113,6 +157,7 @@ impl CallOutcome {
                 .get("isError")
                 .and_then(Value::as_bool)
                 .unwrap_or(false),
+            stopped: None,
         }
     }
 }
@@ -136,6 +181,26 @@ pub trait McpSessionDyn: Send {
     /// [`PinError::Transport`] when the pipe dies or times out — the caller
     /// drops the session so the next call reconnects.
     fn tools_call(&mut self, tool: &str, arguments: &Value) -> Result<CallOutcome, PinError>;
+
+    /// [`Self::tools_call`], watching `stop`. A session that can stop a
+    /// call writes it only through [`CancelCtx::begin`], so a call stopped
+    /// before it was written is never sent; once the run stops waiting for
+    /// a call in flight, it tells the server to cancel it and answers a
+    /// stopped outcome ([`CallOutcome::stopped`]), the pipe kept for the next
+    /// call. This default cannot stop a call in flight: it makes the call to
+    /// its end.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::tools_call`].
+    fn tools_call_until(
+        &mut self,
+        tool: &str,
+        arguments: &Value,
+        _stop: &CancelCtx,
+    ) -> Result<CallOutcome, PinError> {
+        self.tools_call(tool, arguments)
+    }
 
     /// `Some(note)` when the server runs WITHOUT OS confinement (the
     /// deliberate `noop` backend) — the one receipt a run must say out
@@ -233,6 +298,21 @@ enum Line {
     Eof,
 }
 
+/// Why a reply wait ended without its reply.
+enum Unanswered {
+    /// The pipe failed: unreadable, closed, or too many bytes of other
+    /// messages.
+    Failed(PinError),
+    /// The deadline (this long) passed: the server was told to cancel.
+    TimedOut(Duration),
+    /// The run stopped waiting: the server was told to cancel, and the pipe
+    /// is still healthy.
+    Stopped,
+    /// The run stopped waiting before the request was written: nothing was
+    /// sent.
+    NotSent,
+}
+
 /// The INV-011 guard for a std child (std's `Command` has no
 /// `kill_on_drop` — that is a tokio method): dropping the session SIGKILLs
 /// the server and reaps it, so a failed handshake, a drift refusal or a
@@ -266,6 +346,9 @@ pub struct StdioSession {
     /// (the server runs unconfined) — what a run must say out loud.
     unconfined: Option<String>,
     next_id: u64,
+    /// The ids of the calls the run stopped waiting for, whose late replies
+    /// may still come (at most [`ABANDONED_KEPT`]).
+    abandoned: BTreeSet<u64>,
     timeout: Duration,
     call_timeout: Duration,
 }
@@ -298,6 +381,7 @@ impl StdioSession {
             confinement,
             unconfined,
             next_id: 0,
+            abandoned: BTreeSet::new(),
             timeout,
             call_timeout,
         };
@@ -314,7 +398,8 @@ impl StdioSession {
             "capabilities": {},
             "clientInfo": { "name": "nika", "version": env!("CARGO_PKG_VERSION") },
         });
-        self.request("initialize", &params, self.timeout)?
+        self.request("initialize", &params, self.timeout, None)
+            .map_err(|why| self.unanswered(why))?
             .map_err(|error| self.transport(format!("the server refused `initialize`: {error}")))?;
         self.send(&json!({"jsonrpc": "2.0", "method": "notifications/initialized"}))
     }
@@ -374,56 +459,198 @@ impl StdioSession {
         Ok(())
     }
 
-    /// Wait for the reply carrying `want_id`, skipping notifications and
-    /// stray ids (a server may interleave) — bounded by `timeout`.
-    fn await_reply(&self, want_id: u64, timeout: Duration) -> Result<Value, PinError> {
-        for _ in 0..16 {
-            match self.rx.recv_timeout(timeout) {
+    /// Wait for the reply carrying `want_id`, skipping notifications, the
+    /// server's own requests and stray ids. Bounded by ONE deadline for the
+    /// whole wait and by the bytes it skips (the line ceiling, the budget one
+    /// reply has), never by a count of messages: a server that logs forty
+    /// lines before answering is answered. The late reply to a call the run
+    /// stopped waiting for is dropped without counting against that budget.
+    /// A received reply wins over a stop: the stop is honoured only once the
+    /// pipe stayed idle for a [`STOP_POLL`].
+    fn await_reply(
+        &mut self,
+        want_id: u64,
+        timeout: Duration,
+        stop: Option<&CancelCtx>,
+    ) -> Result<Value, Unanswered> {
+        // An unrepresentable deadline waits without one, as `recv_timeout`
+        // itself does.
+        let deadline = Instant::now().checked_add(timeout);
+        let mut skipped: u64 = 0;
+        loop {
+            let left = deadline.map_or(Duration::MAX, |at| {
+                at.saturating_duration_since(Instant::now())
+            });
+            let wait = if stop.is_some() {
+                left.min(STOP_POLL)
+            } else {
+                left
+            };
+            match self.rx.recv_timeout(wait) {
                 Ok(Line::Text(text)) => {
-                    let msg: Value = serde_json::from_str(&text)
-                        .map_err(|e| self.transport(format!("a reply is not JSON: {e}")))?;
-                    if msg.get("id").and_then(Value::as_u64) == Some(want_id) {
+                    let msg: Value = serde_json::from_str(&text).map_err(|e| {
+                        Unanswered::Failed(self.transport(format!("a reply is not JSON: {e}")))
+                    })?;
+                    // A reply carries no `method`: a server's own request (a
+                    // `ping`) numbers its id in its own space.
+                    let reply_id = msg
+                        .get("method")
+                        .is_none()
+                        .then(|| msg.get("id").and_then(Value::as_u64))
+                        .flatten();
+                    if reply_id == Some(want_id) {
                         return Ok(msg);
                     }
+                    if reply_id.is_some_and(|id| self.abandoned.remove(&id)) {
+                        continue;
+                    }
+                    skipped = skipped.saturating_add(u64::try_from(text.len()).unwrap_or(u64::MAX));
+                    if skipped > crate::MAX_MSG_BYTES {
+                        return Err(Unanswered::Failed(self.transport(format!(
+                            "the server sent {skipped} bytes of other messages without answering \
+                             the request"
+                        ))));
+                    }
                 }
-                Ok(Line::Failed(why)) => return Err(self.transport(why)),
+                Ok(Line::Failed(why)) => return Err(Unanswered::Failed(self.transport(why))),
                 Ok(Line::Eof) => {
-                    return Err(
-                        self.transport("the server closed the pipe before answering".to_owned())
-                    );
+                    return Err(Unanswered::Failed(self.transport(
+                        "the server closed the pipe before answering".to_owned(),
+                    )));
                 }
-                Err(_) => {
-                    return Err(self.transport(format!("no reply within {}s", timeout.as_secs())));
+                // Nothing arrived for a whole slice: only now may a stop win.
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    if stop.is_some_and(CancelCtx::is_cancelled) {
+                        return Err(Unanswered::Stopped);
+                    }
+                    if wait >= left {
+                        return Err(Unanswered::TimedOut(timeout));
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    return Err(Unanswered::Failed(self.transport(
+                        "the server's reader stopped before an answer".to_owned(),
+                    )));
                 }
             }
         }
-        Err(self.transport("the server sent 16 messages without answering the request".to_owned()))
     }
 
     /// One request → `Ok(result)` or `Err(error)` (the JSON-RPC error
-    /// object) inside a transport-level `Result`.
+    /// object), or why it went unanswered. With a `stop`, the request is
+    /// written only through [`CancelCtx::begin`]: stopped before, it is never
+    /// sent. A request that times out or that the run stopped waiting for is
+    /// cancelled (`notifications/cancelled` with its id, the spec's
+    /// cancellation), so the server stops acting on it; a stopped request
+    /// whose cancel cannot be written leaves a dead pipe, a transport
+    /// failure. `initialize` is never cancelled, as the spec requires.
     fn request(
         &mut self,
         method: &str,
         params: &Value,
         timeout: Duration,
-    ) -> Result<Result<Value, Value>, PinError> {
+        stop: Option<&CancelCtx>,
+    ) -> Result<Result<Value, Value>, Unanswered> {
+        if stop.is_some_and(|stop| !stop.begin()) {
+            return Err(Unanswered::NotSent);
+        }
         self.next_id += 1;
         let id = self.next_id;
-        self.send(&json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params}))?;
-        let reply = self.await_reply(id, timeout)?;
+        self.send(&json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params}))
+            .map_err(Unanswered::Failed)?;
+        let reply = match self.await_reply(id, timeout, stop) {
+            Ok(reply) => reply,
+            Err(why @ (Unanswered::Failed(_) | Unanswered::NotSent)) => return Err(why),
+            Err(why) => {
+                if method != "initialize" {
+                    let stopped = matches!(why, Unanswered::Stopped);
+                    let reason = if stopped {
+                        "the run stopped waiting for it".to_owned()
+                    } else {
+                        format!("no reply within {}s", timeout.as_secs())
+                    };
+                    let cancel = self.send(&json!({
+                        "jsonrpc": "2.0",
+                        "method": "notifications/cancelled",
+                        "params": { "requestId": id, "reason": reason },
+                    }));
+                    if stopped {
+                        // The session outlives a stop only when the server
+                        // was told; a timed-out session closes anyway.
+                        cancel.map_err(Unanswered::Failed)?;
+                        self.abandon(id);
+                    }
+                }
+                return Err(why);
+            }
+        };
         if let Some(error) = reply.get("error") {
             return Ok(Err(error.clone()));
         }
         Ok(Ok(reply.get("result").cloned().unwrap_or(Value::Null)))
+    }
+
+    /// Remember a call the run stopped waiting for, so its late reply is
+    /// dropped without counting against a later wait; the oldest is
+    /// forgotten past [`ABANDONED_KEPT`].
+    fn abandon(&mut self, id: u64) {
+        self.abandoned.insert(id);
+        if self.abandoned.len() > ABANDONED_KEPT {
+            let _ = self.abandoned.pop_first();
+        }
+    }
+
+    /// A request that went unanswered, as the transport failure it is.
+    fn unanswered(&self, why: Unanswered) -> PinError {
+        match why {
+            Unanswered::Failed(err) => err,
+            Unanswered::TimedOut(timeout) => {
+                self.transport(format!("no reply within {}s", timeout.as_secs()))
+            }
+            Unanswered::Stopped => self.transport("the run stopped waiting for a reply".to_owned()),
+            Unanswered::NotSent => {
+                self.transport("the run stopped waiting before the request was sent".to_owned())
+            }
+        }
+    }
+
+    /// One `tools/call`, watching `stop` when there is one.
+    fn call_tool(
+        &mut self,
+        tool: &str,
+        arguments: &Value,
+        stop: Option<&CancelCtx>,
+    ) -> Result<CallOutcome, PinError> {
+        let params = json!({ "name": tool, "arguments": arguments });
+        match self.request("tools/call", &params, self.call_timeout, stop) {
+            Ok(Ok(result)) => Ok(CallOutcome::from_result(&result)),
+            // A JSON-RPC error on tools/call is the TOOL's failure voice
+            // (an unknown name · invalid params) — the model sees it.
+            Ok(Err(error)) => Ok(CallOutcome::new(
+                format!("the server refused `tools/call` for `{tool}`: {error}"),
+                None,
+                true,
+            )),
+            // The run stopped waiting: the server was told to cancel, and the
+            // healthy pipe is kept for the next call.
+            Err(Unanswered::Stopped) => Ok(CallOutcome::stopped(
+                format!("the run stopped waiting for `{tool}`: the server was told to cancel it"),
+                StopOutcome::Unknown,
+            )),
+            Err(Unanswered::NotSent) => Ok(CallOutcome::stopped(
+                format!("the run stopped waiting for `{tool}` before it was sent"),
+                StopOutcome::NotSent,
+            )),
+            Err(why) => Err(self.explain_death(self.unanswered(why))),
+        }
     }
 }
 
 impl McpSessionDyn for StdioSession {
     fn tools_list(&mut self) -> Result<Vec<McpToolDef>, PinError> {
         let result = self
-            .request("tools/list", &json!({}), self.timeout)
-            .map_err(|err| self.explain_death(err))?
+            .request("tools/list", &json!({}), self.timeout, None)
+            .map_err(|why| self.explain_death(self.unanswered(why)))?
             .map_err(|error| self.transport(format!("the server refused `tools/list`: {error}")))?;
         McpToolDef::from_list_value(
             &self.server,
@@ -432,20 +659,16 @@ impl McpSessionDyn for StdioSession {
     }
 
     fn tools_call(&mut self, tool: &str, arguments: &Value) -> Result<CallOutcome, PinError> {
-        let params = json!({ "name": tool, "arguments": arguments });
-        match self
-            .request("tools/call", &params, self.call_timeout)
-            .map_err(|err| self.explain_death(err))?
-        {
-            Ok(result) => Ok(CallOutcome::from_result(&result)),
-            // A JSON-RPC error on tools/call is the TOOL's failure voice
-            // (an unknown name · invalid params) — the model sees it.
-            Err(error) => Ok(CallOutcome::new(
-                format!("the server refused `tools/call` for `{tool}`: {error}"),
-                None,
-                true,
-            )),
-        }
+        self.call_tool(tool, arguments, None)
+    }
+
+    fn tools_call_until(
+        &mut self,
+        tool: &str,
+        arguments: &Value,
+        stop: &CancelCtx,
+    ) -> Result<CallOutcome, PinError> {
+        self.call_tool(tool, arguments, Some(stop))
     }
 
     fn unconfined_note(&self) -> Option<String> {
@@ -631,6 +854,17 @@ fn pump_lines(stdout: impl Read, tx: &mpsc::Sender<Line>) {
     }
 }
 
+/// A server-chosen value quoted into a message: JSON-encoded and bounded, so
+/// it can neither pose as our own words nor flood the model's context.
+fn bounded(value: &Value) -> String {
+    let text = value.to_string();
+    if text.chars().count() > 64 {
+        format!("{}…", text.chars().take(64).collect::<String>())
+    } else {
+        text
+    }
+}
+
 /// Drain the child's stderr into the bounded tail (the last
 /// [`STDERR_TAIL_BYTES`] survive · older bytes fall off the front). Ends on
 /// EOF or a read failure — the child dying is exactly when the tail is read.
@@ -702,6 +936,398 @@ mod tests {
         );
         let text = String::from_utf8_lossy(buf.make_contiguous()).into_owned();
         assert!(text.ends_with("npm ERR! last words\n"), "{text}");
+    }
+
+    /// A result that is not `complete` asks for a continuation
+    /// this client never declared it could give: a failed call, never an
+    /// empty success. A `complete` result, or one with no `resultType` (every
+    /// earlier revision), stays a success.
+    #[test]
+    fn a_result_that_is_not_complete_is_a_failed_call() {
+        for result in [
+            json!({"resultType": "input_required", "requestState": "x"}),
+            json!({"resultType": "task", "task": {"taskId": "t"}}),
+            json!({"resultType": 7}),
+        ] {
+            let out = CallOutcome::from_result(&result);
+            assert!(out.is_error, "{result}");
+            assert!(out.content.contains("did not complete"), "{}", out.content);
+            assert!(out.structured.is_none(), "{result}");
+        }
+        let text = json!([{"type": "text", "text": "ok"}]);
+        let complete = json!({"resultType": "complete", "content": text});
+        assert_eq!(
+            CallOutcome::from_result(&complete),
+            CallOutcome::new("ok", None, false)
+        );
+        assert_eq!(
+            CallOutcome::from_result(&json!({"content": text})),
+            CallOutcome::new("ok", None, false)
+        );
+    }
+
+    /// A confinement that runs the command as given: the session's own
+    /// mechanics are under test here, not the sandbox.
+    struct AsGiven;
+
+    impl CommandSandbox for AsGiven {
+        fn confine(
+            &self,
+            _spec: &nika_kernel::process::SandboxSpec,
+            command: ShellCommand,
+        ) -> Result<ShellCommand, nika_kernel::command_sandbox::CommandSandboxError> {
+            Ok(command)
+        }
+
+        fn backend(&self) -> &'static str {
+            "as-given"
+        }
+    }
+
+    /// The handshake every scripted server speaks before its own lines.
+    const HANDSHAKE: &str = r#"#!/bin/sh
+read -r _init
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{},"serverInfo":{"name":"scripted","version":"0"}}}'
+read -r _initialized
+"#;
+
+    fn tmp(tag: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("nika-mcp-session-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        dir
+    }
+
+    /// A stdio server scripted in `dir`: the handshake, then `body` (`$1` is
+    /// `dir`).
+    fn scripted(dir: &Path, body: &str) -> McpServerConfig {
+        let script = dir.join("scripted-mcp.sh");
+        std::fs::write(&script, [HANDSHAKE, body].concat()).expect("write the scripted server");
+        McpServerConfig::stdio(
+            "scripted",
+            "/bin/sh",
+            vec![
+                script.to_string_lossy().into_owned(),
+                dir.to_string_lossy().into_owned(),
+            ],
+        )
+    }
+
+    fn open(config: &McpServerConfig, dir: &Path, call_timeout: Duration) -> StdioSession {
+        let sandbox: Arc<dyn CommandSandbox> = Arc::new(AsGiven);
+        StdioSession::open(config, &sandbox, dir, Duration::from_secs(10), call_timeout)
+            .expect("the scripted server opens")
+    }
+
+    /// A server that logs forty lines before it answers is
+    /// answered. The wait is bounded by one deadline and by the bytes it
+    /// skips, never by a count of sixteen messages.
+    #[cfg(unix)]
+    #[test]
+    fn forty_notifications_before_the_reply_are_skipped_not_fatal() {
+        let dir = tmp("chatty");
+        let config = scripted(
+            &dir,
+            r#"read -r _call
+i=0
+while [ "$i" -lt 40 ]; do
+  printf '%s\n' '{"jsonrpc":"2.0","method":"notifications/message","params":{"level":"info","data":"working"}}'
+  i=$((i + 1))
+done
+printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"done"}]}}'
+"#,
+        );
+        let mut session = open(&config, &dir, Duration::from_secs(10));
+        let outcome = session
+            .tools_call("work", &json!({}))
+            .expect("the reply after forty notifications");
+        assert_eq!(outcome, CallOutcome::new("done", None, false));
+        drop(session);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A call that times out is cancelled before the pipe closes:
+    /// the server reads `notifications/cancelled` carrying the call's id, so it
+    /// can stop acting on it.
+    #[cfg(unix)]
+    #[test]
+    fn a_timed_out_call_is_cancelled_before_the_pipe_closes() {
+        let dir = tmp("cancelled");
+        let config = scripted(
+            &dir,
+            r#"read -r _call
+read -r cancel
+printf '%s\n' "$cancel" > "$1/after-call.txt"
+exec sleep 30
+"#,
+        );
+        let mut session = open(&config, &dir, Duration::from_secs(1));
+        let refused = session
+            .tools_call("slow", &json!({}))
+            .expect_err("the call times out");
+        assert!(
+            refused.to_string().contains("no reply within 1s"),
+            "{refused}"
+        );
+        let cancel = recorded(&dir.join("after-call.txt"));
+        // Only now does the pipe close (the session kills its server).
+        drop(session);
+        assert_eq!(cancel["method"], "notifications/cancelled");
+        assert_eq!(cancel["params"]["requestId"], 2);
+        assert_eq!(cancel["params"]["reason"], "no reply within 1s");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// The run stops waiting for a call in flight (its awaiting
+    /// future was dropped). The session tells the server to cancel it and
+    /// answers at once instead of holding the pipe to the 60 s call timeout,
+    /// and the pipe stays open: the next call on the same server is
+    /// answered.
+    #[cfg(unix)]
+    #[test]
+    fn a_stopped_call_is_cancelled_and_the_pipe_kept() {
+        let dir = tmp("stopped");
+        let config = scripted(
+            &dir,
+            r#"read -r _call
+read -r cancel
+printf '%s\n' "$cancel" > "$1/after-call.txt"
+read -r _next
+printf '%s\n' '{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"next"}]}}'
+exec sleep 30
+"#,
+        );
+        let mut session = open(&config, &dir, Duration::from_secs(60));
+        let stop = CancelCtx::new();
+        let started = Instant::now();
+        let outcome = std::thread::scope(|scope| {
+            scope.spawn(|| {
+                std::thread::sleep(Duration::from_millis(200));
+                stop.cancel();
+            });
+            session.tools_call_until("slow", &json!({}), &stop)
+        })
+        .expect("a stopped call is an outcome, the pipe still healthy");
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "answered at the stop, not at the call timeout"
+        );
+        assert!(outcome.is_error);
+        assert_eq!(outcome.stopped, Some(StopOutcome::Unknown), "it was sent");
+        assert!(
+            outcome
+                .content
+                .contains("the run stopped waiting for `slow`"),
+            "{}",
+            outcome.content
+        );
+        let cancel = recorded(&dir.join("after-call.txt"));
+        assert_eq!(cancel["method"], "notifications/cancelled");
+        assert_eq!(cancel["params"]["requestId"], 2);
+        assert_eq!(cancel["params"]["reason"], "the run stopped waiting for it");
+        let next = session
+            .tools_call("next", &json!({}))
+            .expect("the same pipe answers the next call");
+        assert_eq!(next, CallOutcome::new("next", None, false));
+        drop(session);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// The operator's Stop reaches a call in flight through the child
+    /// context the run gave it: the server is told to cancel, the stop came
+    /// from the run's context, and the pipe stays for the next call.
+    #[cfg(unix)]
+    #[test]
+    fn an_operator_stop_cancels_an_inflight_mcp_call() {
+        let dir = tmp("operator");
+        let config = scripted(
+            &dir,
+            r#"read -r _call
+read -r cancel
+printf '%s\n' "$cancel" > "$1/after-call.txt"
+read -r _next
+printf '%s\n' '{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"next"}]}}'
+exec sleep 30
+"#,
+        );
+        let mut session = open(&config, &dir, Duration::from_secs(60));
+        let run = CancelCtx::new();
+        let stop = run.child();
+        let started = Instant::now();
+        let outcome = std::thread::scope(|scope| {
+            scope.spawn(|| {
+                std::thread::sleep(Duration::from_millis(200));
+                run.cancel();
+            });
+            session.tools_call_until("slow", &json!({}), &stop)
+        })
+        .expect("a stopped call is an outcome, the pipe still healthy");
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "answered at the operator's stop, not at the call timeout"
+        );
+        assert_eq!(outcome.stopped, Some(StopOutcome::Unknown));
+        let cancel = recorded(&dir.join("after-call.txt"));
+        assert_eq!(cancel["method"], "notifications/cancelled");
+        assert_eq!(cancel["params"]["requestId"], 2);
+        let next = session
+            .tools_call("next", &json!({}))
+            .expect("the same pipe answers the next call");
+        assert_eq!(next, CallOutcome::new("next", None, false));
+        drop(session);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A call the run stopped waiting for before it was written is never
+    /// sent: the first line the server reads after the handshake is the next
+    /// call, which takes the id the stopped one never used.
+    #[cfg(unix)]
+    #[test]
+    fn a_call_stopped_before_it_is_written_is_never_sent() {
+        let dir = tmp("unsent");
+        let config = scripted(
+            &dir,
+            r#"read -r first
+printf '%s\n' "$first" > "$1/first-call.txt"
+printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"next"}]}}'
+exec sleep 30
+"#,
+        );
+        let mut session = open(&config, &dir, Duration::from_secs(10));
+        let stop = CancelCtx::new();
+        stop.cancel();
+        let outcome = session
+            .tools_call_until("slow", &json!({}), &stop)
+            .expect("a call stopped before it was written is an outcome");
+        assert!(outcome.is_error);
+        assert_eq!(outcome.stopped, Some(StopOutcome::NotSent));
+        assert!(!stop.cancel_begun(), "the call never began");
+        let next = session
+            .tools_call("next", &json!({}))
+            .expect("the untouched pipe answers the next call");
+        assert_eq!(next, CallOutcome::new("next", None, false));
+        let first = recorded(&dir.join("first-call.txt"));
+        assert_eq!(
+            first["params"]["name"], "next",
+            "the stopped call never left"
+        );
+        assert_eq!(first["id"], 2);
+        drop(session);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// The late reply to a call the run stopped waiting for is neither
+    /// taken for the next call's reply nor counted against the bytes the
+    /// next wait may skip: an 8.3 MB late reply then a 100 kB notification
+    /// cross the 8 MiB budget together, and the next call is still answered.
+    #[cfg(unix)]
+    #[test]
+    fn the_late_reply_of_a_stopped_call_is_neither_taken_nor_counted() {
+        let dir = tmp("late");
+        let config = scripted(
+            &dir,
+            r#"read -r _call
+read -r _cancel
+read -r _next
+printf '{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"'
+/usr/bin/head -c 8300000 /dev/zero | /usr/bin/tr '\0' a
+printf '"}]}}\n'
+printf '{"jsonrpc":"2.0","method":"notifications/message","params":{"level":"info","data":"'
+/usr/bin/head -c 100000 /dev/zero | /usr/bin/tr '\0' b
+printf '"}}\n'
+printf '%s\n' '{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"next"}]}}'
+exec sleep 30
+"#,
+        );
+        let mut session = open(&config, &dir, Duration::from_secs(60));
+        let stop = CancelCtx::new();
+        let outcome = std::thread::scope(|scope| {
+            scope.spawn(|| {
+                std::thread::sleep(Duration::from_millis(200));
+                stop.cancel();
+            });
+            session.tools_call_until("slow", &json!({}), &stop)
+        })
+        .expect("a stopped call is an outcome");
+        assert_eq!(outcome.stopped, Some(StopOutcome::Unknown));
+        let next = session
+            .tools_call("next", &json!({}))
+            .expect("the next call is answered, its budget untouched by the late reply");
+        assert_eq!(next, CallOutcome::new("next", None, false));
+        drop(session);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A message carrying a `method` is the server's own request, even when
+    /// its id equals the call's: the call waits for its real reply.
+    #[cfg(unix)]
+    #[test]
+    fn a_server_request_reusing_the_call_id_is_not_its_reply() {
+        let dir = tmp("ping");
+        let config = scripted(
+            &dir,
+            r#"read -r _call
+printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"ping"}'
+printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"real"}]}}'
+exec sleep 30
+"#,
+        );
+        let mut session = open(&config, &dir, Duration::from_secs(10));
+        let outcome = session
+            .tools_call("work", &json!({}))
+            .expect("the real reply");
+        assert_eq!(outcome, CallOutcome::new("real", None, false));
+        drop(session);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// A stopped call whose cancel cannot be written (the server closed its
+    /// input) leaves no pipe worth keeping: the session answers a transport
+    /// failure, so its caller drops it and the next call reconnects.
+    #[cfg(unix)]
+    #[test]
+    fn a_stopped_call_whose_cancel_cannot_be_written_is_a_dead_session() {
+        let dir = tmp("deaf");
+        let config = scripted(
+            &dir,
+            r"read -r _call
+exec 0<&-
+exec sleep 30
+",
+        );
+        let mut session = open(&config, &dir, Duration::from_secs(60));
+        let stop = CancelCtx::new();
+        let refused = std::thread::scope(|scope| {
+            scope.spawn(|| {
+                std::thread::sleep(Duration::from_millis(200));
+                stop.cancel();
+            });
+            session.tools_call_until("slow", &json!({}), &stop)
+        })
+        .expect_err("a pipe that cannot take the cancel is not kept");
+        assert!(
+            refused.to_string().contains("cannot write to the server"),
+            "{refused}"
+        );
+        drop(session);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// The one JSON line a scripted server wrote to `record`, once it is
+    /// there (bounded at five seconds).
+    fn recorded(record: &Path) -> Value {
+        let mut seen = String::new();
+        for _ in 0..100 {
+            if let Ok(text) = std::fs::read_to_string(record)
+                && !text.trim().is_empty()
+            {
+                seen = text;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        serde_json::from_str(seen.trim()).expect("one JSON line, written within five seconds")
     }
 
     /// A network allowlist starts the server's loopback egress proxy and

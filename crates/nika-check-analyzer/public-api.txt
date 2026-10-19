@@ -401,6 +401,54 @@ pub fn nika_check_analyzer::settle::edge_mask(kind: nika_check_analyzer::edges::
 pub fn nika_check_analyzer::settle::fold_settled(tasks: usize, edges: &[nika_check_analyzer::edges::Edge], topo_waves: &[alloc::vec::Vec<usize>], fact: core::option::Option<(usize, u8)>, admitted: impl core::ops::function::Fn(usize) -> u8) -> nika_check_analyzer::settle::Settled
 pub mod nika_check_analyzer::silent_literal
 pub fn nika_check_analyzer::silent_literal::scan(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub mod nika_check_analyzer::skipped_reads
+#[non_exhaustive] pub struct nika_check_analyzer::skipped_reads::NullIntoJq
+pub nika_check_analyzer::skipped_reads::NullIntoJq::carriers: alloc::vec::Vec<alloc::string::String>
+pub nika_check_analyzer::skipped_reads::NullIntoJq::producer: alloc::string::String
+pub nika_check_analyzer::skipped_reads::NullIntoJq::reader: alloc::string::String
+pub nika_check_analyzer::skipped_reads::NullIntoJq::reasons: alloc::vec::Vec<&'static str>
+impl core::clone::Clone for nika_check_analyzer::skipped_reads::NullIntoJq
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::clone(&self) -> nika_check_analyzer::skipped_reads::NullIntoJq
+impl core::cmp::Eq for nika_check_analyzer::skipped_reads::NullIntoJq
+impl core::cmp::PartialEq for nika_check_analyzer::skipped_reads::NullIntoJq
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::eq(&self, other: &nika_check_analyzer::skipped_reads::NullIntoJq) -> bool
+impl core::fmt::Debug for nika_check_analyzer::skipped_reads::NullIntoJq
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check_analyzer::skipped_reads::NullIntoJq
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::skipped_reads::NullIntoJq
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::skipped_reads::NullIntoJq where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::skipped_reads::NullIntoJq where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::skipped_reads::NullIntoJq where U: core::convert::From<T>
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::skipped_reads::NullIntoJq where U: core::convert::Into<T>
+pub type nika_check_analyzer::skipped_reads::NullIntoJq::Error = core::convert::Infallible
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::skipped_reads::NullIntoJq where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::skipped_reads::NullIntoJq::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::skipped_reads::NullIntoJq where T: core::clone::Clone
+pub type nika_check_analyzer::skipped_reads::NullIntoJq::Owned = T
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::skipped_reads::NullIntoJq where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::skipped_reads::NullIntoJq where T: ?core::marker::Sized
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::skipped_reads::NullIntoJq where T: ?core::marker::Sized
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::skipped_reads::NullIntoJq where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::skipped_reads::NullIntoJq::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::skipped_reads::NullIntoJq
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::skipped_reads::NullIntoJq where T: core::clone::Clone
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::skipped_reads::NullIntoJq where T: 'static
+pub fn nika_check_analyzer::skipped_reads::NullIntoJq::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_check_analyzer::skipped_reads::null_into_jq(wf: &nika_schema::raw::workflow::RawWorkflow, edges: &[nika_check_analyzer::edges::Edge], topo_waves: &[alloc::vec::Vec<usize>]) -> alloc::vec::Vec<nika_check_analyzer::skipped_reads::NullIntoJq>
+pub fn nika_check_analyzer::skipped_reads::scan(wf: &nika_schema::raw::workflow::RawWorkflow, edges: &[nika_check_analyzer::edges::Edge], topo_waves: &[alloc::vec::Vec<usize>]) -> alloc::vec::Vec<nika_check_analyzer::skipped_reads::Site>
+pub type nika_check_analyzer::skipped_reads::Site = (alloc::string::String, alloc::string::String)
 pub mod nika_check_analyzer::static_args
 pub struct nika_check_analyzer::static_args::ConstStrings(_)
 impl nika_check_analyzer::static_args::ConstStrings

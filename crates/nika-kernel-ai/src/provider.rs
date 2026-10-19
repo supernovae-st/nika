@@ -444,6 +444,13 @@ pub struct InferResponse {
     /// The reasoning keys the adapter read back from the body it dispatched (R4 B16); `None`
     /// when the adapter does not observe them.
     pub reasoning_wire: Option<ReasoningWire>,
+    /// The request filled the model's context window: the provider ended the
+    /// answer at the window with its documented finish (the stop stays
+    /// [`StopReason::MaxTokens`]: never a normal end, its calls never run),
+    /// or it reported more input than the route's known window holds (a
+    /// silent overflow, whatever the stop). A loop compacts before asking
+    /// again; an output cap alone leaves this `false`.
+    pub window_full: bool,
 }
 
 impl InferResponse {
@@ -468,6 +475,7 @@ impl InferResponse {
             trust_level: None,
             gen_ai: crate::genai::GenAiAttrs::new(),
             reasoning_wire: None,
+            window_full: false,
         }
     }
 
@@ -628,6 +636,29 @@ pub enum ProviderError {
         /// Error description.
         reason: String,
     },
+
+    /// The request does not fit the model's context window: the provider
+    /// answered with its documented overflow code, or with a 400
+    /// `invalid_request_error` for a request the engine estimated at the
+    /// route's known window or above. Never transient (the same request
+    /// overflows again) and never classified from the provider's words.
+    #[error("{}", context_overflow_line(*limit, details.as_ref()))]
+    ContextOverflow {
+        /// The route's context window in tokens, when the engine knows it.
+        limit: Option<u64>,
+        /// The provider's sanitized answer, when one came back.
+        details: Option<ProviderHttpError>,
+    },
+}
+
+/// What a context overflow says: the window when known, then what the
+/// provider answered.
+fn context_overflow_line(limit: Option<u64>, details: Option<&ProviderHttpError>) -> String {
+    let window = limit.map_or_else(String::new, |tokens| format!(" ({tokens} tokens)"));
+    let answer = details.map_or_else(String::new, |details| format!(" — {details}"));
+    format!(
+        "the request exceeds the model's context window{window}: shorten the input or compact the conversation{answer}"
+    )
 }
 
 fn auth_failure_help() -> &'static str {

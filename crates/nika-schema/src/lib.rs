@@ -41,6 +41,7 @@ pub mod error;
 /// every `nika_schema::expression::…` path resolves unchanged.
 pub use nika_tmpl::expression;
 pub mod parser;
+pub mod project_file;
 pub mod raw;
 pub mod skill;
 pub mod source;
@@ -50,6 +51,10 @@ pub mod types;
 pub use error::{SchemaError, SpecCategory, SpecCode};
 pub use nika_catalog::codegen::nika_builtin_tool_enum_schema;
 pub use parser::{ParseMode, parse};
+pub use project_file::{
+    ComposedProjectFiles, PROJECT_FILE_CAP, ProjectFile, ProjectFileFinding, ProjectFileRead,
+    compose_project_files, project_file_refs,
+};
 pub use skill::{
     ResolvedSkills, SkillDefect, SkillDoc, SkillFinding, parse_skill, resolve_skills, skill_refs,
 };

@@ -144,6 +144,16 @@ const fn agent(num: u16) -> SpecCode {
     }
 }
 
+/// The project-file codes (spec 02 §Project files): path · read · bytes.
+const fn file(num: u16) -> SpecCode {
+    SpecCode {
+        namespace: "FILE",
+        num,
+        category: SpecCategory::ValidationError,
+        transient: false,
+    }
+}
+
 const fn var(num: u16, category: SpecCategory) -> SpecCode {
     SpecCode {
         namespace: "VAR",
@@ -269,7 +279,7 @@ impl SchemaError {
             Self::UnknownGroup { .. } => dag(8),
             Self::UnwindInGroup { .. } => dag(9),
             Self::SkillPathNotStatic { .. } => agent(3),
-
+            Self::ProjectFilePath { .. } => file(1),
             // ── NIKA-BUILTIN · arg-shape contracts ─────────────────
             Self::BadBuiltinArgs { tool, .. } => builtin_spec_code(tool),
 

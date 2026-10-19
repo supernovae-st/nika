@@ -25,14 +25,20 @@
 //! MCP tool touches neither file.
 //!
 //! The plane is SYNC by dependency law (no tokio here); the `invoke` verb
-//! offloads a call to a worker thread and awaits it.
+//! offloads a call to a worker thread and awaits it. A call the run stops
+//! waiting for (the operator's Stop, a task `timeout:`, an aborted attempt)
+//! is stopped through its token: never sent when it was not yet written,
+//! cancelled at the server when it was in flight, the server's pipe freed
+//! for the next call. A stopped call fails `NIKA-CANCEL-001`, never
+//! transient, with the stopped call in its error details.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
+use nika_kernel::CancelCtx;
 use nika_kernel::ai::provider::ToolDef;
-use nika_kernel::tool_executor::{ToolCall, ToolErrorMeta, ToolExecError, ToolResult};
+use nika_kernel::tool_executor::{StopOutcome, ToolCall, ToolErrorMeta, ToolExecError, ToolResult};
 
 use crate::client::{McpServerConfig, load_server_configs};
 use crate::pin::{PinError, PinStore, Verify};
@@ -142,6 +148,24 @@ impl McpToolPlane {
     /// Every OTHER refusal is a returned error [`ToolResult`] carrying its
     /// `NIKA-MCP-*` code — the tool-failure lane the author filters on.
     pub fn call(&self, call: &ToolCall) -> Result<ToolResult, ToolExecError> {
+        self.call_until(call, &CancelCtx::new())
+    }
+
+    /// [`Self::call`], watching `stop`: cancelled before the call is
+    /// written, it is never sent; cancelled while the server works, the
+    /// session tells it to cancel and the server's pipe is free for the next
+    /// call at once, not after the call timeout. Either way the result is
+    /// [`ToolResult::stopped`]; a pipe that died on the way out is dropped,
+    /// and the result still says the run stopped the call.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::call`].
+    pub fn call_until(
+        &self,
+        call: &ToolCall,
+        stop: &CancelCtx,
+    ) -> Result<ToolResult, ToolExecError> {
         let id = call.id.as_str().to_owned();
         let not_found = || ToolExecError::NotFound {
             name: call.name.clone(),
@@ -173,6 +197,11 @@ impl McpToolPlane {
         }
         let slot = self.slot(server);
         let mut guard = slot.lock().unwrap_or_else(PoisonError::into_inner);
+        // The run may have stopped waiting while this call queued behind
+        // another one on the same server: it is never sent then.
+        if stop.is_cancelled() {
+            return Ok(ToolResult::stopped(call, StopOutcome::NotSent));
+        }
         // The unconfined receipt rides the OBS-E warning lane ONCE, on the
         // call that opened the session: a run says when a server runs
         // outside the sandbox; a confined server stays quiet.
@@ -191,18 +220,22 @@ impl McpToolPlane {
                 reason: format!("no session for MCP server `{server}`"),
             });
         };
-        match session.tools_call(tool, &call.input) {
+        match session.tools_call_until(tool, &call.input, stop) {
             Ok(outcome) => Ok(match unconfined {
                 Some(note) => {
-                    map_outcome(&id, outcome).with_warning(format!("mcp `{server}`: {note}"))
+                    map_outcome(call, outcome).with_warning(format!("mcp `{server}`: {note}"))
                 }
-                None => map_outcome(&id, outcome),
+                None => map_outcome(call, outcome),
             }),
             Err(err) => {
                 // The pipe died mid-call: drop it so the next call
                 // reconnects and re-verifies; the failure itself may be
-                // retried (`retry:` · transient).
+                // retried (`retry:` · transient), unless the run had stopped
+                // the call, which was sent, so what became of it is unknown.
                 *guard = None;
+                if stop.is_cancelled() {
+                    return Ok(ToolResult::stopped(call, StopOutcome::Unknown));
+                }
                 Ok(refusal(&id, &err, true))
             }
         }
@@ -249,8 +282,8 @@ impl McpToolPlane {
 pub fn run_plane(project_dir: impl Into<PathBuf>) -> nika_runtime::McpPlane {
     let plane = Arc::new(McpToolPlane::lazy(project_dir));
     let defs = Arc::clone(&plane);
-    nika_runtime::McpPlane::new(
-        Arc::new(move |call| plane.call(&call)),
+    nika_runtime::McpPlane::stoppable(
+        Arc::new(move |call: ToolCall, stop: &CancelCtx| plane.call_until(&call, stop)),
         Arc::new(move || defs.tool_defs()),
     )
 }
@@ -278,8 +311,13 @@ fn refusal(id: &str, err: &PinError, transient: bool) -> ToolResult {
 }
 
 /// The tool's answer onto the kernel result: text on `content`, the typed
-/// value on `structured`, an MCP `isError` as a coded tool failure.
-fn map_outcome(id: &str, outcome: CallOutcome) -> ToolResult {
+/// value on `structured`, an MCP `isError` as a coded tool failure, a call
+/// the run stopped as [`ToolResult::stopped`].
+fn map_outcome(call: &ToolCall, outcome: CallOutcome) -> ToolResult {
+    let id = call.id.as_str();
+    if let Some(stopped) = outcome.stopped {
+        return ToolResult::stopped(call, stopped);
+    }
     if outcome.is_error {
         return ToolResult::error(id, outcome.content)
             .with_error_meta(ToolErrorMeta::new(Some(TOOL_FAILED.to_owned()), false));
@@ -312,6 +350,9 @@ mod tests {
         calls: Arc<Mutex<Vec<(String, Value)>>>,
         connects: Arc<Mutex<usize>>,
         unconfined: Option<String>,
+        /// A stop this server's call cancels while it answers (the run
+        /// stops waiting mid-call).
+        cancels: Option<CancelCtx>,
     }
 
     impl Script {
@@ -323,7 +364,12 @@ mod tests {
                 calls: Arc::new(Mutex::new(Vec::new())),
                 connects: Arc::new(Mutex::new(0)),
                 unconfined: None,
+                cancels: None,
             }
+        }
+        fn cancelling(mut self, stop: &CancelCtx) -> Self {
+            self.cancels = Some(stop.clone());
+            self
         }
         fn answering(mut self, answer: Result<CallOutcome, PinError>) -> Self {
             self.answer = answer;
@@ -357,6 +403,9 @@ mod tests {
                 .lock()
                 .unwrap()
                 .push((tool.to_owned(), arguments.clone()));
+            if let Some(stop) = &self.0.cancels {
+                stop.cancel();
+            }
             self.0.answer.clone()
         }
         fn unconfined_note(&self) -> Option<String> {
@@ -440,6 +489,85 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// The compile door's read of a tool: the registry and the approved pins, files only. No
+    /// server is spawned, whatever the answer.
+    #[test]
+    fn pinned_tool_reads_the_registry_and_pins_without_spawning() {
+        use crate::pin::{PinVerdict, pinned_tool};
+        let dir = project("pinned-tool");
+        let script = Script::serving(tools());
+        assert_eq!(pinned_tool(&dir, "ghost", "ping"), PinVerdict::Unregistered);
+        assert_eq!(pinned_tool(&dir, "owned", "ping"), PinVerdict::Unapproved);
+        approve(&dir, &script);
+        match pinned_tool(&dir, "owned", "ping") {
+            PinVerdict::Pinned { input_schema, .. } => {
+                assert_eq!(input_schema, tools()[0].input_schema);
+            }
+            other => panic!("the approved tool reads pinned: {other:?}"),
+        }
+        assert_eq!(
+            pinned_tool(&dir, "owned", "send"),
+            PinVerdict::NotPinned {
+                pinned: vec!["ping".to_owned()]
+            }
+        );
+        assert_eq!(script.connects(), 0, "reading pins spawns no server");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The registry re-pointed after approval: the same name now launches another command, or the
+    /// same command with other arguments. The compile door reads that as the run's own
+    /// verification does (the identity is part of the approval), never as the tools the earlier
+    /// approval holds; back at the approved identity, the tool reads pinned again.
+    #[test]
+    fn pinned_tool_carries_no_approval_over_a_repointed_registry() {
+        use crate::pin::{PinVerdict, pinned_tool};
+        let dir = project("pinned-repointed");
+        let script = Script::serving(tools());
+        approve(&dir, &script);
+        let registry = |command: &str, arg: &str| {
+            let servers = json!({"mcp_servers_format": 1, "servers": {"owned": {
+                "command": command, "args": [arg]}}});
+            std::fs::write(dir.join(SERVERS_PATH), servers.to_string()).expect("registry");
+        };
+        registry("other-srv", "--stdio");
+        assert_eq!(pinned_tool(&dir, "owned", "ping"), PinVerdict::Repointed);
+        registry("owned-srv", "--other");
+        assert_eq!(pinned_tool(&dir, "owned", "ping"), PinVerdict::Repointed);
+        registry("owned-srv", "--stdio");
+        assert!(
+            matches!(
+                pinned_tool(&dir, "owned", "ping"),
+                PinVerdict::Pinned { .. }
+            ),
+            "the approved identity reads pinned again"
+        );
+        assert_eq!(script.connects(), 0, "reading pins spawns no server");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The same parity on the verdicts the compile door already read before re-pointing had one
+    /// of its own: an approval of the old identity never reads as pinned.
+    #[test]
+    fn a_stale_approval_over_a_repointed_registry_is_not_pinned() {
+        use crate::pin::{PinVerdict, pinned_tool};
+        let dir = project("pinned-stale");
+        let script = Script::serving(tools());
+        approve(&dir, &script);
+        std::fs::write(
+            dir.join(SERVERS_PATH),
+            r#"{"mcp_servers_format": 1, "servers": {"owned": {"command": "other-srv", "args": ["--stdio"]}}}"#,
+        )
+        .expect("registry");
+        let verdict = pinned_tool(&dir, "owned", "ping");
+        assert!(
+            !matches!(verdict, PinVerdict::Pinned { .. }),
+            "a stale approval judged the re-pointed server: {verdict:?}"
+        );
+        assert_eq!(script.connects(), 0, "reading pins spawns no server");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn a_tool_outside_the_pinned_set_refuses_before_any_connect() {
         let dir = project("unlisted");
@@ -456,6 +584,118 @@ mod tests {
         );
         assert!(out.content.contains("pinned: ping"), "{}", out.content);
         assert_eq!(script.connects(), 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A call the run stopped waiting for before it reached its
+    /// server (it queued behind another call on the same server) is never
+    /// sent; the server is not even spawned for it.
+    #[test]
+    fn a_call_stopped_before_its_server_is_never_sent() {
+        let dir = project("stopped");
+        let script = Script::serving(tools());
+        approve(&dir, &script);
+        let plane = McpToolPlane::with_connector(&dir, Box::new(script.clone()));
+        let stop = CancelCtx::new();
+        stop.cancel();
+        let out = plane
+            .call_until(&call("mcp:owned/ping", json!({"who": "x"})), &stop)
+            .expect("a stopped call is a tool result");
+        assert!(out.is_error);
+        assert!(
+            out.content.contains("before it was sent"),
+            "{}",
+            out.content
+        );
+        let meta = out.error_meta.as_ref().expect("the stop's metadata");
+        assert_eq!(meta.spec_code.as_deref(), Some("NIKA-CANCEL-001"));
+        assert!(!meta.transient, "a stop is never retried");
+        let stopped = meta
+            .details
+            .as_ref()
+            .and_then(|details| details.stopped_call.as_ref())
+            .expect("the stopped call");
+        assert_eq!(stopped.tool, "mcp:owned/ping");
+        assert_eq!(stopped.call_id, "tc-1");
+        assert_eq!(stopped.outcome, StopOutcome::NotSent);
+        assert_eq!(script.connects(), 0, "no spawn for a call nobody waits for");
+        assert!(script.calls().is_empty());
+        // The plane itself is unharmed: the next call is made.
+        let next = plane
+            .call(&call("mcp:owned/ping", json!({"who": "x"})))
+            .expect("a call");
+        assert!(!next.is_error, "{}", next.content);
+        assert_eq!(script.calls().len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A call the session stopped in flight fails with the stop's code and
+    /// names the call; the session it kept serves the next call.
+    #[test]
+    fn a_call_stopped_in_flight_fails_with_the_cancel_code() {
+        let dir = project("stopped-in-flight");
+        let script = Script::serving(tools()).answering(Ok(CallOutcome::stopped(
+            "the run stopped waiting for `ping`: the server was told to cancel it",
+            StopOutcome::Unknown,
+        )));
+        approve(&dir, &script);
+        let plane = McpToolPlane::with_connector(&dir, Box::new(script.clone()));
+        let stop = CancelCtx::new();
+        let out = plane
+            .call_until(&call("mcp:owned/ping", json!({"who": "x"})), &stop)
+            .expect("a stopped call is a tool result");
+        assert!(out.is_error);
+        let meta = out.error_meta.as_ref().expect("the stop's metadata");
+        assert_eq!(meta.spec_code.as_deref(), Some("NIKA-CANCEL-001"));
+        assert!(!meta.transient);
+        assert_eq!(
+            meta.details
+                .as_ref()
+                .map(nika_kernel::tool_executor::ToolErrorDetails::to_value),
+            Some(
+                json!({"stopped_call": {"tool": "mcp:owned/ping", "call_id": "tc-1", "outcome": "unknown"}})
+            )
+        );
+        let _ = plane.call(&call("mcp:owned/ping", json!({"who": "x"})));
+        assert_eq!(
+            script.connects(),
+            1,
+            "the session that stopped the call is kept"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The run stops waiting and the pipe dies on the way out: the session
+    /// is dropped, and the call still fails as stopped, never as a
+    /// retryable transport failure.
+    #[test]
+    fn a_stopped_call_whose_pipe_died_still_reads_as_stopped() {
+        let dir = project("stopped-dead");
+        let stop = CancelCtx::new();
+        let script =
+            Script::serving(tools())
+                .cancelling(&stop)
+                .answering(Err(PinError::Transport {
+                    server: "owned".to_owned(),
+                    why: "cannot write to the server: broken pipe".to_owned(),
+                }));
+        approve(&dir, &script);
+        let plane = McpToolPlane::with_connector(&dir, Box::new(script.clone()));
+        let out = plane
+            .call_until(&call("mcp:owned/ping", json!({"who": "x"})), &stop)
+            .expect("a stopped call is a tool result");
+        let meta = out.error_meta.as_ref().expect("the stop's metadata");
+        assert_eq!(meta.spec_code.as_deref(), Some("NIKA-CANCEL-001"));
+        assert!(!meta.transient, "never a retryable transport failure");
+        assert_eq!(
+            meta.details
+                .as_ref()
+                .and_then(|details| details.stopped_call.as_ref())
+                .map(|stopped| stopped.outcome),
+            Some(StopOutcome::Unknown)
+        );
+        let _ = plane.call(&call("mcp:owned/ping", json!({"who": "x"})));
+        assert_eq!(script.connects(), 2, "the dead session was dropped");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

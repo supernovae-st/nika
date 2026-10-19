@@ -1272,6 +1272,9 @@ pub nika_kernel_ai::provider::ProviderError::AuthFailed
 pub nika_kernel_ai::provider::ProviderError::AuthFailed::reason: alloc::string::String
 pub nika_kernel_ai::provider::ProviderError::Connection
 pub nika_kernel_ai::provider::ProviderError::Connection::reason: alloc::string::String
+pub nika_kernel_ai::provider::ProviderError::ContextOverflow
+pub nika_kernel_ai::provider::ProviderError::ContextOverflow::details: core::option::Option<nika_kernel_ai::provider::ProviderHttpError>
+pub nika_kernel_ai::provider::ProviderError::ContextOverflow::limit: core::option::Option<u64>
 pub nika_kernel_ai::provider::ProviderError::HttpResponse
 pub nika_kernel_ai::provider::ProviderError::HttpResponse::details: nika_kernel_ai::provider::ProviderHttpError
 pub nika_kernel_ai::provider::ProviderError::ModelNotFound
@@ -1608,6 +1611,7 @@ pub nika_kernel_ai::provider::InferResponse::ttft_ms: core::option::Option<u64>
 pub nika_kernel_ai::provider::InferResponse::usage: nika_types::token_usage::TokenUsage
 pub nika_kernel_ai::provider::InferResponse::usage_completeness: nika_kernel_ai::provider::UsageCompleteness
 pub nika_kernel_ai::provider::InferResponse::usage_reported: bool
+pub nika_kernel_ai::provider::InferResponse::window_full: bool
 impl nika_kernel_ai::provider::InferResponse
 pub fn nika_kernel_ai::provider::InferResponse::cost_observations(&self) -> alloc::vec::Vec<nika_types::cost::inference::InferenceCall>
 pub fn nika_kernel_ai::provider::InferResponse::new(content: alloc::vec::Vec<nika_kernel_ai::provider::ContentBlock>, usage: nika_types::token_usage::TokenUsage, stop_reason: nika_kernel_ai::provider::StopReason) -> Self
@@ -1725,6 +1729,8 @@ impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::provider::ProviderE
 impl nika_kernel_ai::provider::ProviderHttpError
 pub fn nika_kernel_ai::provider::ProviderHttpError::code(&self) -> core::option::Option<&'static str>
 pub fn nika_kernel_ai::provider::ProviderHttpError::error_type(&self) -> core::option::Option<&'static str>
+pub fn nika_kernel_ai::provider::ProviderHttpError::is_context_overflow(&self) -> bool
+pub fn nika_kernel_ai::provider::ProviderHttpError::is_invalid_request(&self) -> bool
 pub fn nika_kernel_ai::provider::ProviderHttpError::is_quota_exhausted(&self) -> bool
 pub fn nika_kernel_ai::provider::ProviderHttpError::is_transient(&self) -> bool
 pub fn nika_kernel_ai::provider::ProviderHttpError::message(&self) -> core::option::Option<&str>

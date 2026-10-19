@@ -51,6 +51,84 @@ impl ProviderModel {
     }
 }
 
+/// Sourced facts about one catalogued model (schema `@1.2`), keyed by its
+/// provider id and wire id: where and when the row's two token limits were
+/// read and, when the provider publishes one, its retirement floor. A wire
+/// with no entry has curated limits with no recorded source.
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ModelFacts {
+    /// Canonical provider id.
+    pub provider: &'static str,
+    /// Wire identifier sent to the provider API.
+    pub model: &'static str,
+    /// Where the row's token limits were read.
+    pub limits_source: Option<&'static str>,
+    /// The date `limits_source` was read (`YYYY-MM-DD`).
+    pub limits_as_of: Option<&'static str>,
+    /// The retirement floor the provider publishes for this model.
+    pub lifecycle: Option<ModelLifecycle>,
+}
+
+impl ModelFacts {
+    /// Explicit constructor — required because [`ModelFacts`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    pub const fn new(
+        provider: &'static str,
+        model: &'static str,
+        limits_source: Option<&'static str>,
+        limits_as_of: Option<&'static str>,
+        lifecycle: Option<ModelLifecycle>,
+    ) -> Self {
+        Self {
+            provider,
+            model,
+            limits_source,
+            limits_as_of,
+            lifecycle,
+        }
+    }
+}
+
+/// A retirement floor a provider publishes: the model is not retired before
+/// [`Self::retires_not_before`], and the provider names [`Self::successor`],
+/// another wire of the same provider. A floor, never a retirement date: the
+/// catalogue never switches a model on its own.
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ModelLifecycle {
+    /// The earliest date the provider may retire the model (`YYYY-MM-DD`).
+    pub retires_not_before: &'static str,
+    /// The wire the provider names as its successor.
+    pub successor: &'static str,
+    /// The provider's lifecycle page.
+    pub source: &'static str,
+    /// The date the page was read (`YYYY-MM-DD`).
+    pub as_of: &'static str,
+}
+
+impl ModelLifecycle {
+    /// Explicit constructor — required because [`ModelLifecycle`] is
+    /// `#[non_exhaustive]` (invariant #19).
+    #[must_use]
+    pub const fn new(
+        retires_not_before: &'static str,
+        successor: &'static str,
+        source: &'static str,
+        as_of: &'static str,
+    ) -> Self {
+        Self {
+            retires_not_before,
+            successor,
+            source,
+            as_of,
+        }
+    }
+}
+
 /// A provider's sourced data-handling policy — THE sovereignty facts
 /// (schema `@1.1`).
 ///

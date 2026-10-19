@@ -183,3 +183,48 @@ fn a_returned_failure_keeps_uncertainty_even_when_its_call_evidence_is_recorded(
         "a failed response does not establish a usable result or zero billing"
     );
 }
+
+/// A request that returned at a known estimate, its route answered by the model it names.
+fn priced_call(nano_usd: i128) -> InferenceCall {
+    let mut call = InferenceCall::new();
+    call.route = Some(nika_types::cost::InferenceRoute::new(
+        "openai".into(),
+        "gpt-6.1-sol".into(),
+        "https://api.openai.com/v1/chat/completions".into(),
+    ));
+    call.usage = Some(nika_types::token_usage::TokenUsage::new(1_000, 200));
+    call.usage_complete = true;
+    call.response_model = Some("gpt-6.1-sol".into());
+    call.pricing = Some("catalog".into());
+    call.estimated_usd = Some(nika_types::cost::Cost::new(nano_usd));
+    call
+}
+
+/// The scope active on this thread says what its returned requests settled: the sum of the
+/// known estimates and how many returned with none. A request still in flight counts in
+/// neither, and outside a scope nothing is said.
+#[test]
+fn the_active_scope_says_what_its_returned_requests_settled() {
+    assert_eq!(PreparationCosts::active_settled(), None, "no scope");
+    let costs = PreparationCosts::default();
+    let _scope = costs.enter();
+    let mut future = pin!(PreparationCosts::capture(async {
+        for returned in [
+            Some(priced_call(120_000_000)),
+            Some(call()),
+            Some(priced_call(30_000_000)),
+        ] {
+            let entry = crate::dispatch_journal::open().expect("scoped");
+            crate::dispatch_journal::sent(Some(&call()));
+            entry.settle(returned.as_ref(), true);
+        }
+        // Sent, never returned: still in flight.
+        let _entry = crate::dispatch_journal::open().expect("scoped");
+        crate::dispatch_journal::sent(Some(&call()));
+    }));
+    assert!(poll(future.as_mut()).is_ready());
+    let settled = PreparationCosts::active_settled().expect("a scope");
+    assert_eq!(settled.known_nano_usd, 150_000_000);
+    assert_eq!(settled.unpriced, 1, "the unanswered one counts in neither");
+    assert!(!settled.scope.is_empty());
+}

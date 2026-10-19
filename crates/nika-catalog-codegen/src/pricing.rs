@@ -177,7 +177,7 @@ fn validate_meta(meta: &PricingMeta, path: &Path) -> Result<(), CodegenError> {
 /// `YYYY-MM-DD` with sane month/day ranges (no chrono dep — the codegen
 /// stays std-only; leap-day precision is not load-bearing for a staleness
 /// stamp).
-fn is_iso_date(s: &str) -> bool {
+pub(crate) fn is_iso_date(s: &str) -> bool {
     let b = s.as_bytes();
     if b.len() != 10 || b[4] != b'-' || b[7] != b'-' {
         return false;

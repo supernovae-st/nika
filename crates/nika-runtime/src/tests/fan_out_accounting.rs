@@ -26,7 +26,7 @@ use nika_verb_invoke::InvokeVerb;
 
 use super::*;
 
-const FREE: &str = "openrouter/qwen/qwen3.8-27b:free";
+const FREE: &str = "openrouter/nvidia/nemotron-3-super-120b-a12b:free";
 /// Catalog-priced (C4's and E17's canonical paid route).
 const PAID: &str = "deepseek/deepseek-v4-pro";
 

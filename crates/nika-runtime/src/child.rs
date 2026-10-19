@@ -62,6 +62,10 @@ pub struct ChildCall {
     /// declared` (law 3/4 · the check-time `NIKA-COMP-002` proof made
     /// structural at run).
     pub parent_permits: Option<Permits>,
+    /// The calling run's facts (spec 04 §`run` · law 6): the child serves its
+    /// caller's instant and covers its silence. The runner tells them to the
+    /// child run ([`crate::Runtime::with_run_facts`]).
+    pub run_facts: crate::RunFacts,
 }
 
 /// What the parent records about a finished child run — the trace-forest

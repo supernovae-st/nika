@@ -143,8 +143,9 @@ pub enum RunCause {
     /// `--max-cost-usd` was crossed at a wave boundary (NIKA-1704); the
     /// unstarted tasks were cancelled.
     Budget,
-    /// The operator cancelled at a wave boundary; in-flight work completed
-    /// and was counted, the unstarted tasks were cancelled.
+    /// The operator cancelled at a wave boundary; in-flight work settled and
+    /// was counted (an `mcp:` call in flight was told to cancel), the
+    /// unstarted tasks were cancelled.
     Operator,
     /// The runtime refused the run before any task (no access path · an
     /// unsatisfied pin · a missing input).
@@ -359,6 +360,80 @@ impl Default for Spend {
     }
 }
 
+/// What became of a call the run stopped waiting for: `unknown` once it was
+/// sent (the server may have acted on it), `not_sent` when no server
+/// received it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(rename_all = "snake_case")
+)]
+#[non_exhaustive]
+pub enum StopOutcome {
+    /// Sent: the server may have acted on it.
+    Unknown,
+    /// Never sent.
+    NotSent,
+}
+
+impl StopOutcome {
+    /// The wire word (`unknown` · `not_sent`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::NotSent => "not_sent",
+        }
+    }
+
+    /// Read a wire word; `None` for any other word.
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
+        match word {
+            "unknown" => Some(Self::Unknown),
+            "not_sent" => Some(Self::NotSent),
+            _ => None,
+        }
+    }
+}
+
+/// A call the run stopped waiting for (the operator's Stop, a task
+/// `timeout:`), named on the settlement whatever became of its task (failed,
+/// continued past it, or recovered): its task's error records it as
+/// `details.stopped_call`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
+pub struct StoppedCall {
+    /// The task whose call it was.
+    pub task: String,
+    /// The tool id (`mcp:<server>/<tool>`).
+    pub tool: String,
+    /// The call's id.
+    pub call_id: String,
+    /// What became of the call.
+    pub outcome: StopOutcome,
+}
+
+impl StoppedCall {
+    /// Construct (INV-019).
+    #[must_use]
+    pub fn new(
+        task: impl Into<String>,
+        tool: impl Into<String>,
+        call_id: impl Into<String>,
+        outcome: StopOutcome,
+    ) -> Self {
+        Self {
+            task: task.into(),
+            tool: tool.into(),
+            call_id: call_id.into(),
+            outcome,
+        }
+    }
+}
+
 /// The failure the settlement names (#1403): the first failed task's
 /// code, message and id — or a run-level cause (the budget · an output
 /// contract · a refusal) with no task.
@@ -412,6 +487,15 @@ pub struct RunSettlement {
     /// The failure named, when there is one.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub error: Option<SettlementError>,
+    /// Every call the run stopped waiting for, in task order, whatever its
+    /// task settled as · omitted when empty. It rides the serialized
+    /// settlement (the resident's terminal event and job), not the terminal
+    /// frame's flat fields: each task's own frame and error record carry it.
+    #[cfg_attr(
+        feature = "serde",
+        serde(skip_serializing_if = "Vec::is_empty", default)
+    )]
+    pub stopped_calls: Vec<StoppedCall>,
 }
 
 /// The flat field keys the settlement writes on a terminal frame.
@@ -448,7 +532,15 @@ impl RunSettlement {
             tasks: None,
             spend: Spend::default(),
             error: None,
+            stopped_calls: Vec::new(),
         }
+    }
+
+    /// Name every call the run stopped waiting for.
+    #[must_use]
+    pub fn with_stopped_calls(mut self, stopped_calls: Vec<StoppedCall>) -> Self {
+        self.stopped_calls = stopped_calls;
+        self
     }
 
     /// Stamp the elapsed time.
@@ -804,5 +896,44 @@ mod tests {
         assert!(value["spend"].get("total_cost_usd").is_none());
         let back: RunSettlement = serde_json::from_value(value).expect("deserialize");
         assert_eq!(back, settlement);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn the_stopped_calls_ride_the_settlement_only_when_there_are_some() {
+        let settlement = RunSettlement::new(RunState::Cancelled, RunCause::Operator)
+            .with_stopped_calls(vec![
+                StoppedCall::new("a", "mcp:s/slow", "c1", StopOutcome::Unknown),
+                StoppedCall::new("b", "mcp:s/other", "c2", StopOutcome::NotSent),
+            ]);
+        let value = serde_json::to_value(&settlement).expect("serialize");
+        assert_eq!(
+            value["stopped_calls"],
+            serde_json::json!([
+                {"task": "a", "tool": "mcp:s/slow", "call_id": "c1", "outcome": "unknown"},
+                {"task": "b", "tool": "mcp:s/other", "call_id": "c2", "outcome": "not_sent"}
+            ])
+        );
+        assert!(
+            value.get("error").is_none(),
+            "a cancelled run names no error"
+        );
+        let back: RunSettlement = serde_json::from_value(value).expect("deserialize");
+        assert_eq!(back, settlement);
+        let plain = RunSettlement::new(RunState::Failed, RunCause::TaskFailed).with_error(Some(
+            SettlementError::new("NIKA-EXEC-001", "boom", Some("a".to_owned())),
+        ));
+        let value = serde_json::to_value(&plain).expect("serialize");
+        assert!(
+            value.get("stopped_calls").is_none(),
+            "omitted when empty, never an empty list"
+        );
+        let older: RunSettlement =
+            serde_json::from_value(value).expect("an older settlement reads");
+        assert!(older.stopped_calls.is_empty());
+        for outcome in [StopOutcome::Unknown, StopOutcome::NotSent] {
+            assert_eq!(StopOutcome::parse(outcome.as_str()), Some(outcome));
+        }
+        assert_eq!(StopOutcome::parse("sent"), None);
     }
 }

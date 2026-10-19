@@ -54,6 +54,9 @@ fn preview_record(ran: &RanTask) -> TaskRecord {
         RunResult::SkippedWithError { .. } => {
             TaskRecord::unran(TaskStatus::Skipped, TerminalCause::ErrorSkip)
         }
+        RunResult::OperatorCancelled(_) => {
+            TaskRecord::unran(TaskStatus::Cancelled, TerminalCause::Operator)
+        }
         RunResult::Failed { error, .. } => {
             let mut rec = TaskRecord::unran(TaskStatus::Failure, failure_cause(error, attempts));
             rec.attempts = Some(attempts);
@@ -70,6 +73,7 @@ fn preview_record(ran: &RanTask) -> TaskRecord {
     };
     match &ran.result {
         RunResult::Success { value, .. } => record.output = value.clone(),
+        RunResult::OperatorCancelled(_) => {}
         RunResult::SkippedWithError { error, .. } | RunResult::Failed { error, .. } => {
             record.error = Some(error.clone());
         }
@@ -277,6 +281,8 @@ where
                 gate_answer: None,
                 run_start,
                 attempt: Some((ledger, wf, cleanup)),
+                // a cleanup mini-task's own timeout names no stopped call.
+                stopped: None,
             },
             None,
         ));

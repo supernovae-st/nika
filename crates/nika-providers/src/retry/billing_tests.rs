@@ -312,3 +312,110 @@ fn a_cache_write_without_a_stated_write_rate_stays_unknown() {
         None
     );
 }
+
+/// `OpenRouter` reported `usage.cost` for complete usage at its own endpoint: the call's known
+/// amount is that charge, whatever the catalog says (no admission row is needed), a cache write
+/// included. The same reply through a configured gateway, or answered by another model, keeps
+/// no reported amount.
+#[test]
+fn a_reported_charge_settles_the_call_only_at_the_providers_own_endpoint() {
+    let model = "anthropic/claude-sonnet-4.6";
+    let openrouter = |endpoint: &str| {
+        BillingRoute::new("openrouter".into(), model.into(), endpoint.into()).expect("route")
+    };
+    let official = openrouter("https://openrouter.ai/api/v1/chat/completions");
+    let mut r = wrote(model, written);
+    r.cost = Some(Cost::new(1_200_000));
+    let call = observe(Some(&official), Some(&r), None);
+    assert_eq!(call.known_estimate(), Some(Cost::new(1_200_000)));
+    let pricing: serde_json::Value =
+        serde_json::from_str(call.pricing.as_deref().expect("provenance")).expect("JSON");
+    assert_eq!(pricing["kind"], "provider_reported_charge");
+    assert_eq!(pricing["currency"], "USD");
+    assert!(
+        pricing["source"]
+            .as_str()
+            .is_some_and(|s| s.starts_with("https://openrouter.ai/docs/"))
+    );
+    let gateway = openrouter("https://gateway.example/api/v1/chat/completions");
+    assert_eq!(
+        observe(Some(&gateway), Some(&r), None).known_estimate(),
+        None
+    );
+    let mut other = r.clone();
+    other.gen_ai.response_model = Some("anthropic/claude-4.6-sonnet-20260217".into());
+    assert_eq!(
+        observe(Some(&official), Some(&other), None).known_estimate(),
+        None
+    );
+    let mut partial = r;
+    partial.usage_completeness = UsageCompleteness::Unknown;
+    assert_eq!(
+        observe(Some(&official), Some(&partial), None).known_estimate(),
+        None,
+        "a charge beside incomplete meters stays unknown"
+    );
+}
+
+/// NIK-152: a complete Claude reply on Anthropic's own endpoint is priced at its admission tariff
+/// (Claude Sonnet 5.5: 2,000 input and 10,000 output nano-USD per token); Claude Haiku 5.5 is
+/// priced up to its 100,000-token tier and unknown above it, which bills at another rate; a reply
+/// whose usage is not complete stays unknown, the provider's silence.
+#[test]
+fn a_complete_claude_reply_is_priced_at_its_admission_tariff() {
+    let route = |model: &str| {
+        BillingRoute::new("anthropic".into(), model.into(), ANTHROPIC.into()).expect("route")
+    };
+    let answered = |model: &str, input: u64, complete: bool| {
+        let mut r = InferResponse::new(vec![], TokenUsage::new(input, 100), StopReason::EndTurn);
+        if complete {
+            r.usage_completeness = UsageCompleteness::Complete;
+        }
+        r.gen_ai.response_model = Some(model.into());
+        r
+    };
+    let sonnet = "claude-sonnet-5-5";
+    let call = observe(
+        Some(&route(sonnet)),
+        Some(&answered(sonnet, 1_000, true)),
+        None,
+    );
+    assert_eq!(
+        call.known_estimate(),
+        Some(Cost::new(1_000 * 2_000 + 100 * 10_000))
+    );
+    assert!(
+        call.pricing
+            .as_deref()
+            .is_some_and(|p| p.contains("\"as_of\":\"2026-10-15\"")),
+        "{:?}",
+        call.pricing
+    );
+    let haiku = "claude-haiku-5-5";
+    let within = observe(
+        Some(&route(haiku)),
+        Some(&answered(haiku, 100_000, true)),
+        None,
+    );
+    assert_eq!(
+        within.known_estimate(),
+        Some(Cost::new(100_000 * 100 + 100 * 500))
+    );
+    let over = observe(
+        Some(&route(haiku)),
+        Some(&answered(haiku, 100_001, true)),
+        None,
+    );
+    assert_eq!(
+        over.known_estimate(),
+        None,
+        "the longer tier is unpriced here"
+    );
+    let silent = observe(
+        Some(&route(sonnet)),
+        Some(&answered(sonnet, 1_000, false)),
+        None,
+    );
+    assert_eq!(silent.known_estimate(), None);
+    assert!(!silent.usage_complete);
+}

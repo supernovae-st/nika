@@ -183,6 +183,18 @@ kinds 1:1 (INV-024 — the adapter is the ONE emission site). Per AgentOps
   (the engine chronicle projects into the Connectome's RDF substrate; raw
   payloads stay hashed per sovereignty Rule 1).
 
+## The stopped calls on the settlement
+
+`settlement::RunSettlement::stopped_calls` lists every call the run stopped
+waiting for (the operator's Stop, a task `timeout:`), in task order,
+whatever its task settled as: failed, continued past it (`on_error: skip`)
+or recovered. Each item is a closed `StoppedCall` (`task`, `tool`,
+`call_id`, `outcome` = `StopOutcome::{Unknown, NotSent}`, serialized
+`unknown` · `not_sent`), read from the task error's `details.stopped_call`.
+The list rides the serialized settlement (the resident's terminal event and
+job) and is omitted when empty. The terminal frame's flat fields do not
+carry it: each task's own frame and error record do.
+
 ## Terminal outputs companion fields
 
 `settlement::{OUTPUTS_FIELD, OUTPUTS_BYTES_FIELD, OUTPUTS_WITHHELD_FIELD,

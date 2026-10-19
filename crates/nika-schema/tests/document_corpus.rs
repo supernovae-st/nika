@@ -14,7 +14,7 @@
     clippy::disallowed_methods
 )]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use nika_schema::document::{Document, Edit, Node, NodeKind, Path, Refusal};
 use nika_schema::{FileId, ParseMode};
@@ -726,6 +726,30 @@ fn covered(documents: &[(String, Document)], pattern: &str, key: &str) -> Covere
     out
 }
 
+/// The parser and the Spec schema state the same keys wherever both observe a position: a
+/// parser-only key is undocumented, a schema-only key teaches a form the parser refuses.
+fn assert_parser_and_spec_agree(rows: &BTreeMap<(String, String), Vec<&'static str>>) {
+    let observed = |owner: &str| -> BTreeSet<String> {
+        (rows.iter())
+            .filter(|(_, owners)| owners.contains(&owner))
+            .map(|((pattern, _), _)| pattern.clone())
+            .collect()
+    };
+    let (parsed, stated) = (observed("parser"), observed("spec"));
+    let drift: Vec<String> = (rows.iter())
+        .filter(|((pattern, _), owners)| {
+            parsed.contains(pattern)
+                && stated.contains(pattern)
+                && owners.contains(&"parser") != owners.contains(&"spec")
+        })
+        .map(|((pattern, key), owners)| format!("{pattern}/{key} ({})", owners.join("+")))
+        .collect();
+    assert!(
+        drift.is_empty(),
+        "the parser and the Spec schema disagree on keys: {drift:#?}"
+    );
+}
+
 #[test]
 fn the_language_inventory_is_derived_from_its_owners_and_covered() {
     use std::fmt::Write as _;
@@ -753,6 +777,7 @@ fn the_language_inventory_is_derived_from_its_owners_and_covered() {
             }
         }
     }
+    assert_parser_and_spec_agree(&rows);
     let mut receipt = String::from(
         "position\tkey\tparser\tvocab\tspec\tprograms\tnodes\tset_applied\tset_refused_by_parser\tremove_applied\n",
     );

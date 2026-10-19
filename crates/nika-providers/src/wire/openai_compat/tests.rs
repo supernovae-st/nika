@@ -897,7 +897,8 @@ async fn end_to_end_round_trips_a_colon_tool_name() {
                     "finish_reason":"tool_calls"}],
                 "usage":{"prompt_tokens":1,"completion_tokens":1}}"#,
     );
-    let rp = resolved_with(&fake, "openai", "sk-test");
+    // A Chat Completions peer: OpenAI's own endpoint answers tools on its Responses door.
+    let rp = resolved_with(&fake, "groq", "gsk-test");
     let mut request = req(vec![Message::text(Role::User, "read f")]);
     request.tools = vec![ToolDef::new("nika:read", "reads", json!({"type":"object"}))];
     let resp = infer(&rp, request).await.expect("infer ok");
@@ -1026,4 +1027,66 @@ fn the_cache_key_reaches_openai_alone() {
     );
     let body = body_of("gpt-5.6", &own, false, true, "openai").expect("body");
     assert_eq!(body["prompt_cache_key"], "the caller's");
+}
+
+/// The `OpenRouter` `DeepSeek` route of the 15 Oct gauntlet: its catalog row allows 943,718 output
+/// tokens in a 1,048,576-token window, so a budget sized from that cap overflowed the window as
+/// soon as the prompt passed ~105k tokens (HTTP 400 after 30 author calls). The budget sent is
+/// now what the counted prompt leaves, with the margin; a budget that fits stays as asked.
+#[test]
+fn the_output_budget_never_overflows_the_routes_context_window() {
+    const ROUTE: (&str, &str) = ("openrouter", "~deepseek/deepseek-v4-flash-latest");
+    let window = 1_048_576_u64;
+    let prompt = "Résume ce journal de réunion et garde les décisions. ".repeat(8_000);
+    let mut body = json!({"model": ROUTE.1, "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 943_718});
+    let counted = counted_prompt_tokens(serde_json::to_vec(&body).expect("bytes").len());
+    fit_output_to_window(&mut body, ROUTE.0, ROUTE.1);
+    let sent = body["max_tokens"].as_u64().expect("a budget");
+    assert!(sent < 943_718, "{sent}");
+    assert!(sent + counted + window / 64 <= window, "{sent} + {counted}");
+    // A budget that fits the window is sent as asked.
+    let mut small = json!({"model": ROUTE.1, "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 16_384});
+    fit_output_to_window(&mut small, ROUTE.0, ROUTE.1);
+    assert_eq!(small["max_tokens"], 16_384);
+    // The OpenAI spelling of the budget is fitted the same way.
+    let mut completion = json!({"messages": [{"role": "user", "content": "x".repeat(2_000_000)}],
+        "max_completion_tokens": 943_718});
+    fit_output_to_window(&mut completion, ROUTE.0, ROUTE.1);
+    assert!(completion["max_completion_tokens"].as_u64() < Some(943_718));
+    // No catalog window, or a prompt that leaves less than the floor: sent as it is.
+    let mut unknown = json!({"messages": [], "max_tokens": 943_718});
+    fit_output_to_window(&mut unknown, "openrouter", "no-such/model-in-the-catalog");
+    assert_eq!(unknown["max_tokens"], 943_718);
+    let mut overflowing = json!({"messages": [{"role": "user", "content": "x".repeat(2_700_000)}],
+        "max_tokens": 943_718});
+    fit_output_to_window(&mut overflowing, ROUTE.0, ROUTE.1);
+    assert_eq!(overflowing["max_tokens"], 943_718);
+}
+
+/// The fitted budget is the one the resolved provider puts on the wire.
+#[tokio::test]
+async fn the_fitted_budget_reaches_the_http_request() {
+    let fake = FakeHttp::with_json(
+        200,
+        r#"{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":{}}"#,
+    );
+    let registry = crate::ProviderRegistry::new(
+        std::sync::Arc::clone(&fake),
+        crate::ProvidersConfig::new()
+            .with_key("openrouter", nika_kernel::secret::Secret::new("test-key")),
+    );
+    let provider = registry
+        .resolve("openrouter/~deepseek/deepseek-v4-flash-latest")
+        .expect("resolve");
+    let mut request = req(vec![Message::text(Role::User, "a".repeat(400_000))]);
+    request.max_tokens = Some(943_718);
+    nika_kernel::ai::provider::ProviderInferDyn::infer(&provider, request)
+        .await
+        .expect("infer");
+    let sent = fake.captured();
+    let body: Value = serde_json::from_slice(sent[0].body.as_ref().expect("body")).expect("JSON");
+    let budget = body["max_tokens"].as_u64().expect("max_tokens");
+    assert!(budget < 943_718 && budget > 700_000, "{budget}");
 }

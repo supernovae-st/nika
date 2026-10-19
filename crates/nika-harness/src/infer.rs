@@ -97,7 +97,7 @@ impl InferGradeAttestation {
             no_implicit_tools: true,
             structured_output: StructuredOutputGrade::JsonSchema,
             model_identity_observable: true,
-            proof: "measured codex-cli 0.160.1 pre-execution empty-tools profile (no command, web or file tool ran; code-mode exec refused at the router) · spawn-time --version identity on a measured minor · effective features list · scripted fake codex · one turn · tool-event refusal · schema argv · terminal usage",
+            proof: "measured codex-cli 0.160.1 and 0.162.1 pre-execution empty-tools profile (no command, web or file tool ran; code-mode exec refused at the router) · spawn-time --version identity on a measured minor · effective features list · scripted fake codex · one turn · tool-event refusal · schema argv · terminal usage",
         }
     }
 
@@ -962,7 +962,11 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens
     /// version seen and the measured one, and the capture stays empty.
     #[tokio::test]
     async fn an_unmeasured_codex_minor_refuses_before_the_prompt() {
-        for version in ["codex-cli 0.161.0", "codex-cli 0.153.4"] {
+        for version in [
+            "codex-cli 0.161.0",
+            "codex-cli 0.163.0",
+            "codex-cli 0.153.4",
+        ] {
             let body = "cat > \"$(dirname \"$0\")/prompt-capture.txt\"\nexit 0";
             let (dir, bin) = scripted_codex_with(&prelude_listing(version, "false"), body);
             let seat = meet_with_adapter(

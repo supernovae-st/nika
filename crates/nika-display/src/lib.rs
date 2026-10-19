@@ -49,6 +49,7 @@ pub mod theme;
 pub mod vocab;
 pub mod wires;
 
+mod program;
 /// Run machine frames rendered without host effects.
 pub mod run_story;
 

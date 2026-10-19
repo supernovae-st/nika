@@ -37,23 +37,25 @@ DSL. See [03-dag.md](./03-dag.md#expression-language--a-documented-subset-of-cel
 
 ---
 
-## The 5 namespaces
+## The 6 namespaces
 
 ```
 ${{ inputs.X }}            typed workflow input          (declared in envelope `inputs:` · supplied by the caller at launch, or by its own `default:`)
 ${{ const.X }}             named constant                 (declared in envelope `const:` · a fixed value baked into the workflow)
-${{ secrets.X }}           masked secret reference        (vault-backed · never in logs)
+${{ secrets.X }}           masked secret reference        (a reference to a store · never in logs)
 ${{ with.X }}              task-level scope               (declared per-task `with:` block · the bindings ARE the data edges)
 ${{ tasks.X.output }}      task record reference          (or .status · .error · .duration_ms · the CLOSED projection set · BOUNDARY surfaces only — see below)
+${{ run.scheduled_for }}   a fact of this run             (or .missed · the CLOSED set below · set by the engine, never declared or supplied)
 ```
 
-Five namespaces. That's it.
+Six namespaces. That's it.
 
 The first three — `inputs` · `const` · `secrets` — are the **value
 authorities**, the closed family every workflow value is declared under
-(LAW-SURFACE-0201 · one authority, one spelling, no alias). `with` and
-`tasks` are the **runtime namespaces** (task-scope bindings and settled task
-records) — legal in `${{ }}`, never value authorities.
+(LAW-SURFACE-0201 · one authority, one spelling, no alias). `with`,
+`tasks` and `run` are the **runtime namespaces** (task-scope bindings,
+settled task records, and the facts of the run itself) — legal in `${{ }}`,
+never value authorities.
 
 > **⚰️ `config` was the fourth, and it is dead (2026-08-12).** Measured:
 > **zero** usage in real work; its `default:` was its **only** possible
@@ -112,8 +114,8 @@ summarize:
 ```
 
 The task body is a **pure function of its declared inputs** (`with` · the
-three value authorities `inputs` · `const` · `secrets` · the loop
-locals): every cross-task dependency is
+three value authorities `inputs` · `const` · `secrets` · the run's facts
+`run` · the loop locals): every cross-task dependency is
 visible at the boundary, named, and typed by its edge role. Nothing else
 reads another task.
 
@@ -139,11 +141,11 @@ reads another task.
 > extra identifiers are in scope: `${{ item }}` (the current element) and
 > `${{ index }}` (its 0-based position). They are **loop-scoped locals**, alive
 > only within that task's body, not global namespaces. So the count stays
-> « <!-- canon:namespaces -->5<!-- /canon --> namespaces » + the for-each locals where a loop is present.
+> « <!-- canon:namespaces -->6<!-- /canon --> namespaces » + the for-each locals where a loop is present.
 
 **Shadowing is structurally impossible.** Every namespace is reached
 through its explicit prefix (`inputs.` · `const.` · `secrets.` ·
-`with.` · `tasks.`): an `inputs.item` and the loop-local `item` never collide
+`with.` · `tasks.` · `run.`): an `inputs.item` and the loop-local `item` never collide
 (one is `inputs.item` · the other is bare `item`), a task may be named
 `item` (`tasks.item.output` is unambiguous), and `with.X` never hides an
 `inputs.X`. The only bare identifiers in the language are the two
@@ -408,11 +410,23 @@ closed object is `NIKA-VAR-003` (the same code · one voice), and only
 ```yaml
 secrets:
   api_key:
-    source: vault
-    key: prod/anthropic/api-key
+    source: env
+    key: ANTHROPIC_API_KEY
     egress: [{ to: "nika:fetch", host: "api.anthropic.com" }]
-headers:
-  Authorization: "Bearer ${{ secrets.api_key }}"
+
+permits:
+  tools: ["nika:fetch"]
+  net:
+    http: ["api.anthropic.com"]
+
+tasks:
+  models:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "https://api.anthropic.com/v1/models"
+        headers:                  # the one sanctioned sink
+          Authorization: "Bearer ${{ secrets.api_key }}"
 ```
 
 A secret is always a **reference to a store** (the local `nika-vault` by
@@ -438,6 +452,48 @@ masked references in `secrets`.
 > declared** — the `egress:` list on the secret (the example above · full
 > grammar in [01-envelope §egress](./01-envelope.md)): declassification is
 > the owner's act, co-located with the data, never a property of the sink.
+
+### `${{ run.X }}` · the facts of this run
+
+Every run is told which instant it serves: a run fired for a project's
+schedule slot (01 §The project's missed slots) is told that slot. The engine
+sets these facts before the first task and they never change during the
+run; nothing declares or supplies them. The set is CLOSED:
+
+| reference | type | value |
+|---|---|---|
+| `${{ run.scheduled_for }}` | string (RFC 3339, UTC), always set | the instant of the slot this run serves when it was fired for one; under `nika test --at`, that instant; otherwise the run's start as the run clock gives it |
+| `${{ run.missed }}` | object `{ first, last, count }` or `null` | under `manqué: rattraper-une-fois`, the silence the run covers: the first and the last missed slot (RFC 3339, UTC) and their count; `null` otherwise |
+
+```yaml
+tasks:
+  report:
+    exec:
+      # the day the slot was for, also when the run catches up a missed slot
+      command: ["./report.sh", "--day", "${{ run.scheduled_for }}"]
+```
+
+A reference outside the closed set (`${{ run.started }}`) is an unresolved
+reference: `NIKA-VAR-001`, as for any name the namespaces do not define.
+A child workflow a run calls ([14](./14-composition.md)) serves the same
+instant: it is told its caller's `run.scheduled_for` and `run.missed`, as it
+inherits its caller's deadline and budget (14, law 6). They are not inputs:
+the child declares nothing and the call passes nothing, so the call stays
+typed by its `args:` alone.
+`run` reads like the value authorities: legal in every value position and
+in `when:`, read-only, and never a data edge. The namespace is not the `run:`
+envelope block ([01 §`run`](./01-envelope.md)): that block declares how the
+run keeps time and entropy; `${{ run.X }}` reads what the engine tells the run.
+
+The real start of the run stays what the clock gives: a date task (`now`,
+`nika:date`) still reads when the run actually started. A slot replayed
+late runs today and is told, by `run.scheduled_for`, which day it was for,
+and a run started by hand is told its own start;
+a workflow that computes « yesterday » or « this week » should compute it
+from `run.scheduled_for` when it is armed with a catch-up policy, and the
+project check teaches that. The run's journal records the facts, and where
+`run.scheduled_for` came from, in its `workflow_started` frame
+([17 §the prologue](./17-trace.md)).
 
 ---
 
@@ -779,8 +835,8 @@ field is a node the graph did not need.
 When a task is admitted · the engine resolves `${{ ... }}` references in this order ·
 
 1. **Boundary first** · the `with:` bindings materialize (their `tasks.X.field` references read the settled records — this is where the data edges deliver)
-2. **`when:`** evaluates over the local namespaces (`inputs` · `const` · `with` · loop locals)
-3. **Body** · verb-field expressions resolve (`inputs.X` · `const.X` · `secrets.X` · `with.X` · loop locals — never `tasks.*`)
+2. **`when:`** evaluates over the local namespaces (`inputs` · `const` · `with` · `run` · loop locals)
+3. **Body** · verb-field expressions resolve (`inputs.X` · `const.X` · `secrets.X` · `with.X` · `run.X` · loop locals — never `tasks.*`)
 4. **Single-pass** · a substitution result is NOT re-evaluated (no nested substitution)
 
 If a reference is unresolved · the engine raises a `NIKA-VAR-001` (undefined
@@ -877,7 +933,7 @@ Reasons ·
 
 ## Forward-compat
 
-The `${{ ... }}` substitution surface and the <!-- canon:namespaces -->5<!-- /canon --> namespaces are locked at v1. **Template pipe-filters (`${{ inputs.x | json }}` · `| upper`) are NOT a growth path** (they would duplicate builtins + push CEL toward a string-DSL). Data transforms live in the `nika:jq` builtin; the `${{ }}` surface grows only with CEL-native features: the conditional `?:`, the `has()` presence macro, and the `contains`/`startsWith`/`endsWith` string tests ship in `cel-subset/0.1` ([03 §grammar](./03-dag.md)); `all`/`exists` and `matches()` regex stay reserved for a later additive minor. jq is the single extraction-and-transform language (`extract:` + `nika:jq`).
+The `${{ ... }}` substitution surface is locked at v1, and its <!-- canon:namespaces -->6<!-- /canon --> namespaces grow only by an explicit decision (`run`, the sixth, carries what a scheduled run is told: §`run` above). **Template pipe-filters (`${{ inputs.x | json }}` · `| upper`) are NOT a growth path** (they would duplicate builtins + push CEL toward a string-DSL). Data transforms live in the `nika:jq` builtin; the `${{ }}` surface grows only with CEL-native features: the conditional `?:`, the `has()` presence macro, and the `contains`/`startsWith`/`endsWith` string tests ship in `cel-subset/0.1` ([03 §grammar](./03-dag.md)); `all`/`exists` and `matches()` regex stay reserved for a later additive minor. jq is the single extraction-and-transform language (`extract:` + `nika:jq`).
 
 Out of scope for v0.1 (deferred · see [`08-out-of-scope.md`](./08-out-of-scope.md)) ·
 - Expression language (no arithmetic in templates)

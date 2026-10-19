@@ -74,6 +74,10 @@ pub struct TaskCost {
     pub usd: Option<f64>,
     /// Why `usd` is `None`, when it is.
     pub unbounded_reason: Option<UnboundedReason>,
+    /// Whether the model's route reasons beyond `max_tokens` and bills that reasoning as output
+    /// (the dated admission tariffs say so): `usd` then bounds the visible output only (live
+    /// gauntlet r04 B7, 2026-10-17: « ≤ $0.0123 » beside runs of $0.016 to $0.021).
+    pub reasoning_beyond: bool,
 }
 
 /// Why a task's cost could not be bounded.
@@ -265,6 +269,8 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
         if usd.is_none() {
             has_unbounded = true;
         }
+        let reasoning_beyond =
+            (model.as_deref()).is_some_and(nika_catalog::admission::reasons_beyond_bound);
         tasks.push(TaskCost {
             task: task.value.id.value.clone(),
             model,
@@ -275,6 +281,7 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
             min_path_usd,
             usd,
             unbounded_reason,
+            reasoning_beyond,
         });
     }
 

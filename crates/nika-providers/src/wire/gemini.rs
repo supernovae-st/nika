@@ -44,12 +44,59 @@ pub(crate) async fn infer_routed<H>(
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
-    let http_req = build_request(rp, &request, false)?;
+    infer_tracked(rp, request, &mut false, route, call).await
+}
+
+/// Single-shot inference that reports whether the request left, the path
+/// the OpenAI-compatible wire's `infer_tracked` follows under a bounded
+/// admission: reserve the qualified route, send once without redirects,
+/// and settle the reply's complete usage at its tariff.
+pub(crate) async fn infer_tracked<H>(
+    rp: &ResolvedProvider<H>,
+    request: InferRequest,
+    sent: &mut bool,
+    route: &mut Option<crate::retry::BillingRoute>,
+    call: &mut Option<nika_types::cost::InferenceCall>,
+) -> Result<InferResponse, ProviderError>
+where
+    H: HttpPostDyn + Send + Sync + 'static,
+{
+    let mut http_req = build_request(rp, &request, false)?;
+    let bytes = http_req.body.as_ref().map_or(0, Bytes::len);
     let http = rp.http.as_ref().ok_or_else(wiring_bug)?;
+    if let Some(account) = &rp.admission
+        && !http.supports_single_attempt()
+    {
+        return Err(account.refuse("HTTP effect has no single-attempt guarantee"));
+    }
+    let declared = rp
+        .admission
+        .as_ref()
+        .map(crate::admission::InferenceAdmission::declared_tariff)
+        .transpose()?
+        .flatten();
+    let mut attempt = super::admission::reserve(rp, &request, bytes)?;
+    if attempt.is_some() {
+        http_req.follow_redirects = false;
+        if let Some(account) = &rp.admission
+            && let Some(bound) = account.request_timeout()?
+        {
+            http_req.timeout = Some(
+                http_req
+                    .timeout
+                    .map_or(bound, |requested| requested.min(bound)),
+            );
+        }
+    }
+    if let Some(a) = &mut attempt {
+        a.sent()?;
+    }
+    *sent = true;
+    let target = endpoint(&rp.base_url, &rp.wire_model, false);
     let requested_endpoint = crate::retry::BillingRoute::new(
         rp.profile.id.into(),
         rp.wire_model.clone(),
-        endpoint(&rp.base_url, &rp.wire_model, false),
+        target.clone(),
     )
     .map(|r| r.endpoint);
     *call = Some(nika_types::cost::InferenceCall::new());
@@ -63,8 +110,18 @@ where
         rp.wire_model.clone(),
         resp.final_url.clone(),
     );
-    crate::retry::record(call, route.as_ref(), None, None);
+    crate::retry::record(call, route.as_ref(), None, declared.as_ref());
+    if let Some(account) = &rp.admission
+        && resp.final_url != target
+    {
+        return Err(account.refuse("transport endpoint changed; charge unknown"));
+    }
     if !(200..300).contains(&resp.status) {
+        // A 429/503 received from the unchanged endpoint is answered; every
+        // other status stays with the attempt's drop: Uncertain.
+        if let Some(a) = &mut attempt {
+            a.answered(resp.status, &resp.final_url);
+        }
         return Err(status_error(
             resp.status,
             &resp.body,
@@ -73,7 +130,17 @@ where
         ));
     }
     let response = parse_response(rp, &resp.body)?;
-    crate::retry::record(call, route.as_ref(), Some(&response), None);
+    crate::retry::record(call, route.as_ref(), Some(&response), declared.as_ref());
+    if let Some(a) = &mut attempt
+        && let Err(refused) = a.settle(&response)
+    {
+        // The account holds this charge as unknown: the dispatch keeps its
+        // usage evidence but never a price beside that uncertainty.
+        if let Some(c) = call {
+            c.estimated_usd = None;
+        }
+        return Err(refused);
+    }
     Ok(response)
 }
 
@@ -402,7 +469,12 @@ fn parse_response(
     rp: &ResolvedProvider<impl Sized>,
     body: &[u8],
 ) -> Result<InferResponse, ProviderError> {
-    let v: Value = serde_json::from_slice(body).map_err(|e| ProviderError::Other {
+    let parsed = if rp.admission.is_some() {
+        super::bounded_json::parse(body)
+    } else {
+        serde_json::from_slice(body)
+    };
+    let v: Value = parsed.map_err(|e| ProviderError::Other {
         reason: format!("gemini response is not JSON: {e}"),
     })?;
 
@@ -430,6 +502,10 @@ fn parse_response(
             && (u.pointer("/promptTokenCount").is_some()
                 || u.pointer("/candidatesTokenCount").is_some())
     });
+    // Complete priced meters are the admission law's, beside the reported ones.
+    if super::admission::complete_usage(rp.profile.id, &v) {
+        resp.usage_completeness = nika_kernel::ai::provider::UsageCompleteness::Complete;
+    }
     resp.request_id = v
         .pointer("/responseId")
         .and_then(Value::as_str)

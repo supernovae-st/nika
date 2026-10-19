@@ -27,10 +27,12 @@ mod unit {
             markers: BTreeMap::new(),
             secret_values: Vec::new(),
             default_model: None,
+            run: None,
             skills: BTreeMap::new(),
             child_closures: BTreeMap::new(),
             access_pin: None,
             lane_access: BTreeMap::new(),
+            groups: BTreeMap::new(),
         }
     }
 
@@ -530,6 +532,61 @@ mod unit {
         );
     }
 
+    /// A fan-out whose collection reads its own item-free `with:` binding
+    /// (`for_each: "${{ with.rows }}"`) is stamped as the runtime resolves
+    /// it, over the boundary `with:`; a changed item set re-keys the fan.
+    #[test]
+    fn a_fan_out_over_its_own_with_binding_is_stamped() {
+        const FAN: &str = "nika: t\nconst:\n  rows: [\"a\", \"b\"]\ntasks:\n  fan:\n    with: { rows: \"${{ const.rows }}\" }\n    for_each: { items: \"${{ with.rows }}\" }\n    exec: { command: [\"echo\", \"${{ item }}\"] }\n";
+        let records = BTreeMap::new();
+        let ab = BTreeMap::from([("rows".to_owned(), json!(["a", "b"]))]);
+        let ac = BTreeMap::from([("rows".to_owned(), json!(["a", "c"]))]);
+        let a = stamp_const_of(FAN, &records, &ab).expect("a with-bound collection is eligible");
+        let again =
+            stamp_const_of(FAN, &records, &ab).expect("a with-bound collection is eligible");
+        let c = stamp_const_of(FAN, &records, &ac).expect("a with-bound collection is eligible");
+        assert_eq!(a, again, "same collection, same stamp");
+        assert_ne!(a.input_hash, c.input_hash, "the item set is an input");
+    }
+
+    /// A `with:` fold over a declared group is stamped over the membership the
+    /// runtime binds: a member's output re-keys it, its clock readings never
+    /// do (a member served back by the journal measured no duration).
+    #[test]
+    fn a_group_fold_is_stamped_over_its_members_without_their_clocks() {
+        const FOLD: &str = "nika: t\npermits: { exec: [\"echo\"] }\ntasks:\n  leg_b:\n    group: probes\n    exec: { command: [\"echo\", \"b\"] }\n  leg_a:\n    group: probes\n    exec: { command: [\"echo\", \"a\"] }\n  summary:\n    with: { legs: \"${{ group.probes }}\" }\n    exec: { command: [\"echo\", \"${{ with.legs }}\"] }\n";
+        let wf = parse(FOLD);
+        let ctx = ResumeContext::of(
+            &wf,
+            &BTreeMap::new(),
+            None,
+            &BTreeMap::new(),
+            &BTreeMap::new(),
+            None,
+            &BTreeMap::new(),
+        );
+        let legs = |a: &str, duration_ms: Option<u64>| {
+            let mut leg_a = success_record(json!(a));
+            leg_a.duration_ms = duration_ms;
+            BTreeMap::from([
+                ("leg_a".to_owned(), leg_a),
+                ("leg_b".to_owned(), success_record(json!("b"))),
+            ])
+        };
+        let none = BTreeMap::new();
+        let fold = |records: &BTreeMap<String, TaskRecord>| {
+            stamp(&wf.tasks[2].value, records, &none, &none, &ctx)
+        };
+        let ran = fold(&legs("a", Some(1_200))).expect("a group fold is eligible");
+        let served = fold(&legs("a", None)).expect("a group fold is eligible");
+        let changed = fold(&legs("z", Some(1_200))).expect("a group fold is eligible");
+        assert_eq!(ran, served, "a member's duration is no input");
+        assert_ne!(
+            ran.input_hash, changed.input_hash,
+            "a member's output is an input"
+        );
+    }
+
     /// The recipe version participates: a bumped `KEY_VERSION` re-keys
     /// everything (old traces re-run · honest · never a wrong match).
     #[test]
@@ -1011,6 +1068,74 @@ mod trace_carry {
         assert!(kinds.contains(&EventKind::TaskCacheHit));
         assert!(!kinds.contains(&EventKind::TaskStarted));
         assert_eq!(resumed.records["fan"].output, first.records["fan"].output);
+    }
+
+    /// The plan a real `--resume` builds from a journal: every success it
+    /// stamped, with its output.
+    fn plan_of(sink: &VecSink) -> crate::resume::ResumePlan {
+        sink.events()
+            .iter()
+            .filter(|e| e.kind == EventKind::TaskCompleted)
+            .filter_map(|e| {
+                let output = str_field(e, crate::resume::fields::OUTPUT)?;
+                let prior = crate::resume::PriorSuccess::new(
+                    str_field(e, crate::resume::fields::DEF_HASH)?.to_owned(),
+                    str_field(e, crate::resume::fields::INPUT_HASH)?.to_owned(),
+                    serde_json::from_str(output).ok()?,
+                );
+                Some((str_field(e, "task")?.to_owned(), prior))
+            })
+            .collect()
+    }
+
+    /// A fan-out whose collection reads its own `with:` binding is served back
+    /// by the journal on `--resume` (live gauntlet, 2026-10-16: unstamped, it
+    /// ran again on every resume, and the content a gate had approved changed
+    /// under the approval, so every answer was refused NIKA-SEC-010).
+    #[tokio::test]
+    async fn a_fan_out_over_its_own_with_binding_resumes_from_the_journal() {
+        const FAN: &str = "nika: fan\nconst:\n  rows: [a, b]\npermits: { exec: [\"echo\"] }\ntasks:\n  fan:\n    with: { rows: \"${{ const.rows }}\" }\n    for_each: { items: \"${{ with.rows }}\" }\n    exec: { command: [\"echo\", \"${{ item }}\"] }\n  after:\n    with: { prev: \"${{ tasks.fan.output }}\" }\n    exec: { command: [\"echo\", \"done\"] }\n";
+        let shell = MockShell::new()
+            .enqueue_ok("a\n")
+            .enqueue_ok("b\n")
+            .enqueue_ok("done\n");
+        let (first, sink) = run_yaml(FAN, shell, None).await;
+        assert!(first.ok, "fresh fan run");
+        let plan = plan_of(&sink);
+        assert!(plan.contains_key("fan"), "the with-bound fan is stamped");
+        let (resumed, _) = run_yaml(FAN, MockShell::new(), Some(plan)).await;
+        assert!(resumed.ok);
+        assert_eq!(
+            resumed.cache_hits,
+            vec!["fan".to_owned(), "after".to_owned()]
+        );
+        assert_eq!(resumed.records["fan"].output, first.records["fan"].output);
+    }
+
+    /// A group fold is served back after its members were: the members the
+    /// journal serves measure no duration, and the fold still matches.
+    #[tokio::test]
+    async fn a_group_fold_resumes_from_the_journal_after_its_members() {
+        const FOLD: &str = "nika: fold\npermits: { exec: [\"echo\"] }\ntasks:\n  leg_b:\n    group: probes\n    exec: { command: [\"echo\", \"x\"] }\n  leg_a:\n    group: probes\n    exec: { command: [\"echo\", \"x\"] }\n  summary:\n    with: { legs: \"${{ group.probes }}\" }\n    exec: { command: [\"echo\", \"${{ with.legs }}\"] }\n";
+        let shell = MockShell::new()
+            .enqueue_ok("x\n")
+            .enqueue_ok("x\n")
+            .enqueue_ok("sum\n");
+        let (first, sink) = run_yaml(FOLD, shell, None).await;
+        assert!(first.ok, "fresh fold run");
+        let plan = plan_of(&sink);
+        assert!(plan.contains_key("summary"), "the fold is stamped");
+        let (resumed, _) = run_yaml(FOLD, MockShell::new(), Some(plan)).await;
+        assert!(resumed.ok);
+        assert!(
+            resumed.cache_hits.contains(&"summary".to_owned()),
+            "the fold reuses its journaled output · hits {:?}",
+            resumed.cache_hits
+        );
+        assert_eq!(
+            resumed.records["summary"].output,
+            first.records["summary"].output
+        );
     }
 
     /// `referenced_upstreams` sees BOTH edge kinds — the boundary

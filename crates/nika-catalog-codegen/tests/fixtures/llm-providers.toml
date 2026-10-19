@@ -13,7 +13,7 @@
 #   * context_window_tokens + max_output_tokens are REQUIRED (no silent default)
 #   * tags must be sorted alphabetically (kebab-case) and deduplicated
 
-schema = "nika/llm-providers@1.1"
+schema = "nika/llm-providers@1.2"
 
 [[providers]]
 id = "anthropic"

@@ -18,7 +18,7 @@
 //! at the L4 CLI) and injects them via [`ProvidersConfig::with_key`]. The
 //! profile env ladder is *data* used for error hints + `nika doctor`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use nika_kernel::ai::provider::{
@@ -39,6 +39,8 @@ use crate::wire;
 pub struct ProvidersConfig {
     base_urls: BTreeMap<String, String>,
     keys: BTreeMap<String, Secret>,
+    /// Providers whose two key variables hold different values (ids only, never a value).
+    key_conflicts: BTreeSet<String>,
 }
 
 impl ProvidersConfig {
@@ -66,6 +68,22 @@ impl ProvidersConfig {
     pub fn with_key(mut self, provider: impl Into<String>, key: Secret) -> Self {
         self.keys.insert(provider.into(), key);
         self
+    }
+
+    /// Record that `provider`'s two key variables (`NIKA_<ID>_API_KEY` and the conventional one)
+    /// are both set with different values: the key injected is the first's. The composition
+    /// root compares the values in memory at its env boundary; only this flag is kept.
+    #[must_use]
+    pub fn with_key_conflict(mut self, provider: impl Into<String>) -> Self {
+        self.key_conflicts.insert(provider.into());
+        self
+    }
+
+    /// Whether `provider`'s two key variables hold different values ([`Self::with_key_conflict`]).
+    #[must_use]
+    pub fn key_conflict(&self, provider: &str) -> bool {
+        self.key_conflicts
+            .contains(crate::profile::canonical_provider(provider))
     }
 
     /// Check the model law using only this configuration's injected endpoint
@@ -173,6 +191,44 @@ impl<H> ProviderRegistry<H> {
         Some((format!("{root}/models"), key))
     }
 
+    /// The free key check of an Anthropic route ([`crate::key_check::check_key`]): its model
+    /// list on the base a run would hit (`…/messages` → `…/models`) and the configured key.
+    /// `None` when the route has another wire (an OpenAI-compatible listing may answer without
+    /// a key, so it proves none), no key configured, or an endpoint without that suffix.
+    pub(crate) fn key_check_target(
+        &self,
+        provider: &str,
+    ) -> Option<(String, Secret, crate::key_check::KeyAuth)> {
+        use crate::key_check::KeyAuth;
+        let id = crate::profile::canonical_provider(provider);
+        let profile = self.profiles.iter().find(|p| p.id == id)?;
+        let key = self.config.keys.get(profile.id)?.clone();
+        let base = self.effective_base_url(profile.id)?;
+        if profile.wire == WireFormat::Anthropic {
+            let root = base.strip_suffix("/messages")?;
+            return Some((format!("{root}/models"), key, KeyAuth::Anthropic));
+        }
+        // Another provider is judged only on its own endpoint, whose listing authenticates the
+        // key: an operator's base URL may be a proxy that lists to anyone.
+        if base != profile.base_url {
+            return None;
+        }
+        let target = match profile.id {
+            "openai" | "xai" | "deepseek" | "mistral" | "groq" => {
+                let root = base.strip_suffix("/chat/completions")?;
+                (format!("{root}/models"), KeyAuth::Bearer)
+            }
+            // `OpenRouter` lists its models to anyone: its key endpoint judges the key.
+            "openrouter" => (
+                "https://openrouter.ai/api/v1/key".to_owned(),
+                KeyAuth::Bearer,
+            ),
+            "gemini" => (format!("{base}/models"), KeyAuth::Goog),
+            _ => return None,
+        };
+        Some((target.0, key, target.1))
+    }
+
     /// The base URL a run against this provider would ACTUALLY hit —
     /// the operator's `with_base_url` override when present, else the
     /// profile seed. Diagnostic surfaces (doctor `--ping`) must probe
@@ -238,6 +294,13 @@ where
         &self.profiles
     }
 
+    /// Whether `provider`'s two key variables hold different values
+    /// ([`ProvidersConfig::key_conflict`]).
+    #[must_use]
+    pub fn key_conflict(&self, provider: &str) -> bool {
+        self.config.key_conflict(provider)
+    }
+
     /// Resolve a `provider/name` model string into a ready-to-call
     /// provider. All pre-wire diagnostics happen here (fail fast).
     ///
@@ -283,16 +346,8 @@ where
 
         let key = self.config.keys.get(profile.id).cloned();
         if profile.requires_key && key.is_none() {
-            let ladder = profile.env_candidates();
-            // Operator voice only — the embedder's road (`ProvidersConfig::
-            // with_key`) lives in rustdoc, never in a rendered error.
             return Err(ProviderError::AuthFailed {
-                reason: format!(
-                    "no API key for '{}' · set one of [{}] (e.g. `export {}=…`)",
-                    profile.id,
-                    ladder.join(", "),
-                    ladder.last().map_or("", String::as_str),
-                ),
+                reason: missing_key(profile),
             });
         }
 
@@ -363,6 +418,38 @@ where
     }
 }
 
+/// The missing-key reason: the Nika-scoped `NIKA_<ID>_API_KEY` first, a variable no other tool
+/// reads (exporting the conventional one can switch another application, such as Claude Code
+/// with `ANTHROPIC_API_KEY`, to that key and its billing), then the conventional variable Nika
+/// also reads. Operator voice only — the embedder's road (`ProvidersConfig::with_key`) lives in
+/// rustdoc, never in a rendered error.
+fn missing_key(profile: &Profile) -> String {
+    let ladder = profile.env_candidates();
+    let Some((ours, others)) = ladder.split_first() else {
+        return format!("no API key for '{}'", profile.id);
+    };
+    let also = if others.is_empty() {
+        String::new()
+    } else {
+        format!("; {} also works", others.join(", "))
+    };
+    format!(
+        "no API key for '{}' · set {ours}, read by Nika alone{also} (e.g. `export {ours}=…`)",
+        profile.id
+    )
+}
+
+/// Why a qualified route whose wire has no bounded settlement is refused.
+pub(crate) const UNSETTLED_WIRE: &str = "this provider's wire has no bounded admission settlement on this build (OpenAI-compatible, Anthropic and Gemini text only): nothing was sent";
+
+/// Whether the bounded admission reserves, sends and settles one request on `wire`.
+pub(crate) fn settles_bounded(wire: WireFormat) -> bool {
+    matches!(
+        wire,
+        WireFormat::OpenAiCompat | WireFormat::Anthropic | WireFormat::Gemini
+    )
+}
+
 /// One resolved provider — implements the kernel provider traits.
 ///
 /// Fully owned (no registry borrow): streams returned by
@@ -428,9 +515,18 @@ where
         request: InferRequest,
     ) -> Result<(InferResponse, TransportReport), (ProviderError, Box<TransportReport>)> {
         let mut report = TransportReport::new();
+        // A request over the window is told apart by the route's known window
+        // and the engine's own estimate, never by the provider's words.
+        let window = crate::overflow::route_window(self.profile.id, &self.wire_model);
+        let estimate = window.map_or(0, |_| crate::overflow::estimate_input_tokens(&request));
         if let Some(a) = &self.admission {
             if let Err(error) = a.check_route(self.profile.id, &self.wire_model, &self.base_url) {
                 return Err((a.refuse(&error.to_string()), Box::new(report)));
+            }
+            // A qualified route on a wire without a bounded settlement is refused before any
+            // byte, never sent in another wire's shape.
+            if !settles_bounded(self.profile.wire) {
+                return Err((a.refuse(UNSETTLED_WIRE), Box::new(report)));
             }
             let mut sent = false;
             let mut call = None;
@@ -438,10 +534,22 @@ where
             // Keep this alternate wire future boxed as well: even a mock call
             // carries the largest branch in the async state machine.
             let entry = crate::dispatch_journal::open();
-            let result = Box::pin(wire::openai_compat::infer_tracked(
-                self, request, &mut sent, &mut route, &mut call,
-            ))
-            .await;
+            let result = if self.profile.wire == WireFormat::Anthropic {
+                Box::pin(wire::anthropic::infer_tracked(
+                    self, request, &mut sent, &mut route, &mut call,
+                ))
+                .await
+            } else if self.profile.wire == WireFormat::Gemini {
+                Box::pin(wire::gemini::infer_tracked(
+                    self, request, &mut sent, &mut route, &mut call,
+                ))
+                .await
+            } else {
+                Box::pin(wire::openai_compat::infer_tracked(
+                    self, request, &mut sent, &mut route, &mut call,
+                ))
+                .await
+            };
             if let Some(entry) = entry {
                 entry.settle(call.as_ref(), result.is_ok());
             }
@@ -449,10 +557,14 @@ where
             report.attempts = u32::from(sent);
             return result
                 .map(|mut r| {
+                    crate::overflow::mark_silent_overflow(&mut r, window);
                     r.inference_calls.clone_from(&report.inference_calls);
                     (r, report.clone())
                 })
-                .map_err(|e| (e, Box::new(report)));
+                .map_err(|e| {
+                    let e = crate::overflow::classified(e, estimate, window);
+                    (e, Box::new(report))
+                });
         }
         let mut call = None;
         let mut route = None;
@@ -467,10 +579,14 @@ where
         report.record(call);
         match result {
             Ok(mut response) => {
+                crate::overflow::mark_silent_overflow(&mut response, window);
                 response.inference_calls.clone_from(&report.inference_calls);
                 Ok((response, report))
             }
-            Err(err) => Err((err, Box::new(report))),
+            Err(err) => Err((
+                crate::overflow::classified(err, estimate, window),
+                Box::new(report),
+            )),
         }
     }
 
@@ -681,6 +797,18 @@ mod tests {
         assert!(msg.contains("NIKA_ANTHROPIC_API_KEY"), "{msg}");
         assert!(msg.contains("ANTHROPIC_API_KEY"), "{msg}");
         assert!(msg.contains("export "), "actionable fix: {msg}");
+        // NIK-153: the Nika-scoped variable is the one recommended; exporting the conventional
+        // one would hand the key (and its billing) to another application reading it.
+        let reason = match &err {
+            ProviderError::AuthFailed { reason } => reason.as_str(),
+            _ => "",
+        };
+        assert_eq!(
+            reason,
+            "no API key for 'anthropic' · set NIKA_ANTHROPIC_API_KEY, read by Nika alone; \
+             ANTHROPIC_API_KEY also works (e.g. `export NIKA_ANTHROPIC_API_KEY=…`)"
+        );
+        assert!(!reason.contains("export ANTHROPIC_API_KEY"), "{reason}");
     }
 
     #[test]

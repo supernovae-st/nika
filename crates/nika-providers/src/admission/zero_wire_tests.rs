@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-const MODEL: &str = "qwen/qwen3.8-27b:free";
+const MODEL: &str = "nvidia/nemotron-3-super-120b-a12b:free";
 const ENDPOINT: &str = "https://openrouter.ai/api/v1/chat/completions";
 
 struct ZeroHttp {
@@ -125,7 +125,6 @@ async fn exact_zero_is_sent_and_settled_but_contradictions_never_become_free() {
         "missing-model",
         "other-model",
         "missing-cost",
-        "positive-cost",
         "byok",
         "extra-axis",
         "bad-total",
@@ -183,6 +182,7 @@ async fn exact_zero_is_sent_and_settled_but_contradictions_never_become_free() {
         ) {
             assert!(result.is_ok(), "{result:?}");
             assert_eq!(receipt.attempts[0].estimated, Some(Cost::zero()));
+            assert_eq!(receipt.attempts[0].reported_estimate, Some(Cost::zero()));
             assert_eq!(receipt.unknown_calls, 0);
             assert!(
                 receipt.attempts[0]
@@ -208,6 +208,72 @@ async fn exact_zero_is_sent_and_settled_but_contradictions_never_become_free() {
             );
         }
     }
+}
+
+/// A reported charge above its reservation (here a positive
+/// charge on the declared-free tariff) is the person's real bill. It settles
+/// KNOWN and the billed answer is delivered; that exact route then refuses its
+/// next admission before transport, naming the stale tariff. The account stays
+/// Open, never Uncertain.
+#[tokio::test]
+async fn a_charge_above_the_reservation_settles_known_and_refuses_the_route_next() {
+    const STALE: &str = "the catalogue tariff is below the provider's charge; refresh it";
+    let transport = Arc::new(ZeroHttp {
+        calls: AtomicUsize::new(0),
+        body: with_defect("positive-cost"),
+    });
+    let account = InferenceAdmission::observe_declared_free()
+        .for_scope("candidate", "invocation")
+        .expect("host binding preserves route scope");
+    let model = format!("openrouter/{MODEL}");
+    let provider = ProviderRegistry::new(
+        transport.clone(),
+        ProvidersConfig::new().with_key("openrouter", Secret::new("fixture")),
+    )
+    .with_inference_admission(account.clone())
+    .resolve(&model)
+    .expect("resolve");
+    let mut request = InferRequest::new(&model, vec![Message::text(Role::User, "ready?")]);
+    request.max_tokens = Some(512);
+    let (response, report) = provider
+        .infer_reported(request.clone())
+        .await
+        .expect("the billed answer is delivered");
+    assert_eq!(response.cost, Some(Cost::new(10_000_000)));
+    let [call] = report.inference_calls.as_slice() else {
+        panic!("one dispatch observation: {report:?}");
+    };
+    assert_eq!(call.known_estimate(), Some(Cost::new(10_000_000)));
+    let receipt = account.snapshot().expect("receipt");
+    assert_eq!(receipt.state, AdmissionState::Open);
+    assert_eq!(receipt.unknown_calls, 0);
+    assert_eq!(receipt.estimated, Cost::new(10_000_000));
+    assert_eq!(receipt.attempts[0].estimated, Some(Cost::new(10_000_000)));
+    assert_eq!(receipt.attempts[0].reported_estimate, Some(Cost::zero()));
+    assert!(
+        receipt.attempts[0].note.contains(STALE),
+        "{}",
+        receipt.attempts[0].note
+    );
+    assert_eq!(receipt.refusal, None, "the delivered answer is no refusal");
+    let refused = provider
+        .infer(request)
+        .await
+        .expect_err("the route refuses its next admission");
+    assert!(refused.to_string().contains(STALE), "{refused}");
+    assert_eq!(
+        transport.calls.load(Ordering::SeqCst),
+        1,
+        "refused before transport"
+    );
+    let after = account.snapshot().expect("receipt");
+    assert_eq!(after.state, AdmissionState::Open, "never Uncertain");
+    assert_eq!(after.attempts.len(), 1, "the refusal reserved nothing");
+    assert!(
+        after.refusal.as_deref().is_some_and(|r| r.contains(STALE)),
+        "{:?}",
+        after.refusal
+    );
 }
 
 /// E13 F2: usage above the requested output bound or the tariff's context is

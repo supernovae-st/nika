@@ -550,3 +550,38 @@ fn a_rendered_model_is_bound_by_an_operator_pin() {
     assert_eq!((lane.access.as_str(), lane.pinned), ("deepseek", true));
     assert!(lane.requirement.is_none(), "no declaration, no requirement");
 }
+
+/// NIK-157: a declared effort a Claude 5 model documents is admitted on its API lane, under the
+/// wire id or the nickname naming it; an earlier Claude model, whose catalog lists no level,
+/// still refuses before task 1 with an explicit, non-empty reason naming the field and the model.
+#[test]
+fn a_claude_5_lane_carries_a_documented_effort() {
+    let probes = vec![api_probe("anthropic", true)];
+    for (model, effort) in [
+        ("anthropic/claude-sonnet-5-5", "high"),
+        ("anthropic/sonnet", "low"),
+        ("anthropic/claude-opus-5-5", "max"),
+    ] {
+        let req = AccessRequirement::new().with_effort(Some(effort.into()));
+        let plan = plan(&[infer(model)], &probes, None, &req);
+        assert!(plan.is_admitted(), "{model}: {:?}", plan.pin_refusal);
+        assert_eq!(
+            plan.lane(model).expect("admitted").plan.chosen,
+            AccessClass::Api
+        );
+    }
+    let req = AccessRequirement::new().with_effort(Some("high".into()));
+    let (code, message) = refusal(&plan(
+        &[infer("anthropic/claude-sonnet-4-6")],
+        &probes,
+        None,
+        &req,
+    ));
+    assert_eq!(code, "1800");
+    assert!(
+        message.contains("run.reasoning.effort: high")
+            && message.contains("anthropic/claude-sonnet-4-6")
+            && message.contains("no effort level"),
+        "{message}"
+    );
+}

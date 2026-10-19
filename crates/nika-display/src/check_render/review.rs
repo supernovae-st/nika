@@ -10,6 +10,9 @@
 use nika_schema::raw::{RawAction, RawInvokeTarget};
 use nika_schema::{FileId, ParseMode};
 
+mod effect_fr;
+pub use effect_fr::effect_row_fr;
+
 /// What one task does, in the review's words: the verb and the tool or
 /// model it names (`default_model` stands in for an `infer` without its
 /// own). From the parser, never from prose.
@@ -28,6 +31,11 @@ pub fn task_face(task: &nika_schema::raw::RawTask, default_model: Option<&str>) 
         RawAction::Exec(_) => "exec · runs a program".to_owned(),
         RawAction::Agent(_) => "agent · a bounded multi-turn loop".to_owned(),
         RawAction::Invoke(invoke) => match &invoke.target {
+            // A fetch that posts, puts, patches or deletes sends to the web: what a yes lets
+            // happen is never « fetches » (live gauntlet r04 B6: a POST to httpbin read so).
+            RawInvokeTarget::Tool(tool) if tool.value == "nika:fetch" && sends(invoke) => {
+                "sends to the web".to_owned()
+            }
             RawInvokeTarget::Tool(tool) => builtin_face(&tool.value),
             RawInvokeTarget::Workflow(_) => "invoke · another workflow".to_owned(),
         },
@@ -39,6 +47,19 @@ pub fn task_face(task: &nika_schema::raw::RawTask, default_model: Option<&str>) 
         ""
     };
     format!("{what}{each}")
+}
+
+/// Whether a fetch's literal method sends rather than reads (`POST`, `PUT`, `PATCH`, `DELETE`).
+fn sends(invoke: &nika_schema::raw::RawInvokeAction) -> bool {
+    (invoke.args.as_ref())
+        .and_then(|args| args.value.get("method"))
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|method| {
+            matches!(
+                method.to_ascii_uppercase().as_str(),
+                "POST" | "PUT" | "PATCH" | "DELETE"
+            )
+        })
 }
 
 /// A builtin's face in the review's words: what it does, never its id —
@@ -217,13 +238,29 @@ pub fn finding_rows(report: &nika_check::CheckReport) -> (Vec<String>, Vec<Strin
 pub fn effect_rows(report: &nika_check::CheckReport) -> Vec<String> {
     let mut rows = Vec::new();
     let needed = &report.permits.needed;
-    if let Some(fs) = &needed.fs {
+    // A path the workflow computes leaves `needed` a floor: the grant in force is then what the
+    // run may read and write, and the card says that, never the floor as the whole boundary
+    // (live gauntlet r05 B3: « writes ./journal.md » for a run that also wrote ./traites/** and
+    // removed ./inbox/*).
+    let declared = (report.permits.declared.as_ref()).and_then(|declared| declared.fs.as_ref());
+    let fs = match (report.permits.partial.fs, declared) {
+        (true, Some(declared)) => Some(declared),
+        _ => needed.fs.as_ref(),
+    };
+    if let Some(fs) = fs {
         if !fs.read.is_empty() {
             rows.push(format!("reads {}", fs.read.join(" · ")));
         }
         if !fs.write.is_empty() {
             rows.push(format!("writes {}", fs.write.join(" · ")));
         }
+    }
+    let uses = |tool: &str| (needed.tools.iter().flatten()).any(|t| t == tool);
+    if uses("nika:remove_file") {
+        rows.push(match fs.filter(|fs| !fs.write.is_empty()) {
+            Some(fs) => format!("removes files · within {}", fs.write.join(" · ")),
+            None => "removes files".to_owned(),
+        });
     }
     if let Some(net) = &needed.net
         && !net.http.is_empty()
@@ -294,10 +331,37 @@ fn spend_rows(cost: &nika_check::CostCeiling) -> Vec<String> {
         ));
     }
     if unbounded > 0 {
-        rows.push(
-            "model output estimate · unbounded: a token or iteration bound is missing; Run admission is separate"
-                .to_owned(),
-        );
+        // Name the bound that is missing (live gauntlet r07, 2026-10-16: « a token or iteration
+        // bound is missing » beside `max_tokens: 4096`, when only the number of sources fanned
+        // over was unknown).
+        let reason = |wanted: nika_check::UnboundedReason| {
+            (cost.tasks.iter())
+                .filter(|t| t.usd.is_none() && t.unbounded_reason == Some(wanted))
+                .map(|t| format!("`{}`", t.task))
+                .collect::<Vec<_>>()
+        };
+        let tokens = reason(nika_check::UnboundedReason::NoTokenLimit);
+        let items = reason(nika_check::UnboundedReason::UnknownIterations);
+        let mut why = Vec::new();
+        if !tokens.is_empty() {
+            why.push(format!("{} declare(s) no `max_tokens`", tokens.join(", ")));
+        }
+        if !items.is_empty() {
+            why.push(format!(
+                "{} run(s) once per item of a list known only when the workflow runs",
+                items.join(", ")
+            ));
+        }
+        if cost.composed.iter().any(|c| c.has_unbounded) {
+            why.push("a composed workflow has an unbounded step".to_owned());
+        }
+        if why.is_empty() {
+            why.push("a token or iteration bound is missing".to_owned());
+        }
+        rows.push(format!(
+            "model output estimate · unbounded: {}; Run admission is separate",
+            why.join(" · ")
+        ));
     }
     if no_price == 0 && unbounded == 0 {
         let all_mock = cost.composed.is_empty()
@@ -315,7 +379,24 @@ fn spend_rows(cost: &nika_check::CostCeiling) -> Vec<String> {
             )
         });
     }
+    rows.extend(beyond_row(cost));
     rows
+}
+
+/// The tasks whose route bills reasoning beyond `max_tokens`, named with their model: the
+/// estimate bounds their visible output only (live gauntlet r04 B7, 2026-10-17: « ≤ $0.0123 »
+/// beside runs of $0.016 to $0.021).
+fn beyond_row(cost: &nika_check::CostCeiling) -> Option<String> {
+    let named: Vec<String> = (cost.tasks.iter())
+        .filter(|task| task.reasoning_beyond)
+        .map(|task| format!("`{}` ({})", task.task, task.model.as_deref().unwrap_or("?")))
+        .collect();
+    (!named.is_empty()).then(|| {
+        format!(
+            "reasoning beyond `max_tokens` · {} · billed as output, outside the estimate above; a Run's ceiling still bounds it",
+            named.join(", ")
+        )
+    })
 }
 
 #[cfg(test)]

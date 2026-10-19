@@ -27,6 +27,7 @@ mod route_identity_trace;
 mod seated_receipt;
 mod tool_warning;
 mod transport_receipt;
+mod unread_ready_spend;
 mod usage_split;
 
 /// The F-O1 integrity label for the pre-existing frame tests below —

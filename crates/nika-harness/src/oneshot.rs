@@ -34,8 +34,10 @@ const MAX_PROBE_BYTES: usize = 64 * 1024;
 /// Which one-shot CLI a seat runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Cli {
-    /// `claude -p` (2.1.280 measured): `--tools ""` disables every tool, `--json-schema`
-    /// returns `structured_output`, `modelUsage` names the responder.
+    /// `claude -p` (2.1.280 measured): `--tools ""` empties the built-in tools,
+    /// `--strict-mcp-config` and an empty `--setting-sources` leave no MCP server, hook,
+    /// plugin or CLAUDE.md of the person's own setup, `--json-schema` returns
+    /// `structured_output`, `modelUsage` names the responder.
     Claude,
     /// `grok -p` (1.0.40 measured): `--tools ""`, `--json-schema` → `structuredOutput`,
     /// `modelUsage` names the responder, `num_turns` counts.
@@ -108,7 +110,7 @@ impl Cli {
                 no_implicit_tools: true,
                 structured_output: StructuredOutputGrade::JsonSchema,
                 model_identity_observable: true,
-                proof: "scripted fake claude · `-p --max-turns 1` · `--tools \"\"` and an empty permission_denials · `--json-schema` structured_output · usage object · modelUsage names the responder · spawn-time --version identity",
+                proof: "scripted fake claude · `-p --max-turns 1` · `--tools \"\"`, `--strict-mcp-config`, `--setting-sources \"\"` and an empty permission_denials · `--json-schema` structured_output · usage object · modelUsage names the responder · spawn-time --version identity",
             },
             Self::Grok => InferGradeAttestation {
                 single_turn: true,
@@ -230,6 +232,14 @@ impl OneShotExec {
                     "--max-turns",
                     "1",
                     "--no-session-persistence",
+                    // `--tools ""` empties only the built-in set: without these two, the
+                    // person's MCP servers, hooks, plugins and CLAUDE.md still load (2.1.283
+                    // measured: 180 MCP tools and ~115k input tokens for « Say OK », and an
+                    // authoring call that ran a web-search MCP tool, then stopped at its
+                    // turn limit). The isolation the ACP completion profile already has.
+                    "--strict-mcp-config",
+                    "--setting-sources",
+                    "",
                 ] {
                     args.push(a.into());
                 }
@@ -458,6 +468,65 @@ fn single_model(usage: Option<&Value>) -> Option<String> {
         .flatten()
 }
 
+/// The longest `errors` text an error witness carries.
+const MAX_ERRORS_CHARS: usize = 400;
+
+/// The words of a `claude -p` error answer. Its `result` is the message when there is one; a
+/// run that stopped before answering ends with an empty `result`, and is said by its
+/// `subtype`, `terminal_reason`, `errors` and turn count — never as an empty « answered an
+/// error: », the card a person saw with nothing to act on.
+fn claude_error(answer: &Value, result: &str) -> String {
+    let said = result.trim();
+    if !said.is_empty() {
+        return format!("claude answered an error: {said}");
+    }
+    let field = |key: &str| {
+        answer
+            .get(key)
+            .and_then(Value::as_str)
+            .filter(|text| !text.is_empty() && !matches!(*text, "success" | "completed"))
+    };
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(subtype) = field("subtype") {
+        parts.push(match subtype {
+            // The one failure the structured-output docs name: the answer kept missing
+            // the requested JSON shape until the CLI stopped retrying.
+            "error_max_structured_output_retries" => format!(
+                "{subtype} (its answer did not fit the requested format after its own retries)"
+            ),
+            "error_max_turns" => format!("{subtype} (it stopped at its turn limit)"),
+            other => other.to_owned(),
+        });
+    }
+    if let Some(reason) = field("terminal_reason") {
+        parts.push(format!("terminal reason {reason}"));
+    }
+    let errors: Vec<String> = (answer.get("errors").and_then(Value::as_array))
+        .into_iter()
+        .flatten()
+        .filter(|error| !error.is_null())
+        .map(|error| {
+            error
+                .as_str()
+                .map_or_else(|| error.to_string(), str::to_owned)
+        })
+        .collect();
+    if !errors.is_empty() {
+        parts.push(errors.join(" · ").chars().take(MAX_ERRORS_CHARS).collect());
+    }
+    if let Some(turns) = answer.get("num_turns").and_then(Value::as_u64) {
+        parts.push(format!("after {turns} turn(s)"));
+    }
+    if parts.is_empty() {
+        "claude answered an error without any message, subtype or error list".to_owned()
+    } else {
+        format!(
+            "claude answered an error without a message · {}",
+            parts.join(" · ")
+        )
+    }
+}
+
 /// `claude -p --output-format json`: one `result` object (measured 2.1.280).
 fn read_claude(bytes: &[u8], with_schema: bool) -> Result<Read, InferGradeError> {
     let seat = Cli::Claude.seat();
@@ -472,7 +541,7 @@ fn read_claude(bytes: &[u8], with_schema: bool) -> Result<Read, InferGradeError>
     if v.get("is_error").and_then(Value::as_bool) == Some(true) {
         return Err(InferGradeError::Execution {
             seat,
-            detail: format!("claude answered an error: {result}"),
+            detail: claude_error(&v, result),
         });
     }
     if let Some(denials) = v.get("permission_denials").and_then(Value::as_array)
@@ -713,6 +782,37 @@ mod tests {
         assert!(err.to_string().contains("Not logged in"), "{err}");
     }
 
+    /// A run that stops before answering (exit 1, empty `result`) is said by its subtype,
+    /// reason, errors and turns — the empty « claude answered an error: » a person once saw
+    /// on the authoring card taught nothing.
+    #[tokio::test]
+    async fn claude_names_an_error_that_carries_no_message() {
+        let stopped = r#"cat >/dev/null; printf '%s\n' '{"type":"result","subtype":"error_max_turns","is_error":true,"num_turns":2,"terminal_reason":"max_turns","errors":["Reached maximum number of turns (1)"],"usage":{},"modelUsage":{}}'; exit 1"#;
+        let (_dir, bin) = scripted("claude", "2.1.283 (Claude Code)", stopped);
+        let err = OneShotExec::with_command(Cli::Claude, &bin)
+            .run(HarnessInferRequest::new("q", "claude-code/default"))
+            .await
+            .expect_err("an error answer refuses");
+        let said = err.to_string();
+        for needle in [
+            "error_max_turns",
+            "terminal reason max_turns",
+            "Reached maximum number of turns (1)",
+            "after 2 turn(s)",
+        ] {
+            assert!(said.contains(needle), "{needle} missing from: {said}");
+        }
+        assert!(!said.trim_end().ends_with("answered an error:"), "{said}");
+        // Nothing to name at all still says so in words.
+        let bare = r#"cat >/dev/null; printf '%s\n' '{"type":"result","is_error":true}'; exit 1"#;
+        let (_dir, bin) = scripted("claude", "2.1.283 (Claude Code)", bare);
+        let err = OneShotExec::with_command(Cli::Claude, &bin)
+            .run(HarnessInferRequest::new("q", "claude-code/default"))
+            .await
+            .expect_err("an error answer refuses");
+        assert!(err.to_string().contains("without any message"), "{err}");
+    }
+
     #[tokio::test]
     async fn a_claude_below_the_pin_or_without_its_product_name_never_runs() {
         let (_dir, bin) = scripted("claude", "1.0.9 (Claude Code)", CLAUDE_OK);
@@ -808,6 +908,18 @@ mod tests {
             joined
                 .windows(2)
                 .any(|w| w[0] == "--max-turns" && w[1] == "1")
+        );
+        // The person's own MCP servers, hooks, plugins and CLAUDE.md stay out: `--tools ""`
+        // alone left 180 MCP tools in the call.
+        assert!(
+            joined.iter().any(|a| a == "--strict-mcp-config"),
+            "{joined:?}"
+        );
+        assert!(
+            joined
+                .windows(2)
+                .any(|w| w[0] == "--setting-sources" && w[1].is_empty()),
+            "{joined:?}"
         );
         assert!(
             joined

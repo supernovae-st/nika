@@ -535,6 +535,55 @@ async fn fetch_transport_failures_are_transient() {
     assert_eq!(fail.code, "NIKA-SEC-005", "SSRF is the security-plane code");
 }
 
+/// The task's `timeout:` rides the fetch request as its total
+/// deadline (stdlib §fetch: honor the task-level timeout); without one, the
+/// request leaves the transport its default.
+#[tokio::test]
+async fn the_task_timeout_rides_the_fetch_request() {
+    for deadline in [Some(std::time::Duration::from_secs(180)), None] {
+        let http = MockHttp::new().enqueue_ok(200, b"ok".to_vec());
+        let request = args(serde_json::json!({ "url": "https://x.test", "mode": "raw" }));
+        let clock = JqClock::at(nika_types::timestamp::Timestamp::EPOCH);
+        super::fetch_with_clock(
+            &http,
+            &MockFs::new(),
+            &FsBoundary::unbounded(),
+            &request,
+            clock,
+            deadline,
+        )
+        .await
+        .expect("ok");
+        assert_eq!(http.sent_requests()[0].timeout, deadline);
+    }
+}
+
+/// A fetch that met its deadline names the setting that gives it
+/// longer, the task's `timeout:`, declared or not.
+#[tokio::test]
+async fn a_timed_out_fetch_names_the_task_timeout() {
+    use nika_kernel::io::http::HttpError;
+    for deadline in [Some(std::time::Duration::from_secs(180)), None] {
+        let http = MockHttp::new().enqueue_err(HttpError::Timeout {
+            duration_ms: 30_000,
+        });
+        let request = args(serde_json::json!({ "url": "https://x.test" }));
+        let clock = JqClock::at(nika_types::timestamp::Timestamp::EPOCH);
+        let fail = super::fetch_with_clock(
+            &http,
+            &MockFs::new(),
+            &FsBoundary::unbounded(),
+            &request,
+            clock,
+            deadline,
+        )
+        .await
+        .expect_err("timed out");
+        assert!(fail.message.contains("`timeout:`"), "{}", fail.message);
+        assert!(fail.transient, "a GET that timed out stays retryable");
+    }
+}
+
 #[tokio::test]
 async fn keyless_mutating_fetch_is_never_transient() {
     // #1371 · the effect-safe retry law: a POST/PUT/DELETE/PATCH WITHOUT an

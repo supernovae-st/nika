@@ -52,6 +52,15 @@ const CORE_GAPS: &[(&str, &str)] = &[
     // bidirectional: adding a row here is a claim that the engine
     // CANNOT hold a verdict, and the suite proves that claim by
     // failing when the fixture starts passing.
+    // ── Project files (spec 02 §Project files) CLOSED: the engine composes a
+    // `{ file }` prompt, system or schema at check time, and the 18
+    // prompt-files and 16 schema-files rows left per the ratchet.
+    // ── The withdrawn secret source (spec 01 §secrets): the parser still reads it.
+    (
+        "envelope/055-secret-source-vault-withdrawn-refused",
+        "spec 01 §secrets withdrew `vault`: the parser still accepts it",
+    ),
+    // ── The run facts (spec 04): the pin carries the law before the engine side.
 ];
 
 #[test]

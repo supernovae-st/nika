@@ -357,6 +357,7 @@ fn child_call() -> ChildCall {
         remaining_budget_usd: None,
         deadline: None,
         parent_permits: None,
+        run_facts: nika_runtime::RunFacts::default(),
     }
 }
 

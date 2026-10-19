@@ -160,6 +160,7 @@ impl super::Dispatched {
         Self {
             note: note.to_owned(),
             result: Err(super::FailedDispatch {
+                operator_cancelled: false,
                 access_refused: None,
                 record: crate::record::TaskErrorRecord::new(
                     DIVERGENCE_CODE,
@@ -214,6 +215,7 @@ where
         match gate(&preview, &invoke_request(&input)) {
             Some(CommitGate::Fire(attestation)) => {
                 let retry_forbidden = fetch_retry_forbidden(&input);
+                let stopped_slot = input.stopped.clone();
                 match self.invoke.run_at(input, run_start).await {
                     // A tool's typed value (builtins · MCP `structuredContent`)
                     // flows to tasks.X.output AS ITSELF (spec 04 §tasks.X.output);
@@ -276,6 +278,9 @@ where
                         .with_commit(attestation)
                     }
                     Err(err) => super::Dispatched::verb_err(note, &err)
+                        .with_operator_cancelled(
+                            self.invoke_stopped_by_operator(&err, stopped_slot.as_ref()),
+                        )
                         .with_commit(attestation)
                         .with_retry_forbidden(retry_forbidden),
                 }
@@ -288,6 +293,22 @@ where
                 "invoke request cannot canonicalize at fire (F-P6)".to_owned(),
             ),
         }
+    }
+
+    /// Whether an invoke error is the operator's Stop: the run's cancel context fired and the
+    /// error names a call this task's own slot recorded as stopped.
+    fn invoke_stopped_by_operator(
+        &self,
+        err: &nika_verb_invoke::VerbInvokeError,
+        stopped_slot: Option<&nika_verb_invoke::StoppedCallSlot>,
+    ) -> bool {
+        self.cancel
+            .as_ref()
+            .is_some_and(nika_kernel::CancelCtx::is_cancelled)
+            && err
+                .details()
+                .and_then(|details| details.stopped_call.as_deref())
+                .is_some_and(|call| stopped_slot.is_some_and(|slot| slot.snapshot().contains(call)))
     }
 
     /// F-P6 · the exec firing lane: PREVIEW (argv/cwd/env/stdin resolved ·

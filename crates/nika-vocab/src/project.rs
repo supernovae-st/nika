@@ -41,6 +41,7 @@ mod parse;
 #[cfg(test)]
 mod tests;
 
+use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -57,6 +58,17 @@ pub fn is_kebab_id(s: &str) -> bool {
     s.chars().next().is_some_and(|c| c.is_ascii_lowercase())
         && s.chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
+/// `v` followed by one or more digits: the retired schema tag `nika:` held before it carried the
+/// file's name (spec `01-envelope.md` §Conformance rule 2). A whole-marker law (`vault` · `v2ray`
+/// · `v1-migration` are ordinary names), refused by BOTH readers: the project file, where
+/// `nika: v1` + `ceiling:` would read two ways, and the workflow envelope, where authors and models
+/// trained on old examples still write it and a silent workflow named `v1` would teach nothing.
+#[must_use]
+pub fn is_retired_version_tag(s: &str) -> bool {
+    s.strip_prefix('v')
+        .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit()))
 }
 
 /// The envelope line's own indentation, when the document opens on one.
@@ -329,12 +341,16 @@ impl ArmLocus {
 }
 
 /// `manqué:` — the missed-run policy. Mirrors the cadence arc's
-/// `MissPolicy` over the same closed spellings.
+/// `MissPolicy`: the closed spellings and the bounded catch-up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum MissPolicy {
-    /// Fire every missed slot, oldest first.
+    /// Fire the latest missed slot, once: `{ rattraper: 1 }`.
     Rattraper,
+    /// Fire up to the N latest missed slots, one run each, oldest first
+    /// (`{ rattraper: N }`, N from 2: `{ rattraper: 1 }` reads as
+    /// [`MissPolicy::Rattraper`]).
+    RattraperDerniers(NonZeroU32),
     /// Fire ONE catch-up for the whole silence.
     RattraperUneFois,
     /// Never catch up — a skip is an EVENT, never an execution.
@@ -342,13 +358,35 @@ pub enum MissPolicy {
 }
 
 impl MissPolicy {
-    /// The canonical spelling.
+    /// The canonical spelling of a closed policy; the bounded catch-up's
+    /// key, `rattraper` (its count is [`MissPolicy::latest_owed`]).
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Rattraper => "rattraper",
+            Self::Rattraper | Self::RattraperDerniers(_) => "rattraper",
             Self::RattraperUneFois => "rattraper-une-fois",
             Self::Sauter => "sauter",
+        }
+    }
+
+    /// How many of the latest missed slots the policy fires, one run each,
+    /// oldest first: 1 for `rattraper`, N for `{ rattraper: N }`, `None`
+    /// otherwise.
+    #[must_use]
+    pub const fn latest_owed(self) -> Option<NonZeroU32> {
+        match self {
+            Self::Rattraper => Some(NonZeroU32::MIN),
+            Self::RattraperDerniers(latest) => Some(latest),
+            Self::RattraperUneFois | Self::Sauter => None,
+        }
+    }
+
+    /// `{ rattraper: N }` — `rattraper` when N is 1.
+    pub(crate) const fn rattraper(latest: NonZeroU32) -> Self {
+        if latest.get() == 1 {
+            Self::Rattraper
+        } else {
+            Self::RattraperDerniers(latest)
         }
     }
 

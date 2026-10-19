@@ -443,6 +443,7 @@ fn replay_veto_debits_the_attempt_and_preserves_its_failure() {
         commit_digest: "same-judged-request".to_owned(),
     }));
     let failed = FailedDispatch {
+        operator_cancelled: false,
         usage: None,
         access_refused: None,
         record: crate::record::TaskErrorRecord::new(

@@ -982,3 +982,6 @@ pub static PROVIDER_INDEX: phf::Map<unicase::UniCase<&'static str>, usize> = ::p
         (UniCase::ascii("google"), 5),
     ],
 };
+
+pub static MODEL_FACTS: &[crate::types::ModelFacts] = &[
+];

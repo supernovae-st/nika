@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: 510b6fd931720a6a580da2edc41fac9089660efbec1af9d07ff11ece929a0934
+# body-sha256: 36c1bd1e837ddcfbcb11f3289913461b53c102e7b559043bb0c77796eaa00b9b
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -58,14 +58,14 @@ schema_version: 1
 # fast grep-based projection checks (the projector reads `count:` lines).
 counts:
   verbs: 4
-  namespaces: 5
+  namespaces: 6
   builtins: 29
   providers: 18
   extract_modes: 10
   templates: 22
-  error_namespaces: 24
+  error_namespaces: 25
   error_categories: 12
-  error_codes: 107
+  error_codes: 111
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -76,7 +76,7 @@ counts:
   severity: 4
   # ---- extended 2026-07-06 · the MCP oracle surface
   mcp_tools: 9
-  mcp_protocol_versions: 5
+  mcp_protocol_versions: 4
 
 # ------------------------------------------- outcome transitions (spec 13 · W5)
 # THE normative (class × cause) table — machine-readable so the reference
@@ -111,7 +111,8 @@ verbs:
     - { name: agent,  semantic: "Multi-turn agentic loop · tool calling · guardrails" }
 
 # ---------------------------------------------------------------- namespaces
-# The 5 substitution namespaces · LOCKED at v1 (spec/04-variables.md · the
+# The 6 substitution namespaces · the first five LOCKED at v1, the sixth added by the decision of
+# 2026-10-12 (run, the facts of this run · spec/04-variables.md) (spec/04-variables.md · the
 # three value authorities inputs/const/secrets — the E-split family
 # (R3a · LAW-SURFACE-0201) that succeeded the dead vars/env spellings at C2 ·
 # config, the fourth, died at the envelope nuke 2026-08-12 (a deployment knob
@@ -119,7 +120,7 @@ verbs:
 # namespaces with/tasks · loop-locals item/index are for_each-scoped locals ·
 # NOT a namespace).
 namespaces:
-  count: 5
+  count: 6
   immutable: true
   reference: spec/04-variables.md
   items:
@@ -128,6 +129,7 @@ namespaces:
     - secrets
     - with
     - tasks
+    - run
 
 # ---------------------------------------------------------------- builtins
 # Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss) → 23 (compose added 2026-06-13 · ADR-093 · agent-loop self-check intrinsic, loop-only like done) → 24 (image_generate added 2026-07-05 · the first stdlib §Media graduate · openai/gemini/mock · assets land on disk, never inline) → 25 (tts_generate added 2026-07-05 · §Audio · local/openai/elevenlabs/mock · sovereign-first) → 26 (image_fx added 2026-07-09 · §Media graduate #3 · the `image editing` deferred row · deterministic artistic effects · byte-identical artifacts · recipe-in-chunk · zero-dep) → 27 (chart added 2026-07-09 · §Media graduate #4 · deterministic zero-dep renderer · byte-identical SVG · sha256 → trace chain).
@@ -259,7 +261,7 @@ templates:
 # matching "fetch is a builtin, not a verb" D-N18 · prior count 15 → 14).
 # spec/05-errors.md is the prose home (NIKA-TYPE joined at W3 · cascade complete 2026-07-14 · the count lives on count: below).
 error_namespaces:
-  count: 24
+  count: 25
   reference: spec/05-errors.md
   items:
     - NIKA-AGENT
@@ -280,6 +282,7 @@ error_namespaces:
     - NIKA-DRIFT
     - NIKA-PARSE
     - NIKA-PORT
+    - NIKA-FILE
     - NIKA-PROVIDER
     - NIKA-SEC
     - NIKA-TIMEOUT
@@ -313,7 +316,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 107
+  count: 111
   scope: spec-normative floor only · per-builtin and per-provider codes resolve through nika explain and are not enumerated here
   reference: spec/05-errors.md
   items:
@@ -370,6 +373,7 @@ error_codes:
     - { code: NIKA-TYPE-004, category: validation_error, transient: "false", failure: "returns: type unreachable from the declared decode: (an object contract over decode: text · …)" }
     - { code: NIKA-TYPE-005, category: security_error, transient: "false", failure: "a secret-carrying type in a lowered position (reserved with secret<T> · W4)" }
     - { code: NIKA-TYPE-006, category: validation_error, transient: "false", failure: "regex pattern outside the locked dialect (backreference · lookaround · named group · inline flags · lazy/possessive · word-boundary · unicode-class — spec 09 §the regex dialect)" }
+    - { code: NIKA-TYPE-007, category: validation_error, transient: "false", failure: "a schema file (schema: { file: }) holds no JSON Schema: it parses as neither JSON nor YAML under the profile, holds no mapping, or holds a $ref that leaves the file — judged at compose time, after the read law (spec 02 §Project files)" }
     - { code: NIKA-TYPE-101, category: validation_error, transient: "false", failure: "run-time contract violation — the decoded value does not fit returns: (exec:/invoke: lane)" }
     - { code: NIKA-VAR-001, category: variable_error, transient: "false", failure: "unresolved reference (unknown namespace entry · undeclared inputs/const/secrets/with key)" }
     - { code: NIKA-VAR-002, category: variable_error, transient: "false", failure: "binding cardinality — a jq binding emitted zero or multiple values" }
@@ -397,6 +401,9 @@ error_codes:
     - { code: NIKA-AGENT-004, category: validation_error, transient: "false", failure: "a skills: file is not a valid Agent Skill (frontmatter shape · missing/empty name/description)" }
     - { code: NIKA-AGENT-005, category: budget_error, transient: "false", failure: "the provider reported no token usage for a priced model — every budget and ledger reads the turn as free, so the loop fails closed (R3-F1 · the usage-absence gate)" }
     - { code: NIKA-AGENT-006, category: budget_error, transient: "false", failure: "the agent's final message (no tool calls) stopped at the output cap (max_tokens) — the cut message rides error.details.partial_output, never the task output" }
+    - { code: NIKA-FILE-001, category: validation_error, transient: "false", failure: "the path of a project file breaks the path law (a ${{ }} template or a glob, absolute, a backslash, a drive or a URI scheme, a .. or a hidden segment, or a symbolic link) — judged before the read boundary and before any read (spec 02 §Project files)" }
+    - { code: NIKA-FILE-002, category: validation_error, transient: "false", failure: "a project file inside the read boundary is missing, unreadable or not a regular file at compose time (spec 02 §Project files)" }
+    - { code: NIKA-FILE-003, category: validation_error, transient: "false", failure: "a project file is not valid UTF-8 or holds more than 65,536 bytes (spec 02 §Project files)" }
     - { code: NIKA-MCP-001, category: tool_error, transient: "engine-assessed", failure: "MCP server not configured / not reachable at call time" }
     - { code: NIKA-MCP-002, category: tool_error, transient: "engine-assessed", failure: "MCP tool call failed (transport · tool-side error)" }
     - { code: NIKA-DECIDE-001, category: validation_error, transient: "false", failure: "the decision bundle is malformed or violates its own laws (float weight · undeclared evidence key in rules · identity key feeding a technical dimension · missing contradictory fixture · monotonicity violated by the bundle's own fixtures) (spec 11)" }
@@ -450,7 +457,7 @@ pillars:
     - { order: 2, name: verbs,     semantic: "the 4 native execution models" }
     - { order: 3, name: dag,       semantic: "task composition + control flow (for_each · when)" }
     - { order: 4, name: variables, semantic: "scope-bound state threading + binding (CEL + jq)" }
-    - { order: 5, name: errors,    semantic: "the 24 error namespaces + handling contract" }
+    - { order: 5, name: errors,    semantic: "the error namespaces + handling contract" }
 
 # ---------------------------------------------------------------- lifecycle enums
 # 4-state lifecycle taxonomies · studio-extended dimensions · public
@@ -521,11 +528,10 @@ mcp:
       - nika_tools
       - nika_inspect
   protocol_versions:
-    count: 5
-    latest: "2026-07-28"
+    count: 4
+    latest: "2025-11-25"
     reference: crates/nika-mcp/src/protocol.rs
     items:
-      - "2026-07-28"
       - "2025-11-25"
       - "2025-06-18"
       - "2025-03-26"

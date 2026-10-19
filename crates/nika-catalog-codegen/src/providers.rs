@@ -60,13 +60,39 @@ pub struct ProviderEntry {
     pub data_policy: Option<DataPolicyEntry>,
 }
 
+/// One `[[providers.models]]` row. `deny_unknown_fields`: a typo'd fact
+/// key fails the build instead of silently vanishing.
 #[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct ProviderModelEntry {
     pub id: String,
     pub model: String,
     pub context_window_tokens: u32,
     pub max_output_tokens: u32,
+    /// Where the two token limits were read (schema `@1.2`); arrives with
+    /// `as_of`. Absent = curated limits with no recorded source.
+    #[serde(default)]
+    pub limits_source: Option<String>,
+    /// The date `limits_source` was read (`YYYY-MM-DD`).
+    #[serde(default)]
+    pub as_of: Option<String>,
+    /// The retirement floor the provider publishes for this model.
+    #[serde(default)]
+    pub lifecycle: Option<LifecycleEntry>,
+}
+
+/// A published retirement floor (schema `@1.2`): the provider retires the
+/// model not before `retires_not_before` and names `successor`, another
+/// wire of the same provider. A floor, never a retirement date.
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+#[non_exhaustive]
+pub struct LifecycleEntry {
+    pub retires_not_before: String,
+    pub successor: String,
+    pub source: String,
+    pub as_of: String,
 }
 
 /// One sourced data-handling policy (schema `@1.1`) — the sovereignty
@@ -191,6 +217,7 @@ fn validate_one_provider(
     }
 
     let seen_wires = validate_provider_models(p, ctx)?;
+    crate::model_facts::validate(p, ctx)?;
 
     if !seen_wires.contains(&p.default_model) {
         return Err(CodegenError::schema_validation(
@@ -213,10 +240,12 @@ fn validate_one_provider(
     Ok(())
 }
 
+/// Nicknames are unique per provider. Two nicknames may name one wire only
+/// as aliases of the same model: with identical token limits.
 fn validate_provider_models(p: &ProviderEntry, ctx: &str) -> Result<HashSet<String>, CodegenError> {
     let mut seen_nicks: HashSet<String> = HashSet::new();
     let mut seen_wires: HashSet<String> = HashSet::new();
-    for m in &p.models {
+    for (i, m) in p.models.iter().enumerate() {
         if !seen_nicks.insert(m.id.clone()) {
             return Err(CodegenError::schema_validation(
                 ctx,
@@ -232,10 +261,19 @@ fn validate_provider_models(p: &ProviderEntry, ctx: &str) -> Result<HashSet<Stri
                 ),
             ));
         }
-        if !seen_wires.insert(m.model.clone()) {
+        if !seen_wires.insert(m.model.clone())
+            && p.models[..i].iter().any(|other| {
+                other.model == m.model
+                    && (other.context_window_tokens, other.max_output_tokens)
+                        != (m.context_window_tokens, m.max_output_tokens)
+            })
+        {
             return Err(CodegenError::schema_validation(
                 ctx,
-                format!("provider {:?}: duplicate model wire {:?}", p.id, m.model),
+                format!(
+                    "provider {:?}: model wire {:?} named twice with different token limits",
+                    p.id, m.model
+                ),
             ));
         }
         if m.context_window_tokens == 0 || m.max_output_tokens == 0 {
@@ -351,6 +389,7 @@ pub(crate) fn generate_providers_rs(providers: &[ProviderEntry]) -> String {
         "pub static PROVIDER_INDEX: phf::Map<unicase::UniCase<&'static str>, usize> = {};",
         builder.build()
     );
+    crate::model_facts::emit(&mut out, providers);
 
     out
 }
@@ -436,6 +475,121 @@ fn write_models(out: &mut String, models: &[ProviderModelEntry]) {
 mod tests {
     use super::*;
 
+    fn row(id: &str, model: &str, context: u32, output: u32) -> ProviderModelEntry {
+        ProviderModelEntry {
+            id: id.to_string(),
+            model: model.to_string(),
+            context_window_tokens: context,
+            max_output_tokens: output,
+            limits_source: None,
+            as_of: None,
+            lifecycle: None,
+        }
+    }
+
+    fn sourced(mut m: ProviderModelEntry) -> ProviderModelEntry {
+        m.limits_source = Some("https://docs.example/models".to_string());
+        m.as_of = Some("2026-10-12".to_string());
+        m
+    }
+
+    fn retiring(mut m: ProviderModelEntry, successor: &str) -> ProviderModelEntry {
+        m.lifecycle = Some(LifecycleEntry {
+            retires_not_before: "2026-10-15".to_string(),
+            successor: successor.to_string(),
+            source: "https://docs.example/deprecations".to_string(),
+            as_of: "2026-10-12".to_string(),
+        });
+        m
+    }
+
+    /// Two nicknames may alias one wire with identical limits; different
+    /// limits on one wire are a contradiction the build refuses.
+    #[test]
+    fn an_alias_nickname_shares_its_wire_only_with_identical_limits() {
+        let mut p = fixture_provider();
+        p.models.push(row("alias", "demo-large", 200_000, 8192));
+        assert!(validate_providers(&[p], Path::new("/x")).is_ok());
+        let mut p = fixture_provider();
+        p.models.push(row("alias", "demo-large", 100_000, 8192));
+        let msg = format!("{}", validate_providers(&[p], Path::new("/x")).unwrap_err());
+        assert!(msg.contains("different token limits"), "got: {msg}");
+    }
+
+    /// `@1.2` facts arrive whole and sourced, a successor is another wire of
+    /// the provider, and two rows of one wire never disagree.
+    #[test]
+    fn model_facts_arrive_whole_sourced_and_consistent() {
+        let ok = |models: Vec<ProviderModelEntry>| {
+            let mut p = fixture_provider();
+            p.models = models;
+            validate_providers(&[p], Path::new("/x"))
+        };
+        let base = || row("large", "demo-large", 200_000, 8192);
+        let next = || row("next", "demo-next", 1_000_000, 128_000);
+        assert!(ok(vec![sourced(base()), next()]).is_ok());
+        assert!(ok(vec![retiring(sourced(base()), "demo-next"), next()]).is_ok());
+        let mut half = base();
+        half.limits_source = Some("https://docs.example/models".to_string());
+        assert!(ok(vec![half, next()]).is_err(), "source without date");
+        let mut plain = sourced(base());
+        plain.limits_source = Some("http://docs.example/models".to_string());
+        assert!(ok(vec![plain, next()]).is_err(), "not https");
+        let mut undated = sourced(base());
+        undated.as_of = Some("12 Oct 2026".to_string());
+        assert!(ok(vec![undated, next()]).is_err(), "not YYYY-MM-DD");
+        assert!(
+            ok(vec![retiring(base(), "demo-absent"), next()]).is_err(),
+            "unknown successor"
+        );
+        assert!(
+            ok(vec![retiring(base(), "demo-large"), next()]).is_err(),
+            "self successor"
+        );
+        let mut other = sourced(row("alias", "demo-large", 200_000, 8192));
+        other.as_of = Some("2026-10-13".to_string());
+        assert!(
+            ok(vec![sourced(base()), other, next()]).is_err(),
+            "conflicting facts on one wire"
+        );
+        assert!(
+            ok(vec![
+                base(),
+                sourced(row("alias", "demo-large", 200_000, 8192))
+            ])
+            .is_ok(),
+            "one silent row beside a sourced one"
+        );
+    }
+
+    /// The facts table names each sourced wire once, in catalogue order; a
+    /// catalogue without facts emits an empty table.
+    #[test]
+    fn model_facts_emit_one_entry_per_sourced_wire() {
+        let mut p = fixture_provider();
+        p.models = vec![
+            retiring(
+                sourced(row("large", "demo-large", 200_000, 8192)),
+                "demo-next",
+            ),
+            sourced(row("alias", "demo-large", 200_000, 8192)),
+            row("next", "demo-next", 1_000_000, 128_000),
+        ];
+        let out = generate_providers_rs(&[p]);
+        assert_eq!(
+            out.matches("crate::types::ModelFacts {").count(),
+            1,
+            "{out}"
+        );
+        assert!(out.contains("limits_as_of: Some(\"2026-10-12\")"), "{out}");
+        assert!(out.contains("successor: \"demo-next\""), "{out}");
+        let empty = generate_providers_rs(&[fixture_provider()]);
+        assert!(
+            empty.ends_with("pub static MODEL_FACTS: &[crate::types::ModelFacts] = &[\n];\n"),
+            "{empty}"
+        );
+    }
+
     fn fixture_provider() -> ProviderEntry {
         ProviderEntry {
             id: "demo".to_string(),
@@ -447,12 +601,7 @@ mod tests {
             cheap_model: "demo-large".to_string(),
             requires_key: true,
             description: "Demo provider".to_string(),
-            models: vec![ProviderModelEntry {
-                id: "large".to_string(),
-                model: "demo-large".to_string(),
-                context_window_tokens: 200_000,
-                max_output_tokens: 8192,
-            }],
+            models: vec![row("large", "demo-large", 200_000, 8192)],
             api_dialect: Some("openai-chat".to_string()),
             tags: vec!["fast".to_string()],
             extra_tags: vec![],
@@ -526,12 +675,7 @@ mod tests {
     #[test]
     fn validate_providers_duplicate_model_nickname_rejected() {
         let mut p = fixture_provider();
-        p.models.push(ProviderModelEntry {
-            id: "large".to_string(), // duplicate
-            model: "demo-other".to_string(),
-            context_window_tokens: 100_000,
-            max_output_tokens: 4096,
-        });
+        p.models.push(row("large", "demo-other", 100_000, 4096)); // duplicate nickname
         let err = validate_providers(&[p], Path::new("/x")).unwrap_err();
         let msg = format!("{err}");
         assert!(msg.contains("duplicate model nickname"), "got: {msg}");

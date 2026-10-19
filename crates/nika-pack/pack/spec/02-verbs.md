@@ -27,8 +27,8 @@ A task **must** specify exactly one of these. Multiple verbs on a single task is
 > **Where did `fetch` go?** Fetching a URL is *calling a tool*, not a
 > distinct execution model, so it is the `nika:fetch` builtin, reached
 > through `invoke:` (the extract modes become its `mode` argument). Same
-> reason a DB query (`invoke: mcp:postgres/query`) or a file write
-> (`invoke: nika:write`) is not its own verb. See
+> reason a DB query (`invoke: { tool: "mcp:postgres/query" }`) or a file
+> write (`invoke: { tool: "nika:write" }`) is not its own verb. See
 > [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md).
 
 ### What `${{ tasks.<id>.output }}` holds · per verb
@@ -86,14 +86,117 @@ research:
 
 | Field | Required | Type | Notes |
 |---|---|---|---|
-| `prompt` | yes | string | User prompt · may use `${{ ... }}` substitution |
-| `system` | no | string | System prompt |
+| `prompt` | yes | string, or `{ file: <path> }` | User prompt · may use `${{ ... }}` substitution · or the text of a project file ([§Project files](#project-files---file--normative)) |
+| `system` | no | string, or `{ file: <path> }` | System prompt · or the text of a project file ([§Project files](#project-files---file--normative)) |
 | `model` | no | string | Override workflow default · `<provider>/<name>` · see stdlib/providers-v0.1.md |
 | `temperature` | no | number 0-2 | Sampling temperature |
 | `max_tokens` | no | integer | Max output tokens · provider-dependent default · an answer the provider cuts at this cap fails (`NIKA-INFER-005`) · a model that reasons before it answers draws its reasoning from this budget: give it room (16,384), or a low `run.reasoning.effort` its route documents; too little returns an empty answer (`NIKA-INFER-004`) |
-| `schema` | no | object | raw JSON Schema · structured output validation — the **out-of-core hatch**; the typed door is task-level `returns:` ([09](./09-types.md) · both on one task = `NIKA-TYPE-003`). Numeric facts (`0\|1\|3`, counts, coded levels) are `type: integer` with a numeric `enum` — never `enum: ["0","1","3"]`. Models emit JSON numbers; a string-digit enum can reject the call before coerce (reference engine hint `digit-string-enum`). The model extracts facts; `nika:jq` or `nika:decide` is the law ([11](./11-decision.md) · `examples/13-extract-then-law.nika`) |
+| `schema` | no | object, or `{ file: <path> }` | raw JSON Schema, inline or kept in a project file ([§Project files](#project-files---file--normative)) · structured output validation — the **out-of-core hatch**; the typed door is task-level `returns:` ([09](./09-types.md) · both on one task = `NIKA-TYPE-003`). Numeric facts (`0\|1\|3`, counts, coded levels) are `type: integer` with a numeric `enum` — never `enum: ["0","1","3"]`. Models emit JSON numbers; a string-digit enum can reject the call before coerce (reference engine hint `digit-string-enum`). The model extracts facts; `nika:jq` or `nika:decide` is the law ([11](./11-decision.md) · `examples/13-extract-then-law.nika`) |
 | `thinking` | no | object | Extended thinking · `{ enabled, budget_tokens }` |
 | `vision` | no | array | Image inputs · each `{ source: file|url, path|url, … }` |
+
+### Project files · `{ file: }` (normative)
+
+A prompt or a schema kept beside the workflow is part of the program when the
+field names it. `prompt:` and `system:` (of `infer:` and of `agent:`) take
+either a string or the closed mapping `{ file: "<path>" }`, whose text is the
+field's value. `schema:` (of `infer:` and of `agent:`) takes either a JSON
+Schema written inline or the same mapping, whose file holds the schema.
+
+```yaml
+tasks:
+  brief:
+    infer:
+      system: { file: "./prompts/editor.md" }
+      prompt: { file: "./prompts/brief.md" }   # may use ${{ inputs.topic }} like inline text
+      schema: { file: "./schemas/brief.json" } # one JSON Schema, judged as if written inline
+```
+
+```yaml
+permits:
+  fs: { read: ["./prompts/**", "./schemas/**"] } # the files reach the model · reads inside the boundary
+```
+
+- **The shape is closed.** The mapping carries exactly one key, `file`, a
+  non-empty string. Another key is `NIKA-PARSE-005`; any other shape is the
+  field's type error. Under `schema:`, a mapping that holds `file` is the file
+  form, never an inline schema, so `file` beside any other key is refused
+  there too. Written inline, `{ file }` alone would constrain nothing (an
+  unknown keyword), so no meaningful schema is lost.
+- **The path law.** The path is static (no `${{ }}`, no glob) and relative
+  (no leading `/`, no `\`, no drive letter, no URI scheme). It resolves from
+  the directory of the workflow file that names it, like a `skills:` path and
+  a composed child's target ([14](./14-composition.md)), never from the
+  working directory. A leading `./` is allowed; an empty segment, any other
+  `.` segment and a hidden name (a segment beginning with `.` other than
+  `..`, such as `.env` or `.ssh`) are not.
+- **Containment by the project root.** Joined to the naming file's folder
+  and normalized lexically, the path stays inside the **project root**: the
+  folder holding the project file (`nika.yaml`) that governs the run, or the
+  root the run admitted, or, when no project file governs it, the root
+  workflow's own folder; a registry package's root is its package. A `..`
+  segment is allowed while the path stays inside, so a child in
+  `workflows/` names `../prompts/brief.md` at the project root, and a `..`
+  that climbs past the root is refused. Resolved, inside the boundary, no
+  component between the project root and the file is a symbolic link. A
+  broken path law is `NIKA-FILE-001`.
+- **The authority law.** The file's content reaches the model provider (a
+  text is sent, a schema shapes the reply it asks for), so the read is the
+  class of `nika:read` and of a `skills:` file: the path as the naming
+  workflow writes it must be admitted by that workflow's declared
+  `permits.fs.read` boundary (a child that names `../prompts/brief.md`
+  grants that path), judged
+  **before** the read (`NIKA-AUTH-006` under an absent block · `NIKA-SEC-004`
+  outside a declared one), exactly as [§Agent Skills](#agent-skills--skills)
+  states.
+- **The read law.** The file is read at **compose time**, before the run and
+  never mid-run. A missing, unreadable or non-regular file is
+  `NIKA-FILE-002`. Its bytes MUST be valid UTF-8 and at most **65,536**;
+  otherwise `NIKA-FILE-003`.
+- **One templating law.** A prompt or system file's text is interpolated
+  exactly as the same text written inline in the field: the same `${{ … }}`
+  scopes and the same VAR laws ([04](./04-variables.md)), judged statically at
+  check. A `${{` inside such a file is never literal, and a secret reaching the
+  provider through a file meets the same secret-flow laws as one written
+  inline ([10](./10-authority.md)).
+- **The schema content law.** A schema file holds exactly one JSON Schema:
+  JSON text, or YAML under the profile of
+  [01](./01-envelope.md#yaml-profile-normative), whose value is a mapping. Every
+  `$ref` it holds is a fragment of the file itself (`#…`): a reference to
+  another file or to a URL would reach content the read boundary never judged.
+  A schema file that parses as neither, holds no mapping, or holds a `$ref`
+  that leaves it is `NIKA-TYPE-007`. The schema it holds is then judged by
+  every law the same schema written inline meets, and like an inline schema it
+  is never interpolated: a `${{` in it is text.
+- **Program bytes, bound by their digest.** The content is the field's value
+  for every purpose: the Semantic IR carries it resolved (a text as text, a
+  schema as the schema), so the semantic identity and the task's resume
+  identity commit to it ([15](./15-proof.md)) and editing the file re-runs the
+  task; the trace records the path and the digest of the bytes read; a consent
+  preview shows the content as it shows the inline field; a run bound to an
+  admitted world refuses a project file whose digest moved, as it refuses a
+  moved child.
+- **A door that reads no files says so.** A checker that judges a source
+  without its files (an editor buffer, a source string) still judges the
+  field's shape and path law, names each project file it did not read, and
+  never reports their read, authority, templating or content laws as held.
+- **Registry packages carry their project files.** A registry child's
+  project file resolves inside its own package, pinned by the package digest,
+  never in the caller's tree.
+
+Order of judgment: the shape, the path as written and its containment,
+then the authority law, then the resolution (no symbolic link) and the read
+law, then the templating law over a text or the content law over a schema.
+An ungranted path is never opened.
+
+**A private key in a prompt is flagged (normative for linters ·
+advisory).** A conformant linter warns `egress/001 private-key-in-prompt`
+when a `prompt:` or `system:` text, inline or the text of a prompt file,
+holds a PEM private-key block (a line `-----BEGIN … PRIVATE KEY-----`): a
+credential bound for the model provider. The rule judges inline text and
+file text alike, never one more strictly than the other, and refuses
+nothing; a secret the provider needs belongs in `secrets:`, whose egress
+laws apply ([10](./10-authority.md)).
 
 ### Conformance
 
@@ -104,6 +207,7 @@ A v0.1-compliant engine MUST ·
 - Validate the response against `schema` if present · MAY auto-retry validation failures internally before surfacing `NIKA-INFER-002` (engine-configurable · the same rule as [05 §structured output](./05-errors.md#structured-output-validation))
 - **Fail an answer cut at the output cap** · when the provider reports that it stopped at `max_tokens` (Anthropic `max_tokens` · OpenAI-compatible `length` · Gemini `MAX_TOKENS`), the task fails with `NIKA-INFER-005` (`budget_error` · not transient): the visible text received is preserved at `error.details.partial_output` and the stop reason at `error.details.stop_reason`. A cut answer is never the task output and is never validated against `schema:` (it would fail `NIKA-INFER-002` and hide its cause); an empty visible answer stays `NIKA-INFER-004`. On a route that reasons by default the cap also pays for the reasoning. A partial answer that is acceptable is recovered explicitly through `on_error:`
 - **Reject** any unknown field with a clear error (`NIKA-PARSE-005`) — the choice this line used to leave open is closed by [07 §unknown key](./07-conformance.md#an-unknown-key-is-an-error-at-every-level-normative--d-2026-08-11-n20): a key can REMOVE authority, so accept-and-warn fails open
+- Resolve a `{ file: }` prompt, system or schema at compose time under [§Project files](#project-files---file--normative) · the path law (`NIKA-FILE-001`), the read boundary before the read (`NIKA-AUTH-006` · `NIKA-SEC-004`), the read law (`NIKA-FILE-002` · `NIKA-FILE-003`), then the inline templating law over a text or the schema content law over a schema (`NIKA-TYPE-007`) · never start a run with an unread or unjudged project file
 
 ### Subscription harness access (normative)
 
@@ -228,7 +332,8 @@ The engine MUST ·
   `stdout` / `stderr` / `combined` capture modes (unless `on_error:` recovers ·
   [05](./05-errors.md)), **EXCEPT `capture: structured`**, where a non-zero
   exit is **data, not failure** · the task succeeds and `exit_code` is the
-  workflow's to branch on (`when: ${{ tasks.test.output.exit_code != 0 }}`) ·
+  workflow's to branch on (bind `with: { code: "${{ tasks.test.output.exit_code }}" }`,
+  then `when: "${{ with.code != 0 }}"`) ·
   the one-obvious-way split · default modes for « must succeed » · structured
   for « inspect the outcome »
 
@@ -357,15 +462,15 @@ research:
 
 | Field | Required | Type | Notes |
 |---|---|---|---|
-| `system` | no | string | System prompt |
-| `prompt` | yes | string | Initial user message (same field name as `infer:` · consistent) |
+| `system` | no | string, or `{ file: <path> }` | System prompt · or the text of a project file ([§Project files](#project-files---file--normative)) |
+| `prompt` | yes | string, or `{ file: <path> }` | Initial user message (same field name and forms as `infer:` · consistent) |
 | `model` | no | string | Override workflow default · `<provider>/<name>` |
 | `tools` | no | array | Tool whitelist · glob patterns · **default-deny** · if absent the agent gets NO tools (pure conversation · least-privilege). Grant explicitly. |
 | `skills` | no | array | [Agent Skill](https://agentskills.io) file paths (each an agentskills.io-shape `SKILL.md`) · **explicit static paths only** — no globs, no `${{ }}` templates (the `permits:` explicitness law) · loaded at **compose time**, **inside `permits.fs.read`** (the text reaches the model), and injected into the system context (§Agent Skills below) |
 | `max_turns` | no | integer | Loop limit · default 10 |
 | `max_tokens_total` | no | integer | Cumulative token budget · default engine-configurable |
 | `temperature` | no | number 0-2 | Sampling temperature |
-| `schema` | no | object | raw JSON Schema · validates the agent's **final message** as structured output (same contract as `infer.schema:` · the out-of-core hatch — the typed door is `returns:` · [09](./09-types.md)) · `.output` becomes the matching object |
+| `schema` | no | object, or `{ file: <path> }` | raw JSON Schema, inline or kept in a project file ([§Project files](#project-files---file--normative)) · validates the agent's **final message** as structured output (same contract as `infer.schema:` · the out-of-core hatch — the typed door is `returns:` · [09](./09-types.md)) · `.output` becomes the matching object |
 
 ### Loop semantics
 
@@ -470,9 +575,11 @@ skill author's surface — a consumer MUST tolerate them.
 
 ```yaml
 review:
+    with:
+      diff: ${{ tasks.diff.output }}    # the binding is the edge · the body reads the local name
     agent:
       system: "You are a code reviewer."
-      prompt: "Review the diff · ${{ tasks.diff.output }}"
+      prompt: "Review the diff · ${{ with.diff }}"
       skills:
         - ".agents/skills/code-review/SKILL.md"
         - "docs/skills/security-pass/SKILL.md"
@@ -561,7 +668,7 @@ The engine MUST ·
 
 ## Forward-compat
 
-The 4 verb names are **ratified by the [v1 constitution](../design/v1-constitution.md)**, and the count is **4, absolute** — under the constitutional hierarchy of **three atomic calls and one bounded controller**: call a model once (`infer`), apply a typed callable once (`invoke`), run a host process once (`exec`), and orchestrate a bounded sequence of the atomic calls (`agent`). Every other capability is either an **invoke-able callable** (an HTTP fetch → `invoke: nika:fetch` · a database query → `invoke: mcp:postgres/query` · a file write → `invoke: nika:write` · cognitive recall → `invoke: nika:connectome/recall`) or a **DAG control-flow construct** (iteration → `for_each` · branching → `when`). There is no `nika: v2` — ever: while the reference engine is pre-1.0 a verb change would be a break INSIDE `v1` (per the [pre-1.0 stability contract](./00-overview.md#pre-10-stability-contract)), and after engine 1.0.0 the verb set is frozen with the rest of the grammar, so a fifth verb is effectively never.
+The 4 verb names are **ratified by the [v1 constitution](../design/v1-constitution.md)**, and the count is **4, absolute** — under the constitutional hierarchy of **three atomic calls and one bounded controller**: call a model once (`infer`), apply a typed callable once (`invoke`), run a host process once (`exec`), and orchestrate a bounded sequence of the atomic calls (`agent`). Every other capability is either an **invoke-able callable** (an HTTP fetch → `invoke: { tool: "nika:fetch" }` · a database query → `invoke: { tool: "mcp:postgres/query" }` · a file write → `invoke: { tool: "nika:write" }` · cognitive recall → `invoke: { tool: "nika:connectome/recall" }`, the reserved future shape) or a **DAG control-flow construct** (iteration → `for_each` · branching → `when`). There is no `nika: v2` — ever: while the reference engine is pre-1.0 a verb change would be a break INSIDE `v1` (per the [pre-1.0 stability contract](./00-overview.md#pre-10-stability-contract)), and after engine 1.0.0 the verb set is frozen with the rest of the grammar, so a fifth verb is effectively never.
 
 ### The closure argument · why no case forces a 5th verb
 

@@ -38,6 +38,7 @@ use crate::retry::jitter_key;
 pub(crate) use crate::retry::on_error_applies;
 use crate::usage::UsageSplit;
 use crate::witness::PermitWitness;
+pub(crate) use with_map::references_loop_locals;
 use with_map::{render_boundary_with, render_with};
 
 mod fan_out;
@@ -301,6 +302,9 @@ pub(crate) enum RunResult {
         /// plain task failure. Boxed — cold, like the success twin.
         child: Option<Box<crate::child::ChildRunSummary>>,
     },
+    /// An authentic operator interruption is control, outside authored error
+    /// armor. The stopped-call/spend evidence survives to the terminal frame.
+    OperatorCancelled(Box<FailedOutcome>),
     /// `on_error: recover` whose reference awaits not-yet-terminal
     /// referents (spec 05 §recover step 3 · a recover ref is NOT an
     /// edge): the outcome is DECIDED on the ordered settle spine once
@@ -627,11 +631,12 @@ where
         let total = items.len();
         let began = fan_out::unstarted(total);
         let mut calls = BTreeMap::new(); // each yielded iteration's calls, by index
+        let queued_stop = std::sync::atomic::AtomicBool::new(false);
         let mut stream = futures_util::stream::iter(
             items
                 .iter()
                 .enumerate()
-                .take_while(|_| !ledger.tripped())
+                .take_while(|_| self.fan_out_may_start(ledger, &queued_stop))
                 .map(|(index, item)| {
                     let locals = IterationLocals { item, index };
                     let iteration = self.run_iteration(
@@ -651,19 +656,35 @@ where
             acc.first_error = Some(fan_out::budget_stop_record(total - acc.outputs.len()));
         }
 
-        let result = fan_out::fan_out_result(
-            acc.outputs,
-            acc.tokens_sum,
-            (acc.first_error, acc.first_recovered_from),
-            (acc.cost_sum, acc.unpriced),
-        );
+        // A root Stop that actually withheld an item is operator control;
+        // a token set after every item completed never erases those successes.
+        let cancelled = acc.operator_cancelled.or_else(|| {
+            (acc.outputs.len() < total && queued_stop.load(std::sync::atomic::Ordering::Relaxed))
+                .then(|| Box::new(Self::fan_out_withheld_stop()))
+        });
+        let result = if let Some(mut stopped) = cancelled {
+            stopped.cost_usd = acc.cost_sum;
+            stopped.cost_unpriced = acc.unpriced;
+            RunResult::OperatorCancelled(stopped)
+        } else {
+            fan_out::fan_out_result(
+                acc.outputs,
+                acc.tokens_sum,
+                (acc.first_error, acc.first_recovered_from),
+                (acc.cost_sum, acc.unpriced),
+            )
+        };
         let ran = RanTask {
-            note: fan_out::fan_note(
-                total,
-                acc.recovered,
-                &acc.failed_items,
-                &acc.recovered_items,
-            ),
+            note: if matches!(&result, RunResult::OperatorCancelled(_)) {
+                "for_each · cancelled by the operator".to_owned()
+            } else {
+                fan_out::fan_note(
+                    total,
+                    acc.recovered,
+                    &acc.failed_items,
+                    &acc.recovered_items,
+                )
+            },
             retries: acc.retries,
             agent_events: acc.agent_events,
             decisions: acc.decisions,
@@ -678,6 +699,42 @@ where
         let seams = (ledger, run_start);
         self.settle_after_finally((task, wf, &scope), ran, integrity, seams, started)
             .await
+    }
+
+    /// Whether the next fan-out item may start: the budget holds and no root Stop arrived. A Stop
+    /// that withholds an item is remembered in `queued_stop`.
+    fn fan_out_may_start(
+        &self,
+        ledger: &crate::ledger::RunLedger,
+        queued_stop: &std::sync::atomic::AtomicBool,
+    ) -> bool {
+        if ledger.tripped() {
+            return false;
+        }
+        let stopped = self
+            .cancel
+            .as_ref()
+            .is_some_and(nika_error::CancelCtx::is_cancelled);
+        if stopped {
+            queued_stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        !stopped
+    }
+
+    /// The outcome of a fan-out whose root Stop withheld an item before it could start:
+    /// operator control, never an authored error.
+    fn fan_out_withheld_stop() -> FailedOutcome {
+        FailedOutcome::new(
+            TaskErrorRecord::new(
+                "NIKA-CANCEL-001",
+                "cancelled by the operator before another fan-out item could start",
+                false,
+            ),
+            None,
+            None,
+            None,
+        )
+        .with_operator_cancelled(true)
     }
 
     fn fan_out_limits(task: &RawTask, item_count: usize) -> (usize, bool) {
@@ -804,6 +861,9 @@ where
         let mut retries: Vec<RetryStamp> = Vec::new();
         // Outside the timeout-cancellable region — survives the attempt's drop (review F1).
         let agent_buffer = crate::agent_events::BufferingObserver::new();
+        // The `mcp:` call a dropped attempt stopped leaves its name here; the
+        // timeout reads it once the attempt is gone.
+        let stopped = ledger.stopped_slot(&task.id.value).child();
         let mut attempt_marks: Vec<usize> = Vec::new();
         let outcome = {
             // `budget` = the task's ONE `timeout:` — enforced below AND at dispatch (F1).
@@ -813,7 +873,11 @@ where
             // F-O1 PR-2 · the re-gate's per-template oracle — computed ONCE, used per attempt.
             let value_taint = crate::integrity::ValueTaint::of_task(task, scope.records());
             // law 6 · the child budget reads the ledger AT CALL TIME (per attempt).
-            let ctx = || self.task_ctx((task, wf), budget, ledger, witness, run_start);
+            let ctx = || {
+                let mut ctx = self.task_ctx((task, wf), budget, ledger, witness, run_start);
+                ctx.stopped = Some(stopped.clone());
+                ctx
+            };
             let attempts = async {
                 let mut attempt = 1_u32;
                 // Spend of FAILED attempts — folded onto the terminal frame.
@@ -870,24 +934,13 @@ where
                 }
             };
 
-            self.race_budget(attempts, budget).await
+            self.race_budget(attempts, budget, &stopped).await
         };
         let duration_ms = self.since_ms(started);
         let note = attempt_note(note, &task.action);
-
-        let (result, evidence, usage) = dispatch_result(task, scope, outcome);
-        RanTask {
-            note,
-            retries,
-            agent_events: stamp_attempts(agent_buffer.into_events(), &attempt_marks),
-            decisions: witness.take(),
-            cleanup_declassified: Vec::new(),
-            evidence,
-            duration_ms,
-            items: None,
-            usage,
-            result,
-        }
+        let agent_events = stamp_attempts(agent_buffer.into_events(), &attempt_marks);
+        let attempts = (note, retries, agent_events, duration_ms);
+        settled_task((task, scope), outcome, attempts, witness.take())
     }
 
     /// Race the attempt future against the task's ONE `timeout:` budget
@@ -896,6 +949,7 @@ where
         &self,
         attempts: F,
         budget: Option<Duration>,
+        stopped: &nika_verb_invoke::StoppedCallSlot,
     ) -> Result<DispatchOk, FailedOutcome>
     where
         F: Future<Output = Result<DispatchOk, FailedOutcome>>,
@@ -903,37 +957,46 @@ where
         match budget {
             None => attempts.await,
             Some(limit) => {
-                let attempts = std::pin::pin!(attempts);
-                let timer = std::pin::pin!(self.clock.sleep(limit));
-                match futures_util::future::select(attempts, timer).await {
-                    futures_util::future::Either::Left((result, _)) => result,
-                    futures_util::future::Either::Right(((), _)) => {
-                        // The attempt loop is dropped — futures
-                        // cancellation at the await point · exec
-                        // subprocesses die via the runner's
-                        // kill-on-drop contract.
-                        Err(FailedOutcome {
-                            access: None,
-                            usage: None,
-                            access_refused: None,
-                            child: None,
-                            record: TaskErrorRecord::new(
-                                TIMEOUT_CODE,
-                                format!("task exceeded its timeout of {} ms", limit.as_millis()),
-                                false, // never retryable (spec 03)
-                            ),
-                            // The cancelled attempt reported no spend of its
-                            // own; every provider request it sent reached the
-                            // ledger through the dispatch journal, its charge
-                            // unknown unless it returned evidence (B7).
-                            cost_usd: None,
-                            cost_unpriced: None,
-                            // The dropped attempt's binding evidence dies
-                            // with it (futures-cancellation — the gate
-                            // verdict was never journaled either).
-                            evidence: None,
-                        })
+                let finished = {
+                    let attempts = std::pin::pin!(attempts);
+                    let timer = std::pin::pin!(self.clock.sleep(limit));
+                    match futures_util::future::select(attempts, timer).await {
+                        futures_util::future::Either::Left((result, _)) => Some(result),
+                        futures_util::future::Either::Right(((), _)) => None,
                     }
+                    // The attempt loop is dropped HERE — futures
+                    // cancellation at the await point · exec subprocesses
+                    // die via the runner's kill-on-drop contract · an
+                    // `mcp:` call's guard names the call it stopped.
+                };
+                if let Some(result) = finished {
+                    result
+                } else {
+                    let message = format!("task exceeded its timeout of {} ms", limit.as_millis());
+                    let details = stopped
+                        .take()
+                        .map(|call| serde_json::json!({"stopped_call": call.to_value()}));
+                    Err(FailedOutcome {
+                        operator_cancelled: false,
+                        access: None,
+                        usage: None,
+                        access_refused: None,
+                        child: None,
+                        // never retryable (spec 03)
+                        record: TaskErrorRecord::detailed(TIMEOUT_CODE, message, false, details),
+                        // The cancelled attempt reported no spend of its
+                        // own; every provider request it sent reached the
+                        // ledger through the dispatch journal, its charge
+                        // unknown unless it returned evidence (B7), and
+                        // every tool success it received, at its known
+                        // cost, through its receipts.
+                        cost_usd: None,
+                        cost_unpriced: None,
+                        // The dropped attempt's binding evidence dies
+                        // with it (futures-cancellation — the gate
+                        // verdict was never journaled either).
+                        evidence: None,
+                    })
                 }
             }
         }
@@ -970,6 +1033,35 @@ fn attempt_note(mut note: String, action: &RawAction) -> String {
         verb_note_prefix(action).clone_into(&mut note); // timed out pre-dispatch
     }
     note
+}
+
+/// The task's record once its attempts settle (split out of `attempt_loop` at the 100-line
+/// ratchet): the outcome folded into its result, evidence and usage, beside the attempts' note,
+/// retries, agent events and time, and the permit decisions they took.
+fn settled_task(
+    (task, scope): (&RawTask, &Scope<'_>),
+    outcome: Result<DispatchOk, FailedOutcome>,
+    (note, retries, agent_events, duration_ms): (
+        String,
+        Vec<RetryStamp>,
+        Vec<crate::agent_events::StampedAgentEvent>,
+        u64,
+    ),
+    decisions: Vec<crate::witness::PermitDecision>,
+) -> RanTask {
+    let (result, evidence, usage) = dispatch_result(task, scope, outcome);
+    RanTask {
+        note,
+        retries,
+        agent_events,
+        decisions,
+        cleanup_declassified: Vec::new(),
+        evidence,
+        duration_ms,
+        items: None,
+        usage,
+        result,
+    }
 }
 
 /// Evaluate the task's `output:` named bindings (spec 04 §Output binding)
@@ -1081,6 +1173,7 @@ pub(crate) fn success_output(settle: &SettleAs) -> Option<&Value> {
             RunResult::Success { value, .. } => Some(value),
             RunResult::SkippedWithError { .. }
             | RunResult::Failed { .. }
+            | RunResult::OperatorCancelled(_)
             | RunResult::PendingRecovery(_) => None,
         },
         // A cache hit IS a success — bindings extract from the
@@ -1355,7 +1448,11 @@ fn dispatch_result(
 
 /// `on_error:` (spec 05) — filter (`on_codes`) → ONE action.
 fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> RunResult {
+    if failed.operator_cancelled {
+        return RunResult::OperatorCancelled(Box::new(failed));
+    }
     let FailedOutcome {
+        operator_cancelled: _,
         record: error,
         cost_usd,
         cost_unpriced,

@@ -130,6 +130,7 @@ pub(crate) async fn fetch_with_clock<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn +
     boundary: &FsBoundary,
     args: &Args,
     jq_clock: JqClock,
+    deadline: Option<std::time::Duration>,
 ) -> BuiltinOutcome {
     const C: &str = "NIKA-BUILTIN-FETCH-001";
     let url = req_str(args, "url", C)?;
@@ -144,7 +145,13 @@ pub(crate) async fn fetch_with_clock<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn +
     // ONE method parse — routing + the wire request both derive from
     // the enum (no string re-match to desync).
     let http_method = parse_method(&method).map_err(|m| BuiltinFailure::new(C, m))?;
-    let request = crate::net_payload::prepare_request(http_method, url, fs, boundary, args).await?;
+    let mut request =
+        crate::net_payload::prepare_request(http_method, url, fs, boundary, args).await?;
+    // The task's `timeout:` is the request's total deadline (stdlib §fetch:
+    // honor the task-level timeout); without one the transport's default holds.
+    if let Some(deadline) = deadline {
+        request.timeout = Some(deadline);
+    }
     let retry_safe = effect_safe_retry(&method, &request);
     // MUTATION (equivalent under the mock): GET/HEAD route to .get(), all
     // else to .post() — but a test double serves both identically and the
@@ -155,18 +162,7 @@ pub(crate) async fn fetch_with_clock<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn +
         HttpMethod::Get | HttpMethod::Head => http.get(request).await,
         _ => http.post(request).await,
     }
-    .map_err(|e| {
-        // A security-boundary error (permits.net.http → SEC-004 · SSRF floor
-        // → SEC-005) takes its spec-plane code; otherwise it's a transport
-        // failure whose retryability follows the spec status table.
-        net_security_failure_for(&e, url).unwrap_or_else(|| {
-            // #1371: a keyless effect-capable call never earns the
-            // transport-transient classification (the ambiguous commit).
-            let transient =
-                retry_safe && matches!(e, HttpError::Timeout { .. } | HttpError::Connection { .. });
-            BuiltinFailure::new(C, format!("request failed: {e}")).with_transient(transient)
-        })
-    })?;
+    .map_err(|e| request_failure(C, &e, url, (retry_safe, deadline)))?;
 
     if !response_policy.admits(response.status) {
         // `details.status_code` carries the status (stdlib §fetch ·
@@ -362,6 +358,7 @@ pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn + FsMetaDyn>
         boundary,
         args,
         JqClock::at(nika_types::timestamp::Timestamp::EPOCH),
+        None,
     )
     .await
 }
@@ -557,6 +554,44 @@ fn charset_label(content_type: &str) -> Option<&str> {
                 .eq_ignore_ascii_case("charset")
                 .then(|| value.trim().trim_matches('"').trim_matches('\''))
         })
+}
+
+/// The failure a fetch request that did not come back becomes (split out of `fetch_with_clock`
+/// at the 100-line ratchet).
+fn request_failure(
+    code: &'static str,
+    e: &HttpError,
+    url: &str,
+    (retry_safe, deadline): (bool, Option<std::time::Duration>),
+) -> BuiltinFailure {
+    // A security-boundary error (permits.net.http → SEC-004 · SSRF floor
+    // → SEC-005) takes its spec-plane code; otherwise it's a transport
+    // failure whose retryability follows the spec status table.
+    net_security_failure_for(e, url).unwrap_or_else(|| {
+        // #1371: a keyless effect-capable call never earns the
+        // transport-transient classification (the ambiguous commit).
+        let transient =
+            retry_safe && matches!(e, HttpError::Timeout { .. } | HttpError::Connection { .. });
+        BuiltinFailure::new(
+            code,
+            format!("request failed: {e}{}", timeout_hint(e, deadline)),
+        )
+        .with_transient(transient)
+    })
+}
+
+/// What a fetch that met its deadline says next: the task's
+/// `timeout:` governs the request, so the fix is named where it is written.
+fn timeout_hint(error: &HttpError, deadline: Option<std::time::Duration>) -> &'static str {
+    match (error, deadline) {
+        (HttpError::Timeout { .. }, None) => {
+            " — set `timeout:` on the task, next to `invoke:`, to give the request longer"
+        }
+        (HttpError::Timeout { .. }, Some(_)) => {
+            " — the task's `timeout:` bounds the request: raise it to give the request longer"
+        }
+        _ => "",
+    }
 }
 
 /// Split a header value on `;` OUTSIDE double quotes (RFC 9110

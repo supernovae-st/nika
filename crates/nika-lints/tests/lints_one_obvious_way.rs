@@ -17,19 +17,46 @@
 
 mod common;
 
+use std::path::Path;
+
 use common::{fixture_dirs, skip_in_mutants_sandbox, spec_dir};
-use nika_lints::{Lint, native_first, one_obvious_way};
-use nika_schema::{FileId, ParseMode, parse};
+use nika_lints::{Lint, egress, native_first, one_obvious_way};
+use nika_schema::{FileId, ParseMode, ProjectFileRead, compose_project_files, parse};
 
 fn lint(yaml: &str) -> Vec<Lint> {
-    try_lint(yaml).expect("lint fixture must parse")
+    try_lint(yaml, None).expect("lint fixture must parse")
 }
 
-fn try_lint(yaml: &str) -> Result<Vec<Lint>, nika_schema::SchemaError> {
+/// The rule sets over a parsed fixture. `egress/001` judges inline text and the text of a prompt
+/// file alike (spec 02 §Project files), so a fixture's project files compose first, through the
+/// production compose and from the fixture's own directory.
+fn try_lint(yaml: &str, dir: Option<&Path>) -> Result<Vec<Lint>, nika_schema::SchemaError> {
     let wf = parse(yaml, FileId::new(0), ParseMode::Strict)?;
     let mut lints = one_obvious_way(&wf);
     lints.extend(native_first(&wf));
+    let composed = match dir {
+        Some(dir) => compose_project_files(&wf, ".", &mut |path| fixture_file(dir, path)).workflow,
+        None => wf,
+    };
+    lints.extend(egress(&composed));
     Ok(lints)
+}
+
+/// One project file of a lint fixture: a path under the fixture's directory, no symbolic link at
+/// any component.
+fn fixture_file(dir: &Path, relative: &str) -> Result<Vec<u8>, ProjectFileRead> {
+    let mut path = dir.to_path_buf();
+    for segment in relative.split('/') {
+        path.push(segment);
+        let meta = std::fs::symlink_metadata(&path).map_err(|_| ProjectFileRead::Missing)?;
+        if meta.file_type().is_symlink() {
+            return Err(ProjectFileRead::Linked);
+        }
+    }
+    if !path.is_file() {
+        return Err(ProjectFileRead::NotRegular);
+    }
+    std::fs::read(&path).map_err(|_| ProjectFileRead::Missing)
 }
 
 #[derive(Debug, serde::Deserialize, PartialEq)]
@@ -73,7 +100,7 @@ fn lint_fixture_corpus() {
         )
         .expect("parse expected-lints.json");
 
-        let got = match try_lint(&yaml) {
+        let got = match try_lint(&yaml, Some(dir.as_path())) {
             Ok(lints) => lints,
             Err(e) => {
                 failures.push(format!("{label} · refuses to parse: {e}"));

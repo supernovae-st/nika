@@ -398,6 +398,7 @@ where
         name: &str,
         args: &serde_json::Value,
         jq_clock: JqClock,
+        deadline: Option<std::time::Duration>,
     ) -> Result<(BuiltinOutcome, Option<String>), ToolExecError> {
         let args = args
             .as_object()
@@ -459,14 +460,7 @@ where
             // network 2 — fetch's `multipart:` file parts ride the SAME
             // permits.fs READ boundary as the file builtins (gated inside
             // resolve_multipart · the judged fs pins each file read).
-            "fetch" => Ok(net::fetch_with_clock(
-                self.http.as_ref(),
-                &self.judged(),
-                &self.fs_boundary,
-                args,
-                jq_clock,
-            )
-            .await),
+            "fetch" => Ok(self.route_fetch(args, jq_clock, deadline).await),
             "notify" => Ok(net::notify(self.http.as_ref(), args).await),
             // media 3 — provider calls ride dedicated planes (const endpoints);
             // saves gate each final path on the permits.fs boundary before I/O.
@@ -524,6 +518,25 @@ where
             self.emitter.as_ref(),
             &self.fs_boundary,
             args,
+        )
+        .await
+    }
+
+    /// The `nika:fetch` plumbing (kept out of `route`'s match for the fn-length budget — pure
+    /// delegation): the task's deadline bounds the request.
+    async fn route_fetch(
+        &self,
+        args: &Args,
+        jq_clock: JqClock,
+        deadline: Option<std::time::Duration>,
+    ) -> BuiltinOutcome {
+        net::fetch_with_clock(
+            self.http.as_ref(),
+            &self.judged(),
+            &self.fs_boundary,
+            args,
+            jq_clock,
+            deadline,
         )
         .await
     }
@@ -790,7 +803,9 @@ where
                 run_start.unix_ns(),
             ))
         });
-        let (outcome, warning) = self.route(&call.name, &call.input, jq_clock).await?;
+        let (outcome, warning) = self
+            .route(&call.name, &call.input, jq_clock, call.deadline())
+            .await?;
         let result = render(call.id.as_str(), outcome);
         // A builtin's non-fatal diagnostic rides the seam's own lane —
         // beside the value, never inside it (`ToolResult::warning`).

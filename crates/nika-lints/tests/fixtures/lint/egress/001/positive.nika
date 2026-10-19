@@ -1,0 +1,9 @@
+nika: egress-001-positive
+tasks:
+  brief:
+    infer:
+      prompt: |
+        Sign the release with this key:
+        -----BEGIN PRIVATE KEY-----
+        not-a-key
+        -----END PRIVATE KEY-----

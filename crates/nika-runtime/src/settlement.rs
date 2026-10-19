@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 
 use nika_dataflow::{TaskRecord as DataflowTaskRecord, TaskStatus, TerminalCause};
 use nika_event::settlement::{
-    RunCause, RunSettlement, RunState, SettlementError, Spend, TaskTally,
+    RunCause, RunSettlement, RunState, SettlementError, Spend, StopOutcome, StoppedCall, TaskTally,
 };
 
 use nika_schema::raw::RawWorkflow;
@@ -29,10 +29,19 @@ pub(crate) fn settle_run(
     cause: RunCause,
     error: Option<SettlementError>,
 ) -> RunSettlement {
+    // The run-owned typed collection survives fan-out and agent future drops.
+    // Keep the legacy per-record projection when no physical-call witness was collected.
+    let mut calls = snap.stopped_calls.clone();
+    for call in stopped_calls(records) {
+        if !calls.contains(&call) {
+            calls.push(call);
+        }
+    }
     let mut settlement = RunSettlement::new(state, cause)
         .with_tasks(tally(records))
         .with_spend(spend(snap))
-        .with_error(error);
+        .with_error(error)
+        .with_stopped_calls(calls);
     if let Some(elapsed) = snap.elapsed {
         settlement =
             settlement.with_elapsed_ms(u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX));
@@ -63,6 +72,7 @@ pub(crate) fn tally(records: &BTreeMap<String, DataflowTaskRecord>) -> TaskTally
     t.cancelled = count(&|r| r.status == TaskStatus::Cancelled);
     t.never_started = count(&|r| {
         r.status == TaskStatus::Cancelled
+            && r.started_at.is_none()
             && matches!(r.cause, TerminalCause::Operator | TerminalCause::Budget)
     });
     t
@@ -102,6 +112,33 @@ pub(crate) fn first_failure(
                 SettlementError::new(e.code.clone(), e.message.clone(), Some(task.clone()))
             })
         })
+}
+
+/// Every call the run stopped waiting for, in record order, whatever its
+/// task settled as: the one the task's error names (a failure, a skip), or
+/// the one the error a recovery repaired names.
+fn stopped_calls(records: &BTreeMap<String, DataflowTaskRecord>) -> Vec<StoppedCall> {
+    records
+        .iter()
+        .filter_map(|(task, record)| {
+            let error = record.error.as_ref().or(record.recovered_from.as_ref())?;
+            stopped_call_of(task, error)
+        })
+        .collect()
+}
+
+/// The stopped call a task error names in its details (`stopped_call` ·
+/// `tool`, `call_id`, `outcome`); `None` when absent or malformed.
+fn stopped_call_of(task: &str, error: &nika_dataflow::TaskErrorRecord) -> Option<StoppedCall> {
+    let call = error.details.as_ref()?.get("stopped_call")?;
+    let text = |key: &str| call.get(key).and_then(Value::as_str);
+    let outcome = StopOutcome::parse(text("outcome")?)?;
+    Some(StoppedCall::new(
+        task,
+        text("tool")?,
+        text("call_id")?,
+        outcome,
+    ))
 }
 
 /// Resolve the run's verdict over the typed `outputs:` and emit the terminal
@@ -222,6 +259,7 @@ mod tests {
 
     fn snap(any_priced: bool, priced: u32, unpriced: u32) -> LedgerSnapshot {
         LedgerSnapshot {
+            stopped_calls: Vec::new(),
             spent_usd: if any_priced { 0.25 } else { 0.0 },
             any_priced,
             priced_calls: priced,
@@ -278,6 +316,62 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_started_operator_cancelled_task_is_not_never_started() {
+        let mut started = record(TaskStatus::Cancelled, TerminalCause::Operator);
+        started.started_at = Some(nika_types::timestamp::Timestamp::EPOCH);
+        let records = BTreeMap::from([
+            ("started".into(), started),
+            (
+                "queued".into(),
+                record(TaskStatus::Cancelled, TerminalCause::Operator),
+            ),
+        ]);
+        let tally = tally(&records);
+        assert_eq!(tally.total, 2);
+        assert_eq!(tally.cancelled, 2);
+        assert_eq!(tally.never_started, 1);
+        assert_eq!(tally.ok, 0);
+        assert_eq!(tally.recovered, 0);
+    }
+
+    #[test]
+    fn buffered_calls_survive_a_missing_task_error_without_duplicating_legacy_facts() {
+        let calls = vec![
+            StoppedCall::new("fan", "mcp:s/slow", "f1", StopOutcome::Unknown),
+            StoppedCall::new("fan", "mcp:s/slow", "f2", StopOutcome::NotSent),
+            StoppedCall::new("agent", "mcp:s/slow", "a1", StopOutcome::Unknown),
+        ];
+        let mut snapshot = snap(false, 0, 0);
+        snapshot.stopped_calls = calls.clone();
+        let mut fan = record(TaskStatus::Failure, TerminalCause::VerbError);
+        fan.error = Some(nika_dataflow::TaskErrorRecord::detailed(
+            "NIKA-TIMEOUT-001",
+            "timeout",
+            false,
+            Some(serde_json::json!({"stopped_call": {
+                "tool": "mcp:s/slow", "call_id": "f2", "outcome": "not_sent"
+            }})),
+        ));
+        let records = BTreeMap::from([
+            ("fan".into(), fan),
+            (
+                "agent".into(),
+                record(TaskStatus::Cancelled, TerminalCause::Operator),
+            ),
+        ]);
+        let settled = settle_run(
+            &records,
+            &snapshot,
+            RunState::Cancelled,
+            RunCause::Operator,
+            None,
+        );
+        assert_eq!(settled.stopped_calls, calls);
+        assert_eq!(records["agent"].error, None);
+        assert_eq!(records["agent"].recovered_from, None);
+    }
+
     /// Nothing metered → no total, an honest qualifier; something priced →
     /// the total, the pricing stamp, the attribution.
     #[test]
@@ -332,5 +426,63 @@ mod tests {
         );
         records.remove("b");
         assert!(first_failure(&records).is_none());
+    }
+
+    /// Every call the run stopped waiting for rides the settlement, in
+    /// record order, whatever its task settled as: failed, skipped past, or
+    /// recovered. A task naming none, or a malformed one, adds none.
+    #[test]
+    fn the_settlement_names_every_stopped_call_whatever_its_task_became() {
+        let named = |call_id: &str, outcome: &str| {
+            Some(nika_dataflow::TaskErrorRecord::detailed(
+                "NIKA-CANCEL-001",
+                "stopped",
+                false,
+                Some(serde_json::json!({"stopped_call": {
+                    "tool": "mcp:s/slow", "call_id": call_id, "outcome": outcome
+                }})),
+            ))
+        };
+        let mut failed = record(TaskStatus::Failure, TerminalCause::VerbError);
+        failed.error = named("c1", "unknown");
+        let mut skipped = record(TaskStatus::Skipped, TerminalCause::ErrorSkip);
+        skipped.error = named("c2", "not_sent");
+        let mut recovered = record(TaskStatus::Success, TerminalCause::Recovered);
+        recovered.recovered_from = named("c3", "unknown");
+        let mut malformed = record(TaskStatus::Failure, TerminalCause::VerbError);
+        malformed.error = named("c4", "maybe");
+        let records = BTreeMap::from([
+            ("a".to_owned(), failed),
+            ("b".to_owned(), skipped),
+            ("c".to_owned(), recovered),
+            ("d".to_owned(), malformed),
+            (
+                "e".to_owned(),
+                record(TaskStatus::Success, TerminalCause::Normal),
+            ),
+        ]);
+        let settlement = settle_run(
+            &records,
+            &snap(false, 0, 0),
+            RunState::Cancelled,
+            RunCause::Operator,
+            None,
+        );
+        assert_eq!(
+            settlement.stopped_calls,
+            vec![
+                StoppedCall::new("a", "mcp:s/slow", "c1", StopOutcome::Unknown),
+                StoppedCall::new("b", "mcp:s/slow", "c2", StopOutcome::NotSent),
+                StoppedCall::new("c", "mcp:s/slow", "c3", StopOutcome::Unknown),
+            ]
+        );
+        let none = settle_run(
+            &BTreeMap::new(),
+            &snap(false, 0, 0),
+            RunState::Succeeded,
+            RunCause::Normal,
+            None,
+        );
+        assert!(none.stopped_calls.is_empty());
     }
 }

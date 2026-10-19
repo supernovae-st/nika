@@ -1,0 +1,9 @@
+{"data": [
+ {"id": "vendor/peak", "links": {"details": "/api/v1/models/vendor/peak-20260101/endpoints"}},
+ {"id": "vendor/full", "links": {"details": "/api/v1/models/vendor/full-20260101/endpoints"}},
+ {"id": "vendor/windows", "links": {"details": "/api/v1/models/vendor/windows-20260101/endpoints"}},
+ {"id": "vendor/free:free", "links": {"details": "/api/v1/models/vendor/free-20260101/endpoints"}},
+ {"id": "vendor/metered-image", "links": {"details": "/api/v1/models/vendor/metered-image-20260101/endpoints"}},
+ {"id": "vendor/zero-unpriced", "links": {"details": "/api/v1/models/vendor/zero-unpriced-20260101/endpoints"}},
+ {"id": "vendor/zero-axisless", "links": {"details": "/api/v1/models/vendor/zero-axisless-20260101/endpoints"}}
+]}

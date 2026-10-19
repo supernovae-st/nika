@@ -135,6 +135,7 @@ pub struct ParseCategoryError { pub input: String }
 
 // ── Lookup (returns Option, never NikaError) ───────────────────────────
 pub fn find_provider(name: &str) -> Option<&'static Provider>;   // phf+unicase O(1)
+pub fn model_facts(provider: &str, model: &str) -> Option<&'static ModelFacts>; // @1.2 limits source, retirement floor
 pub fn find_mcp_server(name: &str) -> Option<&'static McpServer>;// phf+unicase O(1)
 pub fn resolve_mcp_name(name: &str) -> Option<String>;           // alias → npm pkg
 pub fn is_known_mcp_server(name: &str) -> bool;

@@ -171,10 +171,14 @@ fn pricing_provider_matches(row_provider: &str, query: &str) -> bool {
 ///
 /// A prefixed string resolves via [`find_pricing_scoped`] (contains-fallback
 /// never crosses provider boundaries) · a bare string falls back to
-/// [`find_pricing`]. This is the ONE model-string → pricing resolution:
-/// the check-time cost floor (`nika-schema` check/cost) and the runtime's
-/// task-completion pricing both call it — the two surfaces can never
-/// disagree on which row prices a model.
+/// [`find_pricing`]. This is the ONE model-string → pricing resolution the
+/// check-time cost floor (`nika-check` cost) and the priced-model gates read.
+/// A run prices each dispatch from its exact route instead (`nika-providers`
+/// billing): the admission tariff of an admitted route, whose first-party USD
+/// rates are projected into this row, else the row of the exact wire model on
+/// the provider's own endpoint. A dispatch whose usage is incomplete, or whose
+/// prompt exceeds its tariff's admitted context, stays unpriced there while
+/// the floor still reads this row.
 #[cfg(feature = "pricing")]
 #[must_use]
 pub fn find_pricing_for(model: &str) -> Option<&'static ModelPricing> {
@@ -367,6 +371,13 @@ mod tests {
 
     #[test]
     fn gpt6_astra_observed_token_budget_is_narrowly_scoped() {
+        for observed in ["gpt-6-sol", "gpt-6.1-sol"] {
+            assert_eq!(
+                model_capabilities("openai", observed).token_limit_param,
+                TokenLimitParam::MaxCompletionTokens,
+                "{observed}"
+            );
+        }
         let caps = model_capabilities("openai", "gpt-6-astra");
         let defaults = model_capabilities("unknown", "unknown");
         assert_eq!(caps.token_limit_param, TokenLimitParam::MaxCompletionTokens);
@@ -595,16 +606,14 @@ mod tests {
         assert!(find_pricing_for("ollama/qwen3.5:4b").is_none());
     }
 
-    /// B18 / issue 1306: `groq/grok-3` is not an xAI seat. Contains-fallback
-    /// must not price grok-3 through groq, or MODELS would call it ready.
+    /// Groq never inherits an xAI price, and retired models remain unpriced.
     #[test]
-    fn groq_grok_3_is_not_priced_ready() {
-        assert!(
-            find_pricing_for("groq/grok-3").is_none(),
-            "grok-3 is xAI — groq must not inherit its snapshot row"
-        );
-        assert!(find_pricing_for("xai/grok-3").is_some());
-        assert!(find_pricing_scoped("groq", "grok-3").is_none());
+    fn groq_never_prices_an_xai_model() {
+        assert!(find_pricing_for("groq/grok-4.3").is_none());
+        assert!(find_pricing_for("xai/grok-4.3").is_some());
+        assert!(find_pricing_scoped("groq", "grok-4.3").is_none());
+        assert!(find_pricing_for("xai/grok-3").is_none());
+        assert!(find_pricing_for("groq/grok-3").is_none());
     }
 
     /// B20 / issue 1297: the snapshot prices Gemini Flash under models.dev's

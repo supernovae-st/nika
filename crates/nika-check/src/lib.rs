@@ -146,6 +146,7 @@ mod permit_taint;
 pub mod permits_fit;
 mod permits_infer;
 pub mod plan;
+mod project_files;
 mod reach;
 mod requirements;
 mod retry_safety;
@@ -154,6 +155,7 @@ mod run_decl;
 mod schema_lint;
 mod schema_typing;
 mod secrets;
+mod skipped_read;
 pub mod slots;
 mod tools;
 pub mod trifecta;
@@ -188,6 +190,7 @@ pub use order::OrderFinding;
 pub use permit_taint::{PermitTaint, PermitTaintKind};
 pub use permits_fit::CapabilityEscape;
 pub use permits_infer::InferredPermits;
+pub use project_files::{ProjectFileFinding, check_project};
 pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
 pub use requirements::{ModelRequirement, Requirements, SecretRequirement};
 pub use retry_safety::RetrySafetyFinding;
@@ -510,6 +513,10 @@ pub struct CheckReport {
     /// resolved half (cycles · containment · the typed call) through an
     /// injected reader. Additive: `report_version` stays 1.
     pub composition: Vec<CompositionFinding>,
+    /// Project files (spec 02 §Project files): what [`check_project`] could not compose. A plain
+    /// [`check`] reads no files. Additive, and absent when empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub project_files: Vec<ProjectFileFinding>,
     /// Every finding, class-erased into ONE renderable list (#331) —
     /// the per-class keys above stay (the typed surface); a consumer
     /// loops this instead of hardcoding ten key names. Empty ⇔
@@ -573,6 +580,7 @@ impl CheckReport {
             && self.retry_safety_findings.is_empty()
             && self.write_conflicts.is_empty()
             && self.composition.is_empty()
+            && self.project_files.is_empty()
     }
 
     /// The spec codes from the CHECK-ONLY finding surfaces — those NOT in
@@ -727,6 +735,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     let (trifecta, mut consent_scan, order_findings) =
         gated_scans(wf, conforms, &edges, &topo_waves);
     hints.extend(std::mem::take(&mut consent_scan.hints));
+    hints.extend(skipped_read::hints(wf, conforms, &edges, &topo_waves));
     hints::credit_gates(&mut hints, &trifecta.mitigations);
     let capability_escapes = permits_fit::scan_escapes(wf);
     let effective = boundary_offer::lane(wf, capability_escapes.is_empty(), conforms, &mut hints);
@@ -779,6 +788,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         // the PURE composition half (spec 14 law 1's textual part);
         // the resolved half needs a reader — `check_composed`
         composition: composition::scan_static(wf),
+        project_files: Vec::new(),
         hints,
         waves: topo_waves,
         analysis: dag_read.analysis,
@@ -830,30 +840,7 @@ pub fn check_composed(
     root: &str,
     read: &mut dyn FnMut(&str) -> Result<String, String>,
 ) -> CheckReport {
-    let mut report = check(wf);
-    report.composition = composition::scan_resolved(wf, root, read);
-    // The composition COST half (spec 14 · the 2026-07-29 finding): every
-    // resolvable child's ceiling folds into the parent's envelope — a
-    // parent whose child alone explains `≤$X` stops printing `$0 model
-    // spend`. The reader-less `check` stays child-blind BY DESIGN (it
-    // never loads files; the pure half needs no filesystem).
-    for call in composition::price_resolved(wf, root, read) {
-        report.cost.fold_composed(
-            call.task,
-            call.target,
-            &call.child,
-            call.iterations,
-            call.attempts,
-            call.gated,
-        );
-    }
-    // C04 — MCP server presence needs the injected reader (L0, zero I/O).
-    report
-        .unknown_tools
-        .extend(tools::scan_mcp_against_registry(wf, read));
-    // Re-fold the class-erased list over the finished lane (one truth).
-    report.findings = findings::collect(&report);
-    report
+    project_files::check_with(wf, root, read, None)
 }
 
 /// Infer the TIGHTEST `permits:` block the workflow actually needs —

@@ -82,6 +82,10 @@ pub struct ToolCall {
     /// Immutable execution context. Private so callers cannot construct a
     /// partially-initialized context; use [`Self::with_run_start`].
     run_start: Option<ToolRunStart>,
+    /// The task's `timeout:` (spec 03), private for the same reason; use
+    /// [`Self::with_deadline`]. A builtin whose transport has its own
+    /// deadline (`nika:fetch`) honors it.
+    deadline: Option<std::time::Duration>,
 }
 
 impl ToolCall {
@@ -93,6 +97,7 @@ impl ToolCall {
             name: name.into(),
             input,
             run_start: None,
+            deadline: None,
         }
     }
 
@@ -107,6 +112,19 @@ impl ToolCall {
     #[must_use]
     pub const fn run_start(&self) -> Option<ToolRunStart> {
         self.run_start
+    }
+
+    /// Attach the task's `timeout:` as this call's deadline.
+    #[must_use]
+    pub fn with_deadline(mut self, deadline: std::time::Duration) -> Self {
+        self.deadline = Some(deadline);
+        self
+    }
+
+    /// The task's `timeout:`, when the runtime supplied one.
+    #[must_use]
+    pub const fn deadline(&self) -> Option<std::time::Duration> {
+        self.deadline
     }
 }
 
@@ -197,11 +215,76 @@ impl ToolErrorMeta {
     }
 }
 
+/// The spec code a call the run stopped waiting for fails with (spec 05 ·
+/// `NIKA-CANCEL-001`, « task cancelled », never transient).
+pub const STOPPED_CALL_CODE: &str = "NIKA-CANCEL-001";
+
+/// What became of a call the run stopped waiting for, as far as its caller
+/// can know.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum StopOutcome {
+    /// The call was sent: the server may have acted on it before it was
+    /// asked to cancel.
+    Unknown,
+    /// The call was never sent: no server received it.
+    NotSent,
+}
+
+impl StopOutcome {
+    /// The wire word (`unknown` · `not_sent`).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::NotSent => "not_sent",
+        }
+    }
+}
+
+/// A call the run stopped waiting for (the operator's Stop, a task
+/// `timeout:` that dropped the attempt): the tool, the call's id, and what
+/// became of the call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct StoppedCall {
+    /// The tool id (`mcp:<server>/<tool>`).
+    pub tool: String,
+    /// The call's id.
+    pub call_id: String,
+    /// What became of the call.
+    pub outcome: StopOutcome,
+}
+
+impl StoppedCall {
+    /// Name a stopped call (INV-019 · `new()` on every `#[non_exhaustive]`
+    /// struct).
+    #[must_use]
+    pub fn new(tool: impl Into<String>, call_id: impl Into<String>, outcome: StopOutcome) -> Self {
+        Self {
+            tool: tool.into(),
+            call_id: call_id.into(),
+            outcome,
+        }
+    }
+
+    /// The `stopped_call` object: `tool`, `call_id` and `outcome`.
+    #[must_use]
+    pub fn to_value(&self) -> serde_json::Value {
+        serde_json::json!({
+            "tool": self.tool,
+            "call_id": self.call_id,
+            "outcome": self.outcome.as_str(),
+        })
+    }
+}
+
 /// What a failed tool call observed beside its failure, projected as the
 /// spec error object's `details` (spec 05 §error structure · for
-/// `nika:fetch`, stdlib §Status as data). Closed on purpose: only the facts
-/// named here cross the tool seam, never a tool's free-form data or a
-/// provider's text.
+/// `nika:fetch`, stdlib §Status as data · for a call the run stopped
+/// waiting for, the stopped call). Closed on purpose: only the facts named
+/// here cross the tool seam, never a tool's free-form data or a provider's
+/// text.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ToolErrorDetails {
@@ -210,6 +293,8 @@ pub struct ToolErrorDetails {
     pub status_code: Option<u16>,
     /// The exact status set the call declared acceptable (`response.accept`).
     pub accepted: Option<Vec<u16>>,
+    /// The call the run stopped waiting for, when that is why it failed.
+    pub stopped_call: Option<Box<StoppedCall>>,
 }
 
 impl ToolErrorDetails {
@@ -233,14 +318,21 @@ impl ToolErrorDetails {
         self
     }
 
+    /// The call the run stopped waiting for.
+    #[must_use]
+    pub fn with_stopped_call(mut self, stopped: StoppedCall) -> Self {
+        self.stopped_call = Some(Box::new(stopped));
+        self
+    }
+
     /// Whether the call observed no fact at all.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.status_code.is_none() && self.accepted.is_none()
+        self.status_code.is_none() && self.accepted.is_none() && self.stopped_call.is_none()
     }
 
     /// The `details` object of the error: only the facts present, keyed as
-    /// the spec names them (`status_code`, `accepted`).
+    /// the spec names them (`status_code`, `accepted`, `stopped_call`).
     #[must_use]
     pub fn to_value(&self) -> serde_json::Value {
         let mut details = serde_json::Map::new();
@@ -249,6 +341,9 @@ impl ToolErrorDetails {
         }
         if let Some(accepted) = &self.accepted {
             details.insert("accepted".to_owned(), accepted.clone().into());
+        }
+        if let Some(stopped) = &self.stopped_call {
+            details.insert("stopped_call".to_owned(), stopped.to_value());
         }
         serde_json::Value::Object(details)
     }
@@ -310,6 +405,29 @@ impl ToolResult {
     pub fn with_error_meta(mut self, meta: ToolErrorMeta) -> Self {
         self.error_meta = Some(meta);
         self
+    }
+
+    /// `call`, which the run stopped waiting for, as its own failure:
+    /// [`STOPPED_CALL_CODE`], never transient (no `retry:` reads a stop as a
+    /// tool fault), with the stopped call in the error details.
+    #[must_use]
+    pub fn stopped(call: &ToolCall, outcome: StopOutcome) -> Self {
+        let content = match outcome {
+            StopOutcome::NotSent => format!(
+                "the run stopped waiting for `{}` before it was sent: no server received it",
+                call.name
+            ),
+            StopOutcome::Unknown => format!(
+                "the run stopped waiting for `{}` after it was sent: whether the server acted on \
+                 it is unknown",
+                call.name
+            ),
+        };
+        let stopped = StoppedCall::new(call.name.clone(), call.id.as_str(), outcome);
+        Self::error(call.id.as_str(), content).with_error_meta(
+            ToolErrorMeta::new(Some(STOPPED_CALL_CODE.to_owned()), false)
+                .with_details(ToolErrorDetails::new().with_stopped_call(stopped)),
+        )
     }
 }
 
@@ -405,6 +523,14 @@ mod tests {
     }
 
     #[test]
+    fn tool_call_carries_the_task_deadline() {
+        let call = ToolCall::new("tc_1", "nika:fetch", serde_json::json!({}));
+        assert_eq!(call.deadline(), None);
+        let call = call.with_deadline(std::time::Duration::from_secs(180));
+        assert_eq!(call.deadline(), Some(std::time::Duration::from_secs(180)));
+    }
+
+    #[test]
     fn tool_call_carries_immutable_run_start() {
         let start = ToolRunStart::new(42);
         let call = ToolCall::new("tc_1", "nika:jq", serde_json::json!({})).with_run_start(start);
@@ -494,6 +620,49 @@ mod tests {
         );
         assert!(ToolErrorDetails::new().is_empty());
         assert_eq!(ToolErrorDetails::new().to_value(), serde_json::json!({}));
+        let stopped = ToolErrorDetails::new().with_stopped_call(StoppedCall::new(
+            "mcp:s/t",
+            "c1",
+            StopOutcome::NotSent,
+        ));
+        assert!(!stopped.is_empty());
+        assert_eq!(
+            stopped.to_value(),
+            serde_json::json!({"stopped_call": {"tool": "mcp:s/t", "call_id": "c1", "outcome": "not_sent"}})
+        );
+    }
+
+    #[test]
+    fn a_stopped_call_fails_with_the_cancel_code_and_names_the_call() {
+        let call = ToolCall::new("c7", "mcp:s/slow", serde_json::json!({}));
+        for (outcome, word, said) in [
+            (StopOutcome::Unknown, "unknown", "after it was sent"),
+            (StopOutcome::NotSent, "not_sent", "before it was sent"),
+        ] {
+            let result = ToolResult::stopped(&call, outcome);
+            assert!(result.is_error);
+            assert_eq!(result.tool_use_id.as_str(), "c7");
+            assert!(
+                result.content.contains("`mcp:s/slow`") && result.content.contains(said),
+                "{}",
+                result.content
+            );
+            let meta = result.error_meta.expect("the stop's metadata");
+            assert_eq!(meta.spec_code.as_deref(), Some("NIKA-CANCEL-001"));
+            assert!(!meta.transient, "a stop is never retried");
+            let details = meta.details.expect("the stopped call");
+            let stopped = details.stopped_call.as_ref().expect("the typed stop");
+            assert_eq!(stopped.tool, "mcp:s/slow");
+            assert_eq!(stopped.call_id, "c7");
+            assert_eq!(stopped.outcome, outcome);
+            assert_eq!(
+                details.to_value(),
+                serde_json::json!({
+                    "stopped_call": {"tool": "mcp:s/slow", "call_id": "c7", "outcome": word}
+                }),
+                "the error details keep the exact wire object for either stop outcome"
+            );
+        }
     }
 
     fn _assert_send_sync<T: Send + Sync>() {}
@@ -504,5 +673,6 @@ mod tests {
         _assert_send_sync::<ToolCall>();
         _assert_send_sync::<ToolResult>();
         _assert_send_sync::<ToolErrorDetails>();
+        _assert_send_sync::<StoppedCall>();
     }
 }

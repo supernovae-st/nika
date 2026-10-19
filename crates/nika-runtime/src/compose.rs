@@ -272,6 +272,19 @@ fn ladder_key(lookup: &dyn Fn(&str) -> Option<String>, id: &str, env_var: &str) 
         .or_else(|| lookup(env_var).filter(|v| !v.is_empty()))
 }
 
+/// Whether `NIKA_<ID>_API_KEY` and the provider's conventional variable are both set
+/// (non-empty) with different values, where [`ladder_key`] takes the first. The two values are
+/// compared here, in memory, at the sanctioned env boundary, and dropped: only the answer leaves
+/// (a flag the probe and the doctor name), never a value, a length or a digest.
+fn keys_disagree(lookup: &dyn Fn(&str) -> Option<String>, id: &str, env_var: &str) -> bool {
+    let nika = format!("NIKA_{}_API_KEY", id.to_uppercase());
+    let set = |name: &str| lookup(name).filter(|v| !v.is_empty());
+    match (set(&nika), set(env_var)) {
+        (Some(ours), Some(conventional)) => ours != conventional,
+        _ => false,
+    }
+}
+
 /// The one ambient read behind the composition root's existing key/endpoint ladders.
 #[allow(clippy::disallowed_methods)] // sanctioned env→secret boundary
 fn env_lookup(name: &str) -> Option<String> {
@@ -299,6 +312,9 @@ pub fn config_from_env() -> ProvidersConfig {
         }
         if let Some(value) = ladder_key(&env_lookup, provider.id, provider.env_var) {
             config = config.with_key(provider.id, Secret::new(value));
+        }
+        if keys_disagree(&env_lookup, provider.id, provider.env_var) {
+            config = config.with_key_conflict(provider.id);
         }
     }
     // CLOUD endpoints honor the same override family (D-2026-06-10-N2
@@ -614,6 +630,10 @@ pub fn provider_http() -> Result<ReqwestHttp, nika_kernel::HttpError> {
 fn fetch_http(net: NetBoundary) -> Result<ReqwestHttp, nika_kernel::HttpError> {
     let mut config = HttpConfig::default(); // ssrf: Enforce by default
     config.net = net;
+    // A fetch carries its task's `timeout:` as its total deadline: a
+    // server that computes before it answers delivers no byte meanwhile, so the
+    // idle guard is the transport ceiling; a request without one keeps 30s.
+    config.idle_read_timeout = Some(PROVIDER_TRANSPORT_CEILING);
     ReqwestHttp::with_config(config)
 }
 
@@ -1162,6 +1182,56 @@ mod tests {
         );
         let nothing = env(&[]);
         assert_eq!(ladder_key(&nothing, "mistral", "MISTRAL_API_KEY"), None);
+    }
+
+    /// Two key variables set with different values are flagged, never their values: the
+    /// same value, one alone, or an empty one is no conflict, and the ladder still takes
+    /// `NIKA_<ID>_API_KEY` first.
+    #[test]
+    fn two_key_variables_with_different_values_are_flagged() {
+        let env = |pairs: &'static [(&'static str, &'static str)]| {
+            move |name: &str| {
+                pairs
+                    .iter()
+                    .find(|(k, _)| *k == name)
+                    .map(|(_, v)| (*v).to_owned())
+            }
+        };
+        let differ = env(&[
+            ("NIKA_ANTHROPIC_API_KEY", "sk-ant-nika-fixture"),
+            ("ANTHROPIC_API_KEY", "sk-ant-other-fixture"),
+        ]);
+        assert!(keys_disagree(&differ, "anthropic", "ANTHROPIC_API_KEY"));
+        assert_eq!(
+            ladder_key(&differ, "anthropic", "ANTHROPIC_API_KEY").as_deref(),
+            Some("sk-ant-nika-fixture")
+        );
+        for pairs in [
+            &[
+                ("NIKA_ANTHROPIC_API_KEY", "sk-ant-same"),
+                ("ANTHROPIC_API_KEY", "sk-ant-same"),
+            ][..],
+            &[("NIKA_ANTHROPIC_API_KEY", "sk-ant-alone")][..],
+            &[("ANTHROPIC_API_KEY", "sk-ant-alone")][..],
+            &[
+                ("NIKA_ANTHROPIC_API_KEY", ""),
+                ("ANTHROPIC_API_KEY", "sk-ant-alone"),
+            ][..],
+        ] {
+            let lookup = |name: &str| {
+                pairs
+                    .iter()
+                    .find(|(k, _)| *k == name)
+                    .map(|(_, v)| (*v).to_owned())
+            };
+            assert!(
+                !keys_disagree(&lookup, "anthropic", "ANTHROPIC_API_KEY"),
+                "{pairs:?}"
+            );
+        }
+        let config = ProvidersConfig::new().with_key_conflict("anthropic");
+        assert!(config.key_conflict("anthropic") && config.key_conflict("claude"));
+        assert!(!config.key_conflict("openai"));
     }
 
     #[test]

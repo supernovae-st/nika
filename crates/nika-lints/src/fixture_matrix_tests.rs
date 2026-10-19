@@ -10,9 +10,9 @@ use std::path::{Path, PathBuf};
 
 use nika_schema::{FileId, ParseMode, parse};
 
-use crate::{arg_injection, native_first, one_obvious_way};
+use crate::{arg_injection, egress, native_first, one_obvious_way};
 
-const RULES: [&str; 16] = [
+const RULES: [&str; 17] = [
     "one-obvious-way/001",
     "one-obvious-way/002",
     "one-obvious-way/003",
@@ -29,6 +29,7 @@ const RULES: [&str; 16] = [
     "native-first/004",
     "native-first/005",
     "arg-injection/001",
+    "egress/001",
 ];
 
 fn root() -> PathBuf {
@@ -86,6 +87,7 @@ fn rules_for(yaml: &str, family: &str) -> Vec<&'static str> {
         "one-obvious-way" => one_obvious_way(&wf),
         "native-first" => native_first(&wf),
         "arg-injection" => arg_injection(&wf),
+        "egress" => egress(&wf),
         other => panic!("unknown lint family {other}"),
     }
     .into_iter()
@@ -99,7 +101,7 @@ fn every_stable_rule_has_a_positive_and_a_neighbor_negative() {
     assert_eq!(
         discovered_rules(),
         expected,
-        "filesystem discovery must yield the exact 16-rule matrix"
+        "filesystem discovery must yield the exact 17-rule matrix"
     );
     let mut seen = Vec::new();
     for rule in RULES {
@@ -166,5 +168,5 @@ fn every_stable_rule_has_a_positive_and_a_neighbor_negative() {
         }
         seen.push(rule);
     }
-    assert_eq!(seen, RULES, "the matrix is the exact stable 16-rule set");
+    assert_eq!(seen, RULES, "the matrix is the exact stable 17-rule set");
 }

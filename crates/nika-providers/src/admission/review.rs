@@ -207,8 +207,10 @@ impl CostRoute {
     }
 }
 
-/// Whether the existing catalog prices a native non-compatible API route.
-/// Preserves that legacy paid path; an override never borrows its native price.
+/// Whether the existing catalog prices a native non-compatible API route: its qualified
+/// admission tariff, or the vendored snapshot's row. A model the snapshot predates (Gemini 4
+/// Argon) is priced by its tariff alone. Preserves that legacy paid path; an override never
+/// borrows its native price.
 #[must_use]
 pub fn native_catalog_price_known(model: &str, config: ProvidersConfig) -> bool {
     let Some((provider, name)) = model.split_once('/') else {
@@ -221,9 +223,11 @@ pub fn native_catalog_price_known(model: &str, config: ProvidersConfig) -> bool 
         .iter()
         .find(|p| p.id == provider)
         .is_some_and(|p| {
+            let wire = p.resolve_model(name);
             p.wire != WireFormat::OpenAiCompat
                 && registry.effective_base_url(provider) == Some(p.base_url)
-                && nika_catalog::find_pricing_scoped(provider, p.resolve_model(name)).is_some()
+                && (nika_catalog::find_pricing_scoped(provider, wire).is_some()
+                    || InferenceAdmission::qualify(provider, wire, p.base_url).is_ok())
         })
 }
 

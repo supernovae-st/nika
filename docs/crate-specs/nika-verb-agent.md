@@ -420,3 +420,29 @@ A harness outcome's session model rides `AgentOutput.model_reported` with
 (the requested name and pricing key, still `None` for a harness-built output).
 It is a reported configuration or selection, never a served-model attestation;
 an absent report stays `None`, never the request.
+
+## Native operator Stop
+
+The embedding caller may carry its genuine `CancelCtx` and a stopped-call slot
+on `AgentInput`. The native loop checks that control before another model or tool
+dispatch, including a schema re-ask. A returned typed stopped MCP call under that
+control ends the loop as `VerbAgentError::OperatorStopped`, naming the actual
+physical call in its details; it is never model feedback. The existing return
+seam retains already incurred model/tool spend. Ordinary tool-error feedback and
+a valid already-completed final answer keep their existing behavior. No model
+text, error sentence or provider stop-reason string creates this operator control.
+
+The optional bridge fields default to absent for existing embedders. The stopped
+slot forwards all parallel/timeout-drop witnesses to the run-owned collection;
+this does not make a claim that a remote effect was rolled back.
+
+Each native tool batch owns a child receipt until all its resolve futures have
+been dropped. On batch error, the loop reads that receipt only after collection
+has ended: ready MCP siblings retain their physical cost and exact Stop facts
+without draining unfinished work or starting queued tools. A successful batch
+continues to use only its existing request-order cost fold; it does not add the
+receipt subtotal again. Prior completed batches plus the failed batch's subtotal
+are decorated once at the existing failure seam. This does not newly account for
+a whole agent/task future dropped before returning an error: the runtime ledger
+still owns its existing debit and terminal rules. Unread iterations can remain
+cancelled, independently of physical-call facts. Child-workflow drain is unchanged.

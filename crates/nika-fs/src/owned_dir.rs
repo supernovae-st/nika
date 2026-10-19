@@ -10,7 +10,7 @@ use std::path::{Component, Path, PathBuf};
 
 use nix::dir::Dir;
 use nix::fcntl::{AtFlags, OFlag, open, openat, renameat};
-use nix::sys::stat::{Mode, mkdirat};
+use nix::sys::stat::{Mode, SFlag, fstatat, mkdirat};
 use nix::unistd::{UnlinkatFlags, linkat, unlinkat};
 
 const DIR_MODE: Mode = Mode::from_bits_truncate(0o700);
@@ -146,6 +146,53 @@ impl OwnedDir {
             io::ErrorKind::InvalidInput,
             "owned directory: relative path is empty",
         ))
+    }
+
+    /// Read at most `limit` bytes of the contained regular file `relative`, refusing a symbolic
+    /// link at every component (spec 02 §Project files: a project file is read under the
+    /// project root, never through a link).
+    ///
+    /// # Errors
+    /// [`ContainedRead`]: a link on the way, a missing or unreadable file, or another node.
+    pub fn read_contained(&self, relative: &Path, limit: u64) -> Result<Vec<u8>, ContainedRead> {
+        let file = match self.open_relative(relative) {
+            Ok(file) => file,
+            Err(_) if self.names_a_link(relative) => return Err(ContainedRead::Linked),
+            Err(error) if error.kind() == io::ErrorKind::InvalidData => {
+                return Err(ContainedRead::NotRegular);
+            }
+            Err(_) => return Err(ContainedRead::Missing),
+        };
+        let mut bytes = Vec::new();
+        file.take(limit)
+            .read_to_end(&mut bytes)
+            .map_err(|_| ContainedRead::Missing)?;
+        Ok(bytes)
+    }
+
+    /// Whether a component of `relative` is a symbolic link. A no-follow open refuses one with
+    /// ELOOP or ENOTDIR depending on the platform and the component, so a look names it.
+    fn names_a_link(&self, relative: &Path) -> bool {
+        let Ok(mut parent) = self.fd.try_clone() else {
+            return false;
+        };
+        for component in relative.components() {
+            let Component::Normal(name) = component else {
+                return false;
+            };
+            match fstatat(&parent, name, AtFlags::AT_SYMLINK_NOFOLLOW) {
+                Ok(stat) if stat.st_mode & SFlag::S_IFMT.bits() == SFlag::S_IFLNK.bits() => {
+                    return true;
+                }
+                Ok(_) => {}
+                Err(_) => return false,
+            }
+            match open_dir(&parent, name) {
+                Ok(dir) => parent = dir,
+                Err(_) => return false,
+            }
+        }
+        false
     }
 
     /// Borrow the held directory descriptor.
@@ -293,6 +340,43 @@ impl OwnedDir {
         file.sync_all()
     }
 
+    /// Durably append one line to a regular file whose durable content ends at byte `at`.
+    /// Bytes after it, left by a write that did not complete, are cut first, so they never join
+    /// the line. Returns the file's new durable length. The caller is the file's only writer:
+    /// bytes after `at` are cut whoever wrote them.
+    ///
+    /// # Errors
+    /// The file is shorter than `at` ([`io::ErrorKind::InvalidData`]: bytes it held are gone),
+    /// or it cannot be opened, cut, written or synchronized safely.
+    pub fn append_line_at(&self, name: &str, line: &str, at: u64) -> io::Result<u64> {
+        let flags = OFlag::O_APPEND | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+        let mut file = match self.open_file(name, flags | OFlag::O_CREAT) {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => self.open_file(name, flags)?,
+            result => result?,
+        };
+        let held = file.metadata()?.len();
+        if held < at {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "owned directory: the file is shorter than its durable content",
+            ));
+        }
+        if held > at {
+            file.set_len(at)?;
+        }
+        let framed = format!("{line}\n");
+        if file.write(framed.as_bytes())? != framed.len() {
+            return Err(io::Error::new(
+                io::ErrorKind::WriteZero,
+                "incomplete appended line",
+            ));
+        }
+        file.sync_all()?;
+        let added = u64::try_from(framed.len())
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "line too long"))?;
+        Ok(at.saturating_add(added))
+    }
+
     /// Durably replace a regular file through a descriptor-relative rename.
     ///
     /// # Errors
@@ -331,11 +415,20 @@ impl OwnedDir {
     /// claimed, or another I/O error when the contained file cannot be
     /// created, written, or synchronized safely.
     pub fn write_once(&self, name: &str, body: &str) -> io::Result<()> {
+        self.write_once_bytes(name, body.as_bytes())
+    }
+
+    /// [`OwnedDir::write_once`] with any bytes, kept exactly as given: bytes that are not UTF-8
+    /// (a line cut inside a character) are written as they are.
+    ///
+    /// # Errors
+    /// As [`OwnedDir::write_once`].
+    pub fn write_once_bytes(&self, name: &str, body: &[u8]) -> io::Result<()> {
         let mut file = self.open_file(
             name,
             OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
         )?;
-        file.write_all(body.as_bytes())?;
+        file.write_all(body)?;
         file.sync_all()?;
         self.fd.sync_all()
     }
@@ -480,6 +573,37 @@ fn open_dir(parent: &File, name: &OsStr) -> io::Result<File> {
     )
     .map_err(io_error)?;
     Ok(File::from(fd))
+}
+
+/// Why [`OwnedDir::read_contained`] handed over no bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ContainedRead {
+    /// A component of the path is a symbolic link.
+    Linked,
+    /// The file is missing or unreadable.
+    Missing,
+    /// The path names another kind of node than a regular file.
+    NotRegular,
+}
+
+/// A reader of the contained regular files under the folder `base` (an empty `base` is the
+/// working folder): the folder resolves once to its real path, then each read is
+/// [`OwnedDir::read_contained`] under `limit`. A folder that does not open reads nothing.
+pub fn contained_reader(
+    base: &Path,
+    limit: u64,
+) -> impl FnMut(&str) -> Result<Vec<u8>, ContainedRead> + use<> {
+    let base = if base.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        base
+    };
+    let root = std::fs::canonicalize(base).and_then(|real| OwnedDir::open(&real));
+    move |relative: &str| match &root {
+        Ok(dir) => dir.read_contained(Path::new(relative), limit),
+        Err(_) => Err(ContainedRead::Missing),
+    }
 }
 
 fn open_regular_file(parent: &File, name: &OsStr) -> io::Result<File> {
@@ -912,5 +1036,86 @@ mod tests {
             dir.read_capped_below(&[], "link", 9, "big").is_err(),
             "a link is refused"
         );
+    }
+
+    /// A line appended at the durable end cuts what a write that did not complete left after
+    /// it, so those bytes never join the line; a file shorter than its durable end is refused
+    /// unwritten.
+    #[test]
+    fn a_line_appended_at_the_durable_end_cuts_an_unfinished_write() {
+        use std::io::Write as _;
+
+        let root = tempfile::tempdir().expect("tempdir");
+        let dir = OwnedDir::open(root.path()).expect("owned");
+        let path = root.path().join("log.jsonl");
+        let first = dir.append_line_at("log.jsonl", "{}", 0).expect("first");
+        assert_eq!(first, 3);
+        let mut torn = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .expect("open");
+        torn.write_all(b"{\"cut\":\"caf\xC3").expect("partial");
+        let second = dir
+            .append_line_at("log.jsonl", "[]", first)
+            .expect("second");
+        assert_eq!(second, 6);
+        assert_eq!(std::fs::read(&path).expect("read"), b"{}\n[]\n");
+        let short = dir.append_line_at("log.jsonl", "{}", 99);
+        assert!(short.is_err_and(|error| error.kind() == io::ErrorKind::InvalidData));
+        assert_eq!(std::fs::read(&path).expect("read"), b"{}\n[]\n");
+    }
+
+    /// Bytes written once are kept exactly, a cut UTF-8 sequence included, and never twice.
+    #[test]
+    fn bytes_written_once_are_kept_exactly() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let dir = OwnedDir::open(root.path()).expect("owned");
+        let cut: &[u8] = b"{\"text\":\"caf\xC3";
+        dir.write_once_bytes("torn-1", cut).expect("written");
+        let kept = std::fs::read(root.path().join("torn-1")).expect("read");
+        assert_eq!(kept, cut);
+        let again = dir.write_once_bytes("torn-1", b"other");
+        assert!(again.is_err_and(|error| error.kind() == io::ErrorKind::AlreadyExists));
+    }
+
+    /// A contained read refuses a link at any component and another node than a file, and
+    /// stops at its limit.
+    #[test]
+    fn a_contained_read_refuses_links_and_stops_at_its_limit() {
+        let root = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir(root.path().join("prompts")).expect("dir");
+        std::fs::write(root.path().join("prompts/brief.md"), b"0123456789").expect("file");
+        let target = root.path().join("prompts/brief.md");
+        std::os::unix::fs::symlink(&target, root.path().join("prompts/link.md")).expect("link");
+        std::os::unix::fs::symlink(root.path().join("prompts"), root.path().join("linked"))
+            .expect("directory link");
+        let dir = OwnedDir::open(root.path()).expect("owned");
+        let read = |path: &str, limit| dir.read_contained(Path::new(path), limit);
+        assert_eq!(read("prompts/brief.md", 4), Ok(b"0123".to_vec()));
+        assert_eq!(read("prompts/brief.md", 64), Ok(b"0123456789".to_vec()));
+        assert_eq!(read("prompts/link.md", 64), Err(ContainedRead::Linked));
+        assert_eq!(read("linked/brief.md", 64), Err(ContainedRead::Linked));
+        assert_eq!(read("prompts/none.md", 64), Err(ContainedRead::Missing));
+        assert_eq!(read("prompts/brief.md/x", 64), Err(ContainedRead::Missing));
+        assert_eq!(read("prompts", 64), Err(ContainedRead::NotRegular));
+    }
+
+    /// A contained reader resolves its folder once: a project reached through a link reads, a
+    /// link inside it is refused, and a folder that does not open reads nothing.
+    #[test]
+    fn a_contained_reader_resolves_its_folder_once() {
+        let root = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir_all(root.path().join("real/prompts")).expect("dirs");
+        std::fs::write(root.path().join("real/prompts/brief.md"), b"hi").expect("file");
+        let target = root.path().join("real/prompts/brief.md");
+        std::os::unix::fs::symlink(&target, root.path().join("real/prompts/link.md"))
+            .expect("link");
+        std::os::unix::fs::symlink(root.path().join("real"), root.path().join("project"))
+            .expect("folder link");
+        let mut read = contained_reader(&root.path().join("project"), 64);
+        assert_eq!(read("prompts/brief.md"), Ok(b"hi".to_vec()));
+        assert_eq!(read("prompts/link.md"), Err(ContainedRead::Linked));
+        let mut nowhere = contained_reader(&root.path().join("missing"), 64);
+        assert_eq!(nowhere("prompts/brief.md"), Err(ContainedRead::Missing));
     }
 }

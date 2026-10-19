@@ -76,10 +76,12 @@ pub struct ModelsAudit {
     /// whose declaration carries a literal string) that resolve — named
     /// on the green line because a `--var` can swap the value at run.
     pub via_default: usize,
-    /// Models that RESOLVE but match nothing the pricing snapshot
-    /// carries for their (priced) provider — the two-strike class
-    /// (audit UX 2026-07-31: buy the key, then meet the typo). A ⚠,
-    /// never a ✖: the snapshot is dated, providers ship models weekly.
+    /// Advice on models that RESOLVE: one that matches nothing the
+    /// pricing snapshot carries for its (priced) provider — the two-strike
+    /// class (audit UX 2026-07-31: buy the key, then meet the typo) — and
+    /// one whose provider published a retirement floor, its successor
+    /// named. A ⚠, never a ✖: the snapshot is dated, providers ship
+    /// models weekly, and a retiring model still runs.
     pub catalog_warnings: Vec<ModelFinding>,
     /// Resolvable models on a server-backed KEYLESS engine (the local
     /// five) — the green line must nuance « resolves » for these: the
@@ -289,9 +291,10 @@ pub(crate) fn models(
         t.paint(Role::Strong, "MODELS"),
         t.paint(Role::Dim, &line)
     );
-    // The catalog cross-check rides UNDER the green line (the audit
-    // stays clean — advisory): the model resolves, the snapshot has
-    // never heard of it, and the user deserves to know BEFORE the key.
+    // The catalog cross-checks ride UNDER the green line (the audit
+    // stays clean — advisory): the model resolves, and the snapshot has
+    // never heard of it or its provider published a retirement floor;
+    // the user deserves to know BEFORE the key.
     for w in &audit.catalog_warnings {
         let _ = writeln!(
             out,

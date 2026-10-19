@@ -43,7 +43,9 @@ pub use model::{
 };
 #[cfg(feature = "capabilities")]
 pub use param_flag::{ParamFlag, ParseParamFlagError};
-pub use provider::{DataPolicy, Provider, ProviderModel, validate_key_format};
+pub use provider::{
+    DataPolicy, ModelFacts, ModelLifecycle, Provider, ProviderModel, validate_key_format,
+};
 pub use region::{ParseRegionError, Region};
 pub use tags::{ParseTagError, Tag};
 #[cfg(feature = "capabilities")]

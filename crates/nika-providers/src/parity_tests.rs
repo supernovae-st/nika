@@ -72,6 +72,12 @@ const OPENAI_TOOL: &str = r#"{"id":"cc_t","model":"compat-test","choices":[{"mes
     {"name":"get_weather","arguments":"{\"city\":\"Paris\"}"}}]},"finish_reason":"tool_calls"}],
     "usage":{"prompt_tokens":3,"completion_tokens":2}}"#;
 
+/// `OpenAI`'s own endpoint answers a tool request on its Responses door (`openai_compat::responses`).
+const OPENAI_RESPONSES_TOOL: &str = r#"{"id":"resp_t","model":"test-model","status":"completed",
+    "output":[{"id":"fc_1","type":"function_call","status":"completed","call_id":"tc_1",
+    "name":"get_weather","arguments":"{\"city\":\"Paris\"}"}],
+    "usage":{"input_tokens":3,"output_tokens":2,"total_tokens":5}}"#;
+
 const GEMINI_TOOL: &str = r#"{"responseId":"g_t","modelVersion":"gemini-test","candidates":
     [{"content":{"parts":[{"functionCall":{"name":"get_weather","args":{"city":"Paris"}}}]},
     "finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":3,"candidatesTokenCount":2}}"#;
@@ -79,6 +85,9 @@ const GEMINI_TOOL: &str = r#"{"responseId":"g_t","modelVersion":"gemini-test","c
 fn tool_call_fixture(id: &str, wire: WireFormat) -> &'static str {
     if id == "ollama" {
         return r#"{"model":"ollama-test","message":{"tool_calls":[{"id":"tc_1","function":{"name":"get_weather","arguments":{"city":"Paris"}}}]},"done":true,"done_reason":"stop","prompt_eval_count":3,"eval_count":2}"#;
+    }
+    if id == "openai" {
+        return OPENAI_RESPONSES_TOOL;
     }
     match wire {
         WireFormat::Anthropic => ANTHROPIC_TOOL,

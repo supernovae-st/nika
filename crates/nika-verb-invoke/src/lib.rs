@@ -57,11 +57,12 @@ pub mod mcp;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 
+use nika_kernel::CancelCtx;
 use nika_kernel::ai::provider::ToolDef;
 use nika_kernel::tool_executor::{ToolCall, ToolExecuteDyn, ToolRunStart};
 
 pub use errors::VerbInvokeError;
-pub use mcp::McpPlane;
+pub use mcp::{McpPlane, StoppedCallSlot};
 
 // The closed namespace set moved to `nika_vocab::tool_ref::ToolNamespace`
 // with the rest of the grammar — a second copy here is how the two readers
@@ -77,6 +78,12 @@ pub struct InvokeInput {
     pub args: serde_json::Value,
     /// Engine-supplied `ToolCall` id (derived from the tool id if absent).
     pub call_id: Option<String>,
+    /// Where an `mcp:` call the run stops waiting for (its attempt dropped)
+    /// leaves its name and what became of it. `None` = nobody reads it.
+    pub stopped: Option<StoppedCallSlot>,
+    /// The task's `timeout:` (spec 03): rides the tool call as its deadline,
+    /// so a builtin with its own transport deadline (`nika:fetch`) honors it.
+    pub timeout: Option<std::time::Duration>,
 }
 
 impl InvokeInput {
@@ -87,7 +94,16 @@ impl InvokeInput {
             tool: tool.into(),
             args: serde_json::Value::Object(serde_json::Map::new()),
             call_id: None,
+            stopped: None,
+            timeout: None,
         }
+    }
+
+    /// Leave a dropped `mcp:` call's name and outcome in `slot`.
+    #[must_use]
+    pub fn with_stopped_slot(mut self, slot: StoppedCallSlot) -> Self {
+        self.stopped = Some(slot);
+        self
     }
 }
 
@@ -155,6 +171,10 @@ pub struct InvokeVerb<T> {
     /// shared behind an `Arc` with the agent loop, so the slot is set
     /// through `&self`). Empty = every `mcp:` name reaches the executor.
     mcp: OnceLock<McpPlane>,
+    /// The run's stop (the operator's), installed once by the runtime: each
+    /// `mcp:` call's own stop is its child. Empty = only a dropped attempt
+    /// stops a call.
+    run_stop: OnceLock<CancelCtx>,
 }
 
 impl<T> InvokeVerb<T> {
@@ -164,6 +184,7 @@ impl<T> InvokeVerb<T> {
         Self {
             executor,
             mcp: OnceLock::new(),
+            run_stop: OnceLock::new(),
         }
     }
 
@@ -171,6 +192,14 @@ impl<T> InvokeVerb<T> {
     /// when a plane is already installed.
     pub fn install_mcp_plane(&self, plane: McpPlane) -> bool {
         self.mcp.set(plane).is_ok()
+    }
+
+    /// Install the run's stop — once: from now on the operator's Stop also
+    /// stops every `mcp:` call in flight (a stoppable plane tells its server
+    /// to cancel, and the call fails `NIKA-CANCEL-001`). Returns `false`
+    /// (and keeps the first) when a stop is already installed.
+    pub fn install_run_stop(&self, stop: CancelCtx) -> bool {
+        self.run_stop.set(stop).is_ok()
     }
 
     /// The approved `mcp:` tool definitions the installed plane offers (an
@@ -231,16 +260,36 @@ where
         if let Some(run_start) = run_start {
             call = call.with_run_start(run_start);
         }
+        if let Some(deadline) = input.timeout {
+            call = call.with_deadline(deadline);
+        }
 
         // An `mcp:` name rides the installed plane (offloaded · the plane
         // is sync); everything else — and every name without a plane —
         // rides the executor.
-        let result = match self.mcp.get().filter(|_| input.tool.starts_with("mcp:")) {
-            Some(plane) => {
-                let plane = plane.clone();
-                mcp::offload(move || plane.call(call)).await
+        let result = if let Some(plane) = self.mcp.get().filter(|_| input.tool.starts_with("mcp:"))
+        {
+            let plane = plane.clone();
+            // The call's own stop: the run's Stop reaches it, and a
+            // dropped attempt (a task `timeout:`) stops it alone, never
+            // left running.
+            let stop = self
+                .run_stop
+                .get()
+                .map_or_else(CancelCtx::new, CancelCtx::child);
+            let watched = stop.clone();
+            let named = (call.name.clone(), call.id.as_str().to_owned());
+            let pending = mcp::offload(move || plane.call(call, &watched)).cancel_on_drop(stop);
+            match input.stopped {
+                Some(slot) => pending.recording_in(slot, named.0, named.1).await,
+                None => pending.await,
             }
-            None => self.executor.execute(call).await,
+        } else {
+            let result = self.executor.execute(call).await;
+            if let (Some(slot), Ok(result)) = (&input.stopped, &result) {
+                slot.record_success_cost(result);
+            }
+            result
         }
         .map_err(map_dispatch_error)?;
 
@@ -343,7 +392,8 @@ mod tests {
     use super::*;
     use nika_error::traits::NikaErrorCode;
     use nika_kernel::tool_executor::{
-        ToolCall, ToolErrorMeta, ToolExecError, ToolExecuteDyn, ToolResult,
+        StopOutcome, StoppedCall, ToolCall, ToolErrorMeta, ToolExecError, ToolExecuteDyn,
+        ToolResult,
     };
     use std::sync::Mutex;
 
@@ -725,6 +775,113 @@ mod tests {
             .expect_err("refused");
         assert_eq!(err.spec_code(), "NIKA-MCP-006");
         assert!(!err.is_transient());
+    }
+
+    /// The run stops waiting for an `mcp:` call (a task
+    /// `timeout:` drops the attempt): the plane's call sees its stop, so it
+    /// can cancel at the server instead of running to its own end.
+    #[tokio::test]
+    async fn a_dropped_mcp_call_is_stopped() {
+        let (seen_tx, seen_rx) = std::sync::mpsc::channel();
+        let verb = InvokeVerb::new(Arc::new(MockTool::ok("unused")));
+        verb.install_mcp_plane(McpPlane::stoppable(
+            Arc::new(move |call: ToolCall, stop: &nika_kernel::CancelCtx| {
+                let started = std::time::Instant::now();
+                while !stop.is_cancelled() && started.elapsed() < std::time::Duration::from_secs(10)
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                let _ = seen_tx.send(stop.is_cancelled());
+                Ok(ToolResult::success(call.id.to_string(), "late"))
+            }),
+            Arc::new(Vec::new),
+        ));
+        let cut = tokio::time::timeout(
+            std::time::Duration::from_millis(50),
+            verb.run(InvokeInput::new("mcp:owned/slow")),
+        )
+        .await;
+        assert!(cut.is_err(), "the call was still running at the timeout");
+        let seen = seen_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("the plane's call ended");
+        assert!(
+            seen,
+            "the plane's call saw its stop, well before its own 10 s"
+        );
+    }
+
+    /// The run's stop (the operator's) reaches an `mcp:` call in flight
+    /// through the call's own child stop: the call fails with the stop's
+    /// code, never transient, the stopped call in its details.
+    #[tokio::test]
+    async fn the_run_stop_reaches_an_inflight_mcp_call() {
+        let verb = InvokeVerb::new(Arc::new(MockTool::ok("unused")));
+        let run = CancelCtx::new();
+        assert!(verb.install_run_stop(run.clone()));
+        let operator = run.clone();
+        verb.install_mcp_plane(McpPlane::stoppable(
+            Arc::new(move |call: ToolCall, stop: &CancelCtx| {
+                let _ = stop.begin();
+                operator.cancel();
+                let started = std::time::Instant::now();
+                while !stop.is_cancelled() && started.elapsed() < std::time::Duration::from_secs(10)
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                Ok(if stop.is_cancelled() {
+                    ToolResult::stopped(&call, StopOutcome::Unknown)
+                } else {
+                    ToolResult::success(call.id.to_string(), "never stopped")
+                })
+            }),
+            Arc::new(Vec::new),
+        ));
+        let err = verb
+            .run(InvokeInput::new("mcp:owned/slow"))
+            .await
+            .expect_err("the operator stopped the call");
+        assert_eq!(err.spec_code(), "NIKA-CANCEL-001");
+        assert!(!err.is_transient(), "no retry reads a stop as a fault");
+        let details = err.details().expect("the stopped call").to_value();
+        assert_eq!(details["stopped_call"]["tool"], "mcp:owned/slow");
+        assert_eq!(details["stopped_call"]["outcome"], "unknown");
+        assert!(
+            !verb.install_run_stop(CancelCtx::new()),
+            "the run's stop is installed once"
+        );
+    }
+
+    /// An `mcp:` call whose attempt is dropped leaves its name and outcome
+    /// in the slot its input carried, for the runtime's terminal frame.
+    #[tokio::test]
+    async fn a_dropped_mcp_call_names_itself_in_its_slot() {
+        let verb = InvokeVerb::new(Arc::new(MockTool::ok("unused")));
+        verb.install_mcp_plane(McpPlane::stoppable(
+            Arc::new(|call: ToolCall, stop: &CancelCtx| {
+                let _ = stop.begin();
+                let started = std::time::Instant::now();
+                while !stop.is_cancelled() && started.elapsed() < std::time::Duration::from_secs(10)
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                Ok(ToolResult::success(call.id.to_string(), "late"))
+            }),
+            Arc::new(Vec::new),
+        ));
+        let slot = StoppedCallSlot::new();
+        let mut input = InvokeInput::new("mcp:owned/slow").with_stopped_slot(slot.clone());
+        input.call_id = Some("c-1".to_owned());
+        let cut = tokio::time::timeout(std::time::Duration::from_millis(50), verb.run(input)).await;
+        assert!(cut.is_err(), "the run stopped waiting");
+        assert_eq!(
+            slot.take(),
+            Some(StoppedCall::new(
+                "mcp:owned/slow",
+                "c-1",
+                StopOutcome::Unknown
+            ))
+        );
     }
 
     #[tokio::test]

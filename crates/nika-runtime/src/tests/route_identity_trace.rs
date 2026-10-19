@@ -25,7 +25,7 @@ use super::*;
 /// Public synthetic sentinel planted in the configured endpoint path.
 const S: &str = "e32pathsentinelfc162b12fffe2dd6";
 
-const SOURCE: &str = "nika: identity\npermits: {}\ntasks:\n  paid:\n    infer: { model: 'deepseek/deepseek-v4-pro', prompt: 'say paid', max_tokens: 256 }\n  free:\n    infer: { model: 'openrouter/qwen/qwen3.8-27b:free', prompt: 'say free', max_tokens: 256 }\n  private:\n    infer: { model: 'openai/gpt-oss-120b', prompt: 'say private', max_tokens: 256 }\n";
+const SOURCE: &str = "nika: identity\npermits: {}\ntasks:\n  paid:\n    infer: { model: 'deepseek/deepseek-v4-pro', prompt: 'say paid', max_tokens: 256 }\n  free:\n    infer: { model: 'openrouter/nvidia/nemotron-3-super-120b-a12b:free', prompt: 'say free', max_tokens: 256 }\n  private:\n    infer: { model: 'openai/gpt-oss-120b', prompt: 'say private', max_tokens: 256 }\n";
 
 /// Answers every post with complete usage for the model it names, and keeps the
 /// URLs it was sent.
@@ -150,7 +150,7 @@ async fn task_frames_and_attribution_keys_name_origins_only() {
         (
             "free",
             "https://openrouter.ai:443",
-            "catalog_estimate_not_invoice",
+            "provider_reported_charge",
             true,
         ),
         ("private", "https://api.scaleway.ai:443", "unknown", false),
@@ -171,7 +171,7 @@ async fn task_frames_and_attribution_keys_name_origins_only() {
     let by_source: BTreeMap<String, f64> =
         serde_json::from_value(json(terminal, "cost_by_source")).expect("amounts");
     let paid = "deepseek/deepseek-v4-pro @ https://api.deepseek.com:443";
-    let free = "openrouter/qwen/qwen3.8-27b:free @ https://openrouter.ai:443";
+    let free = "openrouter/nvidia/nemotron-3-super-120b-a12b:free @ https://openrouter.ai:443";
     assert_eq!(
         by_source.keys().map(String::as_str).collect::<Vec<_>>(),
         [paid, free]

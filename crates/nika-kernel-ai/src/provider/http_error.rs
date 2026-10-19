@@ -107,6 +107,24 @@ impl ProviderHttpError {
     pub fn is_transient(&self) -> bool {
         !self.is_quota_exhausted() && matches!(self.status, 429 | 500..=599)
     }
+
+    /// The provider's documented code for a request over the model's context
+    /// window, on a failure waiting cannot help; never inferred from prose.
+    #[must_use]
+    pub fn is_context_overflow(&self) -> bool {
+        !self.is_transient()
+            && [self.code, self.error_type]
+                .into_iter()
+                .flatten()
+                .any(|s| s == "context_length_exceeded")
+    }
+
+    /// A 400 the provider filed as an invalid request: what a request over the
+    /// window looks like on a wire without a documented overflow code.
+    #[must_use]
+    pub fn is_invalid_request(&self) -> bool {
+        self.status == 400 && self.error_type == Some("invalid_request_error")
+    }
 }
 
 impl std::fmt::Display for ProviderHttpError {
@@ -290,6 +308,11 @@ fn safe_identifier(value: &str) -> Option<&'static str> {
         "authentication_error" => Some("authentication_error"),
         "permission_error" => Some("permission_error"),
         "invalid_request_error" => Some("invalid_request_error"),
+        // A request over the context window. Evidence (checked 2026-10-12): documented by
+        // OpenRouter (`error.metadata.error_type`) and by OpenAI for Agents and Responses turn
+        // errors; on Chat Completions an observed structured `error.code` (Microsoft's Azure
+        // documentation quotes the body), never matched in prose.
+        "context_length_exceeded" => Some("context_length_exceeded"),
         "not_found_error" => Some("not_found_error"),
         "model_not_found" => Some("model_not_found"),
         "api_error" => Some("api_error"),

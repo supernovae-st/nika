@@ -18,7 +18,7 @@
 //!
 //! Two halves, one voice: [`scan_static`] is PURE (runs in every
 //! `check()` — a templated target needs no filesystem to refuse);
-//! [`scan_resolved`] walks the call graph through an injected reader
+//! [`scan_resolved_with`] walks the call graph through an injected reader
 //! (the [`nika_schema::resolve_skills`] pattern — this crate stays zero-I/O;
 //! the CLI hands `fs::read_to_string`). What one invocation judges: the
 //! ROOT's direct calls carry the full law set; the reachable closure is
@@ -31,6 +31,7 @@ use nika_cap::{ExecPermit, Permits};
 use nika_types::types::{Field, NikaType, assignable, fits, parse_type};
 
 use super::ByteSpan;
+use crate::project_files::ChildFiles;
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 use nika_schema::source::Span;
 use nika_schema::types::{OutputDecl, VarDecl, type_expr_display};
@@ -166,11 +167,13 @@ fn static_target_defect(target: &str) -> Option<String> {
 /// `root` is the parent workflow's own id (the path the caller loaded it
 /// from); relative targets resolve against each file's own directory.
 /// Returns the FULL lane (static defects included — one superset, so the
-/// caller replaces, never merges).
-pub(super) fn scan_resolved(
+/// caller replaces, never merges). With `files`, the project files of every
+/// child the walk loaded compose too, each from the child's own folder.
+pub(super) fn scan_resolved_with(
     wf: &RawWorkflow,
     root: &str,
     read: &mut dyn FnMut(&str) -> Result<String, String>,
+    files: Option<&mut ChildFiles<'_, '_>>,
 ) -> Vec<CompositionFinding> {
     let mut out = scan_static(wf);
     let statically_bad: Vec<String> = out.iter().map(|f| f.target.clone()).collect();
@@ -206,7 +209,22 @@ pub(super) fn scan_resolved(
             &mut out,
         );
     }
+    if let Some(files) = files {
+        for (id, child) in &walker.parsed {
+            files.compose_child(id, child);
+        }
+    }
     out
+}
+
+/// [`scan_resolved_with`] without project files: the composition tests' seam.
+#[cfg(test)]
+pub(super) fn scan_resolved(
+    wf: &RawWorkflow,
+    root: &str,
+    read: &mut dyn FnMut(&str) -> Result<String, String>,
+) -> Vec<CompositionFinding> {
+    scan_resolved_with(wf, root, read, None)
 }
 
 /// Everything one direct call is judged against (laws 1-resolve · 2 ·
@@ -698,6 +716,12 @@ fn boundary_name(role: &str, path: &str, declared: Option<&Permits>) -> String {
 /// The report-shaped byte range of a source span.
 fn byte_span(s: Span) -> ByteSpan {
     ByteSpan::new(s.start.0, s.end.0)
+}
+
+/// The root workflow's folder, normalized as the lane names files: the project root a check
+/// composes the children's project files within.
+pub(super) fn folder_of(root: &str) -> String {
+    normalize_path(root.rsplit_once('/').map_or("", |(dir, _)| dir))
 }
 
 /// Lexically resolve `target` against the DIRECTORY of `base` (both as

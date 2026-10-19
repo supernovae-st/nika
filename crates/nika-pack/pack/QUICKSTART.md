@@ -123,12 +123,22 @@ There are exactly **4 verbs**: `infer` (call a model) · `exec` (run a
 command) · `invoke` (call a tool) · `agent` (run an agentic loop).
 Everything else (fetching a URL, querying a DB, writing a file) is a
 **tool** reached with `invoke`. Here `invoke` fetches a page (the
-`nika:fetch` builtin), then `infer` summarizes ·
+`nika:fetch` builtin), then `infer` summarizes and a second `invoke`
+saves the summary. A file that reaches the network or writes a file
+declares that reach in `permits:` · an absent block grants nothing, so
+`nika check` refuses both effects (`NIKA-AUTH-006`) until they are granted ·
 
 ```yaml
 nika: fetch-and-summarize
 
 model: ollama/qwen3.5:4b
+
+permits:                        # the whole reach of the file · absent = no authority
+  tools: ["nika:fetch", "nika:write"]
+  net:
+    http: ["example.com"]       # the one host the fetch may reach
+  fs:
+    write: ["./summary.md"]     # the one file the save may write
 
 tasks:
   fetch_page:
@@ -160,10 +170,12 @@ outputs:                        # what the workflow RETURNS · symmetric to inpu
 Tools are `<namespace>:<path>` · `nika:*` are stdlib builtins ·
 `mcp:<server>/<tool>` are external MCP tools. See [spec/02-verbs.md](./spec/02-verbs.md).
 
-> **One rule to internalize** · whenever a task's `${{ tasks.X.output }}`,
-> another task's data crosses ONLY through `with:` (the binding is the edge) — `when:` and verb bodies read local names.
-> the engine rejects an undeclared reference (`NIKA-DAG-003`), it does not
-> guess the edge. Every example above pairs the two.
+> **One rule to internalize** · another task's data crosses ONLY through
+> `with:` (the binding is the edge) · `when:` and verb bodies read the
+> local name (`${{ with.X }}`). A `${{ tasks.X.output }}` read anywhere
+> else is refused (`NIKA-VAR-021`, which `nika check --fix` repairs by
+> hoisting it into `with:`): the engine never guesses an edge. Every
+> example above pairs the binding with its read.
 
 ### The 4 verbs at a glance
 
@@ -237,7 +249,7 @@ contract, the runtime is an implementation detail.
 
 You touched all 5 pillars · the **envelope** (`nika: <name>` + `tasks:`) · the
 **4 verbs** · the **DAG** (`with:`/`after:` edges + task outputs) · **variables**
-(`${{ }}` · <!-- canon:namespaces -->5<!-- /canon --> namespaces) · and the start of the **error model** (engines
+(`${{ }}` · <!-- canon:namespaces -->6<!-- /canon --> namespaces) · and the start of the **error model** (engines
 return `NIKA-<NS>-<NNN>` codes · see [spec/05-errors.md](./spec/05-errors.md)) ·
 plus the workflow's **`outputs:`** return contract (what `nika run` prints + what
 a caller receives).

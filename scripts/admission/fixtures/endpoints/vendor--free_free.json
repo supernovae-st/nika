@@ -1,0 +1,4 @@
+{"data": {"id": "vendor/free:free", "endpoints": [
+ {"tag": "vendor-a", "context_length": 262144, "max_completion_tokens": 65536,
+  "pricing": {"prompt": "0", "completion": "0", "discount": 0}}
+]}}

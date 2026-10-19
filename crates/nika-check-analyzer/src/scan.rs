@@ -24,7 +24,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use nika_schema::error::SchemaError;
 use nika_schema::expression::{
-    ExprError, NamespaceRef, expr_refs, is_boolean_shaped, scan_templates,
+    ExprError, NamespaceRef, RUN_FACTS, expr_refs, is_boolean_shaped, scan_templates,
     single_brace_reference_heads,
 };
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
@@ -378,6 +378,22 @@ fn scan_action(
     index: &WorkflowIndex<'_>,
     errors: &mut Vec<SchemaError>,
 ) {
+    let (strings, jsons) = action_surfaces(action);
+    for s in strings {
+        scan_string(s, ctx, index, errors);
+    }
+    for j in jsons {
+        scan_json(j, ctx, index, errors);
+    }
+}
+
+/// The string + JSON surfaces of a verb body — every field a `${{ }}`
+/// island may sit in. ONE list, read by the reference scan above and by the
+/// skipped-read lane ([`crate::skipped_reads`]), so the two cannot disagree
+/// about what a verb reads.
+pub(crate) fn action_surfaces(
+    action: &RawAction,
+) -> (Vec<&Spanned<String>>, Vec<&Spanned<serde_json::Value>>) {
     let mut strings: Vec<&Spanned<String>> = Vec::new();
     let mut jsons: Vec<&Spanned<serde_json::Value>> = Vec::new();
     match action {
@@ -433,12 +449,7 @@ fn scan_action(
         )]
         other => unreachable!("unknown action: {other:?}"),
     }
-    for s in strings {
-        scan_string(s, ctx, index, errors);
-    }
-    for j in jsons {
-        scan_json(j, ctx, index, errors);
-    }
+    (strings, jsons)
 }
 
 /// `when:` / `for_each:` must be EXACTLY one `${{ … }}` island spanning
@@ -665,6 +676,7 @@ fn check_ref(
         NamespaceRef::Group(name) => {
             check_group_ref(name, span, ctx, index, errors);
         }
+        NamespaceRef::Run(fact) => check_run_ref(fact, span, ctx, errors),
         NamespaceRef::Item | NamespaceRef::Index => {
             if !ctx.allow_loop_locals {
                 let local = if matches!(r, NamespaceRef::Item) {
@@ -685,8 +697,8 @@ fn check_ref(
         NamespaceRef::Unknown(root) => {
             // a typo'd NAMESPACE root (`inpts.x`) — suggest among the
             // living roots (the dead `vars`/`env` refuse above).
-            const ROOTS: [&str; 8] = [
-                "config", "const", "index", "inputs", "item", "secrets", "tasks", "with",
+            const ROOTS: [&str; 9] = [
+                "config", "const", "index", "inputs", "item", "run", "secrets", "tasks", "with",
             ];
             let hint = nika_types::suggest::did_you_mean(root, ROOTS).map(str::to_owned);
             errors.push(unresolved(root, ctx, span, hint));
@@ -811,6 +823,25 @@ fn unresolved(
     }
 }
 
+/// `run.<fact>` — the facts of this run (spec 04 §`run`): a CLOSED set the engine sets before the
+/// first task · legal in every value position and in `when:` · never a data edge.
+fn check_run_ref(fact: &str, span: Span, ctx: &ScanCtx<'_>, errors: &mut Vec<SchemaError>) {
+    if !RUN_FACTS.contains(&fact) {
+        let hint = suggest_in("run", fact, RUN_FACTS).unwrap_or_else(run_facts_named);
+        errors.push(unresolved(&format!("run.{fact}"), ctx, span, Some(hint)));
+    }
+}
+
+/// The run's closed set of facts, named for a fact outside it: prose the
+/// message renders, never a rename (no fact is near enough to splice).
+fn run_facts_named() -> String {
+    let facts: Vec<String> = RUN_FACTS
+        .iter()
+        .map(|fact| format!("`run.{fact}`"))
+        .collect();
+    format!("the run's facts are {}", facts.join(" · "))
+}
+
 /// The fully-qualified did-you-mean within ONE namespace's declared
 /// names (`inputs.topic` for a typo'd `inputs.topci`) — suggestions never
 /// cross namespaces (an `inputs.` typo is not repaired with a secret).
@@ -846,6 +877,105 @@ mod tests {
                 _ => None,
             })
             .expect("an UnresolvedNamespaceRef finding")
+    }
+
+    /// Spec fixture `core/variables/039-run-facts-valid`, verbatim.
+    const RUN_FACTS_VALID: &str = "nika: case-039-run-facts-valid
+tasks:
+  report:
+    when: ${{ run.missed == null }}
+    exec:
+      command: [\"echo\", \"${{ run.scheduled_for }}\", \"${{ run.missed }}\"]
+permits:
+  exec: [\"echo\"]
+";
+
+    /// Spec fixture `core/variables/040-run-unknown-fact-refused`, verbatim.
+    const RUN_UNKNOWN_FACT: &str = "nika: case-040-run-unknown-fact-refused
+tasks:
+  report:
+    exec:
+      command: [\"echo\", \"${{ run.started }}\"]
+permits:
+  exec: [\"echo\"]
+";
+
+    /// The one machine rename the analysis of `yaml` offers.
+    fn sole_rename(yaml: &str) -> (String, String) {
+        let errors = analyze_yaml(yaml).expect_err("unresolved ref");
+        let renames: Vec<_> = errors
+            .iter()
+            .filter_map(SchemaError::rename_repair)
+            .collect();
+        let [rename] = renames.as_slice() else {
+            panic!("one rename: {errors:?}");
+        };
+        rename.clone()
+    }
+
+    #[test]
+    fn the_facts_of_the_run_resolve_in_when_and_in_a_value() {
+        analyze_yaml(RUN_FACTS_VALID).expect("run.scheduled_for and run.missed are facts");
+    }
+
+    #[test]
+    fn a_fact_of_the_run_is_never_a_data_edge() {
+        let yaml = format!(
+            "{HEADER}tasks:
+  first:
+    exec: {{ command: [echo, one] }}
+  second:
+    exec: {{ command: [echo, \"${{{{ run.scheduled_for }}}}\"] }}
+"
+        );
+        let analyzed = analyze_yaml(&yaml).expect("resolves");
+        assert!(analyzed.edges.is_empty(), "{:?}", analyzed.edges);
+    }
+
+    #[test]
+    fn a_fact_outside_the_closed_set_is_unresolved_and_the_facts_are_named() {
+        let errors = analyze_yaml(RUN_UNKNOWN_FACT).expect_err("run.started is no fact");
+        let [error] = errors.as_slice() else {
+            panic!("one refusal, for its own reason: {errors:?}");
+        };
+        assert!(
+            matches!(
+                error,
+                SchemaError::UnresolvedNamespaceRef { reference, .. } if reference == "run.started"
+            ),
+            "{error:?}"
+        );
+        assert_eq!(error.spec_code().to_string(), "NIKA-VAR-001");
+        let message = error.to_string();
+        assert!(
+            message.ends_with("the run's facts are `run.scheduled_for` · `run.missed`"),
+            "{message}"
+        );
+        assert_eq!(error.rename_repair(), None, "naming the facts is no rename");
+    }
+
+    #[test]
+    fn a_near_fact_or_root_is_offered_as_its_rename() {
+        let fact = format!(
+            "{HEADER}tasks:
+  t:
+    exec: {{ command: [echo, \"${{{{ run.schedule_for }}}}\"] }}
+"
+        );
+        assert_eq!(
+            sole_rename(&fact),
+            (
+                "run.schedule_for".to_owned(),
+                "run.scheduled_for".to_owned()
+            )
+        );
+        let root = format!(
+            "{HEADER}tasks:
+  t:
+    exec: {{ command: [echo, \"${{{{ rum.missed }}}}\"] }}
+"
+        );
+        assert_eq!(sole_rename(&root), ("rum".to_owned(), "run".to_owned()));
     }
 
     #[test]

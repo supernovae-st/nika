@@ -145,6 +145,7 @@ pub(super) fn scan_unknown_args(wf: &RawWorkflow) -> Vec<UnknownArg> {
         collect_args(id, &task.value.action, &mut findings);
         collect_read_types(id, &task.value.action, &mut findings);
         collect_closed_literals(id, &task.value.action, &mut findings);
+        collect_date_op_args(id, &task.value.action, &mut findings);
     }
     findings
 }
@@ -332,6 +333,53 @@ const CLOSED_LITERALS: &[(&str, &str, &[&str], &str)] = &[
     ),
 ];
 
+/// The args each `nika:date` op reads (`nika-builtin`'s `date.rs`): an arg of another op is
+/// ignored at run, so a file that declares it does not get what it says. Live gauntlet,
+/// 2026-10-15: `{ op: now, format: "%Y-%m-%d" }` wrote `2026-10-15T21:39:15.511348+04:00`.
+const DATE_OP_ARGS: &[(&str, &[&str])] = &[
+    ("now", &["op", "tz"]),
+    ("add", &["op", "base", "duration", "tz"]),
+    ("subtract", &["op", "base", "duration", "tz"]),
+    ("format", &["op", "input", "format", "tz"]),
+    ("parse", &["op", "input", "format"]),
+    ("diff", &["op", "start", "end", "unit"]),
+];
+
+/// A `nika:date` arg that its literal `op` never reads: refused as not an arg of that op, its
+/// own args the teaching. A templated `op` is the run's to judge.
+fn collect_date_op_args(site: &str, action: &RawAction, out: &mut Vec<UnknownArg>) {
+    let RawAction::Invoke(a) = action else {
+        return;
+    };
+    if a.tool().is_none_or(|t| t.value != "nika:date") {
+        return;
+    }
+    let Some(args) = a.args.as_ref().and_then(|a| a.value.as_object()) else {
+        return;
+    };
+    let Some(op) = args.get("op").and_then(serde_json::Value::as_str) else {
+        return;
+    };
+    let Some((_, reads)) = DATE_OP_ARGS.iter().find(|(name, _)| *name == op) else {
+        return; // an unknown op is the closed-literal finding's
+    };
+    let declared: Vec<&str> = find_builtin("date").map_or(Vec::new(), |b| b.args.to_vec());
+    for key in args.keys() {
+        // An undeclared key is `collect_args`' finding; only another op's arg is judged here.
+        if reads.contains(&key.as_str()) || !declared.contains(&key.as_str()) {
+            continue;
+        }
+        out.push(UnknownArg {
+            task: site.to_owned(),
+            tool: format!("nika:date` op `{op}"),
+            arg: key.clone(),
+            suggestion: None,
+            declared: reads.iter().map(|&r| r.to_owned()).collect(),
+            invalid_value: None,
+        });
+    }
+}
+
 fn collect_closed_literals(site: &str, action: &RawAction, out: &mut Vec<UnknownArg>) {
     let RawAction::Invoke(a) = action else {
         return;
@@ -390,6 +438,53 @@ pub(super) fn scan_mcp_against_registry(
             task,
             tool,
             suggestion: None,
+        })
+        .collect()
+}
+
+/// Where the approved MCP pins live (`nika mcp approve` writes them; the run gates on them).
+const MCP_PINS_PATH: &str = ".nika/mcp_pins.json";
+
+/// The pin advisory beside C04 (the composed lane). A call to a REGISTERED server whose pins were
+/// never approved, or to a tool its approved pins do not hold, is refused by the run
+/// (`NIKA-MCP-006`) and held by the compile door, so the check says so ahead, as advice that
+/// never blocks: approval is an operator act with its own consent. A server the registry does
+/// not name is C04's own refusal, never advised twice.
+pub(super) fn scan_mcp_against_pins(
+    wf: &RawWorkflow,
+    read: &mut dyn FnMut(&str) -> Result<String, String>,
+) -> Vec<crate::hints::Hint> {
+    let calls = mcp_call_sites(wf);
+    if calls.is_empty() {
+        return Vec::new();
+    }
+    let configured = match read(MCP_SERVERS_PATH) {
+        Ok(text) => parse_configured_servers(&text),
+        Err(_) => BTreeSet::new(),
+    };
+    let pins: serde_json::Value = read(MCP_PINS_PATH)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or(serde_json::Value::Null);
+    calls
+        .into_iter()
+        .filter_map(|(task, tool)| {
+            let server = mcp_server_of(&tool).filter(|server| configured.contains(*server))?;
+            let name = tool.strip_prefix("mcp:")?.split_once('/')?.1;
+            let advice = match pins["servers"][server]["tools"].as_object() {
+                None => format!(
+                    "MCP server `{server}` is registered but not approved: `nika mcp approve \
+                     {server}` pins the tools it serves now (a run refuses an unapproved tool, \
+                     NIKA-MCP-006)"
+                ),
+                Some(pinned) if name != "*" && !pinned.contains_key(name) => format!(
+                    "`{name}` is not among the tools MCP server `{server}` was approved with: \
+                     if the server serves it now, approve it again with `nika mcp approve \
+                     {server}`"
+                ),
+                Some(_) => return None,
+            };
+            Some(crate::hints::hint("mcp-pins", &task, advice))
         })
         .collect()
 }
@@ -464,6 +559,39 @@ mod tests {
             return Vec::new();
         };
         scan_unknown_tools(&wf)
+    }
+
+    /// An arg its literal op never reads is refused; the same arg under its own op, an
+    /// undeclared key (another finding's) and a templated op are not judged here.
+    #[test]
+    fn a_date_arg_its_op_never_reads_is_refused() {
+        let args_of = |yaml: &str| {
+            let parsed = parse(yaml, FileId::new(0), ParseMode::Strict);
+            assert!(parsed.is_ok(), "fixture must parse: {yaml}");
+            let Some(wf) = parsed.ok() else {
+                return Vec::new();
+            };
+            let mut out = Vec::new();
+            for task in &wf.tasks {
+                collect_date_op_args(&task.value.id.value, &task.value.action, &mut out);
+            }
+            out
+        };
+        let f = args_of(
+            "nika: w\ntasks:\n  today:\n    invoke: { tool: \"nika:date\", args: { op: now, format: \"%Y-%m-%d\" } }\n",
+        );
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].arg, "format");
+        assert_eq!(f[0].tool, "nika:date` op `now");
+        assert_eq!(f[0].declared, ["op", "tz"]);
+        for clean in [
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:date\", args: { op: format, input: \"2026-10-15T00:00:00Z\", format: \"%Y\", tz: Europe/Paris } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:date\", args: { op: now, tz: Europe/Paris } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:date\", args: { op: \"${{ inputs.op }}\", format: \"%Y\" } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:date\", args: { op: now, colour: red } }\n",
+        ] {
+            assert!(args_of(clean).is_empty(), "{clean}");
+        }
     }
 
     #[test]

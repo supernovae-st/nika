@@ -395,6 +395,14 @@ pub(crate) struct ResumeContext {
     /// A task that rides a lane whose path moved re-runs — never serves
     /// the other path's cached output.
     lane_access: BTreeMap<String, String>,
+    /// The facts of the run (spec 04 §`run`), fixed at its opening: a task
+    /// that reads them renders them into its input identity, and a gate
+    /// renders its question over them.
+    run: Option<crate::run_facts::ResolvedRunFacts>,
+    /// Every declared group (spec 03 §group) → its member ids in declaration
+    /// order: a `with:` fold `${{ group.<name> }}` renders into the input
+    /// identity over the same membership the runtime binds, never a miss.
+    groups: BTreeMap<String, Vec<String>>,
 }
 
 impl ResumeContext {
@@ -442,7 +450,27 @@ impl ResumeContext {
             child_closures: child_closures.clone(),
             access_pin: access_pin.filter(|p| !p.is_empty()).map(ToOwned::to_owned),
             lane_access: lane_access.clone(),
+            run: None,
+            groups: declared_groups(wf),
         }
+    }
+
+    /// The facts the run opened with.
+    pub(crate) fn with_run(mut self, facts: crate::run_facts::ResolvedRunFacts) -> Self {
+        self.run = Some(facts);
+        self
+    }
+
+    /// The facts the run opened with, if it opened.
+    pub(crate) const fn run_facts(&self) -> Option<&crate::run_facts::ResolvedRunFacts> {
+        self.run.as_ref()
+    }
+
+    /// The object `${{ run }}` reads, if the run opened.
+    pub(crate) fn run_value(&self) -> Option<&Value> {
+        self.run
+            .as_ref()
+            .map(crate::run_facts::ResolvedRunFacts::value)
     }
 
     /// Does `text` carry any resolved secret value? (The trace MUST NOT
@@ -456,6 +484,21 @@ impl ResumeContext {
     pub(crate) fn markers(&self) -> &BTreeMap<String, Value> {
         &self.markers
     }
+}
+
+/// Every group the workflow declares → its member ids in declaration order,
+/// the membership the runtime binds for a `${{ group.<name> }}` fold.
+fn declared_groups(wf: &RawWorkflow) -> BTreeMap<String, Vec<String>> {
+    nika_check::analyzer::edges::group_members(&wf.tasks)
+        .into_iter()
+        .map(|(name, members)| {
+            let ids = members
+                .iter()
+                .filter_map(|&i| wf.tasks.get(i).map(|t| t.value.id.value.clone()))
+                .collect();
+            (name.to_owned(), ids)
+        })
+        .collect()
 }
 
 /// Compute one task's [`ResumeStamp`] — `None` means the task is not
@@ -535,7 +578,7 @@ pub(crate) fn stamp(
             .as_object_mut()?
             .insert("child_closure".to_owned(), Value::Object(closures));
     }
-    let inputs = input_value(task, records, inputs, consts, &ctx.markers)?;
+    let inputs = input_value(task, records, inputs, consts, ctx)?;
     let key = ResumeKey::new(
         task.id.value.clone(),
         task.action.verb().to_owned(),
@@ -723,26 +766,58 @@ fn raw_with_object(with: &[(Spanned<String>, Spanned<Value>)]) -> Value {
 
 /// The values the task's `${{ }}` references resolve to RIGHT NOW —
 /// the action fields + the `with:` namespace rendered over the run
-/// scope (secrets bound as markers), plus the resolved `for_each`
-/// collection. `None` = a reference does not render here (the task
-/// then runs live and surfaces its real error). A fan-out body's
-/// `item.field` navigation is eligible: the stand-in is shaped from
-/// the collection so the render cannot miss on a real key.
+/// scope (secrets bound as markers, group folds over their declared
+/// membership), plus the resolved `for_each` collection. `None` = a
+/// reference does not render here (the task then runs live and surfaces
+/// its real error). A fan-out body's `item.field` navigation is eligible:
+/// the stand-in is shaped from the collection so the render cannot miss
+/// on a real key.
 fn input_value(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
     inputs: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
-    markers: &BTreeMap<String, Value>,
+    ctx: &ResumeContext,
 ) -> Option<Value> {
-    let workflow_scope = Scope::workflow_with_value_authorities(records, inputs, consts, markers);
+    // A fold's member records carry their `duration_ms` (spec 03 §the member
+    // record), a clock reading and so OUT of the key (ADR-099): the members
+    // measured one when they ran, and none when the journal serves them back,
+    // so a fold keyed on it would never be reused on a resume.
+    let clock_free;
+    let records = if folds_a_group(task) {
+        clock_free = without_clocks(records);
+        &clock_free
+    } else {
+        records
+    };
+    let workflow_scope =
+        Scope::workflow_with_value_authorities(records, inputs, consts, &ctx.markers)
+            .with_run(ctx.run_value())
+            .with_groups(&ctx.groups);
     // The collection is the ONE once-evaluated body expression (spec 03)
-    // — it carries every per-item value into the hash.
+    // — it carries every per-item value into the hash. It resolves over the
+    // task's item-free `with:` bindings, as the runtime resolves it
+    // (`for_each: "${{ with.ids }}"`): rendered without them, such a fan-out
+    // would never be stamped and a resume would run it live again.
+    let boundary: BTreeMap<String, Value> = match task.for_each {
+        None => BTreeMap::new(),
+        Some(_) => task
+            .with
+            .iter()
+            .filter(|(_key, value)| !crate::task::references_loop_locals(&value.value))
+            .map(|(key, value)| {
+                let rendered = expr::render_json(&value.value, &workflow_scope).ok()?;
+                Some((key.value.clone(), rendered))
+            })
+            .collect::<Option<_>>()?,
+    };
+    let collection_scope = workflow_scope.with_task_context(Some(&boundary), None, None, None);
     let items = match task.for_each.as_ref().map(|f| &f.value) {
         None => Value::Null,
-        Some(ForEachValue::List(v)) => expr::render_json(v, &workflow_scope).ok()?,
+        Some(ForEachValue::List(v)) => expr::render_json(v, &collection_scope).ok()?,
+        // Trimmed as the fan-out renders it (`task::fan_out::resolve_collection`).
         Some(ForEachValue::Expression(e)) => {
-            expr::render_json(&Value::String(e.clone()), &workflow_scope).ok()?
+            expr::render_json(&Value::String(e.trim().to_owned()), &collection_scope).ok()?
         }
         Some(_) => return None,
     };
@@ -755,8 +830,7 @@ fn input_value(
     } else {
         (None, None)
     };
-    let base = Scope::workflow_with_value_authorities(records, inputs, consts, markers)
-        .with_task_context(None, item, index, None);
+    let base = workflow_scope.with_task_context(None, item, index, None);
     let mut with_ns: BTreeMap<String, Value> = BTreeMap::new();
     for (key, value) in &task.with {
         with_ns.insert(
@@ -770,6 +844,30 @@ fn input_value(
         "with": with_ns,
         "items": items,
     }))
+}
+
+/// Whether the task's `with:` folds a group (`${{ group.<name> }}`).
+fn folds_a_group(task: &RawTask) -> bool {
+    let mut names = Vec::new();
+    for (_key, value) in &task.with {
+        nika_check::analyzer::edges::group_refs_in_value(&value.value, &mut names);
+    }
+    !names.is_empty()
+}
+
+/// The records with their clock readings cleared — the start, the end and
+/// the duration never enter a key (ADR-099).
+fn without_clocks(records: &BTreeMap<String, TaskRecord>) -> BTreeMap<String, TaskRecord> {
+    records
+        .iter()
+        .map(|(id, record)| {
+            let mut record = record.clone();
+            record.started_at = None;
+            record.ended_at = None;
+            record.duration_ms = None;
+            (id.clone(), record)
+        })
+        .collect()
 }
 
 // ─── the action payload (shared walk · raw when scope is None) ──────────

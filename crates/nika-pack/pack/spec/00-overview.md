@@ -46,8 +46,8 @@ Standards work · SQL · GraphQL · OpenAPI · Dockerfile · GitHub Actions YAML
 
 3.  DAG SHAPE       tasks · with (data edges) · after (control) · when · for_each
 
-4.  VARIABLES       ${{ ... }} = CEL · ONE syntax · 5 namespaces
-                    inputs · const · secrets · with · tasks
+4.  VARIABLES       ${{ ... }} = CEL · ONE syntax · 6 namespaces
+                    inputs · const · secrets · with · tasks · run
 
 5.  ERROR MODEL     NIKA-<NS>-<NNN> codes · retry semantics · structured output
 ```
@@ -114,6 +114,12 @@ tasks:
 nika: scrape-and-summarize
 
 model: mistral/mistral-large
+permits:                        # the file's whole reach · absent = no authority (NIKA-AUTH-006)
+  tools: ["nika:fetch", "nika:write"]
+  net:
+    http: ["example.com"]
+  fs:
+    write: ["summary.md"]
 tasks:
   fetch_page:
     invoke:
@@ -141,7 +147,7 @@ outputs:                              # what the workflow returns · symmetric t
   summary: ${{ tasks.summarize.output }}
 ```
 
-3 tasks · 2 verbs (`invoke:` ×2 incl `nika:fetch` · `infer:`) · variable substitution + an `outputs:` return contract. Note the graph is DERIVED: each `with:` binding that references `${{ tasks.X.* }}` IS a typed edge — data and its dependency are one declaration, no invisible edges ([03](./03-dag.md)). The 4th verb, `agent:` (an agentic loop · may declare a `schema:`), is shown in [examples/](../examples/).
+3 tasks · 2 verbs (`invoke:` ×2 incl `nika:fetch` · `infer:`) · variable substitution + an `outputs:` return contract · a `permits:` block that grants exactly the one host and the one file the effects reach ([10](./10-authority.md)). Note the graph is DERIVED: each `with:` binding that references `${{ tasks.X.* }}` IS a typed edge — data and its dependency are one declaration, no invisible edges ([03](./03-dag.md)). The 4th verb, `agent:` (an agentic loop · may declare a `schema:`), is shown in [examples/](../examples/).
 
 ---
 
@@ -152,7 +158,7 @@ outputs:                              # what the workflow returns · symmetric t
 | [01 envelope](./01-envelope.md) | The header · the 9 keys · `nika:` (the mark AND the name) · typed `inputs` · `const` · `secrets` |
 | [02 verbs](./02-verbs.md) | The 4 verbs · signatures · semantics |
 | [03 DAG](./03-dag.md) | Tasks · `with:` data edges · `after:` control · `when` · `for_each` · the four graphs |
-| [04 variables](./04-variables.md) | `${{ inputs · const · secrets · with · tasks }}` · <!-- canon:namespaces -->5<!-- /canon --> namespaces |
+| [04 variables](./04-variables.md) | `${{ inputs · const · secrets · with · tasks · run }}` · <!-- canon:namespaces -->6<!-- /canon --> namespaces |
 | [05 errors](./05-errors.md) | Error codes · retry · structured output schemas |
 | [06 stdlib contract](./06-stdlib-contract.md) | How the stdlib versions independently |
 | [07 conformance](./07-conformance.md) | What « v0.1-compliant » means |
@@ -162,7 +168,7 @@ outputs:                              # what the workflow returns · symmetric t
 | [11 decision](./11-decision.md) | The decision contract · portable Decision Bundle · Evidence IR (two lattices) · Belnap logic · fixed-point Decision IR · abstention · `nika:decide` |
 | [12 gateway](./12-gateway.md) | The gateway contracts · Deployment Bundle · ExecutionBackend (capabilities · lowering · readback) · AgentRuntimeAdapter (FidelityReport · AuthorityDelta) · the separation laws |
 | [13 outcomes](./13-outcomes.md) | The Outcome IR · TerminalClass × Cause × Payload · the normative transition table (one source: canon) · `trace_format: 2` |
-| [14 composition](./14-composition.md) | Workflow calling workflow · `invoke: workflow:` (tagged union) · the CallableContract · the ten composition laws · the trace forest |
+| [14 composition](./14-composition.md) | Workflow calling workflow · `invoke:` with `workflow:` (tagged union) · the CallableContract · the ten composition laws · the trace forest |
 | [15 proof](./15-proof.md) | The proof layer · the semantic hash (H = H(domain ‖ version ‖ JCS(IR))) · `nika.lock` (pin by default) · `assert:` (StaticProof · TraceVerified · Unknown) · the one receipt |
 | [16 projections](./16-projections.md) | The oracle surface · one canonical projection (graph_format:3) served byte-identical across CLI · LSP · MCP · the LSP semantic document (`semantic_document_format: 1`) wraps it with spans + one-word `reason` · the additive arc (holes · actions · capabilities over the frozen IR) |
 | [17 trace](./17-trace.md) | The run journal · NDJSON frames chained by sha256 (`trace_format: 2` · the prologue manifest · the closed kind vocabulary) · the REQUIRED permit-decision witness (NEP-0007 · granted and refused alike) · the differential check ⇔ run equivalence law · graved from an observed run |

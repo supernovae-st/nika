@@ -192,7 +192,10 @@ pub fn decision_summary(observations: &[serde_json::Value], schema: &str) -> Opt
         .collect();
     let count = |outcome: &str| attempts.iter().filter(|a| a["outcome"] == outcome).count();
     let sent = attempts.iter().filter(|a| a["sent"] == true).count();
-    let unresolved = count("in_flight") + count("transport_error");
+    // A batched call is `answered` as a whole (its items carry their own choices) and one the
+    // seat answered with an HTTP error is without a response: every sent call is in one count.
+    // Live gauntlet, 2026-10-16: « 33 call(s) sent · 7 answered · 0 without a response ».
+    let unresolved = count("in_flight") + count("transport_error") + count("http_error");
     let refused = count("refused") + count("capped");
     let mut names: Vec<&str> = seats.iter().filter_map(|o| o["seat"].as_str()).collect();
     names.dedup();
@@ -208,7 +211,7 @@ pub fn decision_summary(observations: &[serde_json::Value], schema: &str) -> Opt
     Some(format!(
         "decision seat {} (operator-selected, outside any allowance or cap): {sent} call(s) sent · {} answered · {unresolved} without a response · {refused} need(s) refused before sending · {usage} token(s) reported · cost unknown (no catalog tariff), never zero; not in the no-budget subtotal · invoice unknown",
         names.join(", "),
-        count("chosen") + count("none") + count("outside_options")
+        count("chosen") + count("none") + count("outside_options") + count("answered")
     ))
 }
 

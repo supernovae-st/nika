@@ -39,14 +39,15 @@ impl RunStory {
     /// One frame; the line it adds to the story, if any.
     pub fn frame(&mut self, line: &str) -> Option<String> {
         let frame: Value = serde_json::from_str(line).ok()?;
-        self.say(&frame)
+        self.say(&frame, &|words: &str| words.to_owned())
     }
 
     /// One frame told to `sink`: the line it adds to the story (the very
-    /// line [`Self::frame`] returns), then the frame itself, typed. A line
-    /// that is not JSON, or a frame naming a kind this reader cannot type,
-    /// is told as unread; a refusal document or a review question has no
-    /// typed twin and is not one.
+    /// line [`Self::frame`] returns, its own phrases said in the sink's
+    /// words, [`RunSink::say`]), then the frame itself, typed. A line that is
+    /// not JSON, or a frame naming a kind this reader cannot type, is told as
+    /// unread; a refusal document or a review question has no typed twin and
+    /// is not one.
     pub fn tell(&mut self, line: &str, sink: &dyn RunSink) {
         let Ok(frame) = serde_json::from_str::<Value>(line) else {
             if !line.trim().is_empty() {
@@ -54,8 +55,15 @@ impl RunStory {
             }
             return;
         };
-        if let Some(said) = self.say(&frame) {
+        if let Some(said) = self.say(&frame, &|words: &str| sink.say(words)) {
             sink.said(said);
+        }
+        // A document with no kind that refused the run has no typed twin: its
+        // reason is told as it is, so a reader can settle the run as refused.
+        if frame.get("kind").is_none()
+            && let Some((_, why)) = refusal(&frame)
+        {
+            sink.refused(&why);
         }
         match RunFrame::of(frame) {
             Ok(Some(typed)) => sink.frame(typed),
@@ -64,8 +72,10 @@ impl RunStory {
         }
     }
 
-    /// The line one parsed frame adds to the story, if any.
-    fn say(&mut self, frame: &Value) -> Option<String> {
+    /// The line one parsed frame adds to the story, if any: each of the
+    /// story's own phrases, whole with its `{…}` values, said through `words`,
+    /// the frame's values (a task, a workflow, a status, counts) set in after.
+    fn say(&mut self, frame: &Value, words: &dyn Fn(&str) -> String) -> Option<String> {
         // A run refused before its first frame speaks two other shapes on
         // the same stream: the check verdict document (`clean: false` and
         // its findings) and the error envelope (`{"error": {…}}`). Each
@@ -86,8 +96,12 @@ impl RunStory {
                     other => other.to_string(),
                 })
         };
+        let task = || field("task").unwrap_or_default();
         let said = match kind {
-            "workflow_started" => format!("running · {}", field("workflow").unwrap_or_default()),
+            "workflow_started" => {
+                let workflow = field("workflow").unwrap_or_default();
+                words("running · {workflow}").replace("{workflow}", &workflow)
+            }
             "task_scheduled" => {
                 self.total += 1;
                 return None;
@@ -109,7 +123,7 @@ impl RunStory {
             }
             "task_cache_hit" => {
                 self.done += 1;
-                format!("↺ {} · from the cache", field("task").unwrap_or_default())
+                words("↺ {task} · from the cache").replace("{task}", &task())
             }
             "task_failed" => format!(
                 "✖ {} · {}",
@@ -120,19 +134,17 @@ impl RunStory {
                     .next()
                     .unwrap_or_default()
             ),
-            "task_skipped" => format!("· {} skipped", field("task").unwrap_or_default()),
-            "task_cancelled" => format!("· {} cancelled", field("task").unwrap_or_default()),
-            "workflow_paused" => format!(
-                "◇ paused · `{}` asks you",
-                field("task").unwrap_or_default()
-            ),
-            "workflow_completed" | "workflow_failed" | "workflow_cancelled" => format!(
-                "{} · {}/{} tasks · {} ms",
-                field("status").unwrap_or_else(|| kind.to_owned()),
-                field("tasks_ok").unwrap_or_default(),
-                field("tasks_total").unwrap_or_default(),
-                field("elapsed_ms").unwrap_or_default()
-            ),
+            "task_skipped" => words("· {task} skipped").replace("{task}", &task()),
+            "task_cancelled" => words("· {task} cancelled").replace("{task}", &task()),
+            "workflow_paused" => words("◇ paused · `{task}` asks you").replace("{task}", &task()),
+            "workflow_completed" | "workflow_failed" | "workflow_cancelled" => {
+                let status = field("status").unwrap_or_else(|| kind.to_owned());
+                (words("{status} · {ok}/{total} tasks · {ms} ms"))
+                    .replace("{ok}", &field("tasks_ok").unwrap_or_default())
+                    .replace("{total}", &field("tasks_total").unwrap_or_default())
+                    .replace("{ms}", &field("elapsed_ms").unwrap_or_default())
+                    .replace("{status}", &status)
+            }
             "run_settled" => {
                 self.trace = frame
                     .get("receipt")
@@ -165,11 +177,20 @@ impl RunStory {
 pub trait RunSink {
     /// One line of the run's story, as [`RunStory::frame`] says it.
     fn said(&self, line: String);
+    /// The story's own phrase `en` (whole, with its `{…}` values) in this
+    /// sink's language; English by default and as the fallback.
+    fn say(&self, en: &str) -> String {
+        en.to_owned()
+    }
     /// One machine frame, typed; a sink of lines leaves it.
     fn frame(&self, _frame: RunFrame) {}
     /// A line of the stream that is not a frame this reader can type: never
     /// a fabricated event, at most a counted gap.
     fn unread(&self, _why: &'static str) {}
+    /// The run was refused before its first frame (the check's verdict
+    /// document, or the error envelope): its reason, as the story line says
+    /// it after its mark. No frame is fabricated; a sink of lines leaves it.
+    fn refused(&self, _why: &str) {}
 }
 
 impl RunSink for Sender<String> {
@@ -593,6 +614,19 @@ pub fn started_on(event: &Event, bytes: &[u8]) -> Option<bool> {
 /// a check verdict (with the count of the others), or the envelope's
 /// message. `None` for any other kind-less object (the story ignores it).
 fn refusal_line(frame: &serde_json::Value) -> Option<String> {
+    let (before, why) = refusal(frame)?;
+    Some(if before {
+        format!("✖ refused before the start · {why}")
+    } else {
+        format!("✖ refused · {why}")
+    })
+}
+
+/// Why a document with no kind refused the run, and whether the check refused
+/// it before the start: the check's first finding (its code and first line,
+/// and how many more), or the error envelope's first line. `None` for a clean
+/// verdict or any other document.
+fn refusal(frame: &serde_json::Value) -> Option<(bool, String)> {
     if let Some(findings) = frame.get("findings").and_then(serde_json::Value::as_array) {
         if frame.get("clean").and_then(serde_json::Value::as_bool) == Some(true) {
             return None;
@@ -605,13 +639,17 @@ fn refusal_line(frame: &serde_json::Value) -> Option<String> {
             .and_then(serde_json::Value::as_str)
             .map_or(String::new(), |c| format!("[{c}] "));
         let more = findings.len().saturating_sub(1);
-        return Some(if more == 0 {
-            format!("✖ refused before the start · {code}{message}")
-        } else {
-            format!(
-                "✖ refused before the start · {code}{message} · {more} more finding(s) — `nika check` lists them"
-            )
-        });
+        return Some((
+            true,
+            if more == 0 {
+                format!("{code}{message}")
+            } else {
+                format!(
+                    "{code}{message} · {more} more finding(s) — `{} check` lists them",
+                    crate::program::program()
+                )
+            },
+        ));
     }
     let error = frame.get("error")?;
     let message = error
@@ -622,7 +660,7 @@ fn refusal_line(frame: &serde_json::Value) -> Option<String> {
             || error.to_string(),
             |m| m.lines().next().unwrap_or_default().to_owned(),
         );
-    Some(format!("✖ refused · {message}"))
+    Some((false, message))
 }
 
 #[cfg(test)]
@@ -682,6 +720,95 @@ mod tests {
             Some(Path::new(".nika/traces/t.ndjson"))
         );
         assert_eq!(story.lines.len(), 4, "{:?}", story.lines);
+    }
+
+    /// A sink that says the story's phrases in its language hears each line in
+    /// it, and the story keeps those very lines; the frame's values (the
+    /// workflow, a task, the status, counts, times) stay as they are, and a
+    /// story told to no sink keeps English.
+    #[test]
+    fn a_sink_says_the_storys_own_phrases_in_its_language() {
+        struct French(RefCell<Vec<String>>);
+        impl RunSink for French {
+            fn said(&self, line: String) {
+                self.0.borrow_mut().push(line);
+            }
+            fn say(&self, en: &str) -> String {
+                match en {
+                    "running · {workflow}" => "en cours · {workflow}",
+                    "↺ {task} · from the cache" => "↺ {task} · depuis le cache",
+                    "◇ paused · `{task}` asks you" => "◇ en pause · `{task}` vous attend",
+                    "{status} · {ok}/{total} tasks · {ms} ms" => {
+                        "{status} · {ok}/{total} tâches · {ms} ms"
+                    }
+                    other => other,
+                }
+                .to_owned()
+            }
+        }
+        let frames = [
+            r#"{"kind":"workflow_started","fields":[{"key":"workflow","value":"copy.nika"}]}"#,
+            r#"{"kind":"task_scheduled","fields":[{"key":"task","value":"a"}]}"#,
+            r#"{"kind":"task_cache_hit","fields":[{"key":"task","value":"a"}]}"#,
+            r#"{"kind":"workflow_paused","fields":[{"key":"task","value":"approve"}]}"#,
+            r#"{"kind":"workflow_completed","fields":[{"key":"status","value":"succeeded"},{"key":"tasks_ok","value":1},{"key":"tasks_total","value":1},{"key":"elapsed_ms","value":9857}]}"#,
+        ];
+        let sink = French(RefCell::new(Vec::new()));
+        let mut story = RunStory::default();
+        for frame in frames {
+            story.tell(frame, &sink);
+        }
+        let french = [
+            "en cours · copy.nika",
+            "↺ a · depuis le cache",
+            "◇ en pause · `approve` vous attend",
+            "succeeded · 1/1 tâches · 9857 ms",
+        ];
+        assert_eq!(*sink.0.borrow(), french);
+        assert_eq!(story.lines, french, "the story keeps the lines it told");
+        let mut plain = RunStory::default();
+        let english: Vec<String> = frames.iter().filter_map(|f| plain.frame(f)).collect();
+        assert_eq!(
+            english,
+            [
+                "running · copy.nika",
+                "↺ a · from the cache",
+                "◇ paused · `approve` asks you",
+                "succeeded · 1/1 tasks · 9857 ms",
+            ]
+        );
+    }
+
+    /// A refusal before the first frame is told to the sink by its reason, the
+    /// same words the story line says after its mark; a clean verdict, a frame
+    /// and a document of no refusal tell none.
+    #[test]
+    fn a_refusal_before_the_start_is_told_to_the_sink_by_its_reason() {
+        struct Heard(RefCell<Vec<String>>);
+        impl RunSink for Heard {
+            fn said(&self, _line: String) {}
+            fn refused(&self, why: &str) {
+                self.0.borrow_mut().push(why.to_owned());
+            }
+        }
+        let sink = Heard(RefCell::new(Vec::new()));
+        let mut story = RunStory::default();
+        let error = r#"{"error":{"code":"NIKA-1709","message":"NIKA-1709 · unavoidable cost floor $0.0021 over the ceiling $0.0010\nsecond line"}}"#;
+        story.tell(error, &sink);
+        story.tell(r#"{"clean":true,"findings":[]}"#, &sink);
+        story.tell(
+            r#"{"kind":"workflow_started","fields":[{"key":"workflow","value":"w"}]}"#,
+            &sink,
+        );
+        story.tell(r#"{"outputs":{}}"#, &sink);
+        assert_eq!(
+            *sink.0.borrow(),
+            ["NIKA-1709 · unavoidable cost floor $0.0021 over the ceiling $0.0010"]
+        );
+        assert_eq!(
+            story.lines[0],
+            "✖ refused · NIKA-1709 · unavoidable cost floor $0.0021 over the ceiling $0.0010"
+        );
     }
 
     /// A run refused before its first frame — the check verdict document

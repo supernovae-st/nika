@@ -10,9 +10,16 @@
 use std::collections::BTreeMap;
 
 use nika_event::{Event, EventKind};
+use nika_kernel::ai::provider::{ProviderInferDyn, ProviderMeta};
+use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
+use nika_kernel::clock::ClockDyn;
+use nika_kernel::http::HttpPostDyn;
+use nika_kernel::process::ShellRunDyn;
+use nika_kernel::tool_executor::{ToolExecuteDyn, ToolRunStart};
 use nika_schema::raw::RawWorkflow;
 use nika_types::resource::{KeyValue, Value as FieldValue};
 
+use crate::Runtime;
 use crate::origins::InputOrigin;
 use crate::stamp::{EventSink, Stamper};
 use crate::{approval, emit, i, s};
@@ -52,7 +59,7 @@ pub(crate) fn cost_pin_fields(max_cost_usd: Option<f64>) -> Vec<(&'static str, F
     // Additive identity: preserve the historical models.dev pin and record
     // the exact owning observations used by this binary's price projection.
     let admission = serde_json::json!({
-        "schema": "nika/inference-admission@1.1",
+        "schema": "nika/inference-admission@1.3",
         "projection": "exact-first-party-usd",
         "tariffs": nika_catalog::admission::tariffs().map(|t| serde_json::json!({
             "provider": t.provider, "billing_provider": t.billing_provider,
@@ -66,6 +73,8 @@ pub(crate) fn cost_pin_fields(max_cost_usd: Option<f64>) -> Vec<(&'static str, F
             "input_nano_per_token": t.price_native(1, 0, 0),
             "output_nano_per_token": t.price_native(0, 1, 0),
             "cached_nano_per_token": t.price_native(1, 0, 1),
+            "cache_write_nano_per_token": t.price_native_written(1, 0, 0, 1),
+            "served_models": t.served_models,
         })).collect::<Vec<_>>()
     });
     fields.push(("admission_pricing", s(&admission.to_string())));
@@ -260,6 +269,7 @@ pub(crate) fn emit_prologue(
     harness_seat: Option<&str>,
     approvals: &approval::ApprovalBook,
     opening_stamp: (nika_types::id::EventId, nika_types::timestamp::Timestamp),
+    run_facts: Option<&crate::run_facts::ResolvedRunFacts>,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) {
@@ -298,19 +308,8 @@ pub(crate) fn emit_prologue(
     // ADR-099 trust amendment (2026-08-08) · the unverified-trust
     // attestation (own helper).
     opening.extend(trust_amendment_fields(resume_unverified));
-    // The trace-format marker (spec 13 §trace · the graph_format: 3
-    // precedent): the run's opening frame — the trace's header — names
-    // the format it speaks. ONE source: `TraceFormatVersion::CURRENT`.
-    opening.push((
-        "trace_format",
-        i(i64::from(nika_types::TraceFormatVersion::CURRENT.version)),
-    ));
-    // Environment attestation (Q11): WHICH engine on WHICH platform —
-    // compile-time constants only; no clock, no I/O, determinism intact.
-    opening.extend(environment_attestation_fields());
-    // F-P2 · the boot attestation (spec pin · the declaration-resolved
-    // entropy seam · the seed under a determinism demand).
-    opening.extend(boot_attestation_fields(wf));
+    // The header: trace format, engine and platform, boot, the run's facts (own helper).
+    opening.extend(header_fields(wf, run_facts));
     // F-P18 · the pricing-table pin + the resolved operator budget
     // (NEP-0017 — the table that gives sense to ρ rides the pin).
     opening.extend(cost_pin_fields(max_cost_usd));
@@ -337,6 +336,67 @@ pub(crate) fn emit_prologue(
     // precomputed over THESE bytes (the resumed run recomputes the same
     // closure — the shown hash stays comparable).
     approvals.begin_run(wf, nonce.uuid.to_string());
+}
+
+/// The opening frame's header attestation (split out of `emit_prologue` at the 100-line ratchet),
+/// in the frame's order: what the trace speaks, what ran it, how it booted, what it serves.
+fn header_fields(
+    wf: &RawWorkflow,
+    run_facts: Option<&crate::run_facts::ResolvedRunFacts>,
+) -> Vec<(&'static str, FieldValue)> {
+    // The trace-format marker (spec 13 §trace · the graph_format: 3
+    // precedent): the run's opening frame — the trace's header — names
+    // the format it speaks. ONE source: `TraceFormatVersion::CURRENT`.
+    let mut fields = vec![(
+        "trace_format",
+        i(i64::from(nika_types::TraceFormatVersion::CURRENT.version)),
+    )];
+    // Environment attestation (Q11): WHICH engine on WHICH platform —
+    // compile-time constants only; no clock, no I/O, determinism intact.
+    fields.extend(environment_attestation_fields());
+    // F-P2 · the boot attestation (spec pin · the declaration-resolved
+    // entropy seam · the seed under a determinism demand).
+    fields.extend(boot_attestation_fields(wf));
+    // The facts of the run (spec 17 §the prologue): the instant it
+    // serves, where that came from, and the silence a catch-up covers.
+    if let Some(facts) = run_facts {
+        fields.extend(facts.prologue_fields());
+    }
+    fields
+}
+
+impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C>
+where
+    S: ShellRunDyn + Sync,
+    T: ToolExecuteDyn,
+    H: HttpPostDyn + Send + Sync + 'static,
+    P: ProviderInferDyn + ProviderMeta,
+    D: ToolDefinitionProviderDyn,
+    C: ClockDyn + Sync,
+{
+    /// The run's opening (split out of `run_admitted` at the 100-line ratchet): one
+    /// execution-bound stamp for evidence and every jq evaluator, the facts of the run fixed at
+    /// it (spec 04 §`run`), the prologue, and the inspect seed.
+    pub(super) fn open_run(
+        &self,
+        (wf, report, workflow_name): (&RawWorkflow, &nika_check::CheckReport, &str),
+        resume_ctx: crate::resume::ResumeContext,
+        stamper: &mut dyn Stamper,
+        sink: &mut dyn EventSink,
+    ) -> (
+        crate::resume::ResumeContext,
+        nika_cap::JqClock,
+        ToolRunStart,
+    ) {
+        let opening_stamp = stamper.next();
+        let resume_ctx = resume_ctx.with_run(self.run_facts.resolved(opening_stamp.1));
+        let jq_clock = nika_cap::JqClock::at(opening_stamp.1);
+        let run_start = ToolRunStart::new(opening_stamp.1.unix_ns);
+        let run_facts = resume_ctx.run_facts();
+        self.emit_run_prologue(wf, workflow_name, opening_stamp, run_facts, stamper, sink);
+        self.seed_inspect(wf, report);
+        (resume_ctx, jq_clock, run_start)
+    }
 }
 
 /// Declaration links use the execution lane's attachment AND index owner.

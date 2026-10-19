@@ -187,10 +187,17 @@ pub(crate) fn status_error(
     // exhausted balance with a 400 and the reason in prose (Anthropic) stays
     // an ordinary 400 here: prose is never classified (the hostile-body law),
     // only relayed for the person to read; the infer verb names both readings.
+    // OpenRouter documents its error class beside a numeric `error.code`, as
+    // `error.metadata.error_type` (`context_length_exceeded` on an overflow):
+    // it stands in for a code the body does not name as text. Evidence:
+    // documented in OpenRouter's API error reference (checked 2026-10-12).
+    let metadata_type = value
+        .as_ref()
+        .and_then(|v| v.get("error")?.get("metadata")?.get("error_type")?.as_str());
     let code = if status == 402 {
         Some("credit_balance_exhausted")
     } else {
-        field("code")
+        field("code").or(metadata_type)
     };
     let details = ProviderHttpError::new(
         status,
@@ -204,12 +211,19 @@ pub(crate) fn status_error(
         .or_else(|| top("message"))
         .or_else(|| top("detail"));
     let withheld = key.map(Secret::expose);
-    ProviderError::HttpResponse {
-        details: match message {
-            Some(message) => details.with_message(message, withheld.as_slice()),
-            None => details,
-        },
+    let details = match message {
+        Some(message) => details.with_message(message, withheld.as_slice()),
+        None => details,
+    };
+    // A documented overflow code is a typed overflow; the route's window, when
+    // known, is filled in by the caller that knows the route.
+    if details.is_context_overflow() {
+        return ProviderError::ContextOverflow {
+            limit: None,
+            details: Some(details),
+        };
     }
+    ProviderError::HttpResponse { details }
 }
 
 /// `error.details[].retryDelay` in Google's `<seconds>s` form, as the
@@ -691,6 +705,6 @@ mod tests {
     }
 }
 
-mod admission;
+pub(crate) mod admission;
 
 pub(crate) mod bounded_json;

@@ -180,7 +180,8 @@ pub(super) fn read_dag(wf: &RawWorkflow, topo_waves: &[Vec<usize>]) -> DagRead {
                 "{n} tasks is over the {ANALYSIS_TASK_CAP}-task analysis cap (the O(n²) closure \
                  stays a DoS floor): width · pinch points · blast radius made NO claim, and the \
                  write-write law judged only the `for_each` same-path flavor — the pair scan did \
-                 not run"
+                 not run, and no read beneath a skippable task's value was judged \
+                 (`skipped-read`)"
             )),
         };
     }

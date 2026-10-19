@@ -269,6 +269,17 @@ const ROWS: &[(&str, &str)] = &[
          never dials it, so that request fails once the boundary admits it — \
          point the task at a real host, or own the failure with `on_error:`",
     ),
+    (
+        "skipped-read",
+        "a read that steps into the value of a task that can be skipped \
+         (`tasks.X.output.field` · `size(tasks.X.output)` · `with.out.field` \
+         past a `when:` that lets null through) — a skipped task's value reads \
+         null and the step raises NIKA-VAR-001/006 at run. `with:` bindings run \
+         BEFORE the task's own `when:`, so a guard there comes too late: bind \
+         the whole `tasks.X.output`, test it (`when: ${{ with.out != null }}` \
+         or `has(with.out.field)`), then read `with.out.field` in the verb. \
+         Advisory (`is_clean` ignores it)",
+    ),
 ];
 
 #[cfg(test)]

@@ -87,7 +87,7 @@ impl DataflowError { spec_code() · wire_message() · from_cel() }
 impl NikaErrorCode for DataflowError    // NIKA_1702 · NIKA_1703 · NIKA_1712
 
 #[non_exhaustive] pub struct Scope<'a> { /* private authority + context fields */ }
-impl Scope<'_> { workflow_with_value_authorities() · with_task_context() · with_value_bound() · authority/context accessors · value_bound() · resolve_expr() }
+impl Scope<'_> { workflow_with_value_authorities() · with_task_context() · with_value_bound() · with_run() · authority/context accessors · value_bound() · run() · resolve_expr() }
 #[non_exhaustive] pub struct ValueBound    // new(limit) · limit() · crossed()
 pub fn expr::{render, render_json, eval_when}
 pub fn jq::eval_binding

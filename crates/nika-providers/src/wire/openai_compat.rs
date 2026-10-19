@@ -56,7 +56,14 @@ where
     // restores the canonical id on the way back (the verb never sees the
     // wire form).
     let names = ToolNameMap::from_tools(&request.tools);
-    let mut http_req = build_request(rp, &request, false, &names)?;
+    // Function tools to OpenAI's own endpoint ride its Responses door (`responses`).
+    let responses = responses::wanted(rp, &request);
+    let mut http_req = if responses {
+        responses::build_request(rp, &request, &names)?
+    } else {
+        build_request(rp, &request, false, &names)?
+    };
+    let target = http_req.url.clone();
     let bytes = http_req.body.as_ref().map_or(0, bytes::Bytes::len);
     let http = rp.http.as_ref().ok_or_else(wiring_bug)?;
     if let Some(account) = &rp.admission
@@ -71,19 +78,8 @@ where
         .transpose()?
         .flatten();
     let mut attempt = super::admission::reserve(rp, &request, bytes)?;
-    if attempt.is_some() {
-        http_req.follow_redirects = false;
-        if let Some(account) = &rp.admission
-            && let Some(bound) = account.request_timeout()?
-        {
-            http_req.timeout = Some(
-                http_req
-                    .timeout
-                    .map_or(bound, |requested| requested.min(bound)),
-            );
-        }
-    }
     if let Some(a) = &mut attempt {
+        bound_attempt(rp, &mut http_req)?;
         a.sent()?;
     }
     *sent = true;
@@ -101,7 +97,7 @@ where
     );
     crate::retry::record(call, route.as_ref(), None, declared.as_ref());
     if let Some(account) = &rp.admission
-        && resp.final_url != rp.base_url
+        && resp.final_url != target
     {
         return Err(account.refuse("transport endpoint changed; charge unknown"));
     }
@@ -118,7 +114,11 @@ where
             rp.key.as_ref(),
         ));
     }
-    let mut response = parse_response(rp, &resp.body, &names)?;
+    let mut response = if responses {
+        responses::parse_response(rp, &resp.body, &names)?
+    } else {
+        parse_response(rp, &resp.body, &names)?
+    };
     response.reasoning_wire = wire;
     crate::retry::record(call, route.as_ref(), Some(&response), declared.as_ref());
     if let Some(a) = &mut attempt
@@ -132,6 +132,24 @@ where
         return Err(refused);
     }
     Ok(response)
+}
+
+/// An admitted attempt follows no redirect and waits at most its account's request timeout.
+fn bound_attempt(
+    rp: &ResolvedProvider<impl Sized>,
+    http_req: &mut HttpRequest,
+) -> Result<(), ProviderError> {
+    http_req.follow_redirects = false;
+    if let Some(account) = &rp.admission
+        && let Some(bound) = account.request_timeout()?
+    {
+        http_req.timeout = Some(
+            http_req
+                .timeout
+                .map_or(bound, |requested| requested.min(bound)),
+        );
+    }
+    Ok(())
 }
 
 /// Open this dispatch's cost record at the endpoint its request is sent to, and journal the
@@ -187,7 +205,7 @@ where
     }
     Ok(Box::pin(SseEventStream::new(
         resp.body,
-        CompatMapper::new(names),
+        CompatMapper::new(names).with_reasoning_apart(reasoning_apart(rp.profile.id)),
     )))
 }
 
@@ -232,6 +250,7 @@ fn build_request(
     }
     super::reasoning::apply(&mut body, &req, rp.profile.id, &rp.wire_model, &rp.base_url)?;
     super::json_mode::bounded_reasoning(&mut body, &req, rp.profile.id, &rp.wire_model);
+    fit_output_to_window(&mut body, rp.profile.id, &rp.wire_model);
     let bytes = serde_json::to_vec(&body).map_err(|e| ProviderError::Other {
         reason: format!("request serialization failed: {e}"),
     })?;
@@ -363,6 +382,50 @@ fn budget_key_sibling(k: &str) -> Option<&'static str> {
         "max_tokens" => Some("max_completion_tokens"),
         "max_completion_tokens" => Some("max_tokens"),
         _ => None,
+    }
+}
+
+/// The least output a clamped budget may keep: below it the prompt itself is about to overflow
+/// the window, and the provider's own refusal says so better than a starved answer.
+const MIN_FITTED_OUTPUT: u64 = 1024;
+
+/// The prompt tokens a request body of `bytes` is counted for: one every 2.5 bytes. JSON and
+/// accented prose run near 3 bytes a token, so this over-counts the prompt on purpose.
+fn counted_prompt_tokens(bytes: usize) -> u64 {
+    u64::try_from(bytes.saturating_mul(2) / 5).unwrap_or(u64::MAX)
+}
+
+/// A compatible route counts the prompt and the requested output against one context window
+/// and refuses a request whose sum exceeds it (`OpenRouter`, measured 2026-10-15: « This endpoint's
+/// maximum context length is 1048576 tokens. However, you requested about 1060562 tokens (112399
+/// of text input, 4445 of tool input, 943718 in the output) », HTTP 400 after a 13-minute author
+/// loop). A budget sized from the catalog's output cap is lowered to the window the prompt leaves,
+/// the prompt counted generously from the body's bytes, less a margin of 1/64 of the window
+/// (1,024 tokens at least). A route with no catalog window, a budget that already fits and a
+/// prompt that leaves less than [`MIN_FITTED_OUTPUT`] are sent as they are.
+fn fit_output_to_window(body: &mut Value, provider_id: &str, model: &str) {
+    // The curated provider row first, else the pricing row whose output cap sized the budget.
+    let Some(window) = crate::overflow::route_window(provider_id, model).or_else(|| {
+        nika_catalog::find_pricing_scoped(provider_id, model)
+            .and_then(|row| row.context_window_tokens)
+            .map(u64::from)
+    }) else {
+        return;
+    };
+    let prompt_tokens =
+        counted_prompt_tokens(serde_json::to_vec(&*body).map_or(0, |bytes| bytes.len()));
+    let margin = (window / 64).max(1024);
+    let room = window.saturating_sub(prompt_tokens.saturating_add(margin));
+    let Some(object) = body.as_object_mut() else {
+        return;
+    };
+    for key in ["max_tokens", "max_completion_tokens"] {
+        if let Some(requested) = object.get(key).and_then(Value::as_u64)
+            && requested > room
+            && room >= MIN_FITTED_OUTPUT
+        {
+            object.insert(key.to_owned(), json!(room));
+        }
     }
 }
 
@@ -544,7 +607,10 @@ fn parse_response(
         });
     }
 
-    let reported_usage = v.pointer("/usage").and_then(usage_from);
+    let reasoning_apart = reasoning_apart(rp.profile.id);
+    let reported_usage = v
+        .pointer("/usage")
+        .and_then(|u| usage_from(u, reasoning_apart));
     let usage_reported = reported_usage.is_some();
     let usage = reported_usage.unwrap_or_default();
 
@@ -566,12 +632,18 @@ fn parse_response(
     resp.usage_reported = usage_reported;
     if super::admission::complete_usage(rp.profile.id, &v) {
         resp.usage_completeness = nika_kernel::ai::provider::UsageCompleteness::Complete;
+        // The provider's own charge, read only from its own seeded endpoint: a
+        // configured gateway's `cost` is that gateway's claim, never this one.
+        if rp.base_url == rp.profile.base_url {
+            resp.cost = super::admission::reported_charge(rp.profile.id, &v);
+        }
     }
     resp.request_id = v
         .pointer("/id")
         .and_then(Value::as_str)
         .map(ToOwned::to_owned);
     resp.finish_reason_raw = raw_finish.map(ToOwned::to_owned);
+    resp.window_full = window_full(raw_finish);
     resp.gen_ai.system = gen_ai_system(rp.profile.id);
     resp.gen_ai.response_id = resp.request_id.clone();
     resp.gen_ai.response_model = v
@@ -597,14 +669,37 @@ fn parse_response(
 /// under `prompt_tokens_details`; both spellings land in
 /// `cache_read_tokens`, so `usd_for_split` prices the hit portion at the
 /// catalog's cache-read rate instead of the full input rate.
-fn usage_from(u: &Value) -> Option<TokenUsage> {
+fn usage_from(u: &Value, reasoning_apart: bool) -> Option<TokenUsage> {
     let at = |key: &str| u.pointer(key).and_then(Value::as_u64);
-    let mut usage = TokenUsage::new(at("/prompt_tokens")?, at("/completion_tokens")?);
+    let reasoning = at("/completion_tokens_details/reasoning_tokens");
+    let completion = at("/completion_tokens")?;
+    // The output always carries the reasoning: a wire that reports it apart adds it back.
+    let output = if reasoning_apart {
+        super::admission::output_with_reasoning(completion, reasoning)
+    } else {
+        completion
+    };
+    let mut usage = TokenUsage::new(at("/prompt_tokens")?, output);
     usage.cache_read_tokens =
         at("/prompt_tokens_details/cached_tokens").or_else(|| at("/prompt_cache_hit_tokens"));
-    usage.reasoning_tokens = at("/completion_tokens_details/reasoning_tokens");
+    usage.cache_write_tokens = at("/prompt_tokens_details/cache_write_tokens");
+    usage.reasoning_tokens = reasoning;
     usage.total_tokens = at("/total_tokens");
     Some(usage)
+}
+
+/// Whether `provider` reports its reasoning beside `completion_tokens` instead of inside them:
+/// xAI (its chat completions reference and live replies of 2026-10-16 total the prompt, the
+/// completion and the reasoning).
+fn reasoning_apart(provider: &str) -> bool {
+    provider == "xai"
+}
+
+/// Whether the finish says the model's context length was reached: Mistral's `model_length`.
+/// Evidence: name only (checked 2026-10-12): Mistral's API lists it beside `length` without a
+/// documented meaning. It maps to `MaxTokens`, and the response carries the window-full marker.
+fn window_full(raw: Option<&str>) -> bool {
+    raw == Some("model_length")
 }
 
 fn map_finish(raw: Option<&str>) -> StopReason {
@@ -633,6 +728,8 @@ struct CompatMapper {
     /// model echoes back in its sanitized form · NIKA-463).
     names: ToolNameMap,
     done_sent: bool,
+    /// The provider reports its reasoning beside the completion ([`reasoning_apart`]).
+    reasoning_apart: bool,
 }
 
 impl CompatMapper {
@@ -641,6 +738,11 @@ impl CompatMapper {
             names,
             ..Self::default()
         }
+    }
+
+    const fn with_reasoning_apart(mut self, apart: bool) -> Self {
+        self.reasoning_apart = apart;
+        self
     }
 
     fn done(&mut self) -> InferEvent {
@@ -732,7 +834,7 @@ impl EventMapper for CompatMapper {
             // cached prompt must not price at the full input rate the
             // day a verb streams. `stream_options.include_usage` is
             // already requested above.
-            if let Some(usage) = usage_from(u) {
+            if let Some(usage) = usage_from(u, self.reasoning_apart) {
                 out.push(Ok(InferEvent::Usage(usage)));
             }
         }
@@ -747,6 +849,8 @@ impl EventMapper for CompatMapper {
         }
     }
 }
+
+mod responses;
 
 #[cfg(test)]
 mod tests;

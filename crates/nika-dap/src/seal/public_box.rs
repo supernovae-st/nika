@@ -13,17 +13,16 @@ pub(super) fn canonical(text: &str) -> Option<String> {
     Some(public.to_box().ok()?.to_string().trim().to_owned())
 }
 
-/// Bind the signing projection to the already-open secret. Compare the whole
-/// canonical box, including the key number: minisign's `PublicKey` equality
-/// compares only public material, not that number or the algorithm.
-pub(super) fn for_signing(secret: &minisign::SecretKey, text: &str) -> Option<String> {
-    let public = canonical(text)?;
-    let expected = minisign::PublicKey::from_secret_key(secret)
-        .ok()?
-        .to_box()
-        .ok()?
-        .to_string();
-    (public == expected.trim()).then_some(public)
+/// Whether `public`, a [`canonical`] box, is the already-open secret's own
+/// public half. Compare the whole canonical box, including the key number:
+/// minisign's `PublicKey` equality compares only public material, not that
+/// number or the algorithm. Only the answer comes out: a caller branches on
+/// it and keeps the box it built from the public text alone.
+pub(super) fn is_own(secret: &minisign::SecretKey, public: &str) -> bool {
+    minisign::PublicKey::from_secret_key(secret)
+        .ok()
+        .and_then(|own| own.to_box().ok())
+        .is_some_and(|own| own.to_string().trim() == public)
 }
 
 fn decode_payload(payload: &str) -> Option<minisign::PublicKey> {
@@ -60,7 +59,7 @@ pub(crate) fn parse_many(text: &str) -> Vec<String> {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::super::{load_from_files, public_from_files};
-    use super::canonical;
+    use super::{canonical, is_own};
 
     fn key_files() -> (tempfile::TempDir, String, String) {
         let dir = tempfile::tempdir().expect("fixture directory");
@@ -68,6 +67,16 @@ mod tests {
         let public = pair.pk.to_box().expect("public box").to_string();
         let secret = pair.sk.to_box(None).expect("secret box").to_string();
         std::fs::write(dir.path().join("key"), &secret).expect("fixture secret file");
+        // Private as `nika key init` writes it: a secret file others can read is refused.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::set_permissions(
+                dir.path().join("key"),
+                std::fs::Permissions::from_mode(0o600),
+            )
+            .expect("fixture secret file made private");
+        }
         (dir, public, secret)
     }
 
@@ -153,6 +162,80 @@ mod tests {
         assert!(
             load_from_files(&key, &path).is_none(),
             "key number must bind too"
+        );
+    }
+
+    #[test]
+    fn the_pair_check_names_only_the_secrets_own_canonical_box() {
+        let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("fixture keypair");
+        let own = canonical(&pair.pk.to_box().expect("public box").to_string()).expect("own box");
+        assert!(is_own(&pair.sk, &own), "the secret's own canonical box");
+        let other = minisign::KeyPair::generate_unencrypted_keypair().expect("other fixture key");
+        let foreign =
+            canonical(&other.pk.to_box().expect("other public").to_string()).expect("other box");
+        assert!(!is_own(&pair.sk, &foreign), "different public material");
+        let mut bytes = pair.pk.to_bytes();
+        bytes[2] ^= 1; // Same public material, different minisign key number.
+        let renumbered = minisign::PublicKey::from_bytes(&bytes).expect("renumbered fixture");
+        let renumbered = canonical(&renumbered.to_box().expect("renumbered public").to_string())
+            .expect("renumbered box");
+        assert!(!is_own(&pair.sk, &renumbered), "key number must bind too");
+        assert!(!is_own(&pair.sk, ""), "no box is no pair");
+    }
+
+    /// The projection as it stood when the box and its pair check were one function: the
+    /// reference the callers' split form must answer exactly like.
+    fn combined(secret: &minisign::SecretKey, text: &str) -> Option<String> {
+        let public = canonical(text)?;
+        let expected = minisign::PublicKey::from_secret_key(secret)
+            .ok()?
+            .to_box()
+            .ok()?
+            .to_string();
+        (public == expected.trim()).then_some(public)
+    }
+
+    /// The callers' split form: the box from the public text, then the pair check as a branch.
+    fn split(secret: &minisign::SecretKey, text: &str) -> Option<String> {
+        let public = canonical(text)?;
+        if !is_own(secret, &public) {
+            return None;
+        }
+        Some(public)
+    }
+
+    #[test]
+    fn the_split_pair_check_answers_exactly_as_the_combined_projection() {
+        let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("fixture keypair");
+        let other = minisign::KeyPair::generate_unencrypted_keypair().expect("other fixture key");
+        let own = pair.pk.to_box().expect("public box").to_string();
+        let payload = own.lines().nth(1).expect("public key payload").to_owned();
+        let mut bytes = pair.pk.to_bytes();
+        bytes[2] ^= 1; // Same public material, different minisign key number.
+        let renumbered = minisign::PublicKey::from_bytes(&bytes)
+            .expect("renumbered fixture")
+            .to_box()
+            .expect("renumbered public")
+            .to_string();
+        let texts = [
+            own.clone(),
+            format!("untrusted comment: SYNTHETIC-COMMENT\n{payload}\nSYNTHETIC-TRAILER\n"),
+            other.pk.to_box().expect("other public").to_string(),
+            renumbered,
+            pair.sk.to_box(None).expect("secret box").to_string(),
+            String::new(),
+            "SYNTHETIC-NOT-A-KEY".to_owned(),
+        ];
+        for (case, text) in texts.iter().enumerate() {
+            // Compared, never printed: the message names the case only.
+            assert!(
+                split(&pair.sk, text) == combined(&pair.sk, text),
+                "case {case} answers differently"
+            );
+        }
+        assert!(
+            split(&pair.sk, &own).is_some() && split(&pair.sk, &texts[2]).is_none(),
+            "both outcomes are exercised"
         );
     }
 

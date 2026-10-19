@@ -153,7 +153,7 @@ impl RelOp {
 
 /// A classified root reference found in an expression (spec
 /// `04-variables.md` §Resolution order · the three value authorities +
-/// `with`/`tasks` + the 2 `for_each` loop-locals · the dead `vars`/`env`
+/// `with`/`tasks`/`run` + the 2 `for_each` loop-locals · the dead `vars`/`env`
 /// roots stay CLASSIFIED at the C2 flag-day so the analyzer can teach
 /// their NIKA-VALUES-001/002 refusal instead of a generic unknown-root).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -184,6 +184,11 @@ pub enum NamespaceRef {
     /// nowhere else. An empty name is the bare `${{ group }}`, which
     /// names no group (`NIKA-DAG-008`).
     Group(String),
+    /// `run.<fact>` — a fact of this run (spec 04 §`run`): the engine sets
+    /// it before the first task and nothing declares, supplies or writes
+    /// it. The set is CLOSED ([`RUN_FACTS`]); any other fact is unresolved
+    /// (`NIKA-VAR-001`). Never a data edge.
+    Run(String),
     /// `item` — the current `for_each` element (loop-local).
     Item,
     /// `index` — the current `for_each` position (loop-local).
@@ -191,6 +196,11 @@ pub enum NamespaceRef {
     /// Any other root identifier (unresolvable · `NIKA-VAR-001`).
     Unknown(String),
 }
+
+/// The facts `${{ run.<fact> }}` reads, the CLOSED set (spec
+/// `04-variables.md` §`run`): the instant of the slot the run serves, and
+/// the silence a catch-up run covers.
+pub const RUN_FACTS: [&str; 2] = ["scheduled_for", "missed"];
 
 #[cfg(test)]
 mod tests {

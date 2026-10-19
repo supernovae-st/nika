@@ -44,6 +44,8 @@ const DEEP_GAPS: &[(&str, &str)] = &[
     // outcome-class spellings success·failure·skipped·terminal) — the 7
     // rows (001 · 007 · 023-027) deleted the day the rename landed, per
     // the ratchet. The ledger stands empty until the next wave.
+    // Child project files (spec 02 §Project files) CLOSED: each child composes
+    // from its own folder; rows 015-017 left per the ratchet.
 ];
 
 #[test]

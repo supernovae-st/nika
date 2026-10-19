@@ -48,6 +48,9 @@ pub mod lookup;
 // A model's output facts: its recorded limit and what an authoring seat reads of it.
 #[cfg(all(feature = "providers", feature = "capabilities"))]
 mod output;
+// The controls a provider's API refuses on a model (fixed sampling, an adaptive thinking).
+#[cfg(all(feature = "providers", feature = "capabilities"))]
+mod sampling;
 pub mod suggest;
 pub mod types;
 pub mod validate;
@@ -65,8 +68,6 @@ pub use types::*;
 // Lookup functions are feature-gated on their respective content catalogs.
 #[cfg(feature = "embeddings")]
 pub use lookup::find_embedding;
-#[cfg(feature = "providers")]
-pub use lookup::find_provider;
 #[cfg(feature = "capabilities")]
 pub use lookup::model_capabilities;
 #[cfg(feature = "builtins-transforms")]
@@ -80,10 +81,14 @@ pub use lookup::{
 };
 #[cfg(feature = "mcp")]
 pub use lookup::{find_mcp_server, is_known_mcp_server, resolve_mcp_name};
+#[cfg(feature = "providers")]
+pub use lookup::{find_provider, model_facts};
 #[cfg(all(feature = "serde", feature = "providers", feature = "capabilities"))]
 pub use output::output_caps;
 #[cfg(all(feature = "providers", feature = "capabilities"))]
 pub use output::{generated_cap, model_output_limit};
+#[cfg(all(feature = "providers", feature = "capabilities"))]
+pub use sampling::{nickname_wire, refuses_sampling, refuses_thinking_budget};
 
 // ── Iteration helpers ───────────────────────────────────────────────────
 
