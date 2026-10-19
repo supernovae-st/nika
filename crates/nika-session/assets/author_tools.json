@@ -12,7 +12,7 @@
   {
    "name": "read",
    "read_only": true,
-   "description": "Read a window of a text file in the project. The path is relative to the project root; a file outside it, a secret or binary content is refused.",
+   "description": "Read a window of a text file in the project, or list a folder of it (`.` lists the root). The path is relative to the project root; a file outside it, a secret or binary content is refused. A file that does not exist is answered with what its folder holds: list the folder instead of guessing names.",
    "input_schema": {
     "type": "object",
     "properties": {
@@ -302,7 +302,7 @@
   {
    "name": "verify",
    "read_only": true,
-   "description": "Judge the candidate against the whole request: Nika's check, the fidelity laws with the selections' provenance, what earlier revisions kept, a trial where nothing leaves the room (on the pages its public GET sources answer, each observed once, and the project files it reads; a model step, a request other than GET and any effect outside the room are not run), the whole-request verdict and the money gate. A failed trial comes back with its facts (task, code, message): repair the candidate, then verify again.",
+   "description": "Judge the candidate against the whole request: Nika's check, the fidelity laws with the selections' provenance, what earlier revisions kept, a trial where nothing leaves the room (on the pages its public GET sources answer, each observed once, and the project files it reads; a model step, a request other than GET and any effect outside the room are not run), the whole-request verdict and the money gate. A failed trial comes back with its facts (task, code, message): repair the candidate. When ready to show it, call propose directly with its open choices: propose already verifies that complete presentation. A standalone verify before adding choices does not qualify that later presentation and repeats work.",
    "input_schema": {
     "type": "object",
     "properties": {},
@@ -322,7 +322,7 @@
   {
    "name": "ask",
    "read_only": false,
-   "description": "Ask the person only what no default can stand for: a fact only they have, readings whose effects differ materially, an authority only they can grant. A question carries no recommended option: a choice you can recommend goes into propose's open, and Nika refuses it here, as it refuses a question for an output in the project unless `reopens` cites their later words asking to change it; each refused question comes back with its reason. Independent questions together, a dependent one naming in after the keys of the questions it waits for (question keys, unrelated to a task's after: map in a workflow). An option may carry the concrete values accepting it binds. Bind first, in answered, what their last line already answered. A value they already settled is not asked again: the reply gives it back, unless the question cites in `reopens` their later words that ask to change it. When something is asked, the turn ends and their next line answers.",
+   "description": "Ask the person only what no default can stand for: a fact only they have, readings whose effects differ materially, an authority only they can grant. A question carries no recommended option: a choice you can recommend goes into propose's open, and Nika refuses it here, as it refuses a question for an output in the project unless `reopens` cites their later words asking to change it; each refused question comes back with its reason. Independent questions together, a dependent one naming in after the keys of the questions it waits for (question keys, unrelated to a task's after: map in a workflow). Whenever the answer is among known alternatives, give two to seven native options rather than asking for free text, multi_select when several may apply; an option naming a website or a data source is labelled with its display name, then « · », then its domain or feed address (TechCrunch · techcrunch.com/feed). An option may carry the concrete values accepting it binds. Bind first, in answered, what their last line already answered. A value they already settled is not asked again: the reply gives it back, unless the question cites in `reopens` their later words that ask to change it. When something is asked, the turn ends and their next line answers.",
    "input_schema": {
     "type": "object",
     "properties": {
@@ -653,7 +653,8 @@
         "type": "string"
        },
        "label": {
-        "type": "string"
+        "type": "string",
+        "description": "What the person reads. A website or data source reads as its display name, then « · », then its domain or feed address (TechCrunch · techcrunch.com/feed)."
        },
        "recommended": {
         "type": "boolean"

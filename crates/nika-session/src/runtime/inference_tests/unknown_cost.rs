@@ -69,10 +69,11 @@ fn public_turn_zero_http_before_confirmation_one_after_and_observation_survives_
     let _ = restored.turn("hello");
     assert_eq!(peer.bodies().len(), 1);
 }
-/// The classifier's route, then one semantic CREATE of `WORK` (plan, sketch, fills, judge).
+/// The classifier's route, then one semantic CREATE of `WORK` whose trial runs whole (the
+/// document, the judge of the whole request, then of its part over the run).
 fn created() -> Vec<(u16, Value)> {
     let mut script = vec![(200, unpriced_response("NEW_WORK"))];
-    script.extend(authored(unpriced_response));
+    script.extend(tried(unpriced_response));
     script
 }
 #[test]
@@ -87,11 +88,11 @@ fn native_compiler_candidate_requires_separate_save_review() {
     let TurnOutcome::Proposal { id, .. } = out else {
         panic!("native Compiler: {out:?}");
     };
-    assert_eq!(peer.bodies().len(), 1 + CREATE_CALLS);
+    assert_eq!(peer.bodies().len(), 1 + TRIED_CREATE_CALLS);
     assert!(!dir.path().join("sortie.txt").exists());
     assert_eq!(s.pending_proposal(), Some(id.clone()));
     assert!(matches!(s.consent_to(&id, "yes"), TurnOutcome::Facts(_)));
-    assert_eq!(peer.bodies().len(), 1 + CREATE_CALLS);
+    assert_eq!(peer.bodies().len(), 1 + TRIED_CREATE_CALLS);
 }
 #[test]
 fn defaults_need_explicit_override_and_hard_or_unknown_caps_never_send() {
@@ -290,7 +291,9 @@ fn revision_has_a_new_cost_question_and_cannot_apply_old_candidate_identity() {
     // revised or sent, so the candidate the human reviewed waits under its own identity —
     // and only its own `no` discards it, after which that identity applies nothing.
     assert_eq!(s.pending_proposal(), Some(old.clone()));
-    assert!(matches!(s.consent("no"), TurnOutcome::Facts(ref t) if t.contains("discarded")));
+    assert!(
+        matches!(s.consent("no"), TurnOutcome::Facts(ref t) if t.contains("discarded") || t.contains("écarté"))
+    );
     assert!(matches!(s.consent_to(&old, "yes"), TurnOutcome::Refusal(_)));
     assert_eq!(peer.bodies().len(), first_count);
 }
@@ -318,14 +321,14 @@ fn confirmed_revision_produces_new_candidate_and_new_save_review() {
         panic!("initial candidate");
     };
     asked(&s.consent("Change the destination to ./revised.txt"));
-    assert_eq!(peer.bodies().len(), 1 + CREATE_CALLS);
+    assert_eq!(peer.bodies().len(), 1 + TRIED_CREATE_CALLS);
     assert!(matches!(s.consent_to(&old, "yes"), TurnOutcome::Refusal(_)));
     let out = s.turn("yes");
     let TurnOutcome::Proposal { id: revised_id, .. } = out else {
         panic!("revised candidate: {out:?}");
     };
     assert_ne!(old, revised_id);
-    assert_eq!(peer.bodies().len(), 1 + CREATE_CALLS + 3);
+    assert_eq!(peer.bodies().len(), 1 + TRIED_CREATE_CALLS + 3);
     assert!(matches!(s.consent_to(&old, "yes"), TurnOutcome::Refusal(_)));
     assert!(matches!(
         s.consent_to(&revised_id, "yes"),

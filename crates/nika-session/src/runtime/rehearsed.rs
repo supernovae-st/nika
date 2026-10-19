@@ -13,8 +13,8 @@
 //!   same bytes, each absence still an absence) before the sources are judged as for every
 //!   proposal. Otherwise the proposal is withdrawn.
 //! - **Run.** A run of that saved workflow first judges its bytes and the world again. A drift
-//!   withdraws the rehearsal and its authority, and the run is refused, again at each later run
-//!   line; saying the request again rehearses the project as it is.
+//!   withdraws its authority and refuses the run. Each fresh run request observes the world
+//!   again: restoring the exact witnessed bytes permits a retry; changed bytes still refuse.
 //! - **Change.** The closed copy waits as rehearsed. A native proposal may enter a fresh EDIT;
 //!   its old proof waits aside, and only returns with unchanged bytes and world if the edit fails
 //!   or is cancelled. The revised candidate needs its own live decision.
@@ -27,14 +27,15 @@ use std::sync::Arc;
 
 use nika_event::source_id::sha256_hex;
 use nika_onboard::compile::copy::{
-    self, Allowance, Limits, Qualification, Qualified, Usage, Witness, native,
-    same_project_path as same_file,
-    words::{held_words, rehearsed_lines},
+    self, Allowance, Limits, Qualification, Qualified, Seen, Usage, Witness, native,
+    same_project_path as same_file, words::rehearsed_lines,
 };
 use nika_onboard::compile::rehearse::Rehearse;
 use nika_onboard::compile::room::{JqHelper, ObservedRoom};
 
-use super::{SessionRuntime, TurnOutcome};
+use super::{Lang, SessionRuntime, TurnOutcome};
+
+mod said_fr;
 use crate::authoring::{AuthoringError, AuthoringRound};
 use crate::trial::{self, Capture, Observer};
 use nika_onboard::compile::{CompileOutcome, CompileRequest, CompileStatus};
@@ -53,24 +54,56 @@ const TURN: Limits = Limits::new(6, 6, 12 * MIB, 60_000);
 const HELD: &str = "a change never carries a rehearsal: this proposal waits as it was rehearsed · `no` first, then say the whole new request to rehearse it";
 
 /// A test's rehearsal host, in place of the observed room.
+/// What the yes found of the files the trial read, in the person's language: each still as the
+/// trial saw it (the same bytes, or still absent), and that the bytes are the ones it chose.
+fn held_in(witness: &Witness, lang: Lang) -> String {
+    let parts: Vec<String> = (witness.world().iter())
+        .map(|(path, seen)| match (seen, lang) {
+            (Seen::File(digest), Lang::Fr) => format!("`{path}` les mêmes {} o", digest.bytes),
+            (Seen::File(digest), _) => format!("`{path}` the same {} B", digest.bytes),
+            (Seen::Absent, Lang::Fr) => format!("`{path}` toujours absent"),
+            (_, Lang::Fr) => format!("`{path}` tel que l'essai l'a vu"),
+            (Seen::Absent, _) => format!("`{path}` still absent"),
+            (_, _) => format!("`{path}` as the trial saw it"),
+        })
+        .collect();
+    match lang {
+        Lang::Fr => format!(
+            "les fichiers de l'essai sont tels qu'il les a vus : {} (les octets sont ceux qu'il a retenus)",
+            parts.join(" · ")
+        ),
+        _ => format!(
+            "the files the trial read are as it saw them: {} (the bytes are the ones it chose)",
+            parts.join(" · ")
+        ),
+    }
+}
+
 #[cfg(test)]
 pub(super) type TestHost = dyn Fn(&Path) -> Box<dyn Rehearse> + Send + Sync;
 
 /// The rehearsals of the conversation: what this turn's rehearsals spent, the proof of the pending
-/// proposal by its identity, and that of the saved workflow by its path (or why it was withdrawn).
+/// proposal by its identity, and that of the saved workflow by its path.
 #[derive(Default)]
 pub(super) struct Rehearsals {
     turn: Usage,
     native: Option<(String, native::Preview)>,
     pending: Option<(ProposalId, Proof)>,
     revising: Option<SuspendedProof>,
-    saved: Option<(PathBuf, Result<Witness, String>)>,
+    saved: Option<(PathBuf, SavedRehearsal)>,
     /// The helper the host named to run `nika:jq` in the observed room.
     jq: Option<JqHelper>,
     /// How the host observes the pages a conversation's trial runs on, when it named a way.
     observer: Option<Observer>,
     #[cfg(test)]
     host: Option<std::sync::Arc<TestHost>>,
+}
+
+/// A withdrawn rehearsal retains its evidence for a fresh Run admission, never as authority
+/// for a late observation. Only a new request that matches every witnessed byte can retry.
+struct SavedRehearsal {
+    witness: Witness,
+    withdrawn: bool,
 }
 
 /// A pending proposal's proof: the witness its rehearsal is bound to, and the lines its preview
@@ -91,6 +124,10 @@ struct Proof {
     origin: ProofOrigin,
     witness: Witness,
     lines: String,
+    /// `lines` in French, said once for a person who writes French ([`said_fr::lines`]).
+    french: std::sync::OnceLock<String>,
+    /// The proposal it was proved for, when it was carried here from it with the same bytes.
+    carried_from: Option<ProposalId>,
 }
 
 impl Rehearsals {
@@ -110,11 +147,19 @@ impl Rehearsals {
     }
 
     /// The words of the proof bound to `id`, pending or suspended by a revision.
-    pub(super) fn lines_of(&self, id: &ProposalId) -> Option<&str> {
+    /// The lines of the proof bound to `id`, as a person who reads `language` reads them: a host
+    /// draws them beside the proposal (live gauntlet wave 6 r04 B6, 2026-10-18: a French card
+    /// read « répétition · Rehearsed on a copy of your files … »).
+    pub(super) fn lines_of(&self, id: &ProposalId, language: Lang) -> Option<&str> {
         let pending = (self.pending.as_ref()).filter(|(proven, _)| proven == id);
         let suspended = (self.revising.as_ref()).filter(|s| &s.id == id);
         let proof = pending.map(|(_, p)| p).or(suspended.map(|s| &s.proof))?;
-        Some(proof.lines.as_str())
+        Some(match language {
+            Lang::Fr => (proof.french)
+                .get_or_init(|| said_fr::lines(&proof.lines))
+                .as_str(),
+            _ => proof.lines.as_str(),
+        })
     }
 
     /// Expire pending authority without erasing already spent rehearsal usage.
@@ -292,6 +337,8 @@ impl SessionRuntime {
                 origin: ProofOrigin::Copy,
                 witness: q.witness.clone(),
                 lines: rehearsed_lines(q),
+                french: std::sync::OnceLock::new(),
+                carried_from: None,
             })
         } else if let Some((intent, native)) = native {
             let exact = intent == round.effective_intent()
@@ -310,16 +357,20 @@ impl SessionRuntime {
                     origin: ProofOrigin::Native,
                     witness,
                     lines,
+                    french: std::sync::OnceLock::new(),
+                    carried_from: None,
                 })
             } else {
-                *preview = preview.replacen(crate::review::NOTHING_RAN, &lines, 1);
+                *preview = preview.replacen(crate::review::NOTHING_RAN, &self.said(&lines), 1);
                 None
             }
         } else {
             None
         };
+        let said = proof.as_ref().map(|proof| self.said(&proof.lines));
         self.rehearsals.pending = proof.map(|proof| {
-            *preview = preview.replacen(crate::review::NOTHING_RAN, &proof.lines, 1);
+            let said = said.unwrap_or_default();
+            *preview = preview.replacen(crate::review::NOTHING_RAN, &said, 1);
             (id.clone(), proof)
         });
         Ok(())
@@ -346,9 +397,55 @@ impl SessionRuntime {
                 "a change of money cannot carry a rehearsal of another proposal or of other bytes",
             ));
         }
-        preview.push_str(&proof.lines);
+        preview.push_str(&self.said(&proof.lines));
         self.rehearsals.pending = Some((new.clone(), proof));
         Ok(())
+    }
+
+    /// A rehearsal's lines as the person reads them: in French for a person who writes French,
+    /// the proof keeping the engine's own words.
+    fn said(&self, lines: &str) -> String {
+        if self.language == Lang::Fr {
+            said_fr::lines(lines)
+        } else {
+            lines.to_owned()
+        }
+    }
+
+    /// The proposal `new` of `set`, with no trial of its own: when it is the revision shown
+    /// proposed again under the verdict the person saw (`reused`), with the same project root
+    /// and the same changes as the proposal `shown` (its identity and set: only its goal and card
+    /// may differ), the proof proved for exactly that identity over exactly these bytes follows
+    /// it, as a money-only amendment's does. The proof keeps where it came from and `preview`
+    /// says so. Anything else carries nothing: the proof stays where it was bound and the yes
+    /// judges it as before, the world it ran in included.
+    pub(super) fn carry_rehearsal(
+        &mut self,
+        (shown, reused): (Option<(&ProposalId, &ProjectChangeSet)>, bool),
+        (new, set): (&ProposalId, &ProjectChangeSet),
+        preview: &mut String,
+    ) {
+        let Some((old, before)) = shown else {
+            return;
+        };
+        if !reused || before.root != set.root || before.changes != set.changes {
+            return;
+        }
+        let Some((proven, mut proof)) = self.rehearsals.pending.take() else {
+            return;
+        };
+        if proven == *old && proven != *new && selected(set, &proof.witness) {
+            proof.lines = format!(
+                "{}  rehearsed for the proposal {proven} you saw, carried with these same bytes\n",
+                proof.lines
+            );
+            shown_in(preview, &self.said(&proof.lines));
+            proof.french = std::sync::OnceLock::new();
+            proof.carried_from = Some(proven);
+            self.rehearsals.pending = Some((new.clone(), proof));
+        } else {
+            self.rehearsals.pending = Some((proven, proof));
+        }
     }
 
     /// Whether the pending proposal `id` is a rehearsed one.
@@ -388,7 +485,18 @@ impl SessionRuntime {
                 &format!("the files this proposal was rehearsed on changed: {why}"),
             ));
         }
-        let held = held_words(&proof.witness);
+        let lang = self.language;
+        let held = match (&proof.carried_from, lang) {
+            (Some(old), Lang::Fr) => format!(
+                "{} (essayé pour la proposition {old}, reprise avec les mêmes octets)",
+                held_in(&proof.witness, lang)
+            ),
+            (Some(old), _) => format!(
+                "{} (tried for the proposal {old}, carried with the same bytes)",
+                held_in(&proof.witness, lang)
+            ),
+            (None, _) => held_in(&proof.witness, lang),
+        };
         self.rehearsals.pending = Some((proven, proof));
         Ok(Some(held))
     }
@@ -416,26 +524,48 @@ impl SessionRuntime {
             }
             return false;
         };
-        self.rehearsals.saved = Some((workflow.to_path_buf(), Ok(proof.witness)));
+        self.rehearsals.saved = Some((
+            workflow.to_path_buf(),
+            SavedRehearsal {
+                witness: proof.witness,
+                withdrawn: false,
+            },
+        ));
         true
     }
 
-    /// Before a run of `workflow`: when a rehearsal proves it, its bytes and its world are judged
-    /// again. A drift withdraws the rehearsal and its authority, and the run is refused; a
-    /// withdrawn rehearsal keeps refusing. `None` when the run goes on.
-    pub(super) fn rehearsed_at_run(&mut self, workflow: &Path) -> Option<TurnOutcome> {
+    /// The workflow the last consent saved, when its run's last attempt was refused because its
+    /// bytes or its world drifted from its rehearsal (that proof withdrawn for the attempt) and
+    /// nothing else waits: what a host's finite recovery offers to adapt, through a new request
+    /// whose proposal is rehearsed and admitted afresh. `None` once an attempt found the
+    /// witnessed world restored, or another workflow was saved. It grants nothing: no proof is
+    /// carried and no run is requested from it.
+    #[must_use]
+    pub fn stale_saved_run(&self) -> Option<&Path> {
+        if self.waiting() != crate::work::Waiting::Free {
+            return None;
+        }
         let (path, proof) = self.rehearsals.saved.as_ref()?;
+        let saved = self.consented.as_deref()?;
+        (proof.withdrawn && same_file(&self.snapshot.root, path, saved)).then_some(path.as_path())
+    }
+
+    /// Before a run of `workflow`: when a rehearsal proves it, its bytes and its world are judged
+    /// again. A drift withdraws its authority for this request. A later request may retry only
+    /// after the exact witnessed world has been restored. `None` when the run goes on.
+    pub(super) fn rehearsed_at_run(&mut self, workflow: &Path) -> Option<TurnOutcome> {
+        let (path, proof) = self.rehearsals.saved.as_mut()?;
         if !same_file(&self.snapshot.root, path, workflow) {
             return None;
         }
-        let why = match proof {
-            Ok(witness) => witness.drift(&self.snapshot.root, Some(path.as_path()))?,
-            Err(why) => why.clone(),
-        };
+        let drift = proof
+            .witness
+            .drift(&self.snapshot.root, Some(path.as_path()));
+        proof.withdrawn = drift.is_some();
+        let why = drift?;
         let path = path.clone();
-        self.rehearsals.saved = Some((path.clone(), Err(why.clone())));
         let text = format!(
-            "{why} · the rehearsal of `{}` was withdrawn: it no longer describes a run · nothing was run · say the request again to rehearse it over the project as it is now",
+            "{why} · the rehearsal of `{}` was withdrawn for this attempt · nothing was run · restore the original file and ask to retry, or ask Nika to adapt the workflow to the changed files",
             path.display()
         );
         self.remember("(run)", &text);
@@ -454,16 +584,28 @@ impl SessionRuntime {
         ran_sha256: &str,
         written: &[String],
     ) -> Result<(), String> {
-        let Some((path, Ok(witness))) = &self.rehearsals.saved else {
+        let Some((path, proof)) = &self.rehearsals.saved else {
             return Err("no rehearsal proves a saved workflow".to_owned());
         };
+        if proof.withdrawn {
+            return Err(
+                "the rehearsal was withdrawn; a fresh Run request must revalidate it".to_owned(),
+            );
+        }
+        let witness = &proof.witness;
         if !same_file(&self.snapshot.root, path, workflow)
             || ran_sha256 != witness.candidate_sha256()
         {
             return Err("the run is not of the rehearsed workflow's bytes".to_owned());
         }
         let next = witness.advanced(&self.snapshot.root, written)?;
-        self.rehearsals.saved = Some((path.clone(), Ok(next)));
+        self.rehearsals.saved = Some((
+            path.clone(),
+            SavedRehearsal {
+                witness: next,
+                withdrawn: false,
+            },
+        ));
         Ok(())
     }
 
@@ -547,12 +689,19 @@ impl SessionRuntime {
         self.rehearsals.revising = None;
     }
 
-    /// The landed words of a saved workflow: where its rehearsal ran, when it was rehearsed.
-    pub(super) fn landed_words(rehearsed: bool) -> &'static str {
+    /// The landed words of a saved workflow, in the person's language: where its rehearsal ran,
+    /// when it was rehearsed.
+    pub(super) const fn landed_words(rehearsed: bool, lang: Lang) -> &'static str {
         if rehearsed {
-            "\nSaved · checked · not active · rehearsed on a copy of your files, nothing has run on them\n  say « run it » to run it once (a ceiling is announced first)"
+            lang.pick(
+                "\nSaved · checked · not active · rehearsed on a copy of your files, nothing has run on them\n  say « run it » to run it once (a ceiling is announced first)",
+                "\nEnregistré · vérifié · pas actif · répété sur une copie de vos fichiers, rien n'a tourné sur eux\n  dites « lance-le » pour le lancer une fois (un plafond est annoncé d'abord)",
+            )
         } else {
-            "\nSaved · checked · not active · nothing has run\n  say « run it » to run it once (a ceiling is announced first)"
+            lang.pick(
+                "\nSaved · checked · not active · nothing has run\n  say « run it » to run it once (a ceiling is announced first)",
+                "\nEnregistré · vérifié · pas actif · rien n'a tourné\n  dites « lance-le » pour le lancer une fois (un plafond est annoncé d'abord)",
+            )
         }
     }
 
@@ -596,13 +745,7 @@ impl SessionRuntime {
         }
         let (witness, lines) = tried.into_parts();
         let lines = format!("{lines}{words}");
-        if preview.contains(crate::review::NOTHING_RAN) {
-            *preview = preview.replacen(crate::review::NOTHING_RAN, &lines, 1);
-        } else {
-            // An agent's card has no « nothing ran » line: the trial comes before its question.
-            let at = preview.find("apply this?").unwrap_or(preview.len());
-            preview.insert_str(at, &lines);
-        }
+        shown_in(preview, &self.said(&lines));
         self.rehearsals.pending = witness.map(|witness| {
             let origin = ProofOrigin::Native;
             (
@@ -611,6 +754,8 @@ impl SessionRuntime {
                     origin,
                     witness,
                     lines,
+                    french: std::sync::OnceLock::new(),
+                    carried_from: None,
                 },
             )
         });
@@ -624,6 +769,17 @@ impl SessionRuntime {
 }
 
 /// Whether `set` is exactly one workflow whose bytes are the ones `witness` selected.
+/// A rehearsal's `lines` in `preview`: in place of its « nothing ran » line, or before the
+/// question of an agent's card, which has none.
+fn shown_in(preview: &mut String, lines: &str) {
+    if preview.contains(crate::review::NOTHING_RAN) {
+        *preview = preview.replacen(crate::review::NOTHING_RAN, lines, 1);
+    } else {
+        let at = preview.find("apply this?").unwrap_or(preview.len());
+        preview.insert_str(at, lines);
+    }
+}
+
 fn selected(set: &ProjectChangeSet, witness: &Witness) -> bool {
     matches!(set.changes.as_slice(),
         [change] if sha256_hex(change.content().as_bytes()) == witness.candidate_sha256())

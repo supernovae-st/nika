@@ -12,11 +12,24 @@
 use std::fmt::Write as _;
 
 use nika_compile_fidelity::fidelity::resolution::{Resolution, ResolutionKind};
-use nika_session_change::work::{AskedQuestion, Binding, Offer, ValueRole};
+use nika_session_change::change::Witness;
+use nika_session_change::outcome::QuestionId;
+use nika_session_change::work::{
+    AskedQuestion, AskedState, Binding, Offer, ProvenanceKind, ValueRole,
+};
 use serde_json::{Value, json};
 
 use super::answer::{Answered, recommended};
-use super::{Citations, Conversation, Facts, Mint, Pick, bare, in_line, resolution_role};
+use super::{
+    Citations, Conversation, Facts, Mint, Pick, bare, in_line, resolution_role, same_literal,
+};
+
+/// The same offer shape can ask for missing information or show a candidate's default.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum QuestionUse {
+    Ask,
+    Propose,
+}
 
 /// What the author reads when it asks a question that recommends an option: a default can stand
 /// for it, so the proposal shows it in `open`.
@@ -50,6 +63,8 @@ pub(super) enum NotAsked {
     Default,
     /// It names an output in the project, which always has a name the author derives.
     Output,
+    /// The person dropped it (« annuler »): asked again, it is refused.
+    Dropped,
 }
 
 impl NotAsked {
@@ -61,6 +76,7 @@ impl NotAsked {
             Self::Bound => "bound",
             Self::Default => "default",
             Self::Output => "output",
+            Self::Dropped => "dropped",
         }
     }
 
@@ -120,11 +136,70 @@ fn unshowable(choice: &AskedQuestion, source: &str, shown: &[AskedQuestion]) -> 
     (default.values.iter())
         .find(|v| bare(&v.value).is_empty() || !source.contains(bare(&v.value)))
         .map(|v| {
+            // A time zone is the schedule's, never the workflow's: told to write it in the
+            // candidate, the author tried for ever (live gauntlet r05, 2026-10-16: 35 proposals
+            // refused for a `schedule_zone` choice).
+            if zone_like(&choice.key, &v.value) {
+                return format!(
+                    "`{}` is a time zone the candidate does not carry. The schedule's zone is no choice shown beside the candidate: give it as the schedule's `timezone` when the person's words or an option they picked name it, or ask it with `ask`, and leave it out of `open`. A zone the workflow itself uses is written in the candidate",
+                    v.value
+                );
+            }
             format!(
                 "the candidate does not carry `{}`, its default: write it in the candidate, or ask the choice with `ask`",
                 v.value
             )
         })
+}
+
+/// Whether the choice `shown` covers the question `asked`: the same unresolved choice the person
+/// was asked, now shown with its default. An open question of the same key asked in the same
+/// words, its answer playing the same part, with the same single or multiple pick, free words and
+/// prerequisites, and the same options, each by key in the same words with the same values: the
+/// default the choice recommends may only add the values the candidate carries. A key reused
+/// alone, or the same options asked another way, covers nothing.
+fn covers(shown: &AskedQuestion, asked: &AskedQuestion) -> bool {
+    let same_offer = |old: &Offer| {
+        (shown.options.iter()).any(|new| {
+            new.key == old.key
+                && new.label.trim() == old.label.trim()
+                && new.exclusive == old.exclusive
+                && !old.recommended
+                && if new.recommended {
+                    old.values.iter().all(|value| new.values.contains(value))
+                } else {
+                    new.values == old.values
+                }
+        })
+    };
+    asked.state == AskedState::Open
+        && shown.key == asked.key
+        && shown.question.trim() == asked.question.trim()
+        && shown.role == asked.role
+        && shown.multi_select == asked.multi_select
+        && shown.free_text == asked.free_text
+        && shown.after == asked.after
+        && shown.options.len() == asked.options.len()
+        && asked.options.iter().all(same_offer)
+}
+
+/// Whether a choice keyed `key` offering `value` is a time zone: its key says so, or the value
+/// is spelled as a zone of the time zone database (`Europe/Paris`, `UTC`).
+fn zone_like(key: &str, value: &str) -> bool {
+    let key = key.to_lowercase();
+    let named = ["zone", "fuseau", "timezone", "tz"]
+        .iter()
+        .any(|w| key.contains(w));
+    let spelled = value == "UTC"
+        || value.split_once('/').is_some_and(|(area, place)| {
+            area.chars().next().is_some_and(char::is_uppercase)
+                && area.chars().all(char::is_alphabetic)
+                && !place.is_empty()
+                && place
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || "_-+/".contains(c))
+        });
+    named || spelled
 }
 
 /// One option of a choice shown, as the card says it: its key, its label, whether it is the
@@ -146,6 +221,64 @@ fn option_words(offer: &Offer) -> String {
 }
 
 impl Conversation {
+    /// A routine output derived for this candidate is a recommendation, not a human pick.
+    /// A still-unanswered choice can retain its same default across another choice's answer.
+    /// Otherwise an output a proposal kept, or the person delegated, remains protected.
+    /// The ask door still refuses it; only a carried recommended default can be shown.
+    pub(super) fn proposable_output_default(
+        &self,
+        binding: &Binding,
+        key: &str,
+        options: &[Offer],
+    ) -> bool {
+        let pending_default = self.open.iter().any(|question| {
+            question.key == key
+                && recommended(question).is_some_and(|offer| {
+                    offer.values.iter().any(|value| {
+                        value.role == binding.role && same_literal(&value.value, &binding.value)
+                    })
+                })
+        });
+        if binding.role != ValueRole::OutputPath
+            || binding.provenance.kind != ProvenanceKind::Derived
+            || binding.key.is_some()
+            || self.accepted.iter().any(|kept| {
+                kept.role == binding.role
+                    && !(pending_default
+                        && kept.provenance.kind == ProvenanceKind::Derived
+                        && kept.key.is_none()
+                        && same_literal(&kept.value, &binding.value))
+            })
+            || self
+                .delegations
+                .iter()
+                .any(|choice| choice.scope == binding.role)
+        {
+            return false;
+        }
+        let Some(candidate) = self.candidate.as_ref() else {
+            return false;
+        };
+        if !candidate.source.contains(bare(&binding.value))
+            || !candidate.rows.iter().any(|row| {
+                (row.kind == ResolutionKind::Derived
+                    || (pending_default && row.kind == ResolutionKind::Retained))
+                    && row.role == resolution_role(binding.role)
+                    && same_literal(&row.value, &binding.value)
+            })
+        {
+            return false;
+        }
+        let mut defaults = options.iter().filter(|offer| offer.recommended);
+        let Some(default) = defaults.next() else {
+            return false;
+        };
+        defaults.next().is_none()
+            && default.values.iter().any(|value| {
+                value.role == binding.role && same_literal(&value.value, &binding.value)
+            })
+    }
+
     /// The goal a proposal states: the author's `summary`, the `doubt` the verifier stated, then
     /// each choice it shows with its options, the default said, so the preview and the identity
     /// the person consents to cover them.
@@ -202,7 +335,14 @@ impl Conversation {
         let choices = args["open"].as_array().into_iter().flatten();
         for (ordinal, choice) in choices.enumerate() {
             let key = choice["key"].as_str().unwrap_or_default();
-            match self.question(choice, citations, (call, ordinal), mint, facts) {
+            match self.question(
+                choice,
+                citations,
+                (call, ordinal),
+                mint,
+                facts,
+                QuestionUse::Propose,
+            ) {
                 Ok(question) => match unshowable(&question, &carried, &shown) {
                     Some(why) => refused.push(format!("`{key}`: {why}")),
                     None => shown.push(question),
@@ -230,6 +370,23 @@ impl Conversation {
             .collect()
     }
 
+    /// The proposal admitted shows `open`: each asked question a choice of it covers ([`covers`])
+    /// is that choice now and no longer waits as a question. Nothing is answered or bound here: the
+    /// person answers it under the choice's identity, or their consent keeps its default.
+    pub(super) fn supersede_covered(&mut self, open: &[AskedQuestion]) {
+        (self.asked).retain(|asked| !open.iter().any(|shown| covers(shown, asked)));
+    }
+
+    /// The asked question `key` was answered while the proposal shown is the candidate: that
+    /// proposal does not carry the answer, so it is not saved as it is until the author proposes
+    /// again.
+    pub(super) fn answered_after_shown(&mut self, key: &str) {
+        let shown = self.shown.as_ref().map(|shown| shown.number);
+        if shown.is_some() && shown == self.candidate.as_ref().map(|c| c.number) {
+            (self.picked_other).push(format!("`{key}` was answered after this proposal"));
+        }
+    }
+
     /// The proposal that shows the choices no longer waits: they close unanswered.
     pub fn close_choices(&mut self) {
         self.open.clear();
@@ -254,6 +411,53 @@ impl Conversation {
             ));
         }
         (self.picked_other.first()).map(|why| format!("{why}: Nika revises it before saving"))
+    }
+
+    /// Whether the person's `line` settles the shown choice `id` with the default the candidate
+    /// already carries, so the proposal shown waits on unrevised (its next choice, or its save
+    /// decision once none remain) with no author round trip: the whole line picks that choice's
+    /// one recommended offer by protocol (its key or label, or a consent word), and nothing else
+    /// waits or changed. No question is asked, no choice is open that its card (`shown`, by key)
+    /// does not show, no other option was picked, the candidate is the revision shown with its
+    /// bytes, and every default the proposal shows is still in them (or in the schedule's zone
+    /// `beside` them). The last choice of a proposal that deferred the person's words to save or
+    /// run to these picks stays the author's: it proposes those bytes again, and the mandate
+    /// continues ([`Self::propose`]).
+    #[must_use]
+    pub fn keeps_default(
+        &self,
+        id: &QuestionId,
+        line: &str,
+        (shown, beside): (&[String], Option<&str>),
+    ) -> bool {
+        let Some(question) = self.open.iter().find(|question| question.id == *id) else {
+            return false;
+        };
+        let Some(default) = recommended(question) else {
+            return false;
+        };
+        if Pick::of_line(question, line) != Some(Pick::Offer(default.key.clone()))
+            || self.unsaved(shown).is_some()
+        {
+            return false;
+        }
+        let (Some(candidate), Some(seen)) = (self.candidate.as_ref(), self.shown.as_ref()) else {
+            return false;
+        };
+        if seen.number != candidate.number
+            || seen.witness != Witness::of(candidate.source.as_bytes()).0
+        {
+            return false;
+        }
+        let carried = match beside {
+            Some(zone) => format!("{}\n{zone}", candidate.source),
+            None => candidate.source.clone(),
+        };
+        if (self.open.iter()).any(|choice| unshowable(choice, &carried, &[]).is_some()) {
+            return false;
+        }
+        let mandate = (seen.mandate).is_some_and(|(_, acts)| acts.save || acts.run);
+        !(mandate && self.open.len() == 1)
     }
 
     /// The person's line `cite` consented to the proposal that shows the open choices: each
@@ -287,3 +491,8 @@ impl Conversation {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[path = "choices/derived_tests.rs"]
+mod derived_tests;

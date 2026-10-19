@@ -52,8 +52,21 @@ impl ResidentExecutionBackend {
         context: nika_execution::ExecutionContext<'a>,
         max_cost_usd: Option<f64>,
         access_pin: Option<&str>,
+        pair: (BTreeMap<String, serde_json::Value>, Option<CancelCtx>),
+        authority: Option<CostAuthority>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
+        let facts = nika_runtime::RunFacts::default();
+        self.drive_told(context, (max_cost_usd, access_pin), pair, authority, facts)
+    }
+
+    /// [`Self::drive`] with the run told the instant it serves (spec 04 §`run`).
+    fn drive_told<'a>(
+        &'a self,
+        context: nika_execution::ExecutionContext<'a>,
+        (max_cost_usd, access_pin): (Option<f64>, Option<&str>),
         (inputs, cancel): (BTreeMap<String, serde_json::Value>, Option<CancelCtx>),
         authority: Option<CostAuthority>,
+        facts: nika_runtime::RunFacts,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
         let display_root = self.display_root.clone();
         let seal = Arc::clone(&self.seal);
@@ -65,7 +78,7 @@ impl ResidentExecutionBackend {
                 context,
                 max_cost_usd,
                 access_pin.as_deref(),
-                (inputs, cancel),
+                (inputs, cancel, facts),
                 authority,
             )
             .await
@@ -86,8 +99,11 @@ pub(crate) trait JournalSeal: Send + Sync + 'static {
     ) -> bool;
 }
 
-/// Production custody: the run-signing key this machine holds (the OS
-/// keychain · `~/.nika/keys`) — exactly what `nika run` seals with.
+/// Production custody: the run-signing key this machine holds in files —
+/// `NIKA_RUN_KEY_FILE` · `NIKA_RUN_PUB_FILE`, otherwise `~/.nika/keys`
+/// (0600) — never the keychain: a resident cannot stop to ask for
+/// a password, whatever its terminal or its signature. The same pair
+/// honesty and the same 0600 rule as `nika run`.
 struct CustodySeal;
 
 impl JournalSeal for CustodySeal {
@@ -97,7 +113,12 @@ impl JournalSeal for CustodySeal {
         workflow_hash: Option<&str>,
         teardown: Option<&nika_dap::seal::SealTeardown>,
     ) -> bool {
-        nika_dap::journal::seal_journal_with(trace, workflow_hash, teardown)
+        nika_dap::journal::seal_journal_with_key(
+            trace,
+            workflow_hash,
+            teardown,
+            nika_dap::seal::load_served_signing_key,
+        )
     }
 }
 
@@ -175,6 +196,17 @@ impl ExecutionBackend for ResidentExecutionBackend {
         let pair = (inputs.clone(), Some(cancel));
         self.drive(context, None, None, pair, Some(authority))
     }
+    fn execute_scheduled<'a>(
+        &'a self,
+        context: nika_execution::ExecutionContext<'a>,
+        (max_cost_usd, access_pin): (Option<f64>, Option<&str>),
+        inputs: &BTreeMap<String, serde_json::Value>,
+        cancel: CancelCtx,
+        facts: nika_runtime::RunFacts,
+    ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
+        let pair = (inputs.clone(), Some(cancel));
+        self.drive_told(context, (max_cost_usd, access_pin), pair, None, facts)
+    }
 
     fn trace_journal_dir(&self) -> Option<PathBuf> {
         Some(self.display_root.join(nika_dap::store::TRACE_DIR))
@@ -219,7 +251,11 @@ async fn drive_resident_execution(
     context: nika_execution::ExecutionContext<'_>,
     max_cost_usd: Option<f64>,
     access_pin: Option<&str>,
-    (inputs, operator_cancel): (BTreeMap<String, serde_json::Value>, Option<CancelCtx>),
+    (inputs, operator_cancel, run_facts): (
+        BTreeMap<String, serde_json::Value>,
+        Option<CancelCtx>,
+        nika_runtime::RunFacts,
+    ),
     authority: Option<CostAuthority>,
 ) -> ExecutionOutcome {
     // The journal a `nika run` would leave, under the project the resident
@@ -276,6 +312,7 @@ async fn drive_resident_execution(
         operator_cancel,
         max_cost_usd,
         inputs,
+        run_facts,
     };
     match tokio::task::spawn_blocking(move || run_admitted_resident_job(job, cancel_rx)).await {
         Ok(outcome) => outcome,
@@ -339,6 +376,8 @@ struct ResidentJob {
     operator_cancel: Option<CancelCtx>,
     max_cost_usd: Option<f64>,
     inputs: BTreeMap<String, serde_json::Value>,
+    /// The slot a scheduled fire serves (spec 04 §`run`); the default otherwise.
+    run_facts: nika_runtime::RunFacts,
 }
 
 fn run_admitted_resident_job(
@@ -363,6 +402,7 @@ fn run_admitted_resident_job(
         operator_cancel,
         max_cost_usd,
         inputs,
+        run_facts,
     } = job;
     // Defaults retain file provenance; explicit HTTP bindings are the API
     // caller's, never a person, CI context or environment read from here.
@@ -373,7 +413,8 @@ fn run_admitted_resident_job(
         .with_max_cost_usd(max_cost_usd)
         .with_access_plan(plan)
         .with_mirror(mirror)
-        .with_cancel_option(operator_cancel.clone());
+        .with_cancel_option(operator_cancel.clone())
+        .with_run_facts(run_facts);
     // The run's write-origins ledger, staged under the display root where a
     // served run's writes land: a failed run moves only what it created.
     let write_origins = Arc::new(nika_runtime::WriteOrigins::new(
@@ -635,6 +676,9 @@ pub fn serve_resident_process(
     state_root: PathBuf,
     server: Option<ServerConfig>,
 ) -> Result<(), String> {
+    // A resident never opens the keychain: every custody reader in
+    // this process (the seal, the signed-memory fold) takes files only.
+    nika_dap::seal::resident_custody();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

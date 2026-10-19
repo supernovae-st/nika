@@ -29,7 +29,7 @@ fn state(s: &SessionRuntime, root: &Path) -> String {
     tree.sort();
     let proof = s
         .pending_proposal()
-        .and_then(|id| s.rehearsals.lines_of(&id).map(str::to_owned));
+        .and_then(|id| s.rehearsals.lines_of(&id, s.language).map(str::to_owned));
     format!(
         "{:?}|{:?}|{:?}|{:?}|{proof:?}|{tree:?}",
         s.pending,
@@ -163,4 +163,31 @@ fn a_revision_question_sets_the_candidate_aside_never_consentable() {
     );
     assert!(!dir.path().join(COPY_DEST).exists());
     assert_eq!(state(&s, dir.path()), before);
+}
+
+/// « On continue » with a proposal waiting shows it again as it stands, typed as a turn or at the
+/// consent door, whoever prepares: the same identity, nothing re-authored, nothing written (live
+/// gauntlet wave 6 r07 B1, 2026-10-18).
+#[test]
+fn continuing_shows_the_waiting_proposal_again_as_it_stands() {
+    let (dir, mut s) = session();
+    let TurnOutcome::Proposal { id, .. } = s.turn(COPY) else {
+        panic!("a proposal");
+    };
+    for line in ["On continue là où on en était", "continue stp"] {
+        let TurnOutcome::Proposal { id: again, preview } = s.turn(line) else {
+            panic!("{line}: the proposal is shown again");
+        };
+        assert_eq!(again, id, "{line}: the same identity");
+        assert!(
+            preview.contains("La proposition attend toujours votre réponse"),
+            "{preview}"
+        );
+        let TurnOutcome::Proposal { id: at_door, .. } = s.consent(line) else {
+            panic!("{line}: at the consent door too");
+        };
+        assert_eq!(at_door, id, "{line}");
+    }
+    assert_eq!(s.pending_proposal(), Some(id));
+    assert!(!dir.path().join(COPY_DEST).exists(), "nothing written");
 }

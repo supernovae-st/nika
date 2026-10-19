@@ -198,36 +198,38 @@ fn a_stale_or_moved_proposal_saves_nothing_and_runs_nothing() {
     assert!(!s.snapshot.root.join("nika.yaml").exists());
 }
 
-/// Findings on the saved bytes stop the run: the save stands, and the run is not started.
+/// Bytes whose own check fails are never saved or run (QA gauntlet q04): `save & run` and `yes`
+/// both refuse before anything lands, the saved clean file is never replaced by them, nothing is
+/// requested, and the proposal keeps waiting for a change or `no`.
 #[test]
-fn findings_on_the_saved_bytes_save_but_never_run() {
+fn bytes_failing_their_own_check_never_save_or_run() {
     let dir = tree();
-    let (mut s, _, _, _) = at_the_proposal(dir.path());
-    let ungranted = ProjectChangeSet {
-        root: dir.path().to_path_buf(),
-        goal: "ungranted".to_owned(),
-        changes: vec![ProjectChange::CreateWorkflow {
-            path: PathBuf::from("ungranted.nika"),
-            content: UNGRANTED.to_owned(),
-        }],
-        run: None,
-        repairs: Vec::new(),
-        audits: Vec::new(),
-    };
-    let shown = proposed(&mut s, ungranted);
-    let TurnOutcome::Facts(report) = s.submit("save & run", &shown) else {
-        panic!("findings stop the run");
-    };
-    assert!(
-        report.contains("findings ✖") && report.contains("the run was not started"),
-        "the findings report"
-    );
+    let (mut s, _, bytes, shown) = at_the_proposal(dir.path());
+    assert!(matches!(s.submit("yes", &shown), TurnOutcome::Facts(_)));
     assert_eq!(
-        read(dir.path(), "ungranted.nika"),
-        UNGRANTED,
-        "the save stands"
+        read(dir.path(), COPY_DEST),
+        bytes,
+        "the clean file is saved"
     );
-    assert!(s.work().requested.is_none());
+    let failing =
+        ProjectChangeSet::workflow_at(dir.path(), "ungranted", COPY_DEST, UNGRANTED.to_owned())
+            .expect("an update of the saved file");
+    assert!(!failing.audits[0].clean, "{:?}", failing.audits);
+    let shown = proposed(&mut s, failing);
+    for answer in ["save & run", "yes"] {
+        let refused = s.submit(answer, &shown);
+        assert!(
+            matches!(&refused, TurnOutcome::Refusal(r) if r.class == RefusalClass::NotAllowed
+                && r.text.starts_with("the check of these bytes fails (`compiled-workflow.nika`)")
+                && r.text.contains("no file was replaced")),
+            "{answer}: {refused:?}"
+        );
+        assert_eq!(read(dir.path(), COPY_DEST), bytes, "the clean file stands");
+        assert_eq!(s.waiting(), shown, "the proposal still waits");
+    }
+    assert!(s.work().requested.is_none(), "nothing requested");
+    assert!(matches!(s.submit("no", &shown), TurnOutcome::Facts(_)));
+    assert_eq!(read(dir.path(), COPY_DEST), bytes);
 }
 
 /// A classifier that reads every line as a run request.
@@ -478,10 +480,10 @@ fn a_carried_request_with_an_invalid_ceiling_is_held() {
     }
 }
 
-/// The run's own guards stay meaningful after the save: a paused gate waits, or a restored exposure
-/// has no stated ceiling to reconfirm it, so the save stands and the run is not started.
+/// The run's own guards stay meaningful after the save: a paused gate waits, so the save stands
+/// and the run is not started.
 #[test]
-fn a_waiting_gate_or_an_unconfirmed_exposure_saves_but_never_runs() {
+fn a_waiting_gate_saves_but_never_runs() {
     let dir = tree();
     let (mut s, _, bytes, shown) = at_the_proposal(dir.path());
     s.pending_gate = Some(crate::change::PendingGate {
@@ -502,16 +504,180 @@ fn a_waiting_gate_or_an_unconfirmed_exposure_saves_but_never_runs() {
     );
     assert_eq!(read(dir.path(), COPY_DEST), bytes, "the save stands");
     assert!(s.work().requested.is_none());
+}
 
-    let other = tree();
-    let (mut s, _, _, shown) = at_the_proposal(other.path());
+/// A restored exposure leaves no saved decision to stand for a typed request's ceiling (NIK-170):
+/// the save stands, nothing is requested, and the run asks its ceiling instead of refusing. « yes »
+/// states no amount and the run keeps waiting; the amount picked runs it once under exactly that
+/// ceiling, the amount the person gave, as « run it max $0.30 » would.
+#[test]
+fn an_unconfirmed_exposure_saves_then_asks_the_runs_ceiling() {
+    let dir = tree();
+    let (mut s, _, bytes, shown) = at_the_proposal(dir.path());
     s.money.reconfirm = true;
-    let TurnOutcome::Facts(report) = s.submit("save & run", &shown) else {
-        panic!("an unconfirmed exposure stops the run, never the save");
+    let TurnOutcome::Question { key, question } = s.submit("save & run", &shown) else {
+        panic!("an unconfirmed exposure asks the run's ceiling, never refuses the save");
     };
-    assert!(report.contains("the run was not started"), "report");
-    assert!(other.path().join(COPY_DEST).exists(), "the save stands");
-    assert!(s.work().requested.is_none());
+    assert_eq!(key, "run.ceiling");
+    assert!(
+        question.contains("applied · wrote"),
+        "the save report: {question}"
+    );
+    assert!(
+        question.ends_with("I did not start the run: what ceiling for this run? (e.g. 0.25)"),
+        "{question}"
+    );
+    assert!(
+        !question.contains("restored inference exposure"),
+        "{question}"
+    );
+    assert_eq!(read(dir.path(), COPY_DEST), bytes, "the save stands");
+    assert!(s.work().requested.is_none(), "nothing requested");
+    let asked = s.waiting();
+    assert_eq!(
+        asked,
+        Waiting::RunCeiling {
+            workflow: PathBuf::from(COPY_DEST)
+        }
+    );
+    let (_, said, offers, typed) = s.waiting_run_ceiling_choices().expect("its options");
+    assert!(typed, "another amount may be typed");
+    assert_eq!(said.lines().count(), 2, "{said}");
+    let keys: Vec<&str> = offers.iter().map(|o| o.key.as_str()).collect();
+    assert_eq!(keys, ["0.10", "0.25", "0.50", "1.00"]);
+    let recommended: Vec<&str> = (offers.iter().filter(|o| o.recommended))
+        .map(|o| o.label.as_str())
+        .collect();
+    assert_eq!(
+        recommended,
+        ["$0.25 · no run of this workflow observed yet"]
+    );
+
+    let yes = s.submit("yes", &asked);
+    assert!(
+        matches!(&yes, TurnOutcome::Refusal(r) if r.class == RefusalClass::EmptyAnswer
+            && r.text.starts_with("« yes » is not an amount")),
+        "{yes:?}"
+    );
+    assert_eq!(s.waiting(), asked, "the run still waits for its ceiling");
+    assert!(s.work().requested.is_none(), "no amount applied");
+
+    let TurnOutcome::RunRequested { run, .. } = s.submit("0.30", &asked) else {
+        panic!("the amount picked runs it");
+    };
+    assert_eq!(run.workflow, PathBuf::from(COPY_DEST));
+    assert_eq!(run.max_cost_usd.to_bits(), 0.30_f64.to_bits());
+    assert_eq!(run.bytes.as_deref(), Some(&Witness::of(bytes.as_bytes())));
+    let decision = s.monetary_decision().expect("the run's money");
+    assert_eq!(decision.source, crate::money::MonetarySource::Explicit);
+    assert_eq!(decision.effective_usd, Some(0.30));
+    assert_eq!(s.waiting(), Waiting::Free);
+}
+
+/// The founder's trap (NIK-170): a Save that bound no ceiling (a reopened conversation keeps no
+/// draft for its later proposals) lands, then « run it » asks for the run's ceiling instead of
+/// refusing that it cannot be proved. The refusal is still observed as the Run's money; the
+/// amount picked runs it under exactly that ceiling, and nothing ran before it.
+#[test]
+fn a_save_without_a_provable_ceiling_asks_it_when_run() {
+    let dir = tree();
+    let (mut s, _, bytes, _) = at_the_proposal(dir.path());
+    // As a reopened conversation's later proposal: no draft, so no money bound to it.
+    s.money.draft = None;
+    s.money.pending = None;
+    let shown = s.waiting();
+    let saved = s.submit("yes", &shown);
+    assert!(matches!(saved, TurnOutcome::Facts(_)), "{saved:?}");
+    let TurnOutcome::Question { key, question } = s.turn("run it") else {
+        panic!("no provable ceiling asks it");
+    };
+    assert_eq!(key, "run.ceiling");
+    assert_eq!(
+        question,
+        "I did not start the run: what ceiling for this run? (e.g. 0.25)"
+    );
+    let observed = s.monetary_decision().expect("the Run's money observed");
+    assert_eq!(observed.effective_usd, None, "no default substituted");
+    assert!(
+        (observed.refusal.as_deref())
+            .is_some_and(|why| why.starts_with("the saved spending constraint cannot be proved")),
+        "{observed:?}"
+    );
+    assert!(s.work().requested.is_none(), "nothing requested");
+    let asked = s.waiting();
+    // « why? » beside it says why none could be proved, and the question keeps waiting.
+    let why = s.submit("why?", &asked);
+    assert!(
+        matches!(&why, TurnOutcome::Aside(text)
+            if text.contains("was not started: the saved spending constraint cannot be proved in this session")
+                && text.contains("the run still waits for its ceiling")),
+        "{why:?}"
+    );
+    assert_eq!(s.waiting(), asked);
+    let command = s.submit("/bogus", &asked);
+    assert!(
+        matches!(&command, TurnOutcome::Refusal(r) if r.class == RefusalClass::WrongState),
+        "{command:?}"
+    );
+    assert_eq!(s.waiting(), asked, "a command is no amount");
+    let TurnOutcome::RunRequested { run, .. } = s.submit("0.25", &asked) else {
+        panic!("the amount picked runs it");
+    };
+    assert_eq!(run.max_cost_usd.to_bits(), 0.25_f64.to_bits());
+    assert_eq!(run.bytes.as_deref(), Some(&Witness::of(bytes.as_bytes())));
+    assert_eq!(s.waiting(), Waiting::Free);
+}
+
+/// The ceiling stated at a run's question is that Run's money (NIK-170): typed with its currency,
+/// it amends no Session inference, so the reopened conversation reads no exposure to reconfirm.
+#[test]
+fn a_ceiling_stated_at_its_question_is_no_session_money_after_a_reopen() {
+    let dir = tree();
+    let home = tempfile::tempdir().expect("home");
+    let (mut s, _, _, _) = at_the_proposal_kept(dir.path(), Some(home.path()));
+    s.money.draft = None;
+    s.money.pending = None;
+    let shown = s.waiting();
+    assert!(matches!(s.submit("yes", &shown), TurnOutcome::Facts(_)));
+    assert!(matches!(s.turn("run it"), TurnOutcome::Question { .. }));
+    let asked = s.waiting();
+    let ran = s.submit("$0.30", &asked);
+    assert!(
+        matches!(&ran, TurnOutcome::RunRequested { run, .. }
+            if run.max_cost_usd.to_bits() == 0.30_f64.to_bits()),
+        "{ran:?}"
+    );
+    drop(s);
+    let mut reopened = ready_with(dir.path(), vec![]);
+    let restored = reopened.enable_history(home.path()).expect("history");
+    assert!(restored.is_some(), "the conversation is restored");
+    assert!(
+        !reopened.money.reconfirm,
+        "a Run's ceiling is no Session exposure to reconfirm"
+    );
+}
+
+/// Only an unprovable ceiling is asked: a saved workflow changed since its Save still refuses its
+/// Run in the money law's words, and no ceiling waits.
+#[test]
+fn a_changed_saved_file_still_refuses_its_run_and_asks_nothing() {
+    let dir = tree();
+    let (mut s, _, bytes, shown) = at_the_proposal(dir.path());
+    assert!(matches!(s.submit("yes", &shown), TurnOutcome::Facts(_)));
+    std::fs::write(
+        dir.path().join(COPY_DEST),
+        format!("{bytes}# edited by hand\n"),
+    )
+    .expect("an edit");
+    let refused = s.turn("run it");
+    assert!(
+        matches!(&refused, TurnOutcome::Refusal(r) if r.class == RefusalClass::NotAllowed
+            && r.text.contains("changed since")),
+        "{refused:?}"
+    );
+    assert_eq!(s.waiting(), Waiting::Free, "no ceiling is asked");
+    assert!(s.waiting_run_ceiling_choices().is_none());
+    assert!(s.work().requested.is_none(), "nothing requested");
 }
 
 /// A run paused at a confirm gate.
@@ -573,4 +739,94 @@ fn a_waiting_run_review_takes_no_direct_consent_or_gate_answer() {
     assert!(matches!(s.waiting(), Waiting::RunReview { .. }));
     assert!(matches!(s.answer_gate("/quit"), TurnOutcome::Quit));
     assert_eq!(s.waiting_gate(), Some(gate), "leaving answers no gate");
+}
+
+/// A ceiling the request states for each run (QA gauntlet q09: « budget max 0,10 $ par run » in
+/// the first request) is the proposal's, the Save keeps it, and every later run of the saved
+/// workflow reuses it and says so; a ceiling stated for one run is that run's alone, and the
+/// next run names the saved one again, never a default in silence.
+#[test]
+fn a_ceiling_the_request_states_is_saved_and_named_by_every_rerun() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    let TurnOutcome::Proposal { preview, .. } =
+        s.turn(&format!("{COPY}, budget max 0,10 $ par run"))
+    else {
+        panic!("the request is proposed");
+    };
+    assert!(
+        preview.contains("money: $0.10 USD · the amount you gave"),
+        "{preview}"
+    );
+    let shown = s.waiting();
+    assert!(matches!(s.submit("yes", &shown), TurnOutcome::Facts(_)));
+    // Each ceiling as it was set, the host's words alike (live gauntlet r09 B12: « $0.1 » here
+    // against « $0.10 » there, and a $0.001 ceiling written « $0.00 »).
+    for (line, amount, said, source) in [
+        ("run it", 0.1_f64, "0.10", "saved beside the workflow"),
+        (
+            "run it with a ceiling of 0.05",
+            0.05,
+            "0.05",
+            "stated for this run",
+        ),
+        (
+            "run it with a ceiling of 0.001",
+            0.001,
+            "0.001",
+            "stated for this run",
+        ),
+        ("run it", 0.1, "0.10", "saved beside the workflow"),
+    ] {
+        let TurnOutcome::RunRequested { report, run } = s.turn(line) else {
+            panic!("{line}: the run is requested");
+        };
+        assert_eq!(run.max_cost_usd.to_bits(), amount.to_bits(), "{line}");
+        assert!(
+            report.ends_with(&format!(" · ceiling ${said} ({source})")),
+            "{line}: {report}"
+        );
+        let _ = s.observe_run(0, None);
+    }
+}
+
+/// The file a Save wrote, as its report names it (« applied · wrote `<file>` »).
+fn wrote(saved: &str) -> &str {
+    let after = saved.split_once("wrote `").map_or("", |(_, after)| after);
+    after.split_once('`').map_or("", |(file, _)| file)
+}
+
+/// A Save says how to run the saved workflow from a terminal, by the program Nika runs as and
+/// with the ceiling the person saved with it (NIK-171): `<program> run <file> --max-cost-usd
+/// 0.1`. A workflow saved with no ceiling of the person's leaves the flag out, never a default.
+#[test]
+fn a_save_says_the_terminal_run_with_its_saved_ceiling() {
+    let nika = super::schedule::program();
+    for (request, flag) in [
+        (
+            format!("{COPY}, budget max 0,10 $ par run"),
+            " --max-cost-usd 0.1",
+        ),
+        (COPY.to_owned(), ""),
+    ] {
+        let dir = tree();
+        let mut s = ready_with(dir.path(), vec![]);
+        let TurnOutcome::Proposal { .. } = s.turn(&request) else {
+            panic!("{request}: the request is proposed");
+        };
+        let shown = s.waiting();
+        let TurnOutcome::Facts(saved) = s.submit("yes", &shown) else {
+            panic!("{request}: the yes saves");
+        };
+        let file = wrote(&saved);
+        let workflow = Path::new(file).extension().is_some_and(|ext| ext == "nika");
+        assert!(workflow, "{saved}");
+        let line = format!("\n  from a terminal: `{nika} run {file}{flag}`");
+        assert!(saved.contains(&line), "{request}: {saved}");
+        assert_eq!(
+            saved.matches("--max-cost-usd").count(),
+            usize::from(!flag.is_empty()),
+            "{saved}"
+        );
+    }
 }

@@ -33,11 +33,65 @@ pub use lead::{Beat, Conversant, LED_TURN, Led, LedEnd, Relay, transcript};
 /// What the model reads after a call that repeats the previous one exactly, reply included.
 const REPEATED: &str = "\n\n(Nika: this call and its reply repeat the previous call exactly.)";
 
+/// How many identical calls in a row make the repetition a stall the model is told to break.
+const STALLED_AFTER: u32 = 3;
+
+/// What the model reads once the same call, reply included, comes back [`STALLED_AFTER`] times
+/// in a row: the call cannot succeed as it is (live gauntlet q03, 2026-10-16: 80 identical
+/// `candidate_write` calls in 15 minutes, each refused the same way).
+fn stalled(times: u32) -> String {
+    format!(
+        "\n\n(Nika: this exact call has now returned this exact reply {times} times in a row. \
+         Repeating it cannot change the reply: change the call, use another tool, or answer \
+         the person with what blocks you.)"
+    )
+}
+
 /// Why a call after a steering line is not run.
 const STEERED: &str = "Not run: the person wrote meanwhile; read their message first.";
 
 /// The one tool whose consecutive calls run side by side: it reads a public page, nothing else.
 const OBSERVE: &str = "observe";
+
+/// A reply as the repetition check compares it: a candidate's `revision` counts the calls, never
+/// what they answered, so it is left out (live gauntlet, 2026-10-16: Grok 4.7 sent the same
+/// `candidate_write` some sixty times, each refused with the same findings under a new revision
+/// number, and was never told it repeated itself).
+fn steady(text: &str) -> String {
+    match serde_json::from_str::<Value>(text) {
+        Ok(Value::Object(mut reply)) => {
+            reply.remove("revision");
+            Value::Object(reply).to_string()
+        }
+        _ => text.to_owned(),
+    }
+}
+
+/// A call's arguments without carriage returns: no Session tool reads one (a document's line ends
+/// are its newlines), and a model that slipped them between its words copied its own earlier
+/// calls, more each time (live gauntlet r05, 2026-10-16: GLM 5.3 Flash wrote `schedule\r_zone`
+/// and `Indian\r/Mauritius`, 115 calls refused for a key or a zone that did not match, with
+/// up to 3,904 of them in one call).
+fn without_carriage_returns(value: &mut Value) {
+    match value {
+        Value::String(text) if text.contains('\r') => text.retain(|c| c != '\r'),
+        Value::Array(items) => items.iter_mut().for_each(without_carriage_returns),
+        Value::Object(fields) => {
+            let keys: Vec<String> = fields
+                .keys()
+                .filter(|k| k.contains('\r'))
+                .cloned()
+                .collect();
+            for key in keys {
+                if let Some(field) = fields.remove(&key) {
+                    fields.insert(key.replace('\r', ""), field);
+                }
+            }
+            fields.values_mut().for_each(without_carriage_returns);
+        }
+        _ => {}
+    }
+}
 
 /// Whether a call hands the turn to the person or replaces their request: a steering line the
 /// author has not read holds it back, while candidate and read-only calls still run.
@@ -52,8 +106,11 @@ complete arguments.";
 /// What the person reads under an answer cut at the output limit.
 const CUT_ANSWER: &str = "\n… (this answer was cut at the output limit)";
 
-/// Why a turn fails when its provider interrupted the answer: nothing of it is kept or run.
-const INTERRUPTED: &str = "the provider interrupted the answer: nothing of it was kept or run";
+/// Why a turn fails when its provider interrupted the answer: nothing of it is kept or run. What
+/// the person reads when the provider ended an answer with its own error: what it was, and
+/// the two ways on (live gauntlet r05, 2026-10-16: three identical failures after 2 min 05 s, and
+/// nothing said whether to retry, rephrase or change the model).
+const INTERRUPTED: &str = "the provider ended the answer with an error before it was complete: nothing of it was kept or run · say the same line again to retry, or choose another model with `/intelligence`";
 
 /// One request: the instructions, the conversation and the tools the model may call.
 #[derive(Clone, Debug)]
@@ -91,6 +148,11 @@ pub struct Reply {
     pub usage: Option<TokenUsage>,
     /// The model that answered, as reported.
     pub model: Option<String>,
+    /// The request filled the model's context window (the provider's
+    /// window-full marker): a cut at the window, or more input than the
+    /// window holds. Asking again needs a shorter conversation, not complete
+    /// arguments.
+    pub window_full: bool,
 }
 
 impl Reply {
@@ -102,7 +164,15 @@ impl Reply {
             stop,
             usage: None,
             model: None,
+            window_full: false,
         }
+    }
+
+    /// Whether the request filled the model's context window.
+    #[must_use]
+    pub fn with_window_full(mut self, window_full: bool) -> Self {
+        self.window_full = window_full;
+        self
     }
 
     /// The tokens it used, as reported.
@@ -130,6 +200,13 @@ pub enum ModelError {
     /// Any other failure, in words the person reads.
     #[error("{0}")]
     Failed(String),
+    /// The request is over the model's context window: the same request overflows again, so the
+    /// conversation must shorten first.
+    #[error("the request is over the model's context window")]
+    Overflow {
+        /// The window in tokens, when the route knows it.
+        window: Option<u64>,
+    },
 }
 
 /// The selected intelligence, asked one request at a time.
@@ -249,6 +326,7 @@ pub struct Agent<'a> {
     reading: Option<String>,
     note: Option<String>,
     pending: Option<&'a dyn Fn() -> bool>,
+    late: Option<String>,
 }
 
 impl<'a> Agent<'a> {
@@ -273,7 +351,18 @@ impl<'a> Agent<'a> {
             reading: None,
             note: None,
             pending: None,
+            late: None,
         }
+    }
+
+    /// The `ask` call the person's next line replies to although nothing waits: the line answers
+    /// another question of that call's group, still asked, after the call stopped waiting. The
+    /// tree records the line under that call, which still reads as any person's line; it answers
+    /// no call and grants nothing.
+    #[must_use]
+    pub fn with_late_reply(mut self, call: Option<String>) -> Self {
+        self.late = call;
+        self
     }
 
     /// How the person's Stop reached the last run, when it stopped one.
@@ -356,7 +445,7 @@ impl<'a> Agent<'a> {
     }
 
     /// A person's line starts a run. While a call waits for the person, a line answers it
-    /// ([`Agent::answer`]) instead.
+    /// ([`Agent::answer`]) instead; a late reply ([`Agent::with_late_reply`]) names its call.
     pub fn prompt(
         &mut self,
         text: &str,
@@ -369,7 +458,8 @@ impl<'a> Agent<'a> {
                 error: AgentError::Parked { call },
             };
         }
-        match self.user(text, None, None) {
+        let late = self.late.take();
+        match self.user(text, late, None) {
             Ok((entry, _)) => self.drive(&entry, model, events),
             Err(error) => Outcome::Failed { error },
         }
@@ -412,31 +502,33 @@ impl<'a> Agent<'a> {
             return Ok(None);
         };
         let tokens_before = compact::estimate(self.tree);
-        let request = compact::request(self.tree, &first_kept, focus);
-        // A summary is no answer: nothing it streams reaches the person.
-        let reply =
-            model
-                .complete(&request, &mut |_: AgentEvent| {})
-                .map_err(|error| match error {
-                    ModelError::Stopped => AgentError::Stopped,
-                    ModelError::Failed(why) => AgentError::Model(why),
-                })?;
-        let summary = answer_text(&reply.content);
-        if summary.trim().is_empty() {
-            return Err(AgentError::Model("the summary came back empty".into()));
+        // Budget each complete summary payload by its estimate, including the carried summary.
+        // A larger fold is summarized in whole-object parts; an object that cannot fit is refused.
+        let room = (self.window).map(|window| window.tokens.saturating_sub(window.reserve));
+        let (mut summary, lines) = compact::folded(self.tree, &first_kept);
+        let mut at = 0;
+        loop {
+            let rest = lines.get(at..).unwrap_or_default();
+            let take = compact::fitting(summary.as_deref(), rest, focus, room)
+                .map_err(|needed| self.summary_budget_error(needed, room.unwrap_or_default()))?;
+            let part = rest.get(..take).unwrap_or_default();
+            let request = compact::summary_request(summary.as_deref(), part, focus);
+            let needed = compact::request_tokens(&request);
+            if let Some(budget) = room
+                && needed > budget
+            {
+                return Err(self.summary_budget_error(needed, budget));
+            }
+            summary = Some(Self::summarize(&request, model)?);
+            at += take;
+            if at >= lines.len() {
+                break;
+            }
         }
-        // A summary cut at the output limit would silently replace what it folds: nothing is
-        // folded, the originals stay the context, and the turn says why.
-        if matches!(reply.stop, StopReason::MaxTokens) {
-            return Err(AgentError::Model(
-                "the summary was cut at the output limit: nothing was folded".into(),
-            ));
-        }
-        // Nor does a summary its provider interrupted.
-        if matches!(reply.stop, StopReason::Interrupted) {
-            return Err(AgentError::Model(
-                "the summary was interrupted by its provider: nothing was folded".into(),
-            ));
+        let summary = summary.unwrap_or_default();
+        // A summary no lighter than what it folds folds nothing.
+        if compact::tokens(&summary) >= compact::folded_weight(self.tree, &first_kept) {
+            return Ok(None);
         }
         let at = (self.now)();
         let store = &mut *self.store;
@@ -450,6 +542,44 @@ impl<'a> Agent<'a> {
             tokens_before,
         });
         Ok(Some(entry))
+    }
+
+    /// A summary payload that cannot fit leaves every original entry untouched.
+    fn summary_budget_error(&self, needed: u64, budget: u64) -> AgentError {
+        let window = self.window.map_or(budget, |window| window.tokens);
+        AgentError::Model(format!(
+            "the summary request needs an estimated {needed} tokens, \
+             over the {budget}-token budget of the {window}-token window: nothing was folded"
+        ))
+    }
+
+    /// The summary the model writes for `request`, never streamed to the person. One that came
+    /// back empty, cut at the output limit or interrupted by its provider would silently replace
+    /// what it folds: nothing is folded, the originals stay the context, and the turn says why.
+    fn summarize(request: &Request, model: &mut dyn Model) -> Result<String, AgentError> {
+        let reply =
+            (model.complete(request, &mut |_: AgentEvent| {})).map_err(|error| match error {
+                ModelError::Stopped => AgentError::Stopped,
+                ModelError::Failed(why) => AgentError::Model(why),
+                other @ ModelError::Overflow { .. } => {
+                    AgentError::Model(format!("{other}: nothing was folded"))
+                }
+            })?;
+        let summary = answer_text(&reply.content);
+        if summary.trim().is_empty() {
+            return Err(AgentError::Model("the summary came back empty".into()));
+        }
+        if matches!(reply.stop, StopReason::MaxTokens) {
+            return Err(AgentError::Model(
+                "the summary was cut at the output limit: nothing was folded".into(),
+            ));
+        }
+        if matches!(reply.stop, StopReason::Interrupted) {
+            return Err(AgentError::Model(
+                "the summary was interrupted by its provider: nothing was folded".into(),
+            ));
+        }
+        Ok(summary)
     }
 
     fn drive(
@@ -473,17 +603,24 @@ impl<'a> Agent<'a> {
         // What this run reads of earlier work as stubs, fixed now: never edited mid-run.
         let stubs = Stubs::of(&self.tree.context().messages);
         let mut turn: u32 = 0;
-        let mut last: Option<(String, Value, String)> = None;
+        let mut last: Option<((String, Value, String), u32)> = None;
         let mut asked_again = false;
         let (mut nudged, mut proposed) = (false, false);
+        // At most one fold per step: a request over the window, or a reply that filled it, folds
+        // the conversation once and asks the same step again.
+        let mut refolded = false;
         loop {
             if self.cancel.is_cancelled() {
                 return self.stop(StopReach::BetweenSteps);
             }
-            let compacted = match self.fit(model, events) {
-                Ok(compacted) => compacted,
-                Err(AgentError::Stopped) => return self.stop(StopReach::RequestDropped),
-                Err(error) => return Outcome::Failed { error },
+            let compacted = if refolded {
+                false
+            } else {
+                match self.fit(model, events) {
+                    Ok(compacted) => compacted,
+                    Err(AgentError::Stopped) => return self.stop(StopReach::RequestDropped),
+                    Err(error) => return Outcome::Failed { error },
+                }
             };
             // A line steered while the context was compacted enters the request it prepared, once.
             if compacted && let Err(error) = self.dequeue(QueueMode::Steer, events) {
@@ -491,22 +628,15 @@ impl<'a> Agent<'a> {
             }
             turn = turn.saturating_add(1);
             events(AgentEvent::TurnStart { turn });
-            let reply = match model.complete(&self.request(&stubs), events) {
-                Ok(reply) => reply,
-                Err(ModelError::Stopped) => return self.stop(StopReach::RequestDropped),
-                Err(ModelError::Failed(why)) => {
-                    return Outcome::Failed {
-                        error: AgentError::Model(why),
-                    };
+            let reply = match self.ask(&stubs, compacted || refolded, model, events) {
+                Asked::Reply(reply) => *reply,
+                Asked::Folded => {
+                    refolded = true;
+                    continue;
                 }
+                Asked::Ended(outcome) => return outcome,
             };
-            // An answer its provider interrupted is no answer: nothing of it is kept or run, and
-            // the turn fails as the transient failure it is.
-            if matches!(reply.stop, StopReason::Interrupted) {
-                return Outcome::Failed {
-                    error: AgentError::Model(INTERRUPTED.to_owned()),
-                };
-            }
+            refolded = false;
             // A message cut at the output limit runs none of its calls; its answer says so.
             let cut = matches!(reply.stop, StopReason::MaxTokens);
             let (text, calls) = match self.record_reply(reply, events) {
@@ -580,6 +710,69 @@ impl<'a> Agent<'a> {
         !nudged && !proposed && self.pending.is_some_and(|pending| pending())
     }
 
+    /// A request over the window, or a reply that filled it (`window`: the provider's count, when
+    /// it gave one): the conversation folded once, so the same step is asked again. A step that
+    /// already `folded`, or a conversation with nothing earlier to fold, fails naming the window.
+    fn refold(
+        &mut self,
+        folded: bool,
+        window: Option<u64>,
+        model: &mut dyn Model,
+        events: &mut dyn FnMut(AgentEvent),
+    ) -> Result<(), AgentError> {
+        let window = window.or(self.window.map(|window| window.tokens));
+        let over = |why: &str| {
+            let size = window.map_or_else(String::new, |tokens| format!(" of {tokens} tokens"));
+            AgentError::Model(format!(
+                "the request is over the model's context window{size}: {why}; nothing more was sent"
+            ))
+        };
+        if folded {
+            return Err(over(
+                "the conversation was already folded once for this step",
+            ));
+        }
+        match self.compact(None, model, events)? {
+            Some(_) => Ok(()),
+            None => Err(over("nothing earlier can be folded")),
+        }
+    }
+
+    /// The model's message for the next step. A reply that filled the window, or a request over
+    /// it, folds the conversation once so the same step is asked again (`refold`: a step that
+    /// already `folded` fails naming the window). An answer its provider interrupted is no
+    /// answer: nothing of it is kept or run, and the turn fails as the transient failure it is.
+    fn ask(
+        &mut self,
+        stubs: &Stubs,
+        folded: bool,
+        model: &mut dyn Model,
+        events: &mut dyn FnMut(AgentEvent),
+    ) -> Asked {
+        let window = match model.complete(&self.request(stubs), events) {
+            // A reply that filled the window is no answer: nothing of it is kept or run.
+            Ok(reply) if reply.window_full => None,
+            Ok(reply) if matches!(reply.stop, StopReason::Interrupted) => {
+                return Asked::Ended(Outcome::Failed {
+                    error: AgentError::Model(INTERRUPTED.to_owned()),
+                });
+            }
+            Ok(reply) => return Asked::Reply(Box::new(reply)),
+            Err(ModelError::Overflow { window }) => window,
+            Err(ModelError::Stopped) => return Asked::Ended(self.stop(StopReach::RequestDropped)),
+            Err(ModelError::Failed(why)) => {
+                return Asked::Ended(Outcome::Failed {
+                    error: AgentError::Model(why),
+                });
+            }
+        };
+        match self.refold(folded, window, model, events) {
+            Ok(()) => Asked::Folded,
+            Err(AgentError::Stopped) => Asked::Ended(self.stop(StopReach::RequestDropped)),
+            Err(error) => Asked::Ended(Outcome::Failed { error }),
+        }
+    }
+
     /// Compact before a request that would leave the reply less than the window's reserve;
     /// returns whether it compacted.
     fn fit(
@@ -610,9 +803,14 @@ impl<'a> Agent<'a> {
     /// Record the model's message; returns its answer text and its calls.
     fn record_reply(
         &mut self,
-        reply: Reply,
+        mut reply: Reply,
         events: &mut dyn FnMut(AgentEvent),
     ) -> Result<(String, Vec<Call>), AgentError> {
+        for block in &mut reply.content {
+            if let ContentBlock::ToolUse { input, .. } = block {
+                without_carriage_returns(input);
+            }
+        }
         let text = answer_text(&reply.content);
         let made: Vec<Call> = calls(&reply.content)
             .map(|(id, name, input)| (id.to_owned(), name.to_owned(), input.clone()))
@@ -643,7 +841,7 @@ impl<'a> Agent<'a> {
         &mut self,
         made: &[Call],
         cut: bool,
-        last: &mut Option<(String, Value, String)>,
+        last: &mut Option<((String, Value, String), u32)>,
         events: &mut dyn FnMut(AgentEvent),
     ) -> Result<Option<(String, String)>, AgentError> {
         let mut parked: Option<(String, String)> = None;
@@ -699,11 +897,17 @@ impl<'a> Agent<'a> {
                 is_error: reply.is_error,
                 ends_turn: reply.ends_turn,
             });
-            let key = (name.clone(), input.clone(), reply.text.clone());
-            if last.as_ref() == Some(&key) {
+            let key = (name.clone(), input.clone(), steady(&reply.text));
+            let times = match last.as_ref() {
+                Some((previous, times)) if *previous == key => times + 1,
+                _ => 1,
+            };
+            if times >= STALLED_AFTER {
+                reply.text.push_str(&stalled(times));
+            } else if times > 1 {
                 reply.text.push_str(REPEATED);
             }
-            *last = Some(key);
+            *last = Some((key, times));
             let (call, name) = (call.clone(), name.clone());
             if reply.ends_turn {
                 parked = Some((call.clone(), name.clone()));
@@ -799,7 +1003,10 @@ impl<'a> Agent<'a> {
         Ok(self.tree.append(kind, at, |line| store.append(line))?)
     }
 
-    /// Record a person's line; returns its entry and its citation.
+    /// Record a person's line; returns its entry and its citation. The Session's reading goes with
+    /// the line it read, the run's own line, whether it answers the waiting call, replies late to
+    /// an earlier call or answers a question by its identity while nothing waits; a line queued
+    /// during the run is another line, never the one read. What the line answers is unchanged.
     fn user(
         &mut self,
         text: &str,
@@ -807,7 +1014,11 @@ impl<'a> Agent<'a> {
         queued: Option<QueueMode>,
     ) -> Result<(EntryId, String), AgentError> {
         let at = (self.now)();
-        let reading = answers.as_ref().and(self.reading.take());
+        let reading = if queued.is_none() {
+            self.reading.take()
+        } else {
+            None
+        };
         let nika = match (self.note.take(), reading) {
             (Some(note), Some(reading)) => Some(format!("{note}\n\n{reading}")),
             (note, reading) => note.or(reading),
@@ -818,6 +1029,16 @@ impl<'a> Agent<'a> {
             .tree
             .append_user_read(text, line, nika, at, |line| store.append(line))?)
     }
+}
+
+/// What asking the model for a step gave.
+enum Asked {
+    /// Its message, to record and run.
+    Reply(Box<Reply>),
+    /// The conversation was folded after an overflow: the same step is asked again.
+    Folded,
+    /// The turn ends with this outcome.
+    Ended(Outcome),
 }
 
 /// Queued lines as an outcome returns them: each with how it waited.

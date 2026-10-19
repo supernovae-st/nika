@@ -375,7 +375,8 @@ fn a_routed_cancel_drops_the_question_it_was_typed_for() -> Result<(), String> {
     let asked = s.pending_question_id().ok_or("asked")?;
     let out = s.turn(LETGO);
     assert!(
-        matches!(&out, TurnOutcome::Facts(text) if text.starts_with("authoring discarded")),
+        // The person wrote French: the Session says it in French.
+        matches!(&out, TurnOutcome::Facts(text) if text.starts_with("préparation abandonnée")),
         "{out:?}"
     );
     let key = "model".to_owned();

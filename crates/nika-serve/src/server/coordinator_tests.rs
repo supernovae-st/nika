@@ -299,6 +299,74 @@ fn schedule_origin_deserialization_refuses_unknown_decision_provenance() {
     );
 }
 
+/// A silence rides only a catch-up, whole and non-empty, its first
+/// slot at or before the slot it closes; an origin without one keeps its
+/// wire bytes (no key), and the run is told `{ first, last, count }`.
+#[test]
+fn a_schedule_origin_carries_a_silence_only_on_a_whole_catch_up() {
+    let first: Timestamp = "2026-08-30T07:00:00Z".parse().expect("first missed slot");
+    let catch_up = scheduled_origin_with_decision(
+        ScheduleOrigin::Project,
+        "silence",
+        'a',
+        ScheduleDecision::CatchUp,
+    );
+    let plain = serde_json::to_value(&catch_up).expect("plain wire");
+    assert!(
+        plain.get("missed_first").is_none() && plain.get("missed_count").is_none(),
+        "no silence, no key: {plain}"
+    );
+    let covered = catch_up
+        .clone()
+        .with_missed(first, 3)
+        .expect("a catch-up answers for a silence");
+    let wire = serde_json::to_value(&covered).expect("wire");
+    assert_eq!(wire["missed_first"], "2026-08-30T07:00:00Z");
+    assert_eq!(wire["missed_count"], 3);
+    let back: JobOrigin = serde_json::from_value(wire.clone()).expect("round trip");
+    assert_eq!(back, covered);
+    let missed = covered
+        .run_facts()
+        .and_then(|facts| facts.missed)
+        .expect("the run is told the silence");
+    assert_eq!(
+        (
+            missed.first.to_string(),
+            missed.last.to_string(),
+            missed.count
+        ),
+        (
+            "2026-08-30T07:00:00.000Z".to_owned(),
+            "2026-08-30T10:00:00.000Z".to_owned(),
+            3
+        )
+    );
+    let on_time = scheduled_origin(ScheduleOrigin::Project, "silence", 'b');
+    assert!(
+        on_time.with_missed(first, 3).is_err(),
+        "an on-time firing answers for no silence"
+    );
+    assert!(
+        catch_up.clone().with_missed(first, 0).is_err(),
+        "an empty silence"
+    );
+    let after: Timestamp = "2026-08-30T10:00:01Z".parse().expect("after the slot");
+    assert!(
+        catch_up.with_missed(after, 1).is_err(),
+        "a silence that starts after the slot it closes"
+    );
+    assert!(JobOrigin::Manual.with_missed(first, 1).is_err());
+    for key in ["missed_first", "missed_count"] {
+        let mut half = wire.clone();
+        half.as_object_mut().expect("origin object").remove(key);
+        let half: JobOrigin = serde_json::from_value(half).expect("a half silence parses");
+        assert!(
+            half.validate().is_err(),
+            "a half silence never enters durable state ({key} missing)"
+        );
+    }
+}
+
 async fn prepare(
     coordinator: ResidentExecutionCoordinator,
     admitted: AdmittedExecution,

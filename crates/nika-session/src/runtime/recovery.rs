@@ -107,8 +107,14 @@ impl SessionRuntime {
     /// the answers already given, the last decisions.
     fn kept_lines(&self, request: Option<&str>) -> Vec<String> {
         let mut kept = Vec::new();
-        if let Some(goal) = request {
-            kept.push(format!("your request: « {} »", quote(goal)));
+        // A request restated with corrections reads as the person said it: the original,
+        // then each correction, never the frame that joined them for the author.
+        let request = crate::work::Request::new(request.map(str::to_owned), Vec::new(), Vec::new());
+        if let Some((original, corrections)) = request.said() {
+            kept.push(format!("your request: « {} »", quote(original)));
+            for correction in corrections {
+                kept.push(format!("your correction: « {} »", quote(correction)));
+            }
         }
         if let Some(round) = &self.authoring {
             for (key, value) in &round.answers {

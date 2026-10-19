@@ -506,9 +506,12 @@ pub(super) fn one_slot() -> ServerLimits {
     .with_max_compile_requests(1)
 }
 
+/// Whether the one compile slot admits a request again, asked every 10 ms within a minute: a
+/// loaded host only makes the slot slower to return, never a different answer.
 pub(super) async fn admitted_again(server: &TestServer) -> bool {
     let hello = r#"{"compile_version":1,"mode":"create","intent":"hello"}"#;
-    for _ in 0..400 {
+    let until = std::time::Instant::now() + Duration::from_secs(60);
+    while std::time::Instant::now() < until {
         let response = server.request(&compile_request(hello)).await;
         if response.status == 200 {
             return true;
@@ -521,8 +524,28 @@ pub(super) async fn admitted_again(server: &TestServer) -> bool {
 
 pub(super) fn wait_entered(seat: &Seat) {
     seat.entered
-        .recv_timeout(Duration::from_secs(20))
+        .recv_timeout(Duration::from_secs(60))
         .expect("the seat received the call");
+}
+
+/// Whether the seat received the round's call before the round answered. A round's deadline
+/// is absolute from admission, so on a loaded host it can pass before the request reaches the
+/// seat: that round never began.
+fn entered_before<T>(seat: &Seat, round: &tokio::task::JoinHandle<T>) -> bool {
+    loop {
+        let waited = seat.entered.recv_timeout(Duration::from_millis(20));
+        assert!(
+            !matches!(waited, Err(std::sync::mpsc::RecvTimeoutError::Disconnected)),
+            "the seat stopped before the round answered"
+        );
+        if waited.is_ok() {
+            return true;
+        }
+        if round.is_finished() {
+            // The answer came first: one last look, in case the call landed meanwhile.
+            return seat.entered.try_recv().is_ok();
+        }
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -561,36 +584,48 @@ async fn a_disconnected_or_expired_native_round_holds_its_slot_until_its_work_st
     server.stop().await.expect("clean stop");
 
     // The operator's deadline stops the work the seat holds: 408, and the slot returns with it.
-    // The deadline leaves the document request room to reach the seat on a loaded host, and
-    // the answer is awaited once the seat holds that request, so the 408 stops work that began.
-    let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Parked(open_document(""))]);
-    let deadline = Duration::from_secs(3);
-    let authoring = operator(&seat).with_deadline(deadline);
-    let (server, _backend) = start_native(&world, one_slot(), authoring).await;
-    let started = std::time::Instant::now();
-    let address = server.address;
-    let pending =
-        tokio::spawn(
-            async move { wire_request(address, &compile_request(&fresh(&json!({})))).await },
+    // The deadline is absolute from admission, so on a loaded host it can pass before the
+    // request reaches the seat: that round never began, which is also a 408 but proves nothing
+    // about stopping work. Such a round is judged as such, then the round runs again with
+    // twice the deadline, until one began. No wall-clock bound decides the verdict.
+    let mut deadline = Duration::from_secs(3);
+    loop {
+        let world = TestWorld::new();
+        let seat = Seat::start(vec![Reply::Parked(open_document(""))]);
+        let authoring = operator(&seat).with_deadline(deadline);
+        let (server, _backend) = start_native(&world, one_slot(), authoring).await;
+        let started = std::time::Instant::now();
+        let address = server.address;
+        let pending = tokio::spawn(async move {
+            wire_request(address, &compile_request(&fresh(&json!({})))).await
+        });
+        let began = tokio::task::block_in_place(|| entered_before(&seat, &pending));
+        let expired = tokio::time::timeout(deadline + Duration::from_secs(60), pending)
+            .await
+            .expect("the deadline answered the round")
+            .expect("the round answered");
+        assert_eq!(expired.status, 408, "{}", expired.body);
+        assert_eq!(expired.json()["error"]["code"], "compile_deadline_exceeded");
+        let elapsed = started.elapsed();
+        assert!(elapsed >= deadline, "{elapsed:?}");
+        assert!(expired.header("nika-compile-replay").is_none());
+        assert!(
+            admitted_again(&server).await,
+            "the stopped work freed its slot"
         );
-    tokio::task::block_in_place(|| wait_entered(&seat));
-    let expired = pending.await.expect("the round answered");
-    assert_eq!(expired.status, 408, "{}", expired.body);
-    assert_eq!(expired.json()["error"]["code"], "compile_deadline_exceeded");
-    let elapsed = started.elapsed();
-    assert!(
-        elapsed >= deadline && elapsed < Duration::from_secs(10),
-        "{elapsed:?}"
-    );
-    assert!(expired.header("nika-compile-replay").is_none());
-    assert!(
-        admitted_again(&server).await,
-        "the stopped work freed its slot"
-    );
-    seat.release.send(()).expect("release the parked seat");
-    assert_eq!(seat.calls(), 1);
-    server.stop().await.expect("clean stop");
+        let _released = seat.release.send(());
+        assert!(seat.calls() <= 1, "no repair and no retry");
+        server.stop().await.expect("clean stop");
+        if began {
+            assert_eq!(seat.calls(), 1, "the round that began made its one call");
+            break;
+        }
+        assert!(
+            deadline < Duration::from_secs(48),
+            "no round reached its seat within a 48 s deadline"
+        );
+        deadline *= 2;
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]

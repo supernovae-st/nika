@@ -319,10 +319,13 @@ fn a_summary_stands_for_the_entries_it_folded() {
     let texts: Vec<String> = (context.messages.iter())
         .map(|m| blocks(m)[0].1.clone())
         .collect();
+    // The person's lines it folded stay beside it, verbatim, each with its citation (live
+    // gauntlet wave 6 r02: with the summary alone, none of their earlier words could be cited).
+    let folded = serde_json::json!({"cite": "u1", "text": "first"});
     assert_eq!(
         texts,
         [
-            format!("{SUMMARY_LEAD}\n\nS"),
+            format!("{SUMMARY_LEAD}\n\nS\n\n{FOLDED_LEAD}\n{folded}"),
             "second".into(),
             "b".into(),
             "third".into()
@@ -341,17 +344,20 @@ fn a_summary_stands_for_the_entries_it_folded() {
 #[derive(Clone, Debug)]
 enum Step {
     Say(String),
-    Message(u8, bool),
+    Message(u8, bool, bool),
     Stop,
     Fact,
+    Note,
 }
 
 fn step() -> impl Strategy<Value = Step> {
     prop_oneof![
         "[a-zé« »]{0,12}".prop_map(Step::Say),
-        (0u8..4, any::<bool>()).prop_map(|(calls, parks)| Step::Message(calls, parks)),
+        (0u8..4, any::<bool>(), any::<bool>())
+            .prop_map(|(calls, parks, proposes)| Step::Message(calls, parks, proposes)),
         Just(Step::Stop),
         Just(Step::Fact),
+        Just(Step::Note),
     ]
 }
 
@@ -369,7 +375,7 @@ fn build(steps: &[Step]) -> (Tree, Vec<String>) {
                 });
                 written.unwrap();
             }
-            Step::Message(count, parks) if tree.parked().is_none() => {
+            Step::Message(count, parks, proposes) if tree.parked().is_none() => {
                 let ids: Vec<String> = (0..*count)
                     .map(|k| format!("c{}", next + usize::from(k)))
                     .collect();
@@ -380,7 +386,7 @@ fn build(steps: &[Step]) -> (Tree, Vec<String>) {
                     let kind = if *parks && k == 0 {
                         EntryKind::Parked {
                             call: id.clone(),
-                            name: "ask".into(),
+                            name: if *proposes { "propose" } else { "ask" }.into(),
                             reply: ToolReply::ends_turn("asked"),
                         }
                     } else {
@@ -408,6 +414,21 @@ fn build(steps: &[Step]) -> (Tree, Vec<String>) {
                     },
                 );
             }
+            // Nika's note starts a run the model answers, as `Agent::note` does: never while a
+            // question waits for the person.
+            Step::Note if tree.parked().is_none_or(|(_, name)| name == "propose") => {
+                let note = EntryKind::Note {
+                    text: "the run failed".into(),
+                };
+                add(&mut tree, &mut lines, note);
+                let answer = EntryKind::Assistant {
+                    content: vec![text("it failed")],
+                    stop: StopReason::EndTurn,
+                    usage: None,
+                    model: None,
+                };
+                add(&mut tree, &mut lines, answer);
+            }
             _ => {}
         }
     }
@@ -423,6 +444,10 @@ proptest! {
         let back = Tree::replay(&file(&lines)).unwrap();
         prop_assert_eq!(wire(back.entries()), wire(tree.entries()));
         let messages = back.context().messages;
+        // The person's line, last on the branch, is the last thing the model reads.
+        if matches!(back.branch().last().map(|e| &e.kind), Some(EntryKind::User { .. })) {
+            prop_assert_eq!(messages.last().map(|m| m.role), Some(Role::User));
+        }
         for (k, message) in messages.iter().enumerate() {
             let used: Vec<String> = blocks(message).into_iter().filter(|b| b.0 == "use").map(|b| b.2).collect();
             if used.is_empty() {
@@ -499,4 +524,196 @@ fn the_last_words_are_the_text_of_the_last_message() {
     assert_eq!(tree.last_said(), "D'abord une question.");
     add(&mut tree, &mut lines, message(vec![call("c2", "ask")]));
     assert_eq!(tree.last_said(), "");
+}
+
+#[test]
+fn a_host_reply_can_close_a_parked_call_without_a_human_answer() {
+    let (mut tree, mut lines) = open();
+    say(&mut tree, &mut lines, "the original request");
+    add(
+        &mut tree,
+        &mut lines,
+        message(vec![call("c1", "ask"), call("c2", "read")]),
+    );
+    add(
+        &mut tree,
+        &mut lines,
+        result(
+            "c2",
+            "read",
+            ToolReply::ok("The observed file is unchanged."),
+        ),
+    );
+    add(
+        &mut tree,
+        &mut lines,
+        EntryKind::Parked {
+            call: "c1".into(),
+            name: "ask".into(),
+            reply: ToolReply::ends_turn("asked q1"),
+        },
+    );
+    add(
+        &mut tree,
+        &mut lines,
+        result("other", "ask", ToolReply::error("unrelated")),
+    );
+    assert_eq!(tree.parked(), Some(("c1", "ask")));
+    add(
+        &mut tree,
+        &mut lines,
+        result("c1", "ask", ToolReply::ends_turn("still waiting")),
+    );
+    assert_eq!(tree.parked(), Some(("c1", "ask")));
+    let expired = "The question expired; no answer or authorization was supplied.";
+    add(
+        &mut tree,
+        &mut lines,
+        result("c1", "ask", ToolReply::error(expired)),
+    );
+    assert_eq!(tree.parked(), None);
+    say(&mut tree, &mut lines, "continue my request");
+    let replayed = Tree::replay(&file(&lines)).unwrap();
+    assert_eq!(replayed.parked(), None);
+    let context = replayed.context();
+    assert_eq!(context.messages.len(), 4);
+    assert_eq!(
+        blocks(&context.messages[2]),
+        vec![
+            ("result", expired.into(), "c1".into(), true),
+            (
+                "result",
+                "The observed file is unchanged.".into(),
+                "c2".into(),
+                false
+            ),
+        ]
+    );
+    assert_eq!(blocks(&context.messages[3])[0].1, "continue my request");
+    assert_eq!(blocks(&context.messages[3])[1].1, "(cited as u2)");
+}
+
+/// A shown proposal the person's words acted on, then Nika's note (the run failed) and the
+/// model's answer: nothing waits on the proposal any more. The person's next line is a line of
+/// its own, last in the request, and the proposal's call reads as what its tool replied (live
+/// gauntlet, 2026-10-16: the line was read as the call's answer, the request ended on the model's
+/// message, and Claude Opus 5.5 refused it as an assistant prefill).
+#[test]
+fn a_line_after_a_note_the_model_answered_is_its_own_message() {
+    let (mut tree, mut lines) = open();
+    say(&mut tree, &mut lines, "set the ceiling at 0.001 and run it");
+    add(&mut tree, &mut lines, message(vec![call("c1", "propose")]));
+    let authorized = "the person's words authorize it: the Session saves it, then asks its run";
+    add(
+        &mut tree,
+        &mut lines,
+        EntryKind::Parked {
+            call: "c1".into(),
+            name: "propose".into(),
+            reply: ToolReply::ends_turn(authorized),
+        },
+    );
+    assert_eq!(tree.parked(), Some(("c1", "propose")));
+    add(
+        &mut tree,
+        &mut lines,
+        EntryKind::Note {
+            text: "The run the person asked for failed; its facts follow.".into(),
+        },
+    );
+    // The note's run is still under way: the proposal waits until the model answers.
+    assert_eq!(tree.parked(), Some(("c1", "propose")));
+    add(
+        &mut tree,
+        &mut lines,
+        EntryKind::Assistant {
+            content: vec![text("The ceiling stopped it, as you wanted.")],
+            stop: StopReason::EndTurn,
+            usage: None,
+            model: None,
+        },
+    );
+    assert_eq!(tree.parked(), None);
+    reply(&mut tree, &mut lines, "ok, put it back at 0.10", None);
+    let replayed = Tree::replay(&file(&lines)).unwrap();
+    let messages = replayed.context().messages;
+    let last = messages.last().unwrap();
+    assert_eq!(last.role, Role::User);
+    assert_eq!(blocks(last)[0].1, "ok, put it back at 0.10");
+    assert_eq!(
+        blocks(&messages[2]),
+        vec![("result", authorized.into(), "c1".into(), false)]
+    );
+}
+
+/// The person's `text`, naming the call it `answers`.
+fn reply(tree: &mut Tree, lines: &mut Vec<String>, text: &str, answers: Option<&str>) {
+    let answers = answers.map(str::to_owned);
+    (tree.append_user(text, answers, None, 2_000, |l| Store::append(lines, l))).unwrap();
+}
+
+/// One `ask` call `c1` of two questions answered by `u2` while it waited, the author's words
+/// ending that turn, then `u3` replying to the call's other question after it stopped waiting,
+/// recorded under `late`, and a later step of the run.
+fn grouped(late: Option<&str>) -> Tree {
+    let (mut tree, mut lines) = open();
+    say(&mut tree, &mut lines, "écris un court message");
+    add(&mut tree, &mut lines, message(vec![call("c1", "ask")]));
+    let asked = json!({"asked": [{"key": "a", "id": "q1"}, {"key": "b", "id": "q2"}]});
+    let parked = EntryKind::Parked {
+        call: "c1".to_owned(),
+        name: "ask".to_owned(),
+        reply: ToolReply::ends_turn(asked.to_string()),
+    };
+    add(&mut tree, &mut lines, parked);
+    reply(&mut tree, &mut lines, "Oui", Some("c1"));
+    let ended = EntryKind::Assistant {
+        content: vec![text("C'est noté.")],
+        stop: StopReason::EndTurn,
+        usage: None,
+        model: None,
+    };
+    add(&mut tree, &mut lines, ended);
+    reply(&mut tree, &mut lines, "bonjour.nika", late);
+    let wrote = message(vec![text("Voici."), call("c2", "candidate_write")]);
+    add(&mut tree, &mut lines, wrote);
+    let written = result("c2", "candidate_write", ToolReply::ok("written"));
+    add(&mut tree, &mut lines, written);
+    tree
+}
+
+/// A person's line naming a call an earlier line already answered (a reply to another question
+/// of that call's group, given after it stopped waiting) keeps naming it, yet everything a model
+/// reads is what an ordinary line gives: the conversation, an agent's transcript, a fold's
+/// request and where a fold may cut. The first line naming the call stays its answer.
+#[test]
+fn a_late_reply_reads_as_an_ordinary_line() {
+    let (late, plain) = (grouped(Some("c1")), grouped(None));
+    let named: Vec<Option<String>> = (late.branch().iter())
+        .filter_map(|entry| match &entry.kind {
+            EntryKind::User { answers, .. } => Some(answers.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(named, [None, Some("c1".into()), Some("c1".into())]);
+    assert_eq!(late.parked(), None);
+    let context = late.context();
+    assert_eq!(format!("{context:?}"), format!("{:?}", plain.context()));
+    let answered: Vec<_> = (context.messages.iter())
+        .flat_map(blocks)
+        .filter(|(kind, _, call, _)| *kind == "result" && call == "c1")
+        .collect();
+    assert_eq!(answered.len(), 1, "{answered:?}");
+    assert_eq!(answered[0].1, "The person answered, cited as u2:\nOui");
+    assert_eq!(
+        crate::run::transcript(&late),
+        crate::run::transcript(&plain)
+    );
+    for keep in [0, 1, 40, 100_000] {
+        let cut = crate::compact::cut(&late, keep);
+        assert_eq!(cut, crate::compact::cut(&plain, keep), "{keep}");
+    }
+    let first_kept = EntryId("e7".into());
+    let folded = |tree: &Tree| format!("{:?}", crate::compact::request(tree, &first_kept, None));
+    assert_eq!(folded(&late), folded(&plain));
 }

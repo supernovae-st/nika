@@ -305,7 +305,7 @@ fn a_yes_saves_only_when_the_rehearsed_world_is_unchanged() {
     let bytes = pending_bytes(&s);
     let landed = facts(s.consent("yes"));
     let held = format!(
-        "the rehearsed world holds: `./in/source.txt` the same {} B · `./out/copied.txt` still absent",
+        "the files the trial read are as it saw them: `./in/source.txt` the same {} B · `./out/copied.txt` still absent",
         USER.len()
     );
     assert!(landed.contains(&held), "{landed}");
@@ -373,13 +373,21 @@ fn a_run_line_runs_only_the_rehearsed_world_and_workflow() {
     let (mut s, _, _) = open(root.path(), false);
     proposal(s.turn(INTENT));
     facts(s.consent("yes"));
+    assert_eq!(s.stale_saved_run(), None, "nothing drifted yet");
     write(root.path(), SOURCE, EDITED);
     for _ in 0..2 {
         let why = refused(s.turn(RUN));
         assert_eq!(why.class, RefusalClass::StaleRevision, "{}", why.text);
         assert!(why.text.contains("was withdrawn"), "{}", why.text);
         assert!(why.text.contains("nothing was run"), "{}", why.text);
+        // A host's finite recovery names the drifted saved workflow; it requests nothing.
+        assert_eq!(s.stale_saved_run(), Some(Path::new(LANDED)));
+        assert_eq!(s.waiting(), crate::work::Waiting::Free);
     }
+    // The exact witnessed world restored: the next attempt runs, and nothing is stale.
+    write(root.path(), SOURCE, USER);
+    assert!(matches!(s.turn(RUN), TurnOutcome::RunRequested { .. }));
+    assert_eq!(s.stale_saved_run(), None);
 
     let root = project();
     let (mut s, _, _) = open(root.path(), false);
@@ -506,7 +514,10 @@ fn a_money_only_amendment_keeps_the_rehearsal_of_the_same_bytes() {
     assert_eq!(late.class, RefusalClass::StaleRevision, "{}", late.text);
     assert_eq!(s.pending_proposal(), Some(amended.clone()));
     let landed = facts(s.consent("yes"));
-    assert!(landed.contains("the rehearsed world holds"), "{landed}");
+    assert!(
+        landed.contains("the files the trial read are as it saw them"),
+        "{landed}"
+    );
     let saved = std::fs::read_to_string(root.path().join(LANDED)).expect("saved");
     assert_eq!(saved, bytes);
     let TurnOutcome::RunRequested { run, .. } = s.turn(RUN) else {
@@ -821,3 +832,110 @@ mod native_real;
 mod native_tests;
 mod native_transport;
 mod rerun;
+
+/// The revision shown, proposed again under the verdict the person saw with no trial of its own:
+/// the rehearsal proved for that proposal follows the very same bytes to the new identity, its
+/// lines say where it came from, and the yes's report keeps it.
+#[test]
+fn a_rehearsal_follows_the_same_bytes_only_from_the_proposal_shown() {
+    let root = project();
+    let (mut s, _, _) = open(root.path(), false);
+    let (first, _) = proposal(s.turn(INTENT));
+    let set = s.pending.clone().expect("pending");
+    let again = ProposalId::of("the same bytes behind another card");
+    let mut preview = String::new();
+    s.carry_rehearsal((Some((&first, &set)), true), (&again, &set), &mut preview);
+    assert!(s.rehearsed_pending(&again) && !s.rehearsed_pending(&first));
+    assert!(preview.contains(&first.to_string()), "{preview}");
+    let held = s.rehearsed_at_yes(&set, &again).expect("the same world");
+    let held = held.expect("a rehearsed world");
+    assert!(held.contains(&first.to_string()), "{held}");
+}
+
+/// A proof proved for another identity than the proposal shown is never carried, even over the
+/// very same bytes in the very same world: the yes refuses it as another identity's.
+#[test]
+fn a_rehearsal_proved_for_another_identity_is_never_carried() {
+    let root = project();
+    let (mut s, _, _) = open(root.path(), false);
+    let (first, _) = proposal(s.turn(INTENT));
+    let set = s.pending.clone().expect("pending");
+    let foreign = ProposalId::of("a proposal the person was never shown");
+    let again = ProposalId::of("the same bytes behind another card");
+    let mut preview = String::new();
+    s.carry_rehearsal((Some((&foreign, &set)), true), (&again, &set), &mut preview);
+    assert!(s.rehearsed_pending(&first) && !s.rehearsed_pending(&again));
+    assert!(preview.is_empty(), "nothing shown: {preview}");
+    let Err(withdrawn) = s.rehearsed_at_yes(&set, &again) else {
+        panic!("a proof of another identity is refused");
+    };
+    let why = refused(withdrawn);
+    assert_eq!(why.class, RefusalClass::StaleRevision, "{}", why.text);
+    assert!(
+        why.text.contains("another proposal identity"),
+        "{}",
+        why.text
+    );
+}
+
+/// Other bytes never carry a rehearsal, even from the proposal shown: the yes withdraws as it
+/// does today.
+#[test]
+fn a_rehearsal_never_follows_other_bytes() {
+    let root = project();
+    let (mut s, _, _) = open(root.path(), false);
+    let (first, _) = proposal(s.turn(INTENT));
+    let set = s.pending.clone().expect("pending");
+    let path = set.changes[0].path().to_string_lossy().into_owned();
+    let content = format!("{}# another line\n", pending_bytes(&s));
+    let other =
+        crate::change::ProjectChangeSet::workflow_at(root.path(), &set.goal, &path, content);
+    let other = other.expect("other bytes");
+    let again = ProposalId::of("other bytes behind another card");
+    let mut preview = String::new();
+    s.carry_rehearsal((Some((&first, &set)), true), (&again, &other), &mut preview);
+    assert!(s.rehearsed_pending(&first) && !s.rehearsed_pending(&again));
+    assert!(preview.is_empty(), "nothing shown: {preview}");
+    let Err(withdrawn) = s.rehearsed_at_yes(&other, &again) else {
+        panic!("other bytes are refused");
+    };
+    let why = refused(withdrawn);
+    assert_eq!(why.class, RefusalClass::StaleRevision, "{}", why.text);
+}
+
+/// A carried rehearsal is judged at the yes as any other: a source changed since withdraws it.
+#[test]
+fn a_carried_rehearsal_still_withdraws_over_a_changed_world() {
+    let root = project();
+    let (mut s, _, _) = open(root.path(), false);
+    let (first, _) = proposal(s.turn(INTENT));
+    let set = s.pending.clone().expect("pending");
+    let again = ProposalId::of("the same bytes behind another card");
+    let shown = (Some((&first, &set)), true);
+    s.carry_rehearsal(shown, (&again, &set), &mut String::new());
+    assert!(s.rehearsed_pending(&again));
+    write(root.path(), SOURCE, EDITED);
+    let Err(withdrawn) = s.rehearsed_at_yes(&set, &again) else {
+        panic!("a changed world is refused");
+    };
+    let why = refused(withdrawn);
+    assert_eq!(why.class, RefusalClass::StaleRevision, "{}", why.text);
+    assert!(why.text.contains("changed"), "{}", why.text);
+}
+
+/// Outside the reuse of the verdict the person saw (a new revision judged with no trial of its
+/// own), or with no proposal shown, nothing is carried, even the same bytes.
+#[test]
+fn no_rehearsal_is_carried_outside_the_verdict_shown() {
+    let root = project();
+    let (mut s, _, _) = open(root.path(), false);
+    let (first, _) = proposal(s.turn(INTENT));
+    let set = s.pending.clone().expect("pending");
+    let again = ProposalId::of("the same bytes behind another card");
+    for shown in [(Some((&first, &set)), false), (None, true)] {
+        let mut preview = String::new();
+        s.carry_rehearsal(shown, (&again, &set), &mut preview);
+        assert!(s.rehearsed_pending(&first) && !s.rehearsed_pending(&again));
+        assert!(preview.is_empty(), "nothing shown: {preview}");
+    }
+}

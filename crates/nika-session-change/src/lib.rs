@@ -26,6 +26,10 @@
 //!   the next line answers with the identity an answer names, and one
 //!   serializable snapshot of the request, the candidate, the saved
 //!   workflow and the last run. It grants nothing.
+//! - [`lang`] — the language the person speaks, read from their own lines,
+//!   and the words the unit says in it: the review's lines in French
+//!   ([`review::fr`]) and what the Session keeps of a request an
+//!   intelligence leads ([`work::understood`]).
 //!
 //! The session owns the conversation, the rounds and the money gate; it
 //! reaches this member downward, and keeps these modules at their
@@ -40,6 +44,7 @@ mod closure;
 pub mod consent;
 pub mod decision;
 pub mod draft;
+pub mod lang;
 pub mod outcome;
 pub mod reply;
 pub mod review;
@@ -47,6 +52,8 @@ pub mod save_run;
 pub mod tools;
 pub mod work;
 pub mod world;
+
+pub use lang::Lang;
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]

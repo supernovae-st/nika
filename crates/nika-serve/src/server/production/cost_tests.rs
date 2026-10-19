@@ -184,7 +184,7 @@ fn an_unreviewed_zero_fan_binds_the_observer_and_its_inputs_decide() {
 /// per-Run observer `nika run` binds, never unknown-cost authority.
 #[test]
 fn a_declared_free_route_binds_the_observer() {
-    let free = "openrouter/qwen/qwen3.8-27b:free";
+    let free = "openrouter/nvidia/nemotron-3-super-120b-a12b:free";
     let observed = judge(
         free,
         "openrouter",

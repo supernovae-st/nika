@@ -301,10 +301,42 @@ pub enum JobOrigin {
         fired_at: String,
         /// Workflow and schedule generation pinned for this attempt.
         arm_generation: String,
+        /// First slot of the silence a `rattraper-une-fois` catch-up answers for; absent on any
+        /// other firing. The silence's last slot is `scheduled_for`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        missed_first: Option<Box<str>>,
+        /// How many slots that silence holds, present with `missed_first`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        missed_count: Option<u32>,
     },
 }
 
 impl JobOrigin {
+    /// The facts a scheduled run is told (spec 04 §`run`): the slot it serves,
+    /// and under a `rattraper-une-fois` catch-up the silence that slot closes.
+    /// `None` for a run the job API submitted (it serves its own start) or a
+    /// slot instant past the run clock's range.
+    pub(crate) fn run_facts(&self) -> Option<nika_runtime::RunFacts> {
+        let Self::Schedule {
+            scheduled_for,
+            missed_first,
+            missed_count,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let slot = run_instant(scheduled_for)?;
+        let facts = nika_runtime::RunFacts::slot(slot);
+        let missed = missed_first
+            .as_deref()
+            .and_then(run_instant)
+            .zip(*missed_count);
+        Some(missed.map_or(facts, |(first, count)| {
+            facts.with_missed(nika_runtime::MissedSlots::new(first, slot, count))
+        }))
+    }
+
     /// Construct a validated scheduled origin binding.
     ///
     /// # Errors
@@ -335,9 +367,38 @@ impl JobOrigin {
             scheduled_for: scheduled_for.to_string(),
             fired_at: fired_at.to_string(),
             arm_generation: generation.as_str().to_owned(),
+            missed_first: None,
+            missed_count: None,
         };
         value.validate()?;
         Ok(value)
+    }
+
+    /// The same scheduled origin answering for a silence (`rattraper-une-fois`):
+    /// the instant of its first slot and how many slots it holds, the origin's
+    /// `scheduled_for` being its last.
+    ///
+    /// # Errors
+    /// Returns [`JobStoreError::InvalidReceipt`] for a manual origin, a firing
+    /// that is not a catch-up, an empty silence, or a first slot after the
+    /// slot fired.
+    pub fn with_missed(
+        mut self,
+        first: jiff::Timestamp,
+        count: u32,
+    ) -> Result<Self, JobStoreError> {
+        let Self::Schedule {
+            missed_first,
+            missed_count,
+            ..
+        } = &mut self
+        else {
+            return Err(JobStoreError::InvalidReceipt);
+        };
+        *missed_first = Some(first.to_string().into_boxed_str());
+        *missed_count = Some(count);
+        self.validate()?;
+        Ok(self)
     }
 
     pub(crate) fn validate(&self) -> Result<(), JobStoreError> {
@@ -350,6 +411,8 @@ impl JobOrigin {
             scheduled_for,
             fired_at,
             arm_generation,
+            missed_first,
+            missed_count,
         } = self
         else {
             return Ok(());
@@ -367,6 +430,11 @@ impl JobOrigin {
             || scheduled_for.parse::<jiff::Timestamp>().is_err()
             || fired_at.parse::<jiff::Timestamp>().is_err()
             || ArmGeneration::from_wire(arm_generation).is_none()
+            || !silence_holds(
+                *decision,
+                scheduled_for,
+                (missed_first.as_deref(), *missed_count),
+            )
         {
             return Err(JobStoreError::InvalidReceipt);
         }
@@ -406,6 +474,34 @@ impl JobOrigin {
             } => Some((schedule_origin, schedule_id, slot_id)),
         }
     }
+}
+
+/// A silence rides only a catch-up, whole (both fields or neither) and
+/// non-empty, its first slot at or before the slot it closes.
+fn silence_holds(
+    decision: ScheduleDecision,
+    scheduled_for: &str,
+    missed: (Option<&str>, Option<u32>),
+) -> bool {
+    match missed {
+        (None, None) => true,
+        (Some(first), Some(count)) => {
+            let first = first.parse::<jiff::Timestamp>();
+            let slot = scheduled_for.parse::<jiff::Timestamp>();
+            decision == ScheduleDecision::CatchUp
+                && count >= 1
+                && matches!((first, slot), (Ok(first), Ok(slot)) if first <= slot)
+        }
+        _ => false,
+    }
+}
+
+/// An RFC 3339 instant as the run clock counts it; `None` past its range
+/// (beyond 2262).
+fn run_instant(text: &str) -> Option<nika_types::timestamp::Timestamp> {
+    let instant = text.parse::<jiff::Timestamp>().ok()?;
+    let ns = i64::try_from(instant.as_nanosecond()).ok()?;
+    Some(nika_types::timestamp::Timestamp::from_unix_ns(ns))
 }
 
 impl JobStatus {

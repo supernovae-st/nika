@@ -12,19 +12,36 @@ use std::path::Path;
 
 use nika_onboard::compile::CompileQuestion;
 
+use super::Lang;
 use crate::authoring::AuthoringRound;
 use crate::change::PendingGate;
 
 /// The aside beside an authoring question: what the value is for, which
 /// hole it fills, what is already settled, how to go on.
 #[must_use]
-pub(super) fn explain_question(question: &CompileQuestion, round: &AuthoringRound) -> String {
+pub(super) fn explain_question(
+    question: &CompileQuestion,
+    round: &AuthoringRound,
+    lang: Lang,
+) -> String {
+    let fr = lang == Lang::Fr;
     // A rule Nika writes as code is explained in words: what the human's
     // words do, never the code the compiler would have asked for.
     let mut text = if super::authoring::asks_for_syntax(question) {
         let clause = super::authoring::clause_of(&question.label).unwrap_or_default();
+        if fr {
+            format!(
+                "Vos mots prennent la place de « {clause} » dans votre demande ; la règle est ensuite écrite en code à partir d'eux : on ne vous demande jamais de code."
+            )
+        } else {
+            format!(
+                "Your words take the place of « {clause} » in your request; Nika then writes the rule itself, as code, from them — it never asks you for code."
+            )
+        }
+    } else if fr {
         format!(
-            "Your words take the place of « {clause} » in your request; Nika then writes the rule itself, as code, from them — it never asks you for code."
+            "Cette réponse remplit `{}` dans le workflow en préparation.",
+            question.key
         )
     } else {
         format!(
@@ -35,37 +52,60 @@ pub(super) fn explain_question(question: &CompileQuestion, round: &AuthoringRoun
     if !question.why.is_empty() && !super::authoring::asks_for_syntax(question) {
         let _ = write!(text, "\n  {}", question.why);
     }
-    let _ = write!(text, "\n  what you asked: « {} »", one_line(&round.intent));
+    let intent = one_line(&round.intent);
+    let _ = if fr {
+        write!(text, "\n  ce que vous avez demandé : « {intent} »")
+    } else {
+        write!(text, "\n  what you asked: « {intent} »")
+    };
     if !round.answers.is_empty() {
-        text.push_str("\n  already answered:");
+        text.push_str(lang.pick("\n  already answered:", "\n  déjà répondu :"));
         for (key, value) in &round.answers {
             let _ = write!(text, "\n    · `{key}` = {value}");
         }
     }
     if round.questions.len() > 1 {
-        let _ = write!(
-            text,
-            "\n  {} more question(s) follow this one",
-            round.questions.len() - 1
-        );
+        let more = round.questions.len() - 1;
+        let follow = if fr {
+            format!("\n  encore {more} question(s) après celle-ci")
+        } else {
+            format!("\n  {more} more question(s) follow this one")
+        };
+        text.push_str(&follow);
     }
-    text.push_str(
+    text.push_str(lang.pick(
         "\n  the question still waits · reply on the next line · `cancel` drops the round",
-    );
+        "\n  la question attend toujours · répondez sur la ligne suivante · « annuler » abandonne la préparation",
+    ));
     text
 }
 
 /// The aside beside a declared input a run waits on.
 #[must_use]
-pub(super) fn explain_input(workflow: &Path, name: &str, remaining: usize) -> String {
-    let mut text = format!(
-        "`{name}` is an input `{}` declares and needs before it runs: the value you give binds it for this run only (`--var {name}=…` on the command line does the same).",
-        workflow.display()
-    );
+pub(super) fn explain_input(workflow: &Path, name: &str, remaining: usize, lang: Lang) -> String {
+    let workflow = workflow.display();
+    let mut text = if lang == Lang::Fr {
+        format!(
+            "`{name}` est une entrée que `{workflow}` déclare et demande avant de tourner : la valeur que vous donnez la remplit pour ce run seulement (`--var {name}=…` en ligne de commande fait de même)."
+        )
+    } else {
+        format!(
+            "`{name}` is an input `{workflow}` declares and needs before it runs: the value you give binds it for this run only (`--var {name}=…` on the command line does the same)."
+        )
+    };
     if remaining > 1 {
-        let _ = write!(text, "\n  {} more input(s) follow this one", remaining - 1);
+        let more = remaining - 1;
+        let follow = if lang == Lang::Fr {
+            format!("\n  encore {more} entrée(s) après celle-ci")
+        } else {
+            format!("\n  {more} more input(s) follow this one")
+        };
+        text.push_str(&follow);
     }
-    text.push_str("\n  the input still waits · reply on the next line · `cancel` drops the run");
+    text.push_str(lang.pick(
+        "\n  the input still waits · reply on the next line · `cancel` drops the run",
+        "\n  l'entrée attend toujours · répondez sur la ligne suivante · « annuler » abandonne le run",
+    ));
     text
 }
 
@@ -73,32 +113,58 @@ pub(super) fn explain_input(workflow: &Path, name: &str, remaining: usize) -> St
 /// (the tasks that wait on this gate, from the workflow's own bytes),
 /// what has not happened yet.
 #[must_use]
-pub(super) fn explain_gate(gate: &PendingGate, root: &Path) -> String {
-    let mut text = format!(
-        "The run of `{}` paused at `{}`, a human gate, and asks: {}",
-        gate.workflow.display(),
-        gate.task,
-        gate.message
+pub(super) fn explain_gate(gate: &PendingGate, root: &Path, lang: Lang) -> String {
+    let (workflow, task) = (gate.workflow.display(), &gate.task);
+    // The card shows the gate's whole message: its first line names the question, and the rest
+    // (a digest, a draft) is not said twice (live gauntlet r04 B6: the whole digest again).
+    let asked = (gate.message.lines())
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or_default();
+    let mut text = match lang {
+        Lang::Fr => format!(
+            "Le run de `{workflow}` s'est mis en pause à `{task}` : le workflow demande là une validation humaine (« {asked} »), et rien de ce qu'elle retient ne se fait sans votre réponse."
+        ),
+        _ => format!(
+            "The run of `{workflow}` paused at `{task}`: the workflow asks a person there (« {asked} »), and nothing it holds back happens without your answer."
+        ),
+    };
+    let lets = lang.pick(
+        "what your answer lets happen:",
+        "ce que votre réponse permet :",
     );
     let gated = gated_tasks(&root.join(&gate.workflow), &gate.task);
     if gated.is_empty() {
-        text.push_str("\n  what your answer lets happen: the tasks after this gate (the workflow's bytes name them)");
+        let tasks = lang.pick(
+            "the tasks after this gate (the workflow's bytes name them)",
+            "les tâches après cette validation (le workflow les nomme)",
+        );
+        let _ = write!(text, "\n  {lets} {tasks}");
     } else {
-        text.push_str("\n  what your answer lets happen:");
+        let _ = write!(text, "\n  {lets}");
         for line in gated {
             let _ = write!(text, "\n    · {line}");
         }
     }
     let how = match gate.mode.as_str() {
-        "confirm" => "yes or no",
-        "choice" => "one of the choices, as written",
-        _ => "in words",
+        "confirm" => lang.pick("yes or no", "oui ou non"),
+        "choice" => lang.pick(
+            "one of the choices, as written",
+            "l'un des choix, tel qu'écrit",
+        ),
+        _ => lang.pick("in words", "en mots"),
     };
-    let _ = write!(
-        text,
-        "\n  nothing after the gate has happened yet · the trace `{}` holds what ran before it\n  the gate still waits · answer {how} · nothing answers for you",
-        super::shown_trace(root, &gate.trace)
-    );
+    let trace = super::shown_trace(root, &gate.trace);
+    let _ = match lang {
+        Lang::Fr => write!(
+            text,
+            "\n  rien après la validation n'a encore eu lieu · la trace `{trace}` garde ce qui a tourné avant\n  la validation attend toujours · répondez {how} · rien ne répond à votre place"
+        ),
+        _ => write!(
+            text,
+            "\n  nothing after the gate has happened yet · the trace `{trace}` holds what ran before it\n  the gate still waits · answer {how} · nothing answers for you"
+        ),
+    };
     text
 }
 
@@ -187,5 +253,51 @@ mod tests {
             .map(|line| line.split(" · ").next().unwrap_or("").to_owned())
             .collect();
         assert_eq!(ids, ["first", "second"]);
+    }
+
+    /// « pourquoi ? » at a gate names its question once, never the card's whole message, and says
+    /// that what it holds back waits for the answer (live gauntlet r04 B6, 2026-10-17).
+    #[test]
+    fn a_gate_is_explained_by_its_question_never_its_whole_message() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let gate = PendingGate {
+            workflow: std::path::PathBuf::from("digest.nika"),
+            trace: std::path::PathBuf::from(".nika/traces/paused.ndjson"),
+            task: "approve".to_owned(),
+            message: "Poster ce digest sur https://hooks.example/team ?\n\n# Digest\n- une story\n"
+                .to_owned(),
+            mode: "confirm".to_owned(),
+            values: None,
+            withheld: None,
+        };
+        let said = explain_gate(&gate, dir.path(), Lang::Fr);
+        assert!(
+            said.starts_with("Le run de `digest.nika` s'est mis en pause à `approve` : le workflow demande là une validation humaine (« Poster ce digest sur https://hooks.example/team ? »)"),
+            "{said}"
+        );
+        assert!(!said.contains("# Digest"), "{said}");
+    }
+
+    /// A run input is explained in the person's language, its lines under it too (live gauntlet
+    /// wave 5, F list: « the input still waits · reply on the next line » under French answers).
+    #[test]
+    fn a_run_input_is_explained_in_the_persons_language() {
+        let workflow = Path::new("digest.nika");
+        let fr = explain_input(workflow, "ville", 2, Lang::Fr);
+        assert!(
+            fr.starts_with("`ville` est une entrée que `digest.nika` déclare")
+                && fr.contains("encore 1 entrée(s) après celle-ci")
+                && fr.ends_with("l'entrée attend toujours · répondez sur la ligne suivante · « annuler » abandonne le run"),
+            "{fr}"
+        );
+        let en = explain_input(workflow, "city", 1, Lang::En);
+        assert!(
+            en.starts_with("`city` is an input `digest.nika` declares")
+                && en.ends_with(
+                    "the input still waits · reply on the next line · `cancel` drops the run"
+                )
+                && !en.contains("more input"),
+            "{en}"
+        );
     }
 }

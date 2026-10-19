@@ -377,7 +377,8 @@ fn a_large_pending_draft_is_kept_and_reproposed_without_losing_its_text() {
 }
 
 const BASE: &str = "nika: kept-base\ntasks: {}\n";
-const UPDATED: &str = "nika: kept-update\ntasks: {}\n";
+/// The update kept: bytes whose own check is clean, as a consent can only save such bytes.
+const UPDATED: &str = "nika: kept-update\nmodel: mock/echo\ntasks:\n  hello:\n    infer: { prompt: \"Say hello\", max_tokens: 16 }\n";
 
 fn resumed_with_an_update(root: &Path, home: &Path) -> (SessionRuntime, Seen) {
     closed_with_an_update(root, home, BASE, UPDATED);

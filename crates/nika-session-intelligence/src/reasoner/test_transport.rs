@@ -72,6 +72,7 @@ impl HttpPostDyn for Client {
                 "https://api.deepseek.com/v1/chat/completions"
                     | "https://api.deepseek.com/chat/completions"
                     | "https://api.scaleway.ai/v1/chat/completions"
+                    | "https://api.anthropic.com/v1/messages"
             ));
             assert!(
                 !request.follow_redirects,

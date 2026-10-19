@@ -10,6 +10,7 @@
 
 pub(super) use nika_onboard::routing::run_options::{is_run_verb, run_prefix};
 
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
@@ -36,11 +37,6 @@ use crate::turn::{RouteRecord, RoutingMethod, SessionPhase, TurnAct, TurnDecisio
 
 /// The seat of the readings the session settles without a model: zero calls, the project observed.
 pub(super) const DETERMINISTIC: AuthoringSeat = AuthoringSeat::Deterministic { why: None };
-
-/// The label of a correction restated after its original request: the correction takes
-/// precedence where they differ, every other requirement of the original stands. No keep or
-/// exclusion lead, no restriction word: the label never makes the correction read as one.
-const CORRECTION_FRAME: &str = "Correction (it takes precedence over the original where they differ; every other requirement stands):";
 
 impl SessionRuntime {
     /// The authoring question the next line answers, when one is open.
@@ -71,6 +67,9 @@ impl SessionRuntime {
     /// read when it opened. The seat is unchanged: the context never selects
     /// a model, and a deterministic seat never reads it.
     pub fn set_authoring_context(&mut self, context: AuthoringContext) {
+        if let Some(seat) = context.decision() {
+            self.jev_seat = Some(seat.clone());
+        }
         self.authoring_context = context;
     }
 
@@ -164,41 +163,7 @@ impl SessionRuntime {
             self.intent.goal = Some(round.effective_intent());
         }
         match reading {
-            // Not work the reader knows: open language. A question-shaped
-            // line is the conversation's at once (a fast path, never a veto:
-            // nothing waits, so nothing can be modified); otherwise the act
-            // is a bounded decision — new work goes to the seat, a change
-            // revises the saved workflow, the rest is the conversation's
-            // (the intelligence sees the line either way).
-            Reading::NotWork(_) => {
-                if super::route::question_outside_money(intent, &round.money) {
-                    return None;
-                }
-                // Under a refused knowledge source the line waits before the route reads it.
-                if let Some(held) = self.hold_for_knowledge(intent, self.routes_by_model()) {
-                    return Some(held);
-                }
-                let seat_reads = self.seat.has_model();
-                match self.classify(SessionPhase::Idle, intent).act {
-                    // Work the deterministic reader did not recognise, routed
-                    // as new work: the seat reads it, files named or not;
-                    // without a seat the first screen is asked in context,
-                    // as for an unsettled reading (never a conversational
-                    // paraphrase of a plan that nothing will build).
-                    TurnAct::NewWork => {
-                        self.intent.goal = Some(round.effective_intent());
-                        if seat_reads {
-                            Some(self.compile_under_seat(round))
-                        } else if !self.chosen || !self.intelligence.ready {
-                            Some(self.ask_for_intelligence(intent, super::Need::Authoring))
-                        } else {
-                            None
-                        }
-                    }
-                    TurnAct::Modify | TurnAct::Mixed => self.revise_current(intent),
-                    _ => None,
-                }
-            }
+            Reading::NotWork(_) => self.not_work(intent, round),
             Reading::Unsettled(out) => Some(match &self.seat {
                 // The ceiling refuses the seat: what the reader could not settle is
                 // still said — a directive that also names a field is the human's to restate.
@@ -233,6 +198,43 @@ impl SessionRuntime {
         }
     }
 
+    /// Not work the reader knows: open language. A question-shaped line is the conversation's
+    /// at once (a fast path, never a veto: nothing waits, so nothing can be modified); otherwise
+    /// the act is a bounded decision — new work goes to the seat, a change revises the saved
+    /// workflow, the rest is the conversation's (the intelligence sees the line either way).
+    fn not_work(&mut self, intent: &str, round: AuthoringRound) -> Option<TurnOutcome> {
+        if super::route::question_outside_money(intent, &round.money) {
+            return None;
+        }
+        // Under a refused knowledge source the line waits before the route reads it.
+        if let Some(held) = self.hold_for_knowledge(intent, self.routes_by_model()) {
+            return Some(held);
+        }
+        let seat_reads = self.seat.has_model();
+        match self.classify(SessionPhase::Idle, intent).act {
+            // A line naming a file the saved workflow reads or writes is a change of it,
+            // whatever the label (live gauntlet wave 6 r06 B3: « Trie le rapport par
+            // ligne. » became an unrelated new workflow).
+            TurnAct::NewWork if self.names_saved_files(intent) => self.revise_current(intent),
+            // Work the deterministic reader did not recognise, routed as new work: the seat
+            // reads it, files named or not; without a seat the first screen is asked in
+            // context, as for an unsettled reading (never a conversational paraphrase of a plan
+            // that nothing will build).
+            TurnAct::NewWork => {
+                self.intent.goal = Some(round.effective_intent());
+                if seat_reads {
+                    Some(self.compile_under_seat(round))
+                } else if !self.chosen || !self.intelligence.ready {
+                    Some(self.ask_for_intelligence(intent, super::Need::Authoring))
+                } else {
+                    None
+                }
+            }
+            TurnAct::Modify | TurnAct::Mixed => self.revise_current(intent),
+            _ => None,
+        }
+    }
+
     /// Work the reader could not settle, under a ceiling that refuses the seat: the
     /// refusal says the compiler's reasons, never the bare ceiling; `why` keeps the outcome.
     fn refused_unsettled(&mut self, out: CompileOutcome) -> TurnOutcome {
@@ -258,17 +260,60 @@ impl SessionRuntime {
         // admission card: the authoring reservation it would make is refused the same way.
         let refused =
             decision.method == RoutingMethod::Failed && self.label_refused(before.as_ref());
-        if decision.act == TurnAct::NewWork || refused {
+        let new_work = decision.act == TurnAct::NewWork && !self.names_saved_files(intent);
+        if new_work || refused {
             self.intent.goal = current;
             return None;
         }
         match decision.act {
-            TurnAct::Modify | TurnAct::Mixed => self.revise_current(intent),
+            // A line naming the saved workflow's own files changes it (`names_saved_files`).
+            TurnAct::Modify | TurnAct::Mixed | TurnAct::NewWork => self.revise_current(intent),
             _ => Some(TurnOutcome::Facts(Self::unknown_route_text(
                 SessionPhase::Idle,
                 decision.method,
+                self.language,
             ))),
         }
+    }
+
+    /// Whether `line` names a file the saved workflow reads or writes, by its name or by its name
+    /// without the extension (« le rapport » for `./rapport.md`), and asks for no other workflow
+    /// (« un nouveau workflow », « a new workflow »): a change of the saved one.
+    fn names_saved_files(&self, line: &str) -> bool {
+        let lowered = line.to_lowercase();
+        if ANOTHER.iter().any(|another| lowered.contains(another)) {
+            return false;
+        }
+        let first = (lowered.split(|c: char| !(c.is_alphanumeric() || c == '-')))
+            .find(|word| !word.is_empty() && !matches!(*word, "stp" | "svp" | "please" | "alors"));
+        if !first.is_some_and(|verb| CHANGES.contains(&verb)) {
+            return false;
+        }
+        let Some((_, world)) = self.saved_reach.as_ref() else {
+            return false;
+        };
+        let files = (world.places.iter())
+            .filter(|place| {
+                matches!(
+                    place.kind,
+                    crate::world::PlaceKind::FileRead | crate::world::PlaceKind::FileWrite
+                )
+            })
+            .filter_map(|place| {
+                let name = std::path::Path::new(&place.target).file_name()?.to_str()?;
+                (!name.contains(['*', '?', '['])).then(|| name.to_lowercase())
+            });
+        let named: Vec<String> = files
+            .flat_map(|name| {
+                let stem = name.rsplit_once('.').map(|(stem, _)| stem.to_owned());
+                std::iter::once(name).chain(stem)
+            })
+            .filter(|name| name.chars().count() >= 3)
+            .collect();
+        let words = lowered.split(|c: char| !(c.is_alphanumeric() || "-_.".contains(c)));
+        words
+            .map(|word| word.trim_end_matches('.'))
+            .any(|word| named.iter().any(|name| name == word))
     }
 
     /// No source exists after an interrupted creation: restate its request, never invent an
@@ -292,8 +337,8 @@ impl SessionRuntime {
             return Some(self.revise_saved(&saved, change));
         }
         let original = self.intent.goal.as_ref()?;
-        let intent = format!("Original request:\n{original}\n{CORRECTION_FRAME}\n{change}");
-        Some(self.restate_request(intent, change, None))
+        let intent = crate::work::Request::restated(original, change);
+        Some(self.restate_request(intent, change, None, BTreeMap::new()))
     }
 
     /// The one workflow file of the project a line names (`stock.nika`), when it names exactly
@@ -425,9 +470,13 @@ impl SessionRuntime {
     /// A change, a mixed line or new work said at a question: the request
     /// is read again with the human's own words (the round is dropped, the
     /// plan read a different request). Never a paraphrase.
+    /// The answers it already bound stay bound: a still-valid answer is never asked again
+    /// because the request was said again (live gauntlet, 2026-10-15: the time zone and the
+    /// model, both answered, were asked again after the sources were restated).
     pub(super) fn restate_round(&mut self, round: &AuthoringRound, line: &str) -> TurnOutcome {
         let restated = (self.question_id_of(round)).zip(round.current().map(|q| q.key.clone()));
-        self.restate_request(format!("{}. {}", round.intent, line.trim()), line, restated)
+        let intent = format!("{}. {}", round.intent, line.trim());
+        self.restate_request(intent, line, restated, round.answers.clone())
     }
 
     /// Compile the host's exact reconstructed request; all money spans bind to these bytes.
@@ -436,6 +485,7 @@ impl SessionRuntime {
         intent: String,
         line: &str,
         restated: Option<(crate::outcome::QuestionId, String)>,
+        kept: BTreeMap<String, String>,
     ) -> TurnOutcome {
         // Its directives, the request's own and the added ones, are spans of this very string.
         let asked = restated.as_ref().map(|(question, _)| question.clone());
@@ -449,6 +499,7 @@ impl SessionRuntime {
         self.remember(line, "(the request read again with these words)");
         let mut again = AuthoringRound::new(intent);
         again.money = money;
+        again.answers = kept;
         // The same goal in other words: the verdicts its earlier compiles recorded follow it (the
         // compiler carries one only into a compile of the request it judged).
         let restated = Some(again.effective_intent());
@@ -551,7 +602,12 @@ impl SessionRuntime {
         round.edit = Some((base, change.trim().to_owned(), original));
         // The line's own admitted directives, as the law reads the change the EDIT holds.
         round.money = change_money(change.trim(), !self.money.admitted.is_empty());
-        let request = round.request();
+        let mut request = round.request();
+        // The failed run this change follows is what « corrige ça » names: the author reads it
+        // beside the project as observed (`observed_world.last_run`).
+        if let Some(failed) = self.failed_run_of(saved) {
+            request = request.with_knowledge(serde_json::json!({ "last_run": failed }));
+        }
         let revised = revise_intent(&request).unwrap_or_else(|| goal.clone());
         let target = round.target.clone().map(|(path, _)| path);
         let out = match self.compile_request_at(&request, &revised, target) {
@@ -835,7 +891,7 @@ impl SessionRuntime {
                 }
                 let mut text = question_text(question, &round.reasons);
                 if key == "model"
-                    && let Some(offer) = seat_offer(&self.seat)
+                    && let Some(offer) = self.model_offer()
                 {
                     let _ = write!(text, "\n  {offer}");
                 }
@@ -960,10 +1016,10 @@ impl SessionRuntime {
         // `drop` is the disposition a clause's question names (`gap.N`): its answer there.
         let disposes = line.trim().eq_ignore_ascii_case("drop")
             && round.current().is_some_and(|q| q.key.starts_with("gap."));
-        // An empty line takes the offered default and nothing else: the
-        // `model` question's default is the seat the human already chose.
-        let seat_default = match (round.current().map(|q| q.key.as_str()), &self.seat) {
-            (Some("model"), AuthoringSeat::Provider { model }) => Some(model.clone()),
+        // An empty line takes the offered default and nothing else: the `model` question's
+        // default is the seat the human already chose, else the configured model it offers.
+        let seat_default = match round.current().map(|q| q.key.as_str()) {
+            Some("model") => self.offered_run_model(),
             _ => None,
         };
         let defaulted = line.trim().is_empty();
@@ -1104,22 +1160,18 @@ impl SessionRuntime {
             (act, _) => act,
         };
         match act {
-            TurnAct::Cancel => {
-                let key = round.current().map_or_else(String::new, |q| q.key.clone());
-                let asked = self.question_id_of(&round);
-                self.answer_act(asked.clone(), crate::work::AnswerAct::Dropped { key });
-                self.questions.close(asked);
-                self.intent.unresolved.clear();
-                self.remember(line, "(authoring discarded)");
-                return Err(TurnOutcome::Facts(
-                    "authoring discarded · nothing was written · describe the work again when ready"
-                        .to_owned(),
-                ));
-            }
+            TurnAct::Cancel => return Err(self.discard_round(&round, line)),
             TurnAct::Discuss => {
+                let lang = self.language;
                 let text = round.current().map_or_else(
-                    || "no authoring question waits".to_owned(),
-                    |q| super::aside::explain_question(q, &round),
+                    || {
+                        lang.pick(
+                            "no authoring question waits",
+                            "aucune question de préparation n'attend",
+                        )
+                        .to_owned()
+                    },
+                    |q| super::aside::explain_question(q, &round, lang),
                 );
                 self.authoring = Some(round);
                 return Err(TurnOutcome::Aside(text));
@@ -1147,12 +1199,35 @@ impl SessionRuntime {
                 let why = if decision.method == RoutingMethod::Fallback && !self.reads_answers() {
                     "that line is not a value on its own and no intelligence reads replies — nothing was bound · put a longer value in quotes".to_owned()
                 } else {
-                    Self::unknown_route_text(SessionPhase::QuestionPending, decision.method)
+                    Self::unknown_route_text(
+                        SessionPhase::QuestionPending,
+                        decision.method,
+                        self.language,
+                    )
                 };
                 return Err(self.answer_waits(round, &why));
             }
         }
         Ok(round)
+    }
+
+    /// `cancel` at a question: the question dropped and closed, the request's open words cleared,
+    /// nothing written.
+    fn discard_round(&mut self, round: &AuthoringRound, line: &str) -> TurnOutcome {
+        let key = round.current().map_or_else(String::new, |q| q.key.clone());
+        let asked = self.question_id_of(round);
+        self.answer_act(asked.clone(), crate::work::AnswerAct::Dropped { key });
+        self.questions.close(asked);
+        self.intent.unresolved.clear();
+        self.remember(line, "(authoring discarded)");
+        TurnOutcome::Facts(
+            self.language
+                .pick(
+                    "authoring discarded · nothing was written · describe the work again when ready",
+                    "préparation abandonnée · rien n'a été écrit · décrivez le travail à nouveau quand vous voulez",
+                )
+                .to_owned(),
+        )
     }
 }
 
@@ -1260,6 +1335,81 @@ impl SessionRuntime {
         }
     }
 }
+
+/// Words that ask for another workflow than the saved one (« un nouveau workflow »).
+const ANOTHER: &[&str] = &[
+    "nouveau workflow",
+    "autre workflow",
+    "second workflow",
+    "deuxième workflow",
+    "new workflow",
+    "another workflow",
+];
+/// The verbs a change of the saved workflow opens with (« Trie le rapport… », « Ajoute… »): a
+/// line that states the work again (« Je veux que copie.txt contienne… ») stays the reading's.
+const CHANGES: &[&str] = &[
+    "trie",
+    "tri",
+    "triez",
+    "classe",
+    "classez",
+    "ordonne",
+    "range",
+    "rangez",
+    "regroupe",
+    "groupe",
+    "ajoute",
+    "ajoutez",
+    "enlève",
+    "enleve",
+    "enlevez",
+    "retire",
+    "retirez",
+    "supprime",
+    "supprimez",
+    "change",
+    "changez",
+    "modifie",
+    "modifiez",
+    "remplace",
+    "remplacez",
+    "renomme",
+    "renommez",
+    "garde",
+    "gardez",
+    "filtre",
+    "filtrez",
+    "mets",
+    "mettez",
+    "corrige",
+    "corrigez",
+    "inverse",
+    "inversez",
+    "traduis",
+    "traduisez",
+    "formate",
+    "formatez",
+    "sort",
+    "add",
+    "remove",
+    "drop",
+    "rename",
+    "replace",
+    "modify",
+    "keep",
+    "filter",
+    "fix",
+    "group",
+    "order",
+    "reverse",
+    "translate",
+    "format",
+    "put",
+    "move",
+    "deplace",
+    "déplace",
+    "déplacez",
+];
 
 /// The saved file a proposal updates and the witness it was proposed over; `None` for a
 /// proposal that creates its file (a fresh creation keeps its own fresh destination).

@@ -329,17 +329,35 @@ impl PendingGate {
     /// resume would run again ([`nika_trace::run_view::live_again`]).
     #[must_use]
     pub fn question(&self) -> String {
+        self.question_in(false)
+    }
+
+    /// [`Self::question`], said in French when `french`: the gate's own question stays as the
+    /// workflow wrote it.
+    #[must_use]
+    pub fn question_in(&self, french: bool) -> String {
+        let say = |en: &'static str, fr: &'static str| if french { fr } else { en };
         let how = match self.mode.as_str() {
-            "confirm" => "yes or no",
-            "choice" => "one of the choices, as written",
-            _ => "in words",
+            "confirm" => say("yes or no", "oui ou non"),
+            "choice" => say(
+                "one of the choices, as written",
+                "l'un des choix, tel qu'écrit",
+            ),
+            _ => say("in words", "en mots"),
         };
-        let again = nika_trace::run_view::live_again(&self.trace)
+        let again = nika_trace::run_view::live_again_in(&self.trace, french)
             .map_or_else(String::new, |line| format!("\n  {line}"));
-        format!(
-            "the run paused at `{}` and asks you:\n  {}\n  (answer {how} · the answer resumes the run · nothing answers for you){again}",
-            self.task, self.message
-        )
+        if french {
+            format!(
+                "le run s'est mis en pause à `{}` et vous demande :\n  {}\n  (répondez {how} · la réponse reprend le run · rien ne répond à votre place){again}",
+                self.task, self.message
+            )
+        } else {
+            format!(
+                "the run paused at `{}` and asks you:\n  {}\n  (answer {how} · the answer resumes the run · nothing answers for you){again}",
+                self.task, self.message
+            )
+        }
     }
 
     /// The `--answer task=value` the human's line becomes.
@@ -681,6 +699,26 @@ impl ProjectChangeSet {
             .collect()
     }
 
+    /// The audits of the workflow bytes this set would write whose check fails: each change's
+    /// own audit when the set holds it for those exact bytes, else the preview's audit of them
+    /// (child-blind, as the preview shows it). Bytes their own check refuses are never saved,
+    /// so no file is replaced by them.
+    #[must_use]
+    pub fn failing_audits(&self) -> Vec<WorkflowAudit> {
+        (self.changes.iter())
+            .filter(|change| change.is_workflow())
+            .map(|change| {
+                let (path, content) = (change.path(), change.content());
+                let bytes = Witness::of(content.as_bytes());
+                (self.audits.iter())
+                    .find(|audit| audit.path == path && audit.bytes.as_ref() == Some(&bytes))
+                    .cloned()
+                    .unwrap_or_else(|| audit_bytes(&path, content))
+            })
+            .filter(|audit| !audit.clean)
+            .collect()
+    }
+
     /// The project files the set's workflows read when they run, from the check facade's own
     /// permits for their exact bytes (typed, never the preview's words).
     #[must_use]
@@ -695,8 +733,19 @@ impl ProjectChangeSet {
                 None,
                 AuditOptions::default(),
             );
-            let needed = audit.ok().and_then(|a| a.report.permits.needed.fs);
-            for path in needed.map(|fs| fs.read).unwrap_or_default() {
+            let Ok(audit) = audit else {
+                continue;
+            };
+            let permits = &audit.report.permits;
+            // A path the workflow computes leaves `needed` a floor: the read grant in force is
+            // then what it may read (live gauntlet r01 B8: « il ne lit aucun fichier du projet »
+            // for a run reading ./releves/*.csv by computed paths).
+            let declared = (permits.declared.as_ref())
+                .and_then(|declared| declared.fs.as_ref())
+                .filter(|_| permits.partial.fs)
+                .map(|fs| fs.read.clone());
+            let needed = (permits.needed.fs.as_ref()).map(|fs| fs.read.clone());
+            for path in needed.into_iter().chain(declared).flatten() {
                 if !reads.contains(&path) {
                     reads.push(path);
                 }
@@ -714,6 +763,24 @@ impl ProjectChangeSet {
 #[must_use]
 pub fn check_on_disk(root: &Path, path: &Path) -> WorkflowAudit {
     check_with_access(root, path, None)
+}
+
+/// The refusal the workflow's own access declaration meets before its first task, as a finding:
+/// a declared reasoning effort its model's catalog does not offer.
+/// Such bytes are not clean, since every run of them is refused (live gauntlet r03 B3, 2026-10-17:
+/// « clean ✔ », then NIKA-1800 at the run). `None` when the declaration is admitted, refused only
+/// for what this machine holds, or absent.
+fn declared_refusal(audit: &nika_cli_host::oracle::Audit) -> Option<Vec<String>> {
+    const DECLARED: &str = "access: declared access refused · ";
+    // The catalog's own law over the declaration (an effort the named model does not offer),
+    // never what this machine holds: a seat not installed is the machine's.
+    const LAW: &str = "is not offered by";
+    let refused: Vec<String> = (audit.verdict.layers.blockers.iter())
+        .filter_map(|blocker| blocker.strip_prefix(DECLARED))
+        .filter(|why| why.contains(LAW))
+        .map(|why| format!("NIKA-1800 · every run is refused before it starts: {why}"))
+        .collect();
+    (!refused.is_empty()).then_some(refused)
 }
 
 /// [`check_on_disk`] under the human's explicit execution access, when
@@ -748,7 +815,8 @@ pub fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> Workflo
                 .as_ref()
                 .ok()
                 .filter(|a| pin.is_some() && !a.verdict.plan.is_admitted())
-                .map(|a| a.verdict.layers.blockers.clone());
+                .map(|a| a.verdict.layers.blockers.clone())
+                .or_else(|| judged.as_ref().ok().and_then(declared_refusal));
             let mut audit = fold_audit(path, judged);
             audit.bytes = Some(Witness::of(source.as_bytes()));
             if let Some(blocked) = blocked {
@@ -797,7 +865,14 @@ fn fold_audit<E: std::fmt::Display>(
 ) -> WorkflowAudit {
     match judged {
         Ok(audit) => {
-            let (findings, hints) = finding_rows(&audit.report);
+            let (mut findings, hints) = finding_rows(&audit.report);
+            // The verdict's own model findings (a model this binary cannot run, a sampling or a
+            // thinking budget its provider refuses, a cap too small) make it unclean too: each
+            // is said, so a failing verdict never reads as findings with nothing named.
+            findings.extend(audit.verdict.models.findings.iter().map(|finding| {
+                let code = finding.code.as_deref().unwrap_or("NIKA-MODEL");
+                format!("{code} · {}", finding.why)
+            }));
             let journey = &audit.report.data_journey;
             let models = model_places(&audit.report);
             let world =
@@ -977,19 +1052,51 @@ fn write_under(root: &Path, rel: &Path, content: &str) -> Result<(), ChangeError
 /// teaching after a consent hide the one line that matters (the run).
 #[must_use]
 pub fn compact_hints(hints: &[String], file: &str) -> Option<String> {
-    if hints.is_empty() {
+    compact_hints_in(hints, file, false)
+}
+
+/// [`compact_hints`], said in French when `french`. The hints are counted, never named by their
+/// internal kind (« assert-quarantine · reasoning-cap » told the person nothing): the command that
+/// prints them says what each asks.
+#[must_use]
+pub fn compact_hints_in(hints: &[String], file: &str, french: bool) -> Option<String> {
+    let n = hints.len();
+    if n == 0 {
         return None;
     }
-    let names: Vec<&str> = hints
-        .iter()
-        .map(|h| h.split(" · ").next().unwrap_or(h).trim())
-        .collect();
-    Some(format!(
-        "{} hint{} · {} · `nika check {file}` prints them",
-        hints.len(),
-        if hints.len() > 1 { "s" } else { "" },
-        names.join(" · ")
-    ))
+    let program = program();
+    Some(match (french, n) {
+        (true, 1) => format!("1 conseil pour l'améliorer · `{program} check {file}` l'affiche"),
+        (true, _) => {
+            format!("{n} conseils pour l'améliorer · `{program} check {file}` les affiche")
+        }
+        (false, 1) => format!("1 hint to improve it · `{program} check {file}` prints it"),
+        (false, _) => format!("{n} hints to improve it · `{program} check {file}` prints them"),
+    })
+}
+
+/// The program the person runs Nika as (`nika-dev`, `nika`): the name a hint gives, so a command
+/// copied from it reaches this same binary (live gauntlet, 2026-10-16: the hints said `nika`,
+/// which on that machine was an older release that refused the workflow). Any other name (a test
+/// binary, a renamed copy) reads as `nika`.
+/// The Session reads the same name (`nika-session`, `runtime::schedule::program`).
+fn program() -> String {
+    std::env::args_os()
+        .next()
+        .and_then(|first| {
+            std::path::Path::new(&first)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_owned)
+        })
+        .filter(|name| {
+            name == "nika"
+                || (name.starts_with("nika-")
+                    && name
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.')))
+        })
+        .unwrap_or_else(|| "nika".to_owned())
 }
 
 #[cfg(test)]
@@ -998,6 +1105,33 @@ mod tests {
     use super::*;
 
     const WORKFLOW: &str = "nika: daily\nmodel: mock/echo\npermits: { fs: { read: [\"./notes/**\"] }, tools: [\"nika:read\"] }\ntasks:\n  read:\n    invoke: { tool: \"nika:read\", args: { path: \"./notes/today.md\" } }\n  sum:\n    with: { text: \"${{ tasks.read.output }}\" }\n    infer: { prompt: \"Summarize: ${{ with.text }}\", max_tokens: 40 }\noutputs:\n  digest: ${{ tasks.sum.output }}\n";
+
+    /// A reasoning effort the named model's catalog does not offer makes every run refused before
+    /// its first task: such bytes are not clean (live gauntlet r03 B3, 2026-10-17: « clean ✔ »,
+    /// then NIKA-1800 at the run). The same workflow without the effort is clean.
+    #[test]
+    fn an_effort_the_model_does_not_offer_is_not_clean() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let effort = "nika: translate\nmodel: gemini/gemini-4-argon\nrun:\n  reasoning:\n    effort: low\npermits: {}\ntasks:\n  draft:\n    infer: { prompt: \"Say hello\", max_tokens: 4000 }\n";
+        std::fs::write(dir.path().join("translate.nika"), effort).expect("workflow");
+        let audit = check_on_disk(dir.path(), Path::new("translate.nika"));
+        assert!(!audit.clean, "{:?}", audit.findings);
+        assert!(
+            audit.findings.iter().any(|f| f
+                .starts_with("NIKA-1800 · every run is refused before it starts")
+                && f.contains("is not offered by `gemini/gemini-4-argon`")),
+            "{:?}",
+            audit.findings
+        );
+        let plain = effort.replace("run:\n  reasoning:\n    effort: low\n", "");
+        std::fs::write(dir.path().join("translate.nika"), plain).expect("workflow");
+        let audit = check_on_disk(dir.path(), Path::new("translate.nika"));
+        assert!(
+            !audit.findings.iter().any(|f| f.starts_with("NIKA-1800")),
+            "{:?}",
+            audit.findings
+        );
+    }
 
     /// The spend row reads the check's cost envelope, never a zero alone:
     /// no model at all, a local model with no catalog price (unknown, never

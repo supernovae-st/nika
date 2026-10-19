@@ -83,6 +83,10 @@ Two typed readings joined these modules on 2026-10-08, so every host reads the s
   screen or evidence); `Work` is one snapshot of the request, the
   candidate's files with their witnesses, audits and reach, the saved workflow, the last observed
   run (`current` only for the run of the workflow saved last in this session) and the rail.
+  The run (`Run::kept`) names whether it `sealed` its journal (the settlement's receipt named the
+  chain head: what a Stop's story reads, unchanged), the seal facts a verifier attested
+  (`seal_verified`, `signed`; absent when none judged the journal, and never read from `sealed`)
+  and, for a served run, its `job`, `receipt` and `outputs`.
   Since the same day it also names the run requested last (`RequestedRun`: the workflow, the
   names of the inputs it binds, never their values, and the reach of the bytes the check cleared
   for it) and, on `Saved`, the reach of the bytes the last consent saved; a workflow only run
@@ -127,6 +131,13 @@ Two typed readings joined these modules on 2026-10-08, so every host reads the s
   `is_error`, `ends_turn`: Nika's loop parks its run on it; MCP returns the text). The session
   implements it against its own state; a loop or a transport only lists and relays, and no reply
   grants anything. The Session writer owns the contract's evolution.
+- `lang` (19 October 2026, the ADR-144 amendment of that date) — the language the person speaks
+  (`Lang`, read from their own lines) and the words the unit says in it. Beside it are
+  `review::fr`, the review's lines in French, and `work::understood`, what the Session keeps of
+  a request an intelligence leads. `lang::schedule` holds a declared cadence in words, its zone
+  by its place, the missed-run policy and the keys an activation asks, and the person's answers
+  to those questions read back. The session keeps them at `nika_session::{Lang, zone_place,
+  zone_words}`.
 
 ## 3. Boundary
 
@@ -165,4 +176,28 @@ inventory offers that model: the role it would serve, the model, the route (`via
 whether it is ready, how it bills) and the catalogue's output list price on a metered route —
 none when the inventory offers no such model, never the author's words. `Work::with_queued`
 sets `queued`: the lines the person sent while the conversation's last run was under way, each
-with its identity, mode and state (`work::queue`).
+with its identity, mode and state (`work::queue`). `Work::with_feedback` sets `feedback`
+(`work::feedback`): the optional offer about the last result while it waits (its kind, its
+question in `ask`'s shape, its scope: request, revision, started bytes, execution, artifacts
+with their witnesses; for an opinion, the adjustment answer it follows) and the person's
+recorded answers to such offers; absent from the wire when there is none. An `Offer` may
+stand alone (`exclusive`: « Nothing to change », « Later »), serialized only when true, so
+every other offer's bytes are unchanged.
+
+
+`Intelligence.options` optionally carries the current settings selector's offers.
+They are absent when no selection is pending. Keys belong to Session's existing
+intelligence choice protocol; they are settings choices, not author question
+identities or authorization for an action. An option naming a model carries one
+`value` whose `choice` (`ModelFacts`, role `author`) states what the catalogue
+says of it, additively: beside the output price, `input_usd_per_million` (the
+same tariff's input price, or the list row's on a metered route without one),
+`context_tokens` (the model's own window), `prices_up_to_tokens` (the prompt
+tokens the prices hold up to, when their tariff prices only a cheaper part of
+that window) and `legacy` (deprecated or scheduled to retire). Each is
+absent from the wire while unknown, never zero, and facts written before them
+read back with none. `Intelligence.recommended` names the key of the one option
+the Session's single recommendation policy picks among them (the operator's
+saved default while it is servable, else the first configured provider's
+catalogue default model in catalogue order); it selects nothing and is absent
+when no option qualifies.

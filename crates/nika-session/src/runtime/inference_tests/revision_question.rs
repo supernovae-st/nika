@@ -26,11 +26,13 @@ fn revised() -> String {
     links(WORK, CHANGE)
 }
 
-/// A semantic CREATE of the copy into `destination` (plan, sketch, fills), then its judgment.
+/// A semantic CREATE of the copy into `destination`, then its judgment: the whole request,
+/// then its part again over the trial run, which runs whole.
 fn created(destination: &str) -> Vec<(u16, Value)> {
     let mut script: Vec<_> = (semantic_copy(destination).iter())
         .map(|t| (200, response(t)))
         .collect();
+    script.push((200, response(JUDGE_APPROVES)));
     script.push((200, response(JUDGE_APPROVES)));
     script
 }
@@ -38,7 +40,7 @@ fn created(destination: &str) -> Vec<(u16, Value)> {
 /// The loopback seat: semantic CREATE and its judge, typed revision links, then the judge of
 /// the answered revision. Questions replay without another authoring call.
 fn seat(revision: &str) -> Peer {
-    let mut script = authored(response);
+    let mut script = tried(response);
     script.extend([(200, response(revision)), (200, response(JUDGE_APPROVES))]);
     Peer::start(script)
 }
@@ -152,14 +154,18 @@ fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
     let (mut s, was) = asked(dir.path(), None);
     assert_eq!(
         peer.bodies().len(),
-        CREATE_CALLS + 1,
+        TRIED_CREATE_CALLS + 1,
         "the semantic CREATE authored and judged, one revised"
     );
     let before = files(dir.path());
     // The question owns the next line; the proposal it revises waits aside, never consentable.
     assert_eq!(s.phase(), SessionPhase::QuestionPending);
     assert_eq!(s.pending_proposal(), None);
-    assert!(s.status_line().starts_with("Needs one answer"));
+    assert!(
+        s.status_line().starts_with("Attend une réponse"),
+        "{}",
+        s.status_line()
+    );
     // The round asks the compiler's EDIT: the exact base, the change, the original request and
     // the recorded native revision it replays.
     let request = s.authoring.as_ref().expect("the revision round").request();
@@ -188,10 +194,10 @@ fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
     let bodies = peer.bodies();
     assert_eq!(
         bodies.len(),
-        CREATE_CALLS + 2,
+        TRIED_CREATE_CALLS + 2,
         "an answer replays: its one call is the round's judge"
     );
-    let (revision, judge) = (&bodies[CREATE_CALLS], &bodies[CREATE_CALLS + 1]);
+    let (revision, judge) = (&bodies[TRIED_CREATE_CALLS], &bodies[TRIED_CREATE_CALLS + 1]);
     assert!(judged(judge) && !judged(revision), "{judge:#}");
     assert!(s.pending_question().is_none());
     let revision = s.pending.clone().expect("the revised proposal waits");
@@ -212,7 +218,7 @@ fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
     assert_eq!(saved.expect("saved"), bytes);
     assert!(!dir.path().join("revised.txt").exists());
     assert!(!dir.path().join("sortie.txt").exists());
-    assert_eq!(peer.bodies().len(), CREATE_CALLS + 2);
+    assert_eq!(peer.bodies().len(), TRIED_CREATE_CALLS + 2);
 }
 
 #[test]
@@ -241,7 +247,7 @@ fn a_cancelled_revision_question_restores_the_proposal_it_revised() {
     let saved = std::fs::read_to_string(dir.path().join(was.set.changes[0].path()));
     assert_eq!(saved.expect("saved"), bytes_of(&was.set));
     assert!(!dir.path().join("sortie.txt").exists());
-    assert_eq!(peer.bodies().len(), CREATE_CALLS + 1);
+    assert_eq!(peer.bodies().len(), TRIED_CREATE_CALLS + 1);
 }
 
 /// A `yes` at a path choice is no offered path and no consent: the question stays open,
@@ -269,7 +275,7 @@ fn a_yes_at_the_revision_question_never_saves_the_old_proposal() {
     ));
     assert_eq!(
         peer.bodies().len(),
-        CREATE_CALLS + 1,
+        TRIED_CREATE_CALLS + 1,
         "no judge or new authoring"
     );
     assert_eq!(files(dir.path()), before, "nothing written");
@@ -298,7 +304,7 @@ fn a_waiting_revision_keeps_the_proposal_it_revises_as_the_draft() {
     assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
     let again = resumed.pending.clone().expect("proposed again");
     assert_eq!(bytes_of(&again), bytes_of(&was.set));
-    assert_eq!(peer.bodies().len(), CREATE_CALLS + 1);
+    assert_eq!(peer.bodies().len(), TRIED_CREATE_CALLS + 1);
 }
 
 /// Two unresolved choices are two questions of the same EDIT: which original destination,
@@ -314,8 +320,10 @@ fn every_destination_question_and_a_change_at_the_question_stay_in_the_revision(
         "    - ./sortie.txt\n    - ./secondaire.txt\n",
     );
     answer["candidate"] = json!(format!("{both}{second}"));
+    // The base's judgment runs over its whole trial: the whole request, then its part.
     let replies = [
         answer.to_string(),
+        JUDGE_APPROVES.to_owned(),
         JUDGE_APPROVES.to_owned(),
         links(TWO_OUTPUTS, TWO_CHOICES),
         JUDGE_APPROVES.to_owned(),
@@ -341,7 +349,7 @@ fn every_destination_question_and_a_change_at_the_question_stay_in_the_revision(
     assert_eq!(s.pending_proposal(), None);
     assert_eq!(
         peer.bodies().len(),
-        CREATE_CALLS + 1,
+        TRIED_CREATE_CALLS + 1,
         "the first answer only replays"
     );
     let out = s.turn("./revised.txt");
@@ -357,7 +365,7 @@ fn every_destination_question_and_a_change_at_the_question_stay_in_the_revision(
     assert!(!bytes.contains("sortie.txt"), "{bytes}");
     assert_eq!(
         peer.bodies().len(),
-        CREATE_CALLS + 2,
+        TRIED_CREATE_CALLS + 2,
         "answers replay: nothing read afresh, the finishing round's judge alone"
     );
 }
@@ -389,7 +397,7 @@ fn a_saved_workflows_revision_question_is_answered_through_its_edit() {
     assert!(bytes.contains("revised.txt"), "{bytes}");
     let now = std::fs::read_to_string(dir.path().join(&saved)).expect("still saved");
     assert_eq!(now, base, "nothing written before a consent");
-    assert_eq!(peer.bodies().len(), CREATE_CALLS + 2);
+    assert_eq!(peer.bodies().len(), TRIED_CREATE_CALLS + 2);
 }
 
 /// A refused spending line at the question expires what waits, the set-aside proposal with it:
@@ -411,7 +419,7 @@ fn a_refused_budget_at_the_question_expires_the_proposal_it_set_aside() {
     let mut resumed = open(dir.path());
     resumed.enable_history(home.path()).expect("history");
     assert_eq!(resumed.restored_draft_id(), None, "no draft outlives it");
-    assert_eq!(peer.bodies().len(), CREATE_CALLS + 1);
+    assert_eq!(peer.bodies().len(), TRIED_CREATE_CALLS + 1);
 }
 
 // ── A saved workflow's revision keeps its target, its route and its money ─────────────────────
@@ -575,7 +583,7 @@ fn a_saved_workflows_revision_is_saved_in_place_and_runs_nothing() {
         nika_files(dir.path())
     );
     assert!(!dir.path().join("revised.txt").exists() && !dir.path().join("sortie.txt").exists());
-    assert_eq!(peer.bodies().len(), CREATE_CALLS + 2);
+    assert_eq!(peer.bodies().len(), TRIED_CREATE_CALLS + 2);
 }
 
 /// F-D1 (question): the answered EDIT proposes the update of the saved file over its base.
@@ -593,7 +601,7 @@ fn a_saved_workflows_answered_revision_updates_the_same_file() {
     let out = s.turn("./revised.txt");
     assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
     assert_updates(&s, &saved, &base);
-    assert_eq!(peer.bodies().len(), CREATE_CALLS + 2);
+    assert_eq!(peer.bodies().len(), TRIED_CREATE_CALLS + 2);
 }
 
 /// F-D2: a base that moves while the revision's question waits is refused at the proposal —
@@ -678,7 +686,7 @@ fn a_correction_after_save_and_run_is_routed_as_the_saved_files_revision() {
     let out = s.turn("./revised.txt");
     assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
     assert_updates(&s, &saved, &base);
-    let edit = peer.bodies()[CREATE_CALLS].to_string();
+    let edit = peer.bodies()[TRIED_CREATE_CALLS].to_string();
     assert!(
         edit.contains("sortie.txt"),
         "the EDIT carries the base: {edit}"
@@ -731,7 +739,7 @@ fn an_undecided_work_line_beside_a_saved_workflow_changes_nothing() {
     let before = kept_state(&s);
     let out = s.turn(UNDECIDED_WORK);
     assert!(
-        matches!(&out, TurnOutcome::Facts(t) if t.contains("nothing changed")),
+        matches!(&out, TurnOutcome::Facts(t) if t.contains("nothing changed") || t.contains("rien n'a changé")),
         "{out:?}"
     );
     assert_eq!(peer.bodies().len(), calls, "no request");
@@ -805,7 +813,7 @@ fn undecided_keeps_everything(classifier: Option<Box<dyn TurnClassifier>>, metho
     let before = kept_state(&s);
     let out = s.turn(UNDECIDED_WORK);
     assert!(
-        matches!(&out, TurnOutcome::Facts(t) if t.contains("nothing changed")),
+        matches!(&out, TurnOutcome::Facts(t) if t.contains("nothing changed") || t.contains("rien n'a changé")),
         "{out:?}"
     );
     assert_eq!(
@@ -853,7 +861,7 @@ fn a_refusal_left_by_an_earlier_turn_is_not_a_refused_label() {
     let before = kept_state(&s);
     let out = s.turn(UNDECIDED_WORK);
     assert!(
-        matches!(&out, TurnOutcome::Facts(t) if t.contains("nothing changed")),
+        matches!(&out, TurnOutcome::Facts(t) if t.contains("nothing changed") || t.contains("rien n'a changé")),
         "{out:?}"
     );
     assert_eq!(peer.bodies().len(), calls);
@@ -923,9 +931,8 @@ fn a_ceiling_saved_with_other_bytes_refuses_the_revision_before_any_call() {
     let out = s.revise_saved(&saved, CHANGE);
     // The refusal speaks of this revision, never of running.
     assert!(
-        matches!(&out, TurnOutcome::Refusal(r) if r.text.contains("monetary decision")
-            && r.text.contains("this revision cannot inherit its ceiling")
-            && !r.text.contains("running")),
+        matches!(&out, TurnOutcome::Refusal(r) if r.class == RefusalClass::NotAllowed
+            && r.text == "the saved workflow changed since its execution constraint was recorded — this revision cannot inherit its ceiling · nothing was sent · or state this revision's ceiling"),
         "{out:?}"
     );
     assert_eq!(peer.bodies().len(), calls, "nothing sent");
@@ -934,11 +941,12 @@ fn a_ceiling_saved_with_other_bytes_refuses_the_revision_before_any_call() {
         std::fs::read_to_string(dir.path().join(&saved)).expect("A"),
         moved
     );
-    // The Run law keeps its own words over the same moved bytes: review before running.
+    // The moved bytes are not the ones the trial ran: the rehearsal's witness refuses them
+    // before any Run, in its own words.
     let run = s.turn("run it");
     assert!(
-        matches!(&run, TurnOutcome::Refusal(r)
-            if r.text.contains("prepare and review the revision before running")),
+        matches!(&run, TurnOutcome::Refusal(r) if r.class == RefusalClass::StaleRevision
+            && r.text == "the saved workflow `compiled-workflow.nika` is not the rehearsed one · the rehearsal of `compiled-workflow.nika` was withdrawn for this attempt · nothing was run · restore the original file and ask to retry, or ask Nika to adapt the workflow to the changed files"),
         "{run:?}"
     );
     assert_eq!(peer.bodies().len(), calls, "nothing sent");
@@ -964,7 +972,8 @@ fn a_ceiling_saved_for_another_resolved_file_refuses_the_revision() {
     let calls = peer.bodies().len();
     let out = s.revise_saved(&saved, CHANGE);
     assert!(
-        matches!(&out, TurnOutcome::Refusal(r) if r.text.contains("monetary decision")),
+        matches!(&out, TurnOutcome::Refusal(r) if r.class == RefusalClass::NotAllowed
+            && r.text == "the saved workflow changed since its execution constraint was recorded — this revision cannot inherit its ceiling · nothing was sent · or state this revision's ceiling"),
         "{out:?}"
     );
     assert_eq!(peer.bodies().len(), calls, "nothing sent");
@@ -1064,7 +1073,7 @@ fn corrected_update(s: &mut SessionRuntime, saved: &Path, base: &str) -> TurnOut
 /// own consent, and nothing runs.
 #[test]
 fn a_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
-    let mut script = authored(response);
+    let mut script = tried(response);
     script.extend([
         (200, response(&revised())),
         (200, response(JUDGE_APPROVES)),
@@ -1110,7 +1119,7 @@ fn a_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
     for output in ["sortie.txt", "revised.txt", "final.txt"] {
         assert!(!dir.path().join(output).exists(), "nothing ran: {output}");
     }
-    assert_eq!(peer.bodies().len(), CREATE_CALLS + 4);
+    assert_eq!(peer.bodies().len(), TRIED_CREATE_CALLS + 4);
 }
 
 /// F-P2-1 (restore seam): the kept round of a correction of saved A's update, its question
@@ -1122,7 +1131,7 @@ fn a_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
 /// to a proposal.
 #[test]
 fn a_restored_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
-    let mut script = authored(response);
+    let mut script = tried(response);
     script.extend([
         (200, response(&revised())),
         (200, response(JUDGE_APPROVES)),
@@ -1156,7 +1165,7 @@ fn a_restored_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
     );
     assert_eq!(
         peer.bodies().len(),
-        CREATE_CALLS + 3,
+        TRIED_CREATE_CALLS + 3,
         "the replay calls no one"
     );
     let out = resumed.turn("./final.txt");
@@ -1165,7 +1174,11 @@ fn a_restored_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
             if preview.contains("only a judge this round can permit")),
         "{out:?}"
     );
-    assert_eq!(peer.bodies().len(), CREATE_CALLS + 3, "no judge is asked");
+    assert_eq!(
+        peer.bodies().len(),
+        TRIED_CREATE_CALLS + 3,
+        "no judge is asked"
+    );
     assert_updates(&resumed, &saved, &base);
     assert_eq!(
         bytes_of(resumed.pending.as_ref().expect("the update waits again")),

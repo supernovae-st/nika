@@ -622,3 +622,34 @@ fn a_model_the_human_named_is_never_swapped_for_a_stronger_one() {
 }
 
 mod stop;
+
+/// A request said again at a question keeps the answers its round already bound: the model,
+/// answered, is not asked again because the person restated the work (live gauntlet,
+/// 2026-10-15: « Europe/Paris » and the model, both taken, were asked again after the sources
+/// were restated).
+#[test]
+fn a_restatement_keeps_the_answers_already_bound() {
+    let root = world();
+    let mut s = open(root.path(), &[]);
+    let TurnOutcome::Question { key, .. } = s.turn(DRAFT) else {
+        panic!("a draft needs its model: the compiler asks");
+    };
+    assert_eq!(key, "model");
+    let mut answered = s.authoring.clone().expect("the round waits");
+    answered
+        .answers
+        .insert("model".to_owned(), "\"mock/echo\"".to_owned());
+    let outcome = s.restate_round(&answered, "keep the summary to three short bullets");
+    assert!(
+        !matches!(&outcome, TurnOutcome::Question { key, .. } if key == "model"),
+        "{outcome:?}"
+    );
+    // Red before: a fresh round dropped the bound model and asked it again.
+    let mut fresh = open(root.path(), &[]);
+    assert!(matches!(fresh.turn(DRAFT), TurnOutcome::Question { .. }));
+    let unanswered = fresh.authoring.clone().expect("the round waits");
+    assert!(matches!(
+        fresh.restate_round(&unanswered, "keep the summary to three short bullets"),
+        TurnOutcome::Question { ref key, .. } if key == "model"
+    ));
+}

@@ -156,7 +156,11 @@ impl SessionRuntime {
     /// The status beside the prompt while a line is held.
     pub(super) fn knowledge_status(&self) -> Option<String> {
         self.knowledge.held.as_ref().map(|_| {
-            "Needs the knowledge choice · your message waits · `/knowledge embedded` resumes it"
+            (self.language)
+                .pick(
+                    "Needs the knowledge choice · your message waits · `/knowledge embedded` resumes it",
+                    "Attend le choix de la connaissance · votre message attend · « /knowledge embedded » le reprend",
+                )
                 .to_owned()
         })
     }

@@ -234,6 +234,7 @@ impl HttpAdapterIdentity {
                 .chain(sessions.then_some(nika_session_host::CAPABILITY))
                 .chain(sessions.then_some(nika_session_host::SELECTION_CAPABILITY))
                 .chain(sessions.then_some(nika_session_host::STEERING_CAPABILITY))
+                .chain(sessions.then_some(nika_session_host::QUESTION_CAPABILITY))
                 .collect(),
         }
     }

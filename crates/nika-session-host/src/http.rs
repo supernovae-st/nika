@@ -218,7 +218,8 @@ impl Sessions {
     }
 }
 
-/// One command: a refusal or a replay answers at once, a submit once it settled.
+/// One command: a refusal or a replay answers at once, a submit (or a reply bound to one
+/// question) once it settled.
 async fn command(host: &SessionHost, body: &[u8]) -> Response<ResponseBody> {
     // A body it cannot parse is refused naming the identity it carries, when a valid one, as the
     // native door names it.
@@ -236,14 +237,16 @@ async fn command(host: &SessionHost, body: &[u8]) -> Response<ResponseBody> {
     let command = match Command::parse(body) {
         Ok(
             command @ (Command::Submit { .. }
+            | Command::Answer { .. }
+            | Command::Delegate { .. }
             | Command::Stop { .. }
             | Command::Steer { .. }
             | Command::FollowUp { .. }),
         ) => command,
         Ok(_) => {
             return refused(
-                "only submit, stop, steer and follow_up are commands here · read with GET, \
-                 close with DELETE"
+                "only submit, answer, delegate, stop, steer and follow_up are commands here · \
+                 read with GET, close with DELETE"
                     .to_owned(),
                 None,
             );

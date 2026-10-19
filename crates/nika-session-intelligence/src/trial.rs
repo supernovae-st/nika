@@ -100,7 +100,18 @@ pub fn prepare(
     let screen = workflow
         .as_ref()
         .map(|workflow| replay::screen(workflow, &captures));
-    let words = words(&captures, screen.as_ref(), &unobserved);
+    let order: Vec<&str> = (workflow.iter())
+        .flat_map(|workflow| workflow.tasks.iter())
+        .map(|task| task.value.id.value.as_str())
+        .collect();
+    let written = (workflow.as_ref().zip(screen.as_ref()))
+        .map(|(workflow, screen)| screen.written_behind(workflow))
+        .unwrap_or_default();
+    let words = words(
+        &captures,
+        (screen.as_ref(), &order),
+        (&unobserved, &written),
+    );
     let project = root.clone();
     let mut trial_room = ObservedRoom::new(&root).located(move |candidate| {
         let landing = nika_session_change::review::destination(&project, candidate)?;
@@ -116,11 +127,13 @@ pub fn prepare(
 }
 
 /// What a person reads of a trial over `captures`: the pages it ran on and when they were
-/// observed, the steps it did not run, and the sources it could not observe.
+/// observed, the steps it did not run and, in the workflow's `order`, those it cannot run
+/// because they read one of them, the sources it could not observe, and the files those steps
+/// write (`written`), whose read-back is never what a run writes.
 fn words(
     captures: &Captures,
-    screen: Option<&replay::ReplayScreen>,
-    unobserved: &[String],
+    (screen, order): (Option<&replay::ReplayScreen>, &[&str]),
+    (unobserved, written): (&[String], &[String]),
 ) -> String {
     let mut lines = String::new();
     let pages: Vec<String> = (captures.iter())
@@ -144,8 +157,27 @@ fn words(
         .collect();
     kept_out.push("any effect outside the room".to_owned());
     let _ = writeln!(lines, "not run: {}", kept_out.join(" · "));
+    // A step that reads one the trial does not run runs, if at all, on what the room could not
+    // give: it is no more tried than that one (live gauntlet r04 B1, 2026-10-17: the steps after
+    // the model step went unsaid, and the first run failed in one of them).
+    let behind: Vec<&str> = (order.iter().copied())
+        .filter(|task| screen.is_some_and(|s| !s.is_unexercised(task) && s.behind(task)))
+        .collect();
+    if !behind.is_empty() {
+        let _ = writeln!(lines, "nor what reads them: {}", behind.join(", "));
+    }
     if !unobserved.is_empty() {
         let _ = writeln!(lines, "not observed: {}", unobserved.join(", "));
+    }
+    // What those steps write is read back from what the room could not give (live gauntlet
+    // wave 6 r07 B2, 2026-10-18: « _Aucun article…_ » read back as the result).
+    if !written.is_empty() {
+        let named: Vec<String> = written.iter().map(|path| format!("`{path}`")).collect();
+        let _ = writeln!(
+            lines,
+            "what it read back of {} comes from steps it did not run: never what a run writes",
+            named.join(", ")
+        );
     }
     lines
 }

@@ -78,7 +78,11 @@ fn every_run_door_exit_has_one_end_and_its_meaning() {
         ]
     );
     assert_eq!(RunEnd::of(0).meaning(), "succeeded");
-    assert!(RunEnd::of(4).meaning().contains("--resume <trace>"));
+    // A Session asks the paused run's question itself: no command line to copy (live gauntlet
+    // r02, 2026-10-16: « exit 4 · … `nika run <file> --resume <trace> --answer …` » on a card).
+    let paused = RunEnd::of(4).meaning();
+    assert!(paused.contains("once its question is answered"), "{paused}");
+    assert!(!paused.contains("--resume"), "{paused}");
     assert_eq!(RunEnd::of(9).meaning(), "ended with an unknown code");
 }
 
@@ -155,7 +159,8 @@ fn a_kept_run_is_not_the_current_result_and_names_only_what_was_observed() {
 }
 
 /// Exit 130 alone cannot tell a Stop from an abort: the sealed journal does. A run whose
-/// settlement named its chain head stopped at a wave boundary; one that named none was cut.
+/// settlement named its chain head stopped at a wave boundary; one that named none was cut. No
+/// verifier judged these journals: `seal_verified` and `signed` stay absent, never read from it.
 #[test]
 fn an_interrupted_run_that_sealed_its_journal_is_told_from_one_cut_mid_flight() {
     let observed = |chain_head: Option<&str>| {
@@ -178,12 +183,52 @@ fn an_interrupted_run_that_sealed_its_journal_is_told_from_one_cut_mid_flight() 
     }
     assert_eq!(stopped["sealed"], true, "{stopped}");
     assert_eq!(cut["sealed"], false, "{cut}");
+    assert!(
+        stopped["seal_verified"].is_null() && stopped["signed"].is_null(),
+        "{stopped}"
+    );
     assert_eq!(
         serde_json::to_value(Run::new(true, None, Some(0), None, None, None, None, None))
             .expect("serializes")["sealed"],
         false,
         "a run that named no receipt sealed nothing this host saw"
     );
+}
+
+/// A kept run names the job a resident ran it as, the receipt and declared outputs it serves
+/// for that job, and the seal facts a verifier attested for its journal (`seal_verified`,
+/// `signed`); `sealed` keeps its own fact, the receipt naming the chain head, and is never read
+/// as a verifier's judgment; a run no verifier judged names none.
+#[test]
+fn a_kept_run_names_its_job_receipt_outputs_and_the_verifiers_seal() {
+    let mut kept = nika_trace::run_view::KeptRun::new();
+    kept.chain_head = Some("cd".to_owned());
+    let receipt = serde_json::json!({"job_id": "job-1", "chain_head": "cd"});
+    let outputs = serde_json::json!({"summary": "three lines"});
+    let kept = kept.served(
+        "job-1",
+        receipt.as_object().cloned(),
+        outputs.as_object().cloned(),
+    );
+    let unsigned = serde_json::json!({"tier": "ok", "chain": {"headline": "intact"},
+        "seal": {"tier": "unsealed"}});
+    let judged = Run::kept(true, kept.clone().verified(&unsigned));
+    let run = serde_json::to_value(&judged).expect("serializes");
+    assert_eq!(run["job"], "job-1");
+    assert_eq!(run["receipt"]["chain_head"], "cd");
+    assert_eq!(run["outputs"]["summary"], "three lines");
+    assert_eq!(
+        run["sealed"], true,
+        "the receipt named the chain head: {run}"
+    );
+    assert_eq!(run["seal_verified"], false, "an unsigned journal: {run}");
+    assert_eq!(run["signed"], false, "{run}");
+    let unjudged = serde_json::to_value(Run::kept(true, kept)).expect("serializes");
+    assert!(
+        unjudged["seal_verified"].is_null() && unjudged["signed"].is_null(),
+        "{unjudged}"
+    );
+    assert_eq!(unjudged["sealed"], true, "{unjudged}");
 }
 
 #[test]
@@ -316,6 +361,10 @@ fn an_answer_act_travels_with_its_question_and_only_its_own_fields() {
     assert_eq!(
         wire(AnswerAct::Restated { key: key() }),
         serde_json::json!({"question": witness, "act": "restated", "key": "const.destination_path"})
+    );
+    assert_eq!(
+        wire(AnswerAct::Delegated { key: key() }),
+        serde_json::json!({"question": witness, "act": "delegated", "key": "const.destination_path"})
     );
     let waits = AnswerAct::Waits {
         key: key(),
@@ -876,12 +925,27 @@ fn only_spending_decisions_require_a_line_typed_after_they_were_shown() {
         Waiting::Input {
             name: "base".to_owned(),
         },
+        Waiting::RunCeiling {
+            workflow: PathBuf::from("brief.nika"),
+        },
         Waiting::Activation {
             key: "project.timezone".to_owned(),
         },
     ] {
         assert!(!other.requires_fresh_input(), "{other:?}");
     }
+}
+
+/// A run waiting for its ceiling travels with the workflow it is for, under its own kind.
+#[test]
+fn a_run_ceiling_travels_with_its_workflow() {
+    let waits = Waiting::RunCeiling {
+        workflow: PathBuf::from("brief.nika"),
+    };
+    assert_eq!(
+        serde_json::to_value(&waits).expect("serializes"),
+        serde_json::json!({"kind": "run_ceiling", "workflow": "brief.nika"})
+    );
 }
 
 /// The waiting question travels as the compiler asks it: its own question document, field for
@@ -1141,8 +1205,131 @@ fn queued_lines_and_offered_model_facts_reach_hosts_typed() {
     assert_eq!(one, other, "a price compares by its total order");
 }
 
+/// What the catalogue states beside the output price rides the same facts, additively: the
+/// input price of the same tariff, the context window and the legacy mark; each is absent from
+/// the wire while unknown, and facts written before them read back with none.
+#[test]
+fn catalogue_facts_ride_beside_the_output_price_and_stay_absent_while_unknown() {
+    use super::ModelFacts;
+    let words = (
+        "deepseek".to_owned(),
+        "api".to_owned(),
+        "api_metered".to_owned(),
+    );
+    let model = "deepseek/deepseek-flash";
+    let facts = ModelFacts::new("author", model, words.clone(), true, Some(1.1)).with_catalogue(
+        Some(0.27),
+        Some(128_000),
+        true,
+    );
+    let json = serde_json::to_value(&facts).expect("serializes");
+    assert_eq!(json["input_usd_per_million"], serde_json::json!(0.27));
+    assert_eq!(json["output_usd_per_million"], serde_json::json!(1.1));
+    assert_eq!(json["context_tokens"], serde_json::json!(128_000));
+    assert_eq!(json["legacy"], serde_json::json!(true));
+    let read: ModelFacts = serde_json::from_value(json).expect("reads back");
+    assert_eq!(read, facts);
+    let bare =
+        ModelFacts::new("author", model, words, true, None).with_catalogue(None, None, false);
+    let bare = serde_json::to_value(&bare).expect("serializes");
+    for absent in [
+        "input_usd_per_million",
+        "output_usd_per_million",
+        "context_tokens",
+        "legacy",
+    ] {
+        assert!(bare.get(absent).is_none(), "{absent}: {bare}");
+    }
+    let earlier: ModelFacts = serde_json::from_value(serde_json::json!({"role": "run",
+        "model": model, "via": "deepseek", "class": "api", "configured": true,
+        "billing": "api_metered", "output_usd_per_million": 1.1}))
+    .expect("facts written before the catalogue fields");
+    assert_eq!(
+        (
+            earlier.input_usd_per_million,
+            earlier.context_tokens,
+            earlier.legacy
+        ),
+        (None, None, false)
+    );
+}
+
+/// Prices whose tariff covers only part of the window say how far they hold, beside the window
+/// itself; the mark is absent while they hold across it, and facts written before it read back
+/// with none.
+#[test]
+fn prices_that_hold_for_part_of_the_window_say_how_far() {
+    use super::ModelFacts;
+    let words = (
+        "anthropic".to_owned(),
+        "api".to_owned(),
+        "api_metered".to_owned(),
+    );
+    let model = "anthropic/claude-haiku-5-5";
+    let whole = ModelFacts::new("author", model, words, true, Some(0.5)).with_catalogue(
+        Some(0.1),
+        Some(1_000_000),
+        false,
+    );
+    let tiered = whole.clone().with_prices_up_to(Some(100_000));
+    let json = serde_json::to_value(&tiered).expect("serializes");
+    assert_eq!(json["context_tokens"], serde_json::json!(1_000_000));
+    assert_eq!(json["prices_up_to_tokens"], serde_json::json!(100_000));
+    let read: ModelFacts = serde_json::from_value(json).expect("reads back");
+    assert_eq!(read, tiered);
+    let whole = serde_json::to_value(&whole).expect("serializes");
+    assert!(whole.get("prices_up_to_tokens").is_none(), "{whole}");
+    let earlier: ModelFacts = serde_json::from_value(serde_json::json!({"role": "author",
+        "model": model, "via": "anthropic", "class": "api", "configured": true,
+        "billing": "api_metered", "output_usd_per_million": 0.5, "context_tokens": 100_000}))
+    .expect("facts written before the mark");
+    assert_eq!(earlier.prices_up_to_tokens, None);
+}
+
 /// A stopped turn says how the Stop reached the intelligence and which lines were not sent, in
 /// words and typed.
+/// A goal restated with corrections reads back as the person said it: the original request,
+/// then each correction in the order said, never the lead or the label that joined them; any
+/// other goal reads whole, with no correction, and no goal reads nothing.
+#[test]
+fn a_restated_goal_reads_back_as_said() {
+    let original = "Fais-moi une veille quotidienne sur la météo\nen trois points";
+    let once = Request::restated(original, "I leave the choice to Nika.");
+    let twice = Request::restated(&once, "en markdown\net en français");
+    let request = |goal: &str| Request::new(Some(goal.to_owned()), Vec::new(), Vec::new());
+    assert_eq!(
+        request(&once).said(),
+        Some((original, vec!["I leave the choice to Nika."]))
+    );
+    assert_eq!(
+        request(&twice).said(),
+        Some((
+            original,
+            vec!["I leave the choice to Nika.", "en markdown\net en français"]
+        ))
+    );
+    for words in ["Original request", "takes precedence"] {
+        assert!(once.contains(words), "the author reads the frame: {once}");
+    }
+    let plain = "Correction: send it at 9h, not 8h";
+    assert_eq!(request(plain).said(), Some((plain, Vec::new())));
+    assert_eq!(Request::default().said(), None);
+    // The same words again join nothing; words that return to an earlier correction are new
+    // again (live gauntlet r06 B8: three identical corrections piled up).
+    assert_eq!(
+        Request::restated(&twice, "en  markdown\net en français"),
+        twice
+    );
+    assert_eq!(Request::restated(original, original), original);
+    let back = Request::restated(&twice, "I leave the choice to Nika.");
+    assert_eq!(
+        request(&back)
+            .said()
+            .map(|(_, corrections)| corrections.len()),
+        Some(3)
+    );
+}
+
 #[test]
 fn a_stopped_turn_says_how_it_reached_the_run_and_what_was_not_sent() {
     use super::{QueueMode, Queued, QueuedState};

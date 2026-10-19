@@ -44,7 +44,7 @@ fn doubted() -> Vec<(u16, Value)> {
         (200, response(&fills.to_string())),
     ];
     for choice in ["unfaithful", "carried", "consistent"] {
-        script.push((200, response(&json!({ "choice": choice }).to_string())));
+        script.push((200, response(&judge_answer(choice))));
     }
     script
 }
@@ -81,20 +81,17 @@ fn a_doubted_trial_run_reaches_the_configured_verifier_by_default() {
         .map(|body| asked(body).expect("a closed choice"))
         .collect();
     assert_localized(&judged);
-    assert!(
-        judged[..2]
-            .iter()
-            .all(|(state, _)| state["observation"].is_null())
-    );
-    // The run's texts reach the verifier in the observed question alone: no authoring call and
-    // no earlier question carries them.
-    let before = &bodies[..AUTHOR_CALLS + 2];
-    assert!(
-        before
-            .iter()
-            .all(|b| !b.to_string().contains("TRIAL-ROW-7"))
-    );
-    assert!(bodies[AUTHOR_CALLS + 2].to_string().contains("TRIAL-ROW-7"));
+    // The whole question reads the run from its first ask; the part asked alone does not.
+    assert_eq!(judged[0].0["observation"], judged[2].0["observation"]);
+    assert!(judged[1].0["observation"].is_null());
+    // The run's texts reach the verifier over the whole request and over the run: no authoring
+    // call and not the part asked alone carry them.
+    let shown: Vec<bool> = (bodies.iter())
+        .map(|body| body.to_string().contains("TRIAL-ROW-7"))
+        .collect();
+    let mut expected = vec![false; AUTHOR_CALLS];
+    expected.extend([true, false, true]);
+    assert_eq!(shown, expected);
     assert!(
         !dir.path().join("sortie.txt").exists(),
         "preparation never runs on the project"
@@ -126,6 +123,9 @@ fn assert_observed(s: &SessionRuntime, (state, options): &(Value, Vec<String>)) 
     assert_eq!(state["observation"], observation);
     let attempt = attempt(s);
     assert_eq!(attempt["doubt"], json!(["unfaithful"]));
+    // The peer states no model-written part: the law ran and found none, never « unrun ».
+    assert_eq!(attempt["model_parts"], json!([]), "{attempt:#}");
+    assert_eq!(attempt.get("model_parts_unrun"), None, "{attempt:#}");
     assert_eq!(attempt["settled_by"], "verify-observed");
     assert_eq!(attempt["candidate_sha256"], sha);
     for empty in ["defects", "unknown", "contested", "unsettled"] {
@@ -148,6 +148,7 @@ fn assert_observed(s: &SessionRuntime, (state, options): &(Value, Vec<String>)) 
         ],
     });
     assert_eq!(asked["observation"], receipt);
+    assert_eq!(attempt["questions"][0]["observation"], receipt);
     assert!(
         !asked.to_string().contains("TRIAL-ROW-7"),
         "a digest, never the text"
@@ -162,12 +163,12 @@ impl TurnClassifier for Work {
 }
 /// Why a doubt with no defect stays undecided when no run of the doubted bytes exists.
 const NO_TRIAL: &str = "no trial run of these exact bytes exists in this compile";
-/// A doubted creation no trial run can decide ([`WORK`] states no file the room may copy in, so
-/// the room refuses it before any run): the judge doubts the whole request, carries its one part
-/// (no task is left open to name) and, asked where its doubt is, names nothing: the same judge
-/// asked again would decide nothing. The candidate is held as the preview, never proposed; its
-/// record is kept with the judge's rejection, so a later line that replays it asks that judge
-/// nothing, and nothing waits for a judge; the session says so.
+/// A doubted creation no trial run can decide ([`WORK`]'s input has not arrived here, so the
+/// room refuses the bytes before any run, [`super::untriable`]): the judge doubts the whole
+/// request, carries its one part (no task is left open to name) and, asked where its doubt is,
+/// names nothing: the same judge asked again would decide nothing. The candidate is held as the
+/// preview, never proposed; its record is kept with the judge's rejection, so a later line that
+/// replays it asks that judge nothing, and nothing waits for a judge; the session says so.
 #[test]
 fn a_doubt_no_trial_run_can_decide_is_held_never_proposed_nor_replayed() {
     let mut script: Vec<_> = semantic_create()
@@ -175,12 +176,13 @@ fn a_doubt_no_trial_run_can_decide_is_held_never_proposed_nor_replayed() {
         .map(|t| (200, response(t)))
         .collect();
     for choice in ["unfaithful", "carried", "unlocated"] {
-        script.push((200, response(&json!({ "choice": choice }).to_string())));
+        script.push((200, response(&judge_answer(choice))));
     }
     let peer = Peer::start(script);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());
+    untriable(dir.path());
     s.enable_continuous_preparation();
     s.with_classifier(Box::new(Work));
     let said = s.turn(WORK);

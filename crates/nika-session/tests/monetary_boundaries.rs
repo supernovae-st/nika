@@ -303,18 +303,23 @@ fn changed_saved_bytes_refuse_through_an_alias() {
 }
 
 #[test]
-fn reopened_saved_constraints_require_explicit_reconfirmation() {
+fn reopened_legacy_saved_constraints_require_explicit_reconfirmation() {
     for restore in [false, true] {
         let dir = tempfile::tempdir().expect("fixture");
         drop(saved(dir.path(), "budget 0 dollars"));
+        // Earlier Saves have consent evidence but no durable execution constraint.
+        std::fs::remove_file(dir.path().join(".nika/saved-money.ndjson"))
+            .expect("legacy Save without a monetary receipt");
         let (mut session, calls) = open(dir.path());
         if restore {
             assert!(session.restore_state().is_some());
         }
         let input = format!("run {WORKFLOW}");
+        // No ceiling is proved: the run asks one (NIK-170), never a default; a run line stating
+        // one is a request of its own.
         let out = session.turn(&input);
         assert!(
-            matches!(out, TurnOutcome::Refusal(_)),
+            matches!(out, TurnOutcome::Question { ref key, .. } if key == "run.ceiling"),
             "restore={restore}: {out:?}"
         );
         assert_eq!(calls.counts(), (0, 0));
@@ -331,9 +336,117 @@ fn reopened_saved_constraints_require_explicit_reconfirmation() {
             );
         }
         assert!(
-            matches!(session.turn(&input), TurnOutcome::Refusal(_)),
-            "a one-turn override must not prove a saved binding"
+            matches!(session.turn(&input), TurnOutcome::Question { ref key, .. } if key == "run.ceiling"),
+            "a one-turn override must not prove a saved binding: the ceiling is asked again"
         );
+    }
+}
+
+#[test]
+fn reopened_saved_constraints_preserve_their_exact_ceiling() {
+    for (clause, amount) in [
+        ("budget 0 dollars", 0.0_f64),
+        ("budget 0.07 dollars", 0.07_f64),
+    ] {
+        for restore in [false, true] {
+            let dir = tempfile::tempdir().expect("fixture");
+            drop(saved(dir.path(), clause));
+            let consents = std::fs::read(dir.path().join(".nika/consents.ndjson"))
+                .expect("saved consent evidence");
+            let receipt = std::fs::read(dir.path().join(".nika/saved-money.ndjson"))
+                .expect("saved execution constraint");
+            let (mut session, calls) = open(dir.path());
+            if restore {
+                assert!(session.restore_state().is_some());
+            }
+            assert!(session.pending_proposal().is_none());
+            assert_eq!(
+                session.inference_receipt().expect("no account restored"),
+                None
+            );
+
+            let input = format!("run {WORKFLOW}");
+            for request in [&input, &format!("run {WORKFLOW} budget 2 USD"), &input] {
+                let expected = if request == &input { amount } else { 2.0 };
+                let out = session.turn(request);
+                assert!(
+                    matches!(out, TurnOutcome::RunRequested { ref run, .. }
+                        if run.max_cost_usd.to_bits() == expected.to_bits()),
+                    "restore={restore}, {request}: {out:?}"
+                );
+                assert_eq!(calls.counts(), (0, 0));
+                assert_eq!(
+                    session
+                        .inference_receipt()
+                        .expect("no account supplied by Run"),
+                    None
+                );
+                assert!(session.pending_proposal().is_none());
+            }
+            assert_eq!(
+                session.monetary_decision().expect("saved ceiling").source,
+                MonetarySource::Explicit
+            );
+            assert_eq!(
+                std::fs::read(dir.path().join(".nika/consents.ndjson")).expect("consent kept"),
+                consents
+            );
+            assert_eq!(
+                std::fs::read(dir.path().join(".nika/saved-money.ndjson"))
+                    .expect("constraint kept"),
+                receipt
+            );
+        }
+    }
+}
+
+/// A restored Session keeps its unknown inference exposure: a plain Run proceeds only on the exact
+/// proof of its saved ceiling, never a default, and ordinary inference stays blocked after it.
+#[test]
+fn a_restored_session_runs_only_on_the_exact_saved_proof() {
+    for damage in ["none", "receipt", "bytes", "legacy"] {
+        let dir = tempfile::tempdir().expect("fixture");
+        drop(saved(dir.path(), "budget 0 dollars"));
+        let receipt = dir.path().join(".nika/saved-money.ndjson");
+        match damage {
+            "receipt" => std::fs::write(&receipt, "not json\n").expect("damaged receipt"),
+            "bytes" => {
+                let path = dir.path().join(WORKFLOW);
+                let mut bytes = std::fs::read(&path).expect("saved workflow");
+                bytes.extend_from_slice(b"\n# changed after the Save\n");
+                std::fs::write(&path, bytes).expect("changed workflow");
+            }
+            "legacy" => std::fs::remove_file(&receipt).expect("own receipt"),
+            _ => {}
+        }
+        let (mut session, calls) = open(dir.path());
+        assert!(session.restore_state().is_some());
+        let out = session.turn(&format!("run {WORKFLOW}"));
+        match damage {
+            "none" => assert!(
+                matches!(out, TurnOutcome::RunRequested { ref run, .. }
+                    if run.max_cost_usd.to_bits() == 0.0_f64.to_bits()),
+                "{out:?}"
+            ),
+            // A Save that left no receipt proves no ceiling: the run asks one (NIK-170); leaving
+            // the question sets nothing.
+            "legacy" => {
+                assert!(
+                    matches!(out, TurnOutcome::Question { ref key, .. } if key == "run.ceiling"),
+                    "{out:?}"
+                );
+                assert!(matches!(session.turn("cancel"), TurnOutcome::Facts(_)));
+            }
+            // A damaged receipt or changed bytes refuse as they did.
+            _ => assert!(matches!(out, TurnOutcome::Refusal(_)), "{damage}: {out:?}"),
+        }
+        assert_eq!(calls.counts(), (0, 0));
+        // The Run settled nothing about the earlier exposure: cognition stays blocked.
+        let out = session.turn("What can you tell me about stars?");
+        assert!(matches!(out, TurnOutcome::Refusal(_)), "{damage}: {out:?}");
+        assert_eq!(calls.counts().1, 0, "{damage}: no reasoner call");
+        assert_eq!(session.inference_receipt().expect("receipt"), None);
+        assert!(session.pending_proposal().is_none());
     }
 }
 

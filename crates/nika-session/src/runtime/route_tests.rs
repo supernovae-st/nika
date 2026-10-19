@@ -984,3 +984,54 @@ fn an_answer_by_its_shape_alone_is_never_classified() {
     );
     assert!(s.routes.iter().any(|r| r.method == RoutingMethod::Protocol));
 }
+
+/// The phrases word lists were added for in the live gauntlets of 15–18 October, each with the
+/// act the typed decision gives it: the corpus a migration of those lists to `TurnAct` must keep
+/// (NIK-204). At the consent prompt a question holds the proposal and a change is a revision,
+/// whichever list caught the line first today.
+#[test]
+fn the_phrases_the_word_lists_were_added_for_keep_their_act() {
+    const MEASURED: [(&str, TurnAct); 5] = [
+        ("est-ce que c'est actif ?", TurnAct::Discuss),
+        ("quoi ?", TurnAct::Discuss),
+        ("Trie le rapport par ligne.", TurnAct::Modify),
+        (
+            "je voudrais qu'il tourne toutes les heures",
+            TurnAct::Modify,
+        ),
+        (
+            "En fait, ajoute la date en tête du rapport.",
+            TurnAct::Modify,
+        ),
+    ];
+    let (dir, mut s) = session_with(Box::new(Scripted(BTreeMap::from(MEASURED))));
+    let TurnOutcome::Proposal { id, .. } = s.turn(COPY) else {
+        panic!("a proposal");
+    };
+    for (line, act) in MEASURED {
+        // A question is held or answered aside; a change is asked as a revision.
+        let said = match s.consent(line) {
+            TurnOutcome::Held { id: held, preview } => {
+                assert_eq!(held, id, "{line}");
+                preview
+            }
+            TurnOutcome::Aside(text) if act == TurnAct::Discuss => text,
+            other => panic!("{line}: the proposal still waits: {other:?}"),
+        };
+        assert_eq!(
+            s.pending_proposal().as_ref(),
+            Some(&id),
+            "{line}: still waiting"
+        );
+        assert_eq!(
+            said.contains("could not revise"),
+            act == TurnAct::Modify,
+            "{line} ({act:?}): {said}"
+        );
+        assert!(
+            !said.contains("no run yet"),
+            "{line}: never a run's fact: {said}"
+        );
+    }
+    assert!(!dir.path().join(COPY_DEST).exists(), "nothing applied");
+}

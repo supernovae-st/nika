@@ -39,7 +39,14 @@ impl JournalKey {
     /// Locate the journal and verify it (blocking · the fs). `None` when no
     /// journal exists for this job — the route's `unavailable`.
     pub(super) fn verify(&self) -> Option<Value> {
+        self.located().map(|(_, verdict)| verdict)
+    }
+
+    /// The journal's path and the door's verdict on it, located once
+    /// (blocking · the fs). `None` when no journal exists for this job.
+    pub(super) fn located(&self) -> Option<(PathBuf, Value)> {
         let path = self.path()?;
-        Some(nika_trace::trace_verify::door_verdict(&path, &self.trace))
+        let verdict = nika_trace::trace_verify::door_verdict(&path, &self.trace);
+        Some((path, verdict))
     }
 }

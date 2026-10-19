@@ -18,6 +18,9 @@ use std::path::{Path, PathBuf};
 
 #[doc(inline)]
 pub use display_review::{plan_lines, plan_lines_in_order, task_face};
+
+/// The review's lines in French, for a person who writes French.
+pub mod fr;
 use nika_display::check_render::review as display_review;
 use nika_onboard::compile::{
     CompileOutcome, DiagnosticKind, TriggerKind, TriggerRequirement, TriggerStatus,

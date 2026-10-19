@@ -479,7 +479,7 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
     assert_eq!(record["identity"]["source"], "embedded");
     assert_eq!(
         record["identity"]["snapshot_sha256"],
-        "8d52df01a5105fc4661851218e89ca172c5799bf3016aedbce1574ecac096075"
+        "b9406fa6606b4c9656f72e9fe5d5898dc3842b7cf13804ad9a9f053a2568b004"
     );
     assert!(record["identity"].get("dir").is_none());
     assert_eq!(record["presented"], true);
@@ -661,4 +661,44 @@ fn the_embedded_choice_resolves_the_same_settings_with_only_the_knowledge_named(
             by: KnowledgeLayer::Explicit,
         })
     ));
+}
+
+/// Replacing the decision seat clears only the refusal the earlier seat caused: the author alone
+/// is never blocked by a seat it no longer consults, a refused seat chosen again is said again,
+/// and a ready seat is consulted with nothing refused. Another refusal stands.
+#[test]
+fn replacing_the_decision_seat_clears_only_the_refusal_it_caused() {
+    let refused = crate::authoring::DecisionSetup::with_key("typesafe/jev-1.13.0", None, None);
+    let ready = crate::authoring::DecisionSetup::with_key(
+        "typesafe/jev-1.13.0",
+        Some("fixture".to_owned()),
+        Some("http://127.0.0.1:1"),
+    );
+    let blocked = AuthoringContext::default().with_decision(Some(refused.clone()));
+    assert!(matches!(
+        blocked.refusal(),
+        Some(AuthoringContextError::Decision { .. })
+    ));
+    let alone = blocked.clone().with_decision_replaced(None);
+    assert_eq!(alone.decision(), None);
+    assert_eq!(alone.refusal(), None, "the author alone is not blocked");
+    let again = alone.with_decision_replaced(Some(refused));
+    assert!(matches!(
+        again.refusal(),
+        Some(AuthoringContextError::Decision { .. })
+    ));
+    let consulted = blocked.with_decision_replaced(Some(ready.clone()));
+    assert_eq!(consulted.decision(), Some(&ready));
+    assert_eq!(consulted.refusal(), None);
+    let env = AuthoringSettings::none().with_knowledge("/no/such/release", None);
+    let other = AuthoringContext::from_settings(&AuthoringSettings::none(), &env);
+    assert!(matches!(
+        other.refusal(),
+        Some(AuthoringContextError::Knowledge(_))
+    ));
+    let kept = other.with_decision_replaced(None);
+    assert!(
+        matches!(kept.refusal(), Some(AuthoringContextError::Knowledge(_))),
+        "{kept:?}"
+    );
 }

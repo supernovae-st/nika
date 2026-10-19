@@ -95,12 +95,12 @@ fn a_context_refusal_after_a_routed_line_claims_only_the_unsent_authoring_reques
     let prompts = Arc::new(Mutex::new(Vec::new()));
     let recorder = Arc::clone(&prompts);
     let mut census = IntelligenceCensus::empty();
-    census.api_keys.push("mock".to_owned());
+    census.api_keys.push("deepseek".to_owned());
     let pref = UserIntelligencePreference::new(
         IntelligenceKind::Api {
-            provider: "mock".to_owned(),
+            provider: "deepseek".to_owned(),
         },
-        Some("mock/echo".to_owned()),
+        Some("deepseek/recorded-fixture".to_owned()),
     );
     let mut session = SessionRuntime::open_with(
         root.path(),

@@ -132,23 +132,7 @@ fn read_probe(path: &Path) -> Option<StampProbe> {
 /// exclusively for its lifetime, so a non-blocking SHARED attempt is
 /// refused with `EWOULDBLOCK`. A free lock is taken and released at once.
 fn lease_held(path: &Path) -> bool {
-    #[cfg(unix)]
-    {
-        use nix::fcntl::{Flock, FlockArg};
-        let Ok(file) = std::fs::OpenOptions::new().read(true).open(path) else {
-            return false;
-        };
-        match Flock::lock(file, FlockArg::LockSharedNonblock) {
-            Ok(_released_at_once) => false,
-            Err((_, nix::errno::Errno::EWOULDBLOCK)) => true,
-            Err(_) => false,
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = path;
-        false
-    }
+    nika_arm::resident::lease_held(path)
 }
 
 #[cfg(test)]

@@ -1003,16 +1003,24 @@ pub type nika_trace::run_view::KeptRun::NoneType = T
 pub fn nika_trace::run_view::KeptRun::null_value() -> T
 #[non_exhaustive] pub struct nika_trace::run_view::RunFacts
 impl nika_trace::run_view::RunFacts
+pub fn nika_trace::run_view::RunFacts::ceiling_left(&self) -> core::option::Option<f64>
 pub fn nika_trace::run_view::RunFacts::completed_writes(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_trace::run_view::RunFacts::executions(&self) -> &[nika_types::id::ExecutionId]
 pub fn nika_trace::run_view::RunFacts::gate(&self, workflow: &std::path::Path, message: &str, mode: &str, gated: &[alloc::string::String]) -> alloc::string::String
+pub fn nika_trace::run_view::RunFacts::gate_in(&self, workflow: &std::path::Path, message: &str, mode: &str, gated: &[alloc::string::String], french: bool) -> alloc::string::String
 pub fn nika_trace::run_view::RunFacts::of(trace: &std::path::Path, raw: &str) -> core::option::Option<Self>
+pub fn nika_trace::run_view::RunFacts::pause_approval_expired(&self, now_ms: i64) -> core::option::Option<bool>
+pub fn nika_trace::run_view::RunFacts::pause_choices(&self) -> core::option::Option<&[alloc::string::String]>
 pub fn nika_trace::run_view::RunFacts::pause_gate(&self) -> core::option::Option<(&str, &str, &str)>
 pub fn nika_trace::run_view::RunFacts::pause_shown(&self) -> (core::option::Option<&serde_json::value::Value>, core::option::Option<&serde_json::value::Value>)
 pub fn nika_trace::run_view::RunFacts::proof(&self, root: &std::path::Path) -> alloc::string::String
 pub fn nika_trace::run_view::RunFacts::read(trace: &std::path::Path) -> core::option::Option<Self>
+pub fn nika_trace::run_view::RunFacts::refused_at_gate(&self) -> bool
 pub fn nika_trace::run_view::RunFacts::result(&self, root: &std::path::Path, workflow: &std::path::Path) -> alloc::string::String
+pub fn nika_trace::run_view::RunFacts::result_in(&self, root: &std::path::Path, workflow: &std::path::Path, french: bool) -> alloc::string::String
+pub fn nika_trace::run_view::RunFacts::spent_usd(&self) -> core::option::Option<f64>
 pub fn nika_trace::run_view::RunFacts::starts(&self) -> &[core::option::Option<alloc::string::String>]
+pub fn nika_trace::run_view::RunFacts::stopped_by_ceiling(&self) -> bool
 pub fn nika_trace::run_view::RunFacts::terminal(&self) -> core::option::Option<&str>
 pub fn nika_trace::run_view::RunFacts::unidentified(&self) -> usize
 pub fn nika_trace::run_view::RunFacts::workflow_sha256(&self) -> core::option::Option<&str>
@@ -1063,6 +1071,7 @@ pub fn nika_trace::run_view::human_size(bytes: u64) -> alloc::string::String
 pub fn nika_trace::run_view::hygiene_note(git_root: core::option::Option<&std::path::Path>) -> core::option::Option<alloc::string::String>
 pub fn nika_trace::run_view::last_run(root: &std::path::Path) -> alloc::string::String
 pub fn nika_trace::run_view::live_again(trace: &std::path::Path) -> core::option::Option<alloc::string::String>
+pub fn nika_trace::run_view::live_again_in(trace: &std::path::Path, french: bool) -> core::option::Option<alloc::string::String>
 pub fn nika_trace::run_view::produced(root: &std::path::Path, workflow: &std::path::Path) -> core::option::Option<alloc::string::String>
 pub fn nika_trace::run_view::resumed_live(trace: &std::path::Path) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_trace::trace

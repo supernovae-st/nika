@@ -8,7 +8,9 @@
 //! draft can be proposed again, or a kept round continued (`round.rs`, which it serves first).
 
 use super::round::ROUND_HELP;
-use super::{HELP, Refusal, RefusalClass, SLASH_COMMANDS, SessionRuntime, TurnOutcome, draft};
+use super::{
+    HELP, Lang, Refusal, RefusalClass, SLASH_COMMANDS, SessionRuntime, TurnOutcome, draft, help_fr,
+};
 
 /// The help line of `/restore`, shown only while a kept draft can be proposed again.
 pub(super) const RESTORE_HELP: &str = "/restore            see again the proposal kept from your last session (its request, a fresh preview) · no AI asked · nothing is written until you say yes";
@@ -23,21 +25,50 @@ pub(super) const RESTORE_HINT: &str =
 /// Where to go when there is nothing to restore.
 const NOTHING_KEPT: &str = " · only a proposal waiting for your yes or no, or a question waiting for your answer, is kept when a session closes · describe what you want instead";
 
+/// `text` with each command it names (`` `nika …` ``) spelled as the program the person runs
+/// ([`super::schedule::program`]), so a command copied from it reaches this same binary.
+pub(super) fn named(text: &str) -> String {
+    named_as(text, &super::schedule::program())
+}
+
+/// `text` with each command it names spelled as `program`.
+fn named_as(text: &str, program: &str) -> String {
+    if program == "nika" {
+        return text.to_owned();
+    }
+    text.replace("`nika ", &format!("`{program} "))
+}
+
 impl SessionRuntime {
     /// The help card, with `/restore` only while a kept round can be continued or a kept
     /// draft proposed again, and `/knowledge` only while a refused knowledge source can be
     /// replaced by the embedded release.
     #[must_use]
     pub fn help_card(&self) -> String {
+        named(&self.help_words())
+    }
+
+    /// The help card's words, the commands it names spelled `nika`.
+    fn help_words(&self) -> String {
+        // The card in the person's language, its conditional lines with it.
+        let (help, knowledge, round, restore) = match self.language {
+            Lang::Fr => (
+                help_fr::SESSION_HELP,
+                help_fr::KNOWLEDGE_HELP,
+                help_fr::ROUND_HELP,
+                help_fr::RESTORE_HELP,
+            ),
+            _ => (HELP, KNOWLEDGE_HELP, ROUND_HELP, RESTORE_HELP),
+        };
         let card = if self.knowledge_offered() {
-            HELP.replacen("\n/help ", &format!("\n{KNOWLEDGE_HELP}\n/help "), 1)
+            help.replacen("\n/help ", &format!("\n{knowledge}\n/help "), 1)
         } else {
-            HELP.to_owned()
+            help.to_owned()
         };
         let line = if self.round_is_continuable() {
-            ROUND_HELP
+            round
         } else if self.restored_draft_id().is_some() {
-            RESTORE_HELP
+            restore
         } else {
             return card;
         };
@@ -95,5 +126,19 @@ impl SessionRuntime {
             "no kept draft this engine can propose again · what waits for you is unchanged"
         };
         TurnOutcome::Refusal(Refusal::new(RefusalClass::WrongState, text))
+    }
+}
+
+#[cfg(test)]
+mod named_tests {
+    /// A command a hint names follows the running program; a tool id is no command.
+    #[test]
+    fn a_hinted_command_names_the_running_program() {
+        let hint = "judged by `nika trace verify` · `nika:jq` filters · `nika check --fix x`";
+        assert_eq!(
+            super::named_as(hint, "nika-dev"),
+            "judged by `nika-dev trace verify` · `nika:jq` filters · `nika-dev check --fix x`"
+        );
+        assert_eq!(super::named_as(hint, "nika"), hint);
     }
 }

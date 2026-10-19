@@ -6,6 +6,8 @@
 
 use std::path::PathBuf;
 
+mod saved;
+
 use super::money_parse::{self, ParsedMoney};
 use super::{DEFAULT_CEILING_USD, SessionRuntime, TurnOutcome};
 use crate::change::{ProjectChangeSet, Witness};
@@ -37,6 +39,8 @@ pub(super) struct MoneyState {
     // observation with no allowance, never admission, a cap or a review.
     pub observed: nika_providers::InferenceAdmission,
     saved: Vec<SavedMoney>,
+    // The ceiling a line set for the saved workflow's next runs (« mets le plafond à 0,001 $ »).
+    pub next_runs: Option<(PathBuf, MonetaryDecision)>,
 }
 
 impl Default for MoneyState {
@@ -55,6 +59,7 @@ impl Default for MoneyState {
             admitted: Vec::new(),
             observed: nika_providers::InferenceAdmission::unbudgeted(),
             saved: Vec::new(),
+            next_runs: None,
         }
     }
 }
@@ -64,6 +69,32 @@ struct SavedMoney {
     resolved: Option<PathBuf>,
     witness: Witness,
     decision: MonetaryDecision,
+}
+
+/// The refusal when the latest Save of a file bound no ceiling this Session can prove.
+const UNPROVEN: &str = "the saved spending constraint cannot be proved in this session — provide an explicit Run ceiling or prepare and review the workflow again; no default was substituted";
+
+/// Why a Run's money was not admitted. Either way the refusal is recorded as the Run's
+/// observation ([`SessionRuntime::refuse_run_money`]); no default is substituted.
+#[derive(Debug)]
+pub(super) enum Unadmitted {
+    /// No ceiling can be proved for this Run (the latest Save bound none this Session holds, or
+    /// a restored exposure has no default to reconfirm it), and nothing else refuses it: a
+    /// ceiling the person states admits it through the explicit path of
+    /// [`SessionRuntime::run_money`].
+    Unproven(TurnOutcome),
+    /// Any other refusal (a changed file, another proposal, an unreadable receipt, several
+    /// bindings, an invalid amount): it stands.
+    Refused(TurnOutcome),
+}
+
+impl Unadmitted {
+    /// The refusal as the turn's outcome.
+    pub(super) fn outcome(self) -> TurnOutcome {
+        match self {
+            Self::Unproven(outcome) | Self::Refused(outcome) => outcome,
+        }
+    }
 }
 
 impl SessionRuntime {
@@ -280,6 +311,13 @@ impl SessionRuntime {
         Ok((parsed, spans))
     }
 
+    /// Whether `line` states money and nothing else, as the consent door reads a monetary-only
+    /// amendment (« avec un plafond de 2 $ »): a malformed amount states nothing here.
+    pub(super) fn states_money_only(&self, line: &str) -> bool {
+        let law = super::authoring::run_prefix(line).is_none();
+        (self.read_money(line, law)).is_ok_and(|(parsed, _)| parsed.money_only)
+    }
+
     pub(super) fn admit_gate_money(&mut self, input: &str) -> Result<(), TurnOutcome> {
         let mut decision = match self.read_money(input, false) {
             Ok((parsed, _)) if parsed.amount.is_none() => return Ok(()),
@@ -405,14 +443,159 @@ impl SessionRuntime {
         }
         // A fresh request owns its proposal/Run default, but only an explicit
         // Session amendment can change the persistent inference constraint.
-        let decision = if self.money.preparation.is_some() {
+        let mut decision = if self.money.preparation.is_some() {
             decision
         } else {
             self.inference_observation(decision)
         };
+        if !continuation && parsed.amount.is_none() {
+            self.keep_copied_ceiling(input, &mut decision);
+        }
         self.money.current = Some(decision.clone());
         self.money.draft = Some(decision);
         Ok(())
+    }
+
+    /// A request that copies a saved workflow (« identique à rapport.nika », « une copie de
+    /// rapport.nika ») and states no ceiling keeps, as its proposal and Run ceiling, the one the
+    /// person saved with that workflow, as a revision of it does; other new work keeps its own
+    /// default. The Session inference constraint is left as it was, and a project default stands.
+    fn keep_copied_ceiling(&self, input: &str, decision: &mut MonetaryDecision) {
+        if decision.source != MonetarySource::SessionDefault {
+            return;
+        }
+        let Some(kept) = (self.copied_workflow(input)).and_then(|base| self.saved_ceiling(&base))
+        else {
+            return;
+        };
+        decision.effective_usd = kept.effective_usd;
+        decision.source = kept.source;
+        decision.explicit_amount.clone_from(&kept.explicit_amount);
+    }
+
+    /// The saved workflow a request asks a copy of: a workflow of the project it names, with a
+    /// word that makes the new one its copy (« identique à », « copie de », « same as »).
+    fn copied_workflow(&self, input: &str) -> Option<String> {
+        const COPY: &[&str] = &[
+            "identique",
+            "identiques",
+            "copie",
+            "copier",
+            "duplique",
+            "dupliquer",
+            "pareil",
+            "même",
+            "same",
+            "copy",
+            "duplicate",
+            "identical",
+            "clone",
+        ];
+        let lowered = input.replace('\u{2019}', "'").to_lowercase();
+        let words: Vec<&str> = (lowered
+            .split(|c: char| c.is_whitespace() || ",;:!?()«»\"`".contains(c)))
+        .map(|word| word.trim_end_matches('.'))
+        .filter(|word| !word.is_empty())
+        .collect();
+        if !words
+            .iter()
+            .any(|word| COPY.contains(&word.rsplit('\'').next().unwrap_or(word)))
+        {
+            return None;
+        }
+        let named = |path: &str| {
+            let path = path.to_lowercase();
+            let stem = path.trim_end_matches(".nika").to_owned();
+            words.iter().any(|word| {
+                let word = word
+                    .rsplit('\'')
+                    .next()
+                    .unwrap_or(word)
+                    .trim_start_matches("./");
+                word == path || word == stem
+            })
+        };
+        let mut hits = (self.snapshot.workflows.iter()).filter(|w| named(&w.path));
+        let first = hits.next()?;
+        hits.next().is_none().then(|| first.path.clone())
+    }
+
+    /// The amount a line sets as the ceiling and nothing else (« Mets le plafond à 0,001 $ »,
+    /// « plafond 0,05 $ par run », « set the ceiling to $0.05 »): its words are a verb that sets
+    /// it, the ceiling's name, link words and the amount. `None` for any other line.
+    pub(super) fn sets_the_ceiling(&self, line: &str) -> Option<f64> {
+        let amount = (self.ceiling_line_money(line))
+            .and_then(|parsed| parsed.amount)
+            .filter(|amount| amount.is_finite() && *amount >= 0.0)?;
+        let lowered = line.replace('\u{2019}', "'").to_lowercase();
+        let only = (lowered.split(|c: char| c.is_whitespace() || "!?;:,«»".contains(c)))
+            .map(|word| word.trim_end_matches('.'))
+            .filter(|word| !word.is_empty())
+            .all(|word| {
+                CEILING_LINE_WORDS.contains(&word)
+                    || word.starts_with(|c: char| c.is_ascii_digit())
+                    || word
+                        .strip_prefix('$')
+                        .is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_digit()))
+            });
+        only.then_some(amount)
+    }
+
+    /// The money of a line that holds nothing but a ceiling, its courtesy aside: read by its
+    /// directive, else whole (« Le plafond est de 0,10 $ par run » names no directive the law
+    /// reads, and holds no other word).
+    fn ceiling_line_money(&self, line: &str) -> Option<ParsedMoney> {
+        // The copula is a link (« Le plafond est de 0,10 $ »), as a directive's own words read it.
+        let words = (without_courtesy(line).split_whitespace())
+            .filter(|word| !matches!(word.to_lowercase().as_str(), "est" | "sera" | "is"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let directive = (self.read_money(&words, true).ok())
+            .map(|(parsed, _)| parsed)
+            .filter(|parsed| parsed.amount.is_some());
+        directive.or_else(|| {
+            (self.read_money(&words, false).ok())
+                .map(|(parsed, _)| parsed)
+                .filter(|parsed| parsed.amount.is_some())
+        })
+    }
+
+    /// A ceiling set alone while nothing waits is the saved workflow's next runs' (live gauntlet
+    /// r09, 2026-10-17): its outcome, or `None` when something waits or the line is not one.
+    pub(super) fn ceiling_alone(&mut self, input: &str) -> Option<TurnOutcome> {
+        let idle = self.pending.is_none()
+            && self.authoring.is_none()
+            && self.run_inputs.is_none()
+            && self.activation.is_none()
+            && self.install_offer.is_none()
+            && self.pending_gate.is_none();
+        let workflow = self.last_workflow.clone().filter(|_| idle)?;
+        self.sets_the_ceiling(input)?;
+        Some(self.set_run_ceiling(input, workflow))
+    }
+
+    /// A ceiling set alone with nothing waiting, for the saved workflow's next runs in this
+    /// conversation: said, and kept as the person's ceiling for the work that follows.
+    pub(super) fn set_run_ceiling(&mut self, line: &str, workflow: PathBuf) -> TurnOutcome {
+        let Some(parsed) = self.ceiling_line_money(line) else {
+            return self.refuse_money(line, money_parse::INVALID);
+        };
+        let decision = self.money_decision(line, &parsed);
+        let Some(amount) = decision.effective_usd else {
+            return self.refuse_money(line, money_parse::INVALID);
+        };
+        let shown = workflow.display().to_string();
+        self.money.next_runs = Some((workflow, decision));
+        let stated = nika_display::vocab::stated_usd(amount);
+        TurnOutcome::Facts(match self.language {
+            super::Lang::Fr => format!(
+                "plafond de `{shown}` : {} $ par run · les prochains runs de `{shown}` dans cette conversation partent avec ce plafond",
+                stated.replace('.', ",")
+            ),
+            _ => format!(
+                "ceiling of `{shown}`: ${stated} per run · the next runs of `{shown}` in this conversation start under it"
+            ),
+        })
     }
 
     /// The monetary directives of request bytes Session built from the human's words (a
@@ -526,9 +709,9 @@ impl SessionRuntime {
     }
 
     /// A saved workflow's revision stating no amount keeps that workflow's ceiling: the one live
-    /// binding to the resolved file AND the exact base the revision compiled. A binding to other
-    /// bytes, or more than one, refuses (never a default in its place); with none (a restart, a
-    /// file never linked) the change's own admitted law stands. No account is replaced or
+    /// binding to the resolved file AND the exact base the revision compiled, including the
+    /// durable constraint after reopening. Changed or missing evidence refuses; a file never
+    /// linked to a Save keeps the change's own admitted law. No account is replaced or
     /// refilled and no Run authority is restored.
     pub(super) fn bind_revision_money(
         &mut self,
@@ -543,7 +726,7 @@ impl SessionRuntime {
             return Ok(());
         }
         let resolved = self.snapshot.root.join(saved).canonicalize();
-        let kept = match resolved.map(|resolved| self.live_binding(saved, &resolved, Some(base))) {
+        let kept = match resolved.map(|resolved| self.saved_binding(saved, &resolved, Some(base))) {
             Ok(Ok(None)) => return Ok(()),
             Ok(Ok(Some(kept))) => kept,
             Ok(Err(why)) => {
@@ -564,6 +747,53 @@ impl SessionRuntime {
         self.money.current = Some(decision.clone());
         self.money.draft = Some(decision);
         Ok(())
+    }
+
+    /// The ceiling the person stated for the work: an admitted amount of theirs, never a default.
+    pub(super) fn stated_ceiling(&self) -> Option<f64> {
+        let draft = self.money.draft.as_ref()?;
+        let theirs = matches!(
+            draft.source,
+            MonetarySource::Explicit | MonetarySource::Override
+        );
+        (theirs && draft.refusal.is_none())
+            .then_some(draft.effective_usd)
+            .flatten()
+    }
+
+    /// The ceiling the person stated, saved with `workflow`'s current bytes and proven as a Run
+    /// proves it: the latest Save's receipt, or this Session's live binding of those bytes.
+    /// None for a saved default, for unproven evidence and for a file no Save bound.
+    pub(super) fn saved_ceiling(&self, workflow: &str) -> Option<MonetaryDecision> {
+        let target = self.snapshot.root.join(workflow);
+        let resolved = target.canonicalize().ok()?;
+        let now = std::fs::read(&target).ok().map(|bytes| Witness::of(&bytes));
+        let saved = std::path::Path::new(workflow);
+        let kept = (self.saved_binding(saved, &resolved, now.as_ref()))
+            .ok()
+            .flatten()?;
+        let theirs = matches!(
+            kept.source,
+            MonetarySource::Explicit | MonetarySource::Override
+        );
+        (theirs && kept.refusal.is_none()).then_some(kept)
+    }
+
+    /// A conversation's revision of a saved workflow, with no ceiling of its own, keeps the one
+    /// the person stated and saved with it, as a revision through the request door does
+    /// ([`Self::bind_revision_money`]): its Save keeps it and a rerun reuses it. QA gauntlet q09:
+    /// the revision bound the $0.25 default, and « Relance-le » ran under it.
+    pub(super) fn keep_saved_ceiling(&mut self, workflow: &str) {
+        if self.stated_ceiling().is_some() {
+            return;
+        }
+        let Some(kept) = self.saved_ceiling(workflow) else {
+            return;
+        };
+        let mut decision = self.inference_observation(kept);
+        decision.proposal = None;
+        self.money.current = Some(decision.clone());
+        self.money.draft = Some(decision);
     }
 
     /// Whether the shared account refused a label since `before`, before any send: a new refusal
@@ -589,10 +819,17 @@ impl SessionRuntime {
         input: &str,
         workflow: &std::path::Path,
         explicit: Option<f64>,
-    ) -> Result<f64, TurnOutcome> {
-        let (mut parsed, _) = self
-            .read_money(input, false)
-            .map_err(|reason| self.refuse_run_money(input, &reason))?;
+    ) -> Result<f64, Unadmitted> {
+        // A stated ceiling a free sentence names by its directive stands when the whole line
+        // also mentions another amount (QA gauntlet q03: « Peut-être que le plafond de 0,25 $ est
+        // trop bas. Lance translate-notes.nika avec un plafond de 2 $. »): the line is then read
+        // by its directives, as the request door reads it.
+        // The ceiling a line set for this workflow's next runs stands for a run line stating none.
+        let explicit = explicit.or_else(|| self.next_runs_ceiling(workflow));
+        let read = (self.read_money(input, false))
+            .or_else(|why| explicit.map_or(Err(why), |_| self.read_money(input, true)));
+        let (mut parsed, _) =
+            read.map_err(|reason| Unadmitted::Refused(self.refuse_run_money(input, &reason)))?;
         if explicit.is_some() {
             // The ceiling stated: the line's own, or a typed request's (`save & run`).
             parsed.amount = explicit;
@@ -605,49 +842,104 @@ impl SessionRuntime {
             .current
             .as_ref()
             .and_then(|d| d.effective_usd)
-            .ok_or_else(|| self.refuse_run_money(input, money_parse::INVALID))
+            .ok_or_else(|| Unadmitted::Refused(self.refuse_run_money(input, money_parse::INVALID)))
+    }
+
+    /// The ceiling a line set for `workflow`'s next runs, if any.
+    pub(super) fn next_runs_ceiling(&self, workflow: &std::path::Path) -> Option<f64> {
+        let (set_for, decision) = self.money.next_runs.as_ref()?;
+        let root = &self.snapshot.root;
+        (root.join(set_for) == root.join(workflow))
+            .then_some(decision.effective_usd)
+            .flatten()
     }
 
     fn restore_run_money(
         &mut self,
         input: &str,
         workflow: &std::path::Path,
-    ) -> Result<(), TurnOutcome> {
+    ) -> Result<(), Unadmitted> {
         let target = self.snapshot.root.join(workflow);
         let Ok(resolved) = target.canonicalize() else {
-            return Err(self.refuse_run_money(
-                input,
-                "the workflow identity could not be resolved — review it before running",
-            ));
+            let why = "the workflow identity could not be resolved — review it before running";
+            return Err(Unadmitted::Refused(self.refuse_run_money(input, why)));
         };
         let now = std::fs::read(&target).ok().map(|bytes| Witness::of(&bytes));
-        match self.live_binding(workflow, &resolved, now.as_ref()) {
+        match self.saved_binding(workflow, &resolved, now.as_ref()) {
             Ok(Some(decision)) => {
                 self.money.current = Some(self.inference_observation(decision));
                 return Ok(());
             }
-            Err(why) => return Err(self.refuse_run_money(input, why)),
+            Err(UNPROVEN) => {
+                return Err(Unadmitted::Unproven(self.refuse_run_money(input, UNPROVEN)));
+            }
+            Err(why) => return Err(Unadmitted::Refused(self.refuse_run_money(input, why))),
             Ok(None) => {}
         }
-        // The existing journal proves that Save occurred, but its v1 schema does not record
-        // spending constraints. After reopening, absence of an in-memory binding therefore cannot
-        // justify a fresh default. Read at Run even when the host did not call restore_state; do
-        // not restore execution authority or equate distinct files by their bytes.
-        let records = match ConsentRecord::read_all(&self.snapshot.root) {
-            Ok(records) if records.iter().all(|r| r.version == ConsentRecord::VERSION) => records,
-            _ => return Err(self.refuse_run_money(input, "saved monetary evidence is unreadable — provide an explicit Run ceiling or prepare and review the workflow again")),
-        };
-        if records
-            .iter()
-            .any(|record| (record.written.iter()).any(|path| self.names(path, workflow, &resolved)))
-        {
-            return Err(self.refuse_run_money(input, "the saved spending constraint cannot be proved in this session — provide an explicit Run ceiling or prepare and review the workflow again; no default was substituted"));
+        // A restored exposure has no default to reconfirm it: only a stated ceiling or the exact
+        // proof of a saved one runs, and neither settles that earlier exposure.
+        if self.money.reconfirm {
+            let why = self.restored_refusal();
+            return Err(Unadmitted::Unproven(self.refuse_run_money(input, &why)));
         }
         // No saved identity or journal claim binds this file. Its own Run
         // default does not amend the ongoing Session inference allowance.
         self.money.current =
             Some(self.inference_observation(self.money_decision(input, &ParsedMoney::default())));
         Ok(())
+    }
+
+    /// The latest Save's exact execution constraint, shared by Run and revision.
+    /// Durable evidence is checked before RAM so another Session's newer Save cannot
+    /// leave an older ceiling effective. A live binding can cover its own Save whose
+    /// monetary receipt failed to write, never a different or incomplete Save.
+    fn saved_binding(
+        &self,
+        workflow: &std::path::Path,
+        resolved: &PathBuf,
+        witness: Option<&Witness>,
+    ) -> Result<Option<MonetaryDecision>, &'static str> {
+        let records = match ConsentRecord::read_all(&self.snapshot.root) {
+            Ok(records) if records.iter().all(|r| r.version == ConsentRecord::VERSION) => records,
+            _ => {
+                return Err(
+                    "saved monetary evidence is unreadable — provide an explicit ceiling or prepare and review the workflow again",
+                );
+            }
+        };
+        let latest = records.iter().rev().find(|record| {
+            record
+                .written
+                .iter()
+                .any(|path| self.names(path, workflow, resolved))
+        });
+        let Some(record) = latest else {
+            return self.live_binding(workflow, resolved, witness);
+        };
+        let restored = saved::restore(&self.snapshot.root, record, resolved, witness)?;
+        if let Some(mut decision) = restored {
+            // The receipt proves the ceiling and grants no proposal. The proposal is provenance
+            // this Session observed: its live binding of that same Save, never an id read back
+            // from the receipt.
+            decision.proposal = (self.live_binding(workflow, resolved, witness).ok())
+                .flatten()
+                .and_then(|live| live.proposal)
+                .filter(|id| id.as_str() == record.proposal);
+            return Ok(Some(decision));
+        }
+        if let Some(decision) = self.live_binding(workflow, resolved, witness)?
+            && decision
+                .proposal
+                .as_ref()
+                .is_some_and(|p| p.as_str() == record.proposal)
+            && record.witnesses.iter().any(|w| {
+                self.names(&w.path, workflow, resolved)
+                    && witness.is_some_and(|now| now.0 == w.after)
+            })
+        {
+            return Ok(Some(decision));
+        }
+        Err(UNPROVEN)
     }
 
     /// Whether `path` names `workflow`: the same text, or a file resolving to `resolved`.
@@ -704,6 +996,129 @@ impl SessionRuntime {
     }
 }
 
+/// The words a line that sets the ceiling alone may hold beside its amount: a verb that sets
+/// it, the ceiling's name, link words, the currency and courtesy.
+const CEILING_LINE_WORDS: &[&str] = &[
+    "mets",
+    "met",
+    "mettez",
+    "remets",
+    "remettez",
+    "fixe",
+    "fixez",
+    "règle",
+    "réglez",
+    "passe",
+    "passez",
+    "change",
+    "changez",
+    "baisse",
+    "baissez",
+    "monte",
+    "montez",
+    "augmente",
+    "augmentez",
+    "descends",
+    "descendez",
+    "définis",
+    "définissez",
+    "set",
+    "make",
+    "lower",
+    "raise",
+    "put",
+    "reset",
+    "le",
+    "la",
+    "les",
+    "un",
+    "une",
+    "mon",
+    "ma",
+    "ton",
+    "ta",
+    "son",
+    "sa",
+    "notre",
+    "votre",
+    "ce",
+    "cet",
+    "cette",
+    "the",
+    "a",
+    "my",
+    "its",
+    "this",
+    "plafond",
+    "budget",
+    "ceiling",
+    "cap",
+    "limite",
+    "limit",
+    "maximum",
+    "max",
+    "à",
+    "de",
+    "du",
+    "to",
+    "at",
+    "of",
+    "for",
+    "pour",
+    "par",
+    "per",
+    "run",
+    "runs",
+    "exécution",
+    "chaque",
+    "each",
+    "every",
+    "prochains",
+    "prochain",
+    "next",
+    "maintenant",
+    "now",
+    "désormais",
+    "dorénavant",
+    "stp",
+    "svp",
+    "please",
+    "merci",
+    "alors",
+    "ok",
+    "d'accord",
+    "plutôt",
+    "instead",
+    "est",
+    "is",
+    "sera",
+    "$",
+    "usd",
+    "dollar",
+    "dollars",
+];
+
+/// A line without the courtesy around it (« stp », « s'il te plaît », « please »), which the
+/// money law reads past no directive.
+fn without_courtesy(line: &str) -> String {
+    const COURTESY: &[&str] = &[
+        "stp", "svp", "please", "merci", "s'il", "te", "vous", "plaît",
+    ];
+    let words: Vec<&str> = line.split_whitespace().collect();
+    let courtesy = |word: &str| {
+        let bare = (word.trim_matches(|c: char| ",.!?;:".contains(c)))
+            .replace('\u{2019}', "'")
+            .to_lowercase();
+        COURTESY.contains(&bare.as_str())
+    };
+    let start = words.iter().take_while(|w| courtesy(w)).count();
+    let end = words.len() - words.iter().rev().take_while(|w| courtesy(w)).count();
+    words
+        .get(start..end.max(start))
+        .unwrap_or_default()
+        .join(" ")
+}
+
 fn preview_with_money(set: &ProjectChangeSet, decision: Option<&MonetaryDecision>) -> String {
     match decision {
         // The words the decision binds: money input only when they stated an amount, the
@@ -745,7 +1160,7 @@ fn scoped_money_line(decision: &MonetaryDecision) -> String {
     };
     format!(
         "money: ${} USD · {} · proposal/Run ceiling · {} · policy cap unknown · machine cap unknown · execution requires a separate Run and downstream admission\nSession inference: {inference}; separate from the proposal/Run ceiling; catalog estimates are not invoices or a hard billing cap; billed cost unknown",
-        decision.effective_usd.unwrap_or_default(),
+        nika_display::vocab::stated_usd(decision.effective_usd.unwrap_or_default()),
         source_words(decision.source),
         project_default_words(decision.project_default_usd),
     )
@@ -768,7 +1183,12 @@ fn source_words(source: MonetarySource) -> &'static str {
 fn project_default_words(usd: Option<f64>) -> String {
     usd.map_or_else(
         || "no project default".to_owned(),
-        |usd| format!("project default ${usd} USD"),
+        |usd| {
+            format!(
+                "project default ${} USD",
+                nika_display::vocab::stated_usd(usd)
+            )
+        },
     )
 }
 
@@ -798,6 +1218,15 @@ mod tests {
         assert_eq!(
             project_default_words(Some(0.05)),
             "project default $0.05 USD"
+        );
+        // An amount as it was set: cents where it has a fraction, never rounded to zero.
+        assert_eq!(
+            project_default_words(Some(0.1)),
+            "project default $0.10 USD"
+        );
+        assert_eq!(
+            project_default_words(Some(0.001)),
+            "project default $0.001 USD"
         );
     }
 }

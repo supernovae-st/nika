@@ -127,7 +127,9 @@ fn a_declined_review_cancels_its_call_and_the_proposal_waits_unchanged() {
         l.peer.bodies().is_empty(),
         "a declined review sent a request"
     );
-    assert!(matches!(l.s.consent("no"), TurnOutcome::Facts(ref t) if t.contains("discarded")));
+    assert!(
+        matches!(l.s.consent("no"), TurnOutcome::Facts(ref t) if t.contains("discarded") || t.contains("écarté"))
+    );
     assert!(l.s.pending_proposal().is_none());
     assert!(matches!(
         l.s.consent_to(&id, "yes"),

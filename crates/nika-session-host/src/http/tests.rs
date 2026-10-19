@@ -19,7 +19,7 @@ use serde_json::Value;
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
 use super::*;
-use crate::host::tests::{COPY, Gate, runtime, world};
+use crate::host::tests::{COPY, DRAFT, Gate, runtime, world};
 use crate::machine::tests::Lines;
 use crate::run::{Admitted, JobDoor, JobEnd, JobFuture, Jobs, NoRunDoor, RunRequest};
 
@@ -855,4 +855,218 @@ async fn record_contract_fixture() {
     }
     let mut stdout = std::io::stdout().lock();
     writeln!(stdout, "fixture written to {}", out.display()).expect("stdout");
+}
+
+fn answer(command: &str, snapshot: &Value, question: &Value, line: &str) -> Value {
+    serde_json::json!({
+        "contract": CONTRACT, "op": "answer", "command": command,
+        "snapshot": snapshot, "question": question, "line": line,
+    })
+}
+
+/// The answer script on the native door: each command's own answer, and the whole log.
+fn native_answers(root: &Path) -> (Vec<Value>, Vec<Value>) {
+    let host = Arc::new(
+        SessionHost::start(runtime(root), Box::new(NoRunDoor::new("none")), Vec::new())
+            .expect("host"),
+    );
+    let (reader, mut input) = std::io::pipe().expect("pipe");
+    let (sender, lines) = mpsc::channel::<String>();
+    let output = Arc::new(Mutex::new(Lines(sender, Vec::new())));
+    let driven = Arc::clone(&host);
+    std::thread::Builder::new()
+        .name("native".to_owned())
+        .spawn(move || crate::machine::drive(&driven, std::io::BufReader::new(reader), &output))
+        .expect("native door");
+    let mut log = Vec::new();
+    let mut answers = Vec::new();
+    {
+        let mut next = |want: &dyn Fn(&Value) -> bool| -> Value {
+            loop {
+                let line = lines.recv_timeout(WAIT).expect("frame");
+                let frame: Value = serde_json::from_str(&line).expect("json");
+                if frame.get("event").is_some() && frame["replayed"] != true {
+                    log.push(frame.clone());
+                }
+                if want(&frame) {
+                    return frame;
+                }
+            }
+        };
+        let opened = next(&|f| f["frame"] == "opened");
+        let first = opened["snapshot"]["snapshot"].clone();
+        answers.push(opened);
+        let mut send = |value: Value| writeln!(input, "{value}").expect("stdin");
+        send(command("submit", "c-1", &first, DRAFT));
+        let asked = next(&|f| f["frame"] == "result" && f["command"] == "c-1");
+        let shown = asked["snapshot"]["snapshot"].clone();
+        let question = asked["snapshot"]["work"]["waiting"]["id"].clone();
+        answers.push(asked);
+        send(answer(
+            "c-2",
+            &shown,
+            &Value::from("0".repeat(64)),
+            "mock/echo",
+        ));
+        answers.push(next(&|f| f["frame"] == "refused"));
+        send(answer("c-2", &shown, &question, "mock/echo"));
+        answers.push(next(&|f| f["frame"] == "result" && f["command"] == "c-2"));
+        send(serde_json::json!({"contract": CONTRACT, "op": "close"}));
+        answers.push(next(&|f| f["frame"] == "closed"));
+    }
+    (answers, log)
+}
+
+/// The same answer script on the HTTP door.
+async fn http_answers(root: &Path) -> (Vec<Value>, Vec<Value>) {
+    let address = listen(sessions(root)).await;
+    let (status, opened) = call(address, "POST", "/v1/sessions", "").await;
+    assert_eq!(status, 201);
+    let session = opened["session"].as_str().expect("session").to_owned();
+    let stream = subscribe(address, &format!("/v1/sessions/{session}/events"), None).await;
+    let first = opened["snapshot"]["snapshot"].clone();
+    let path = format!("/v1/sessions/{session}/commands");
+    let post = |value: Value| {
+        let path = path.clone();
+        async move { call(address, "POST", &path, &value.to_string()).await }
+    };
+    let mut answers = vec![opened];
+    let (_, asked) = post(command("submit", "c-1", &first, DRAFT)).await;
+    let shown = asked["snapshot"]["snapshot"].clone();
+    let question = asked["snapshot"]["work"]["waiting"]["id"].clone();
+    answers.push(asked);
+    let unknown = Value::from("0".repeat(64));
+    let (status, refused) = post(answer("c-2", &shown, &unknown, "mock/echo")).await;
+    assert_eq!(status, 409, "{refused}");
+    answers.push(refused);
+    let (status, answered) = post(answer("c-2", &shown, &question, "mock/echo")).await;
+    assert_eq!(status, 200, "{answered}");
+    answers.push(answered);
+    answers.push(
+        call(address, "DELETE", &format!("/v1/sessions/{session}"), "")
+            .await
+            .1,
+    );
+    let log = drain(stream)
+        .await
+        .into_iter()
+        .map(|(_, frame)| frame)
+        .collect();
+    (answers, log)
+}
+
+/// A reply bound to one question is one command on both doors: an identity the snapshot does
+/// not ask is refused the same, the question it asks is answered the same through its identity
+/// door, and the logs agree event by event.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_reply_bound_to_one_question_is_the_same_on_both_doors() {
+    let (native_root, http_root) = (world(), world());
+    let native_path = native_root.path().to_path_buf();
+    let (mut native, mut native_log) =
+        tokio::task::spawn_blocking(move || native_answers(&native_path))
+            .await
+            .expect("native");
+    let (mut http, mut http_log) = http_answers(http_root.path()).await;
+    let normalized = |values: &mut Vec<Value>, root: &Path| {
+        let canonical = root.canonicalize().expect("root");
+        let mut names = BTreeMap::new();
+        for value in values.iter_mut() {
+            normalize(value, &canonical.display().to_string(), &mut names);
+            normalize(value, &root.display().to_string(), &mut names);
+        }
+    };
+    normalized(&mut native, native_root.path());
+    normalized(&mut http, http_root.path());
+    assert_eq!(native, http, "each command answers the same on both doors");
+    normalized(&mut native_log, native_root.path());
+    normalized(&mut http_log, http_root.path());
+    assert_eq!(native_log, http_log, "the same log, event by event");
+    assert_eq!(native[2]["error"], "unknown_question", "{}", native[2]);
+    let answered = &native[3];
+    assert_eq!(answered["op"], "answer", "{answered}");
+    assert_eq!(answered["snapshot"]["work"]["answered"]["act"], "bound");
+    assert_eq!(
+        answered["snapshot"]["work"]["answered"]["value"],
+        "mock/echo"
+    );
+}
+
+/// The published command schema admits exactly what the parser takes: one branch per op this
+/// door serves, its own fields required and no other. Every identity in this table is valid, so
+/// only each op's fields differ (a missing line, a delegation with one, a stray question).
+#[test]
+fn the_published_command_schema_admits_exactly_what_the_parser_takes() {
+    let document: Value = serde_json::from_str(OPENAPI).expect("the patch is JSON");
+    let schemas = &document["components"]["schemas"];
+    let branches = schemas["SessionCommand"]["oneOf"]
+        .as_array()
+        .expect("one branch per op");
+    let resolve = |schema: &Value| -> Value {
+        (schema["$ref"].as_str())
+            .and_then(|name| name.strip_prefix("#/components/schemas/"))
+            .map_or_else(|| schema.clone(), |name| schemas[name].clone())
+    };
+    let admits = |command: &Value| {
+        let fields = command.as_object().expect("an object");
+        let taken = |branch: &&Value| {
+            let properties = branch["properties"].as_object().expect("properties");
+            let required = branch["required"].as_array().expect("required");
+            required
+                .iter()
+                .all(|key| key.as_str().is_some_and(|key| fields.contains_key(key)))
+                && fields.iter().all(|(key, value)| {
+                    properties.get(key).is_some_and(|schema| {
+                        let schema = resolve(schema);
+                        schema.get("const").is_none_or(|fixed| fixed == value)
+                            && (schema["type"] != "string" || value.is_string())
+                    })
+                })
+        };
+        branches.iter().filter(taken).count() == 1
+    };
+    let question = "9f".repeat(32);
+    let q = question.as_str();
+    let command = |op: &str, fields: &[(&str, &str)]| {
+        let mut command = serde_json::json!({"contract": CONTRACT, "op": op, "command": "c-1"});
+        for (key, value) in fields {
+            command[*key] = Value::from(*value);
+        }
+        command
+    };
+    let cases = [
+        command("submit", &[("snapshot", "s"), ("line", "x")]),
+        command("submit", &[("line", "x")]),
+        command(
+            "submit",
+            &[("snapshot", "s"), ("line", "x"), ("question", q)],
+        ),
+        command(
+            "answer",
+            &[("snapshot", "s"), ("question", q), ("line", "x")],
+        ),
+        command("answer", &[("snapshot", "s"), ("question", q)]),
+        command("answer", &[("snapshot", "s"), ("line", "x")]),
+        command("delegate", &[("snapshot", "s"), ("question", q)]),
+        command("delegate", &[("question", q)]),
+        command("delegate", &[("snapshot", "s")]),
+        command(
+            "delegate",
+            &[("snapshot", "s"), ("question", q), ("line", "x")],
+        ),
+        command("stop", &[]),
+        command("stop", &[("line", "x")]),
+        command("steer", &[("line", "x")]),
+        command("steer", &[("snapshot", "s"), ("line", "x")]),
+        command("follow_up", &[("line", "x")]),
+        command("follow_up", &[]),
+        command("rewind", &[]),
+    ];
+    for case in cases {
+        let parsed = Command::parse(case.to_string().as_bytes()).is_ok();
+        assert_eq!(
+            admits(&case),
+            parsed,
+            "the schema and the parser disagree on {case}"
+        );
+    }
 }

@@ -3,6 +3,112 @@
 
 use super::*;
 
+/// A paused leg leaves its ceiling less what it spent before the gate; a leg admitted under none
+/// leaves none (live gauntlet r04 B8: the leg after a gate ran unbounded).
+#[test]
+fn a_paused_leg_leaves_its_ceiling_less_its_spend() {
+    let run = r#""execution":{"uuid":"01a1489f-a9d7-71f0-a44b-dc8a90d7db7c"}"#;
+    let paused = [
+        format!(r#"{{"kind":"workflow_started",{run},"fields":[{{"key":"workflow","value":"w"}},{{"key":"budget","value":"{{\"max_cost_usd\":0.1}}"}}]}}"#),
+        format!(r#"{{"kind":"workflow_paused",{run},"fields":[{{"key":"task","value":"approve"}},{{"key":"priced_calls","value":1}},{{"key":"total_cost_usd","value":0.03}}]}}"#),
+    ]
+    .join("\n");
+    let facts = RunFacts::of(Path::new("t.ndjson"), &paused).expect("facts");
+    let left = facts.ceiling_left().expect("a ceiling");
+    assert!((left - 0.07).abs() < 1e-9, "{left}");
+    let unbounded = paused.replace(r#",{"key":"budget","value":"{\"max_cost_usd\":0.1}"}"#, "");
+    let facts = RunFacts::of(Path::new("t.ndjson"), &unbounded).expect("facts");
+    assert_eq!(facts.ceiling_left(), None);
+}
+
+/// The run card in French: what ran, what it produced, its cost and ceiling, a refused gate said
+/// as such, and a failure's code said once (live gauntlet wave 5).
+#[test]
+fn the_run_card_reads_in_french() {
+    let root = Path::new(".");
+    let run = r#""execution":{"uuid":"01a1489f-a9d7-71f0-a44b-dc8a90d7db7c"}"#;
+    let done = [
+        format!(r#"{{"kind":"workflow_started",{run},"fields":[{{"key":"workflow","value":"w"}},{{"key":"budget","value":{{"max_cost_usd":0.1}}}}]}}"#),
+        format!(r#"{{"kind":"task_completed",{run},"fields":[{{"key":"task","value":"a"}}]}}"#),
+        format!(r#"{{"kind":"task_completed",{run},"fields":[{{"key":"task","value":"b"}}]}}"#),
+        format!(r#"{{"kind":"approval_decided",{run},"fields":[{{"key":"task","value":"b"}},{{"key":"decision","value":"deny"}},{{"key":"source","value":"resume"}}]}}"#),
+        format!(r#"{{"kind":"workflow_completed",{run},"fields":[{{"key":"status","value":"succeeded"}},{{"key":"priced_calls","value":1}},{{"key":"total_cost_usd","value":0.0004}}]}}"#),
+    ]
+    .join("\n");
+    let facts = RunFacts::of(Path::new("t.ndjson"), &done).expect("facts");
+    let fr = facts.result_in(root, Path::new("w.nika"), true);
+    assert!(
+        fr.starts_with("Terminé · arrêté à votre « non » · `w.nika` · 2 étapes exécutées"),
+        "{fr}"
+    );
+    assert!(
+        fr.contains("refusé · votre réponse l'a arrêté là · `b` · répondu dans cette session"),
+        "{fr}"
+    );
+    assert!(
+        fr.contains("coût · 0,0004 $ · 1 appel tarifé · estimation enregistrée"),
+        "{fr}"
+    );
+    assert!(
+        fr.contains("plafond · 0,10 $ · le plus que ce run pouvait coûter"),
+        "{fr}"
+    );
+    assert!(
+        fr.contains("`/proof` montre les preuves et leurs limites · « lance-le » le relance"),
+        "{fr}"
+    );
+    let failed = [
+        format!(r#"{{"kind":"workflow_started",{run},"fields":[{{"key":"workflow","value":"w"}}]}}"#),
+        format!(r#"{{"kind":"task_failed",{run},"fields":[{{"key":"task","value":"jq"}},{{"key":"detail","value":"NIKA-BUILTIN-JQ-001 · tool `nika:jq` reported an error: NIKA-BUILTIN-JQ-001 · jq runtime error: cannot use null as iterable"}}]}}"#),
+        format!(r#"{{"kind":"workflow_failed",{run},"fields":[{{"key":"status","value":"failed"}}]}}"#),
+    ]
+    .join("\n");
+    let facts = RunFacts::of(Path::new("t.ndjson"), &failed).expect("facts");
+    let fr = facts.result_in(root, Path::new("w.nika"), true);
+    assert!(fr.starts_with("Échoué · `w.nika` · `jq` a échoué"), "{fr}");
+    assert!(
+        fr.contains("NIKA-BUILTIN-JQ-001 · tool `nika:jq` reported an error: jq runtime error"),
+        "the code said once: {fr}"
+    );
+    assert!(fr.contains("rien n'a abouti avant"), "{fr}");
+    assert!(
+        fr.contains("corrigez le workflow si la cause est la sienne"),
+        "{fr}"
+    );
+}
+
+/// A run its ceiling stopped says so, what it spent against the ceiling and what never ran, in
+/// the person's language, and never asks for a repair of the workflow (live gauntlet r09).
+#[test]
+fn a_run_the_ceiling_stopped_says_so_and_asks_no_repair() {
+    let root = Path::new(".");
+    let raw = [
+        r#"{"kind":"workflow_started","execution":{"uuid":"01a1489f-a9d7-71f0-a44b-dc8a90d7db7c"},"fields":[{"key":"workflow","value":"ventes"},{"key":"budget","value":{"max_cost_usd":0.001}}]}"#,
+        r#"{"kind":"task_completed","execution":{"uuid":"01a1489f-a9d7-71f0-a44b-dc8a90d7db7c"},"fields":[{"key":"task","value":"comment"}]}"#,
+        r#"{"kind":"task_cancelled","execution":{"uuid":"01a1489f-a9d7-71f0-a44b-dc8a90d7db7c"},"fields":[{"key":"task","value":"write_report"},{"key":"note","value":"budget · --max-cost-usd reached"}]}"#,
+        r#"{"kind":"workflow_failed","execution":{"uuid":"01a1489f-a9d7-71f0-a44b-dc8a90d7db7c"},"fields":[{"key":"status","value":"failed"},{"key":"cause","value":"budget"},{"key":"priced_calls","value":1},{"key":"total_cost_usd","value":0.003506}]}"#,
+    ]
+    .join("\n");
+    let facts = RunFacts::of(Path::new("t.ndjson"), &raw).expect("facts");
+    assert!(facts.stopped_by_ceiling());
+    assert_eq!(facts.spent_usd(), Some(0.003_506));
+    let fr = facts.result_in(root, Path::new("ventes.nika"), true);
+    assert!(
+        fr.starts_with("Arrêté · `ventes.nika` · le plafond est atteint : 0,0035 $ dépensés pour un plafond de 0,0010 $"),
+        "{fr}"
+    );
+    assert!(fr.contains("pas lancées · write_report"), "{fr}");
+    assert!(fr.contains("le workflow n'est pas en cause"), "{fr}");
+    let en = facts.result(root, Path::new("ventes.nika"));
+    assert!(
+        en.starts_with(
+            "Stopped · `ventes.nika` · the ceiling was reached: $0.0035 spent for a $0.0010 ceiling"
+        ),
+        "{en}"
+    );
+    assert!(!en.contains("repair the workflow"), "{en}");
+}
+
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/traces")
@@ -303,6 +409,26 @@ fn a_failed_task_reads_as_a_failure() {
     );
 }
 
+/// An unpriced call says why its own frame names, never that a remote route is a local model.
+#[test]
+fn an_unpriced_call_says_its_own_reason() {
+    let (_dir, trace) = journal(
+        "unpriced-reason",
+        &[
+            "{\"kind\":\"workflow_started\",\"fields\":[{\"key\":\"workflow\",\"value\":\"t\"}]}",
+            "{\"kind\":\"task_completed\",\"fields\":[{\"key\":\"task\",\"value\":\"t\"},{\"key\":\"cost_unpriced\",\"value\":\"missing_catalog_price\"}]}",
+            "{\"kind\":\"workflow_completed\",\"fields\":[{\"key\":\"workflow\",\"value\":\"t\"},{\"key\":\"priced_calls\",\"value\":0},{\"key\":\"unpriced_calls\",\"value\":1}]}",
+        ],
+    );
+    let facts = RunFacts::read(&trace).expect("frames");
+    let line = facts.cost_line_in(false);
+    assert_eq!(
+        line,
+        "cost · UNKNOWN · 1 unpriced call(s): no verified tariff for its route (never free)"
+    );
+    assert!(!line.contains("local model"), "{line}");
+}
+
 /// A file that is not a journal is no reading at all: the door's own
 /// observation line stands alone.
 #[test]
@@ -505,4 +631,335 @@ fn a_resume_names_the_completions_it_would_run_again_live() {
     let view = facts.gate(Path::new("flow.nika"), "Ship it?", "confirm", &[]);
     assert!(!view.contains("run again"), "{view}");
     assert!(resumed_live(&path.with_file_name("absent.ndjson")).is_empty());
+}
+
+#[test]
+fn native_choices_keep_the_first_pause_and_first_field_exactly() {
+    let field = |key: &str, value: Value| serde_json::json!({"key":key,"value":value});
+    let first = serde_json::json!({"kind":"workflow_paused","fields":[
+        field("task", Value::String("pick".into())),
+        field("choices", Value::String(r#"["true","  spaced  ","/quit","é"]"#.into())),
+        field("choices", Value::String(r#"["replacement"]"#.into()))
+    ]});
+    let later = paused(r#"{"key":"task","value":"later"},{"key":"choices","value":"[\"later\"]"}"#);
+    let raw = format!("{first}\n{later}");
+    let facts = RunFacts::of(Path::new("choices.ndjson"), &raw).expect("facts");
+    assert_eq!(
+        facts.pause_choices(),
+        Some(
+            ["true", "  spaced  ", "/quit", "é"]
+                .map(str::to_owned)
+                .as_slice()
+        )
+    );
+    for bad in [
+        Value::Null,
+        serde_json::json!(["a"]),
+        Value::String("not JSON".into()),
+        Value::String("[1,\"a\"]".into()),
+    ] {
+        let malformed = serde_json::json!({"kind":"workflow_paused","fields":[
+            field("task", Value::String("pick".into())), field("choices", bad),
+            field("choices", Value::String(r#"["replacement"]"#.into()))
+        ]});
+        let raw = format!("{malformed}\n{later}");
+        assert_eq!(
+            RunFacts::of(Path::new("choices.ndjson"), &raw)
+                .expect("facts")
+                .pause_choices(),
+            None
+        );
+    }
+    let no_task = paused(r#"{"key":"choices","value":"[\"a\"]"}"#);
+    assert_eq!(
+        RunFacts::of(Path::new("choices.ndjson"), &format!("{no_task}\n{later}"))
+            .expect("facts")
+            .pause_choices(),
+        None
+    );
+}
+
+#[test]
+fn a_choice_gate_describes_a_string_answer_without_claiming_yes_or_no_semantics() {
+    let facts = RunFacts::read(&fixture("paused.ndjson")).expect("frames");
+    let gated = vec!["record · writes a file".to_owned()];
+    let choice = facts.gate(
+        Path::new("choice.nika"),
+        "Choose the exact report label",
+        "choice",
+        &gated,
+    );
+    assert!(choice.contains("\n  after your choice · record · writes a file"));
+    assert!(choice.contains(
+        "\n  the chosen value resumes the run · nothing after the gate has happened yet"
+    ));
+    assert!(!choice.contains("a yes lets happen") && !choice.contains("a no ends the run"));
+    let confirm = facts.gate(
+        Path::new("confirm.nika"),
+        "Write the report?",
+        "confirm",
+        &gated,
+    );
+    assert!(confirm.contains("\n  a yes lets happen · record · writes a file"));
+    assert!(
+        confirm.contains("\n  a no ends the run there · nothing after the gate has happened yet")
+    );
+    assert!(confirm.contains("answer yes or no"));
+}
+
+mod expiry;
+
+/// The ceiling a run was admitted under is said beside its cost, read from its `workflow_started`
+/// frame whether the budget is an object or its JSON text (live gauntlet, 2026-10-16: asked
+/// whether her $0.10 ceiling held, the author answered that the run's summary did not say which
+/// ceiling applied); a run that names none says nothing of it.
+#[test]
+fn the_result_says_the_ceiling_the_run_was_admitted_under() {
+    for budget in [
+        r#"{"key":"budget","value":"{\"max_cost_usd\":0.1}"}"#,
+        r#"{"key":"budget","value":{"max_cost_usd":0.1}}"#,
+    ] {
+        let started = format!(
+            r#"{{"kind":"workflow_started","fields":[{{"key":"workflow","value":"ventes"}},{budget}]}}"#
+        );
+        let done = r#"{"kind":"workflow_completed","fields":[{"key":"status","value":"succeeded"},{"key":"total_cost_usd","value":0.0004},{"key":"priced_calls","value":1}]}"#;
+        let (root, path) = journal("ceiling", &[started.as_str(), done]);
+        let facts = RunFacts::read(&path).expect("frames");
+        let view = facts.result(root.path(), Path::new("ventes.nika"));
+        assert!(
+            view.contains("ceiling · $0.10 · the most this run was allowed to cost"),
+            "{view}"
+        );
+    }
+    let (root, path) = journal(
+        "no-ceiling",
+        &[r#"{"kind":"workflow_started","fields":[{"key":"workflow","value":"ventes"}]}"#],
+    );
+    let facts = RunFacts::read(&path).expect("frames");
+    assert!(
+        !facts
+            .result(root.path(), Path::new("ventes.nika"))
+            .contains("ceiling ·")
+    );
+}
+
+/// A path the run may write that is not there now is never « produced »: the run removed it, or it
+/// is simply not there (live gauntlet q05: three inbox files moved to `traites/` read « produced ·
+/// ./inbox/… »).
+#[test]
+fn a_removed_file_reads_removed_never_produced() {
+    let dir = tempdir("removed");
+    std::fs::create_dir_all(dir.path().join("traites")).expect("dir");
+    std::fs::write(dir.path().join("traites/a.txt"), "hello").expect("moved");
+    std::fs::write(
+        dir.path().join("inbox.nika"),
+        "nika: inbox\npermits:\n  fs: { write: [\"./traites/*\", \"./inbox/*\", \"./tmp.txt\"] }\n  tools: [\"nika:write\", \"nika:remove_file\"]\ntasks:\n  keep:\n    invoke: { tool: \"nika:write\", args: { path: \"./traites/a.txt\", content: \"hello\" } }\n  drop:\n    after: { keep: success }\n    invoke: { tool: \"nika:remove_file\", args: { path: \"./inbox/a.txt\" } }\n",
+    )
+    .expect("workflow");
+    let permit = |task: &str, path: &str| {
+        format!(
+            "{{\"kind\":\"permit_checked\",\"fields\":[{{\"key\":\"task\",\"value\":\"{task}\"}},{{\"key\":\"plane\",\"value\":\"fs\"}},{{\"key\":\"gate\",\"value\":\"permits.fs.write {path}\"}},{{\"key\":\"decision\",\"value\":\"allow\"}}]}}"
+        )
+    };
+    let frames = [
+        "{\"kind\":\"workflow_started\",\"fields\":[{\"key\":\"workflow\",\"value\":\"inbox\"}]}".to_owned(),
+        permit("keep", "./traites/a.txt"),
+        permit("drop", "./inbox/a.txt"),
+        permit("keep", "./tmp.txt"),
+        "{\"kind\":\"workflow_completed\",\"fields\":[{\"key\":\"status\",\"value\":\"succeeded\"}]}".to_owned(),
+    ];
+    let frames: Vec<&str> = frames.iter().map(String::as_str).collect();
+    let (_journal_dir, trace) = journal("removed-journal", &frames);
+    let facts = RunFacts::read(&trace).expect("frames");
+    let view = facts.result(dir.path(), Path::new("inbox.nika"));
+    assert!(
+        view.contains("\n  produced · ./traites/a.txt (5 B)"),
+        "{view}"
+    );
+    assert!(view.contains("\n  removed · ./inbox/a.txt"), "{view}");
+    assert!(view.contains("\n  not there now · ./tmp.txt"), "{view}");
+    assert!(!view.contains("produced · ./inbox"), "{view}");
+}
+
+/// The run report says the workflow's declared outputs, and a read that failed and was
+/// recovered reads « not there » (live gauntlet r08, r03 and r02, 2026-10-16).
+#[test]
+fn the_report_says_the_outputs_and_never_a_read_that_found_nothing() {
+    let dir = tempdir("outputs");
+    std::fs::write(
+        dir.path().join("w.nika"),
+        "nika: w\npermits:\n  fs: { read: [\"./state.txt\", \"./in.csv\"] }\n  tools: [\"nika:read\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./state.txt\" } }\n",
+    )
+    .expect("workflow");
+    let permit = |task: &str, path: &str| {
+        format!(
+            "{{\"kind\":\"permit_checked\",\"fields\":[{{\"key\":\"task\",\"value\":\"{task}\"}},{{\"key\":\"plane\",\"value\":\"fs\"}},{{\"key\":\"gate\",\"value\":\"permits.fs.read {path}\"}},{{\"key\":\"decision\",\"value\":\"allow\"}}]}}"
+        )
+    };
+    let task = |kind: &str, id: &str| {
+        format!("{{\"kind\":\"{kind}\",\"fields\":[{{\"key\":\"task\",\"value\":\"{id}\"}}]}}")
+    };
+    let outputs = serde_json::json!({"totals": {"north": 15, "south": 20}, "message": "Toutes les notes ont été traduites.\nDétail", "journal": "2026-10-16 · la première\n\n2026-10-17 · la deuxième\n2026-10-18 · la dernière\n"}).to_string();
+    let completed = serde_json::json!({"kind": "workflow_completed", "fields": [
+        {"key": "status", "value": "succeeded"}, {"key": "outputs", "value": outputs}]})
+    .to_string();
+    let frames = [
+        "{\"kind\":\"workflow_started\",\"fields\":[{\"key\":\"workflow\",\"value\":\"w\"}]}"
+            .to_owned(),
+        task("task_started", "a"),
+        permit("a", "./state.txt"),
+        task("task_recovered", "a"),
+        task("task_started", "b"),
+        permit("b", "./in.csv"),
+        task("task_completed", "b"),
+        completed,
+    ];
+    let frames: Vec<&str> = frames.iter().map(String::as_str).collect();
+    let (_journal_dir, trace) = journal("outputs-journal", &frames);
+    let facts = RunFacts::read(&trace).expect("frames");
+    let view = facts.result(dir.path(), Path::new("w.nika"));
+    assert!(view.contains("\n  read · ./in.csv"), "{view}");
+    assert!(view.contains("\n  not there · ./state.txt"), "{view}");
+    assert!(!view.contains("read · ./state.txt"), "{view}");
+    assert!(
+        view.contains("\n  output · totals · {\"north\":15,\"south\":20}"),
+        "{view}"
+    );
+    assert!(
+        view.contains(
+            "\n  output · message · Toutes les notes ont été traduites. … Détail (2 lines)"
+        ),
+        "{view}"
+    );
+    // A journal a run appends to says the line this run wrote, beside its first (live gauntlet
+    // wave 6 r08 B2: three runs read the first run's line).
+    assert!(
+        view.contains(
+            "\n  output · journal · 2026-10-16 · la première … 2026-10-18 · la dernière (3 lines)"
+        ),
+        "{view}"
+    );
+}
+
+/// One journal frame of the run `execution`, `kind` and `fields` as the runtime writes them.
+fn leg_frame(execution: &str, kind: &str, fields: &serde_json::Value) -> String {
+    let fields: Vec<serde_json::Value> = (fields.as_object().into_iter().flatten())
+        .map(|(key, value)| serde_json::json!({"key": key, "value": value}))
+        .collect();
+    serde_json::json!({
+        "correlation": null,
+        "execution": {"uuid": execution},
+        "fields": fields,
+        "id": {"uuid": "01a0ef11-03a7-74fb-bba0-000000000001"},
+        "kind": kind,
+        "run": null,
+        "timestamp": 1
+    })
+    .to_string()
+}
+
+/// A run a gate split (live gauntlet 4, r04 B1, W16): its first leg paused after one priced
+/// call, its resumed leg finished without a model call. The resumed leg's result counts the
+/// run's every leg, « $0.0438 · 1 priced call », never « no model usage recorded »; the pure
+/// fold of its bytes alone reads no other journal.
+#[test]
+fn a_resumed_leg_counts_what_the_legs_before_its_gate_spent() {
+    let store = tempdir("resumed-cost");
+    let paused = "01a1453e-d896-74a2-808f-b8f8ae95a870";
+    let resumed = "01a1454f-aaab-7077-bc12-87282886951b";
+    let first = [
+        leg_frame(
+            paused,
+            "workflow_started",
+            &serde_json::json!({"workflow": "hn"}),
+        ),
+        leg_frame(
+            paused,
+            "task_started",
+            &serde_json::json!({"task": "pick", "note": "infer · xai/grok-4.7"}),
+        ),
+        leg_frame(
+            paused,
+            "task_completed",
+            &serde_json::json!({"task": "pick", "note": "infer · xai/grok-4.7", "cost_usd": 0.043_776}),
+        ),
+        leg_frame(
+            paused,
+            "workflow_paused",
+            &serde_json::json!({"task": "approve", "mode": "confirm", "status": "paused", "total_cost_usd": 0.043_776, "priced_calls": 1, "unpriced_calls": 0, "cost_qualifier": "priced"}),
+        ),
+    ];
+    let second = [
+        leg_frame(
+            resumed,
+            "workflow_started",
+            &serde_json::json!({"workflow": "hn", "resumed_from": "01a1453ed89674a2808fb8f8ae95a870"}),
+        ),
+        leg_frame(
+            resumed,
+            "task_cache_hit",
+            &serde_json::json!({"task": "pick", "note": "cache hit"}),
+        ),
+        leg_frame(
+            resumed,
+            "task_completed",
+            &serde_json::json!({"task": "approve"}),
+        ),
+        leg_frame(
+            resumed,
+            "workflow_completed",
+            &serde_json::json!({"status": "succeeded", "priced_calls": 0, "unpriced_calls": 0, "cost_qualifier": "unmetered"}),
+        ),
+    ];
+    let traces = store.path().join("traces");
+    std::fs::create_dir_all(&traces).expect("traces");
+    std::fs::write(
+        traces.join("2026-10-16T15-05-10Z-a870.ndjson"),
+        first.join("\n"),
+    )
+    .expect("paused");
+    let leg = traces.join("2026-10-16T15-23-33Z-951b.ndjson");
+    std::fs::write(&leg, second.join("\n")).expect("resumed");
+    let facts = RunFacts::read(&leg).expect("frames");
+    let view = facts.result(store.path(), Path::new("hn.nika"));
+    assert!(
+        view.contains("cost · $0.0438 · 1 priced call(s) · recorded estimate, invoice not verified · over its 2 legs"),
+        "{view}"
+    );
+    assert!(!view.contains("no model usage recorded"), "{view}");
+    let alone = RunFacts::of(&leg, &second.join("\n")).expect("frames");
+    let view = alone.result(store.path(), Path::new("hn.nika"));
+    assert!(view.contains("cost · no model usage recorded"), "{view}");
+}
+
+/// A step that sends beyond this machine says whether it sent: completed, or not sent and why
+/// (live gauntlet r02 B13, 2026-10-17: the report never said whether the webhook was pinged).
+#[test]
+fn each_sending_step_says_whether_it_sent() {
+    let root = tempdir("sending-steps");
+    std::fs::write(
+        root.path().join("watch.nika"),
+        "nika: watch\npermits:\n  tools: [\"nika:fetch\"]\n  net: { http: [\"hooks.example\"] }\ntasks:\n  ping:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://hooks.example/x\", method: POST, body: \"v\" } }\n  look:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://hooks.example/y\" } }\n",
+    )
+    .expect("workflow");
+    let mut facts = RunFacts::read(&fixture("copy.ndjson")).expect("frames");
+    facts.tasks.push(super::TaskFact {
+        id: "ping".to_owned(),
+        state: TaskState::Skipped,
+        ..Default::default()
+    });
+    let view = facts.result(root.path(), Path::new("watch.nika"));
+    assert!(
+        view.contains("not sent · `ping` · its condition was false"),
+        "{view}"
+    );
+    assert!(!view.contains("`look`"), "a GET sends nothing: {view}");
+    if let Some(ping) = facts.tasks.iter_mut().find(|t| t.id == "ping") {
+        ping.state = TaskState::Ok;
+    }
+    let view = facts.result(root.path(), Path::new("watch.nika"));
+    assert!(
+        view.contains("sent · `ping` · the step completed"),
+        "{view}"
+    );
 }

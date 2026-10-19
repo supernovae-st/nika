@@ -40,7 +40,8 @@ use serde_json::{Value, json};
 /// the judge's position, after a candidate READY in its authoring round, and after an answer round
 /// that finishes a native record READY (native step 2, the seat permitted as its judge). The
 /// judge's call is a real call, counted like any other.
-const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
+/// It answers the whole request's `model_parts` too: no part a model must write.
+const JUDGE_APPROVES: &str = r#"{"choice":"faithful","model_parts":[]}"#;
 
 /// A line only an intelligence answers, in words: the conversation's.
 const CHAT: &str = "hello there, how are you today?";
@@ -484,9 +485,10 @@ fn a_deterministic_session_calls_no_one_and_reads_no_pack_whatever_is_configured
     assert!(!details.contains("pack sha256"), "{details}");
     let status = report["status"].as_str().unwrap();
     assert!(status.contains("authoring · deterministic"), "{status}");
+    // How Nika prepares is `/details`' (live gauntlet wave 6 r02 B4).
     assert!(
-        status.contains("knowledge knowledge-s03"),
-        "the configuration is stated (pinned at open), never composed nor presented by this seat: {status}"
+        details.contains("knowledge knowledge-s03"),
+        "the configuration is stated (pinned at open), never composed nor presented by this seat: {details}"
     );
 }
 

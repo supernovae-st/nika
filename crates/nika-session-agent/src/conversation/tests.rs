@@ -241,6 +241,402 @@ fn a_dropped_value_waits_for_the_persons_words_and_a_replaced_output_does_not() 
     );
 }
 
+/// A request names two outputs and leaves where one's name starts open; the other output is
+/// bound from the person's line. The choice of where the open name starts asks that name alone:
+/// the bound output neither keeps it from being shown nor is unbound by its answer, and a revision
+/// that drops the bound output is reported, never taken as replaced by the answer.
+#[test]
+fn an_open_names_choice_stands_beside_another_output() {
+    let asker = Arc::new(Incarnation);
+    let mut conversation = Conversation::default();
+    let request = "Prépare un workflow qui lit articles.csv. Il faudra générer out/stock.json avec \
+                   le total, puis un court résumé dans notes/stock.md.";
+    let cited = citations(&[("u1", request)]);
+    let summary = json!({"value": "notes/stock.md", "kind": "named", "role": "output_path",
+        "message": "u1", "excerpt": "dans notes/stock.md"});
+    let both = "nika: stock\n# writes out/stock.json and notes/stock.md\n";
+    let reply = write(&mut conversation, &cited, both, json!([summary]));
+    assert!(!reply.is_error, "{reply:?}");
+    let readings = [
+        "faudra générer out/stock.json",
+        "générer out/stock.json",
+        "out/stock.json",
+    ];
+    let options: Vec<Value> = (readings.iter().enumerate())
+        .map(|(k, path)| {
+            json!({"key": format!("r{k}"), "label": path, "recommended": k == 2,
+                "values": [{"role": "output_path", "value": path}]})
+        })
+        .collect();
+    let choice = json!({"key": "const.stock_path", "role": "output_path",
+        "question": "Quel fichier désigne « faudra générer out/stock.json » ?",
+        "options": options});
+    let mut mint = |context: &str| QuestionId::new(context.to_owned(), &asker);
+    let open = conversation.open_choices(
+        &cited,
+        &json!({"open": [choice]}),
+        Some("c1"),
+        (&mut mint, &mut |_: &str| None),
+    );
+    let open = open.expect("the open name's choice is shown beside the bound output");
+    let shown = ("S0".to_owned(), open);
+    assert_eq!(conversation.propose(&cited, &json!({}), shown), Ok(None));
+    let lines = citations(&[("u1", request), ("u2", "le chemin seul")]);
+    let read = BTreeMap::from([("const.stock_path".to_owned(), Pick::Offer("r2".to_owned()))]);
+    conversation.answered_by("u2", "le chemin seul", &read);
+    let outputs: Vec<&str> = (conversation.bindings().iter())
+        .filter(|binding| binding.role == ValueRole::OutputPath)
+        .map(|binding| binding.value.as_str())
+        .collect();
+    assert!(
+        outputs.contains(&"notes/stock.md") && outputs.contains(&"out/stock.json"),
+        "{outputs:?}"
+    );
+    let json_only = "nika: stock\n# writes out/stock.json\n";
+    let reply = write(&mut conversation, &lines, json_only, json!([]));
+    assert!(!reply.is_error, "{reply:?}");
+    let dropped = conversation.dropped();
+    assert!(
+        dropped.iter().any(|why| why.contains("notes/stock.md")),
+        "{dropped:?}"
+    );
+}
+
+/// Two outputs and a third: where the event's name starts is open (`payload out/event.json`),
+/// the report and the summary are other outputs.
+const EVENTS: &str = "Lis events.csv, écris payload out/event.json pour chaque ligne, puis un \
+                      rapport out/report.md et un résumé out/summary.md.";
+
+/// The candidate: it carries every default the choices below show.
+const EVENTS_SOURCE: &str =
+    "nika: events\n# writes out/event.json, out/report.md and out/summary.md\n";
+
+/// A choice of one output among `paths` (offers `o0`, `o1`, …), the last one its default.
+fn output_choice(key: &str, paths: &[&str]) -> Value {
+    let options: Vec<Value> = (paths.iter().enumerate())
+        .map(|(k, path)| {
+            json!({"key": format!("o{k}"), "label": path, "recommended": k + 1 == paths.len(),
+                "values": [{"role": "output_path", "value": path}]})
+        })
+        .collect();
+    json!({"key": key, "role": "output_path", "question": format!("{key} ?"), "options": options})
+}
+
+/// Where the open name `payload out/event.json` starts: a choice of its readings.
+fn event_choice() -> Value {
+    output_choice(
+        "const.event_path",
+        &["payload out/event.json", "out/event.json"],
+    )
+}
+
+/// Another output's ordinary choice: the report's format.
+fn report_choice() -> Value {
+    output_choice("const.report_path", &["out/report.json", "out/report.md"])
+}
+
+/// The candidate written for the request, nothing asked yet.
+fn events() -> (Conversation, Citations) {
+    let mut conversation = Conversation::default();
+    let lines = citations(&[("u1", EVENTS)]);
+    let reply = write(&mut conversation, &lines, EVENTS_SOURCE, json!([]));
+    assert!(!reply.is_error, "{reply:?}");
+    (conversation, lines)
+}
+
+/// The candidate proposed with `choices` shown, after the person's `lines`; else why the Session
+/// does not show them.
+fn show(
+    conversation: &mut Conversation,
+    lines: &Citations,
+    choices: &[Value],
+) -> Result<(), String> {
+    let asker = Arc::new(Incarnation);
+    let mut mint = |context: &str| QuestionId::new(context.to_owned(), &asker);
+    let call = format!("c{}", lines.last());
+    let args = json!({"open": choices});
+    let open = conversation.open_choices(
+        lines,
+        &args,
+        Some(call.as_str()),
+        (&mut mint, &mut |_: &str| None),
+    )?;
+    let proposed = conversation.propose(lines, &json!({}), ("S".to_owned(), open));
+    assert_eq!(proposed, Ok(None));
+    Ok(())
+}
+
+/// Asks `choice` again with no default, as the person's words `(message, excerpt)` reopen it;
+/// the keys asked.
+fn reopen(
+    conversation: &mut Conversation,
+    lines: &Citations,
+    mut choice: Value,
+    (message, excerpt): (&str, &str),
+) -> Vec<String> {
+    for option in choice["options"].as_array_mut().into_iter().flatten() {
+        option["recommended"] = json!(false);
+    }
+    choice["reopens"] = json!({"message": message, "excerpt": excerpt});
+    let asker = Arc::new(Incarnation);
+    let mut mint = |context: &str| QuestionId::new(context.to_owned(), &asker);
+    let args = json!({"questions": [choice]});
+    let reply = conversation.ask(
+        lines,
+        &args,
+        Some(message),
+        (&mut mint, &mut |_: &str| None),
+    );
+    let reply: Value = serde_json::from_str(&reply.text).unwrap();
+    assert_eq!(reply["refused"], json!([]), "{reply}");
+    (reply["asked"].as_array().into_iter().flatten())
+        .filter_map(|question| question["key"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// The person's line `cite` picks, as the Session reads it, the offer of each choice by key.
+fn pick(conversation: &mut Conversation, cite: &str, picked: &[(&str, &str)]) {
+    let read: BTreeMap<String, Pick> = (picked.iter())
+        .map(|(key, offer)| ((*key).to_owned(), Pick::Offer((*offer).to_owned())))
+        .collect();
+    conversation.answered_by(cite, "ces fichiers-là", &read);
+}
+
+/// One output bound by the offer `offer` of the question `key`, as [`outputs`] says it.
+fn output(value: &str, key: &str, offer: &str, line: &str) -> String {
+    format!("{value} · {key} · {key}/{offer} · Offered · {line}")
+}
+
+/// The outputs bound, sorted: each with its question, the question and offer of its provenance,
+/// its kind and the person's line.
+fn outputs(conversation: &Conversation) -> Vec<String> {
+    let mut outputs: Vec<String> = (conversation.bindings().iter())
+        .filter(|binding| binding.role == ValueRole::OutputPath)
+        .map(|binding| {
+            let provenance = &binding.provenance;
+            let key = binding.key.as_deref().unwrap_or("-");
+            let question = provenance.question.as_deref().unwrap_or("-");
+            let offer = provenance.option.as_deref().unwrap_or("-");
+            let (value, kind) = (&binding.value, provenance.kind);
+            format!(
+                "{value} · {key} · {question}/{offer} · {kind:?} · {}",
+                provenance.message
+            )
+        })
+        .collect();
+    outputs.sort();
+    outputs
+}
+
+/// Shown together, an open name's choice and another output's choice keep both outputs,
+/// whichever the person's line answers first: picked, or kept as defaults by their consent.
+#[test]
+fn an_open_name_and_another_output_answered_together_both_stay_bound() {
+    let picked = [
+        output("out/event.json", "const.event_path", "o1", "u2"),
+        output("out/report.json", "const.report_path", "o0", "u2"),
+    ];
+    let kept = [
+        output("out/event.json", "const.event_path", "o1", "u2"),
+        output("out/report.md", "const.report_path", "o1", "u2"),
+    ];
+    for choices in [
+        [event_choice(), report_choice()],
+        [report_choice(), event_choice()],
+    ] {
+        let first = choices[0]["key"].clone();
+        let (mut conversation, lines) = events();
+        show(&mut conversation, &lines, &choices).expect("both choices are shown");
+        let both = [("const.event_path", "o1"), ("const.report_path", "o0")];
+        pick(&mut conversation, "u2", &both);
+        assert_eq!(outputs(&conversation), picked, "{first} answered first");
+        let (mut conversation, lines) = events();
+        show(&mut conversation, &lines, &choices).expect("both choices are shown");
+        assert_eq!(conversation.consented("u2").len(), 2);
+        assert_eq!(outputs(&conversation), kept, "{first} kept first");
+    }
+}
+
+/// Once the person settled where an open name starts, another output's choice is still shown,
+/// for that answer is not the other output's, and its answer keeps the open name's output; the
+/// other way round as well.
+#[test]
+fn another_outputs_choice_is_shown_and_bound_beside_a_settled_open_name() {
+    let event = |line: &str| output("out/event.json", "const.event_path", "o1", line);
+    let report = |line: &str| output("out/report.json", "const.report_path", "o0", line);
+    let orders = [
+        (event_choice(), report_choice(), [event("u2"), report("u3")]),
+        (report_choice(), event_choice(), [event("u3"), report("u2")]),
+    ];
+    let both = [("const.event_path", "o1"), ("const.report_path", "o0")];
+    for (first, then, bound) in orders {
+        let (mut conversation, lines) = events();
+        show(&mut conversation, &lines, &[first]).expect("the first choice is shown");
+        pick(&mut conversation, "u2", &both);
+        let lines = citations(&[("u1", EVENTS), ("u2", "ces fichiers-là")]);
+        let key = then["key"].clone();
+        let shown = show(&mut conversation, &lines, &[then]);
+        assert_eq!(shown, Ok(()), "{key} is shown beside the first answer");
+        pick(&mut conversation, "u3", &both);
+        assert_eq!(outputs(&conversation), bound, "{key} answered second");
+    }
+}
+
+/// What is not another output is still one output: a choice that offers the settled open name
+/// again is settled by it, a second ordinary output's choice is settled by the first, and two
+/// ordinary choices answered together keep the later answer only.
+#[test]
+fn a_choice_of_the_same_output_is_still_settled_or_replaced() {
+    let summary = output_choice("const.summary_path", &["out/summary.txt", "out/summary.md"]);
+    let again = output_choice("const.event_file", &["out/event.ndjson", "out/event.json"]);
+    let defaults = [("const.event_path", "o1"), ("const.report_path", "o1")];
+    for (first, then) in [(event_choice(), again), (report_choice(), summary.clone())] {
+        let (mut conversation, lines) = events();
+        show(&mut conversation, &lines, &[first]).expect("the first choice is shown");
+        pick(&mut conversation, "u2", &defaults);
+        let lines = citations(&[("u1", EVENTS), ("u2", "ces fichiers-là")]);
+        let refused = show(&mut conversation, &lines, &[then]).expect_err("already settled");
+        assert!(
+            refused.contains("already settled by the person"),
+            "{refused}"
+        );
+    }
+    let (mut conversation, lines) = events();
+    show(&mut conversation, &lines, &[report_choice(), summary]).expect("both choices are shown");
+    pick(
+        &mut conversation,
+        "u2",
+        &[("const.report_path", "o1"), ("const.summary_path", "o1")],
+    );
+    let later = output("out/summary.md", "const.summary_path", "o1", "u2");
+    assert_eq!(outputs(&conversation), [later]);
+}
+
+/// The person's later words reopen one output's choice: asking it again unbinds that choice's
+/// answer only. Reopening the report keeps where the open name starts; reopening the open name
+/// replaces its own answer and keeps the report.
+#[test]
+fn reopening_one_output_keeps_the_other() {
+    let (mut conversation, lines) = events();
+    let choices = [report_choice(), event_choice()];
+    show(&mut conversation, &lines, &choices).expect("both choices are shown");
+    pick(
+        &mut conversation,
+        "u2",
+        &[("const.event_path", "o1"), ("const.report_path", "o1")],
+    );
+    let mut lines = citations(&[
+        ("u1", EVENTS),
+        ("u2", "ces fichiers-là"),
+        ("u3", "finalement le rapport en JSON"),
+    ]);
+    let asked = reopen(
+        &mut conversation,
+        &lines,
+        report_choice(),
+        ("u3", "le rapport en JSON"),
+    );
+    assert_eq!(asked, ["const.report_path"]);
+    let event = output("out/event.json", "const.event_path", "o1", "u2");
+    assert_eq!(outputs(&conversation), std::slice::from_ref(&event));
+    pick(&mut conversation, "u4", &[("const.report_path", "o0")]);
+    let report = output("out/report.json", "const.report_path", "o0", "u4");
+    assert_eq!(outputs(&conversation), [event, report.clone()]);
+    let words = "plutôt payload out/event.json en entier";
+    lines.record(13, Some(("u5".into(), words.into())));
+    let excerpt = ("u5", "payload out/event.json en entier");
+    let asked = reopen(&mut conversation, &lines, event_choice(), excerpt);
+    assert_eq!(asked, ["const.event_path"]);
+    assert_eq!(outputs(&conversation), std::slice::from_ref(&report));
+    pick(&mut conversation, "u6", &[("const.event_path", "o0")]);
+    let payload = output("payload out/event.json", "const.event_path", "o0", "u6");
+    assert_eq!(outputs(&conversation), [report, payload]);
+}
+
+/// A choice that also offers one of an open name's readings asks for that name's output too: the
+/// offers each question showed decide, never the value picked alone. Answered together with the
+/// open name's choice, in either order, the later pick replaces the earlier output; a multiple
+/// choice does as well.
+#[test]
+fn a_choice_offering_an_open_names_reading_replaces_its_output_in_either_order() {
+    let format = output_choice(
+        "const.event_format",
+        &["out/event.ndjson", "out/event.json"],
+    );
+    let picks = [("const.event_path", "o1"), ("const.event_format", "o0")];
+    let orders = [
+        (
+            [event_choice(), format.clone()],
+            output("out/event.ndjson", "const.event_format", "o0", "u2"),
+        ),
+        (
+            [format.clone(), event_choice()],
+            output("out/event.json", "const.event_path", "o1", "u2"),
+        ),
+    ];
+    for (choices, later) in orders {
+        let first = choices[0]["key"].clone();
+        let (mut conversation, lines) = events();
+        show(&mut conversation, &lines, &choices).expect("both choices are shown");
+        pick(&mut conversation, "u2", &picks);
+        assert_eq!(outputs(&conversation), [later], "{first} answered first");
+    }
+    let mut several = format;
+    several["multi_select"] = json!(true);
+    let (mut conversation, lines) = events();
+    show(&mut conversation, &lines, &[event_choice(), several]).expect("both choices are shown");
+    let read = BTreeMap::from([
+        ("const.event_path".to_owned(), Pick::Offer("o1".to_owned())),
+        (
+            "const.event_format".to_owned(),
+            Pick::Offers(vec!["o0".to_owned()]),
+        ),
+    ]);
+    conversation.answered_by("u2", "ces fichiers-là", &read);
+    let later = output("out/event.ndjson", "const.event_format", "o0", "u2");
+    assert_eq!(outputs(&conversation), [later]);
+}
+
+/// A line the person wrote in reply to a question Nika asked is located as that reply once the host
+/// records it so, whether or not a value was bound from it, and every such line is kept: a second
+/// reply to the same question keeps the first. A line that replied to no question is not one.
+#[test]
+fn every_reply_to_an_asked_question_is_located_bound_or_not() {
+    let asker = Arc::new(Incarnation);
+    let mut conversation = Conversation::default();
+    let mut lines = citations(&[("u1", "écris un court message dans ./out/message.txt")]);
+    let mut mint = |context: &str| QuestionId::new(context.to_owned(), &asker);
+    let question = json!({"questions": [{"key": "message_text", "question": "Quel texte ?",
+        "free_text": true, "options": []}]});
+    for (cite, at, reply) in [("u2", 4, "bonjour.nika"), ("u3", 7, "salut.nika")] {
+        let posed = conversation.ask(
+            &lines,
+            &question,
+            Some(cite),
+            (&mut mint, &mut |_: &str| None),
+        );
+        assert!(posed.ends_turn, "{posed:?}");
+        lines.record(at, Some((cite.into(), reply.into())));
+        conversation.replied_by(cite);
+        conversation.answered_by(cite, reply, &BTreeMap::new());
+    }
+    let words = "enregistre-le dans bonjour.nika";
+    lines.record(10, Some(("u4".into(), words.into())));
+    assert!(conversation.answers_in(&lines).is_empty());
+    let replies: Vec<Value> = (conversation.replies_in(&lines).values())
+        .map(|raw| serde_json::from_str::<Value>(raw).unwrap()["choice_context"].clone())
+        .collect();
+    let located = |cite: &str, at: u64, reply: &str| {
+        let lines = [at, at + 1];
+        json!({"human_citation": cite, "human_lines": lines, "human_reply": reply})
+    };
+    let both = [
+        located("u2", 1, "bonjour.nika"),
+        located("u3", 2, "salut.nika"),
+    ];
+    assert_eq!(replies, both);
+}
+
 #[test]
 fn a_question_the_person_settled_is_answered_by_the_session() {
     let asker = Arc::new(Incarnation);
@@ -636,10 +1032,16 @@ fn a_question_over_values_already_bound_is_not_asked() {
         Some("c9"),
         (&mut mint, &mut |_: &str| None),
     );
-    assert!(
-        !reply.ends_turn && reply.text.contains("already bound"),
-        "{reply:?}"
+    assert!(!reply.ends_turn, "{reply:?}");
+    let result: Value = serde_json::from_str(&reply.text).unwrap();
+    assert_eq!(result["asked"], json!([]));
+    assert_eq!(result["bound"], json!([]));
+    assert_eq!(result["refused"][0]["reason"], "settled");
+    assert_eq!(
+        result["refused"][0]["settled"],
+        json!({"message": "u2", "value": DIGEST})
     );
+    assert!(conversation.asked_ids().is_empty());
 }
 
 /// Addendum to F2: words Nika had to ask about never name the value they were ambiguous about;
@@ -711,6 +1113,30 @@ fn a_removal_names_the_value_and_a_kept_value_is_in_the_document() {
         reply.is_error && reply.text.contains("no longer carries"),
         "{reply:?}"
     );
+}
+
+/// A value the person named but did not type is refused as answered with what to state instead,
+/// never as words missing from their line: the author retried other excerpts of the same line for
+/// ever (live gauntlet, 2026-10-16: « Grok 4.7 (xAI) » for `xai/grok-4.7`, four refusals).
+#[test]
+fn a_named_value_stated_as_answered_is_told_to_be_named() {
+    let said = "Pour l'étape IA du workflow utilise aussi Grok 4.7 (xAI) stp.";
+    let lines = citations(&[("u1", said)]);
+    let mut conversation = Conversation::default();
+    let row = |kind: &str| {
+        json!([{"value": "xai/grok-4.7", "kind": kind, "role": "run_model", "message": "u1",
+            "excerpt": "Grok 4.7 (xAI)"}])
+    };
+    let source = "model: xai/grok-4.7";
+    let reply = write(&mut conversation, &lines, source, row("answered"));
+    assert!(reply.is_error, "{reply:?}");
+    assert!(reply.text.contains("state it as named"), "{reply:?}");
+    assert!(
+        !reply.text.contains("which is not in the person's line"),
+        "{reply:?}"
+    );
+    let reply = write(&mut conversation, &lines, source, row("named"));
+    assert!(!reply.is_error, "{reply:?}");
 }
 
 /// Words that give a value its replacement remove it without naming it: the replacing value,
@@ -861,4 +1287,251 @@ fn an_output_name_is_not_asked_unless_the_persons_words_reopen_it() {
     let reply = conversation.ask(&lines, &args, Some("c2"), (&mut mint, &mut |_: &str| None));
     assert!(reply.ends_turn, "{reply:?}");
     assert_eq!(conversation.questions().len(), 1);
+}
+
+/// The workflow a conversation saved is kept with the witness of its bytes across a reopen and a
+/// new request: what a later revision of it replaces.
+#[test]
+fn the_saved_workflow_survives_a_reopen_and_a_new_request() {
+    let lines = citations(&[
+        ("u1", "lis ./notes/semaine.md"),
+        ("u2", "refais tout autrement"),
+    ]);
+    let mut conversation = Conversation::default();
+    conversation.saved_at("./weekly.nika", "nika: weekly\n");
+    let witness = Witness::of(b"nika: weekly\n").0;
+    assert_eq!(
+        conversation.saved(),
+        Some(("weekly.nika", witness.as_str()))
+    );
+    let reopened = Conversation::restored(&conversation.kept()).unwrap();
+    assert_eq!(reopened.saved(), conversation.saved());
+    let replaced = json!({"message": "u2", "excerpt": "refais tout autrement"});
+    assert!(!conversation.replace(&lines, &replaced).is_error);
+    assert_eq!(
+        conversation.saved().map(|(path, _)| path),
+        Some("weekly.nika")
+    );
+}
+
+/// The initial explicit mandate can cover preparation and saving once; a later instruction or
+/// a reopened conversation cannot turn the same words into another save or run.
+#[test]
+fn an_initial_preparation_mandate_is_scoped_and_consumed_once() {
+    let line = "Crée le workflow, enregistre et lance maintenant";
+    let mut lines = citations(&[("u1", line)]);
+    let mut conversation = Conversation::default();
+    assert!(
+        !write(
+            &mut conversation,
+            &lines,
+            "nika: hello\ntasks: {}\n",
+            json!([])
+        )
+        .is_error
+    );
+    let args = json!({"acts":["save","run"],"authorized_by":{"message":"u1","excerpt":line}});
+    let acts = conversation
+        .propose(&lines, &args, ("S1".into(), Vec::new()))
+        .unwrap()
+        .unwrap();
+    assert!(acts.save && acts.run && acts.revised);
+    assert!(
+        conversation
+            .propose(&lines, &args, ("S1".into(), Vec::new()))
+            .is_err()
+    );
+    let mut restored = Conversation::restored(&conversation.kept()).unwrap();
+    assert!(!write(&mut restored, &lines, "nika: hello\ntasks: {}\n", json!([])).is_error);
+    assert!(
+        restored
+            .propose(&lines, &args, ("S1".into(), Vec::new()))
+            .is_err()
+    );
+    let mut fresh = Conversation::default();
+    assert!(!write(&mut fresh, &lines, "nika: hello\ntasks: {}\n", json!([])).is_error);
+    lines.record(8, Some(("u2".into(), "Finalement, ne lance rien".into())));
+    assert!(
+        fresh
+            .propose(&lines, &args, ("S1".into(), Vec::new()))
+            .is_err()
+    );
+}
+
+#[test]
+fn a_bound_answer_cannot_answer_another_question_with_the_same_offer_key() {
+    let asker = Arc::new(Incarnation);
+    let first_id = QuestionId::new("first".into(), &asker);
+    let second_id = QuestionId::new("second".into(), &asker);
+    let make = |id: QuestionId, key: &str, value: &str| {
+        AskedQuestion::new(id, key, "Choose a source").with_options(
+            vec![
+                nika_session_change::work::Offer::new("yes", "Use it", true).with_values(vec![
+                    nika_session_change::work::OfferValue::new(ValueRole::ReadSource, value, None),
+                ]),
+            ],
+            true,
+            false,
+        )
+    };
+    let mut conversation = Conversation {
+        asked: vec![
+            make(first_id.clone(), "first", HN),
+            make(second_id.clone(), "second", TC),
+        ],
+        ..Conversation::default()
+    };
+    let said = conversation.answered_one_by(&first_id, "u2", "yes", &BTreeMap::new());
+    assert_eq!(said.len(), 1);
+    assert_eq!(conversation.asked_ids(), std::slice::from_ref(&second_id));
+    assert_eq!(conversation.bindings().len(), 1);
+    assert_eq!(conversation.bindings()[0].value, HN);
+    assert_eq!(conversation.bindings()[0].key.as_deref(), Some("first"));
+    assert!(!conversation.answered.contains_key("second"));
+    let stale = conversation.answered_one_by(&first_id, "u3", "yes", &BTreeMap::new());
+    assert_eq!(stale, Vec::<String>::new());
+    assert_eq!(conversation.asked_ids(), [second_id]);
+    assert_eq!(conversation.bindings().len(), 1);
+}
+
+/// A saved byte witness prevents a false proposal reminder without reviving the proposal.
+#[test]
+fn saved_candidate_bytes_need_no_new_proposal_after_reopen_but_new_bytes_do() {
+    let lines = citations(&[("u1", "Create and save this workflow.")]);
+    let source = "nika: hello\ntasks: {}\n";
+    let mut conversation = Conversation::default();
+    assert!(!write(&mut conversation, &lines, source, json!([])).is_error);
+    assert!(
+        conversation.unproposed(),
+        "a new unsaved draft still needs a proposal"
+    );
+    let unsaved = Conversation::restored(&conversation.kept()).unwrap();
+    assert!(unsaved.unproposed());
+    conversation.saved_at("hello.nika", source);
+    assert!(!conversation.unproposed());
+    let mut resumed = Conversation::restored(&conversation.kept()).unwrap();
+    assert!(!resumed.unproposed());
+    assert!(resumed.shown.is_none());
+    assert!(resumed.shown_verdict().is_none());
+    assert!(resumed.questions().is_empty() && resumed.open().is_empty());
+    assert_eq!(resumed.consumed_through, conversation.consumed_through);
+    assert!(
+        !write(
+            &mut resumed,
+            &lines,
+            "nika: changed\ntasks: {}\n",
+            json!([])
+        )
+        .is_error
+    );
+    assert!(
+        resumed.unproposed(),
+        "the old save never covers new candidate bytes"
+    );
+    assert!(
+        Conversation::restored(&resumed.kept())
+            .unwrap()
+            .unproposed()
+    );
+    assert_eq!(resumed.saved(), conversation.saved());
+    // An identical rewrite changes the revision number, not the saved bytes or any authority.
+    assert!(!write(&mut resumed, &lines, source, json!([])).is_error);
+    assert!(!resumed.unproposed());
+    assert!(resumed.shown_verdict().is_none());
+}
+
+/// Questions the person dropped (« annuler ») close with nothing bound, and asked again each is
+/// refused as dropped, naming the line that dropped it (gauntlet wave 3).
+#[test]
+fn a_dropped_question_binds_nothing_and_is_never_asked_again() {
+    let asker = Arc::new(Incarnation);
+    let mut conversation = Conversation::default();
+    let lines = citations(&[("u1", "un résumé des news tech"), ("u2", "annuler")]);
+    let format = json!({"questions": [{"key": "format", "question": "Quel format ?",
+        "free_text": true, "options": []}]});
+    let mut mint = |context: &str| QuestionId::new(context.to_owned(), &asker);
+    let first = conversation.ask(
+        &lines,
+        &format,
+        Some("c1"),
+        (&mut mint, &mut |_: &str| None),
+    );
+    assert!(first.ends_turn, "{first:?}");
+    let dropped = conversation.drop_questions("u2");
+    let keys: Vec<&str> = dropped.iter().map(|(key, _)| key.as_str()).collect();
+    assert_eq!(keys, ["format"]);
+    assert!(conversation.questions().is_empty());
+    assert!(conversation.bindings().is_empty());
+    let again = conversation.ask(
+        &lines,
+        &format,
+        Some("c2"),
+        (&mut mint, &mut |_: &str| None),
+    );
+    assert!(!again.ends_turn, "{again:?}");
+    let text: Value = serde_json::from_str(&again.text).expect("the reply is JSON");
+    assert_eq!(text["refused"][0]["reason"], "dropped", "{text}");
+    let why = text["refused"][0]["why"].as_str().unwrap_or_default();
+    assert!(why.contains("with u2"), "{why}");
+    assert!(conversation.questions().is_empty());
+}
+
+/// A discarded proposal over a saved workflow leaves the saved bytes as the candidate, as the
+/// next revision with the values they still carry: a later change revises what is saved, never
+/// the discarded draft (live gauntlet r08, 2026-10-16: it came back as a second workflow). With
+/// nothing saved, no candidate stands and the next one follows the discarded revision's number.
+#[test]
+fn a_discarded_proposal_leaves_the_saved_workflow_as_the_candidate() {
+    let asker = Arc::new(Incarnation);
+    let (mut conversation, lines) = proposed(&asker);
+    let saved = format!("nika: digest\n# {HN} {TC} {DIGEST}\n");
+    conversation.saved_at("digest.nika", &saved);
+    let renamed = format!("nika: other-digest\n# {HN} {DIGEST}\n");
+    assert!(!write(&mut conversation, &lines, &renamed, json!([])).is_error);
+    assert_eq!(
+        conversation.propose(&lines, &json!({}), ("S2".into(), Vec::new())),
+        Ok(None)
+    );
+    let shown = conversation.candidate().unwrap().number;
+    let left = conversation.discarded(Some(saved.clone()));
+    assert_eq!(
+        left,
+        Discarded::Saved {
+            discarded: shown,
+            revision: shown + 1,
+            path: "digest.nika".to_owned()
+        }
+    );
+    let candidate = conversation.candidate().unwrap();
+    assert_eq!(
+        (candidate.number, candidate.source.as_str()),
+        (shown + 1, saved.as_str())
+    );
+    assert!(
+        !conversation.unproposed(),
+        "the saved bytes need no proposal"
+    );
+    assert!(conversation.shown_verdict().is_none() && conversation.open().is_empty());
+    let note = left.note().unwrap();
+    assert!(
+        note.contains("digest.nika") && note.contains("discarded"),
+        "{note}"
+    );
+    // Nothing was shown any more: a second discard discards nothing.
+    assert_eq!(conversation.discarded(Some(saved)), Discarded::Nothing);
+}
+
+#[test]
+fn a_discarded_proposal_with_nothing_saved_leaves_no_candidate() {
+    let asker = Arc::new(Incarnation);
+    let (mut conversation, lines) = proposed(&asker);
+    let shown = conversation.candidate().unwrap().number;
+    assert_eq!(
+        conversation.discarded(None),
+        Discarded::Unsaved { discarded: shown }
+    );
+    assert!(conversation.candidate().is_none() && !conversation.unproposed());
+    let source = format!("{HN} {DIGEST}");
+    assert!(!write(&mut conversation, &lines, &source, json!([])).is_error);
+    assert_eq!(conversation.candidate().unwrap().number, shown + 1);
 }

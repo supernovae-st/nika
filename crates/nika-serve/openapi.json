@@ -711,6 +711,14 @@
           },
           {
             "additionalProperties": false,
+            "dependentRequired": {
+              "missed_count": [
+                "missed_first"
+              ],
+              "missed_first": [
+                "missed_count"
+              ]
+            },
             "properties": {
               "arm_generation": {
                 "pattern": "^[0-9a-f]{64}$",
@@ -729,6 +737,16 @@
               },
               "kind": {
                 "const": "schedule",
+                "type": "string"
+              },
+              "missed_count": {
+                "description": "How many slots that silence holds",
+                "minimum": 1,
+                "type": "integer"
+              },
+              "missed_first": {
+                "description": "First slot of the silence a catch-up-once run answers for, on a catch_up firing only; scheduled_for is its last slot",
+                "format": "date-time",
                 "type": "string"
               },
               "schedule_id": {
@@ -946,6 +964,40 @@
               "cancelled"
             ],
             "type": "string"
+          },
+          "stopped_calls": {
+            "description": "Every MCP call the run stopped waiting for, on every path (a task's timeout, an operator Stop, a task that continued or recovered after it): the task, the tool as the workflow names it, the call's id, and whether the call left. `unknown`: the call reached the server, which may have acted, so an effect's outcome is unknown; `not_sent`: it was stopped before it was sent. Absent when the run stopped no MCP call.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "call_id": {
+                  "type": "string"
+                },
+                "outcome": {
+                  "enum": [
+                    "unknown",
+                    "not_sent"
+                  ],
+                  "type": "string"
+                },
+                "task": {
+                  "type": "string"
+                },
+                "tool": {
+                  "description": "`mcp:<server>/<tool>`",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "task",
+                "tool",
+                "call_id",
+                "outcome"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
           },
           "tasks": {
             "additionalProperties": false,

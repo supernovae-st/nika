@@ -208,7 +208,7 @@ fn explicit_small_amount_still_needs_the_described_override_and_keeps_the_old_li
 fn revising_a_proposal_on_the_priced_route_asks_for_a_new_review_before_calls() {
     let script = vec![(200, response("NEW_WORK"))]
         .into_iter()
-        .chain(authored(response))
+        .chain(tried(response))
         .collect();
     let peer = Peer::start(script);
     let _transport = test_transport::install(&peer.url);
@@ -222,7 +222,7 @@ fn revising_a_proposal_on_the_priced_route_asks_for_a_new_review_before_calls() 
         panic!("{out:?}");
     };
     let sent = peer.bodies().len();
-    assert_eq!(sent, 1 + CREATE_CALLS);
+    assert_eq!(sent, 1 + TRIED_CREATE_CALLS);
     review(&session.consent("Modifie le workflow : copie les octets dans autre.txt."));
     assert_eq!(peer.bodies().len(), sent);
     let _ = session.turn("no");

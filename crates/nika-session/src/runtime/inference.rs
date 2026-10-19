@@ -486,6 +486,24 @@ mod tests {
         assert!(line.contains("cost unknown"), "{line}");
         assert!(decision_line(&observations[..1]).is_none());
     }
+
+    /// A batched decision call is answered as a whole and an HTTP error is without a response:
+    /// every sent call lands in one count (live gauntlet, 2026-10-16: « 33 call(s) sent · 7
+    /// answered · 0 without a response » over batched verification calls).
+    #[test]
+    fn the_decision_line_counts_every_sent_call_once() {
+        let observations = [json!({"schema": crate::authoring::DECISION_SCHEMA,
+            "seat": "typesafe/jev-1.13.0", "unbudgeted": true, "attempts": [
+                {"batch": "verify-request", "sent": true, "outcome": "answered", "items": []},
+                {"batch": "verify-parts", "sent": true, "outcome": "answered", "items": []},
+                {"sent": true, "outcome": "chosen"},
+                {"batch": "verify-parts", "sent": true, "outcome": "http_error"},
+                {"batch": "verify-parts", "sent": false, "outcome": "not_sent"}]})];
+        let line = decision_line(&observations).expect("a decision seat was needed");
+        assert!(line.contains("4 call(s) sent"), "{line}");
+        assert!(line.contains("3 answered"), "{line}");
+        assert!(line.contains("1 without a response"), "{line}");
+    }
     #[test]
     fn conversion_floors_nanos_and_refuses_nonfinite_or_overflow() {
         assert!(matches!(allowance(0.5), Ok(cost) if cost.nano_usd == 500_000_000));

@@ -52,7 +52,7 @@ struct Read {
 }
 
 /// The bytes of a project file a witness reads before it folds in the file's length instead.
-const FILE_BOUND: u64 = 64 * 1024 * 1024;
+pub(super) const FILE_BOUND: u64 = 64 * 1024 * 1024;
 
 /// The witness of the project file a workflow names `path` as its bytes are now under `root`:
 /// `None` when it is absent or cannot be read there. Past [`FILE_BOUND`] it witnesses the first
@@ -93,7 +93,7 @@ impl SessionRuntime {
                 nika_onboard::compile::program_records::Place::Proposal(&id.to_string()),
                 source,
                 out.provenance.plan.as_ref(),
-                &|text| crate::broker::redact(text).0,
+                &crate::broker::redact_for_record,
             );
         }
         self.basis = request.map(|request| ProposalBasis {
@@ -169,9 +169,7 @@ impl SessionRuntime {
             None => match self.derive(set) {
                 Some((out, request)) => (out.provenance.decision, request, true),
                 None if reads.is_empty() => {
-                    return Ok(Some(
-                        "source freshness not judged: it reads no project file".to_owned(),
-                    ));
+                    return Ok(Some(no_project_file(self.language).to_owned()));
                 }
                 None => {
                     return Err(self.withdraw(
@@ -244,26 +242,39 @@ impl SessionRuntime {
         };
         let (held, unread) = (paths(held), paths(unread));
         let mut said = Vec::new();
+        let fr = self.language == super::Lang::Fr;
         if !held.is_empty() {
-            said.push(format!(
-                "sources judged again before writing: the exact bytes it was shown over still hold for {}",
-                quoted(&held)
-            ));
+            let lead = if fr {
+                "sources revérifiées avant d'écrire : les octets exacts montrés tiennent toujours pour"
+            } else {
+                "sources judged again before writing: the exact bytes it was shown over still hold for"
+            };
+            said.push(format!("{lead} {}", quoted(&held)));
         }
         if !unread.is_empty() {
-            said.push(format!(
-                "source freshness not judged: {} (absent, or not readable under the project)",
-                quoted(&unread)
-            ));
+            let (lead, why) = if fr {
+                (
+                    "fraîcheur des sources non jugée :",
+                    "(absent, ou illisible dans le projet)",
+                )
+            } else {
+                (
+                    "source freshness not judged:",
+                    "(absent, or not readable under the project)",
+                )
+            };
+            said.push(format!("{lead} {} {why}", quoted(&unread)));
         }
         if !read.patterns.is_empty() {
             let patterns = quoted(&read.patterns);
-            said.push(format!(
-                "source freshness not judged: {patterns} (a pattern)"
-            ));
+            said.push(if fr {
+                format!("fraîcheur des sources non jugée : {patterns} (un motif)")
+            } else {
+                format!("source freshness not judged: {patterns} (a pattern)")
+            });
         }
         if said.is_empty() {
-            said.push("source freshness not judged: it reads no project file".to_owned());
+            said.push(no_project_file(self.language).to_owned());
         }
         Ok(Some(said.join(" · ")))
     }
@@ -323,6 +334,14 @@ fn quoted(paths: &[String]) -> String {
         .map(|p| format!("`{p}`"))
         .collect::<Vec<_>>()
         .join(" · ")
+}
+
+/// What a proposal that reads no file of the project says of its sources, in `lang`.
+const fn no_project_file(lang: super::Lang) -> &'static str {
+    lang.pick(
+        "source freshness not judged: it reads no project file",
+        "fraîcheur des sources non jugée : il ne lit aucun fichier du projet",
+    )
 }
 
 #[cfg(test)]

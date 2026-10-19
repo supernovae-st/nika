@@ -309,6 +309,19 @@ pub trait ExecutionBackend: Send + Sync + 'static {
         }
     }
 
+    /// Execute a scheduled fire, told the slot it serves (spec 04 §`run`). The
+    /// default runs it as any job with its inputs, unaware of the slot (the
+    /// run then serves its own start); a backend that composes the run tells it.
+    fn execute_scheduled<'a>(
+        &'a self,
+        context: ExecutionContext<'a>,
+        (max_cost_usd, access_pin): (Option<f64>, Option<&str>),
+        inputs: &BTreeMap<String, serde_json::Value>,
+        cancel: nika_types::cancel::CancelCtx,
+        _facts: nika_runtime::RunFacts,
+    ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
+        self.execute_with_inputs(context, max_cost_usd, access_pin, inputs, cancel)
+    }
     /// Execute one job its cost review admitted, under that review's plan and
     /// confirmed account (C6). A backend must explicitly support it: the
     /// default refuses, and dropping the authority settles its account.
@@ -614,9 +627,15 @@ impl BoundServer {
             authority.state.workflow_root.get().map(PathBuf::as_path),
             config.workflow_root(),
         );
+        // The project root the Session door and the cost review hold: its MCP pins are what a
+        // compile that names no observed world judges an `mcp:` step on.
+        let project_root = (authority.state.workflow_root.get().cloned())
+            .unwrap_or_else(|| config.workflow_root().to_path_buf());
         let native = match config.native_authoring() {
             Some(seat) => Some(Arc::new(
-                compile::Seat::open(seat).map_err(ServerError::NativeAuthoring)?,
+                compile::Seat::open(seat)
+                    .map_err(ServerError::NativeAuthoring)?
+                    .with_project(project_root),
             )),
             None => None,
         };
@@ -1272,17 +1291,30 @@ async fn admit_workflow(
 const CANCEL_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// The backend's future for one run: a reviewed job under its authority (C6),
-/// any other job with its literal inputs and pin under the run's ceiling.
+/// a scheduled fire told its slot, any other job with its literal inputs and
+/// pin under the run's ceiling.
 fn execution<'a>(
     backend: &'a dyn ExecutionBackend,
     context: ExecutionContext<'a>,
     (authority, max_cost_usd, access_pin): (Option<CostAuthority>, Option<f64>, Option<&str>),
     inputs: &BTreeMap<String, serde_json::Value>,
-    cancel: &nika_types::cancel::CancelCtx,
+    (cancel, facts): (
+        &nika_types::cancel::CancelCtx,
+        Option<nika_runtime::RunFacts>,
+    ),
 ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
-    match authority {
-        Some(authority) => backend.execute_reviewed(context, inputs, cancel.clone(), authority),
-        None => {
+    match (authority, facts) {
+        (Some(authority), _) => {
+            backend.execute_reviewed(context, inputs, cancel.clone(), authority)
+        }
+        (None, Some(facts)) => backend.execute_scheduled(
+            context,
+            (max_cost_usd, access_pin),
+            inputs,
+            cancel.clone(),
+            facts,
+        ),
+        (None, None) => {
             backend.execute_with_inputs(context, max_cost_usd, access_pin, inputs, cancel.clone())
         }
     }
@@ -1304,7 +1336,7 @@ async fn settle_disposition(
         session.context(),
         run,
         &inputs,
-        &cancel,
+        (&cancel, origin.run_facts()),
     );
     // A cancel signal gives the runtime a grace to reach its next wave
     // boundary and return its result. A signal requests action; only the

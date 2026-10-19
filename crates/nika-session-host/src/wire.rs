@@ -9,7 +9,7 @@ use serde::Serialize;
 
 use nika_session::RunRequest;
 use nika_session::TurnOutcome;
-use nika_session::activity::{Activity, CallState, Phase, ToolState};
+use nika_session::activity::{Activity, CallCost, CallState, Phase, ToolState};
 use nika_session::outcome::ReviewId;
 use nika_session::steer::Queued;
 
@@ -27,8 +27,15 @@ pub const SELECTION_CAPABILITY: &str = "sessionIntelligence";
 /// client that does not find it refuses those lines itself, before it sends one.
 pub const STEERING_CAPABILITY: &str = "sessionSteering";
 
+/// The capability word of a door that takes [`Command::Answer`] and [`Command::Delegate`]: a
+/// client that does not find it refuses those commands itself, before it sends one.
+pub const QUESTION_CAPABILITY: &str = "sessionQuestion";
+
 /// The longest command identity a client may choose.
 const MAX_COMMAND: usize = 128;
+
+/// The longest question identity a reply may name (a question's witness is 64 hex digits).
+const MAX_QUESTION: usize = 128;
 
 /// One command, the same bytes on both doors.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -43,8 +50,35 @@ pub enum Command {
         /// The line, exactly as typed.
         line: String,
     },
+    /// One reply to the question `question` names among those the snapshot named asks (one
+    /// question of several asked together, or a choice the proposal waiting shows): it reaches
+    /// that question alone, through the Session's identity door, and the other questions keep
+    /// waiting. Nothing reads which question a line answers.
+    Answer {
+        /// The caller's identity for this command.
+        command: String,
+        /// The handle of the snapshot the question was read in.
+        snapshot: String,
+        /// The question's identity, as that snapshot's work states it.
+        question: String,
+        /// The line, exactly as typed.
+        line: String,
+    },
+    /// The choice of the question `question` names left to Nika (« Let Nika choose »), through
+    /// the same identity door: no words are read, its recommended offer is bound as delegated
+    /// (with none, the author chooses), and the other questions keep waiting.
+    Delegate {
+        /// The caller's identity for this command.
+        command: String,
+        /// The handle of the snapshot the question was read in.
+        snapshot: String,
+        /// The question's identity, as that snapshot's work states it.
+        question: String,
+    },
     /// Stop the turn under way: its preparation, or the run it executes when its door can stop
-    /// it (the run's first signal: in-flight work completes, no new wave starts). Never an abort.
+    /// it (the run's first signal: in-flight work completes, except an MCP call under way, which
+    /// is stopped and named in the settlement's `stopped_calls`; no new wave starts). Never an
+    /// abort.
     Stop {
         /// The caller's identity for this command.
         command: String,
@@ -82,6 +116,8 @@ struct Raw {
     snapshot: Option<String>,
     #[serde(default)]
     line: Option<String>,
+    #[serde(default)]
+    question: Option<String>,
 }
 
 impl Command {
@@ -89,41 +125,60 @@ impl Command {
     ///
     /// # Errors
     /// Why it is not a command of [`CONTRACT`]: not one object, an unknown field or op, another
-    /// contract, a missing or forbidden field, or a command identity outside
-    /// `[A-Za-z0-9._:-]{1,128}`.
+    /// contract, a missing or forbidden field, a command identity outside
+    /// `[A-Za-z0-9._:-]{1,128}`, or a question identity outside `[A-Za-z0-9]{1,128}`.
     pub fn parse(bytes: &[u8]) -> Result<Self, String> {
         let raw: Raw = serde_json::from_slice(bytes)
             .map_err(|error| format!("not a command of {CONTRACT}: {error}"))?;
         if raw.contract != CONTRACT {
             return Err(format!("the contract `{}` is not {CONTRACT}", raw.contract));
         }
-        match (raw.op.as_str(), raw.command, raw.snapshot, raw.line) {
-            ("submit", Some(command), Some(snapshot), Some(line)) => Ok(Self::Submit {
+        let fields = (raw.command, raw.snapshot, raw.line, raw.question);
+        match (raw.op.as_str(), fields) {
+            ("submit", (Some(command), Some(snapshot), Some(line), None)) => Ok(Self::Submit {
                 command: identity(command)?,
                 snapshot,
                 line,
             }),
-            ("stop", Some(command), None, None) => Ok(Self::Stop {
-                command: identity(command)?,
-            }),
-            ("steer", Some(command), None, Some(line)) => Ok(Self::Steer {
-                command: identity(command)?,
-                line,
-            }),
-            ("follow_up", Some(command), None, Some(line)) => Ok(Self::FollowUp {
-                command: identity(command)?,
-                line,
-            }),
-            ("steer" | "follow_up", ..) => Err(format!("`{}` takes command and line", raw.op)),
-            ("close", None, None, None) => Ok(Self::Close),
-            ("snapshot", None, None, None) => Ok(Self::Snapshot),
-            ("details", None, None, None) => Ok(Self::Details),
-            ("submit", ..) => Err("`submit` takes command, snapshot and line".to_owned()),
-            ("stop", ..) => Err("`stop` takes command only".to_owned()),
-            ("close" | "snapshot" | "details", ..) => {
-                Err(format!("`{}` takes no command, snapshot or line", raw.op))
+            ("answer", (Some(command), Some(snapshot), Some(line), Some(question))) => {
+                Ok(Self::Answer {
+                    command: identity(command)?,
+                    snapshot,
+                    question: question_identity(question)?,
+                    line,
+                })
             }
-            (op, ..) => Err(format!("unknown op `{op}`")),
+            ("delegate", (Some(command), Some(snapshot), None, Some(question))) => {
+                Ok(Self::Delegate {
+                    command: identity(command)?,
+                    snapshot,
+                    question: question_identity(question)?,
+                })
+            }
+            ("stop", (Some(command), None, None, None)) => Ok(Self::Stop {
+                command: identity(command)?,
+            }),
+            ("steer", (Some(command), None, Some(line), None)) => Ok(Self::Steer {
+                command: identity(command)?,
+                line,
+            }),
+            ("follow_up", (Some(command), None, Some(line), None)) => Ok(Self::FollowUp {
+                command: identity(command)?,
+                line,
+            }),
+            ("steer" | "follow_up", _) => Err(format!("`{}` takes command and line", raw.op)),
+            ("close", (None, None, None, None)) => Ok(Self::Close),
+            ("snapshot", (None, None, None, None)) => Ok(Self::Snapshot),
+            ("details", (None, None, None, None)) => Ok(Self::Details),
+            ("submit", _) => Err("`submit` takes command, snapshot and line".to_owned()),
+            ("answer", _) => Err("`answer` takes command, snapshot, question and line".to_owned()),
+            ("delegate", _) => Err("`delegate` takes command, snapshot and question".to_owned()),
+            ("stop", _) => Err("`stop` takes command only".to_owned()),
+            ("close" | "snapshot" | "details", _) => Err(format!(
+                "`{}` takes no command, snapshot, question or line",
+                raw.op
+            )),
+            (op, _) => Err(format!("unknown op `{op}`")),
         }
     }
 
@@ -137,20 +192,36 @@ impl Command {
         identity(command.to_owned()).ok()
     }
 
-    /// The digest of the exact bytes a command identity is bound to: its op, its snapshot and
-    /// its line, each length-prefixed.
+    /// The digest of the exact bytes a command identity is bound to: its op, its snapshot, its
+    /// line and, for a reply bound to one question, that question, each length-prefixed.
     pub(crate) fn digest(&self) -> [u8; 32] {
-        let (op, snapshot, line) = match self {
-            Self::Submit { snapshot, line, .. } => ("submit", snapshot.as_str(), line.as_str()),
-            Self::Stop { .. } => ("stop", "", ""),
-            Self::Steer { line, .. } => ("steer", "", line.as_str()),
-            Self::FollowUp { line, .. } => ("follow_up", "", line.as_str()),
-            Self::Close => ("close", "", ""),
-            Self::Snapshot => ("snapshot", "", ""),
-            Self::Details => ("details", "", ""),
+        let (op, snapshot, line, question) = match self {
+            Self::Submit { snapshot, line, .. } => {
+                ("submit", snapshot.as_str(), line.as_str(), None)
+            }
+            Self::Answer {
+                snapshot,
+                question,
+                line,
+                ..
+            } => (
+                "answer",
+                snapshot.as_str(),
+                line.as_str(),
+                Some(question.as_str()),
+            ),
+            Self::Delegate {
+                snapshot, question, ..
+            } => ("delegate", snapshot.as_str(), "", Some(question.as_str())),
+            Self::Stop { .. } => ("stop", "", "", None),
+            Self::Steer { line, .. } => ("steer", "", line.as_str(), None),
+            Self::FollowUp { line, .. } => ("follow_up", "", line.as_str(), None),
+            Self::Close => ("close", "", "", None),
+            Self::Snapshot => ("snapshot", "", "", None),
+            Self::Details => ("details", "", "", None),
         };
         let mut hasher = blake3::Hasher::new();
-        for part in [op, snapshot, line] {
+        for part in [op, snapshot, line].into_iter().chain(question) {
             let length = u64::try_from(part.len()).unwrap_or(u64::MAX);
             hasher.update(&length.to_le_bytes());
             hasher.update(part.as_bytes());
@@ -170,6 +241,20 @@ fn identity(command: String) -> Result<String, String> {
     Ok(command)
 }
 
+/// A question identity a reply may name: a question's witness, as a snapshot's work states it.
+fn question_identity(question: String) -> Result<String, String> {
+    if question.is_empty()
+        || question.len() > MAX_QUESTION
+        || !question.bytes().all(|b| b.is_ascii_alphanumeric())
+    {
+        return Err(format!(
+            "a question identity is 1 to {MAX_QUESTION} characters of [A-Za-z0-9], as the \
+             snapshot's work states it"
+        ));
+    }
+    Ok(question)
+}
+
 /// Why a command was refused before it reached the Session, or why the Session cannot be used.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -186,6 +271,9 @@ pub enum Refused {
     Busy,
     /// The command identity is bound to other bytes.
     CommandConflict,
+    /// The question named is not one the snapshot named asks now: answered, dropped or
+    /// replaced since an earlier snapshot, or never asked by this Session.
+    UnknownQuestion,
     /// A Session is already live for this project.
     SessionLive,
     /// The Session could not open (its history is held elsewhere, or it refused).
@@ -203,6 +291,7 @@ impl Refused {
             Self::UnknownSnapshot => "unknown_snapshot",
             Self::Busy => "busy",
             Self::CommandConflict => "command_conflict",
+            Self::UnknownQuestion => "unknown_question",
             Self::SessionLive => "session_live",
             Self::SessionUnavailable => "session_unavailable",
         }
@@ -216,7 +305,8 @@ pub(crate) enum TurnPhase {
     Preparing,
     /// A run requested by the Session executes: a Stop asks it to stop when its door can.
     Running,
-    /// The run took its first signal: in-flight work completes, no new wave starts.
+    /// The run took its first signal: in-flight work completes, except an MCP call under way,
+    /// which is stopped and named in the settlement's `stopped_calls`; no new wave starts.
     Stopping,
     /// The turn's result is being settled: a Stop arrives too late.
     Settling,
@@ -285,6 +375,7 @@ pub(crate) struct ActivityWire {
 
 /// One tool the conversation's intelligence called, as its run observed it: never its
 /// arguments, and of its reply only why it failed (bounded, the secret shapes redacted).
+/// Original semantic verification on a finished proposal is a separate machine receipt.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 struct ToolWire {
     call: String,
@@ -298,10 +389,13 @@ struct ToolWire {
     reply_bytes: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     reply: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    verification: Option<serde_json::Value>,
 }
 
 /// A physical compiler call an activity reported; `model` is the requested one. When it left,
-/// how long it took and its tokens, only when its producer reported them.
+/// how long it took, its tokens and, once it returned, what it settled, only when its producer
+/// reported them.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 struct CallWire {
     ordinal: u32,
@@ -316,6 +410,31 @@ struct CallWire {
     input_tokens: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     output_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cost: Option<CostWire>,
+}
+
+/// What a returned call cost, as the Session settled its returned requests: priced at the sum of
+/// their known estimates, in nano-USD at the route's list price (a decimal string: an amount a
+/// JSON number would not keep exactly), or unpriced. An estimate, never an invoice.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum CostWire {
+    Priced { nano_usd: String },
+    Unpriced,
+}
+
+impl CostWire {
+    /// The wire form of `cost`; a kind this wire does not name yet is left out, never guessed.
+    fn of(cost: CallCost) -> Option<Self> {
+        match cost {
+            CallCost::Priced(nano) => Some(Self::Priced {
+                nano_usd: nano.to_string(),
+            }),
+            CallCost::Unpriced => Some(Self::Unpriced),
+            _ => None,
+        }
+    }
 }
 
 impl ActivityWire {
@@ -343,6 +462,7 @@ impl ActivityWire {
             elapsed_ms: call.elapsed_ms,
             input_tokens: call.input_tokens,
             output_tokens: call.output_tokens,
+            cost: call.cost.and_then(CostWire::of),
         });
         let tool = activity.tool.as_ref().map(|tool| ToolWire {
             call: tool.call.clone(),
@@ -357,6 +477,7 @@ impl ActivityWire {
             at_ms: tool.at_ms,
             reply_bytes: tool.reply_bytes,
             reply: tool.reply.clone(),
+            verification: tool.verification.clone(),
         });
         Self {
             phase,

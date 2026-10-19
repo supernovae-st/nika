@@ -17,8 +17,16 @@ use std::sync::Arc;
 use super::{SessionRuntime, TurnOutcome};
 use crate::authoring::AuthoringRound;
 use crate::change::Witness;
-use crate::outcome::{Incarnation, QuestionId, Refusal, RefusalClass};
+use crate::outcome::{Incarnation, ProposalId, QuestionId, Refusal, RefusalClass};
 use crate::work::{AnswerAct, Answered};
+
+/// The words a delegation act records as the person's ([`SessionRuntime::delegate_question_for`]):
+/// the native control's own, never read as a pick.
+const DELEGATED: &str = "I leave the choice to Nika.";
+
+/// [`DELEGATED`] for a person who writes French (live gauntlet wave 6 r07 B3, 2026-10-18:
+/// « Laisser Nika choisir » recorded « I leave the choice to Nika. » in a French conversation).
+const DELEGATED_FR: &str = "Je laisse le choix à Nika.";
 
 /// How many answered or dropped questions a session remembers, to say so
 /// (`already_consumed`); an older one reads as no longer waiting.
@@ -58,6 +66,111 @@ impl Identities {
 }
 
 impl SessionRuntime {
+    /// [`Self::answer_question_for`] with the choice left to Nika by the host's own control
+    /// (« Let Nika choose »), never by words: the same refusals come first, then a question
+    /// the conversation's intelligence asked binds its recommended offer as delegated (with
+    /// none, the author chooses), whatever the label of another offer reads. The person's
+    /// recorded words are the control's own, « I leave the choice to Nika. ». The compiler's
+    /// own question asks a value it cannot invent and offers no choice to leave: refused, its
+    /// words never read as that value. Grants no consent and no run.
+    pub fn delegate_question_for(&mut self, id: &QuestionId) -> TurnOutcome {
+        if self.feedback.asks(id) {
+            return self.refused_for(
+                id,
+                RefusalClass::WrongState,
+                format!(
+                    "the question {id} asks your own view of a result: it offers no choice to leave to Nika · nothing was recorded"
+                ),
+            );
+        }
+        if !self.agent_asks(id) && self.pending_question_id().as_ref() == Some(id) {
+            return self.refused_for(
+                id,
+                RefusalClass::WrongState,
+                format!(
+                    "the question {id} asks a value the compiler cannot invent: it offers no choice to leave to Nika · nothing was sent · answer it"
+                ),
+            );
+        }
+        let words = self.language.pick(DELEGATED, DELEGATED_FR);
+        self.delegating(|session| session.answer_question_for(id, words))
+    }
+
+    /// [`Self::answer_proposal_choice_for`] with the choice left to Nika by the host's own
+    /// control, as [`Self::delegate_question_for`] leaves a question's.
+    pub fn delegate_proposal_choice_for(
+        &mut self,
+        proposal: &ProposalId,
+        question: &QuestionId,
+    ) -> TurnOutcome {
+        let words = self.language.pick(DELEGATED, DELEGATED_FR);
+        self.delegating(|session| session.answer_proposal_choice_for(proposal, question, words))
+    }
+
+    /// `answer` with the delegation act armed for the conversation's binding, and disarmed
+    /// after whatever it did.
+    fn delegating(&mut self, answer: impl FnOnce(&mut Self) -> TurnOutcome) -> TurnOutcome {
+        if let Some(driver) = self.agent.as_mut() {
+            driver.delegating = true;
+        }
+        let outcome = answer(self);
+        if let Some(driver) = self.agent.as_mut() {
+            driver.delegating = false;
+        }
+        outcome
+    }
+
+    /// Answer one choice shown beside a proposal, under both identities. Selecting an offer
+    /// never enters the consent parser, even when its key is `yes` or `save & run`. The author
+    /// may revise the candidate; only independently verified human instructions authorize
+    /// saving or running that revision through the existing consent door.
+    pub fn answer_proposal_choice_for(
+        &mut self,
+        proposal: &ProposalId,
+        question: &QuestionId,
+        line: &str,
+    ) -> TurnOutcome {
+        self.last_answer = None;
+        if self.waiting_review().is_some()
+            || self.waiting_cost_choice()
+            || self.pending_choice
+            || self.knowledge.held.is_some()
+            || self.pending_gate.is_some()
+            || self.money.gate.is_some()
+            || self.run_inputs.is_some()
+            || self.activation.is_some()
+            || self.authoring.is_some()
+            || self.revising.is_some()
+        {
+            return self.refused_for(
+                question,
+                RefusalClass::WrongState,
+                "another prompt owns the next answer; the proposal choice is kept and nothing was sent".to_owned(),
+            );
+        }
+        if self.pending_proposal().as_ref() != Some(proposal)
+            || !question.asked_by(&self.questions.asker)
+            || !self.agent_proposal_asks(question)
+        {
+            return self.refused_for(
+                question,
+                RefusalClass::StaleRevision,
+                "this choice does not belong to the proposal shown now; nothing was read, saved or run".to_owned(),
+            );
+        }
+        let outcome = self.recorded(super::history::Operation::Turn, line, |session| {
+            session.agent_proposal_answer(question, line)
+        });
+        if !self.agent_proposal_asks(question) {
+            self.questions.close(Some(question.clone()));
+        }
+        match self.agent_authorized() {
+            Ok(Some((proposal, word))) => self.consent_to(&proposal, word),
+            Ok(None) => outcome,
+            Err(why) => super::durable::with_note(outcome, why),
+        }
+    }
+
     /// The identity of the authoring question the next line answers, when
     /// one waits (beside [`Self::pending_question`]): the question, its
     /// request revision, the intelligence and the seat that read its answer,
@@ -104,14 +217,32 @@ impl SessionRuntime {
                 format!("a cost review waits — the answer to the question {id} cannot answer it"),
             );
         }
+        // The optional offer about the last result takes its own answers, by its identity and
+        // only while nothing else waits, as a host lists it: another prompt keeps the line.
+        if self.feedback.asks(id) {
+            if self.waiting() != crate::work::Waiting::Free {
+                return self.refused_for(
+                    id,
+                    RefusalClass::WrongState,
+                    format!(
+                        "another prompt owns the next line — the offer {id} keeps waiting · nothing was recorded"
+                    ),
+                );
+            }
+            return self.recorded(super::history::Operation::Turn, line, |session| {
+                session.feedback_answer(id, line)
+            });
+        }
         let elsewhere = !id.asked_by(&self.questions.asker);
         let asked = self.agent_asks(id);
         match self.pending_question_id() {
             Some(waiting) if waiting == *id || asked => {
+                // A proposal does not own the line while a question the conversation asked waits
+                // before it ([`Self::waiting`]).
                 if self.waiting_review().is_some()
                     || self.pending_choice
                     || self.knowledge.held.is_some()
-                    || self.pending.is_some()
+                    || (self.pending.is_some() && !asked)
                     || self.pending_gate.is_some()
                 {
                     return self.refused_for(
@@ -122,7 +253,12 @@ impl SessionRuntime {
                         ),
                     );
                 }
-                self.turn(line)
+                if asked && let Some(driver) = self.agent.as_mut() {
+                    driver.answering = Some(id.clone());
+                }
+                let outcome = self.turn(line);
+                if let Some(driver) = self.agent.as_mut() { driver.answering = None; }
+                outcome
             }
             Some(waiting) if elsewhere => self.refused_for(
                 id,

@@ -98,8 +98,13 @@ fn after_a_compaction_a_report_from_before_it_no_longer_counts() {
         .tree
         .append_compaction(summary, second, 100_000, 3, |l| Store::append(lines, l));
     assert!(folded.is_ok());
-    // system 10 + summary 20 + the kept line (6 + 24) / 4 = 8.
-    assert_eq!(estimate(&book.tree), 38);
+    // system 10 + summary 20 + the kept line (6 + 24) / 4 = 8, and the person's folded line,
+    // read verbatim beside the summary.
+    let branch = book.tree.branch();
+    let (_, kept) = Tree::kept(&branch);
+    let beside = crate::tree::folded_lines(&branch, &kept).expect("« first » is folded");
+    assert!(beside.contains("\"text\":\"first\""), "{beside}");
+    assert_eq!(estimate(&book.tree), 38 + tokens(&beside));
 }
 
 #[test]
@@ -241,4 +246,28 @@ fn a_block_the_estimate_does_not_name_still_weighs() {
     let wire = serde_json::to_string(&image).unwrap();
     assert_eq!(block_len(&image), wire.len());
     assert!(block_len(&image) > 0);
+}
+
+/// The complete payload includes carried summary, focus, escaped text and UTF-8 bytes.
+#[test]
+fn a_summary_prefix_fits_at_its_exact_assembled_budget_and_not_one_token_less() {
+    let lines = [json!({"from": "person", "cite": "u1", "text": "é\n\"a\""})];
+    let request = summary_request(Some("kept\nsummary"), &lines, Some("keep é"));
+    let ContentBlock::Text { text } = &request.messages[0].content[0] else {
+        panic!("the typed transcript");
+    };
+    let measured = request
+        .system
+        .as_deref()
+        .map_or(0, |text| text.len().div_ceil(4))
+        + text.len().div_ceil(4);
+    assert_eq!(measured, 330);
+    assert_eq!(
+        fitting(Some("kept\nsummary"), &lines, Some("keep é"), Some(330)),
+        Ok(1)
+    );
+    assert_eq!(
+        fitting(Some("kept\nsummary"), &lines, Some("keep é"), Some(329)),
+        Err(330)
+    );
 }

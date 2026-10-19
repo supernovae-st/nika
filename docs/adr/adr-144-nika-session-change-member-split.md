@@ -24,6 +24,30 @@ follow_ups: ["the admission evidence of the member, pending with its WIP unit", 
 
 # ADR-144: nika-session size-cap member split — nika-session-change
 
+## Amendment · 19 October 2026 · the Session's words descend with their language
+
+The French journeys of the QA lane (live gauntlet waves 4 to 6) brought the Session to 25,222
+production lines against the 25,000 wall of ADR-154, which admits no exception. One cohesive
+part moves down, with no new crate and no new dependency edge: the words the unit says in the
+person's language.
+
+- `Lang`, the language read from the person's own lines (`lang`), so every member says its own
+  words in the same language. Its lifecycle rail reads `nika_onboard::lifecycle`, which this
+  member already depends on.
+- The review's lines in French (`review::fr`), beside the review they translate.
+- What the Session keeps of a request an intelligence leads (`work::understood`), read from the
+  work types this member owns.
+- A schedule in the person's words (`lang::schedule`): a declared cadence, its zone by its
+  place, the missed-run policy and the keys an activation asks, and the person's answers to
+  those questions read back (a delegation, a missed-run policy, a ceiling).
+
+The session re-exports each item at its historical path (`nika_session::Lang`,
+`nika_session::zone_place`, `nika_session::zone_words`), so its callers do not change; within
+the session, a match on `Lang` now takes a wildcard, as its other hosts' always did. The session
+measures 24,487 after the move, this member 6,492. Both public-api snapshots are rendered in the
+same change.
+
+
 ## Context
 
 `nika-session` (ADR-125) measures **14,998 prod LOC** at the integration head `664b028aa`, against

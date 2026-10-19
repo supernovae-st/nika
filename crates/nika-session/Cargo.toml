@@ -25,6 +25,7 @@ nika-session-intelligence = { path = "../nika-session-intelligence", version = "
 nika-schema   = { path = "../nika-schema", version = "0.123.0-preview.1" }      # the parser — the inputs a saved workflow declares are read from the AST, never from prose
 nika-fs       = { path = "../nika-fs", version = "0.123.0-preview.1" }          # OwnedDir · read_capped — the session state (temp + rename), the history journal and the context reads stay below a descriptor
 nika-cadence  = { path = "../nika-cadence", version = "0.123.0-preview.1" }     # the arm: grammar (L0 · pure) — a cadence the session derives is validated before it is proposed
+nika-arm      = { path = "../nika-arm", version = "0.123.0-preview.1" }         # ArmState — the ledger a declared schedule's history is read from, and the disarm « désactive-le » journals (lateral L4→L4 · never back)
 nika-trace    = { path = "../nika-trace", version = "0.123.0-preview.1" }       # run_view::RunFacts — what a run's trace proves, read for the result, gate and `/proof` views (its ONE verify door judges the chain · lateral L4→L4 · never back)
 nika-event    = { path = "../nika-event", version = "0.123.0-preview.1" }       # source_id::sha256_hex — the digest of each knowledge-pack reference the authoring record keeps (L0 · pure)
 nika-compile-seats = { path = "../nika-compile-seats", version = "0.123.0-preview.1" }  # foundry::{ComponentCatalog, witness} — the trait the pinned knowledge Snapshot lends, and what a candidate's bytes hold of a composed component (lateral L4→L4 · never back)
@@ -54,5 +55,6 @@ nika-session-intelligence = { path = "../nika-session-intelligence", version = "
 tokio = { workspace = true } # the suites' own current-thread runtimes
 nika-error = { path = "../nika-error", version = "0.123.0-preview.1" } # cost::Cost — the reasoning-effort tests assert the typed cost
 nika-onboard = { path = "../nika-onboard", version = "0.123.0-preview.1", features = ["test-support"] } # the synthetic release the strict knowledge door admits
+nika-arm = { path = "../nika-arm", version = "0.123.0-preview.1", features = ["test-support"] } # the ledger fixtures the schedule history tests write
 tempfile = { workspace = true }
 nika-builtin = { path = "../nika-builtin", version = "0.123.0-preview.1" } # data::jq_serve — the journeys' own jq helper serves the engine's evaluator as `nika __nika-jq-eval` does

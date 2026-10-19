@@ -325,6 +325,9 @@ pub(in crate::server) struct Seat {
     halt: tokio::sync::watch::Sender<bool>,
     pub(in crate::server) decision: Option<DecisionModel>,
     pub(in crate::server) trials: Option<JqHelper>,
+    /// The server's own project: its MCP pins, the only thing lent to a compile whose request
+    /// names no observed world.
+    pub(in crate::server) project: Option<PathBuf>,
 }
 
 /// The pinned snapshot no longer reads as pinned (changed, stale or gone).
@@ -376,7 +379,16 @@ impl Seat {
             halt: tokio::sync::watch::channel(false).0,
             decision,
             trials: config.trials.clone(),
+            project: None,
         })
+    }
+
+    /// The seat of the server whose project lives at `root`: a compile that names no observed
+    /// world reads that project's MCP pins, and nothing else of it.
+    #[must_use]
+    pub(in crate::server) fn with_project(mut self, root: PathBuf) -> Self {
+        self.project = Some(root);
+        self
     }
 
     /// Stop every round of this seat, now and for good (the server is stopping).

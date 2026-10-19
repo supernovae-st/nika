@@ -437,8 +437,8 @@ pub(super) fn saved_daily_copy(dir: &Path) -> SessionRuntime {
         panic!("the yes saves the program");
     };
     assert!(
-        saved.contains("Saved · checked · not active · nothing has run")
-            && saved.contains("say « activate » to declare « chaque matin à 8h »"),
+        saved.contains("Enregistré · vérifié · pas actif · rien n'a tourné")
+            && saved.contains("dites « active-le » pour déclarer « chaque matin à 8h »"),
         "{saved}"
     );
     assert!(
@@ -446,6 +446,53 @@ pub(super) fn saved_daily_copy(dir: &Path) -> SessionRuntime {
         "saving the workflow declared nothing"
     );
     s
+}
+
+/// A zone left to Nika at the activation's question is this machine's, and the activation goes
+/// on (live gauntlet r02 B10, 2026-10-17: « choisis pour moi » was refused with `Area/City`
+/// syntax); a word that is no zone is refused in the person's language.
+#[test]
+fn a_zone_left_to_nika_is_this_machines() {
+    let dir = tree();
+    let mut s = saved_daily_copy(dir.path());
+    let TurnOutcome::Question { key, .. } = s.turn("active-le") else {
+        panic!("the zone is asked");
+    };
+    assert_eq!(key, "project.timezone");
+    let refused = s.turn("bientôt");
+    assert!(
+        matches!(&refused, TurnOutcome::Refusal(r) if r.text.contains("n'est pas un fuseau que je connais")),
+        "{refused:?}"
+    );
+    if jiff::tz::TimeZone::system().iana_name().is_none() {
+        return;
+    }
+    let TurnOutcome::Question { key, .. } = s.turn("choisis pour moi") else {
+        panic!("the activation goes on");
+    };
+    assert_eq!(key, "project.missed");
+}
+
+/// « active-le tous les matins » restates the period the saved schedule runs on: it opens the
+/// same activation « active-le » opens (NIK-196). Another period is a change, never this door.
+#[test]
+fn an_activation_restating_the_saved_period_opens_the_activation() {
+    let dir = tree();
+    let mut s = saved_daily_copy(dir.path());
+    assert!(
+        !matches!(
+            s.turn("active-le tous les soirs"),
+            TurnOutcome::Question { .. }
+        ) && s.pending_activation().is_none(),
+        "an evening is not the saved morning schedule"
+    );
+    let TurnOutcome::Question { key, question } =
+        s.turn("Maintenant active-le tous les matins stp")
+    else {
+        panic!("the saved period opens the activation");
+    };
+    assert_eq!(key, "project.timezone");
+    assert!(question.contains("Quel fuseau horaire"), "{question}");
 }
 
 #[test]
@@ -464,18 +511,19 @@ fn a_schedule_is_declared_only_through_the_human_s_gestures() {
     );
     assert_eq!(
         s.status_line(),
-        "Needs one value to declare the schedule · `project.timezone`"
+        "Attend une valeur pour déclarer la planification · le fuseau horaire"
     );
     assert!(
-        question.contains("Which time zone") && question.contains("(2 more after this one)"),
+        // The request was French: the Session's own questions are too.
+        question.contains("Quel fuseau horaire") && question.contains("(encore 2 après celle-ci)"),
         "{question}"
     );
     assert!(
-        matches!(s.turn("why?"), TurnOutcome::Aside(ref t) if t.contains("Declared is not active"))
+        matches!(s.turn("why?"), TurnOutcome::Aside(ref t) if t.contains("Déclaré n'est pas actif"))
     );
     assert!(
-        matches!(s.turn("Paris"), TurnOutcome::Refusal(ref r) if r.text.contains("Area/City")),
-        "a bare city is not a zone"
+        matches!(s.turn("Pariss"), TurnOutcome::Refusal(ref r) if r.text.contains("n'est pas un fuseau que je connais")),
+        "a name no zone has is no zone"
     );
     let TurnOutcome::Question { key, .. } = s.turn("Europe/Paris") else {
         panic!("the missed policy is asked next");
@@ -493,11 +541,11 @@ fn a_schedule_is_declared_only_through_the_human_s_gestures() {
         panic!("the declaration is proposed, never written on the answer");
     };
     assert!(
-        preview.contains("Nika proposes to declare the schedule in `nika.yaml`")
+        preview.contains("Nika propose de déclarer la planification dans `nika.yaml`")
             && preview.contains("TZ=Europe/Paris 0 8 * * *")
-            && preview.contains("if missed · rattraper-une-fois")
-            && preview.contains("ceiling · $0.2 per scheduled run")
-            && preview.contains("Declared is not active"),
+            && preview.contains("si manqué · le rattraper une fois")
+            && preview.contains("plafond · 0.2 $ par run planifié")
+            && preview.contains("Déclaré n'est pas actif"),
         "{preview}"
     );
     assert_eq!(s.pending_proposal(), Some(id));
@@ -510,7 +558,7 @@ fn a_schedule_is_declared_only_through_the_human_s_gestures() {
     };
     assert!(
         declared.contains("applied · wrote `nika.yaml`")
-            && declared.contains("Declared in `nika.yaml` · not active"),
+            && declared.contains("Déclaré dans `nika.yaml` · pas actif"),
         "{declared}"
     );
     let file = std::fs::read_to_string(dir.path().join("nika.yaml")).expect("nika.yaml");
@@ -550,18 +598,19 @@ fn a_declared_schedule_reads_in_both_grammars_and_is_never_rewritten() {
         .expect("a project");
     assert_eq!(project.arm().len(), 1);
     assert!(
-        s.status_line().starts_with("Declared · ") && s.status_line().contains("not proven active"),
+        s.status_line().starts_with("Déclaré · ") && s.status_line().contains("pas prouvé actif"),
         "{}",
         s.status_line()
     );
-    // A second activation of the same workflow never rewrites the list.
-    assert!(matches!(s.turn("activate"), TurnOutcome::Question { .. }));
-    let _ = s.turn("Europe/Paris");
-    let _ = s.turn("2");
+    // A second activation of the same workflow is told at once that it is declared, asks
+    // nothing again and never rewrites the list: its entry stands.
     assert!(
-        matches!(s.turn("0.10"), TurnOutcome::Facts(ref t) if t.contains("already declares an `arm:` list")),
-        "an existing list is never rewritten by Nika"
+        matches!(s.turn("activate"), TurnOutcome::Facts(ref t) if t.contains("est déjà déclaré dans `nika.yaml`")),
+        "an existing entry is said, never asked again"
     );
+    assert!(s.pending_activation().is_none());
+    let after = std::fs::read_to_string(dir.path().join("nika.yaml")).expect("nika.yaml");
+    assert_eq!(after, file, "nothing was written");
 }
 
 /// The status line during a question names the answer the automation
@@ -1467,4 +1516,46 @@ fn an_authoring_timeout_keeps_its_limit_without_an_allowance_or_goal_rewrite() {
     assert!(!dir.path().join(COPY_DEST).exists());
     assert!(!dir.path().join("out/copy.md").exists());
     assert!(matches!(s.turn("what happened?"), TurnOutcome::Facts(ref again) if again == &card));
+}
+
+#[test]
+fn the_confirmation_projection_names_only_a_confirm_gate_and_never_answers_it() {
+    let dir = tree();
+    let mut session = ready_with(dir.path(), vec![]);
+    assert_eq!(session.waiting_confirm_gate(), None);
+    for mode in ["text", "choice", "confirm"] {
+        session.pending_gate = Some(PendingGate {
+            workflow: "gate.nika".into(),
+            trace: "paused.ndjson".into(),
+            task: "approval".into(),
+            message: "Proceed?".into(),
+            mode: mode.into(),
+            values: None,
+            withheld: None,
+        });
+        let before = session.pending_gate.clone();
+        let shown = session.waiting_confirm_gate();
+        assert_eq!(
+            shown,
+            if mode == "confirm" {
+                session.waiting_gate()
+            } else {
+                None
+            }
+        );
+        assert_eq!(session.pending_gate, before, "inspection is not an answer");
+    }
+}
+
+/// A host's locale guess speaks first; the person's own words decide over it (supernovae-1c, TUI
+/// round 9, 2026-10-18).
+#[test]
+fn a_hosts_language_speaks_until_the_person_writes() {
+    let dir = tree();
+    let none = ready(IntelligenceKind::None, DataLocus::None);
+    let mut s = SessionRuntime::open(dir.path(), none, Box::new(NoReasoner));
+    s.with_initial_language(Lang::Fr);
+    assert_eq!(s.language(), Lang::Fr, "the host's guess before any line");
+    let _ = s.turn(COPY);
+    assert_eq!(s.language(), Lang::En, "the person's English decides");
 }

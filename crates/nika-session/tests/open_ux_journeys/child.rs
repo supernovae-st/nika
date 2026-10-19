@@ -22,8 +22,8 @@ use nika_session::turn::{
 };
 use nika_session::work::Waiting;
 use nika_session::{
-    IntelligenceCensus, IntelligenceKind, QuestionId, ResolvedSessionIntelligence, SessionReasoner,
-    SessionRuntime, TurnOutcome, UserIntelligencePreference,
+    IntelligenceCensus, IntelligenceKind, ProposalId, QuestionId, ResolvedSessionIntelligence,
+    SessionReasoner, SessionRuntime, TurnOutcome, UserIntelligencePreference,
 };
 use serde_json::{Value, json};
 
@@ -95,6 +95,16 @@ fn open(root: &Path, home: &Path, history: bool) -> SessionRuntime {
     session
 }
 
+/// The Session the scenario's host opens, at the start and at every reopen: a host that prepares
+/// continuously does so in every Session it opens.
+fn hosted(root: &Path, home: &Path, (history, preparing): (bool, bool)) -> SessionRuntime {
+    let mut session = open(root, home, history);
+    if preparing {
+        session.enable_continuous_preparation();
+    }
+    session
+}
+
 /// What one outcome is, for the report.
 fn outcome(outcome: &TurnOutcome) -> Value {
     match outcome {
@@ -130,7 +140,21 @@ fn shown(session: &SessionRuntime) -> Value {
         "work": serde_json::to_value(session.work()).expect("work serializes"),
         "question_id": session.pending_question_id().map(|id| id.to_string()),
         "proposal": session.pending_proposal().map(|id| id.to_string()),
+        // The rehearsal words a host draws beside the candidate, as the person reads them.
+        "rehearsed": session.candidate().and_then(|c| c.rehearsed.map(str::to_owned)),
     })
+}
+
+fn choices(session: &SessionRuntime) -> (Option<ProposalId>, Vec<QuestionId>) {
+    (
+        session.pending_proposal(),
+        session
+            .work()
+            .open_choices
+            .into_iter()
+            .map(|q| q.id)
+            .collect(),
+    )
 }
 
 /// The project's files, relative, sorted (the `.nika` store aside).
@@ -218,6 +242,87 @@ fn run_trace(root: &Path, ran: Ran, k: usize) -> (u8, PathBuf) {
     (exit, at)
 }
 
+/// The identity of the optional offer about the last result the Session shows now.
+fn feedback_offer(session: &SessionRuntime) -> Option<QuestionId> {
+    (session.work().feedback.offer).map(|offer| offer.question.id)
+}
+
+/// The answer `keys` to the offer `offer` names, by its identity, as a host's native control
+/// sends it.
+fn answer_offer(session: &mut SessionRuntime, offer: Option<&QuestionId>, keys: &str) -> Value {
+    match offer {
+        Some(id) => outcome(&session.answer_question_for(id, keys)),
+        None => json!({"kind": "no_offer_was_waiting"}),
+    }
+}
+
+/// The journal of a run that completed writing `content` at `path`, shaped as a real one: one
+/// execution on every frame, its start naming the hash of the bytes the Session requested to
+/// run, the write's allowed permit and its completion returning the path; the file is written
+/// in the project as the run would have.
+fn wrote_trace(
+    root: &Path,
+    session: &SessionRuntime,
+    (path, content): (&str, &str),
+    k: usize,
+) -> (u8, PathBuf) {
+    let workflow = (session.work().requested)
+        .expect("a requested run")
+        .workflow;
+    let bytes = std::fs::read(root.join(&workflow)).expect("the requested workflow");
+    let started = nika_event::source_id::sha256_hex(&bytes);
+    let execution = json!({"uuid": format!("01a10897-52a2-7758-aa31-{k:012}")});
+    let frame = |kind: &str, fields: &[(&str, Value)]| {
+        let fields: Vec<Value> = (fields.iter())
+            .map(|(key, value)| json!({"key": key, "value": value}))
+            .collect();
+        json!({"kind": kind, "execution": execution, "fields": fields}).to_string()
+    };
+    let task = json!("write_result");
+    let lines = [
+        frame(
+            "workflow_started",
+            &[
+                ("workflow", json!("news-digest")),
+                ("workflow_sha256", json!(started)),
+            ],
+        ),
+        frame(
+            "task_started",
+            &[
+                ("task", task.clone()),
+                ("note", json!("invoke · nika:write")),
+            ],
+        ),
+        frame(
+            "permit_checked",
+            &[
+                ("task", task.clone()),
+                ("plane", json!("fs")),
+                ("gate", json!(format!("permits.fs.write {path}"))),
+                ("decision", json!("allow")),
+            ],
+        ),
+        frame(
+            "task_completed",
+            &[
+                ("task", task),
+                ("outcome", json!(json!({"class": "success"}).to_string())),
+                ("output", json!(json!(path).to_string())),
+            ],
+        ),
+        frame("workflow_completed", &[("status", json!("succeeded"))]),
+    ];
+    let file = root.join(path.trim_start_matches("./"));
+    std::fs::create_dir_all(file.parent().expect("a folder")).expect("the output folder");
+    std::fs::write(&file, content).expect("the result");
+    let at = PathBuf::from(format!(".nika/traces/run-{k}.ndjson"));
+    let trace = root.join(&at);
+    std::fs::create_dir_all(trace.parent().expect("traces")).expect("the traces directory");
+    std::fs::write(&trace, lines.join("\n") + "\n").expect("the trace");
+    (0, at)
+}
+
 /// A queue receipt, as a host shows it.
 fn receipt(queued: Result<Queued, QueueRefused>) -> Value {
     match queued {
@@ -268,17 +373,34 @@ fn act_while(
     (result, host.join().expect("the host's thread"))
 }
 
+/// What the Session showed after each act, by the act's index: what waited, the question pending
+/// and the proposal's choices.
+#[derive(Default)]
+struct Trail {
+    waited: Vec<Waiting>,
+    asked: Vec<Option<QuestionId>>,
+    offered: Vec<(Option<ProposalId>, Vec<QuestionId>)>,
+    /// The identity of the optional offer about the last result, when one waited.
+    fed: Vec<Option<QuestionId>>,
+}
+
+impl Trail {
+    /// Keep what `session` shows now, after one more act.
+    fn keep(&mut self, session: &SessionRuntime) {
+        self.waited.push(session.waiting());
+        self.asked.push(session.pending_question_id());
+        self.offered.push(choices(session));
+        self.fed.push(feedback_offer(session));
+    }
+}
+
 /// Drive the scenario `name` and return its report.
 pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Value {
     let scenario = scenario(name);
-    let mut session = open(root, home, scenario.history);
-    if scenario.preparing {
-        session.enable_continuous_preparation();
-    }
+    let mut session = hosted(root, home, (scenario.history, scenario.preparing));
     let tools = Tools::default();
     watch_tools(&mut session, &tools);
-    let mut waited: Vec<Waiting> = Vec::new();
-    let mut asked: Vec<Option<QuestionId>> = Vec::new();
+    let mut trail = Trail::default();
     let mut steps = Vec::new();
     for act in scenario.acts {
         let (line, result) = match act {
@@ -288,7 +410,12 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Val
                 (line, outcome(&session.turn(line)))
             }
             Act::RunEnds(ran) => {
-                let (exit, trace) = run_trace(root, ran, steps.len());
+                let (exit, trace) = match ran {
+                    Ran::Wrote(path, content) => {
+                        wrote_trace(root, &session, (path, content), steps.len())
+                    }
+                    _ => run_trace(root, ran, steps.len()),
+                };
                 ("(run)", outcome(&session.observe_run(exit, Some(&trace))))
             }
             Act::While(line, marker, during) => {
@@ -297,28 +424,33 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Val
                     json!({"act": format!("{act:?}"), "line": line, "outcome": result,
                     "receipt": queued, "shown": shown(&session)}),
                 );
-                waited.push(session.waiting());
-                asked.push(session.pending_question_id());
+                trail.keep(&session);
                 continue;
             }
             Act::Submit(line) => {
                 let now = session.waiting();
                 (line, outcome(&session.submit(line, &now)))
             }
+            Act::Consent(line) => (line, outcome(&session.consent(line))),
             Act::SubmitAsShownAfter(at, line) => {
-                let then = waited[at].clone();
+                let then = trail.waited[at].clone();
                 (line, outcome(&session.submit(line, &then)))
             }
             Act::AnswerQuestionOf(at, line) => {
-                let result = match &asked[at] {
+                let result = match &trail.asked[at] {
                     Some(id) => outcome(&session.answer_question_for(id, line)),
                     None => json!({"kind": "no_question_was_waiting"}),
                 };
                 (line, result)
             }
+            Act::AnswerProposalChoiceOf(at, ..)
+            | Act::DelegateProposalChoiceOf(at, ..)
+            | Act::AnswerProposalChoiceElsewhere(at, ..) => {
+                proposal_act(&mut session, (root, home), &trail.offered[at], act)
+            }
             Act::AnswerElsewhere(at, line) => {
                 let mut elsewhere = open(root, home, false);
-                let result = match &asked[at] {
+                let result = match &trail.asked[at] {
                     Some(id) => outcome(&elsewhere.answer_question_for(id, line)),
                     None => json!({"kind": "no_question_was_waiting"}),
                 };
@@ -326,9 +458,20 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Val
                 drop(elsewhere);
                 steps.push(json!({"act": "elsewhere", "line": line, "outcome": result,
                     "shown": after}));
-                waited.push(session.waiting());
-                asked.push(session.pending_question_id());
+                trail.keep(&session);
                 continue;
+            }
+            Act::AnswerFeedback(keys) => {
+                let waiting = feedback_offer(&session);
+                (keys, answer_offer(&mut session, waiting.as_ref(), keys))
+            }
+            Act::AnswerFeedbackOf(at, keys) => {
+                let shown = trail.fed[at].clone();
+                (keys, answer_offer(&mut session, shown.as_ref(), keys))
+            }
+            Act::ReviewRun => {
+                let _ = session.run_review_asked("Continue this run once?", "the cost evidence");
+                ("(run review)", json!({"kind": "review_asked"}))
             }
             Act::Edit(path, text) => {
                 std::fs::write(root.join(path), text).expect("the project file is edited");
@@ -336,7 +479,7 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Val
             }
             Act::Reopen => {
                 drop(session);
-                session = open(root, home, scenario.history);
+                session = hosted(root, home, (scenario.history, scenario.preparing));
                 watch_tools(&mut session, &tools);
                 ("(reopen)", json!({"kind": "reopened"}))
             }
@@ -345,10 +488,38 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path, markers: &Path) -> Val
             json!({"act": format!("{act:?}"), "line": line, "outcome": result,
             "shown": shown(&session)}),
         );
-        waited.push(session.waiting());
-        asked.push(session.pending_question_id());
+        trail.keep(&session);
     }
     let late = (session.steering()).map(|queue| receipt(queue.steer("trop tard")));
     let tools = tools.lock().expect("the tool steps").clone();
     json!({"steps": steps, "files": files(root), "after_turn": late, "tools": tools})
+}
+
+/// One act on a choice of the proposal shown (`offered`: its identity and its choices'), under
+/// both identities: answered in words, left to Nika by the host's own control (« Let Nika
+/// choose »), or answered in another Session of the same project.
+fn proposal_act(
+    session: &mut SessionRuntime,
+    (root, home): (&Path, &Path),
+    offered: &(Option<ProposalId>, Vec<QuestionId>),
+    act: Act,
+) -> (&'static str, Value) {
+    let (proposal, ids) = offered;
+    let proposal = proposal.as_ref().expect("a proposal was shown");
+    match act {
+        Act::AnswerProposalChoiceOf(_, index, line) => (
+            line,
+            outcome(&session.answer_proposal_choice_for(proposal, &ids[index], line)),
+        ),
+        Act::DelegateProposalChoiceOf(_, index) => (
+            "(let Nika choose)",
+            outcome(&session.delegate_proposal_choice_for(proposal, &ids[index])),
+        ),
+        Act::AnswerProposalChoiceElsewhere(_, index, line) => {
+            let mut elsewhere = open(root, home, false);
+            let result = elsewhere.answer_proposal_choice_for(proposal, &ids[index], line);
+            (line, outcome(&result))
+        }
+        other => panic!("no act on a proposal's choice: {other:?}"),
+    }
 }

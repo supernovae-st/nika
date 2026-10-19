@@ -13,7 +13,9 @@
 //!
 //! A line reaches the Session only when it names the CURRENT snapshot, and the Session receives
 //! that snapshot's retained `Waiting` value, never one rebuilt from the wire: a question's
-//! identity keeps the incarnation that asked it. A command identity already known answers
+//! identity keeps the incarnation that asked it. A reply bound to one question names it by the
+//! identity that snapshot's work states, and reaches the Session only as one of the identities
+//! the snapshot retained, never one minted from the wire. A command identity already known answers
 //! before any freshness judgment: the same bytes get the recorded result again (an original
 //! still running is awaited, never run twice), other bytes a conflict. A Stop is bound to the
 //! turn it found and is linearized with that turn's settlement under the custody lock: if it
@@ -31,9 +33,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
-use nika_session::SessionRuntime;
 use nika_session::steer::{QueueMode, Steering};
-use nika_session::work::{CONTRACT as WORK_CONTRACT, Waiting};
+use nika_session::work::{AskedState, CONTRACT as WORK_CONTRACT, Waiting, Work};
+use nika_session::{QuestionId, SessionRuntime, TurnOutcome};
 use nika_types::cancel::CancelCtx;
 
 use crate::run::{RunDoor, RunStop, Stopping};
@@ -78,17 +80,75 @@ impl std::fmt::Debug for SessionHost {
 enum Job {
     Submit {
         command: String,
-        line: String,
+        /// The op that sent it, as its frames name it.
+        op: &'static str,
+        reply: Reply,
         shown: Waiting,
     },
     Close,
 }
 
-/// One published snapshot, kept with the `Waiting` value it showed.
+/// What a command submits against the snapshot it names: a line the Session routes, or a reply
+/// to the question it names by that question's identity on the wire.
+enum Sent {
+    Line(String),
+    Answer { question: String, line: String },
+    Delegate { question: String },
+}
+
+impl Sent {
+    /// The op that sent it, as frames name it.
+    const fn op(&self) -> &'static str {
+        match self {
+            Self::Line(_) => "submit",
+            Self::Answer { .. } => "answer",
+            Self::Delegate { .. } => "delegate",
+        }
+    }
+
+    /// The line it carries, returned whole by a refusal.
+    fn line(&self) -> Option<&str> {
+        match self {
+            Self::Line(line) | Self::Answer { line, .. } => Some(line.as_str()),
+            Self::Delegate { .. } => None,
+        }
+    }
+}
+
+/// What the worker hands the Session: a line it routes against the snapshot shown, or a reply
+/// to one question that snapshot asked, under the very identity it retained.
+enum Reply {
+    Line(String),
+    Answer(QuestionId, String),
+    Delegate(QuestionId),
+}
+
+impl Reply {
+    /// The Session's door for this reply, against the snapshot that showed `shown`: a line
+    /// through [`SessionRuntime::submit`], a reply to one question through its identity door,
+    /// the proposal's own for a choice it shows.
+    fn reach(self, runtime: &mut SessionRuntime, shown: &Waiting) -> TurnOutcome {
+        match (self, shown) {
+            (Self::Line(line), _) => runtime.submit(&line, shown),
+            (Self::Answer(id, line), Waiting::Consent { proposal }) => {
+                runtime.answer_proposal_choice_for(proposal, &id, &line)
+            }
+            (Self::Answer(id, line), _) => runtime.answer_question_for(&id, &line),
+            (Self::Delegate(id), Waiting::Consent { proposal }) => {
+                runtime.delegate_proposal_choice_for(proposal, &id)
+            }
+            (Self::Delegate(id), _) => runtime.delegate_question_for(&id),
+        }
+    }
+}
+
+/// One published snapshot, kept with the `Waiting` value it showed and the identities of the
+/// questions it asks.
 struct Published {
     handle: String,
     seq: u64,
     waiting: Waiting,
+    asked: Vec<QuestionId>,
     work: serde_json::Value,
     details: String,
 }
@@ -151,6 +211,8 @@ struct Custody {
     life: Life,
     current: Published,
     past: BTreeSet<String>,
+    /// The identities of the questions earlier snapshots asked, as their work stated them.
+    asked_before: BTreeSet<String>,
     publishes: u64,
     events: Vec<Frame>,
     ledger: BTreeMap<String, Entry>,
@@ -189,7 +251,10 @@ static FALLBACK: AtomicU64 = AtomicU64::new(0);
 
 /// The runtime's state as one snapshot publishes it; [`Shared::settle`] numbers it.
 fn publish(runtime: &SessionRuntime, session: &str) -> Published {
-    let work = serde_json::to_value(runtime.work()).unwrap_or_else(
+    let waiting = runtime.waiting();
+    let shown = runtime.work();
+    let asked = asked(&waiting, &shown);
+    let work = serde_json::to_value(shown).unwrap_or_else(
         |error| serde_json::json!({"contract": WORK_CONTRACT, "error": error.to_string()}),
     );
     // A handle never repeats within its Session; without entropy it still names its Session.
@@ -203,9 +268,29 @@ fn publish(runtime: &SessionRuntime, session: &str) -> Published {
     Published {
         handle,
         seq: 0,
-        waiting: runtime.waiting(),
+        waiting,
+        asked,
         work,
         details: runtime.details(),
+    }
+}
+
+/// The questions a reply may name in a snapshot showing `waiting`: the question it asks, the
+/// questions asked together, or the choices the proposal waiting shows, open now.
+fn asked(waiting: &Waiting, work: &Work) -> Vec<QuestionId> {
+    match waiting {
+        Waiting::Question { id, .. } => vec![id.clone()],
+        Waiting::Questions { ids } => ids.clone(),
+        Waiting::Consent { .. } => (work.open_choices.iter())
+            .filter(|question| question.state == AskedState::Open)
+            .map(|question| question.id.clone())
+            .collect(),
+        // The optional offer about the last result: answered by its identity, never by a line,
+        // and only here, where the Session takes it too.
+        Waiting::Free => (work.feedback.offer.iter())
+            .map(|offer| offer.question.id.clone())
+            .collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -258,6 +343,22 @@ impl Custody {
                 repeated: true,
             },
             Entry::Done(_, frame) => Dispatch::Reply(frame.replayed()),
+        })
+    }
+
+    /// The question the current snapshot asks under the identity `question` names, or why
+    /// none does: asked by an earlier snapshot of this Session, or never asked by it.
+    fn asked(&self, question: &str) -> Result<QuestionId, String> {
+        if let Some(id) = (self.current.asked.iter()).find(|id| id.as_str() == question) {
+            return Ok(id.clone());
+        }
+        Err(if self.asked_before.contains(question) {
+            format!(
+                "the question `{question}` was asked by an earlier snapshot: it was answered, \
+                 dropped or replaced since · nothing was taken · read the current snapshot"
+            )
+        } else {
+            format!("the snapshot named asks no question `{question}` · nothing was taken")
         })
     }
 
@@ -381,12 +482,20 @@ impl Shared {
     }
 
     /// Publish the turn's result: the new snapshot, the command's recorded result, its event.
-    fn settle(&self, command: &str, outcomes: Vec<Outcome>, mut published: Published, quit: bool) {
+    fn settle(
+        &self,
+        (command, op): (&str, &'static str),
+        outcomes: Vec<Outcome>,
+        mut published: Published,
+        quit: bool,
+    ) {
         let mut custody = self.lock();
         custody.publishes = custody.publishes.saturating_add(1);
         published.seq = custody.publishes;
         let before = std::mem::replace(&mut custody.current, published);
         custody.past.insert(before.handle);
+        let asked = before.asked.iter().map(|id| id.as_str().to_owned());
+        custody.asked_before.extend(asked);
         custody.turn = None;
         if quit {
             custody.life = Life::Closing;
@@ -396,7 +505,7 @@ impl Shared {
             &self.session,
             Body::Submitted {
                 command: command.to_owned(),
-                op: "submit",
+                op,
                 replayed: false,
                 outcomes,
                 snapshot,
@@ -447,6 +556,7 @@ impl SessionHost {
             life: Life::Open,
             current,
             past: BTreeSet::new(),
+            asked_before: BTreeSet::new(),
             publishes: 1,
             events: Vec::new(),
             ledger: BTreeMap::new(),
@@ -545,8 +655,8 @@ impl SessionHost {
         (last, custody.snapshot())
     }
 
-    /// One command. Reads and refusals answer at once; a submit reaches the Session and its
-    /// result is logged; a Stop's receipt is logged at once.
+    /// One command. Reads and refusals answer at once; a submit, or a reply bound to one
+    /// question, reaches the Session and its result is logged; a Stop's receipt is logged at once.
     #[must_use]
     pub fn dispatch(&self, command: Command) -> Dispatch {
         let digest = command.digest();
@@ -555,7 +665,21 @@ impl SessionHost {
                 command,
                 snapshot,
                 line,
-            } => self.submit(digest, command, &snapshot, &line),
+            } => self.submit(digest, command, &snapshot, Sent::Line(line)),
+            Command::Answer {
+                command,
+                snapshot,
+                question,
+                line,
+            } => {
+                let sent = Sent::Answer { question, line };
+                self.submit(digest, command, &snapshot, sent)
+            }
+            Command::Delegate {
+                command,
+                snapshot,
+                question,
+            } => self.submit(digest, command, &snapshot, Sent::Delegate { question }),
             Command::Stop { command } => self.stop(digest, command),
             Command::Steer { command, line } => {
                 self.queue(digest, command, QueueMode::Steer, &line)
@@ -569,10 +693,12 @@ impl SessionHost {
         }
     }
 
-    fn submit(&self, digest: [u8; 32], command: String, snapshot: &str, line: &str) -> Dispatch {
+    fn submit(&self, digest: [u8; 32], command: String, snapshot: &str, sent: Sent) -> Dispatch {
         let session = self.shared.session.as_str();
+        let (op, line) = (sent.op(), sent.line().map(str::to_owned));
+        let line = line.as_deref();
         let mut custody = self.shared.lock();
-        if let Some(answer) = custody.recorded(session, &command, digest, Some(line)) {
+        if let Some(answer) = custody.recorded(session, &command, digest, line) {
             return answer;
         }
         let refuse = |custody: &Custody, error: Refused, message: String| {
@@ -581,7 +707,7 @@ impl SessionHost {
                 error,
                 message,
                 Some(&command),
-                Some(line),
+                line,
                 Some(custody.snapshot()),
             ))
         };
@@ -610,6 +736,18 @@ impl SessionHost {
             };
             return refuse(&custody, error, message.to_owned());
         }
+        // A reply bound to one question reaches it only as an identity this snapshot retained.
+        let reply = match sent {
+            Sent::Line(text) => Reply::Line(text),
+            Sent::Answer { question, line } => match custody.asked(&question) {
+                Ok(id) => Reply::Answer(id, line),
+                Err(why) => return refuse(&custody, Refused::UnknownQuestion, why),
+            },
+            Sent::Delegate { question } => match custody.asked(&question) {
+                Ok(id) => Reply::Delegate(id),
+                Err(why) => return refuse(&custody, Refused::UnknownQuestion, why),
+            },
+        };
         let shown = custody.current.waiting.clone();
         // A review answer continues a held run: no preparation is under way for a Stop.
         let phase = if matches!(shown, Waiting::RunReview { .. }) {
@@ -619,7 +757,8 @@ impl SessionHost {
         };
         let job = Job::Submit {
             command: command.clone(),
-            line: line.to_owned(),
+            op,
+            reply,
             shown,
         };
         if !self.send(job) {
@@ -639,7 +778,7 @@ impl SessionHost {
         });
         let accepted = Body::Accepted {
             command: command.clone(),
-            op: "submit",
+            op,
         };
         custody.log(session, accepted);
         drop(custody);
@@ -905,3 +1044,7 @@ pub(crate) mod tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod steer_tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod answer_tests;

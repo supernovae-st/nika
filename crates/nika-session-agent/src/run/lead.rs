@@ -23,7 +23,7 @@ use serde_json::{Value, json};
 use super::{Agent, AgentError, Outcome, pairs};
 use crate::event::AgentEvent;
 use crate::steer::QueueMode;
-use crate::tree::{EntryKind, Tree};
+use crate::tree::{EntryKind, Tree, late_replies};
 
 /// What a call reaching the relay between turns reads.
 const NO_TURN: &str = "No turn is under way: nothing runs until the person writes.";
@@ -199,6 +199,7 @@ fn entry_text(text: &str, cite: &str, (answering, nika): (bool, Option<&str>)) -
 pub fn transcript(tree: &Tree) -> Option<String> {
     let branch = tree.branch();
     let (summary, kept) = Tree::kept(&branch);
+    let late = late_replies(&branch);
     let mut lines: Vec<String> = Vec::new();
     if let Some(summary) = summary {
         lines.push(format!(
@@ -212,7 +213,7 @@ pub fn transcript(tree: &Tree) -> Option<String> {
                 text,
                 answers,
                 ..
-            } => lines.push(if answers.is_some() {
+            } => lines.push(if answers.is_some() && !late.contains(&&entry.id) {
                 format!("The person answered (cited as {cite}): {text}")
             } else {
                 format!("The person (cited as {cite}): {text}")
@@ -257,12 +258,15 @@ impl Agent<'_> {
     ) -> Outcome {
         let answers = self.tree.parked().map(|(call, _)| call.to_owned());
         let answering = answers.is_some();
-        let reading = self.reading.clone().filter(|_| answering);
+        // The Session's reading of this line goes with it, whether a call waits or not.
+        let reading = self.reading.clone();
         let nika = match (self.note.clone(), reading) {
             (Some(note), Some(reading)) => Some(format!("{note}\n\n{reading}")),
             (note, reading) => note.or(reading),
         };
-        let (entry, cite) = match self.user(text, answers, None) {
+        // With nothing waiting, a reply to another question of an earlier `ask` names that call.
+        let late = self.late.take().filter(|_| !answering);
+        let (entry, cite) = match self.user(text, answers.or(late), None) {
             Ok(user) => user,
             Err(error) => return Outcome::Failed { error },
         };

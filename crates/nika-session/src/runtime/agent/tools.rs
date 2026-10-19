@@ -19,8 +19,9 @@ use nika_session_change::tools::{SessionTools, ToolCall, ToolDef, ToolReply};
 use nika_session_change::work::{AskedQuestion, ModelFacts};
 use serde_json::{Value, json};
 
-use nika_session_agent::conversation::{Acts, Citations, Conversation, edited};
+use nika_session_agent::conversation::{Acts, Citations, Conversation, Pick, edited};
 
+use super::proof::{Judged, Shown};
 use crate::runtime::schedule::scheduled;
 
 /// The tools' definitions: names, descriptions and argument schemas (`$defs` inlined).
@@ -51,19 +52,23 @@ pub(crate) trait Desk: Send {
     fn compose(&mut self, source: &str, operations: &[Value]) -> Result<String, String>;
     /// The candidate judged whole against what the person `stated`, their answers by question
     /// and their request as first stated, with its selections (stated by the author, verified
-    /// by the Session): the digest of what it may do.
+    /// by the Session), landing at the file their request names for a new workflow (`requested`):
+    /// the digest of what it may do.
     fn verify(
         &mut self,
         source: &str,
         stated: (&str, &BTreeMap<String, String>, Option<&str>),
         selections: (&[Resolution], &[Resolution]),
-    ) -> Result<String, String>;
+        presentation: &Value,
+        requested: Option<&str>,
+    ) -> Result<Judged, String>;
     /// What Nika judges of `source` with no model: its check findings, then the laws over the
-    /// person's words (`stated`) and its selections. Empty when nothing stands against it.
+    /// person's words and their answers by question (`stated`) and its selections, as `verify`
+    /// reads them. Empty when nothing stands against it.
     fn judged_now(
         &mut self,
         source: &str,
-        stated: &str,
+        stated: (&str, &BTreeMap<String, String>),
         selections: (&[Resolution], &[Resolution]),
     ) -> Vec<String>;
     /// What this machine's inventory says of `model` as a run's model; none when it offers none.
@@ -82,6 +87,8 @@ pub(crate) struct Decided {
     pub(crate) cited: Option<String>,
     /// The schedule the proposal carries beside its candidate, read and in its zone.
     pub(crate) trigger: Option<TriggerRequirement>,
+    /// The revision proposed again under the verdict the person was shown, judging nothing.
+    pub(crate) reused: Option<u64>,
 }
 
 /// A question's identity, from the context it was asked in.
@@ -102,6 +109,7 @@ struct State {
     citations: Arc<Mutex<Citations>>,
     turn: Option<(Box<dyn Desk>, Box<Mint>)>,
     decided: Decided,
+    shown: Option<Shown>,
 }
 
 /// One call's view of the tools.
@@ -111,6 +119,7 @@ struct Parts<'a> {
     desk: &'a mut dyn Desk,
     mint: &'a mut Mint,
     decided: &'a mut Decided,
+    shown: &'a mut Option<Shown>,
 }
 
 impl Toolbox {
@@ -121,6 +130,7 @@ impl Toolbox {
             citations,
             turn: None,
             decided: Decided::default(),
+            shown: None,
         };
         Self {
             state: Mutex::new(state),
@@ -218,6 +228,7 @@ impl SessionTools for Toolbox {
             citations,
             turn,
             decided,
+            shown,
         } = &mut *state;
         let Some((desk, mint)) = turn.as_mut() else {
             return ToolReply::error(NO_TURN);
@@ -228,6 +239,7 @@ impl SessionTools for Toolbox {
             desk: &mut **desk,
             mint: &mut **mint,
             decided,
+            shown,
         };
         let args = &call.arguments;
         let text = |field: &str| args[field].as_str().map(str::to_owned);
@@ -240,6 +252,14 @@ impl SessionTools for Toolbox {
             "candidate_read" => parts.candidate_read(),
             "candidate_write" => match text("source") {
                 Some(source) => parts.write(source, text("summary"), args),
+                // The model copied the stub Nika leaves in place of an earlier candidate's
+                // arguments (live gauntlet q03: 80 such calls in a row on Gemini 3.1 Pro).
+                None if args.get("stub").is_some() => ToolReply::error(
+                    "candidate_write needs the complete document in `source`: `stub` is the note \
+                     Nika leaves in place of an earlier candidate's document in your history, \
+                     never a document. Send the whole document in `source`, or change the \
+                     current candidate with `candidate_edit`",
+                ),
                 None => ToolReply::error("candidate_write needs the complete document in `source`"),
             },
             "candidate_edit" => parts.edit(args),
@@ -313,10 +333,14 @@ impl Parts<'_> {
         let Ok(mut written) = serde_json::from_str::<Value>(&reply.text) else {
             return reply;
         };
-        let stated = self.citations().stated(self.conversation.since());
+        let citations = self.citations();
+        let stated = citations.stated(self.conversation.since());
+        // The answers the propose verdict reads too: an approval the person picked is theirs here
+        // as well, never a finding that sends the author to remove the gate they chose.
+        let answers = self.conversation.answers_in(&citations);
         let (authored, mut host) = self.conversation.selections();
         host.extend(Conversation::defaults(self.conversation.open()));
-        let findings = self.desk.judged_now(&source, &stated, (&authored, &host));
+        let findings = (self.desk).judged_now(&source, (&stated, &answers), (&authored, &host));
         written["findings"] = json!(findings);
         written["dropped"] = json!(self.conversation.dropped());
         reply.text = written.to_string();
@@ -369,8 +393,9 @@ impl Parts<'_> {
     }
 
     /// The candidate judged whole, the defaults of the choices `open` shows stated by the
-    /// Session: what it dropped, then the judge. Returns its scope.
-    fn judged(&mut self, open: &[AskedQuestion]) -> Result<String, String> {
+    /// Session, and the schedule the proposal carries beside it (`beside`, as the propose door
+    /// accepted it): what it dropped, then the judge. Returns its scope.
+    fn judged(&mut self, open: &[AskedQuestion], beside: Option<&Value>) -> Result<Judged, String> {
         let source = self
             .source()
             .ok_or_else(|| self.conversation.no_candidate())?;
@@ -379,17 +404,64 @@ impl Parts<'_> {
             return Err(dropped.join("\n"));
         }
         let (citations, since) = (self.citations(), self.conversation.since());
-        let (stated, answers) = (citations.stated(since), self.conversation.answers());
+        // Each answer locates its own line among these words by citation, never by its text.
+        let (stated, answers) = (
+            citations.stated(since),
+            self.conversation.answers_in(&citations),
+        );
         let (authored, mut host) = self.conversation.selections();
         host.extend(Conversation::defaults(open));
         let said = (stated.as_str(), &answers, citations.first(since));
-        self.desk.verify(&source, said, (&authored, &host))
+        // The author proposes these validated choices; none is a human answer or consent.
+        let mut presentation =
+            json!({"kind": "proposal", "pending_choices": open, "selected": null});
+        // A trigger is deployment, beside the bytes (#1720): what its words state is never
+        // asked of the candidate.
+        if let Some(schedule) = beside {
+            presentation["schedule"] = schedule.clone();
+        }
+        // The file a new workflow lands at, read beside every reply to Nika's questions.
+        let requested = super::desk::requested(self.conversation, &citations, &source);
+        (self.desk).verify(
+            &source,
+            said,
+            (&authored, &host),
+            &presentation,
+            requested.as_deref(),
+        )
+    }
+
+    /// Read the unchanged shown verdict through its existing route, with only its own evidence.
+    fn proposal_judgment(
+        &mut self,
+        open: &[AskedQuestion],
+        consents: bool,
+        beside: Option<&Value>,
+    ) -> Result<(Judged, bool), String> {
+        let verdict = self
+            .conversation
+            .shown_verdict()
+            .filter(|_| consents && open.is_empty())
+            .map(str::to_owned);
+        let Some(scope) = verdict else {
+            return self.judged(open, beside).map(|judged| (judged, false));
+        };
+        let candidate = self
+            .conversation
+            .candidate()
+            .ok_or_else(|| self.conversation.no_candidate())?;
+        let judged = self
+            .shown
+            .as_ref()
+            .and_then(|shown| shown.repeated(candidate.number, &candidate.source, &scope))
+            .unwrap_or_else(|| Judged::bare(scope, &candidate.source).cached());
+        Ok((judged, true))
     }
 
     fn verify(&mut self) -> ToolReply {
         let revision = self.conversation.candidate().map(|c| c.number);
         let open = self.conversation.open().to_vec();
-        match self.judged(&open) {
+        match self.judged(&open, None) {
             Ok(_) => ToolReply::ok(json!({"verdict": "ready", "revision": revision}).to_string()),
             Err(findings) => ToolReply::error(findings),
         }
@@ -419,42 +491,51 @@ impl Parts<'_> {
         };
         // The schedule the person asked for rides beside the candidate: their words read as the
         // compiler reads a request's, in a zone they see.
-        let trigger = (self.conversation.schedule(&citations, args, &open)).and_then(|said| {
-            said.map(|(words, zone)| scheduled(&words, &zone))
-                .transpose()
-        });
+        let said = match self.conversation.schedule(&citations, args, &open) {
+            Ok(said) => said,
+            Err(refused) => return ToolReply::error(refused),
+        };
+        let trigger = (said.as_ref())
+            .map(|(words, zone)| scheduled(words, zone))
+            .transpose();
         let trigger = match trigger {
             Ok(trigger) => trigger,
             Err(refused) => return ToolReply::error(refused),
         };
+        // The verification is told the schedule accepted: the line it cites, its words, its zone.
+        let beside = said.map(|(excerpt, zone)| {
+            json!({"message": args["schedule"]["message"], "excerpt": excerpt, "zone": zone})
+        });
         // Words consenting to the proposal the person saw are no reason to judge its unchanged
         // bytes again: the verdict belongs to what they were shown.
         let consents = args["acts"].as_array().is_some_and(|acts| !acts.is_empty());
-        let verdict = (self.conversation.shown_verdict())
-            .filter(|_| consents && open.is_empty())
-            .map(str::to_owned);
-        let scope = match verdict {
-            Some(scope) => scope,
-            None => match self.judged(&open) {
-                Ok(scope) => scope,
-                Err(findings) => return ToolReply::error(findings),
-            },
+        let (judged, reused) = match self.proposal_judgment(&open, consents, beside.as_ref()) {
+            Ok(judged) => judged,
+            Err(findings) => return ToolReply::error(findings),
         };
         let revision = self.conversation.candidate().map(|c| c.number);
         let shown: Vec<Value> = (open.iter())
             .map(|q| json!({"key": q.key, "id": q.id.as_str()}))
             .collect();
-        let authorized = self.conversation.propose(&citations, args, (scope, open));
+        let authorized = self
+            .conversation
+            .propose(&citations, args, (judged.scope.clone(), open));
         let acts = authorized.as_ref().ok().copied().flatten();
         let cited = acts.and_then(|_| {
             let message = args["authorized_by"]["message"].as_str()?;
-            citations.get(message).map(|line| line.text.clone())
+            self.conversation.authorization_text(&citations, message)
         });
+        // A revision the person never saw waits for their yes unless their words say save or
+        // run (NIK-199, live gauntlet r09, 2026-10-17: a copy request was written unseen).
+        let unsaid = acts.is_some_and(|acts| acts.revised)
+            && !cited.as_deref().is_some_and(Pick::says_save_or_run);
+        let (acts, cited) = if unsaid { (None, None) } else { (acts, cited) };
         *self.decided = Decided {
             proposed: revision,
             acts,
             cited,
             trigger,
+            reused: revision.filter(|_| reused),
         };
         let said = match (&authorized, acts) {
             (_, Some(acts)) if acts.run => {
@@ -465,13 +546,25 @@ impl Parts<'_> {
             (Ok(_), None) => "shown to the person for review: they save it, or say what to change",
         };
         let mut text = json!({"revision": revision, "proposal": said});
+        let verification = revision.and_then(|revision| judged.projection(revision));
+        if let Some(revision) = revision {
+            *self.shown = Some(Shown::new(revision, judged));
+        }
         if let Err(why) = authorized {
             text["why"] = Value::String(why);
+        } else if unsaid {
+            text["why"] = Value::String(
+                "the person's words ask for a workflow and none of them says save or run: it waits for their consent"
+                    .to_owned(),
+            );
         }
         if !shown.is_empty() {
             text["open"] = Value::Array(shown);
         }
         // Shown, the proposal ends the turn: the person's next line answers it.
-        ToolReply::ends_turn(text.to_string())
+        ToolReply::ends_turn(text.to_string()).with_verification(verification)
     }
 }
+
+#[cfg(test)]
+mod tests;

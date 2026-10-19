@@ -33,7 +33,9 @@ use std::collections::BTreeMap;
 mod money_restatement_tests;
 use std::sync::Arc;
 
-use nika_compile_cognition::{compile_with_cognition_composed, verify_document};
+use nika_compile_cognition::{
+    compile_with_cognition_composed, verify_document, verify_document_presented,
+};
 use nika_compile_fidelity::fidelity::resolution::Resolution;
 use nika_compile_seats::foundry::ComponentCatalog;
 use nika_onboard::compile::{
@@ -220,6 +222,31 @@ impl AuthoringSeat {
             ),
             Self::Unavailable { why } => format!("authoring unavailable · {why}"),
         }
+    }
+}
+
+/// The words an option of the intelligence list carries, as one of its ` · ` parts, when its
+/// subscription seat cannot write workflows here ([`seat_cannot_author`]): a host shows them on
+/// the row before any choice.
+pub const NO_AUTHORING: &str = "cannot write workflows here";
+
+/// Why the subscription seat `seat` cannot write workflows here, when it cannot: the static
+/// admission [`AuthoringSeat::from_reasoner`] applies to its native connection once it is
+/// chosen (one turn, no implicit tool, an answer checked against a JSON schema, an observable
+/// model), asked before any choice so the intelligence list says it on the seat's row (live
+/// gauntlet r08 B1: copilot was accepted, then refused as « not infer-grade for `json_schema` »
+/// only once chosen). Nothing is spawned. `None` where it can, or where this build has no
+/// subscription seat at all.
+#[must_use]
+pub fn seat_cannot_author(seat: &str) -> Option<String> {
+    #[cfg(feature = "access-harness")]
+    {
+        nika_harness::authoring::HarnessAuthoring::meet(seat, None).err()
+    }
+    #[cfg(not(feature = "access-harness"))]
+    {
+        let _ = seat;
+        None
     }
 }
 
@@ -667,6 +694,55 @@ pub fn verify_in(
     account: Option<&nika_providers::InferenceAdmission>,
     host: Option<&dyn Rehearse>,
 ) -> Result<CompileOutcome, AuthoringError> {
+    verify_request(
+        seat,
+        context,
+        (stated, answers, original),
+        declined,
+        (account, host),
+        Work::Verify(candidate, selections, None),
+    )
+}
+
+/// Verify a conversation's document with the exact still-open choices its author proposes.
+/// `presentation` is separate from human answers and selections: it describes the proposal,
+/// grants no Save or Run, and is read only when qualifying the candidate. It is never input
+/// to the candidate-free interpretation of the person's request. The remaining arguments
+/// have the same meaning as [`verify_in`]; callers without a presentation keep that door.
+///
+/// # Errors
+/// As [`verify_in`].
+#[allow(clippy::too_many_arguments)] // the conversation's document, its words and its seats
+pub fn verify_presented_in(
+    seat: &AuthoringSeat,
+    context: &AuthoringContext,
+    said: (&str, &BTreeMap<String, String>, Option<&str>),
+    (candidate, selections, presentation): (&str, (&[Resolution], &[Resolution]), &Value),
+    declined: Vec<Value>,
+    account: Option<&nika_providers::InferenceAdmission>,
+    host: Option<&dyn Rehearse>,
+) -> Result<CompileOutcome, AuthoringError> {
+    verify_request(
+        seat,
+        context,
+        said,
+        declined,
+        (account, host),
+        Work::Verify(candidate, selections, Some(presentation)),
+    )
+}
+
+fn verify_request(
+    seat: &AuthoringSeat,
+    context: &AuthoringContext,
+    (stated, answers, original): (&str, &BTreeMap<String, String>, Option<&str>),
+    declined: Vec<Value>,
+    admission: (
+        Option<&nika_providers::InferenceAdmission>,
+        Option<&dyn Rehearse>,
+    ),
+    work: Work<'_>,
+) -> Result<CompileOutcome, AuthoringError> {
     let mut request = CompileRequest::create(stated).with_declined(declined);
     for (key, literal) in answers {
         request = request.answer(key.as_str(), literal.as_str());
@@ -675,8 +751,7 @@ pub fn verify_in(
         request = request.with_original_intent(original);
     }
     let attach = Attach::Carried(None, stated);
-    let work = Work::Verify(candidate, selections);
-    attached(seat, context, &request, attach, (account, host), work)
+    attached(seat, context, &request, attach, admission, work)
 }
 
 /// What knowledge one seated compile attaches: a pack composed for an
@@ -695,7 +770,11 @@ enum Attach<'a> {
 #[derive(Clone, Copy)]
 pub(crate) enum Work<'a> {
     Compile,
-    Verify(&'a str, (&'a [Resolution], &'a [Resolution])),
+    Verify(
+        &'a str,
+        (&'a [Resolution], &'a [Resolution]),
+        Option<&'a Value>,
+    ),
 }
 
 /// A subscription seat's preflight. It holds no billed-provider admission, and a direct seat
@@ -760,6 +839,36 @@ fn compile_attached(
     attached(seat, context, request, attach, seats, Work::Compile)
 }
 
+/// The project as it is NOW, for the intent the compiler reads (a fresh request, its answers'
+/// round, a revision's request with its change), on every seat: the files it names, observed
+/// by the shared bounded observer under the root — never outside it — and `request` carrying
+/// that world. What the host stated beside the files (the failed run a revision answers) stays.
+fn observed_request(
+    context: &AuthoringContext,
+    request: &CompileRequest,
+    attach: Attach<'_>,
+) -> (Option<Value>, CompileRequest) {
+    let contextual = match attach {
+        Attach::Compose(intent) | Attach::Carried(_, intent) => intent,
+    };
+    let observed = context
+        .project_root()
+        .filter(|_| !contextual.trim().is_empty())
+        .and_then(|root| nika_cli_host::compile::observe::world(root, contextual));
+    let mut request = request.clone();
+    if let Some(world) = &observed {
+        let mut world = world.clone();
+        if let (Some(kept), Some(fresh)) = (
+            request.knowledge.as_ref().and_then(|k| k.get("last_run")),
+            world.as_object_mut(),
+        ) {
+            fresh.insert("last_run".to_owned(), kept.clone());
+        }
+        request = request.with_knowledge(world);
+    }
+    (observed, request)
+}
+
 /// One seated call doing `work` over `request`, with what it attaches.
 fn attached(
     seat: &AuthoringSeat,
@@ -772,20 +881,7 @@ fn attached(
     ),
     work: Work<'_>,
 ) -> Result<CompileOutcome, AuthoringError> {
-    // The project as it is NOW, for the intent the compiler reads (a fresh request, its
-    // answers' round, a revision's request with its change), on every seat: the files
-    // it names, observed by the shared bounded observer under the root — never outside it.
-    let contextual = match attach {
-        Attach::Compose(intent) | Attach::Carried(_, intent) => intent,
-    };
-    let observed = context
-        .project_root()
-        .filter(|_| !contextual.trim().is_empty())
-        .and_then(|root| nika_cli_host::compile::observe::world(root, contextual));
-    let mut request = request.clone();
-    if let Some(world) = &observed {
-        request = request.with_knowledge(world.clone());
-    }
+    let (observed, mut request) = observed_request(context, request, attach);
     let model = match seat {
         AuthoringSeat::Deterministic { .. } => {
             let out = unseated(context, &request, work, (admission, host))?;
@@ -825,7 +921,7 @@ fn attached(
     let lent = catalogue
         .as_ref()
         .map(|catalogue| catalogue as &dyn ComponentCatalog);
-    let mut out = match seat {
+    let judged = |decision: Option<&DecisionSetup>| match seat {
         AuthoringSeat::Harness {
             seat,
             model,
@@ -835,23 +931,60 @@ fn attached(
             model.as_deref(),
             *transport,
             &request,
-            context
-                .decision()
-                .map(|s| s.consult(decision::admit(admission))),
+            decision.map(|s| s.consult(decision::admit(admission))),
             (host, lent),
             work,
-        )?,
-        _ => seated(
-            &model,
-            &request,
-            admission,
-            context.decision(),
-            (host, lent),
-            work,
-        )?,
+        ),
+        _ => seated(&model, &request, admission, decision, (host, lent), work),
     };
+    let mut out = judged(context.decision())?;
+    // A decision seat that stopped judging a conversation's document (a context too small for
+    // its questions, or out of reach) settles nothing: the authoring model judges it instead, and
+    // the proposal says so (live gauntlet r06 and r07, 2026-10-16: the default seat refused every
+    // judgment of ordinary requests for its context, 1163 and 980 calls, nothing ever proposed).
+    if matches!(work, Work::Verify(..))
+        && let Some(stopped) = seat_stopped(&out)
+    {
+        let mut again = judged(None)?;
+        said_judged_by_author(&mut again, &stopped, &model);
+        out = again;
+    }
     stamped(&mut out, attach, pack.as_ref(), context);
     Ok(observed_in(out, observed.as_ref()))
+}
+
+/// The decision seat that stopped the last verification of `out` before it settled, by its
+/// name, when one did: its answers ended at a call it could not answer.
+fn seat_stopped(out: &CompileOutcome) -> Option<String> {
+    if out.status == nika_onboard::compile::CompileStatus::Ready {
+        return None;
+    }
+    let decision = out.provenance.decision.as_ref()?;
+    let last = decision["semantic_verification"].as_array()?.last()?;
+    let seated = last["judge"]["kind"] == "decision_seat" && last["stopped"] == true;
+    seated.then(|| {
+        last["judge"]["seat"]
+            .as_str()
+            .unwrap_or("the decision seat")
+            .to_owned()
+    })
+}
+
+/// Say on `out` that the authoring model `model` judged it in place of the decision seat `seat`,
+/// beside any doubt its own verdict states.
+fn said_judged_by_author(out: &mut CompileOutcome, seat: &str, model: &str) {
+    let note = format!(
+        "The decision seat `{seat}` could not judge these bytes (its answers stopped at a question it could not take), so the authoring model `{model}` judged them."
+    );
+    match (out.diagnostics.iter_mut()).find(|d| d.target == "verify_doubt") {
+        Some(doubt) => doubt.message = format!("{note} {}", doubt.message),
+        None => nika_onboard::compile::finding(
+            out,
+            nika_onboard::compile::DiagnosticKind::Unknown,
+            "verify_doubt",
+            note,
+        ),
+    }
 }
 
 /// The deterministic seat doing `work`: the compiler alone, or a verification that only a
@@ -865,16 +998,16 @@ fn unseated(
         Option<&dyn Rehearse>,
     ),
 ) -> Result<CompileOutcome, AuthoringError> {
-    let (candidate, selections) = match work {
+    let (candidate, selections, presentation) = match work {
         Work::Compile => return Ok(compile(request)?),
-        Work::Verify(candidate, selections) => (candidate, selections),
+        Work::Verify(candidate, selections, presentation) => (candidate, selections, presentation),
     };
     let consulted = (context.decision()).map(|s| s.consult(decision::admit(admission)));
     let judge = Cognition::<nika_compile_cognition::NoProvider> {
         provider: None,
         seat: (consulted.as_ref()).map(|s| s as &dyn nika_onboard::compile::decide::DecisionSeat),
     };
-    let verified = verify_document(request, candidate, selections, judge, host);
+    let verified = verify_work(request, candidate, selections, presentation, judge, host);
     let mut out = complete(Box::pin(verified))??;
     decision::finish(&mut out, request, consulted);
     Ok(out)
@@ -935,8 +1068,13 @@ fn seated(
         Work::Compile => complete(Box::pin(compile_with_cognition_composed(
             request, cognition, host, catalog,
         )))??,
-        Work::Verify(candidate, selections) => complete(Box::pin(verify_document(
-            request, candidate, selections, cognition, host,
+        Work::Verify(candidate, selections, presentation) => complete(Box::pin(verify_work(
+            request,
+            candidate,
+            selections,
+            presentation,
+            cognition,
+            host,
         )))??,
     };
     decision::finish(&mut out, request, consulted);
@@ -949,6 +1087,34 @@ fn seated(
     }
     Ok(out)
 }
+
+/// Every seat uses the same explicit presentation door; legacy calls keep their old input.
+async fn verify_work<P: nika_kernel::ai::provider::ProviderInferDyn>(
+    request: &CompileRequest,
+    candidate: &str,
+    selections: (&[Resolution], &[Resolution]),
+    presentation: Option<&Value>,
+    cognition: Cognition<'_, P>,
+    host: Option<&dyn Rehearse>,
+) -> Result<CompileOutcome, CompileError> {
+    match presentation {
+        Some(presentation) => {
+            verify_document_presented(
+                request,
+                candidate,
+                selections,
+                presentation,
+                cognition,
+                host,
+            )
+            .await
+        }
+        None => verify_document(request, candidate, selections, cognition, host).await,
+    }
+}
+
+#[cfg(test)]
+mod presentation_tests;
 
 // Both subscription and API compilation use the Session's one async driver and Stop boundary.
 fn complete<F: std::future::Future>(future: F) -> Result<F::Output, AuthoringError> {
@@ -966,6 +1132,36 @@ mod tests {
     use super::*;
     use nika_onboard::compile::{CompileStatus, Strategy};
     use serde_json::json;
+
+    /// A verification the decision seat stopped is read from its record, never its words; one
+    /// the authoring provider judged, or that settled, is not; the author's judgment is said on
+    /// the doubt the proposal shows, before any doubt of its own.
+    #[test]
+    fn a_stopped_decision_seat_is_read_and_its_fallback_said() {
+        let mut out = compile_deterministic(&CompileRequest::create("Read ./a.md")).expect("out");
+        out.status = CompileStatus::Incomplete;
+        let attempt = |kind: &str, stopped: bool| {
+            json!({"semantic_verification": [{"judge": {"seat": "typesafe/jev-1.13.0", "kind": kind},
+                "stopped": stopped}]})
+        };
+        out.provenance.decision = Some(attempt("decision_seat", true));
+        assert_eq!(seat_stopped(&out).as_deref(), Some("typesafe/jev-1.13.0"));
+        out.provenance.decision = Some(attempt("authoring_provider", true));
+        assert_eq!(seat_stopped(&out), None);
+        out.provenance.decision = Some(attempt("decision_seat", false));
+        assert_eq!(seat_stopped(&out), None);
+        said_judged_by_author(&mut out, "typesafe/jev-1.13.0", "deepseek/deepseek-v4-pro");
+        let doubt = (out.diagnostics.iter()).find(|d| d.target == "verify_doubt");
+        let doubt = doubt
+            .expect("the fallback is said as a doubt")
+            .message
+            .clone();
+        assert!(
+            doubt.contains("`typesafe/jev-1.13.0` could not judge")
+                && doubt.contains("`deepseek/deepseek-v4-pro` judged them"),
+            "{doubt}"
+        );
+    }
 
     #[test]
     fn host_diagnostics_never_include_userinfo_or_query_values() {

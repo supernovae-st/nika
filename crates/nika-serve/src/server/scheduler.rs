@@ -23,6 +23,10 @@ use super::{AuthorityState, PreparedScheduledRun, ServerError};
 const FALLBACK_RESCAN: Duration = Duration::from_secs(5);
 const PLANNER_PROJECTION: usize = 1;
 
+/// The skip reason of a project slot the CLI edge already fired: serve
+/// consumes it too, so its planner moves on instead of offering it again.
+const ANSWERED_ELSEWHERE: &str = "answered_elsewhere";
+
 #[derive(Clone)]
 pub(super) struct ResidentSchedule {
     pub(super) origin: ScheduleOrigin,
@@ -80,6 +84,8 @@ struct FireCandidate {
     schedule: ResidentSchedule,
     slot: ScheduleSlot,
     decision: ScheduleDecision,
+    /// The silence a catch-up-once answers for: its first slot and slot count.
+    missed: Option<(Timestamp, u32)>,
 }
 
 struct SkipCandidate {
@@ -111,6 +117,11 @@ pub(super) async fn run(
         let scan = tokio::task::spawn_blocking(move || scan(&scan_state))
             .await
             .map_err(|_| ServerError::BlockingTask)??;
+        // A pass that leaves a due slot unconsumed (the CLI edge holds its
+        // beat lock, admission or the queue refused, the schedule's previous
+        // run still runs) looks again after the rescan, never at once: a zero
+        // wake re-admitted the workflow in a hot loop.
+        let mut deferred = false;
         for action in scan.actions {
             match action {
                 PlannedAction::Fire(candidate) => {
@@ -119,7 +130,7 @@ pub(super) async fn run(
                         candidate.schedule.definition.id(),
                     );
                     if active.contains(&key) {
-                        handle_overlap(&state, candidate)?;
+                        deferred |= busy_fire(&state, candidate)?;
                         continue;
                     }
                     match prepare_claim(&state, candidate).await {
@@ -135,9 +146,10 @@ pub(super) async fn run(
                                 (key, result)
                             });
                         }
-                        Ok(None) => {}
+                        Ok(None) => deferred = true,
                         Err(ServerError::ScheduledAdmission) => {
                             record_fire_refusal(&state, &key, FIRE_ADMISSION_REFUSED);
+                            deferred = true;
                         }
                         // A full queue is back-pressure: the beat is deferred
                         // to the next scan, the resident keeps running.
@@ -146,6 +158,7 @@ pub(super) async fn run(
                             | ServerError::JobStore(crate::JobStoreError::CapacityExceeded),
                         ) => {
                             record_fire_refusal(&state, &key, FIRE_QUEUE_FULL);
+                            deferred = true;
                         }
                         // A closed queue is the authority stopping (its
                         // receiver dropped at shutdown while this fire was in
@@ -158,7 +171,11 @@ pub(super) async fn run(
                 PlannedAction::Skip(candidate) => consume_skip(&state, candidate)?,
             }
         }
-        let delay = wake_delay(scan.earliest, state.clock.now().timestamp());
+        let delay = if deferred {
+            FALLBACK_RESCAN
+        } else {
+            wake_delay(scan.earliest, state.clock.now().timestamp())
+        };
         let sleep = state.clock.sleep(delay);
         tokio::pin!(sleep);
         tokio::select! {
@@ -184,6 +201,17 @@ pub(super) async fn run(
         result?;
     }
     Ok(())
+}
+
+/// A fire whose schedule still runs its previous run (split out of `run` at the 100-line
+/// ratchet), and whether its slot stays due. A catch-up is a backlog served in order (spec 01
+/// §`manqué`: one run each, oldest first): it waits for the run before it, never an overlap skip;
+/// any other fire meets the overlap policy.
+fn busy_fire(state: &AuthorityState, candidate: FireCandidate) -> Result<bool, ServerError> {
+    if candidate.decision == ScheduleDecision::CatchUp {
+        return Ok(true);
+    }
+    Ok(!handle_overlap(state, candidate)?)
 }
 
 fn scan(state: &AuthorityState) -> Result<Scan, ServerError> {
@@ -240,6 +268,7 @@ fn scan(state: &AuthorityState) -> Result<Scan, ServerError> {
                     schedule,
                     slot: slot.clone(),
                     decision: ScheduleDecision::Scheduled,
+                    missed: None,
                 }));
             }
             ScheduleDueVerdict::CatchUp { slot, .. } => {
@@ -247,6 +276,7 @@ fn scan(state: &AuthorityState) -> Result<Scan, ServerError> {
                     schedule,
                     slot: slot.clone(),
                     decision: ScheduleDecision::CatchUp,
+                    missed: plan.silence(),
                 }));
             }
             ScheduleDueVerdict::SkippedMissed { slot, .. } => {
@@ -299,18 +329,29 @@ fn settle_in_ledger(
     let _ = claim.settle(ledger_exit(result), trace, decided_at);
 }
 
+/// A project beat's slot in the ONE ARM ledger, when the resident may hold it.
+enum Ledger {
+    /// The resident holds the beat lock and the slot's claim: it fires. Boxed:
+    /// the claim carries its lease and receipt, the other verdicts nothing.
+    Held(Box<nika_arm::ResidentClaim>),
+    /// No served project root: there is no ledger to claim in.
+    Unledgered,
+    /// The ledger already answers the slot: the CLI edge fired it.
+    Answered,
+}
+
 /// The resident's claim of a project beat's slot in the ARM ledger: the
-/// same beat lock the CLI edge takes. `None` when the slot is not the
-/// resident's to fire — the ledger already answers it (the edge fired it)
-/// or a live process holds the lock (the edge is firing it now).
+/// same beat lock the CLI edge takes. A live process holding the lock (the
+/// edge is firing the slot now) is [`ServerError::SlotOwnedElsewhere`]: the
+/// slot stays due, and the resident looks again at its next rescan.
 fn claim_in_ledger(
     state: &AuthorityState,
     candidate: &FireCandidate,
     generation: &ArmGeneration,
     now: &Zoned,
-) -> Result<Option<nika_arm::ResidentClaim>, ServerError> {
+) -> Result<Ledger, ServerError> {
     let Some(root) = state.workflow_root.get() else {
-        return Ok(None);
+        return Ok(Ledger::Unledgered);
     };
     let slot = candidate
         .slot
@@ -325,11 +366,11 @@ fn claim_in_ledger(
         std::process::id(),
         now,
     ) {
-        Ok(claim) => Ok(Some(claim)),
-        Err(
-            nika_arm::ResidentClaimRefusal::SlotAnswered { .. }
-            | nika_arm::ResidentClaimRefusal::LockHeld { .. },
-        ) => Err(ServerError::SlotOwnedElsewhere),
+        Ok(claim) => Ok(Ledger::Held(Box::new(claim))),
+        Err(nika_arm::ResidentClaimRefusal::SlotAnswered { .. }) => Ok(Ledger::Answered),
+        Err(nika_arm::ResidentClaimRefusal::LockHeld { .. }) => {
+            Err(ServerError::SlotOwnedElsewhere)
+        }
         Err(_) => Err(ServerError::ScheduledAdmission),
     }
 }
@@ -372,16 +413,7 @@ async fn prepare_claim(
             .map_err(|_| ServerError::ScheduledAdmission)?;
         let generation = generation(&candidate.schedule.definition, &admitted);
         let fired_at = clock.now();
-        let origin = JobOrigin::schedule(
-            candidate.schedule.origin,
-            candidate.schedule.definition.id(),
-            &candidate.schedule.definition.revision(),
-            candidate.slot.id(),
-            candidate.decision,
-            candidate.slot.scheduled_for(),
-            fired_at.timestamp(),
-            &generation,
-        )?;
+        let origin = fire_origin(&candidate, fired_at.timestamp(), &generation)?;
         let prepared = coordinator.prepare_scheduled_with_max_cost(
             admitted,
             origin,
@@ -397,25 +429,29 @@ async fn prepare_claim(
         // is not the resident's to fire (#1377).
         let ledger = if candidate.schedule.origin == ScheduleOrigin::Project {
             match claim_in_ledger(&state_for_ledger, &candidate, &generation, &claim_now) {
-                Ok(claim) => claim,
+                Ok(Ledger::Held(claim)) => Some(*claim),
+                Ok(Ledger::Unledgered) => None,
+                // The edge fired this slot: consume it here too, or the
+                // planner offers it again at every pass.
+                Ok(Ledger::Answered) => {
+                    store.consume_slot(
+                        candidate.schedule.origin,
+                        &candidate.schedule.definition,
+                        &candidate.slot,
+                        candidate.decision,
+                        ScheduleSlotAction::Skipped,
+                        claim_now.timestamp(),
+                        Some(ANSWERED_ELSEWHERE.to_owned()),
+                    )?;
+                    return Ok(None);
+                }
                 Err(ServerError::SlotOwnedElsewhere) => return Ok(None),
                 Err(error) => return Err(error),
             }
         } else {
             None
         };
-        let claim = ScheduleClaimEvidence::new(
-            prepared.run_id().as_str().to_owned(),
-            prepared
-                .execution_id()
-                .ok_or(ServerError::ScheduledAdmission)?
-                .to_owned(),
-            prepared
-                .trace_id()
-                .ok_or(ServerError::ScheduledAdmission)?
-                .to_owned(),
-            generation,
-        );
+        let claim = prepared_claim_evidence(&prepared, generation)?;
         let consumed = store.consume_claimed_slot(
             candidate.schedule.origin,
             &candidate.schedule.definition,
@@ -428,6 +464,49 @@ async fn prepare_claim(
     })
     .await
     .map_err(|_| ServerError::BlockingTask)?
+}
+
+/// The job origin a fire carries (split out of `prepare_claim` at the 100-line ratchet): its
+/// schedule and revision, the slot and its decision, the instant it serves and the instant it
+/// fired, the admitted generation, and the silence a catch-up-once answers for.
+fn fire_origin(
+    candidate: &FireCandidate,
+    fired_at: Timestamp,
+    generation: &ArmGeneration,
+) -> Result<JobOrigin, ServerError> {
+    let origin = JobOrigin::schedule(
+        candidate.schedule.origin,
+        candidate.schedule.definition.id(),
+        &candidate.schedule.definition.revision(),
+        candidate.slot.id(),
+        candidate.decision,
+        candidate.slot.scheduled_for(),
+        fired_at,
+        generation,
+    )?;
+    Ok(match candidate.missed {
+        Some((first, count)) => origin.with_missed(first, count)?,
+        None => origin,
+    })
+}
+
+/// Bind the prepared run's identities to the slot's admitted generation.
+fn prepared_claim_evidence(
+    prepared: &PreparedScheduledRun,
+    generation: ArmGeneration,
+) -> Result<ScheduleClaimEvidence, ServerError> {
+    Ok(ScheduleClaimEvidence::new(
+        prepared.run_id().as_str().to_owned(),
+        prepared
+            .execution_id()
+            .ok_or(ServerError::ScheduledAdmission)?
+            .to_owned(),
+        prepared
+            .trace_id()
+            .ok_or(ServerError::ScheduledAdmission)?
+            .to_owned(),
+        generation,
+    ))
 }
 
 fn consume_skip(state: &AuthorityState, candidate: SkipCandidate) -> Result<(), ServerError> {
@@ -508,23 +587,36 @@ fn skip_is_still_due(
         ScheduleDueVerdict::SkippedTooLate { slot, .. } if candidate.reason == "max_lateness" => {
             Some(slot)
         }
+        // An overlap skips a slot the planner offers to FIRE: the run before
+        // it still runs (`chevauchement: sauter`).
+        ScheduleDueVerdict::ScheduledOnTime { slot } | ScheduleDueVerdict::CatchUp { slot, .. }
+            if candidate.reason == "overlap" =>
+        {
+            Some(slot)
+        }
         _ => None,
     };
     Ok(slot.is_some_and(|slot| slot.id() == candidate.slot.id()))
 }
 
-fn handle_overlap(state: &AuthorityState, candidate: FireCandidate) -> Result<(), ServerError> {
+/// A slot due while the schedule's previous run still runs. `sauter` skips
+/// it once, journaled; any other overlap policy leaves it due until the run
+/// ends. `true` when the slot is consumed.
+fn handle_overlap(state: &AuthorityState, candidate: FireCandidate) -> Result<bool, ServerError> {
     match candidate.schedule.definition.overlap() {
-        nika_cadence::Overlap::Sauter => consume_skip(
-            state,
-            SkipCandidate {
-                schedule: candidate.schedule,
-                slot: candidate.slot,
-                decision: candidate.decision,
-                reason: "overlap".to_owned(),
-            },
-        ),
-        _ => Ok(()),
+        nika_cadence::Overlap::Sauter => {
+            consume_skip(
+                state,
+                SkipCandidate {
+                    schedule: candidate.schedule,
+                    slot: candidate.slot,
+                    decision: candidate.decision,
+                    reason: "overlap".to_owned(),
+                },
+            )?;
+            Ok(true)
+        }
+        _ => Ok(false),
     }
 }
 
@@ -714,6 +806,7 @@ mod tests {
             },
             slot,
             decision: ScheduleDecision::Scheduled,
+            missed: None,
         };
         assert!(fire_is_still_due(&store, &candidate, &due_now).expect("still due"));
         let rolled_back: Zoned = "2026-09-01T08:59:59Z[UTC]".parse().expect("rolled back");

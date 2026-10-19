@@ -8,6 +8,27 @@ pub(super) use nika_cli_host::display::front_door::recovery::{
 };
 use nika_onboard::compile::CompileOutcome;
 impl SessionRuntime {
+    /// The exact context of an unjudged continuation that currently owns a free line.
+    /// Hosts may offer retry or discard beside a free correction, then compare this
+    /// identity again before submitting the line through the existing Session door.
+    /// Reading it performs no work and grants no judgment, Save or Run authority.
+    /// It is a presentation identity, not a durable token or a substitute for a
+    /// host's fresh presentation nonce after reopening.
+    #[must_use]
+    pub fn waiting_judgment(&self) -> Option<String> {
+        if self.waiting() != crate::work::Waiting::Free || !self.judgment_waits() {
+            return None;
+        }
+        let round = self.authoring.as_ref()?;
+        // As for question identities, bind all exact round/context facts rather
+        // than inferring a resumable state from an Incomplete status or its prose.
+        let context = format!(
+            "nika-session waiting-judgment 1\n{round:?}\n{:?}\n{:?}\n{:?}",
+            self.seat, self.intelligence, self.authoring_context
+        );
+        Some(crate::change::Witness::of(context.as_bytes()).0)
+    }
+
     pub(super) fn judgment_waits(&self) -> bool {
         self.authoring
             .as_ref()
@@ -66,3 +87,7 @@ impl SessionRuntime {
         self.restate_round(&round, input)
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod tests;

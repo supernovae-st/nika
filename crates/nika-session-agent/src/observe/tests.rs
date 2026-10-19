@@ -134,3 +134,79 @@ fn a_step_says_when_its_call_began_and_how_large_its_reply_was() {
     let size = u64::try_from("the file's secret contents".len()).unwrap();
     assert_eq!(steps[1].reply_bytes, Some(size));
 }
+
+#[test]
+fn original_verification_is_separate_from_success_text_and_failure_excerpt() {
+    struct Propose(serde_json::Value, bool);
+    impl SessionTools for Propose {
+        fn tools(&self) -> Vec<ToolDef> {
+            vec![]
+        }
+        fn call(&self, _: ToolCall) -> ToolReply {
+            let mut reply = ToolReply::ends_turn("private model text and paths")
+                .with_verification(Some(self.0.clone()));
+            // Even a malformed tool producer cannot expose a receipt as a failed step.
+            reply.is_error = self.1;
+            reply
+        }
+    }
+    let evidence = json!({"schema": "nika/semantic-verification@1",
+        "candidate_sha256": "a".repeat(64), "candidate_revision": 2, "reused": true,
+        "records": [{"request": "the original request ".repeat(50), "consumed": 1}]});
+    for failed in [false, true] {
+        let observed = Observed::new(Arc::new(Propose(evidence.clone(), failed)));
+        let steps = Arc::new(Mutex::new(vec![]));
+        let kept = steps.clone();
+        observed.watch(Some(Arc::new(move |step| {
+            kept.lock().unwrap().push(step.clone());
+        })));
+        observed
+            .call(ToolCall::new("propose", json!({"private": "arguments"})).with_meta("call-p"));
+        let steps = steps.lock().unwrap();
+        assert_eq!(steps.len(), 2);
+        assert_eq!(steps[0].verification, None);
+        assert_eq!(steps[1].verification, (!failed).then(|| evidence.clone()));
+        assert_eq!(
+            steps[1].state,
+            if failed {
+                StepState::Failed
+            } else {
+                StepState::Finished
+            }
+        );
+        if !failed {
+            assert_eq!(steps[1].reply, None);
+        }
+        assert_eq!(steps[1].call, "call-p");
+    }
+}
+
+#[test]
+fn only_a_successful_terminal_proposal_routes_verification() {
+    struct Reply(bool);
+    impl SessionTools for Reply {
+        fn tools(&self) -> Vec<ToolDef> {
+            vec![]
+        }
+        fn call(&self, _: ToolCall) -> ToolReply {
+            // A deserialized record may contain metadata that the normal builder would refuse.
+            serde_json::from_value(json!({"text": "private text", "is_error": false,
+                "ends_turn": self.0, "verification": {"schema": "future opaque receipt"}}))
+            .unwrap()
+        }
+    }
+    for (name, terminal) in [("ask", true), ("read", false), ("propose", false)] {
+        let observed = Observed::new(Arc::new(Reply(terminal)));
+        let steps = Arc::new(Mutex::new(vec![]));
+        let kept = steps.clone();
+        observed.watch(Some(Arc::new(move |step| {
+            kept.lock().unwrap().push(step.clone());
+        })));
+        observed.call(ToolCall::new(name, json!({})));
+        let steps = steps.lock().unwrap();
+        assert_eq!(steps.len(), 2);
+        assert_eq!(steps[1].state, StepState::Finished);
+        assert_eq!(steps[1].reply, None);
+        assert_eq!(steps[1].verification, None);
+    }
+}

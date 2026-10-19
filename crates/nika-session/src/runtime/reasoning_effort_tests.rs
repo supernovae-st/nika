@@ -23,7 +23,7 @@ use crate::DataLocus;
 use crate::authoring::AuthoringContext;
 use crate::reasoner::{ProviderReasoner, ReasonError, Reply, test_transport};
 use crate::runtime::inference_tests::wire::{Peer, response};
-use crate::runtime::inference_tests::{CREATE_CALLS, authored};
+use crate::runtime::inference_tests::{TRIED_CREATE_CALLS, tried};
 use crate::turn::{
     ConservativeFallback, ReasonerClassifier, RoutingMethod, SessionPhase, TurnAct, TurnClassifier,
     TurnContext, TurnDecision,
@@ -281,7 +281,7 @@ fn flash_low_rides_every_routed_label_and_turn_with_the_same_ceilings_and_words(
 fn flash_low_rides_the_authoring_and_judgment_calls_with_the_same_caps_and_accounting() {
     let mut seen = Vec::new();
     for word in [Some("low"), None] {
-        let peer = Peer::start(authored(flash));
+        let peer = Peer::start(tried(flash));
         let _transport = test_transport::install(&peer.url);
         let dir = tempfile::tempdir().expect("root");
         std::fs::write(dir.path().join("entree.txt"), "A\n").expect("input");
@@ -300,8 +300,8 @@ fn flash_low_rides_the_authoring_and_judgment_calls_with_the_same_caps_and_accou
         let bodies = peer.bodies();
         assert_eq!(
             bodies.len(),
-            CREATE_CALLS,
-            "the document call, then the judgment's"
+            TRIED_CREATE_CALLS,
+            "the document call, then the judge's whole request and its part over the trial run"
         );
         let details = s.details();
         if word.is_some() {
@@ -317,7 +317,8 @@ fn flash_low_rides_the_authoring_and_judgment_calls_with_the_same_caps_and_accou
             );
             assert!(!details.contains("reasoning effort"), "{details}");
         }
-        // The calls the reading recorded, by role: the semantic CREATE, then one `judge_request`.
+        // The calls the reading recorded, by role: the semantic CREATE, then one `judge_request`,
+        // then the part judged again over the trial run.
         let outcome = s.last_outcome.as_ref().expect("the reading");
         let calls: Vec<(String, Value)> = (outcome.provenance.authoring.as_ref())
             .map(|receipt| {
@@ -332,7 +333,11 @@ fn flash_low_rides_the_authoring_and_judgment_calls_with_the_same_caps_and_accou
             })
             .unwrap_or_default();
         let roles: Vec<&str> = calls.iter().map(|(call, _)| call.as_str()).collect();
-        assert_eq!(roles, ["document", "judge_request"], "{calls:?}");
+        assert_eq!(
+            roles,
+            ["document", "judge_request", "judge_observed_part"],
+            "{calls:?}"
+        );
         for (call, reasoning) in &calls {
             if word.is_some() {
                 assert_eq!(reasoning["configured"], "low", "{call}");
@@ -434,7 +439,7 @@ const WORK: &str =
 #[test]
 fn details_says_the_named_effort_as_the_receipt_recorded_it_and_nothing_without_one() {
     for word in [Some("max"), None] {
-        let peer = Peer::start(authored(response));
+        let peer = Peer::start(tried(response));
         let _transport = test_transport::install(&peer.url);
         let dir = tempfile::tempdir().expect("root");
         std::fs::write(dir.path().join("entree.txt"), "A\n").expect("input");
@@ -453,8 +458,8 @@ fn details_says_the_named_effort_as_the_receipt_recorded_it_and_nothing_without_
         let bodies = peer.bodies();
         assert_eq!(
             bodies.len(),
-            CREATE_CALLS,
-            "the document call, then the judge's"
+            TRIED_CREATE_CALLS,
+            "the document call, then the judge's whole request and its part over the trial run"
         );
         let details = s.details();
         if word.is_some() {
@@ -737,9 +742,10 @@ fn the_decision_seat_is_a_separate_backend_the_named_level_never_reaches() {
         "not applicable · the named level `max` rides the LLM calls only; the TypeSafe request carries no effort",
         "{decision}"
     );
-    let status = s.status();
+    // How Nika prepares and judges is `/details`' (live gauntlet wave 6 r02 B4).
+    let details = s.details();
     assert!(
-        status.contains(" · reasoning effort max asked of every LLM call; the TypeSafe decision seat is a separate backend: no effort is sent to it"),
-        "status must distinguish LLM reasoning effort from the decision seat"
+        details.contains(" · reasoning effort max asked of every LLM call; the TypeSafe decision seat is a separate backend: no effort is sent to it"),
+        "the details must distinguish LLM reasoning effort from the decision seat: {details}"
     );
 }

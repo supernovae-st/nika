@@ -22,6 +22,8 @@
 mod agent;
 #[path = "acp_led/child.rs"]
 mod child;
+#[path = "acp_led/grouped_answers.rs"]
+mod grouped_answers;
 
 use std::fmt::Write as _;
 use std::os::unix::fs::PermissionsExt;

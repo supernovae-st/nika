@@ -59,3 +59,39 @@ fn an_interruption_declines_the_cost_choice_like_a_typed_cancel() {
     assert!(matches!(s.turn("yes"), TurnOutcome::Refusal(_)));
     assert!(peer.bodies().is_empty(), "nothing was sent");
 }
+
+#[test]
+fn intelligence_configuration_does_not_answer_or_replay_a_waiting_cost_choice() {
+    let peer = Peer::start(vec![(200, unpriced_response("Hello"))]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().expect("root");
+    let mut s = open_unknown(dir.path());
+    asked(&s.turn("hello"));
+    let details = s.cost_choice_details().expect("pending cost evidence");
+    s.census = Some(IntelligenceCensus::new(
+        vec![],
+        vec!["deepseek".into()],
+        vec![],
+    ));
+    s.factory = Some(Box::new(|_| Box::new(crate::reasoner::NoReasoner)));
+    s.interrupted = Some("a retained request behind the cost decision".into());
+    for answer in ["cancel", "2 deepseek/deepseek-chat"] {
+        let opened = s.submit("/intelligence", &Waiting::CostChoice);
+        assert!(matches!(opened, TurnOutcome::Ask(_)), "{opened:?}");
+        assert_eq!(s.waiting(), Waiting::IntelligenceChoice);
+        let selected = s.submit(answer, &Waiting::IntelligenceChoice);
+        assert!(matches!(selected, TurnOutcome::Facts(_)), "{selected:?}");
+        assert_eq!(s.waiting(), Waiting::CostChoice);
+        assert_eq!(s.cost_choice_details().as_deref(), Some(details.as_str()));
+        assert_eq!(
+            s.interrupted.as_deref(),
+            Some("a retained request behind the cost decision")
+        );
+        assert!(s.work().requested.is_none());
+        assert!(peer.bodies().is_empty(), "configuration sends no inference");
+    }
+    assert_eq!(
+        s.intelligence.model.as_deref(),
+        Some("deepseek/deepseek-chat")
+    );
+}

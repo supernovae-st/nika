@@ -555,3 +555,28 @@ fn a_routed_business_price_keeps_the_admitted_ceiling_and_only_real_directives()
     }
     assert!(peer.bodies().is_empty(), "zero transport bodies");
 }
+
+/// A later line that sets the ceiling with a verb moves it, the clause after it or not (live
+/// gauntlet r09, 2026-10-16: « Mets le plafond à 0,001 $ par run et relance » ran at the earlier
+/// 0,10 $, the saved ceiling re-bound from the first request).
+#[test]
+fn a_later_line_that_sets_the_ceiling_moves_it() {
+    let dir = tempfile::tempdir().expect("root");
+    let mut s = literal(dir.path());
+    let first = "Fais le rapport des ventes, budget max 0,10 $ par run.";
+    assert!(s.admit_money(first, false, false).is_ok(), "the first line");
+    assert_eq!(ceiling(&s), Some(0.10));
+    let lowered = "Mets le plafond à 0,001 $ par run et relance";
+    assert!(
+        s.admit_money(lowered, true, false).is_ok(),
+        "the new ceiling"
+    );
+    assert_eq!(
+        ceiling(&s),
+        Some(0.001),
+        "the stated ceiling, never the first"
+    );
+    let raised = "Remets le plafond à 0,10 $ par run, corrige le message d'arrêt, et relance.";
+    assert!(s.admit_money(raised, true, false).is_ok(), "raised back");
+    assert_eq!(ceiling(&s), Some(0.10));
+}

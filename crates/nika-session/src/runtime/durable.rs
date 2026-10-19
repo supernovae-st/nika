@@ -103,8 +103,15 @@ impl SessionRuntime {
                 .map(PathBuf::from);
         // Its program record says a consent saved it.
         self.consented.clone_from(&self.last_workflow);
+        // Its check is the one the save ran, run again on the bytes on disk: no model, nothing
+        // written (wave 5: a reopened conversation said « Vérifié ○ » of an unchanged clean file).
+        self.last_check_clean = (self.last_workflow.as_ref())
+            .filter(|workflow| self.snapshot.root.join(workflow).is_file())
+            .map(|workflow| crate::change::check_on_disk(&self.snapshot.root, workflow).clean);
         self.recent.clone_from(&history.state.recent);
         self.kept_run.clone_from(&history.state.last_run);
+        self.run_seal =
+            (self.kept_run().and_then(Result::ok)).and_then(|kept| self.journal_seal(&kept));
         // This conversation's own explicit choice resumes, servable or not (its fix said): never
         // the operator's default instead, unless the opener named another, which replaces it.
         let opener = self.conversation.is_some();
@@ -117,6 +124,17 @@ impl SessionRuntime {
         // Its own knowledge choice resumes with it too, for it alone.
         self.restore_knowledge(history.state.knowledge.clone());
         self.resume_agent(history.store_dir(), history.state.agent.as_ref());
+        // The person's language resumes with their words: the newest kept line that says one.
+        let lines = self.person_lines_newest_first();
+        let mut spoken = (self.recent.iter().rev().map(|(user, _)| user.as_str()))
+            .chain(lines.iter().map(String::as_str))
+            .chain(self.intent.goal.as_deref());
+        if let Some(language) = spoken.find_map(super::Lang::of) {
+            self.language = language;
+        }
+        // The person's answers and the bytes already offered come back as evidence, never a
+        // live offer.
+        self.feedback = super::feedback::Feedback::restored(history.state.feedback.as_ref());
         self.restored_draft = history.state.pending.clone().map(Restored::from_raw);
         self.money.reconfirm |= history.restored && history.monetary_seen;
         if self.money.reconfirm {
@@ -124,26 +142,9 @@ impl SessionRuntime {
             // from gate-only money. Preserve that uncertainty in both stores.
             self.retain_money_guard();
         }
-        let notice = history.restored.then(|| {
-            let mut text = "conversation restored · previous proposals and gates require fresh validation".to_owned();
-            text.push_str(&expired);
-            if history.uncertain {
-                text.push_str("\nhistorical unresolved operation: an earlier result or charge remains uncertain; later success does not reconcile it · inspect its effects and receipts before retrying it · nothing was replayed");
-            }
-            if let Some(restored) = &self.restored_draft {
-                text.push('\n');
-                text.push_str(&draft::restored_line(restored, self.money.reconfirm));
-                // While a kept round can be continued, `/restore` continues it first.
-                if self.restored_draft_id().is_some() && !self.round_is_continuable() {
-                    text.push_str(super::restore::RESTORE_HINT);
-                }
-            }
-            if let Some(line) = self.round_line() {
-                text.push('\n');
-                text.push_str(&line);
-            }
-            text
-        });
+        let notice = history
+            .restored
+            .then(|| self.restored_notice(&history, &expired));
         self.history = HistoryMode::Active(Box::new(history));
         // The opener's selection replaced the kept one: recorded now, so it is what resumes next;
         // a history that cannot record it opens nothing.
@@ -158,9 +159,56 @@ impl SessionRuntime {
         Ok(notice)
     }
 
+    /// The notice a reopened conversation opens with, in the language the person's kept words
+    /// restored (supernovae-1c, TUI round 9): what needs fresh validation, what stays uncertain,
+    /// the draft kept and the round that can continue.
+    fn restored_notice(&self, history: &History, expired: &str) -> String {
+        let lang = self.language;
+        let mut text = lang
+            .pick(
+                "conversation restored · previous proposals and gates require fresh validation",
+                "conversation reprise · les propositions et validations précédentes sont à revalider",
+            )
+            .to_owned();
+        text.push_str(expired);
+        if history.uncertain && history.effects != EffectState::Unknown {
+            text.push_str(lang.pick(
+                "\nhistorical API charge remains unknown; later success does not settle it · your messages are kept · nothing was replayed",
+                "\nun coût d'API passé reste inconnu ; un succès ultérieur ne le règle pas · vos messages sont gardés · rien n'a été rejoué",
+            ));
+        } else if history.uncertain {
+            text.push_str(lang.pick(
+                "\nhistorical unresolved operation: an earlier result or charge remains uncertain; later success does not reconcile it · inspect its effects and receipts before retrying it · nothing was replayed",
+                "\nune opération passée reste incertaine : son résultat ou son coût n'est pas connu, et un succès ultérieur ne le règle pas · vérifiez ses effets et ses reçus avant de la refaire · rien n'a été rejoué",
+            ));
+        }
+        if let Some(restored) = &self.restored_draft {
+            text.push('\n');
+            text.push_str(&draft::restored_line(restored, self.money.reconfirm));
+            // While a kept round can be continued, `/restore` continues it first.
+            if self.restored_draft_id().is_some() && !self.round_is_continuable() {
+                text.push_str(super::restore::RESTORE_HINT);
+            }
+        }
+        if let Some(line) = self.round_line() {
+            text.push('\n');
+            text.push_str(&line);
+        }
+        text
+    }
+
     /// Process one turn, recording its boundaries when history is enabled.
     pub fn turn(&mut self, input: &str) -> TurnOutcome {
         self.last_answer = None;
+        if let Some(language) = super::Lang::of(input) {
+            self.language = language;
+        }
+        // A line at the free prompt is the person's next request or correction, never an
+        // answer to the optional offer about the last result: the offer closes unanswered (a
+        // read-only command leaves it waiting).
+        if super::decision::local_command_of(input).is_none() {
+            self.feedback.close();
+        }
         // Closing remains possible even after storage failure.
         if matches!(input.trim(), "/quit" | "/exit") {
             self.set_cost_host_evidence(nika_runtime::cost_choice::CostHostEvidence::default());
@@ -173,11 +221,22 @@ impl SessionRuntime {
         if input.trim() == "/restore" {
             return self.restore_kept();
         }
+        // `/new` seals this conversation and begins the next one (NIK-197): its own journal act.
+        if input.trim() == "/new" {
+            return self.new_conversation_turn();
+        }
         // The knowledge choice is recorded as the choice it is, whatever else waits beside it.
         if super::knowledge::is_choice(input) && !self.waiting_cost_choice() {
             return self.knowledge_turn(input.trim());
         }
-        let operation = if self.local_run_line(input) {
+        // The same choice owns the line through every entry point. Treating its answer as a
+        // new conversation would replace the request waiting for an intelligence.
+        if self.pending_choice && !self.waiting_cost_choice() {
+            return self.choose(input);
+        }
+        // A run's ceiling answered at its question is a closed Run's, as a plain run line's is:
+        // it amends no Session inference.
+        let operation = if self.local_run_line(input) || self.answers_run_ceiling(input) {
             Operation::Run
         } else {
             Operation::Turn
@@ -297,17 +356,53 @@ impl SessionRuntime {
         self.observe_run_leg(exit, trace, KeptRun::new())
     }
 
+    /// [`Self::observe_run_leg`] with what the run's stream told the person. A run stopped before
+    /// its first frame says why there alone (an access path refused, NIKA-1800, a cost the
+    /// review could not bound), and the conversation hears that same reason, never only the
+    /// exit's meaning: live gauntlet, 2026-10-16, the author guessed a missing key instead.
+    pub fn observe_run_told(
+        &mut self,
+        exit: u8,
+        trace: Option<&Path>,
+        leg: KeptRun,
+        told: &[String],
+    ) -> TurnOutcome {
+        self.run_told = told.to_vec();
+        self.observe_run_leg(exit, trace, leg)
+    }
+
     /// [`Self::observe_run`] with the run's observed identity (`leg`), kept in HOME
     /// history as the last run: evidence for a later open, never authority to run.
     pub fn observe_run_leg(&mut self, exit: u8, trace: Option<&Path>, leg: KeptRun) -> TurnOutcome {
-        self.kept_run = Some(
-            leg.ended(self.last_workflow.as_deref(), exit, trace)
-                .to_value(),
-        );
+        let kept = leg.ended(self.last_workflow.as_deref(), exit, trace);
+        self.run_seal = self.journal_seal(&kept);
+        self.kept_run = Some(kept.to_value());
         let outcome = self.recorded(Operation::Observation, "(run observation)", |s| {
             s.observe_run_unrecorded(exit, trace)
         });
         self.keep_state(outcome)
+    }
+
+    /// The seal facts the verifier attests for a native run's journal, read through the one
+    /// reading a served run's door makes for its own (`KeptRun::verified` over `door_verdict`):
+    /// none for a served run, whose door attests its own, a run whose door already judged it,
+    /// a run told no journal, or one whose trace is an opaque identity (`trace_opaque`): that
+    /// identity resolves only through the door that ran the run, so it is never read as a local
+    /// file, whatever this root holds under its name. They are held beside the kept value, never
+    /// written in it, so a native run's kept value stays the one an earlier engine reads.
+    fn journal_seal(&self, kept: &KeptRun) -> Option<(bool, bool)> {
+        if kept.job.is_some() || kept.seal_verified.is_some() || kept.trace_opaque {
+            return None;
+        }
+        let journal = self.snapshot.root.join(kept.trace.as_deref()?);
+        journal.is_file().then(|| {
+            let verdict = nika_trace::trace_verify::door_verdict(&journal, "");
+            let judged = KeptRun::new().verified(&verdict);
+            (
+                judged.seal_verified == Some(true),
+                judged.signed == Some(true),
+            )
+        })
     }
 
     fn restore_checkpoint(&mut self, checkpoint: Option<&serde_json::Value>, notice: &mut String) {
@@ -417,15 +512,26 @@ impl SessionRuntime {
                 .map(|gate| self.gate_standing(gate, false))
             {
                 Some(Ok(gate)) => {
+                    let lang = self.language;
                     let seen = if gate.trace == trace {
-                        "no continuation of this run in .nika/traces"
+                        lang.pick(
+                            "no continuation of this run in .nika/traces",
+                            "aucune suite de ce run dans .nika/traces",
+                        )
                     } else {
-                        "the run was continued outside this session and paused again here"
+                        lang.pick(
+                            "the run was continued outside this session and paused again here",
+                            "le run a été poursuivi hors de cette session et s'est de nouveau mis en pause ici",
+                        )
                     };
+                    let judged = lang.pick(
+                        "the engine's approval still judges your answer",
+                        "l'approbation du moteur juge toujours votre réponse",
+                    );
                     let _ = write!(
                         notice,
-                        "\n{}\n  ({seen} · the engine's approval still judges your answer)",
-                        gate.question()
+                        "\n{}\n  ({seen} · {judged})",
+                        gate.question_in(lang == super::Lang::Fr)
                     );
                     self.last_workflow = Some(workflow);
                     self.pending_gate = Some(gate);
@@ -507,8 +613,9 @@ impl SessionRuntime {
                 liveness.map_or("liveness unknown", |l| l.as_str())
             )),
             Standing::Undecided(reasons) => Err(format!(
-                "the run paused at `{task}` cannot be judged from .nika/traces ({}) · nothing is offered · `nika trace ls`, then a deliberate `nika run … --resume`, which the engine's approval guards",
-                reasons.join(" · ")
+                "the run paused at `{task}` cannot be judged from .nika/traces ({}) · nothing is offered · `{nika} trace ls`, then a deliberate `{nika} run … --resume`, which the engine's approval guards",
+                reasons.join(" · "),
+                nika = super::program()
             )),
             _ => Err(format!(
                 "the run paused at `{task}` has a lineage this engine cannot read · nothing is offered"
@@ -610,7 +717,7 @@ impl SessionRuntime {
         });
         let record = ConsentRecord::of(set, id, decision, written, now_rfc3339());
         match record.append(&self.snapshot.root) {
-            Ok(()) => String::new(),
+            Ok(()) => self.save_money_evidence(&record),
             Err(error) => format!(
                 "\n  ⚠ the consent's evidence was not written (.nika/{CONSENTS_FILE}): {error}"
             ),
@@ -768,7 +875,8 @@ impl SessionRuntime {
             HistoryMode::Ephemeral => {
                 self.history = HistoryMode::Ephemeral;
                 let outcome = perform(self);
-                return self.accept_preparation(operation, previous, outcome);
+                let outcome = self.accept_preparation(operation, previous, outcome);
+                return self.spoken(outcome);
             }
             HistoryMode::Blocked(message) => {
                 self.history = HistoryMode::Blocked(message.clone());
@@ -782,6 +890,7 @@ impl SessionRuntime {
         let charged_before = self.uncertain_charges();
         let outcome = perform(self);
         let outcome = self.accept_preparation(operation, previous, outcome);
+        let outcome = self.spoken(outcome);
         // A new proposal replaces a draft kept from an earlier session.
         if self.pending.is_some() {
             self.restored_draft = None;
@@ -804,8 +913,8 @@ impl SessionRuntime {
             EffectState::Unknown
         } else if self.uncertain_charges() > charged_before {
             // This operation left a possibly billed request without usable
-            // settlement: the history says so, as the record's observation does.
-            EffectState::Unknown
+            // settlement: distinguish that charge from an unknown workflow effect.
+            EffectState::InferenceChargeUnknown
         } else {
             EffectState::NoUncertaintyReported
         };
@@ -836,6 +945,31 @@ impl SessionRuntime {
         }
         self.history = HistoryMode::Active(history);
         outcome
+    }
+
+    /// `outcome` as the person reads it: a proposal's words in French for a person who writes
+    /// French ([`nika_session_change::review::fr`]), its identity unchanged (live gauntlet wave 6 r01, r04, r10,
+    /// r12, 2026-10-18: « money: $0.25 USD · session default · … » on every French proposal).
+    fn spoken(&self, outcome: TurnOutcome) -> TurnOutcome {
+        if self.language != super::Lang::Fr {
+            return outcome;
+        }
+        let said = |preview: String| nika_session_change::review::fr::lines(&preview);
+        match outcome {
+            TurnOutcome::Proposal { id, preview } => TurnOutcome::Proposal {
+                id,
+                preview: said(preview),
+            },
+            TurnOutcome::Held { id, preview } => TurnOutcome::Held {
+                id,
+                preview: said(preview),
+            },
+            TurnOutcome::Resumed { notice, outcome } => TurnOutcome::Resumed {
+                notice,
+                outcome: Box::new(self.spoken(*outcome)),
+            },
+            other => other,
+        }
     }
 
     fn history_failed(&mut self, error: impl std::fmt::Display) -> TurnOutcome {
@@ -876,7 +1010,7 @@ impl SessionRuntime {
         }
     }
 
-    fn saved_conversation(&self) -> Saved {
+    pub(super) fn saved_conversation(&self) -> Saved {
         let redact = |s: &String| crate::broker::redact(s).0;
         Saved {
             goal: self.intent.goal.as_ref().map(redact),
@@ -900,6 +1034,7 @@ impl SessionRuntime {
             selection: (self.conversation.as_ref()).and_then(super::ConversationChoice::value),
             knowledge: self.knowledge.conversation.clone(),
             agent: self.agent_kept(),
+            feedback: self.feedback.kept(),
         }
     }
 
@@ -913,6 +1048,16 @@ impl SessionRuntime {
     #[must_use]
     pub fn kept_turns(&self) -> &[(String, String)] {
         &self.recent
+    }
+
+    /// Whether a retained entry's input is attributable to a recorded human turn.
+    ///
+    /// Display provenance only: host observations, automatic consent and ambiguous
+    /// legacy alignment return false. This restores no authority or live request.
+    #[must_use]
+    pub fn kept_turn_is_human(&self, index: usize) -> bool {
+        matches!(&self.history, HistoryMode::Active(history)
+            if history.state.recent == self.recent && history.is_human(index))
     }
 }
 
@@ -945,7 +1090,7 @@ fn outcome_kind(outcome: &TurnOutcome) -> &'static str {
 /// The outcome with a warning line appended to whatever text it shows; an
 /// outcome without text (a quit · a resume the door runs) carries none —
 /// the observation that follows a resume keeps the record again.
-fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
+pub(super) fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
     let line = format!("\n  ⚠ {note}");
     match outcome {
         TurnOutcome::Reply(text) => TurnOutcome::Reply(text + &line),

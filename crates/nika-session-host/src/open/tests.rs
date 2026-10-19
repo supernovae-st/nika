@@ -85,3 +85,28 @@ fn the_machine_door_reads_its_one_selection_and_nothing_else() {
         assert_eq!(named(other), None, "{other:?}");
     }
 }
+
+/// An API pick that names no model runs the provider's catalog default: Anthropic's is
+/// Claude Sonnet 5.5. The `sonnet`, `haiku` and `opus` nicknames name the latest served model
+/// of their line (decision of 2026-10-15), each with the limits of the row it aliases.
+#[test]
+fn an_anthropic_pick_without_a_model_runs_claude_sonnet_5_5() {
+    assert_eq!(default_model("anthropic"), "anthropic/claude-sonnet-5-5");
+    let anthropic = nika_catalog::find_provider("anthropic").expect("the anthropic row");
+    let row = |id: &str| anthropic.models.iter().find(|m| m.id == id);
+    for (nickname, wire) in [
+        ("sonnet", "claude-sonnet-5-5"),
+        ("haiku", "claude-haiku-5-5"),
+        ("opus", "claude-opus-5-5"),
+    ] {
+        let alias = row(nickname).expect(nickname);
+        let target = row(wire).expect(wire);
+        assert_eq!(alias.model, wire, "{nickname}");
+        assert_eq!(
+            (alias.context_window_tokens, alias.max_output_tokens),
+            (target.context_window_tokens, target.max_output_tokens),
+            "{nickname}"
+        );
+    }
+    assert_eq!(anthropic.cheap_model, "claude-haiku-5-5");
+}
