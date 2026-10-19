@@ -329,6 +329,7 @@ pub type nika_compile_fidelity::fidelity::OpenName::Output = T
 pub const nika_compile_fidelity::fidelity::SOURCE_PATHS: &str
 pub fn nika_compile_fidelity::fidelity::allowed_values(answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_fidelity::fidelity::approvals(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
+pub fn nika_compile_fidelity::fidelity::approved_by_reply(question: &str, reply: &str) -> bool
 pub fn nika_compile_fidelity::fidelity::asked_names(intent: &str, doc: &serde_json::value::Value, asked: &[serde_json::value::Value]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_fidelity::fidelity::asked_readings(intent: &str, doc: core::option::Option<&serde_json::value::Value>, asked: &[serde_json::value::Value], key: &str) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_compile_fidelity::fidelity::clarified_sources(answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> alloc::vec::Vec<alloc::string::String>
@@ -347,6 +348,7 @@ pub fn nika_compile_fidelity::fidelity::prohibitions(plan: &nika_compile_reader:
 pub fn nika_compile_fidelity::fidelity::quoted_open_name(intent: &str, words: &str) -> core::option::Option<nika_compile_fidelity::fidelity::OpenName>
 pub fn nika_compile_fidelity::fidelity::raw_text_as_records(doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::requested_workflow(intent: &str, candidate: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_fidelity::fidelity::requested_workflow_answered(intent: &str, candidate: &str, answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::option::Option<alloc::string::String>
 pub fn nika_compile_fidelity::fidelity::stated_paths(intent: &str, doc: &serde_json::value::Value, waived: &[alloc::string::String], clarified: &[alloc::string::String], out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::stated_routes(intent: &str, doc: &serde_json::value::Value) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_fidelity::fidelity::strings(value: &serde_json::value::Value, out: &mut alloc::vec::Vec<alloc::string::String>)

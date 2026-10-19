@@ -784,6 +784,7 @@ pub nika_check::CheckReport::missing_args: alloc::vec::Vec<nika_check::MissingAr
 pub nika_check::CheckReport::order_findings: alloc::vec::Vec<nika_check::OrderFinding>
 pub nika_check::CheckReport::permit_taints: alloc::vec::Vec<nika_check::PermitTaint>
 pub nika_check::CheckReport::permits: nika_check::EffectivePermits
+pub nika_check::CheckReport::project_files: alloc::vec::Vec<nika_check::ProjectFileFinding>
 pub nika_check::CheckReport::report_version: u32
 pub nika_check::CheckReport::requirements: nika_check::Requirements
 pub nika_check::CheckReport::retry_safety_findings: alloc::vec::Vec<nika_check::RetrySafetyFinding>
@@ -1979,6 +1980,57 @@ impl<T> dyn_clone::DynClone for nika_check::PermitTaint where T: core::clone::Cl
 pub fn nika_check::PermitTaint::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::PermitTaint where T: 'static
 pub fn nika_check::PermitTaint::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::ProjectFileFinding
+pub nika_check::ProjectFileFinding::code: core::option::Option<alloc::string::String>
+pub nika_check::ProjectFileFinding::detail: alloc::string::String
+pub nika_check::ProjectFileFinding::field: &'static str
+pub nika_check::ProjectFileFinding::path: alloc::string::String
+pub nika_check::ProjectFileFinding::task: alloc::string::String
+impl nika_check::ProjectFileFinding
+pub fn nika_check::ProjectFileFinding::row(&self) -> alloc::string::String
+impl core::clone::Clone for nika_check::ProjectFileFinding
+pub fn nika_check::ProjectFileFinding::clone(&self) -> nika_check::ProjectFileFinding
+impl core::cmp::Eq for nika_check::ProjectFileFinding
+impl core::cmp::PartialEq for nika_check::ProjectFileFinding
+pub fn nika_check::ProjectFileFinding::eq(&self, other: &nika_check::ProjectFileFinding) -> bool
+impl core::convert::From<nika_schema::project_file::ProjectFileFinding> for nika_check::ProjectFileFinding
+pub fn nika_check::ProjectFileFinding::from(finding: nika_schema::project_file::ProjectFileFinding) -> Self
+impl core::fmt::Debug for nika_check::ProjectFileFinding
+pub fn nika_check::ProjectFileFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::ProjectFileFinding
+impl serde_core::ser::Serialize for nika_check::ProjectFileFinding
+pub fn nika_check::ProjectFileFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::ProjectFileFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_check::ProjectFileFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::ProjectFileFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::ProjectFileFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::ProjectFileFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::ProjectFileFinding where U: core::convert::From<T>
+pub fn nika_check::ProjectFileFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::ProjectFileFinding where U: core::convert::Into<T>
+pub type nika_check::ProjectFileFinding::Error = core::convert::Infallible
+pub fn nika_check::ProjectFileFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::ProjectFileFinding where U: core::convert::TryFrom<T>
+pub type nika_check::ProjectFileFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::ProjectFileFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::ProjectFileFinding where T: core::clone::Clone
+pub type nika_check::ProjectFileFinding::Owned = T
+pub fn nika_check::ProjectFileFinding::clone_into(&self, target: &mut T)
+pub fn nika_check::ProjectFileFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::ProjectFileFinding where T: 'static + ?core::marker::Sized
+pub fn nika_check::ProjectFileFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::ProjectFileFinding where T: ?core::marker::Sized
+pub fn nika_check::ProjectFileFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::ProjectFileFinding where T: ?core::marker::Sized
+pub fn nika_check::ProjectFileFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::ProjectFileFinding where T: core::clone::Clone
+pub unsafe fn nika_check::ProjectFileFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::ProjectFileFinding
+pub fn nika_check::ProjectFileFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::ProjectFileFinding where T: core::clone::Clone
+pub fn nika_check::ProjectFileFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::ProjectFileFinding where T: 'static
+pub fn nika_check::ProjectFileFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_check::Requirements
 pub nika_check::Requirements::inputs_read: alloc::vec::Vec<alloc::string::String>
 pub nika_check::Requirements::inputs_required: alloc::vec::Vec<alloc::string::String>
@@ -2953,6 +3005,7 @@ pub const nika_check::STATUS_VOCAB: [&str; 4]
 pub fn nika_check::action_effect_fields(action: &nika_schema::raw::action::RawAction) -> alloc::vec::Vec<&str>
 pub fn nika_check::check(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_check::CheckReport
 pub fn nika_check::check_composed(wf: &nika_schema::raw::workflow::RawWorkflow, root: &str, read: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>) -> nika_check::CheckReport
+pub fn nika_check::check_project(wf: &nika_schema::raw::workflow::RawWorkflow, root: &str, read: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>, read_file: &mut (dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::vec::Vec<u8>, nika_schema::project_file::ProjectFileRead> + '_)) -> (nika_schema::raw::workflow::RawWorkflow, nika_check::CheckReport)
 pub fn nika_check::compiled(hints: &[nika_check::Hint]) -> bool
 pub fn nika_check::floor_refusal(floor: f64, budget: f64) -> core::option::Option<alloc::string::String>
 pub fn nika_check::hint_help(token: &str) -> core::option::Option<&'static str>

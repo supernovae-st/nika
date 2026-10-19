@@ -208,6 +208,7 @@ pub nika_runtime::child::ChildCall::deadline: core::option::Option<core::time::D
 pub nika_runtime::child::ChildCall::depth: u32
 pub nika_runtime::child::ChildCall::parent_permits: core::option::Option<nika_cap::permits::Permits>
 pub nika_runtime::child::ChildCall::remaining_budget_usd: core::option::Option<f64>
+pub nika_runtime::child::ChildCall::run_facts: nika_runtime::RunFacts
 pub nika_runtime::child::ChildCall::target: alloc::string::String
 impl core::clone::Clone for nika_runtime::child::ChildCall
 pub fn nika_runtime::child::ChildCall::clone(&self) -> nika_runtime::child::ChildCall
@@ -924,6 +925,174 @@ impl<T> typenum::type_operators::Same for nika_runtime::simulated::SimulatedShel
 pub type nika_runtime::simulated::SimulatedShell::Output = T
 impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellRun for nika_runtime::simulated::SimulatedShell where TraitVariantBlanketType: nika_kernel_core::io::process::ShellRunDyn
 pub async fn nika_runtime::simulated::SimulatedShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
+#[non_exhaustive] pub enum nika_runtime::ScheduledForSource
+pub nika_runtime::ScheduledForSource::At
+pub nika_runtime::ScheduledForSource::Slot
+pub nika_runtime::ScheduledForSource::Start
+impl nika_runtime::ScheduledForSource
+pub const fn nika_runtime::ScheduledForSource::as_str(self) -> &'static str
+impl core::clone::Clone for nika_runtime::ScheduledForSource
+pub fn nika_runtime::ScheduledForSource::clone(&self) -> nika_runtime::ScheduledForSource
+impl core::cmp::Eq for nika_runtime::ScheduledForSource
+impl core::cmp::PartialEq for nika_runtime::ScheduledForSource
+pub fn nika_runtime::ScheduledForSource::eq(&self, other: &nika_runtime::ScheduledForSource) -> bool
+impl core::fmt::Debug for nika_runtime::ScheduledForSource
+pub fn nika_runtime::ScheduledForSource::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_runtime::ScheduledForSource
+impl core::marker::StructuralPartialEq for nika_runtime::ScheduledForSource
+impl<D> owo_colors::OwoColorize for nika_runtime::ScheduledForSource
+impl<Q, K> equivalent::Equivalent<K> for nika_runtime::ScheduledForSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::ScheduledForSource::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::ScheduledForSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::ScheduledForSource::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_runtime::ScheduledForSource where U: core::convert::From<T>
+pub fn nika_runtime::ScheduledForSource::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::ScheduledForSource where U: core::convert::Into<T>
+pub type nika_runtime::ScheduledForSource::Error = core::convert::Infallible
+pub fn nika_runtime::ScheduledForSource::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::ScheduledForSource where U: core::convert::TryFrom<T>
+pub type nika_runtime::ScheduledForSource::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::ScheduledForSource::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::ScheduledForSource where T: core::clone::Clone
+pub type nika_runtime::ScheduledForSource::Owned = T
+pub fn nika_runtime::ScheduledForSource::clone_into(&self, target: &mut T)
+pub fn nika_runtime::ScheduledForSource::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::ScheduledForSource where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::ScheduledForSource::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::ScheduledForSource where T: ?core::marker::Sized
+pub fn nika_runtime::ScheduledForSource::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::ScheduledForSource where T: ?core::marker::Sized
+pub fn nika_runtime::ScheduledForSource::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::ScheduledForSource where T: core::clone::Clone
+pub unsafe fn nika_runtime::ScheduledForSource::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::ScheduledForSource
+pub fn nika_runtime::ScheduledForSource::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::ScheduledForSource where T: core::clone::Clone
+pub fn nika_runtime::ScheduledForSource::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::ScheduledForSource where T: 'static
+pub fn nika_runtime::ScheduledForSource::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_runtime::ScheduledForSource where T: core::marker::Copy
+pub fn nika_runtime::ScheduledForSource::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::ScheduledForSource where T: ?core::marker::Sized
+pub fn nika_runtime::ScheduledForSource::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::ScheduledForSource::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::ScheduledForSource
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::ScheduledForSource
+impl<T> typenum::type_operators::Same for nika_runtime::ScheduledForSource
+pub type nika_runtime::ScheduledForSource::Output = T
+#[non_exhaustive] pub struct nika_runtime::MissedSlots
+pub nika_runtime::MissedSlots::count: u32
+pub nika_runtime::MissedSlots::first: nika_types::timestamp::Timestamp
+pub nika_runtime::MissedSlots::last: nika_types::timestamp::Timestamp
+impl nika_runtime::MissedSlots
+pub const fn nika_runtime::MissedSlots::new(first: nika_types::timestamp::Timestamp, last: nika_types::timestamp::Timestamp, count: u32) -> Self
+impl core::clone::Clone for nika_runtime::MissedSlots
+pub fn nika_runtime::MissedSlots::clone(&self) -> nika_runtime::MissedSlots
+impl core::cmp::Eq for nika_runtime::MissedSlots
+impl core::cmp::PartialEq for nika_runtime::MissedSlots
+pub fn nika_runtime::MissedSlots::eq(&self, other: &nika_runtime::MissedSlots) -> bool
+impl core::fmt::Debug for nika_runtime::MissedSlots
+pub fn nika_runtime::MissedSlots::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_runtime::MissedSlots
+impl core::marker::StructuralPartialEq for nika_runtime::MissedSlots
+impl<D> owo_colors::OwoColorize for nika_runtime::MissedSlots
+impl<Q, K> equivalent::Equivalent<K> for nika_runtime::MissedSlots where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::MissedSlots::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::MissedSlots where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::MissedSlots::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_runtime::MissedSlots where U: core::convert::From<T>
+pub fn nika_runtime::MissedSlots::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::MissedSlots where U: core::convert::Into<T>
+pub type nika_runtime::MissedSlots::Error = core::convert::Infallible
+pub fn nika_runtime::MissedSlots::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::MissedSlots where U: core::convert::TryFrom<T>
+pub type nika_runtime::MissedSlots::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::MissedSlots::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::MissedSlots where T: core::clone::Clone
+pub type nika_runtime::MissedSlots::Owned = T
+pub fn nika_runtime::MissedSlots::clone_into(&self, target: &mut T)
+pub fn nika_runtime::MissedSlots::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::MissedSlots where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::MissedSlots::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::MissedSlots where T: ?core::marker::Sized
+pub fn nika_runtime::MissedSlots::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::MissedSlots where T: ?core::marker::Sized
+pub fn nika_runtime::MissedSlots::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::MissedSlots where T: core::clone::Clone
+pub unsafe fn nika_runtime::MissedSlots::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::MissedSlots
+pub fn nika_runtime::MissedSlots::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::MissedSlots where T: core::clone::Clone
+pub fn nika_runtime::MissedSlots::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::MissedSlots where T: 'static
+pub fn nika_runtime::MissedSlots::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_runtime::MissedSlots where T: core::marker::Copy
+pub fn nika_runtime::MissedSlots::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::MissedSlots where T: ?core::marker::Sized
+pub fn nika_runtime::MissedSlots::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::MissedSlots::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::MissedSlots
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::MissedSlots
+impl<T> typenum::type_operators::Same for nika_runtime::MissedSlots
+pub type nika_runtime::MissedSlots::Output = T
+#[non_exhaustive] pub struct nika_runtime::RunFacts
+pub nika_runtime::RunFacts::missed: core::option::Option<nika_runtime::MissedSlots>
+pub nika_runtime::RunFacts::scheduled_for: core::option::Option<(nika_types::timestamp::Timestamp, nika_runtime::ScheduledForSource)>
+impl nika_runtime::RunFacts
+pub const fn nika_runtime::RunFacts::at(at: nika_types::timestamp::Timestamp) -> Self
+pub const fn nika_runtime::RunFacts::slot(at: nika_types::timestamp::Timestamp) -> Self
+pub const fn nika_runtime::RunFacts::with_missed(self, missed: nika_runtime::MissedSlots) -> Self
+impl core::clone::Clone for nika_runtime::RunFacts
+pub fn nika_runtime::RunFacts::clone(&self) -> nika_runtime::RunFacts
+impl core::cmp::Eq for nika_runtime::RunFacts
+impl core::cmp::PartialEq for nika_runtime::RunFacts
+pub fn nika_runtime::RunFacts::eq(&self, other: &nika_runtime::RunFacts) -> bool
+impl core::default::Default for nika_runtime::RunFacts
+pub fn nika_runtime::RunFacts::default() -> nika_runtime::RunFacts
+impl core::fmt::Debug for nika_runtime::RunFacts
+pub fn nika_runtime::RunFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_runtime::RunFacts
+impl core::marker::StructuralPartialEq for nika_runtime::RunFacts
+impl<D> owo_colors::OwoColorize for nika_runtime::RunFacts
+impl<Q, K> equivalent::Equivalent<K> for nika_runtime::RunFacts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::RunFacts::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::RunFacts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::RunFacts::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_runtime::RunFacts where U: core::convert::From<T>
+pub fn nika_runtime::RunFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::RunFacts where U: core::convert::Into<T>
+pub type nika_runtime::RunFacts::Error = core::convert::Infallible
+pub fn nika_runtime::RunFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::RunFacts where U: core::convert::TryFrom<T>
+pub type nika_runtime::RunFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::RunFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::RunFacts where T: core::clone::Clone
+pub type nika_runtime::RunFacts::Owned = T
+pub fn nika_runtime::RunFacts::clone_into(&self, target: &mut T)
+pub fn nika_runtime::RunFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::RunFacts where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::RunFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::RunFacts where T: ?core::marker::Sized
+pub fn nika_runtime::RunFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::RunFacts where T: ?core::marker::Sized
+pub fn nika_runtime::RunFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::RunFacts where T: core::clone::Clone
+pub unsafe fn nika_runtime::RunFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::RunFacts
+pub fn nika_runtime::RunFacts::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::RunFacts where T: core::clone::Clone
+pub fn nika_runtime::RunFacts::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::RunFacts where T: 'static
+pub fn nika_runtime::RunFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_runtime::RunFacts where T: core::marker::Copy
+pub fn nika_runtime::RunFacts::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::RunFacts where T: ?core::marker::Sized
+pub fn nika_runtime::RunFacts::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::RunFacts::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::RunFacts
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::RunFacts
+impl<T> typenum::type_operators::Same for nika_runtime::RunFacts
+pub type nika_runtime::RunFacts::Output = T
 #[non_exhaustive] pub struct nika_runtime::RunOutcome
 pub nika_runtime::RunOutcome::budget_exceeded: bool
 pub nika_runtime::RunOutcome::cache_hits: alloc::vec::Vec<alloc::string::String>
@@ -1026,6 +1195,7 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resume_compat(self, compat:
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resume_plan(self, plan: nika_runtime::resume::ResumePlan) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resume_unverified(self, unverified: core::option::Option<nika_runtime::resume::ResumeUnverified>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resumed_from(self, resumed_from: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_run_facts(self, facts: nika_runtime::RunFacts) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_secret_resolver(self, resolver: alloc::sync::Arc<dyn nika_secret::WorkflowSecretResolver>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_skills(self, skills: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_source_sha256(self, hex: alloc::string::String) -> Self

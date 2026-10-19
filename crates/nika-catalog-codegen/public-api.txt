@@ -546,8 +546,11 @@ impl<T> core::convert::From<T> for nika_catalog_codegen::ProviderEntry
 pub fn nika_catalog_codegen::ProviderEntry::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_catalog_codegen::ProviderEntry where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_catalog_codegen::ProviderModelEntry
+pub nika_catalog_codegen::ProviderModelEntry::as_of: core::option::Option<alloc::string::String>
 pub nika_catalog_codegen::ProviderModelEntry::context_window_tokens: u32
 pub nika_catalog_codegen::ProviderModelEntry::id: alloc::string::String
+pub nika_catalog_codegen::ProviderModelEntry::lifecycle: core::option::Option<nika_catalog_codegen::providers::LifecycleEntry>
+pub nika_catalog_codegen::ProviderModelEntry::limits_source: core::option::Option<alloc::string::String>
 pub nika_catalog_codegen::ProviderModelEntry::max_output_tokens: u32
 pub nika_catalog_codegen::ProviderModelEntry::model: alloc::string::String
 impl core::fmt::Debug for nika_catalog_codegen::ProviderModelEntry

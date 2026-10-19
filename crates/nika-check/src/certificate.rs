@@ -299,7 +299,7 @@ fn action_calls(action: &RawAction) -> (u64, u64) {
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
-        other => unreachable!("unknown action: {other:?}"),
+        _ => unreachable!("an action kind this checker does not know"),
     }
 }
 
@@ -361,7 +361,7 @@ fn action_spend_micros(action: &RawAction, default_model: Option<&str>) -> Resul
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
-        other => unreachable!("unknown action: {other:?}"),
+        _ => unreachable!("an action kind this checker does not know"),
     };
     let Some(tokens) = tokens else { return Err(()) };
     let Some(price) = model

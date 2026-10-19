@@ -836,6 +836,8 @@ pub fn nika_compile::surface::replay(intent: &str, record: &serde_json::value::V
 pub fn nika_compile::surface::replay_judged(intent: &str, record: &serde_json::value::Value, request: &nika_compile::CompileRequest, judgments: &[nika_compile::surface::Judgment], whole: bool, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>
 pub fn nika_compile::surface::sha256(text: &str) -> alloc::string::String
 pub fn nika_compile::surface::spec_pin() -> &'static str
+pub fn nika_compile::surface::state_check_refusals(out: &mut nika_compile::CompileOutcome, report: &nika_check::CheckReport)
+pub fn nika_compile::surface::surface_check_refusals(out: &mut nika_compile::CompileOutcome, report: &nika_check::CheckReport)
 pub fn nika_compile::surface::unresolved(reading: &nika_compile_reader::lexicon::Reading, out: &mut nika_compile::CompileOutcome)
 #[non_exhaustive] pub enum nika_compile::AuthoringCognition
 pub nika_compile::AuthoringCognition::DeterministicOnly
@@ -2389,5 +2391,7 @@ pub fn nika_compile::retrieve(query: &str, k: usize) -> alloc::vec::Vec<nika_com
 pub fn nika_compile::retrieve_by_ops(ops: &[&str], k: usize) -> alloc::vec::Vec<nika_compile::Hit>
 pub fn nika_compile::revise_intent(request: &nika_compile::CompileRequest) -> core::option::Option<alloc::string::String>
 pub fn nika_compile::source_revision(request: &nika_compile::CompileRequest, stated: &serde_json::value::Value) -> nika_compile::CompileOutcome
+pub fn nika_compile::state_check_refusals(out: &mut nika_compile::CompileOutcome, report: &nika_check::CheckReport)
 pub fn nika_compile::substitute(base: &str, path: &str, by: &str) -> core::result::Result<nika_compile_fidelity::sketch::import::Substituted, alloc::string::String>
+pub fn nika_compile::surface_check_refusals(out: &mut nika_compile::CompileOutcome, report: &nika_check::CheckReport)
 pub fn nika_compile::trigger_of(phrase: &str) -> core::option::Option<nika_compile::TriggerRequirement>

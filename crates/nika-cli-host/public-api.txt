@@ -1901,10 +1901,12 @@ pub type nika_cli_host::oracle::AuditOptions<'a>::NoneType = T
 pub fn nika_cli_host::oracle::AuditOptions<'a>::null_value() -> T
 #[non_exhaustive] pub struct nika_cli_host::oracle::Judged
 pub nika_cli_host::oracle::Judged::composition: bool
+pub nika_cli_host::oracle::Judged::project_files: bool
 pub nika_cli_host::oracle::Judged::skills: bool
 impl nika_cli_host::oracle::Judged
 pub const nika_cli_host::oracle::Judged::FULL: Self
 pub fn nika_cli_host::oracle::Judged::new(composition: bool, skills: bool) -> Self
+pub fn nika_cli_host::oracle::Judged::with_project_files(self, read: bool) -> Self
 impl core::clone::Clone for nika_cli_host::oracle::Judged
 pub fn nika_cli_host::oracle::Judged::clone(&self) -> nika_cli_host::oracle::Judged
 impl core::cmp::Eq for nika_cli_host::oracle::Judged
@@ -2107,6 +2109,7 @@ pub fn nika_cli_host::oracle::child_references(wf: &nika_schema::raw::workflow::
 pub fn nika_cli_host::oracle::judge(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, skills: &nika_schema::skill::ResolvedSkills, judged: nika_cli_host::oracle::Judged, access_pin: core::option::Option<&str>) -> nika_cli_host::oracle::Verdict
 pub fn nika_cli_host::oracle::model_finding_rows(findings: &[nika_display::check_models::ModelFinding]) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_cli_host::oracle::native_hints(report: &nika_check::CheckReport) -> usize
+pub fn nika_cli_host::oracle::project_file_reader(base: &std::path::Path) -> impl core::ops::function::FnMut(&str) -> core::result::Result<alloc::vec::Vec<u8>, nika_schema::project_file::ProjectFileRead> + use<>
 pub type nika_cli_host::oracle::Reader<'a> = &'a mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub mod nika_cli_host::output
 pub mod nika_cli_host::output::exit

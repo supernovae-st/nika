@@ -95,6 +95,7 @@ pub fn nika_http::SsrfMode::or<P, B, E>(self, other: P) -> tower_http::follow_re
 impl<T> tracing::instrument::Instrument for nika_http::SsrfMode
 impl<T> tracing::instrument::WithSubscriber for nika_http::SsrfMode
 #[non_exhaustive] pub struct nika_http::HttpConfig
+pub nika_http::HttpConfig::idle_read_timeout: core::option::Option<core::time::Duration>
 pub nika_http::HttpConfig::max_redirects: u8
 pub nika_http::HttpConfig::max_response_bytes: u64
 pub nika_http::HttpConfig::net: nika_http::NetBoundary

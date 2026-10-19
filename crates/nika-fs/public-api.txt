@@ -1,4 +1,42 @@
 pub mod nika_fs
+#[non_exhaustive] pub enum nika_fs::ContainedRead
+pub nika_fs::ContainedRead::Linked
+pub nika_fs::ContainedRead::Missing
+pub nika_fs::ContainedRead::NotRegular
+impl core::clone::Clone for nika_fs::ContainedRead
+pub fn nika_fs::ContainedRead::clone(&self) -> nika_fs::ContainedRead
+impl core::cmp::Eq for nika_fs::ContainedRead
+impl core::cmp::PartialEq for nika_fs::ContainedRead
+pub fn nika_fs::ContainedRead::eq(&self, other: &nika_fs::ContainedRead) -> bool
+impl core::fmt::Debug for nika_fs::ContainedRead
+pub fn nika_fs::ContainedRead::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fs::ContainedRead
+impl core::marker::StructuralPartialEq for nika_fs::ContainedRead
+impl<D> owo_colors::OwoColorize for nika_fs::ContainedRead
+impl<T, U> core::convert::Into<U> for nika_fs::ContainedRead where U: core::convert::From<T>
+pub fn nika_fs::ContainedRead::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fs::ContainedRead where U: core::convert::Into<T>
+pub type nika_fs::ContainedRead::Error = core::convert::Infallible
+pub fn nika_fs::ContainedRead::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fs::ContainedRead where U: core::convert::TryFrom<T>
+pub type nika_fs::ContainedRead::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fs::ContainedRead::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fs::ContainedRead where T: core::clone::Clone
+pub type nika_fs::ContainedRead::Owned = T
+pub fn nika_fs::ContainedRead::clone_into(&self, target: &mut T)
+pub fn nika_fs::ContainedRead::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fs::ContainedRead where T: 'static + ?core::marker::Sized
+pub fn nika_fs::ContainedRead::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fs::ContainedRead where T: ?core::marker::Sized
+pub fn nika_fs::ContainedRead::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fs::ContainedRead where T: ?core::marker::Sized
+pub fn nika_fs::ContainedRead::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fs::ContainedRead where T: core::clone::Clone
+pub unsafe fn nika_fs::ContainedRead::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fs::ContainedRead
+pub fn nika_fs::ContainedRead::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_fs::ContainedRead where T: 'static
+pub fn nika_fs::ContainedRead::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_fs::LedgerRefusal
 #[non_exhaustive] pub nika_fs::LedgerRefusal::Budget
 pub nika_fs::LedgerRefusal::Budget::bytes_left: u64
@@ -295,6 +333,7 @@ pub fn nika_fs::EffectLedger::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_fs::OwnedDir
 impl nika_fs::OwnedDir
 pub fn nika_fs::OwnedDir::append_line(&self, name: &str, line: &str) -> core::io::error::Result<()>
+pub fn nika_fs::OwnedDir::append_line_at(&self, name: &str, line: &str, at: u64) -> core::io::error::Result<u64>
 pub fn nika_fs::OwnedDir::as_file(&self) -> &std::fs::File
 pub fn nika_fs::OwnedDir::create(root: &std::path::Path, components: &[&str]) -> core::io::error::Result<Self>
 pub fn nika_fs::OwnedDir::create_below(&self, components: &[&str]) -> core::io::error::Result<Self>
@@ -310,11 +349,13 @@ pub fn nika_fs::OwnedDir::open_lock(&self, name: &str) -> core::io::error::Resul
 pub fn nika_fs::OwnedDir::open_relative(&self, relative: &std::path::Path) -> core::io::error::Result<std::fs::File>
 pub fn nika_fs::OwnedDir::read(&self, name: &str) -> core::io::error::Result<alloc::string::String>
 pub fn nika_fs::OwnedDir::read_capped_below(&self, components: &[&str], name: &str, cap: u64, over: &str) -> core::io::error::Result<core::option::Option<alloc::string::String>>
+pub fn nika_fs::OwnedDir::read_contained(&self, relative: &std::path::Path, limit: u64) -> core::result::Result<alloc::vec::Vec<u8>, nika_fs::ContainedRead>
 pub fn nika_fs::OwnedDir::read_optional(&self, name: &str) -> core::io::error::Result<core::option::Option<alloc::string::String>>
 pub fn nika_fs::OwnedDir::remove(&self, name: &str) -> core::io::error::Result<()>
 pub fn nika_fs::OwnedDir::try_clone(&self) -> core::io::error::Result<Self>
 pub fn nika_fs::OwnedDir::write_atomic(&self, name: &str, body: &str) -> core::io::error::Result<()>
 pub fn nika_fs::OwnedDir::write_once(&self, name: &str, body: &str) -> core::io::error::Result<()>
+pub fn nika_fs::OwnedDir::write_once_bytes(&self, name: &str, body: &[u8]) -> core::io::error::Result<()>
 impl nika_fs::OwnedDir
 pub fn nika_fs::OwnedDir::reserve_private_log(&self, name: &str, file_bytes: u64, container_bytes: u64, closing_bytes: u64, entry_limit: usize) -> core::io::error::Result<nika_fs::ReservedLog>
 impl core::fmt::Debug for nika_fs::OwnedDir
@@ -555,6 +596,7 @@ pub async fn nika_fs::TokioFs::remove_file(&self, path: &std::path::Path) -> cor
 pub fn nika_fs::TokioFs::remove_regular_file(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub async fn nika_fs::TokioFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub fn nika_fs::TokioFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
+pub fn nika_fs::contained_reader(base: &std::path::Path, limit: u64) -> impl core::ops::function::FnMut(&str) -> core::result::Result<alloc::vec::Vec<u8>, nika_fs::ContainedRead> + use<>
 pub fn nika_fs::open_owned(path: &std::path::Path) -> core::io::error::Result<core::option::Option<std::fs::File>>
 pub fn nika_fs::read_capped(reader: &mut impl alloc::io::read::Read, limit: u64) -> core::io::error::Result<nika_fs::Capped>
 pub fn nika_fs::read_owned(path: &std::path::Path, cap: u64) -> core::io::error::Result<core::option::Option<alloc::string::String>>
