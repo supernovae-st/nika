@@ -39,7 +39,7 @@ fn new_begins_a_new_conversation_with_the_sessions_words() {
     let proposed = live.submit("Lis ./notes/brief.md et écris-le dans ./out/copie.md");
     let (_, consent) = native_action(&proposed.beats);
     let saved = answer_native(&mut live, "yes", &consent.witness);
-    assert!(joined(&saved.beats).contains("applied · wrote"));
+    assert!(joined(&saved.beats).contains("appliqué · écrit"));
     let turn = live.submit("/new");
     let said = said(&turn.beats);
     let kinds: Vec<Kind> = said.iter().map(|(kind, _)| *kind).collect();

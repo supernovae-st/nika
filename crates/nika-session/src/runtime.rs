@@ -89,6 +89,7 @@ use decision::{is_no, is_plain_yes, is_save_and_run, is_yes, local_command_of};
 use run_budget::ceiling_in;
 mod ceilings;
 mod schedule;
+mod schedule_change;
 mod schedule_ledger;
 pub use schedule_ledger::{LastDecision, ScheduleHistory};
 mod status_fr;
@@ -428,6 +429,8 @@ pub struct SessionRuntime {
     activation_proposal: Option<ProposalId>,
     /// The schedule the declaration proposed last names, offered for its trigger once it lands.
     declared: Option<trigger_install::InstallOffer>,
+    /// The workflow whose schedule the declaration proposed last removes, said once it lands.
+    unscheduled: Option<std::path::PathBuf>,
     /// The install decision the next line answers, while it waits.
     install_offer: Option<trigger_install::InstallOffer>,
     /// The units this conversation installed: what « désactive-le » removes.
@@ -549,6 +552,7 @@ impl SessionRuntime {
             activation: None,
             activation_proposal: None,
             declared: None,
+            unscheduled: None,
             install_offer: None,
             installed: Vec::new(),
             trigger_host: Box::new(DeclaredOnly),
@@ -757,7 +761,11 @@ impl SessionRuntime {
             Some(set) => TurnOutcome::Held {
                 id: self.proposal_id(set),
                 preview: format!(
-                    "{view}\n(the proposal still waits · `yes` applies it · `no` discards it)"
+                    "{view}\n{}",
+                    self.language.pick(
+                        "(the proposal still waits · `yes` applies it · `no` discards it)",
+                        "(la proposition attend toujours · « oui » l'applique · « non » l'écarte)",
+                    )
                 ),
             },
             None => TurnOutcome::Aside(view),
@@ -1250,6 +1258,10 @@ impl SessionRuntime {
         if let Some(outcome) = self.run_turn(original) {
             return outcome;
         }
+        // A declared schedule moved to another zone, or removed, in the person's words.
+        if let Some(change) = self.schedule_change(input) {
+            return self.schedule_change_turn(&change);
+        }
         if let Some(outcome) = self.activation_line(input) {
             return outcome;
         }
@@ -1395,7 +1407,11 @@ impl SessionRuntime {
             return TurnOutcome::Held {
                 id,
                 preview: format!(
-                    "{preview}(the proposal still waits · `yes` applies it · `no` discards it)"
+                    "{preview}{}",
+                    self.language.pick(
+                        "(the proposal still waits · `yes` applies it · `no` discards it)",
+                        "(la proposition attend toujours · « oui » l'applique · « non » l'écarte)",
+                    )
                 ),
             };
         }

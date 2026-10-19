@@ -259,7 +259,22 @@ tasks:
 /// A history whose tree holds the request `u1`, the author's `ask` call `c1` for the message's text
 /// and the person's line `u2` replying `reply`, which the author never binds; and the conversation
 /// that asked it and recorded that line as the question's answer.
-fn asked_history((history, project): (&Path, &Path), request: &str, reply: &str) -> Conversation {
+/// A history whose author asked « Quel texte ? » after `request`, the question still waiting.
+fn parked_history(dirs: (&Path, &Path), request: &str) -> Conversation {
+    asked_in(dirs, request, None)
+}
+
+fn asked_history(dirs: (&Path, &Path), request: &str, reply: &str) -> Conversation {
+    asked_in(dirs, request, Some(reply))
+}
+
+/// A history whose author asked « Quel texte ? » after `request`, answered by `reply` when one
+/// is given.
+fn asked_in(
+    (history, project): (&Path, &Path),
+    request: &str,
+    reply: Option<&str>,
+) -> Conversation {
     let mut store = TreeFile::home(OwnedDir::open(history).unwrap());
     let mut tree = start_tree(&mut store, project, "deepseek/deepseek-flash").unwrap();
     (tree.append_user(request, None, None, 2, |line| {
@@ -298,6 +313,9 @@ fn asked_history((history, project): (&Path, &Path), request: &str, reply: &str)
         reply: posed,
     };
     (tree.append(parked, 4, |line| Store::append(&mut store, line))).unwrap();
+    let Some(reply) = reply else {
+        return conversation;
+    };
     let answers = Some("c1".to_owned());
     let (_, cite) = (tree.append_user(reply, answers, None, 5, |line| {
         Store::append(&mut store, line)
@@ -335,6 +353,44 @@ fn a_reopened_reply_never_names_the_saved_workflow() {
             .with(|c| desk::requested(c, &citations, MESSAGE));
         assert_eq!(reopened.as_deref(), expected, "after the reopen: {request}");
     }
+}
+
+/// A question the author asked owns the person's next line: a schedule it reads (« tous les
+/// soirs à 20h ») answers that question, never activates the workflow saved before it (live
+/// gauntlet wave 7 r08, 2026-10-19: after a cancel, the journal's « quand ? » answered with
+/// « tous les soirs à 20h » opened the activation of the welcome example). With no question
+/// waiting, the same line still activates the saved workflow.
+#[test]
+fn a_question_the_author_asked_owns_the_schedule_that_answers_it() {
+    let (history, project) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    std::fs::write(project.path().join("saved.nika"), "nika: saved\n").unwrap();
+    let mut session = SessionRuntime::open(
+        project.path(),
+        crate::runtime::tests::ready(
+            crate::intelligence::IntelligenceKind::None,
+            crate::intelligence::DataLocus::None,
+        ),
+        Box::new(crate::reasoner::NoReasoner),
+    );
+    session.last_workflow = Some(PathBuf::from("saved.nika"));
+    let line = "tous les soirs à 20h";
+    assert!(
+        session.schedules_the_saved(line).is_some(),
+        "nothing asked: the saved workflow's schedule"
+    );
+    assert!(session.agent_yields(line));
+    let request = "écris chaque soir la date du jour dans ./journal.txt";
+    let conversation = parked_history((history.path(), project.path()), request);
+    let driver = Driver::resumed(OwnedDir::open(history.path()), Some(&conversation.kept()));
+    assert!(driver.tree.as_ref().and_then(Tree::parked).is_some());
+    session.agent = Some(driver);
+    assert!(session.author_asks());
+    assert_eq!(
+        session.schedules_the_saved(line),
+        None,
+        "the question's answer"
+    );
+    assert!(!session.agent_yields(line), "the author reads its answer");
 }
 
 /// Reopening keeps the saved target as context. It neither replays a run nor turns a request

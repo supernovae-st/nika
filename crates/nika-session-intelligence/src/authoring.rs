@@ -679,7 +679,11 @@ pub fn compile_in_rehearsed(
 /// any compile, the same seat and decision model, the person's `answers` by question (JSON
 /// literals, as a compile round states them) and their request as first stated (`original`,
 /// when later lines answer or correct it), the verdicts the conversation kept (`declined`: a
-/// judge is never asked again on bytes it rejected). READY only on the verdict; it never grants
+/// judge is never asked again on bytes it rejected). An entry of `declined` marked
+/// `reading_only` (and not `declined`) is a reading of the request that a verification in this
+/// very process audited as covered: it is reused with no call when the words, answers, model
+/// and prompts are the same ([`CompileRequest::with_audited_readings`]). A host never passes
+/// one read back from disk or another process. READY only on the verdict; it never grants
 /// Save or Run.
 ///
 /// # Errors
@@ -743,7 +747,10 @@ fn verify_request(
     ),
     work: Work<'_>,
 ) -> Result<CompileOutcome, AuthoringError> {
-    let mut request = CompileRequest::create(stated).with_declined(declined);
+    let (audited, declined) = audited_apart(declined);
+    let mut request = CompileRequest::create(stated)
+        .with_declined(declined)
+        .with_audited_readings(audited);
     for (key, literal) in answers {
         request = request.answer(key.as_str(), literal.as_str());
     }
@@ -752,6 +759,19 @@ fn verify_request(
     }
     let attach = Attach::Carried(None, stated);
     attached(seat, context, &request, attach, admission, work)
+}
+
+/// The readings this process's own verifications audited as covered (the Session's desk keeps
+/// them in memory, marked `reading_only` and not `declined`), apart from every other kept
+/// entry: the readings are reused with no call, the rest is declined data, proposed and
+/// audited anew.
+fn audited_apart(kept: Vec<Value>) -> (Vec<Value>, Vec<Value>) {
+    let (audited, declined): (Vec<Value>, Vec<Value>) = (kept.into_iter())
+        .partition(|kept| kept["reading_only"] == true && kept["declined"] == false);
+    let audited = (audited.into_iter())
+        .map(|kept| kept["request_interpretation"].clone())
+        .collect();
+    (audited, declined)
 }
 
 /// What knowledge one seated compile attaches: a pack composed for an
@@ -1132,6 +1152,20 @@ mod tests {
     use super::*;
     use nika_onboard::compile::{CompileStatus, Strategy};
     use serde_json::json;
+
+    /// The desk's audited reading reaches the verifier as an audited reading, its record alone;
+    /// a declined verdict, or an entry that is both, stays declined data.
+    #[test]
+    fn the_desk_reading_is_audited_and_the_verdicts_stay_declined() {
+        let record = json!({"input_sha256": "k", "valid": true});
+        let reading = json!({"declined": false, "reading_only": true,
+            "request_interpretation": record});
+        let verdict = json!({"declined": true, "request_interpretation": {"input_sha256": "v"}});
+        let both = json!({"declined": true, "reading_only": true});
+        let (audited, declined) = audited_apart(vec![verdict.clone(), reading, both.clone()]);
+        assert_eq!(audited, [record]);
+        assert_eq!(declined, [verdict, both]);
+    }
 
     /// A verification the decision seat stopped is read from its record, never its words; one
     /// the authoring provider judged, or that settled, is not; the author's judgment is said on

@@ -186,6 +186,9 @@ fn table() -> &'static BTreeMap<String, (&'static str, String)> {
 /// and `annuler` are its own; `details`, `save & run` and the slash commands
 /// stay as they are typed). A `{…}` stands for a value set in after.
 const FR: &[(&str, &str)] = &[
+    // The request a typed choice keeps beside it (`retained_rows`).
+    ("Request · ", "Demande · "),
+    ("Open · ", "Encore ouvert · "),
     // What waits: its whole hint (`Waiting::hint`).
     (
         "describe work · /help · Run: run <file>.nika",

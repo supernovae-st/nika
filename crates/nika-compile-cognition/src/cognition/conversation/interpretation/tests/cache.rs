@@ -107,3 +107,89 @@ async fn an_audit_defect_retries_the_interpretation_for_the_same_words_and_candi
         REQUIREMENT
     );
 }
+
+/// A reading this process audited as covered, carried back for the same words, is reused with
+/// no call (live gauntlet wave 6 r04, 2026-10-18: the same reading, audited again at every
+/// verification, held most of the session's reasoning). The judge still judges the candidate,
+/// and the verdict reads the same reading identity.
+#[tokio::test]
+async fn an_audited_reading_of_the_same_words_is_reused_with_no_call() {
+    let seat = Seat::new(false);
+    let first = Author::new([Some(reading()), Some(audit())]);
+    let cognition = |provider| Cognition {
+        provider: Some(provider),
+        seat: Some(&seat),
+    };
+    let ready = verify_document(&request(), SOURCE, (&[], &[]), cognition(&first), None)
+        .await
+        .unwrap();
+    assert_eq!(ready.status, CompileStatus::Ready, "{ready:#?}");
+    assert_eq!(first.calls(), 2);
+    let record = ready.provenance.decision.as_ref().unwrap()["request_interpretation"].clone();
+    let asked = seat.asked.lock().unwrap().len();
+    let silent = Author::new([]);
+    let carried = request().with_audited_readings(vec![record.clone()]);
+    let again = verify_document(&carried, SOURCE, (&[], &[]), cognition(&silent), None)
+        .await
+        .unwrap();
+    assert_eq!(again.status, CompileStatus::Ready, "{again:#?}");
+    assert_eq!(silent.calls(), 0, "no reading and no audit is asked again");
+    assert!(
+        seat.asked.lock().unwrap().len() > asked,
+        "the judge judged again"
+    );
+    let reused = &again.provenance.decision.as_ref().unwrap()["request_interpretation"];
+    assert_eq!(reused["reused"], true, "{reused}");
+    assert_eq!(reused["calls"], json!([]));
+    assert_eq!(context(reused), context(&record));
+}
+
+/// Only an audited reading of these very words, model and prompts, covered with no defect and
+/// valid for them, is reused. A record carried as declined data is proposed and audited anew,
+/// never reused.
+#[test]
+fn only_an_audited_reading_of_these_very_words_is_reused() {
+    let source = input(INTENT, &request());
+    let kept = json!({"input_sha256":key(&source, &policy()),"reading":reading(),
+        "audit":audit(),"valid":true,"calls":[{"role":"audit_interpretation"}]});
+    let reused = audited(
+        &source,
+        &policy(),
+        &request().with_audited_readings(vec![kept.clone()]),
+    )
+    .expect("the same words");
+    assert_eq!(reused["reused"], true);
+    assert_eq!(reused["calls"], json!([]));
+    let mut other = policy();
+    other.model = "fixture/other".to_owned();
+    assert!(
+        audited(
+            &source,
+            &other,
+            &request().with_audited_readings(vec![kept.clone()])
+        )
+        .is_none()
+    );
+    let words = input("Write hello to ./out/result.txt.", &request());
+    assert!(
+        audited(
+            &words,
+            &policy(),
+            &request().with_audited_readings(vec![kept.clone()])
+        )
+        .is_none()
+    );
+    let mut defect = kept.clone();
+    defect["audit"] = rejected_audit();
+    let mut invalid = kept.clone();
+    invalid["valid"] = json!(false);
+    let mut uncovered = kept.clone();
+    uncovered["reading"]["coverage"][0]["runtime_ids"] = json!([]);
+    for record in [defect, invalid, uncovered] {
+        let request = request().with_audited_readings(vec![record.clone()]);
+        assert!(audited(&source, &policy(), &request).is_none(), "{record}");
+    }
+    let declined = request().with_declined(vec![json!({"request_interpretation":kept})]);
+    assert!(audited(&source, &policy(), &declined).is_none());
+    assert!(earlier(&source, &policy(), &declined).is_some());
+}

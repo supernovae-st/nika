@@ -345,10 +345,12 @@ impl Verified {
 
     /// Keep every verdict `out` recorded that declined its bytes, once, and the latest reading
     /// of the request its verification audited as covered: the next verification of the same
-    /// words is proposed that reading and audits it anew, rather than asking the author to read
-    /// them again (live gauntlet wave 6 r04, 2026-10-18: the same reading, asked again at every
-    /// verification, held most of the session's reasoning). A reading kept here is data, never a
-    /// verdict: no rejection or repair reads it.
+    /// words, answers, model and prompts reuses that reading with no call, rather than reading
+    /// and auditing them again (live gauntlet wave 6 r04, 2026-10-18: the same reading, asked
+    /// again at every verification, held most of the session's reasoning). It is kept in this
+    /// process's memory only, never on disk: a reopened conversation reads and audits anew. A
+    /// reading kept here is never a verdict: no rejection or repair reads it, and the judge
+    /// still judges every candidate.
     fn keep(&mut self, out: &CompileOutcome) {
         let decision = out.provenance.decision.as_ref();
         let attempts = decision.and_then(|decision| decision["semantic_verification"].as_array());

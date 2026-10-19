@@ -85,7 +85,8 @@ fn inspecting_a_revision_opens_on_the_lines_it_changes() {
     });
     term.send("yes\r");
     term.wait_until("the workflow saved", |screen| {
-        screen.contains("applied · wrote `news-digest.nika`")
+        // The person writes French: the save is said in French.
+        screen.contains("appliqué · écrit `news-digest.nika`")
     });
     let saved = std::fs::read_to_string(rig.path("news-digest.nika")).expect("the saved file");
     assert!(saved.contains(PROSE), "{saved}");

@@ -15,7 +15,7 @@ fn details_after_a_save_and_a_run_say_what_was_built_and_run() {
         .as_str()
         .unwrap_or_default();
     assert!(
-        saved.starts_with("applied · wrote `news-digest.nika`"),
+        saved.starts_with("appliqué · écrit `news-digest.nika`"),
         "{saved}"
     );
     assert_eq!(

@@ -10,6 +10,7 @@
 
 use std::sync::Arc;
 
+use super::Lang;
 use super::feedback::{Feedback, dimensions, opinions, picked};
 use crate::outcome::{Incarnation, QuestionId};
 use crate::work::{
@@ -82,7 +83,7 @@ fn asked(options: Vec<Offer>, multiple: bool) -> AskedQuestion {
 
 #[test]
 fn a_result_is_offered_the_dimensions_its_own_tasks_have() {
-    let digest = dimensions(DIGEST);
+    let digest = dimensions(DIGEST, Lang::En);
     assert_eq!(
         keys(&digest),
         [
@@ -97,21 +98,21 @@ fn a_result_is_offered_the_dimensions_its_own_tasks_have() {
     );
     assert_eq!(alone(&digest), ["nothing", "later"]);
     assert!(digest.iter().all(|offer| !offer.recommended), "no default");
-    let copy = dimensions(COPY);
+    // No model writes it: a computed result is offered its presentation only, never the
+    // topics or the sources of a summary.
     assert_eq!(
-        keys(&copy),
-        ["topics", "sources", "presentation", "nothing", "later"],
-        "no model writes it: no depth nor length"
+        keys(&dimensions(COPY, Lang::En)),
+        ["presentation", "nothing", "later"]
     );
     assert_eq!(
-        keys(&dimensions("not a workflow")),
+        keys(&dimensions("not a workflow", Lang::En)),
         ["presentation", "nothing", "later"]
     );
 }
 
 #[test]
 fn the_opinion_is_neutral_and_later_stands_alone() {
-    let opinion = opinions();
+    let opinion = opinions(Lang::En);
     assert_eq!(
         keys(&opinion),
         ["suitable", "changes", "wrong", "unevaluated", "later"]
@@ -122,7 +123,7 @@ fn the_opinion_is_neutral_and_later_stands_alone() {
 
 #[test]
 fn an_answer_picks_exactly_offered_keys_in_their_order() {
-    let adjust = asked(dimensions(DIGEST), true);
+    let adjust = asked(dimensions(DIGEST, Lang::En), true);
     assert_eq!(
         picked(&adjust, r#"["topics","depth"]"#),
         Ok(vec!["depth".to_owned(), "topics".to_owned()])
@@ -149,14 +150,42 @@ fn an_answer_picks_exactly_offered_keys_in_their_order() {
         r#"["nothing","later"]"#,
     ] {
         let why = picked(&adjust, mixed).expect_err(mixed);
-        assert!(why.contains("stand alone"), "{mixed}: {why}");
+        assert!(why.0.contains("stand alone"), "{mixed}: {why:?}");
     }
-    let opinion = asked(opinions(), false);
+    let opinion = asked(opinions(Lang::En), false);
     assert_eq!(picked(&opinion, "wrong"), Ok(vec!["wrong".to_owned()]));
     assert!(
         picked(&opinion, r#"["suitable","wrong"]"#).is_err(),
         "one only"
     );
+}
+
+/// A French person reads the offer's choices in French; the keys a host sends stay the same.
+#[test]
+fn a_french_person_reads_the_choices_in_french() {
+    let english = dimensions(DIGEST, Lang::En);
+    let french = dimensions(DIGEST, Lang::Fr);
+    assert_eq!(keys(&french), keys(&english));
+    let labels: Vec<&str> = french.iter().map(|offer| offer.label.as_str()).collect();
+    assert_eq!(
+        labels,
+        [
+            "Niveau de détail",
+            "Longueur",
+            "Sujets couverts",
+            "Diversité des sources",
+            "Présentation du résultat",
+            "Rien à changer",
+            "Plus tard"
+        ]
+    );
+    assert_eq!(alone(&french), ["nothing", "later"]);
+    let opinion = opinions(Lang::Fr);
+    assert_eq!(keys(&opinion), keys(&opinions(Lang::En)));
+    assert_eq!(opinion[0].label, "Adapté à cet usage");
+    let adjust = asked(french, true);
+    let why = picked(&adjust, r#"["nothing","depth"]"#).expect_err("mixed");
+    assert!(why.1.contains("se choisissent seuls"), "{why:?}");
 }
 
 /// The answer `picked` to an offer of `kind` about revision `revision` of request `request`,
@@ -174,9 +203,9 @@ fn record(
         vec![artifact],
     );
     let options = if kind == FeedbackKind::Adjust {
-        dimensions(DIGEST)
+        dimensions(DIGEST, Lang::En)
     } else {
-        opinions()
+        opinions(Lang::En)
     };
     let question = asked(options, kind == FeedbackKind::Adjust);
     let offer = FeedbackOffer::new(kind, question, scope, follows.map(str::to_owned));

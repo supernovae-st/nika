@@ -557,7 +557,7 @@ fn a_schedule_is_declared_only_through_the_human_s_gestures() {
         panic!("the yes writes the declaration");
     };
     assert!(
-        declared.contains("applied · wrote `nika.yaml`")
+        declared.contains("appliqué · écrit `nika.yaml`")
             && declared.contains("Déclaré dans `nika.yaml` · pas actif"),
         "{declared}"
     );

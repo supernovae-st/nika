@@ -150,7 +150,7 @@ fn a_result_then_a_guided_correction_then_a_neutral_opinion() {
     );
     let told = (journey.agent.iter()).any(|seen| {
         seen.text()
-            .contains("chose to adjust: Depth of the summary, Topics covered")
+            .contains("chose to adjust: Niveau de détail, Sujets couverts")
     });
     assert!(
         told,
@@ -285,8 +285,8 @@ fn a_new_request_never_inherits_an_adjustment() {
     );
     assert_eq!(
         option_keys(offered),
-        ["topics", "sources", "presentation", "nothing", "later"],
-        "the count's own tasks: no model writes it"
+        ["presentation", "nothing", "later"],
+        "the count's own tasks: no model writes it, so neither topics nor sources"
     );
     assert_eq!(
         offered["scope"]["artifacts"],

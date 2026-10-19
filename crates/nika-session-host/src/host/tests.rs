@@ -972,10 +972,13 @@ fn a_stop_taken_before_the_native_door_spawns_is_applied_at_the_spawn() {
 }
 
 /// A resident whose one job runs until it is cancelled, counting the cancellations it is asked.
+/// A cancelled job ends only once the test released it: a job that ended at its first
+/// cancellation made a later Stop find nothing to stop on a loaded runner (CI, 2026-10-19).
 struct Cancellable {
     entered: Mutex<mpsc::Sender<()>>,
     cancels: AtomicUsize,
     cancelled: AtomicBool,
+    released: AtomicBool,
 }
 
 impl Jobs for Cancellable {
@@ -991,7 +994,9 @@ impl Jobs for Cancellable {
         Box::pin(async move {
             let _ = self.entered.lock().expect("entered").send(());
             let mut waited = 0;
-            while !self.cancelled.load(Ordering::SeqCst) && waited < 6000 {
+            let ended =
+                || self.cancelled.load(Ordering::SeqCst) && self.released.load(Ordering::SeqCst);
+            while !ended() && waited < 6000 {
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 waited += 1;
             }
@@ -1024,6 +1029,7 @@ fn a_stop_reaches_the_job_a_resident_runs_once() {
         entered: Mutex::new(entered),
         cancels: AtomicUsize::new(0),
         cancelled: AtomicBool::new(false),
+        released: AtomicBool::new(false),
     });
     let door = JobDoor::new(
         resident.handle().clone(),
@@ -1042,6 +1048,7 @@ fn a_stop_reaches_the_job_a_resident_runs_once() {
     assert_eq!(receipt["snapshot"]["busy"]["stop_requested"], true);
     let second = reply(host.dispatch(stop("s-2")));
     assert_eq!(second["receipt"], "run_stopping", "{second}");
+    jobs.released.store(true, Ordering::SeqCst);
     let settled = json(&host.wait_result("c-3").expect("settled"));
     assert_eq!(kinds(&settled)[0], "run_requested", "{settled}");
     assert_eq!(

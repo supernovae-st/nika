@@ -538,10 +538,29 @@ fn a_counted_or_ranked_number_is_no_unbound_amount() {
         "Peux-tu relancer à 9 heures ?",
         "lance-le 2 fois",
         "relance-le le 2e jour",
+        "relance-le le 16",
+        "relance-le du 16 au 20",
     ] {
         let parsed = super::parse(line).unwrap_or_else(|why| panic!("{line}: {why}"));
         assert!(parsed.unbound_number || parsed.amount.is_some(), "{line}");
     }
+}
+
+/// A day a noun names states no money (live gauntlet wave 7 r10, 2026-10-19: « J'ai mis le
+/// fichier du 16 de côté. Relance-le. » was refused as a ceiling without a currency).
+#[test]
+fn a_day_a_noun_names_is_no_unbound_amount() {
+    for line in [
+        "J'ai mis le fichier du 16 de côté. Relance-le.",
+        "relance-le sur le rapport du 3",
+    ] {
+        let parsed = super::parse(line).unwrap_or_else(|why| panic!("{line}: {why}"));
+        assert!(!parsed.unbound_number, "{line}");
+        assert_eq!(parsed.amount, None, "{line}");
+    }
+    // A ceiling beside it is still read as one.
+    let parsed = super::parse("relance le fichier du 16, max 0,10 $").expect("money");
+    assert_eq!(parsed.amount, Some(0.1));
 }
 
 /// A ceiling stated for each run (QA gauntlet q09: « budget max 0,10 $ par run » in the first

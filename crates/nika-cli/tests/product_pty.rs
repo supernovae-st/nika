@@ -159,10 +159,10 @@ fn author_accept_run(session: &mut LoggedSession, intent: &str, yes: &str) {
     session.expect("apply? ›").expect("the consent prompt");
     session.send_line(yes).expect("consent");
     session
-        .expect("applied · wrote `compiled-workflow.nika`")
-        .expect("the exact bytes landed");
+        .expect("appliqué · écrit `compiled-workflow.nika`")
+        .expect("the exact bytes landed, said in the person's French");
     session
-        .expect("check · `compiled-workflow.nika` · clean")
+        .expect("vérification · `compiled-workflow.nika` · propre")
         .expect("the real check ran on disk");
     session
         .expect("nika ›")
@@ -612,8 +612,8 @@ fn the_review_reads_in_sections_and_meaning_holds_the_proposal() {
         .expect("écris-le dans ./out/copie.md")
         .expect("the clause, in the request's own words");
     session
-        .expect("the proposal still waits")
-        .expect("meaning holds the proposal");
+        .expect("la proposition attend toujours")
+        .expect("meaning holds the proposal, said in the person's French");
     session
         .expect("apply? ›")
         .expect("still the consent prompt");

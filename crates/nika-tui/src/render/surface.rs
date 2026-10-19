@@ -229,7 +229,7 @@ fn head_rows(
             } else {
                 1
             };
-            let retained = retained_rows(asked, width, (ascii, color));
+            let retained = retained_rows(asked, width, (state.voice(), color));
             // What Nika said since the person's last line first, in the rows the question
             // spares: the surface covers the conversation where it stands. A selection reads
             // Nika's last words below, and its earlier lines were the picker's own.
@@ -311,8 +311,10 @@ fn said_once(label: &str, words: &str) -> String {
 }
 
 /// What the Session keeps of the request beside a typed choice, one quiet
-/// labelled row each: its goal, then the questions still open.
-fn retained_rows(asked: &Asked, width: u16, (ascii, color): (bool, bool)) -> Vec<Line<'static>> {
+/// labelled row each, labelled in the person's language: its goal, then the questions still
+/// open.
+fn retained_rows(asked: &Asked, width: u16, (voice, color): (Voice, bool)) -> Vec<Line<'static>> {
+    let ascii = voice.ascii;
     let Some(retained) = &asked.retained else {
         return Vec::new();
     };
@@ -326,11 +328,11 @@ fn retained_rows(asked: &Asked, width: u16, (ascii, color): (bool, bool)) -> Vec
     };
     let mut rows = Vec::new();
     if let Some(goal) = &retained.goal {
-        rows.push(row("Request · ", goal.as_str()));
+        rows.push(row(voice.say("Request · "), goal.as_str()));
     }
     if !retained.open.is_empty() {
         let open = retained.open.join(" · ");
-        rows.push(row("Open · ", open.as_str()));
+        rows.push(row(voice.say("Open · "), open.as_str()));
     }
     rows
 }

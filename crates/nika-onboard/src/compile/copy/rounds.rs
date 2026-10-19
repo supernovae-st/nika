@@ -296,10 +296,8 @@ fn selected(
     ];
     Ok((
         preview,
-        Witness::new(report.candidate_sha256.clone(), world).writing(
-            std::slice::from_ref(&closed.target),
-            std::slice::from_ref(&closed.source),
-        ),
+        Witness::new(report.candidate_sha256.clone(), world)
+            .writing(std::slice::from_ref(&closed.target)),
     ))
 }
 

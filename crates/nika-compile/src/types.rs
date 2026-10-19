@@ -39,6 +39,9 @@ pub struct CompileRequest {
     /// The verdicts that rejected candidate bytes in earlier rounds of the same conversation, as
     /// the host kept them — see [`Self::with_declined`].
     pub declined: Vec<serde_json::Value>,
+    /// The readings of this request that a verification in the host's own process audited as
+    /// covered earlier in the same conversation — see [`Self::with_audited_readings`].
+    pub audited: Vec<serde_json::Value>,
 }
 
 /// One reference a knowledge snapshot recalled for the seat: its kind (`pattern` · `block` ·
@@ -199,6 +202,20 @@ impl CompileRequest {
         self.declined = attempts;
         self
     }
+    /// Carry the readings of this request that a verification in the host's own process audited
+    /// as covered earlier in the same conversation (each a `request_interpretation` record with
+    /// its `input_sha256`, `valid` true and a `covered` audit with no defect). The verifier
+    /// reuses such a reading with no call when its key names these very words, answers, model,
+    /// reasoning and prompts, rather than reading and auditing them again (live gauntlet wave 6
+    /// r04, 2026-10-18: the same reading, audited again at every verification, held most of the
+    /// session's reasoning). A record read back from disk or another process is never an audited
+    /// reading: carry it as [`Self::with_declined`] data, which is proposed and audited anew. A
+    /// reused reading grants nothing by itself: the judge still judges the candidate.
+    #[must_use]
+    pub fn with_audited_readings(mut self, readings: Vec<serde_json::Value>) -> Self {
+        self.audited = readings;
+        self
+    }
     /// The same request with `text` as its complete input: a clarification or any replacement
     /// the caller answered. The monetary spans it admitted index the bytes it read, so they stay
     /// only when `text` is those very bytes; a replacement never inherits them, whatever its own
@@ -230,6 +247,7 @@ impl CompileRequest {
             stated_money: false,
             observed_preparation: false,
             declined: Vec::new(),
+            audited: Vec::new(),
         }
     }
 
@@ -257,6 +275,7 @@ impl CompileRequest {
             stated_money: false,
             observed_preparation: false,
             declined: Vec::new(),
+            audited: Vec::new(),
         }
     }
 
@@ -295,6 +314,7 @@ impl CompileRequest {
             stated_money: false,
             observed_preparation: false,
             declined: Vec::new(),
+            audited: Vec::new(),
         }
     }
 

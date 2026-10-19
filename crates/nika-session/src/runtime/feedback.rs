@@ -28,7 +28,7 @@ use nika_schema::{FileId, ParseMode};
 use nika_trace::run_view::RunFacts;
 use serde::{Deserialize, Serialize};
 
-use super::{SessionRuntime, TurnOutcome};
+use super::{Lang, SessionRuntime, TurnOutcome};
 use crate::change::Witness;
 use crate::outcome::{QuestionId, Refusal, RefusalClass};
 use crate::work::{
@@ -36,20 +36,36 @@ use crate::work::{
     FeedbackRecord, FeedbackScope, Offer,
 };
 
+/// Words the person reads, in English then in French ([`Lang::pick`]).
+type Said = (&'static str, &'static str);
 /// The adjustment offer's question.
-const ADJUST: &str =
-    "What would you like to adjust in this result? Optional: your own words work too.";
+const ADJUST: Said = (
+    "What would you like to adjust in this result? Optional: your own words work too.",
+    "Que voulez-vous ajuster dans ce résultat ? Facultatif : vos propres mots conviennent aussi.",
+);
 /// The opinion offer's question.
-const OPINION: &str =
-    "How is this corrected result for your use? Optional: it changes nothing by itself.";
+const OPINION: Said = (
+    "How is this corrected result for your use? Optional: it changes nothing by itself.",
+    "Que vaut ce résultat corrigé pour votre usage ? Facultatif : cela ne change rien en soi.",
+);
 /// Why an answer that names no offered choice was refused.
-const NOT_OFFERED: &str = "this answer names no offered choice · nothing was recorded · the offer \
-                           waits · words typed at the prompt reach the conversation instead";
+const NOT_OFFERED: Said = (
+    "this answer names no offered choice · nothing was recorded · the offer waits · words typed \
+     at the prompt reach the conversation instead",
+    "cette réponse ne nomme aucun choix proposé · rien n'a été enregistré · l'offre attend · les \
+     mots tapés à l'invite vont à la conversation",
+);
 /// Why a set mixing a standing-alone choice with others was refused.
-const ALONE: &str = "« Nothing to change » and « Later » stand alone · nothing was recorded · the \
-                     offer waits";
+const ALONE: Said = (
+    "« Nothing to change » and « Later » stand alone · nothing was recorded · the offer waits",
+    "« Rien à changer » et « Plus tard » se choisissent seuls · rien n'a été enregistré · l'offre \
+     attend",
+);
 /// Why an answer to an offer that no longer waits was refused.
-const GONE: &str = "this offer no longer waits · nothing was recorded";
+const GONE: Said = (
+    "this offer no longer waits · nothing was recorded",
+    "cette offre n'attend plus · rien n'a été enregistré",
+);
 /// The keys that stand alone in an offer.
 const STANDING: [&str; 2] = ["nothing", "later"];
 
@@ -160,10 +176,17 @@ impl SessionRuntime {
             Some(_) => return None,
             None => None,
         };
-        let (kind, text, options, multiple) = match follows {
-            None => (FeedbackKind::Adjust, ADJUST, dimensions(&source), true),
-            Some(_) => (FeedbackKind::Opinion, OPINION, opinions(), false),
+        let lang = self.language;
+        let (kind, (en, fr), options, multiple) = match follows {
+            None => (
+                FeedbackKind::Adjust,
+                ADJUST,
+                dimensions(&source, lang),
+                true,
+            ),
+            Some(_) => (FeedbackKind::Opinion, OPINION, opinions(lang), false),
         };
+        let text = lang.pick(en, fr);
         let witness = format!(
             "nika-session feedback 2\n{}\n{scope:?}\n{follows:?}",
             kind.key()
@@ -239,6 +262,7 @@ impl SessionRuntime {
         let Some(offer) = self.feedback.offer.take() else {
             return self.feedback_refused(id, RefusalClass::StaleRevision, GONE);
         };
+        let lang = self.language;
         let named = (offer.question.options.iter())
             .filter(|option| picked.contains(&option.key))
             .map(|option| option.label.as_str())
@@ -249,7 +273,11 @@ impl SessionRuntime {
             .recorded
             .push(FeedbackRecord::new(&offer, picked));
         if offer.kind != FeedbackKind::Adjust || standing {
-            return TurnOutcome::Facts(format!("Noted: {named} · it changes nothing by itself"));
+            let noted = lang.pick(
+                "Noted: {named} · it changes nothing by itself",
+                "Noté : {named} · cela ne change rien en soi",
+            );
+            return TurnOutcome::Facts(noted.replace("{named}", &named));
         }
         self.feedback.adjusted = Some(Lineage {
             request: offer.scope.request,
@@ -267,7 +295,11 @@ impl SessionRuntime {
              request, and propose the revision. Never save or run: the person decides."
         );
         (self.agent_note(&note)).unwrap_or_else(|| {
-            TurnOutcome::Facts(format!("Noted: {named} · say what should change"))
+            let noted = lang.pick(
+                "Noted: {named} · say what should change",
+                "Noté : {named} · dites ce qui doit changer",
+            );
+            TurnOutcome::Facts(noted.replace("{named}", &named))
         })
     }
 
@@ -276,18 +308,21 @@ impl SessionRuntime {
         &mut self,
         id: &QuestionId,
         class: RefusalClass,
-        text: &str,
+        (en, fr): Said,
     ) -> TurnOutcome {
-        let refusal = TurnOutcome::Refusal(Refusal::new(class, text));
+        let refusal = TurnOutcome::Refusal(Refusal::new(class, self.language.pick(en, fr)));
         self.answer_refused(Some(id.clone()), refusal)
     }
 }
 
-/// The dimensions a result of `source` may be adjusted on, read from its own tasks: a summary's
-/// depth and length when a model writes it, the topics and the diversity of its sources when it
-/// reads or fetches them, the presentation of what it writes; then « Nothing to change » and
-/// « Later », standing alone. Bytes the parser refuses offer only the presentation.
-pub(super) fn dimensions(source: &str) -> Vec<Offer> {
+/// The dimensions a result of `source` may be adjusted on, read from its own tasks: the level of
+/// detail and the length of what a model writes, and the topics and the diversity of the sources
+/// it writes from when it reads or fetches them; the presentation of what it writes; then
+/// « Nothing to change » and « Later », standing alone, each said in `lang`. A result no model
+/// writes is computed: it is offered its presentation only (live gauntlet wave 7, 2026-10-19:
+/// « Topics covered · Diversity of sources » after a bank-statement total, a CSV cleaning and a
+/// site check). Bytes the parser refuses offer only the presentation.
+pub(super) fn dimensions(source: &str, lang: Lang) -> Vec<Offer> {
     let tasks = (nika_schema::parse(source, FileId::new(0), ParseMode::Strict))
         .map(|workflow| workflow.tasks)
         .unwrap_or_default();
@@ -303,40 +338,47 @@ pub(super) fn dimensions(source: &str) -> Vec<Offer> {
             _ => {}
         }
     }
+    let offer = |key: &str, (en, fr): Said| Offer::new(key, lang.pick(en, fr), false);
     let mut offers = Vec::new();
     if model {
-        offers.push(Offer::new("depth", "Depth of the summary", false));
-        offers.push(Offer::new("length", "Length", false));
+        offers.push(offer("depth", ("Level of detail", "Niveau de détail")));
+        offers.push(offer("length", ("Length", "Longueur")));
     }
-    if reads {
-        offers.push(Offer::new("topics", "Topics covered", false));
-        offers.push(Offer::new("sources", "Diversity of sources", false));
+    if model && reads {
+        offers.push(offer("topics", ("Topics covered", "Sujets couverts")));
+        offers.push(offer(
+            "sources",
+            ("Diversity of sources", "Diversité des sources"),
+        ));
     }
-    offers.push(Offer::new(
+    offers.push(offer(
         "presentation",
-        "Presentation of the result",
-        false,
+        ("Presentation of the result", "Présentation du résultat"),
     ));
-    offers.push(Offer::new("nothing", "Nothing to change", false).exclusive());
-    offers.push(Offer::new("later", "Later", false).exclusive());
+    offers.push(offer("nothing", ("Nothing to change", "Rien à changer")).exclusive());
+    offers.push(offer("later", ("Later", "Plus tard")).exclusive());
     offers
 }
 
-/// The neutral opinion's choices: none recommended, « Later » standing alone.
-pub(super) fn opinions() -> Vec<Offer> {
+/// The neutral opinion's choices, said in `lang`: none recommended, « Later » standing alone.
+pub(super) fn opinions(lang: Lang) -> Vec<Offer> {
+    let offer = |key: &str, (en, fr): Said| Offer::new(key, lang.pick(en, fr), false);
     vec![
-        Offer::new("suitable", "Suitable for this use", false),
-        Offer::new("changes", "Still needs changes", false),
-        Offer::new("wrong", "Wrong result", false),
-        Offer::new("unevaluated", "Not evaluated yet", false),
-        Offer::new("later", "Later", false).exclusive(),
+        offer("suitable", ("Suitable for this use", "Adapté à cet usage")),
+        offer(
+            "changes",
+            ("Still needs changes", "Demande encore des changements"),
+        ),
+        offer("wrong", ("Wrong result", "Résultat faux")),
+        offer("unevaluated", ("Not evaluated yet", "Pas encore évalué")),
+        offer("later", ("Later", "Plus tard")).exclusive(),
     ]
 }
 
 /// The keys `line` picks among `question`'s options, in their order: exactly offered keys, each
 /// once (a JSON list where several may be checked, or one key), a standing-alone one alone. The
 /// host's native control sends exactly these; words typed at the prompt never reach here.
-pub(super) fn picked(question: &AskedQuestion, line: &str) -> Result<Vec<String>, &'static str> {
+pub(super) fn picked(question: &AskedQuestion, line: &str) -> Result<Vec<String>, Said> {
     let line = line.trim();
     let keys: Vec<String> = if line.starts_with('[') {
         serde_json::from_str(line).map_err(|_| NOT_OFFERED)?

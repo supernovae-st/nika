@@ -335,7 +335,9 @@ fn the_original_reply_binds_the_destination_it_names_not_the_sentence() {
     // Nothing lands before consent, and consent is never a run.
     assert!(workflows(root.path()).is_empty());
     assert!(!root.path().join("sortie.txt").exists());
-    assert!(matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("applied")));
+    assert!(
+        matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("appliqué · écrit"))
+    );
     let saved = workflows(root.path());
     assert_eq!(saved.len(), 1, "{saved:?}");
     let bytes = std::fs::read_to_string(root.path().join(&saved[0])).expect("saved");

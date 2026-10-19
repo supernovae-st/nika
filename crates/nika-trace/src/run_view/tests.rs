@@ -429,6 +429,84 @@ fn an_unpriced_call_says_its_own_reason() {
     assert!(!line.contains("local model"), "{line}");
 }
 
+/// A French cost line says why a call is unpriced in French (2026-10-19: « 1 appel non tarifé :
+/// its provider reported no complete usage »). A reason the view does not know keeps its name.
+#[test]
+fn a_french_cost_line_says_the_unpriced_reason_in_french() {
+    let (_dir, trace) = journal(
+        "unpriced-reason-fr",
+        &[
+            "{\"kind\":\"workflow_started\",\"fields\":[{\"key\":\"workflow\",\"value\":\"t\"}]}",
+            "{\"kind\":\"task_completed\",\"fields\":[{\"key\":\"task\",\"value\":\"t\"},{\"key\":\"cost_unpriced\",\"value\":\"provider_did_not_report_usage\"}]}",
+            "{\"kind\":\"task_completed\",\"fields\":[{\"key\":\"task\",\"value\":\"u\"},{\"key\":\"cost_unpriced\",\"value\":\"a_future_reason\"}]}",
+            "{\"kind\":\"workflow_completed\",\"fields\":[{\"key\":\"workflow\",\"value\":\"t\"},{\"key\":\"priced_calls\",\"value\":0},{\"key\":\"unpriced_calls\",\"value\":2}]}",
+        ],
+    );
+    let facts = RunFacts::read(&trace).expect("frames");
+    assert_eq!(
+        facts.cost_line_in(true),
+        "coût · INCONNU · 2 appels non tarifés : a_future_reason · son fournisseur n'a pas \
+         déclaré d'usage complet (dépensé, jamais gratuit)"
+    );
+    assert!(
+        facts
+            .cost_line_in(false)
+            .contains("its provider reported no complete usage")
+    );
+}
+
+/// An item of a step's list that failed and was recovered is named in the report, in the
+/// person's language, and a documentation host is said as the address Nika never dials (live
+/// gauntlet wave 7 r11, 2026-10-19: `example.com` logged as down, the report silent).
+#[test]
+fn a_recovered_item_is_named_and_a_documentation_host_said() {
+    let items = serde_json::json!([
+        {"code": "NIKA-BUILTIN-FETCH-001", "index": 0, "item": "https://example.com",
+         "message": "for_each item [0] https://example.com: tool `nika:fetch` reported an error: \
+                     NIKA-BUILTIN-FETCH-001 · request failed: HTTP connection failed: documentation \
+                     host `example.com` is not dialed (RFC 2606/6761)", "status": "recovered"},
+        {"code": "NIKA-BUILTIN-FETCH-001", "index": 1, "item": "https://down.example.net",
+         "message": "connection refused", "status": "recovered"},
+        {"index": 2, "item": "https://httpbin.org/status/200", "status": "ok"}
+    ]);
+    // As a run journals them: the items' JSON text, kept as a JSON string.
+    let field = serde_json::json!(serde_json::json!(items.to_string()).to_string());
+    let completed = serde_json::json!({"kind": "task_completed", "fields": [
+        {"key": "task", "value": "probe"},
+        {"key": "note", "value": "for_each · 1/3 ok · 2 recovered"},
+        {"key": "items", "value": field}
+    ]})
+    .to_string();
+    let (_dir, trace) = journal(
+        "recovered-items",
+        &[
+            "{\"kind\":\"workflow_started\",\"fields\":[{\"key\":\"workflow\",\"value\":\"sites\"}]}",
+            completed.as_str(),
+            "{\"kind\":\"workflow_completed\",\"fields\":[{\"key\":\"workflow\",\"value\":\"sites\"}]}",
+        ],
+    );
+    let facts = RunFacts::read(&trace).expect("frames");
+    let fr = facts.reached_lines(true);
+    assert!(
+        fr.contains(&"pas contacté · https://example.com · une adresse de documentation (RFC 2606) que Nika ne contacte jamais · `probe` a continué sans elle".to_owned()),
+        "{fr:?}"
+    );
+    assert!(
+        fr.contains(&"en erreur, repris · https://down.example.net · `probe` a continué (NIKA-BUILTIN-FETCH-001)".to_owned()),
+        "{fr:?}"
+    );
+    let en = facts.reached_lines(false);
+    assert!(
+        en.iter()
+            .any(|line| line.starts_with("not dialed · https://example.com")),
+        "{en:?}"
+    );
+    assert!(
+        !en.iter().any(|line| line.contains("httpbin.org")),
+        "an ok item is no line: {en:?}"
+    );
+}
+
 /// A file that is not a journal is no reading at all: the door's own
 /// observation line stands alone.
 #[test]
@@ -779,6 +857,51 @@ fn a_removed_file_reads_removed_never_produced() {
     assert!(view.contains("\n  removed · ./inbox/a.txt"), "{view}");
     assert!(view.contains("\n  not there now · ./tmp.txt"), "{view}");
     assert!(!view.contains("produced · ./inbox"), "{view}");
+}
+
+/// A file the run left empty is said beside what it removed, never left among the green ticks
+/// (live gauntlet wave 7 r05, 2026-10-19: « produit · ./journal.md (0 B) » under « réussi », the
+/// three messages already moved to `traites/`).
+#[test]
+fn an_empty_product_is_said_beside_what_the_run_removed() {
+    let dir = tempdir("empty-product");
+    std::fs::create_dir_all(dir.path().join("traites")).expect("dir");
+    std::fs::write(dir.path().join("traites/a.txt"), "hello").expect("moved");
+    std::fs::write(dir.path().join("journal.md"), "").expect("the empty journal");
+    std::fs::write(
+        dir.path().join("inbox.nika"),
+        "nika: inbox\npermits:\n  fs: { write: [\"./traites/*\", \"./inbox/*\", \"./journal.md\"] }\n  tools: [\"nika:write\", \"nika:remove_file\"]\ntasks:\n  journal:\n    invoke: { tool: \"nika:write\", args: { path: \"./journal.md\", content: \"\" } }\n  keep:\n    invoke: { tool: \"nika:write\", args: { path: \"./traites/a.txt\", content: \"hello\" } }\n  drop:\n    after: { keep: success }\n    invoke: { tool: \"nika:remove_file\", args: { path: \"./inbox/a.txt\" } }\n",
+    )
+    .expect("workflow");
+    let permit = |task: &str, path: &str| {
+        format!(
+            "{{\"kind\":\"permit_checked\",\"fields\":[{{\"key\":\"task\",\"value\":\"{task}\"}},{{\"key\":\"plane\",\"value\":\"fs\"}},{{\"key\":\"gate\",\"value\":\"permits.fs.write {path}\"}},{{\"key\":\"decision\",\"value\":\"allow\"}}]}}"
+        )
+    };
+    let frames = [
+        "{\"kind\":\"workflow_started\",\"fields\":[{\"key\":\"workflow\",\"value\":\"inbox\"}]}".to_owned(),
+        permit("journal", "./journal.md"),
+        permit("keep", "./traites/a.txt"),
+        permit("drop", "./inbox/a.txt"),
+        "{\"kind\":\"workflow_completed\",\"fields\":[{\"key\":\"status\",\"value\":\"succeeded\"}]}".to_owned(),
+    ];
+    let frames: Vec<&str> = frames.iter().map(String::as_str).collect();
+    let (_journal_dir, trace) = journal("empty-product-journal", &frames);
+    let facts = RunFacts::read(&trace).expect("frames");
+    let en = facts.result(dir.path(), Path::new("inbox.nika"));
+    assert!(
+        en.contains("\n  warning · ./journal.md is empty (0 B) while this run removed 1 file: check the result before running it again"),
+        "{en}"
+    );
+    let fr = facts.result_in(dir.path(), Path::new("inbox.nika"), true);
+    assert!(
+        fr.contains("\n  attention · ./journal.md est vide (0 o) alors que ce run a retiré 1 fichier : vérifiez le résultat avant de relancer"),
+        "{fr}"
+    );
+    // A product with bytes is no warning.
+    std::fs::write(dir.path().join("journal.md"), "- a line\n").expect("a journal");
+    let view = facts.result(dir.path(), Path::new("inbox.nika"));
+    assert!(!view.contains("warning ·"), "{view}");
 }
 
 /// The run report says the workflow's declared outputs, and a read that failed and was

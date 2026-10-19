@@ -20,8 +20,9 @@ use crate::work::{Offer, Waiting};
 /// The key a run's ceiling is asked under.
 const RUN_CEILING: &str = "run.ceiling";
 
-/// A run's ceiling as it is asked: what the recommendation reads, the language of the line that
-/// asked the run, and why no ceiling could be proved, as the money law said it.
+/// A run's ceiling as it is asked: what the recommendation reads, whether it is said in French
+/// (the conversation's language, or the verb of the line that asked the run), and why no ceiling
+/// could be proved, as the money law said it.
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::runtime) struct Asked {
     evidence: Option<Evidence>,
@@ -30,15 +31,23 @@ pub(in crate::runtime) struct Asked {
 }
 
 impl Asked {
-    /// The ceiling `said` asks for `workflow` under `root`, refused as `refused` said.
-    pub(super) fn new(root: &Path, workflow: &Path, said: &str, refused: &TurnOutcome) -> Self {
+    /// The ceiling `said` asks for `workflow` under `root`, refused as `refused` said, in a
+    /// conversation spoken in `lang` (live gauntlet wave 7, 2026-10-19: « save & run » in a French
+    /// conversation asked « what ceiling for this run? » in English).
+    pub(super) fn new(
+        root: &Path,
+        workflow: &Path,
+        said: &str,
+        refused: &TurnOutcome,
+        lang: super::super::Lang,
+    ) -> Self {
         let why = match refused {
             TurnOutcome::Refusal(refusal) => refusal.text.clone(),
             _ => String::new(),
         };
         Self {
             evidence: ceilings::evidence(root, workflow),
-            french: french(said),
+            french: lang == super::super::Lang::Fr || french(said),
             why,
         }
     }
@@ -58,8 +67,8 @@ impl Asked {
         ceilings::recommended(&offered).unwrap_or("0.25").to_owned()
     }
 
-    /// The question as a host that shows no options reads it: one short line, in the language
-    /// of the line that asked the run when the Session knows it, English otherwise.
+    /// The question as a host that shows no options reads it: one short line, in French when
+    /// the conversation or the line that asked the run is, English otherwise.
     fn question(&self) -> String {
         let example = self.example();
         if self.french {
@@ -90,15 +99,22 @@ impl Asked {
 
     /// What still waits, and the way out.
     fn waits(&self) -> String {
-        format!(
-            "the run still waits for its ceiling · pick an amount, or type one, e.g. {} · `cancel` drops the run",
-            self.example()
-        )
+        if self.french {
+            format!(
+                "le lancement attend toujours son plafond · choisissez un montant, ou tapez-en un, par ex. {} · « annuler » abandonne le lancement",
+                self.example()
+            )
+        } else {
+            format!(
+                "the run still waits for its ceiling · pick an amount, or type one, e.g. {} · `cancel` drops the run",
+                self.example()
+            )
+        }
     }
 }
 
 /// Whether the line that asked the run is French, as the run grammar reads its verb
-/// (« lance-le », « relance »): the one language this Session knows of a conversation.
+/// (« lance-le », « relance »).
 fn french(said: &str) -> bool {
     let lower = said.trim().to_lowercase();
     let first = (lower.split(|c: char| c.is_whitespace() || c == ',' || c == ':'))

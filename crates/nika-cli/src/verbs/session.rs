@@ -214,12 +214,21 @@ fn handle_outcome<W: Write>(
         }
         TurnOutcome::RunRequested { report, run } => {
             writeln!(output, "{report}")?;
-            writeln!(
-                output,
-                "running `{}` once · ceiling ${:.2}",
-                run.workflow.display(),
-                run.max_cost_usd
-            )?;
+            if session.language() == nika_session::Lang::Fr {
+                writeln!(
+                    output,
+                    "lancement unique de `{}` · plafond {} $",
+                    run.workflow.display(),
+                    format!("{:.2}", run.max_cost_usd).replace('.', ",")
+                )?;
+            } else {
+                writeln!(
+                    output,
+                    "running `{}` once · ceiling ${:.2}",
+                    run.workflow.display(),
+                    run.max_cost_usd
+                )?;
+            }
             output.flush()?;
             let (code, trace) = run_once(&session.snapshot.root, &run, theme);
             observed(output, session.observe_run(code, trace.as_deref()))?;

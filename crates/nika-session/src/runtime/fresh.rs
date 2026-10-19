@@ -182,40 +182,64 @@ impl SessionRuntime {
                 }
             },
         };
-        let again = if derived {
-            "source basis derived again before writing: its request, compiled again without AI, gives these exact bytes · "
-        } else {
-            "sources judged again before writing: "
+        let lang = self.language;
+        let again = match (derived, lang) {
+            (true, super::Lang::Fr) => {
+                "base des sources dérivée à nouveau avant d'écrire : sa demande, compilée à nouveau sans IA, donne ces octets exacts · "
+            }
+            (true, _) => {
+                "source basis derived again before writing: its request, compiled again without AI, gives these exact bytes · "
+            }
+            (false, super::Lang::Fr) => "sources revérifiées avant d'écrire : ",
+            (false, _) => "sources judged again before writing: ",
         };
         match self.judge(decision.as_ref(), &request) {
-            Basis::Holds(n) => Ok(Some(format!(
-                "{again}{n} recorded fact(s) of {} hold (rows added, removed or reordered never move them)",
-                quoted(&Basis::sources(decision.as_ref()))
-            ))),
-            Basis::Moved(why) => Err(self.withdraw(
-                id,
-                &format!(
-                    "the sources this proposal was built on changed: {}",
-                    why.join(" · ")
-                ),
-            )),
-            Basis::None if reads.is_empty() => {
-                Ok(derived.then(|| format!("{again}it reads no project file")))
+            Basis::Holds(n) => {
+                let sources = quoted(&Basis::sources(decision.as_ref()));
+                Ok(Some(if lang == super::Lang::Fr {
+                    format!(
+                        "{again}{n} fait(s) enregistré(s) de {sources} tiennent (des lignes ajoutées, retirées ou réordonnées ne les déplacent jamais)"
+                    )
+                } else {
+                    format!(
+                        "{again}{n} recorded fact(s) of {sources} hold (rows added, removed or reordered never move them)"
+                    )
+                }))
             }
+            Basis::Moved(why) => {
+                let lead = lang.pick(
+                    "the sources this proposal was built on changed:",
+                    "les sources sur lesquelles cette proposition a été construite ont changé :",
+                );
+                Err(self.withdraw(id, &format!("{lead} {}", why.join(" · "))))
+            }
+            Basis::None if reads.is_empty() => Ok(derived.then(|| {
+                format!(
+                    "{again}{}",
+                    lang.pick("it reads no project file", "il ne lit aucun fichier du projet")
+                )
+            })),
             Basis::None => Ok(Some(format!(
-                "source freshness not judged: the compiler recorded no source fact these bytes rely on (they read {})",
+                "{} {})",
+                lang.pick(
+                    "source freshness not judged: the compiler recorded no source fact these bytes rely on (they read",
+                    "fraîcheur des sources non jugée : le compilateur n'a enregistré aucun fait de source sur lequel ces octets reposent (ils lisent",
+                ),
                 quoted(&reads)
             ))),
-            Basis::Unjudged(why) => Err(self.withdraw(
-                id,
-                &format!(
-                    "the sources this proposal was built on cannot be judged again: {}",
-                    why.join(" · ")
-                ),
-            )),
+            Basis::Unjudged(why) => {
+                let lead = lang.pick(
+                    "the sources this proposal was built on cannot be judged again:",
+                    "les sources sur lesquelles cette proposition a été construite ne peuvent pas être revérifiées :",
+                );
+                Err(self.withdraw(id, &format!("{lead} {}", why.join(" · "))))
+            }
             _ => Err(self.withdraw(
                 id,
-                "the sources this proposal was built on cannot be judged by this engine",
+                lang.pick(
+                    "the sources this proposal was built on cannot be judged by this engine",
+                    "les sources sur lesquelles cette proposition a été construite ne peuvent pas être jugées par ce moteur",
+                ),
             )),
         }
     }
@@ -229,10 +253,11 @@ impl SessionRuntime {
             .map(|(path, _)| path.clone())
             .collect();
         if !moved.is_empty() {
-            let why = format!(
-                "the files this proposal reads changed since it was shown: {}",
-                quoted(&moved)
+            let lead = self.language.pick(
+                "the files this proposal reads changed since it was shown:",
+                "les fichiers que lit cette proposition ont changé depuis qu'elle a été montrée :",
             );
+            let why = format!("{lead} {}", quoted(&moved));
             return Err(self.withdraw(id, &why));
         }
         let (held, unread): (Vec<_>, Vec<_>) =
@@ -319,9 +344,15 @@ impl SessionRuntime {
     /// Withdraw the proposal a yes answered, before any write, consent or money effect: why, in
     /// the conversation's record, and the way on.
     pub(super) fn withdraw(&mut self, id: &ProposalId, why: &str) -> TurnOutcome {
-        let text = format!(
-            "{why} · the proposal {id} was withdrawn: nothing was written, no consent or money was recorded · say the request again to build it over the project as it is now"
-        );
+        let text = if self.language == super::Lang::Fr {
+            format!(
+                "{why} · la proposition {id} est retirée : rien n'a été écrit, aucun consentement ni montant n'a été enregistré · redites la demande pour la construire sur le projet tel qu'il est maintenant"
+            )
+        } else {
+            format!(
+                "{why} · the proposal {id} was withdrawn: nothing was written, no consent or money was recorded · say the request again to build it over the project as it is now"
+            )
+        };
         self.remember("(consent)", &text);
         TurnOutcome::Refusal(Refusal::new(RefusalClass::StaleRevision, text))
     }

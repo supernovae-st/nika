@@ -297,7 +297,7 @@ fn an_unprovable_run_ceiling_is_asked_as_native_rows() {
     assert!(ceiling.free_text, "another amount is typed");
     assert_eq!(
         ceiling.label,
-        "I did not start the run: what ceiling for this run?"
+        "Je n'ai pas lancé : quel plafond pour ce lancement ?"
     );
     let Shape::Choice(offers) = &ceiling.shape else {
         panic!("finite choice")
@@ -308,12 +308,12 @@ fn an_unprovable_run_ceiling_is_asked_as_native_rows() {
         .collect();
     assert_eq!(
         recommended,
-        ["$0.25 · no run of this workflow observed yet"]
+        ["$0.25 · aucun run de ce workflow observé pour l'instant"]
     );
     let said = joined(&asked.beats);
-    assert!(said.contains("applied · wrote"), "the save stands: {said}");
+    assert!(said.contains("appliqué · écrit"), "the save stands: {said}");
     assert!(
-        said.contains("I did not start the run: what ceiling for this run? (e.g. 0.25)"),
+        said.contains("Je n'ai pas lancé : quel plafond pour ce lancement ? (par ex. 0.25)"),
         "{said}"
     );
     assert!(!said.contains("restored inference exposure"), "{said}");
@@ -712,7 +712,7 @@ fn a_declared_schedule_installs_its_trigger_through_the_lent_host_on_the_yes() {
     assert!(offers[0].recommended && !offers[1].recommended);
     let said = joined(&landed.beats);
     for words in [
-        "applied · wrote `nika.yaml`",
+        "appliqué · écrit `nika.yaml`",
         "Déclaré dans `nika.yaml`",
         "Installer le déclencheur sur ce Mac ?",
         "une unité launchd",
@@ -1167,7 +1167,7 @@ fn a_typed_save_and_run_at_the_shown_proposal_saves_and_runs_once() {
         &consent.witness,
     );
     let said = joined(&turn.beats);
-    assert!(said.contains("applied · wrote"), "saved: {said}");
+    assert!(said.contains("appliqué · écrit"), "saved: {said}");
     assert!(
         room.0.join("compiled-workflow.nika").is_file(),
         "the workflow is saved: {said}"
@@ -1253,7 +1253,7 @@ fn an_earlier_sessions_run_is_not_told_once_a_run_was_observed_here() {
     assert_eq!(key, "save");
     let saved = answer(&mut live, "yes", &consent.witness);
     let said = joined(&saved.beats);
-    assert!(said.contains("applied · wrote"), "{said}");
+    assert!(said.contains("appliqué · écrit"), "{said}");
     let (rail, status) = (rail(&saved.beats), status(&saved.beats));
     assert!(
         !rail.contains("précédent"),

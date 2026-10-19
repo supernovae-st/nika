@@ -458,14 +458,24 @@ impl SessionRuntime {
 
     /// A request that copies a saved workflow (« identique à rapport.nika », « une copie de
     /// rapport.nika ») and states no ceiling keeps, as its proposal and Run ceiling, the one the
-    /// person saved with that workflow, as a revision of it does; other new work keeps its own
-    /// default. The Session inference constraint is left as it was, and a project default stands.
+    /// person set for that workflow's next runs in this conversation, else the one they saved
+    /// with it, as a revision of it does; other new work keeps its own default. The Session
+    /// inference constraint is left as it was, and a project default stands.
     fn keep_copied_ceiling(&self, input: &str, decision: &mut MonetaryDecision) {
         if decision.source != MonetarySource::SessionDefault {
             return;
         }
-        let Some(kept) = (self.copied_workflow(input)).and_then(|base| self.saved_ceiling(&base))
-        else {
+        let Some(base) = self.copied_workflow(input) else {
+            return;
+        };
+        // The latest ceiling the person said for the base comes first (live gauntlet wave 7 r09,
+        // 2026-10-19: « Le plafond est de 0,10 $ par run stp », then « identique à
+        // rapport-ventes-2026 »: the copy ran at $0.25).
+        let root = &self.snapshot.root;
+        let set = (self.money.next_runs.as_ref())
+            .filter(|(set_for, _)| root.join(set_for) == root.join(&base))
+            .map(|(_, decision)| decision.clone());
+        let Some(kept) = set.or_else(|| self.saved_ceiling(&base)) else {
             return;
         };
         decision.effective_usd = kept.effective_usd;

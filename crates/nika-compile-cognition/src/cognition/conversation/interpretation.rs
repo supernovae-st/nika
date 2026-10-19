@@ -71,6 +71,27 @@ pub(in crate::cognition) fn earlier(
     (covered(record) && valid(input, &record["reading"])).then(|| record.clone())
 }
 
+/// The reading of these very words that a verification in the host's own process audited as
+/// covered earlier in this conversation ([`CompileRequest::with_audited_readings`]), reused with
+/// no call: its key binds the words, answers, model, reasoning and prompts, and it still holds
+/// for them. The record says it was reused and asked nothing. A record carried as declined data
+/// is never one: it is proposed and audited anew ([`earlier`]).
+pub(in crate::cognition) fn audited(
+    input: &Value,
+    policy: &AuthoringPolicy,
+    request: &CompileRequest,
+) -> Option<Value> {
+    let key = key(input, policy);
+    let record = (request.audited.iter().rev()).find(|record| record["input_sha256"] == key)?;
+    if !(covered(record) && valid(input, &record["reading"])) {
+        return None;
+    }
+    let mut reused = record.clone();
+    reused["reused"] = json!(true);
+    reused["calls"] = json!([]);
+    Some(reused)
+}
+
 /// Only stable semantic inputs enter the verdict identity; call usage stays in its receipt.
 pub(in crate::cognition) fn context(record: &Value) -> Value {
     json!({"version":VERSION,"input_sha256":record["input_sha256"],

@@ -483,9 +483,12 @@ impl SessionRuntime {
     }
 
     /// The cadence a line states for the saved workflow to run on its own (see
-    /// [`automation_cadence`]), when a workflow is saved and no proposal waits.
+    /// [`automation_cadence`]), when a workflow is saved, no proposal waits and no question the
+    /// author asked owns the line (live gauntlet wave 7 r08, 2026-10-19: « tous les soirs à
+    /// 20h », answering the author's « quand le journal doit-il s'écrire ? », opened the
+    /// activation of the welcome example saved before it).
     pub(super) fn schedules_the_saved(&self, line: &str) -> Option<String> {
-        (self.last_workflow.is_some() && self.pending.is_none())
+        (self.last_workflow.is_some() && self.pending.is_none() && !self.author_asks())
             .then(|| automation_cadence(line))
             .flatten()
     }
@@ -860,7 +863,7 @@ impl SessionRuntime {
 }
 
 /// The workflow of the one schedule `nika.yaml` declares, when it declares exactly one.
-fn sole_declared(root: &Path) -> Option<PathBuf> {
+pub(super) fn sole_declared(root: &Path) -> Option<PathBuf> {
     let (_, project) = nika_vocab::project::discover(root).ok().flatten()?;
     match project.arm() {
         [entry] => Some(PathBuf::from(&entry.workflow)),
@@ -1116,7 +1119,8 @@ pub(super) fn zone_in_line(line: &str) -> Option<String> {
         {
             return Some(zone);
         }
-        if matches!(*word, "heure" | "fuseau") {
+        // « l'heure de Paris »: the word after its article (live gauntlet wave 7 r01).
+        if matches!(word.rsplit('\'').next().unwrap_or(word), "heure" | "fuseau") {
             for len in [4, 3, 2] {
                 if let Some(phrase) = words.get(at..at + len)
                     && let Some(zone) = zone_named(&phrase.join(" "))

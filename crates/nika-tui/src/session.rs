@@ -699,11 +699,21 @@ impl Live {
             TurnOutcome::RunRequested { report, run } => {
                 self.run_started.store(true, Ordering::Release);
                 beats.push(Beat::Say(Committed::new(Kind::Report, report)));
-                let label = format!(
-                    "running `{}` once · ceiling ${}",
-                    run.workflow.display(),
-                    nika_display::vocab::stated_usd(run.max_cost_usd)
-                );
+                let stated = nika_display::vocab::stated_usd(run.max_cost_usd);
+                let french = (self.runtime.as_ref())
+                    .is_some_and(|runtime| runtime.language() == nika_session::Lang::Fr);
+                let label = if french {
+                    format!(
+                        "lancement unique de `{}` · plafond {} $",
+                        run.workflow.display(),
+                        stated.replace('.', ",")
+                    )
+                } else {
+                    format!(
+                        "running `{}` once · ceiling ${stated}",
+                        run.workflow.display()
+                    )
+                };
                 beats.push(Beat::Say(Committed::new(Kind::Report, label.clone())));
                 let work = Work::Run(run);
                 return self.run_or_handoff(work, label, beats);

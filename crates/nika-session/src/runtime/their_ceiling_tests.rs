@@ -111,6 +111,34 @@ fn a_copy_of_a_saved_workflow_keeps_its_ceiling_and_new_work_its_own_default() {
     assert_eq!(money.source, MonetarySource::SessionDefault, "{money:?}");
 }
 
+/// A copy keeps the ceiling the person set for its base's next runs in this conversation, before
+/// the one saved with it (live gauntlet wave 7 r09, 2026-10-19: « Le plafond est de 0,10 $ par
+/// run stp », then « identique à rapport-ventes-2026 »: the copy ran at $0.25).
+#[test]
+fn a_copy_keeps_the_ceiling_set_for_its_bases_next_runs() {
+    let dir = tree();
+    let mut s = saved_daily_copy(dir.path());
+    let TurnOutcome::Facts(set) = s.turn("Le plafond est de 0,10 $ par run stp") else {
+        panic!("the Session sets it");
+    };
+    assert!(
+        set.contains("0,1 $ par run") || set.contains("0,10 $ par run"),
+        "{set}"
+    );
+    let saved = s.last_workflow.clone().expect("saved");
+    let stem = saved.display().to_string();
+    let stem = stem.trim_end_matches(".nika").to_owned();
+    let _ = s.turn(&format!(
+        "Crée-moi un nouveau workflow {stem}-copie, identique à {stem}."
+    ));
+    let money = s.monetary_decision().expect("bound");
+    assert!(
+        (money.effective_usd).is_some_and(|usd| (usd - 0.10).abs() < 1e-12),
+        "{money:?}"
+    );
+    assert_ne!(money.source, MonetarySource::SessionDefault, "{money:?}");
+}
+
 /// A run whose own last run cost more than its ceiling is refused before it starts, with how to
 /// go on; other bytes are no evidence (live gauntlet r09: $0.0035 spent under $0.001, nothing
 /// written).

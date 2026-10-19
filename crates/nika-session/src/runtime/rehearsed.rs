@@ -53,10 +53,11 @@ const TURN: Limits = Limits::new(6, 6, 12 * MIB, 60_000);
 /// The words a change at a rehearsed proposal is answered with.
 const HELD: &str = "a change never carries a rehearsal: this proposal waits as it was rehearsed · `no` first, then say the whole new request to rehearse it";
 
-/// A test's rehearsal host, in place of the observed room.
 /// What the yes found of the files the trial read, in the person's language: each still as the
-/// trial saw it (the same bytes, or still absent), and that the bytes are the ones it chose.
-fn held_in(witness: &Witness, lang: Lang) -> String {
+/// trial saw it (the same bytes, or still absent), and that the bytes are the ones it chose. A
+/// trial that read no file has nothing to say here (live gauntlet wave 7, 2026-10-19: « les
+/// fichiers de l'essai sont tels qu'il les a vus :  (…) » over an empty list).
+fn held_in(witness: &Witness, lang: Lang) -> Option<String> {
     let parts: Vec<String> = (witness.world().iter())
         .map(|(path, seen)| match (seen, lang) {
             (Seen::File(digest), Lang::Fr) => format!("`{path}` les mêmes {} o", digest.bytes),
@@ -67,7 +68,10 @@ fn held_in(witness: &Witness, lang: Lang) -> String {
             (_, _) => format!("`{path}` as the trial saw it"),
         })
         .collect();
-    match lang {
+    if parts.is_empty() {
+        return None;
+    }
+    Some(match lang {
         Lang::Fr => format!(
             "les fichiers de l'essai sont tels qu'il les a vus : {} (les octets sont ceux qu'il a retenus)",
             parts.join(" · ")
@@ -76,9 +80,10 @@ fn held_in(witness: &Witness, lang: Lang) -> String {
             "the files the trial read are as it saw them: {} (the bytes are the ones it chose)",
             parts.join(" · ")
         ),
-    }
+    })
 }
 
+/// A test's rehearsal host, in place of the observed room.
 #[cfg(test)]
 pub(super) type TestHost = dyn Fn(&Path) -> Box<dyn Rehearse> + Send + Sync;
 
@@ -467,38 +472,43 @@ impl SessionRuntime {
             return Ok(None);
         };
         // A proof is never dropped in silence: one of another identity withdraws the proposal.
+        let lang = self.language;
         if proven != *id {
             return Err(self.withdraw(
                 id,
-                "its rehearsal proved another proposal identity than this one",
+                lang.pick(
+                    "its rehearsal proved another proposal identity than this one",
+                    "sa répétition a prouvé une autre identité de proposition que celle-ci",
+                ),
             ));
         }
         if !selected(set, &proof.witness) {
             return Err(self.withdraw(
                 id,
-                "the proposal's bytes are not the ones its rehearsal selected",
+                lang.pick(
+                    "the proposal's bytes are not the ones its rehearsal selected",
+                    "les octets de la proposition ne sont pas ceux que sa répétition a retenus",
+                ),
             ));
         }
         if let Some(why) = proof.witness.drift(&self.snapshot.root, None) {
-            return Err(self.withdraw(
-                id,
-                &format!("the files this proposal was rehearsed on changed: {why}"),
-            ));
+            let lead = lang.pick(
+                "the files this proposal was rehearsed on changed:",
+                "les fichiers sur lesquels cette proposition a été répétée ont changé :",
+            );
+            return Err(self.withdraw(id, &format!("{lead} {why}")));
         }
-        let lang = self.language;
-        let held = match (&proof.carried_from, lang) {
-            (Some(old), Lang::Fr) => format!(
-                "{} (essayé pour la proposition {old}, reprise avec les mêmes octets)",
-                held_in(&proof.witness, lang)
-            ),
-            (Some(old), _) => format!(
-                "{} (tried for the proposal {old}, carried with the same bytes)",
-                held_in(&proof.witness, lang)
-            ),
-            (None, _) => held_in(&proof.witness, lang),
+        let seen = held_in(&proof.witness, lang);
+        let carried = (proof.carried_from.as_ref()).map(|old| match lang {
+            Lang::Fr => format!("essayé pour la proposition {old}, reprise avec les mêmes octets"),
+            _ => format!("tried for the proposal {old}, carried with the same bytes"),
+        });
+        let held = match (seen, carried) {
+            (Some(seen), Some(carried)) => Some(format!("{seen} ({carried})")),
+            (seen, carried) => seen.or(carried),
         };
         self.rehearsals.pending = Some((proven, proof));
-        Ok(Some(held))
+        Ok(held)
     }
 
     /// After the yes landed `id`: a rehearsed proposal's proof moves to the workflow it was saved

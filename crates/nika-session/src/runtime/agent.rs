@@ -20,6 +20,7 @@
 mod defaults;
 mod desk;
 mod led;
+mod notes;
 mod proof;
 mod reopened;
 mod store;
@@ -503,6 +504,17 @@ impl SessionRuntime {
     /// Whether `line` belongs to a door of the Session rather than to the conversation's model:
     /// a waiting round, value, activation, install decision or paused run owns it, or it is a
     /// command, an engine fact, an explicit run, activate or deactivate line, or a demo's name.
+    /// Whether a question the conversation's author asked waits for the person's answer (a
+    /// parked `ask`): their next line is that answer.
+    pub(super) fn author_asks(&self) -> bool {
+        self.agent.as_ref().is_some_and(|driver| {
+            driver.answering.is_some()
+                || (driver.tree.as_ref())
+                    .and_then(Tree::parked)
+                    .is_some_and(|(_, name)| name == "ask")
+        })
+    }
+
     pub(super) fn agent_yields(&self, line: &str) -> bool {
         let input = line.trim();
         // The install decision a landed declaration asks owns its answer, whatever the line:
@@ -522,6 +534,7 @@ impl SessionRuntime {
             || super::schedule::is_activate(input)
             || super::schedule::activation_cadence(input).is_some()
             || self.schedules_the_saved(input).is_some()
+            || self.schedule_change(input).is_some()
             || self.activates_saved_period(input)
             || demo_named(input).is_some()
             || self.local_run_line(line);
@@ -1249,10 +1262,10 @@ impl SessionRuntime {
         (outcome, reach): (Outcome, Option<StopReach>),
         decided: Decided,
     ) -> TurnOutcome {
-        let said = driver
-            .tree
-            .as_ref()
-            .map(Tree::last_said)
+        // The words beside the call that ended the turn, as the person reads them: never the
+        // model's reasoning (`notes`).
+        let said = (driver.tree.as_ref())
+            .map(|tree| notes::beside_a_call(&tree.last_said(), self.language))
             .unwrap_or_default();
         match outcome {
             Outcome::Parked { name, queued, .. } if name == "propose" => {

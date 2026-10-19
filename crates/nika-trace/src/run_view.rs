@@ -176,6 +176,33 @@ pub struct RunFacts {
     /// What the legs this journal continued spent, as their own journals recorded it
     /// ([`RunFacts::read`]): a run a gate split is one run, and its cost is every leg's.
     pub(crate) before: Before,
+    /// The items of a step's list that failed and were recovered, as the step's frames kept them.
+    pub(crate) recovered_items: Vec<RecoveredItem>,
+}
+
+/// One item of a step's list that failed and was recovered (its `items` status `recovered`):
+/// the step, the item, the failure's code, and whether the failure was the transport declining a
+/// documentation host (RFC 2606/6761), which it never dials.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct RecoveredItem {
+    pub(crate) task: String,
+    pub(crate) item: String,
+    pub(crate) code: String,
+    pub(crate) documentation_host: bool,
+}
+
+/// A field's items as the array they encode: the field holds their JSON text, which a frame may
+/// itself keep as a JSON string.
+fn json_items(value: &Value) -> Option<Vec<Value>> {
+    let mut value = value.clone();
+    for _ in 0..3 {
+        match value {
+            Value::Array(items) => return Some(items),
+            Value::String(text) => value = serde_json::from_str(&text).ok()?,
+            _ => return None,
+        }
+    }
+    None
 }
 
 /// What the earlier legs of a resumed run spent, summed: how many legs, their priced and
@@ -633,7 +660,11 @@ impl RunFacts {
             "task_scheduled" | "task_started" | "task_completed" | "task_failed"
             | "task_recovered" | "task_skipped" | "task_cancelled" | "task_cache_hit" => {
                 self.absorb_task(kind, f);
+                if kind == "task_completed" {
+                    self.absorb_items(f);
+                }
             }
+            "task_items" => self.absorb_items(f),
             "permit_checked" => self.permits.push(PermitFact {
                 task: text(f, "task").unwrap_or_default(),
                 plane: text(f, "plane").unwrap_or_default(),
@@ -730,6 +761,29 @@ impl RunFacts {
             "task_cache_hit" => TaskState::CacheHit,
             _ => task.state,
         };
+    }
+
+    /// The recovered items a step's `items` field names, as a `task_completed` frame or a page
+    /// of `task_items` carries them (live gauntlet wave 7 r11, 2026-10-19: `example.com` was
+    /// never dialed, recovered to a code 0, and the report said nothing of it).
+    fn absorb_items(&mut self, f: &BTreeMap<String, Value>) {
+        let Some(task) = text(f, "task") else {
+            return;
+        };
+        let Some(items) = f.get("items").and_then(json_items) else {
+            return;
+        };
+        let recovered = items.iter().filter(|item| item["status"] == "recovered");
+        for item in recovered {
+            let message = item["message"].as_str().unwrap_or_default();
+            self.recovered_items.push(RecoveredItem {
+                task: task.clone(),
+                item: (item["item"].as_str())
+                    .map_or_else(|| item["item"].to_string(), str::to_owned),
+                code: item["code"].as_str().unwrap_or_default().to_owned(),
+                documentation_host: message.contains("documentation host"),
+            });
+        }
     }
 
     fn absorb_seal(&mut self, f: &BTreeMap<String, Value>) {
@@ -911,7 +965,7 @@ impl RunFacts {
         line
     }
 
-    /// The cost line in French: the same facts, the unpriced reasons as the engine names them.
+    /// The cost line in French: the same facts, the unpriced reasons said in French.
     fn cost_line_fr(&self, total: Option<f64>, priced: u64, unpriced: u64) -> String {
         let s = |n: u64| if n > 1 { "s" } else { "" };
         let mut line = match (total, priced, unpriced) {
@@ -926,7 +980,7 @@ impl RunFacts {
                 "coût · INCONNU · {u} appel{} non tarifé{} : {}",
                 s(u),
                 s(u),
-                self.why_unpriced()
+                self.why_unpriced_in(true)
             ),
             (None, p, _) => format!(
                 "coût · INCONNU · {p} appel{} tarifé{} journalisé{} sans total",
@@ -941,7 +995,7 @@ impl RunFacts {
                 " · {unpriced} appel{} non tarifé{} : {}",
                 s(unpriced),
                 s(unpriced),
-                self.why_unpriced()
+                self.why_unpriced_in(true)
             );
         }
         if self.before.legs > 0 {
@@ -955,25 +1009,51 @@ impl RunFacts {
     /// 2026-10-16: every unpriced call read « a local model is unpriced » — said of `OpenRouter`
     /// and Gemini routes, remote and billed.
     fn why_unpriced(&self) -> String {
+        self.why_unpriced_in(false)
+    }
+
+    /// [`Self::why_unpriced`], in French when `french`: a French cost line said its reasons in
+    /// English (« 1 appel non tarifé : its provider reported no complete usage », 2026-10-19).
+    /// A reason this view does not know keeps the engine's own name.
+    fn why_unpriced_in(&self, french: bool) -> String {
+        let say = |en: &'static str, fr: &'static str| if french { fr } else { en };
         let all: BTreeSet<&String> = (self.unpriced_reasons.iter())
             .chain(&self.before.unpriced_reasons)
             .collect();
         if all.is_empty() {
-            return "a route with no price table, or usage its provider did not report (never free)"
-                .to_owned();
+            return say(
+                "a route with no price table, or usage its provider did not report (never free)",
+                "une route sans table de prix, ou un usage que son fournisseur n'a pas déclaré \
+                 (jamais gratuit)",
+            )
+            .to_owned();
         }
         let reasons: Vec<&str> = (all.into_iter())
             .map(|reason| match reason.as_str() {
-                "local_model" => "a local model is unpriced, never free",
-                "mock_provider" => "the mock provider is unpriced",
-                "missing_catalog_price" => "no verified tariff for its route (never free)",
-                "provider_did_not_report_usage" => {
-                    "its provider reported no complete usage (spent, never free)"
-                }
-                "subscription_quota" => "a subscription seat draws quota, not metered dollars",
-                "usage_rejected" => {
-                    "the usage it reported contradicted the admitted request (spent, never free)"
-                }
+                "local_model" => say(
+                    "a local model is unpriced, never free",
+                    "un modèle local n'est pas tarifé, jamais gratuit",
+                ),
+                "mock_provider" => say(
+                    "the mock provider is unpriced",
+                    "le fournisseur fictif n'est pas tarifé",
+                ),
+                "missing_catalog_price" => say(
+                    "no verified tariff for its route (never free)",
+                    "aucun tarif vérifié pour sa route (jamais gratuit)",
+                ),
+                "provider_did_not_report_usage" => say(
+                    "its provider reported no complete usage (spent, never free)",
+                    "son fournisseur n'a pas déclaré d'usage complet (dépensé, jamais gratuit)",
+                ),
+                "subscription_quota" => say(
+                    "a subscription seat draws quota, not metered dollars",
+                    "un siège d'abonnement consomme un quota, pas des dollars mesurés",
+                ),
+                "usage_rejected" => say(
+                    "the usage it reported contradicted the admitted request (spent, never free)",
+                    "l'usage déclaré contredisait la requête admise (dépensé, jamais gratuit)",
+                ),
                 other => other,
             })
             .collect();
@@ -1142,6 +1222,29 @@ impl RunFacts {
             };
             lines.push(format!("{verdict} · `{}` · {by}", a.task));
         }
+        for r in &self.recovered_items {
+            let said = if r.documentation_host {
+                say(
+                    "not dialed · {item} · a documentation address (RFC 2606) Nika never dials · `{task}` went on without it",
+                    "pas contacté · {item} · une adresse de documentation (RFC 2606) que Nika ne contacte jamais · `{task}` a continué sans elle",
+                )
+            } else if r.code.is_empty() {
+                say(
+                    "failed and recovered · {item} · `{task}` went on",
+                    "en erreur, repris · {item} · `{task}` a continué",
+                )
+            } else {
+                say(
+                    "failed and recovered · {item} · `{task}` went on ({code})",
+                    "en erreur, repris · {item} · `{task}` a continué ({code})",
+                )
+            };
+            lines.push(
+                said.replace("{item}", &r.item)
+                    .replace("{task}", &r.task)
+                    .replace("{code}", &r.code),
+            );
+        }
         lines
     }
 
@@ -1197,10 +1300,13 @@ impl RunFacts {
     }
 
     /// What became of each file the run may write: produced (with its size), removed, or not
-    /// there now, said in French when `french`.
+    /// there now, said in French when `french`; then each file it left empty, and how many it
+    /// removed beside it (live gauntlet wave 7 r05, 2026-10-19: « produit · ./journal.md (0 B) »
+    /// among green ticks under « réussi », the three messages already moved away).
     fn written_lines(&self, root: &Path, workflow: &Path, french: bool) -> Vec<String> {
         let say = |en: &'static str, fr: &'static str| if french { fr } else { en };
         let mut lines = Vec::new();
+        let (mut empty, mut removed) = (Vec::new(), 0_usize);
         let removals = removal_tasks(root, workflow);
         let written: Vec<String> = (self.completed_writes().iter())
             .map(|path| path.strip_prefix("./").unwrap_or(path).to_owned())
@@ -1214,7 +1320,12 @@ impl RunFacts {
             // step did.
             let produced = say("produced", "produit");
             let line = match file {
-                Some(meta) => format!("{produced} · {path} ({})", human_size(meta.len())),
+                Some(meta) => {
+                    if meta.len() == 0 {
+                        empty.push(path.clone());
+                    }
+                    format!("{produced} · {path} ({})", human_size(meta.len()))
+                }
                 // The run's own completed write, read on a disk where the file is not.
                 None if written
                     .iter()
@@ -1223,11 +1334,26 @@ impl RunFacts {
                     format!("{produced} · {path}")
                 }
                 None if self.written_by(&path, &removals) => {
+                    removed += 1;
                     format!("{} · {path}", say("removed", "retiré"))
                 }
                 None => format!("{} · {path}", say("not there now", "absent maintenant")),
             };
             lines.push(line);
+        }
+        for path in empty {
+            lines.push(match (french, removed) {
+                (true, 0) => format!("attention · {path} est vide (0 o) : vérifiez le résultat"),
+                (true, n) => format!(
+                    "attention · {path} est vide (0 o) alors que ce run a retiré {n} fichier{} : vérifiez le résultat avant de relancer",
+                    if n > 1 { "s" } else { "" }
+                ),
+                (false, 0) => format!("warning · {path} is empty (0 B): check the result"),
+                (false, n) => format!(
+                    "warning · {path} is empty (0 B) while this run removed {n} file{}: check the result before running it again",
+                    plural(n)
+                ),
+            });
         }
         lines
     }

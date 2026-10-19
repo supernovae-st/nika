@@ -108,10 +108,10 @@ fn a_restored_save_and_run_asks_the_ceiling_then_runs_the_amount_picked() {
     assert_eq!(outcome_kind(saved), "question", "{saved:#}");
     let (key, said) = asked(saved);
     assert_eq!(key, "run.ceiling");
-    assert!(said.contains("applied · wrote"), "the save stands: {said}");
+    assert!(said.contains("appliqué · écrit"), "the save stands: {said}");
     assert!(
-        said.ends_with("I did not start the run: what ceiling for this run? (e.g. 0.25)"),
-        "{said}"
+        said.ends_with("Je n'ai pas lancé : quel plafond pour ce lancement ? (par ex. 0.25)"),
+        "the conversation's language: {said}"
     );
     for law in [
         "restored inference exposure",
@@ -140,7 +140,7 @@ fn a_run_after_a_reopen_asks_its_ceiling_in_the_persons_words() {
     assert_eq!(waiting(revised), "consent", "{revised:#}");
     let saved = journey.step(4);
     assert!(
-        (saved["outcome"]["text"].as_str()).is_some_and(|said| said.contains("applied · wrote")),
+        (saved["outcome"]["text"].as_str()).is_some_and(|said| said.contains("appliqué · écrit")),
         "{saved:#}"
     );
     let ran = journey.step(5);

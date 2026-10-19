@@ -4,8 +4,10 @@
 //! A Run ceiling rides beside the candidate, never in its bytes (QA gauntlet q09: « budget max
 //! 0,10 $ par run » read as « each execution must cost at most $0.10 », judged missing, cost 11
 //! author calls). An obligation only the words stating the ceiling the proposal binds evidence is
-//! carried beside the candidate with no call; one with evidence beyond them is still asked; with
-//! no ceiling bound beside the candidate it is asked as before.
+//! carried beside the candidate with no call, and so is one whose requirement states only that
+//! ceiling, whatever its quote spans (live gauntlet wave 7 r09); a requirement beyond the
+//! ceiling's words is still asked; with no ceiling bound beside the candidate it is asked as
+//! before.
 
 use super::*;
 use crate::CompileOutcome;
@@ -25,13 +27,19 @@ fn budgeted_request() -> CompileRequest {
 /// The audited reading of `BUDGETED`: the write the bytes carry, and the obligation `COSTS`
 /// evidenced by `quotes`.
 fn priced(quotes: &[&str]) -> Value {
+    priced_as(COSTS, quotes)
+}
+
+/// The audited reading of `BUDGETED`: the write the bytes carry, and the obligation
+/// `requirement` evidenced by `quotes`.
+fn priced_as(requirement: &str, quotes: &[&str]) -> Value {
     let evidence: Vec<Value> = (quotes.iter())
         .map(|quote| json!({"span": "request", "quote": quote}))
         .collect();
     json!({"runtime_obligations":[
             {"id":"r1","requirement":REQUIREMENT,"answer_keys":[],
              "evidence":[{"span":"request","quote":"Write hello to ./out/result.txt"}]},
-            {"id":"r2","requirement":COSTS,"evidence":evidence,"answer_keys":[]}],
+            {"id":"r2","requirement":requirement,"evidence":evidence,"answer_keys":[]}],
         "preparation_requests":[],
         "coverage":[{"span":"request","runtime_ids":["r1","r2"],"preparation_ids":[],
             "unresolved":false}],
@@ -98,18 +106,37 @@ async fn an_obligation_only_the_bound_ceiling_evidences_is_settled_with_no_call(
     assert_eq!(claim["beside_candidate"], json!([COSTS]));
 }
 
+/// A requirement that states only the bound ceiling is carried beside the candidate, though its
+/// quote spans the work's words too (live gauntlet wave 7 r09, 2026-10-19: the quote held the
+/// model clause, and the first proposal was blocked twice for a ceiling no task can carry).
+#[tokio::test]
+async fn a_requirement_that_states_only_the_bound_ceiling_is_settled_with_no_call() {
+    let presentation = presented(Some(CEILING));
+    let seat = Seat::new(false);
+    let quotes = ["Write hello to ./out/result.txt, budget max 0,10 $"];
+    let (out, calls) = verified(priced(&quotes), &presentation, &seat).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(calls, 2, "the reading and its audit only");
+    assert_eq!(asked(&seat), ["verify-part-0"]);
+    let settled = engine(&out, "question", "verify-part-1").expect("settled by the engine");
+    assert_eq!(settled["settled"], "beside_candidate");
+    assert_eq!(settled["obligation"], COSTS);
+}
+
 #[tokio::test]
 async fn an_obligation_beyond_the_ceilings_words_or_with_none_bound_is_asked() {
-    // Evidence beyond the ceiling's words, or no ceiling bound: a program obligation, asked.
-    for (quotes, words) in [
+    // A requirement beyond the ceiling's words, or no ceiling bound: a program obligation, asked.
+    let beyond = "Write hello to ./out/result.txt, and each execution must cost at most $0.10.";
+    for (requirement, quotes, words) in [
         (
+            beyond,
             &["Write hello to ./out/result.txt, budget max 0,10 $"][..],
             Some(CEILING),
         ),
-        (&[CEILING][..], None),
+        (COSTS, &[CEILING][..], None),
     ] {
         let seat = Seat::new(false);
-        let (out, _) = verified(priced(quotes), &presented(words), &seat).await;
+        let (out, _) = verified(priced_as(requirement, quotes), &presented(words), &seat).await;
         assert_eq!(out.status, CompileStatus::Ready, "{quotes:?}: {out:#?}");
         assert!(
             asked(&seat).iter().any(|id| id == "verify-part-1"),

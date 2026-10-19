@@ -307,8 +307,13 @@ async fn judged<P: ProviderInferDyn>(
         {
             return rejected;
         }
-        let record =
-            interpretation::read(&input, policy, provider, earlier.as_ref(), &mut out).await;
+        // A reading this process already audited for these very words is reused with no call.
+        let record = match interpretation::audited(&input, policy, reading) {
+            Some(record) => record,
+            None => {
+                interpretation::read(&input, policy, provider, earlier.as_ref(), &mut out).await
+            }
+        };
         let covered = interpretation::covered(&record);
         if let Some(decision) = out.provenance.decision.as_mut() {
             decision["request_interpretation"] = record;

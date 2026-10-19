@@ -56,3 +56,27 @@ fn a_prepared_view_renders_the_pre_move_screen() {
     );
     assert_eq!(text, STRANGER);
 }
+
+/// A behaviour round's located defect reaches the person in words, never as the JSON a repair
+/// reads (2026-10-19: « what stopped it: · `{"kind":"behaviour_failed",…}` »); other reasons are
+/// unchanged.
+#[test]
+fn a_behaviour_defect_is_said_in_words() {
+    let defect = r#"{"kind":"behaviour_failed","obligations":[{"observed":["2 rows were written, the request asks for 0"],"requested":"./open.csv, asked for: rows from ./tickets.csv"}]}"#;
+    let said = reasons::human_reasons(vec![defect.to_owned(), "format of the digest".to_owned()]);
+    assert_eq!(
+        said,
+        [
+            "a rehearsal of the draft gave a result your request does not ask for: 2 rows were \
+             written, the request asks for 0 — asked: ./open.csv, asked for: rows from \
+             ./tickets.csv",
+            "format of the digest"
+        ]
+    );
+    assert!(
+        said.iter().all(|line| !line.contains("{\"kind\"")),
+        "{said:?}"
+    );
+    let other = r#"{"kind":"something_else"}"#;
+    assert_eq!(reasons::human_reasons(vec![other.to_owned()]), [other]);
+}

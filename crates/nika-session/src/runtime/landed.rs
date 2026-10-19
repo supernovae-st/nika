@@ -116,8 +116,10 @@ impl SessionRuntime {
             .iter()
             .map(|p| format!("`{}`", p.display()))
             .collect();
-        // « applied · wrote » stays the save's one wording: hosts and their tests read it.
-        let mut report = format!("applied · wrote {}{evidence}", written.join(" · "));
+        // The save's one wording, in the person's language (live gauntlet wave 7, 2026-10-19:
+        // « applied · wrote » in every French conversation).
+        let applied_words = self.language.pick("applied · wrote", "appliqué · écrit");
+        let mut report = format!("{applied_words} {}{evidence}", written.join(" · "));
         // What the yes found of the sources the bytes rely on (`fresh.rs`).
         if let Some(basis) = basis {
             let _ = write!(report, "\n  {basis}");
@@ -158,7 +160,10 @@ impl SessionRuntime {
                 ));
                 TurnOutcome::Facts(report)
             }
-            None if project_only => self.landed_declaration(report),
+            None if project_only => match self.unscheduled.take() {
+                Some(workflow) => self.landed_removal(&workflow, report),
+                None => self.landed_declaration(report),
+            },
             None if all_clean => {
                 report.push_str(Self::landed_words(rehearsed, self.language));
                 if let Some(file) = &saved_file {
@@ -301,15 +306,16 @@ fn checked(set: &ProjectChangeSet, report: &mut String, lang: Lang) -> Vec<Workf
     let mut audits = Vec::new();
     for wf in set.workflows() {
         let audit = check_on_disk(&set.root, &wf);
+        let verdict = if audit.clean {
+            lang.pick("clean ✔", "propre ✔")
+        } else {
+            lang.pick("findings ✖", "constats ✖")
+        };
         let _ = write!(
             report,
-            "\n  check · `{}` · {}",
-            wf.display(),
-            if audit.clean {
-                "clean ✔"
-            } else {
-                "findings ✖"
-            }
+            "\n  {} · `{}` · {verdict}",
+            lang.pick("check", "vérification"),
+            wf.display()
         );
         for f in &audit.findings {
             let _ = write!(report, "\n    · {f}");

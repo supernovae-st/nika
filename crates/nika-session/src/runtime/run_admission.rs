@@ -299,7 +299,8 @@ impl SessionRuntime {
             // The person states the ceiling no saved decision can stand for: nothing runs before.
             Err(Unadmitted::Unproven(refused)) => {
                 let root = &self.snapshot.root;
-                Ceiling::Asked(ceiling::Asked::new(root, &workflow, said, &refused))
+                let lang = self.language;
+                Ceiling::Asked(ceiling::Asked::new(root, &workflow, said, &refused, lang))
             }
             Err(refused) => return refused.outcome(),
         };

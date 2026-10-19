@@ -465,10 +465,12 @@ impl SessionRuntime {
             }
         }
         if self.installed.is_empty() {
+            // How to remove the declaration itself, which « désactive-le » never does (live
+            // gauntlet wave 7 r01, 2026-10-19: « retirez cette planification » led nowhere).
             return TurnOutcome::Facts(
                 lang.pick(
-                    "no trigger installed by this conversation · the schedule stays as `nika.yaml` declares it",
-                    "aucun déclencheur installé par cette conversation · la planification reste telle que `nika.yaml` la déclare",
+                    "no trigger installed by this conversation · nothing runs on its own · the schedule stays declared in `nika.yaml` · « remove the schedule » removes it from the file",
+                    "aucun déclencheur installé par cette conversation · rien ne tourne tout seul · la planification reste déclarée dans `nika.yaml` · « retire la planification » la retire du fichier",
                 )
                 .to_owned(),
             );
@@ -898,6 +900,78 @@ mod tests {
         assert!(rows[0].recommended && !rows[1].recommended);
         assert!(host.seen().is_empty(), "nothing installed before the yes");
         (dir, s)
+    }
+
+    /// A declared schedule moves to another zone in the person's words, the hour, missed policy
+    /// and ceiling kept, its trigger offered again once it lands; nothing is installed before
+    /// the yes (live gauntlet wave 7 r01, 2026-10-19).
+    #[test]
+    fn a_declared_schedule_moves_to_the_zone_the_person_names() {
+        let host = Recorded::default();
+        let (dir, mut s) = declared(&host);
+        let _ = s.turn("declared");
+        let TurnOutcome::Proposal { preview, .. } =
+            s.turn("Je suis à Maurice en fait. Mettez plutôt l'heure de Maurice s'il vous plaît.")
+        else {
+            panic!("the zone change is proposed");
+        };
+        assert!(
+            preview.contains("changer le fuseau")
+                && preview.contains("TZ=Indian/Mauritius 0 8 * * *"),
+            "{preview}"
+        );
+        let TurnOutcome::Question { key, .. } = s.consent("oui") else {
+            panic!("the moved schedule offers its trigger");
+        };
+        assert_eq!(key, INSTALL_KEY);
+        let file = std::fs::read_to_string(dir.path().join("nika.yaml")).expect("nika.yaml");
+        assert!(
+            file.contains("cadence: \"TZ=Indian/Mauritius 0 8 * * *\""),
+            "{file}"
+        );
+        assert!(file.contains("plafond: 0.2"), "{file}");
+        assert!(host.seen().is_empty(), "nothing installed before the yes");
+    }
+
+    /// « retirez cette planification » proposes `nika.yaml` without the entry; its yes removes
+    /// it and says so; « désactive-le » with nothing installed says how (live gauntlet wave 7
+    /// r01, 2026-10-19).
+    #[test]
+    fn a_declared_schedule_is_removed_in_the_persons_words() {
+        let host = Recorded::default();
+        let (dir, mut s) = declared(&host);
+        let _ = s.turn("declared");
+        let TurnOutcome::Facts(none) = s.turn("désactive-le") else {
+            panic!("nothing to deactivate");
+        };
+        assert!(none.contains("« retire la planification »"), "{none}");
+        let TurnOutcome::Proposal { preview, .. } =
+            s.turn("Alors retirez cette planification, s'il vous plaît.")
+        else {
+            panic!("the removal is proposed");
+        };
+        assert!(preview.contains("retirer la planification"), "{preview}");
+        let TurnOutcome::Facts(removed) = s.consent("oui") else {
+            panic!("the removal lands");
+        };
+        assert!(removed.contains("Retiré de `nika.yaml`"), "{removed}");
+        let workflow = s.last_workflow.clone().expect("saved");
+        assert!(super::super::schedule::declared_arm_entry(dir.path(), &workflow).is_none());
+        assert!(host.seen().is_empty());
+    }
+
+    /// A schedule this Mac fires is deactivated first: its unit holds the old declaration.
+    #[test]
+    fn a_fired_schedule_is_deactivated_before_it_changes() {
+        let host = Recorded::default();
+        let (_dir, mut s) = declared(&host);
+        let _ = s.turn("install");
+        let TurnOutcome::Facts(first) = s.turn("Mettez plutôt l'heure de Maurice s'il vous plaît.")
+        else {
+            panic!("refused in words");
+        };
+        assert!(first.contains("« désactive-le »"), "{first}");
+        assert!(s.pending_proposal().is_none());
     }
 
     /// The declaration a host shows carries its schedule in the person's words: when it runs,

@@ -11,7 +11,7 @@ use nika_kernel::ai::provider::{
 };
 use serde_json::{Value, json};
 
-use super::{covered, earlier, input, key, read, valid};
+use super::{audited, context, covered, earlier, input, key, read, valid};
 use crate::cognition::{Cognition, verify_document};
 use crate::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
 use crate::rehearse::{

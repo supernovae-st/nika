@@ -64,7 +64,11 @@ pub(super) fn parts(base: &Value) -> Option<Vec<Part>> {
                 carried.iter().any(|words| anchored(words, quote))
                     || usd.is_some_and(|usd| ceiling_talk(quote, usd))
             };
-            let state = if quoted(obligation, beside) {
+            // A requirement that states only the Run ceiling beside the candidate is carried
+            // there, whatever words its quote spans (live gauntlet wave 7 r09, 2026-10-19: the
+            // quote held the model clause too, and the first proposal was blocked twice).
+            let ceiling_only = usd.is_some_and(|usd| ceiling_talk(&text, usd));
+            let state = if ceiling_only || quoted(obligation, beside) {
                 State::Beside
             } else {
                 State::Unknown
@@ -384,7 +388,40 @@ pub(super) async fn whole<P: ProviderInferDyn>(
 
 #[cfg(test)]
 mod ceiling_tests {
-    use super::ceiling_talk;
+    use super::{State, ceiling_talk, parts};
+    use serde_json::json;
+
+    /// A requirement that states only the Run ceiling beside the candidate is carried there,
+    /// though its quote spans a clause of the program too; the program's clause stays asked, and
+    /// another amount than the one beside keeps it asked (live gauntlet wave 7 r09, 2026-10-19).
+    #[test]
+    fn a_requirement_that_states_only_the_run_ceiling_is_carried_beside() {
+        let sentence = "L'étape IA doit utiliser Claude Haiku (le moins cher) et chaque run doit \
+                        coûter au maximum 0,10 $";
+        let base = |usd: f64| {
+            json!({"request_interpretation": {"valid": true,
+                "audit": {"status": "covered", "defects": []},
+                "reading": {"runtime_obligations": [
+                    {"requirement": "Each run must cost at most $0.10 (maximum budget $0.10 per run).",
+                     "evidence": [{"quote": sentence}]},
+                    {"requirement": "The AI step uses Claude Haiku.",
+                     "evidence": [{"quote": sentence}]}
+                ]}},
+                "presentation": {"money": {"excerpt": "au maximum 0,10 $", "usd": usd}}})
+        };
+        let read = parts(&base(0.1)).expect("covered");
+        assert!(matches!(read[0].state, State::Beside), "{:?}", read[0].text);
+        assert!(
+            !matches!(read[1].state, State::Beside),
+            "{:?}",
+            read[1].text
+        );
+        let other = parts(&base(0.25)).expect("covered");
+        assert!(
+            !matches!(other[0].state, State::Beside),
+            "another amount stays asked"
+        );
+    }
 
     /// A quote that says only the Run ceiling of the amount beside the candidate is carried
     /// there; a word of the program, or another amount, keeps it asked.

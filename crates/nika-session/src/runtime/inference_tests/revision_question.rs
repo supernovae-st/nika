@@ -146,6 +146,12 @@ fn bytes_of(set: &crate::change::ProjectChangeSet) -> String {
     set.changes[0].content().to_owned()
 }
 
+/// A save's report, in the conversation's language (live gauntlet wave 7, 2026-10-19: a French
+/// conversation reads « appliqué · écrit »).
+fn a_save_said(report: &str) -> bool {
+    report.starts_with("applied · wrote ") || report.starts_with("appliqué · écrit ")
+}
+
 #[test]
 fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
     let peer = seat(&revised());
@@ -211,7 +217,7 @@ fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
     ));
     let out = s.consent_to(id, "yes");
     assert!(
-        matches!(&out, TurnOutcome::Facts(t) if t.contains("applied")),
+        matches!(&out, TurnOutcome::Facts(t) if a_save_said(t)),
         "{out:?}"
     );
     let saved = std::fs::read_to_string(dir.path().join(revision.changes[0].path()));
@@ -241,7 +247,7 @@ fn a_cancelled_revision_question_restores_the_proposal_it_revised() {
     // The restored proposal is the one consented: its exact bytes land, nothing runs.
     let out = s.consent_to(&was.id, "yes");
     assert!(
-        matches!(&out, TurnOutcome::Facts(t) if t.contains("applied")),
+        matches!(&out, TurnOutcome::Facts(t) if a_save_said(t)),
         "{out:?}"
     );
     let saved = std::fs::read_to_string(dir.path().join(was.set.changes[0].path()));
@@ -498,7 +504,7 @@ fn saved_a_kept(
     assert!(matches!(out, TurnOutcome::Proposal { .. }), "A: {out:?}");
     let out = s.consent("yes");
     assert!(
-        matches!(&out, TurnOutcome::Facts(t) if t.contains("applied")),
+        matches!(&out, TurnOutcome::Facts(t) if a_save_said(t)),
         "save A: {out:?}"
     );
     let saved = s.last_workflow.clone().expect("A saved");
@@ -569,7 +575,7 @@ fn a_saved_workflows_revision_is_saved_in_place_and_runs_nothing() {
     let revised = bytes_of(s.pending.as_ref().expect("revised"));
     let out = s.consent_to(id, "yes");
     assert!(
-        matches!(&out, TurnOutcome::Facts(t) if t.contains("applied")),
+        matches!(&out, TurnOutcome::Facts(t) if a_save_said(t)),
         "{out:?}"
     );
     assert_eq!(
@@ -1108,7 +1114,7 @@ fn a_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
     );
     let out = s.consent("yes");
     assert!(
-        matches!(&out, TurnOutcome::Facts(t) if t.contains("applied")),
+        matches!(&out, TurnOutcome::Facts(t) if a_save_said(t)),
         "{out:?}"
     );
     assert_eq!(nika_files(dir.path()), only, "one file, never a twin");

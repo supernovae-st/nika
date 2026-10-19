@@ -167,7 +167,10 @@ fn a_copy_intent_is_ready_at_once_in_french_and_the_reasoner_is_never_asked() {
     let TurnOutcome::Facts(report) = s.consent("oui") else {
         panic!("the consent lands it");
     };
-    assert!(report.contains("clean ✔"), "{report}");
+    assert!(
+        report.contains("vérification · `compiled-workflow.nika` · propre ✔"),
+        "{report}"
+    );
     let landed =
         std::fs::read_to_string(root.path().join("compiled-workflow.nika")).expect("landed");
     assert!(landed.contains("./out/copie.md"), "{landed}");

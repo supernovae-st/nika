@@ -384,6 +384,32 @@ async fn only_a_present_bound_destination_advances() {
     }
     let synthetic = Witness::new(sha256(CANDIDATE), witness.world().to_vec());
     assert!(synthetic.advanced(root.path(), &[TARGET.into()]).is_err());
-    let read_too = synthetic.writing(&[SOURCE.into()], &[SOURCE.into()]);
-    assert!(read_too.advanced(root.path(), &[SOURCE.into()]).is_err());
+    // A source it only reads is no destination; a file it reads and writes is its own state.
+    let read_only = synthetic.clone().writing(&[TARGET.into()]);
+    assert!(read_only.advanced(root.path(), &[SOURCE.into()]).is_err());
+}
+
+/// A file the request reads and writes is its own state: the run's own completed write advances
+/// it, so the next run of the same bytes is no drift; an edit of that state by anyone else after
+/// the run, or of a source it only reads, is still drift (live gauntlet wave 7 r11, 2026-10-19).
+#[tokio::test]
+async fn a_completed_write_advances_the_state_the_request_reads_too() {
+    let root = world(None);
+    let witness = before(root.path())
+        .await
+        .witness(CANDIDATE, &passed())
+        .await
+        .unwrap();
+    let state = Witness::new(sha256(CANDIDATE), witness.world().to_vec()).writing(&[TARGET.into()]);
+    std::fs::write(root.path().join("out.txt"), OUTPUT).unwrap();
+    let next = state.advanced(root.path(), &[TARGET.into()]).unwrap();
+    assert!(
+        next.drift(root.path(), None).is_none(),
+        "its own write is no drift"
+    );
+    std::fs::write(root.path().join("out.txt"), "edited by hand").unwrap();
+    assert!(next.drift(root.path(), None).unwrap().contains("out.txt"));
+    std::fs::write(root.path().join("out.txt"), OUTPUT).unwrap();
+    std::fs::write(root.path().join("in.txt"), "edited source").unwrap();
+    assert!(next.drift(root.path(), None).unwrap().contains("in.txt"));
 }

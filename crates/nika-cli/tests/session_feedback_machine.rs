@@ -647,7 +647,8 @@ fn guided_correction(
         &records[0]["scope"], scope,
         "bound to the offer's exact result"
     );
-    let labels = "chose to adjust: Depth of the summary, Topics covered";
+    // The person writes French: the labels they picked, as they read them.
+    let labels = "chose to adjust: Niveau de détail, Sujets couverts";
     assert!(
         told(author, from, labels),
         "the dimensions reach the author by their labels"

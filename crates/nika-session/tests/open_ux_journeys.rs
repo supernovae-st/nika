@@ -1266,11 +1266,15 @@ fn a_file_changed_after_the_proposal_withdraws_it_at_the_yes() {
     let yes = journey.step(2);
     assert_eq!(yes["outcome"]["kind"], "refusal", "{yes}");
     let text = yes["outcome"]["text"].as_str().unwrap();
-    // The trial's proof judges first (the rehearsed world moved), else the read basis.
-    let moved = text.contains("the files this proposal was rehearsed on changed")
-        || text.contains("the files this proposal reads changed since it was shown");
+    // The trial's proof judges first (the rehearsed world moved), else the read basis, in the
+    // conversation's language.
+    let moved = text
+        .contains("les fichiers sur lesquels cette proposition a été répétée ont changé")
+        || text.contains(
+            "les fichiers que lit cette proposition ont changé depuis qu'elle a été montrée",
+        );
     assert!(
-        moved && text.contains("ventes.csv") && text.contains("withdrawn"),
+        moved && text.contains("ventes.csv") && text.contains("est retirée"),
         "{text}"
     );
     let files = journey.report["files"].as_array().unwrap();

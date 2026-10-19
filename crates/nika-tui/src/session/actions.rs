@@ -9,7 +9,7 @@ use nika_session::{SessionRuntime, work};
 use super::Live;
 use super::typed_answer::Reply;
 use crate::lang::Voice;
-use crate::model::{Asked, Beat, Offer, Retained, Shape, Turn, Waiting};
+use crate::model::{Asked, Beat, Offer, Shape, Turn, Waiting};
 
 /// The key the Session asks a landed declaration's trigger under (D1): install it on this Mac
 /// or keep the schedule declared.
@@ -188,8 +188,10 @@ fn feedback(snapshot: &work::Work, offer: &work::FeedbackOffer) -> (Pending, Wai
         free_intent: true,
         question: Some(question.id.clone()),
     };
-    let mut asked = Asked::new(question.question.clone(), "", false, shape, witness, epoch)
-        .retaining(Retained::new(snapshot.request.goal.clone(), Vec::new()));
+    // The offer is about the result above it, never about the conversation's latest line:
+    // the request it would name is that line (live gauntlet wave 7, 2026-10-19: « Request ·
+    // Je n'y connais rien en modèles, choisis pour moi. » on a reading list's offer).
+    let mut asked = Asked::new(question.question.clone(), "", false, shape, witness, epoch);
     asked.free_text = true;
     let key = question.key.clone();
     (pending, Waiting::Action { key, asked })

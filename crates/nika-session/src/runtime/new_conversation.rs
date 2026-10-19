@@ -110,6 +110,7 @@ impl SessionRuntime {
         self.pending_trigger = None;
         self.activation_proposal = None;
         self.declared = None;
+        self.unscheduled = None;
         self.interrupted = None;
         self.routes.clear();
     }
