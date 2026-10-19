@@ -17,6 +17,7 @@ use nika_schema::{FileId, ParseMode, raw::RawAction};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
+mod answered;
 mod asked;
 /// The reasoning budget a document leaves the models that reason before they answer.
 pub mod budget;
@@ -24,14 +25,17 @@ mod final_gate;
 mod instants;
 /// The canonical key of a finding, what a host compares across revisions.
 pub mod keys;
+mod named;
 mod record_scope;
 mod records;
 /// The selections an author states rather than copies, and the law that admits them.
 pub mod resolution;
 mod role;
 mod scope;
-pub use asked::{asked_names, asked_readings};
+pub use answered::{approved_by_reply, laws_answered};
+pub use asked::{OpenName, asked_names, asked_readings, quoted_open_name};
 pub use final_gate::unbound_final_gate;
+pub use named::{requested_workflow, requested_workflow_answered};
 /// The date-time shape classifier Law 25 reads, owned by `nika-compile-behavior` since
 /// 2026-10-09 (ADR-149), whose judge reads it too; this path names the very same function.
 #[doc(inline)]
@@ -200,18 +204,9 @@ pub fn laws_resolved(
     world: Option<&Value>,
     out: &mut Vec<Diagnostic>,
 ) {
-    let mut literals = Vec::new();
-    strings(doc, &mut literals);
-    let origins = role::origins(plan);
-    stated_paths_in(intent, doc, (waived, clarified), world, &origins, out);
-    approvals(plan, doc, out);
-    invented_gates(plan, doc, out);
-    dropped_effects(plan, doc, out);
-    unnamed_writes(plan, doc, out);
-    prohibitions(plan, doc, out);
-    raw_text_as_records(doc, out);
-    record_scope::record_laws(doc, world, out);
-    invented_except(intent, &literals, (allowed, covered), out);
+    let (words, said) = ((allowed, covered), (waived, clarified));
+    let none = (&[][..], &[][..], intent);
+    answered::laws_in(intent, (plan, plan, doc), words, none, said, world, out);
 }
 
 /// The values a human answered, as the texts a candidate may carry without inventing them.
@@ -295,7 +290,9 @@ fn granted(doc: &Value, axis: &str, path: &str) -> bool {
 /// the seat, never the law: a destination it reads as a source must still be opened.)
 ///
 /// A path the boundary does not cover is judged at each place the request writes it, in the
-/// role the reader gives that place (a destination connector before it makes it a
+/// role the reader gives that place (a connector of its own clause decides, `objects::clause_role`:
+/// in words that write there it is a destination, and « J'ai deux fichiers dans le dossier
+/// releves (a.csv) » locates them; with none, a destination connector before it makes it a
 /// destination, `objects::destination_at`), and each occurrence must be realized:
 /// - inside a longer stated path (`./archive/équipe.txt` holding `équipe.txt`), it is that
 ///   path's, judged as that path;
@@ -316,7 +313,8 @@ pub fn stated_paths(
     clarified: &[String],
     out: &mut Vec<Diagnostic>,
 ) {
-    stated_paths_in(intent, doc, (waived, clarified), None, &[], out);
+    let none = (&[][..], &[][..], intent);
+    stated_paths_in(intent, doc, (waived, clarified), none, None, &[], out);
 }
 
 /// [`stated_paths`] over the host's observation `world` (the compile request's knowledge): a
@@ -330,6 +328,7 @@ fn stated_paths_in(
     intent: &str,
     doc: &Value,
     (waived, clarified): (&[String], &[String]),
+    (allowed, native, settle): (&[String], &[(String, String)], &str),
     world: Option<&Value>,
     origins: &[&str],
     out: &mut Vec<Diagnostic>,
@@ -337,23 +336,13 @@ fn stated_paths_in(
     let mut stated = crate::hot::stated_sources(intent);
     let destinations = crate::hot::stated_destinations(intent);
     stated.extend(destinations.iter().cloned());
-    // The reader deliberately leaves an unquoted multiword compound name unresolved.
-    // Its extent still cannot disappear from native fidelity: shortening it to the last
-    // word names a different file. Dynamic placeholders remain for the typed answer door.
-    let open = paths::open_names(intent);
-    stated.extend(open.iter().cloned());
+    // The reader leaves where an unquoted spaced name starts open. The person's answer or
+    // their own words may settle it to one reading (`asked::owed_names`); otherwise its whole
+    // extent stays owed: shortening it names a different file.
+    let (owed, open) = asked::owed_names((intent, settle), (allowed, native, waived));
+    stated.extend(owed);
     stated.dedup();
-    let literals: Vec<String> = paths::literals(intent)
-        .into_iter()
-        .filter_map(|shape| match shape {
-            PathShape::File(text)
-            | PathShape::Directory(text)
-            | PathShape::Glob(text)
-            | PathShape::Placeholder(text) => Some(text),
-            // An unknown future shape cannot witness a covered destination.
-            _ => None,
-        })
-        .collect();
+    let literals = path_literals(intent);
     let typed = spans(
         intent,
         clarified.iter().filter(|name| granted(doc, "read", name)),
@@ -362,19 +351,16 @@ fn stated_paths_in(
         intent,
         literals.iter().filter(|name| granted(doc, "write", name)),
     );
-    // A native child target realizes its dependency, never an fs write or a free literal.
-    let calls = nika_schema::parse(&doc.to_string(), FileId::new(0), ParseMode::Strict)
-        .into_iter()
-        .flat_map(|wf| wf.tasks)
-        .filter_map(|task| match task.value.action {
-            RawAction::Invoke(invoke) => invoke.workflow().map(|target| target.value.clone()),
-            _ => None,
-        })
-        .collect::<BTreeSet<_>>();
+    let calls = child_targets(doc);
     let routes = role::routes(doc, origins);
     let lower = intent.to_lowercase();
     for path in &stated {
-        if waived.contains(path) || granted(doc, "read", path) || granted(doc, "write", path) {
+        // A file the person's latest words about it take back is no longer asked for.
+        if waived.contains(path)
+            || nika_compile_reader::withdrawal::withdrawn(intent, path)
+            || granted(doc, "read", path)
+            || granted(doc, "write", path)
+        {
             continue;
         }
         let owners = spans(
@@ -392,12 +378,32 @@ fn stated_paths_in(
             // Lowering can change byte lengths (`İ`): the offset in `lower` is the lowered
             // prefix's length, never `at`.
             let lowered = intent.get(..at).map_or(0, |head| head.to_lowercase().len());
-            let destination = objects::destination_at(&lower, lowered).is_some();
+            let read = observed || held(&typed) || calls.contains(path);
+            let written_there =
+                held(&written) || (destinations.contains(path) && routes.contains(path));
+            // The occurrence's own clause decides its role when it names a connector
+            // (`objects::clause_role`): written where it places a write, read where it says
+            // where material already is (« J'ai deux fichiers CSV dans le dossier releves (…) »,
+            // live gauntlet wave 6 r01: ten revisions reading `./releves/…` were refused).
+            let destination = match objects::clause_role(&lower, lowered) {
+                Some(writes) => writes,
+                None => objects::destination_at(&lower, lowered).is_some(),
+            };
+            // A destination read only from a connector of an earlier line of the person's is
+            // realized too by the file it names where it is, read by the candidate (live
+            // gauntlet r03, 2026-10-16: « … dans ./notes-en/ » in the request, then « si la note
+            // tarifs-2027.md échoue » lines later refused every revision of a workflow reading
+            // every note).
+            let line = lower
+                .get(..lowered)
+                .map_or(0, |head| head.rfind('\n').map_or(0, |p| p + 1));
+            let own_line = (lower.get(line..))
+                .is_some_and(|text| objects::destination_at(text, lowered - line).is_some());
             held(&owners)
                 || if destination {
-                    held(&written) || (destinations.contains(path) && routes.contains(path))
+                    written_there || (!own_line && observed)
                 } else {
-                    observed || held(&typed) || calls.contains(path)
+                    read
                 }
         };
         let found = occurrences(intent, path);
@@ -405,9 +411,37 @@ fn stated_paths_in(
             let boundary = doc
                 .pointer("/permits/fs")
                 .map_or_else(|| "none".to_owned(), Value::to_string);
-            out.push(Diagnostic { kind: "path", message: format!("UNREALIZED PATH: the request names `{path}`; that occurrence is not realized by a `permits.fs.read` or `permits.fs.write` entry (permits.fs = {boundary}), an exact native `invoke.workflow` dependency, or a send to exactly that route of a URL the request states. Read it (nika:read / nika:glob + fs.read), write it (nika:write + fs.write), send to it (nika:fetch, not GET, to the stated URL followed by it) when the request names it as an endpoint's route, or invoke the stated child workflow as the request means; name it in `gaps` if it cannot be reached.{}", if open.contains(path) { asked::REMEDY } else { "" }) });
+            out.push(Diagnostic { kind: "path", message: format!("UNREALIZED PATH: the request names `{path}`; that occurrence is not realized by a `permits.fs.read` or `permits.fs.write` entry (permits.fs = {boundary}), an exact native `invoke.workflow` dependency, or a send to exactly that route of a URL the request states. Read it (nika:read / nika:glob + fs.read), write it (nika:write + fs.write), send to it (nika:fetch, not GET, to the stated URL followed by it) when the request names it as an endpoint's route, or invoke the stated child workflow as the request means; name it in `gaps` if it cannot be reached.{}", if open.contains(path) { asked::remedy(path) } else { String::new() }) });
         }
     }
+}
+
+/// The path literals the reader reads in `intent`: files, directories, globs and placeholders.
+fn path_literals(intent: &str) -> Vec<String> {
+    paths::literals(intent)
+        .into_iter()
+        .filter_map(|shape| match shape {
+            PathShape::File(text)
+            | PathShape::Directory(text)
+            | PathShape::Glob(text)
+            | PathShape::Placeholder(text) => Some(text),
+            // An unknown future shape cannot witness a covered destination.
+            _ => None,
+        })
+        .collect()
+}
+
+/// The exact child workflows the candidate invokes natively: a native child target realizes
+/// its dependency, never an fs write or a free literal.
+fn child_targets(doc: &Value) -> BTreeSet<String> {
+    nika_schema::parse(&doc.to_string(), FileId::new(0), ParseMode::Strict)
+        .into_iter()
+        .flat_map(|wf| wf.tasks)
+        .filter_map(|task| match task.value.action {
+            RawAction::Invoke(invoke) => invoke.workflow().map(|target| target.value.clone()),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Every place the request writes one of `names`, as a byte span.
@@ -451,7 +485,13 @@ pub(crate) fn placed(world: Option<&Value>, name: &str) -> Option<String> {
         .get("observed")?
         .as_array()?
         .iter()
-        .filter(|row| row.get("state").and_then(Value::as_str) == Some("observed"))
+        // Observed, or located where its name alone stands (a file the observer does not read).
+        .filter(|row| {
+            matches!(
+                row.get("state").and_then(Value::as_str),
+                Some("observed" | "located")
+            )
+        })
         .filter_map(|row| row.get("path").and_then(Value::as_str))
         .filter(|path| path.rsplit('/').next() == Some(name))
         .map(|path| path.strip_prefix("./").unwrap_or(path))

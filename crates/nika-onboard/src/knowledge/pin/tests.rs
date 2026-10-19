@@ -270,11 +270,11 @@ fn an_embedded_pin_reopens_from_memory_with_the_same_identity_and_record() {
     assert_eq!(pin.origin, KnowledgeOrigin::Embedded);
     assert_eq!(
         pin.manifest_sha256,
-        "8d52df01a5105fc4661851218e89ca172c5799bf3016aedbce1574ecac096075"
+        "b9406fa6606b4c9656f72e9fe5d5898dc3842b7cf13804ad9a9f053a2568b004"
     );
     assert_eq!(
         pin.version.as_deref(),
-        Some("knowledge-0.123.0-r3.2-foundry-20261012")
+        Some("knowledge-0.123.0-r3.5-foundry-20261016")
     );
     let reopened = pin.reopen().expect("admitted again in memory");
     assert_eq!(pin.moved(&reopened), None, "the same release has not moved");
@@ -529,6 +529,39 @@ async fn a_returned_plan_call_carrying_this_pack_is_recorded_as_presented() {
         let decision = observed.provenance.decision.expect("decision");
         assert_eq!(decision["session"]["observed"]["presented"], true);
     }
+}
+
+/// A Plan call whose opening was fitted to what one request carries shows some references by
+/// their first line: its receipt row keeps the whole entry's digest (`first_line_only`), and the
+/// pack it carried is still recorded as presented. A first-line row naming another digest is not
+/// this pack's reference.
+#[tokio::test]
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
+async fn a_plan_call_showing_references_by_their_first_line_still_carries_this_pack() {
+    let (pin, pack, _, base) = planned(Some("{}")).await;
+    let fitted = |out: &mut CompileOutcome, digest: Option<&str>| {
+        for call in plan_calls(out) {
+            for row in call["references"].as_array_mut().into_iter().flatten() {
+                if pack.references.iter().any(|r| row["id"] == r.id.as_str()) {
+                    let whole = row["sha256"].clone();
+                    row["sha256"] = json!("f".repeat(64));
+                    row["first_line_only"] = json!({
+                        "bytes": row["bytes"],
+                        "sha256": digest.map_or(whole, |d| json!(d)),
+                        "why": "the opening exceeded what one bounded request carries",
+                    });
+                }
+            }
+        }
+    };
+    let mut out = base.clone();
+    fitted(&mut out, None);
+    let record = composed_record(&pin, &pack, &out);
+    assert_eq!(record["presented"], true, "{record:#}");
+    let mut out = base.clone();
+    fitted(&mut out, Some(&"0".repeat(64)));
+    let record = composed_record(&pin, &pack, &out);
+    assert_eq!(record["presented"], false, "{record:#}");
 }
 
 /// Negatives: every mutation of the receipt that removes the attestation of this pack,

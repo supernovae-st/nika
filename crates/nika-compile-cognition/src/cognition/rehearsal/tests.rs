@@ -500,6 +500,84 @@ tasks:
     }
 }
 
+/// A folder the request names in words (« du dossier inbox ») is an input the room copies where
+/// the candidate reads under it; one nothing it reads is under (« le dossier client », a case
+/// file) is no input (live gauntlet wave 6 r05, 2026-10-18: nothing was held, so nothing was
+/// rehearsed, and the first run on the empty inbox failed).
+#[tokio::test]
+async fn a_folder_named_in_words_is_an_input_where_the_candidate_reads_under_it() {
+    let candidate = r#"nika: inbox-count
+permits:
+  tools: ["nika:glob", "nika:write"]
+  fs:
+    read: ["./inbox"]
+    write: ["./out/result.txt"]
+tasks:
+  listed:
+    invoke:
+      tool: "nika:glob"
+      args: { pattern: "./inbox/*.txt" }
+  save:
+    with: { files: "${{ tasks.listed.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/result.txt", content: "files: ${{ size(with.files) }}" }
+"#;
+    for (words, inputs) in [
+        (
+            "Compte les fichiers .txt du dossier inbox et écris le total dans ./out/result.txt.",
+            vec!["./inbox/".to_owned()],
+        ),
+        (
+            "Pour le dossier client, compte les notes et écris le total dans ./out/result.txt.",
+            Vec::new(),
+        ),
+    ] {
+        let host = Host::new(Mode::NotRun);
+        let mut state = Rehearsals::new(Some(&host));
+        let mut out = crate::initial();
+        nika_compile::surface::finish(candidate.into(), &mut out);
+        assert!(ready(&out), "{words}: {out:#?}");
+        state.inspect(&CompileRequest::create(words), &out).await;
+        assert_eq!(host.inputs.lock().unwrap().as_slice(), [inputs], "{words}");
+    }
+}
+
+/// A path the person states bare (« out/result.txt », typed as their reply on its own line),
+/// which the candidate writes as `./out/result.txt` and never reads, is that same file in the
+/// room's spelling: an output the room reads back, never an input it must find.
+#[tokio::test]
+async fn a_bare_stated_path_the_candidate_only_writes_is_a_target_never_an_input() {
+    let candidate = r#"nika: copy-source
+permits:
+  tools: ["nika:read", "nika:write"]
+  fs:
+    read: ["./in/source.txt"]
+    write: ["./out/result.txt"]
+tasks:
+  load:
+    invoke:
+      tool: "nika:read"
+      args: { path: "./in/source.txt" }
+  save:
+    with: { text: "${{ tasks.load.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/result.txt", content: "${{ with.text }}" }
+"#;
+    let words = "Read ./in/source.txt and copy its text.\nout/result.txt";
+    let host = Host::new(Mode::NotRun);
+    let mut state = Rehearsals::new(Some(&host));
+    let mut out = crate::initial();
+    nika_compile::surface::finish(candidate.into(), &mut out);
+    assert!(ready(&out), "{out:#?}");
+    state.inspect(&CompileRequest::create(words), &out).await;
+    let inputs = host.inputs.lock().unwrap().clone();
+    let targets = host.targets.lock().unwrap().clone();
+    assert_eq!(inputs, [vec![SOURCE.to_owned()]]);
+    assert_eq!(targets, [vec!["out/result.txt".to_owned()]]);
+}
+
 #[tokio::test]
 async fn a_changed_final_candidate_cannot_reuse_an_earlier_report() {
     let host = Host::new(Mode::ByDirectories);
@@ -863,9 +941,19 @@ impl DecisionSeat for Judging {
             let (id, choice) = (self.script.lock().unwrap().pop_front())
                 .unwrap_or_else(|| panic!("an unscripted question: {}", question.id));
             assert_eq!(question.id, id);
-            Ok(ChoiceAnswer::new(choice, JUDGE))
+            Ok(weighs_rejection(question, ChoiceAnswer::new(choice, JUDGE)))
         })
     }
+}
+
+/// A seat's rejection of the whole request, weighed at 0.9 (over the holding probability): a seat
+/// that weighs it holds what it cannot locate, where one taken at its word lets its parts decide.
+fn weighs_rejection(question: &ChoiceQuestion, mut answer: ChoiceAnswer) -> ChoiceAnswer {
+    if question.id == "verify-request" && answer.choice == "unfaithful" {
+        let weights = [("unfaithful".to_owned(), 0.9), ("none".to_owned(), 0.1)];
+        answer.probabilities.extend(weights);
+    }
+    answer
 }
 
 /// The sketch door's greeting, judged by `judge` (`host`: the room that rehearses it).
@@ -889,8 +977,8 @@ async fn judged_greeting(judge: &Judging, host: Option<&Host>) -> CompileOutcome
 /// judge doubts the whole request and carries its one part (the write is the output that part
 /// states, so the engine's facts leave no task to ask about), then is shown the run the
 /// evidence made of the candidate (nothing read, the greeting written whole) and finds it
-/// consistent. The candidate is READY on that judgment, the only one asked over
-/// the run, and the barrier reuses the run the judge read.
+/// consistent. The candidate is READY on that judgment; the whole question read the run from its
+/// first ask, the part asked alone did not, and the barrier reuses the run the judge read.
 #[tokio::test]
 async fn a_disagreement_is_decided_by_this_compiles_run_of_the_same_bytes() {
     let host = Host::new(Mode::ByDirectories);
@@ -921,11 +1009,8 @@ async fn a_disagreement_is_decided_by_this_compiles_run_of_the_same_bytes() {
     assert_eq!(asked[2].state["observation"], observation);
     let over_the_run = ["consistent", "unexercised", "part-0", "none"];
     assert_eq!(asked[2].keys(), over_the_run);
-    assert!(
-        asked[..2]
-            .iter()
-            .all(|q| q.state.get("observation").is_none())
-    );
+    assert_eq!(asked[0].state["observation"], observation);
+    assert_eq!(asked[1].state.get("observation"), None);
     let decision = out.provenance.decision.as_ref().unwrap();
     let verified = &decision["semantic_verification"][0];
     assert_eq!(verified["doubt"], json!(["unfaithful"]));
@@ -1012,8 +1097,9 @@ async fn without_a_run_of_the_same_bytes_the_disagreement_is_held() {
     assert!(route.iter().any(|step| step == held), "{route:?}");
 }
 
-/// A faithful verdict on the bytes is weighed against this compile's run of them (A1): the one
-/// part is asked again over what the run wrote, after the verdict and never in it. An output the
+/// A faithful verdict on the bytes is weighed against this compile's run of them (A1): the whole
+/// question reads that run from its first ask, and the one part is asked again over what the run
+/// wrote, after the verdict. An output the
 /// judge finds contradicting the part is a defect located in the run: nothing is READY, the
 /// candidate is withdrawn past its last repair round, and the defect names the task the judge
 /// points to there. The same run found carrying the part leaves the faithful verdict READY.
@@ -1030,7 +1116,7 @@ async fn a_faithful_verdict_is_weighed_against_this_compiles_run_of_the_same_byt
     assert_eq!(out.candidate, None);
     assert_eq!(judge.left(), 0);
     let asked = judge.asked();
-    assert!(asked[0].state.get("observation").is_none());
+    assert_eq!(asked[0].state["observation"], asked[1].state["observation"]);
     let output = &asked[1].state["observation"]["outputs"][0];
     assert_eq!(
         (&output["path"], &output["text"]),
@@ -1099,11 +1185,8 @@ async fn an_answer_round_decides_a_disagreement_over_a_run_of_the_bytes_it_repla
         (&output["path"], &output["text"]),
         (&json!(TARGET), &json!("hello"))
     );
-    assert!(
-        asked[..2]
-            .iter()
-            .all(|q| q.state.get("observation").is_none())
-    );
+    assert_eq!(asked[0].state["observation"], asked[2].state["observation"]);
+    assert_eq!(asked[1].state.get("observation"), None);
     let ran = host.candidates.lock().unwrap().clone();
     assert_eq!(
         ran,

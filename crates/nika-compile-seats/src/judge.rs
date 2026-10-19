@@ -31,7 +31,7 @@ pub use clause::{
     CLAUSE, EXTRA, NO_OPERATION, PART, POINT, POINT_OMITTED, RESTRICTING, SUPERSEDED, WHOLE,
     part_question,
 };
-pub use construction::{Construction, Construed};
+pub use construction::{Construction, Construed, folded};
 pub use doubt::{Doubt, Located};
 pub use effects::Effects;
 pub use framing::{
@@ -80,7 +80,7 @@ pub fn state(intent: &str, request: &CompileRequest, candidate: &str) -> Value {
     let mut state = json!({
         "request": intent,
         "original_request": first,
-        "answers": request.answers,
+        "answers": answers(request),
         "observed": request.knowledge,
         "candidate_nika": candidate,
     });
@@ -89,6 +89,23 @@ pub fn state(intent: &str, request: &CompileRequest, candidate: &str) -> Value {
     }
     state
 }
+
+/// The host stores answers as JSON text; the judging seat reads their literal structure.
+/// Decode exactly once, so a person's quoted JSON remains a string. Invalid or inexact
+/// literals stay verbatim data: this projection neither validates nor binds an answer.
+fn answers(request: &CompileRequest) -> Value {
+    let values = request.answers.iter().map(|(key, raw)| {
+        let literal = serde_json::from_str::<Value>(raw)
+            .ok()
+            .filter(|_| nika_compile_fidelity::literal::inexact_integer(raw).is_none())
+            .unwrap_or_else(|| Value::String(raw.clone()));
+        (key.clone(), literal)
+    });
+    Value::Object(values.collect())
+}
+
+#[cfg(test)]
+mod answers_tests;
 
 /// A revision the compiler applied over the complete document (its record says so) is judged as
 /// the base with exactly the change: the base shown whole, whatever request it answers. A round

@@ -94,6 +94,37 @@ pub fn destination_at(detail_lower: &str, path_at: usize) -> Option<usize> {
         .map(|pos| pos.saturating_sub(1))
 }
 
+/// The role the own clause of a path's occurrence at `path_at` of a whole request gives it:
+/// `Some(true)` when a destination connector before it in that clause ([`destination_at`]'s
+/// grammar) places a write there, `Some(false)` when that clause says where material already is
+/// (« J'ai deux fichiers CSV dans le dossier releves (a.csv et b.csv) », « I have the notes in
+/// notes.md »), `None` when the clause names no connector before it (« puis lis b.csv »), which
+/// leaves the role to the caller. A bracket around the path is an apposition of what precedes it,
+/// not a clause of its own. Live gauntlet wave 6 r01, 2026-10-18: ten revisions of a workflow
+/// reading both files were refused as not writing them.
+#[must_use]
+pub fn clause_role(request_lower: &str, path_at: usize) -> Option<bool> {
+    let head = request_lower.get(..path_at)?;
+    // A period is no clause mark (paths carry dots), but one a space follows ends a sentence.
+    let start = [". ", "! ", "? ", "\n"]
+        .iter()
+        .filter_map(|mark| head.rfind(mark).map(|at| at + mark.len()))
+        .max()
+        .unwrap_or(0);
+    let mut sentence = head.get(start..)?;
+    // Inside an open bracket the path is an apposition of what the bracket follows (« dans le
+    // dossier releves (a.csv et b.csv) »): that text is its clause, whatever the list says.
+    if let Some(open) = sentence.rfind('(')
+        && !sentence[open..].contains(')')
+    {
+        sentence = &sentence[..open];
+    }
+    let clause = own_clause(sentence);
+    let connector = destination_at(clause, clause.len())?;
+    let before = clause.get(..connector)?;
+    Some(placement(own_clause(before)) != Placement::Elsewhere)
+}
+
 /// Indefinite singular determiners (EN · FR · ES · IT · PT · DE): what one opens is new, a thing
 /// the request names nowhere else (the law this module states: an indefinite object is new).
 const INDEFINITE: &[&str] = &[
@@ -229,6 +260,67 @@ const REQUESTING: &str = "want wants need needs please veux voudrais voudrait ai
 /// Whether `word` is one of the space-separated words of `table`.
 fn listed(table: &str, word: &str) -> bool {
     table.split(' ').any(|entry| entry == word)
+}
+
+/// The heads of a clause that says what the person has, or what there is (EN · FR · ES · IT ·
+/// DE · PT): the material it names already exists where the connector after them places it.
+const POSSESSING: &[&[&str]] = &[
+    &["j'ai"],
+    &["j’ai"],
+    &["jai"],
+    &["nous", "avons"],
+    &["on", "a"],
+    &["il", "y", "a"],
+    &["i", "have"],
+    &["i've"],
+    &["i’ve"],
+    &["we", "have"],
+    &["we've"],
+    &["we’ve"],
+    &["there", "is"],
+    &["there", "are"],
+    &["there's"],
+    &["there’s"],
+    &["tengo"],
+    &["tenemos"],
+    &["hay"],
+    &["abbiamo"],
+    &["ich", "habe"],
+    &["wir", "haben"],
+    &["es", "gibt"],
+    &["tenho"],
+    &["temos"],
+];
+
+/// Whether a clause says what the person has or what there is (« J'ai deux fichiers CSV dans
+/// le dossier releves », « I have the notes in ./notes »): its sentence opens with a possession
+/// head, then holds no write, placing or requesting word, and no « to » or « à » of an
+/// obligation right after the head (« I have to put it in a file », « j'ai besoin que tu
+/// l'écrives dans un fichier »). A head inside the sentence (« résume les notes que j'ai dans
+/// ./notes ») says nothing of the connector. Live gauntlet wave 6 r01, 2026-10-18: « dans le
+/// dossier releves » read as where to write.
+fn possesses(clause: &str) -> bool {
+    // A period is no mark of the clause (paths carry dots), but one a space follows ends a
+    // sentence (« Bonjour. J'ai … »).
+    let sentence = clause.rsplit(". ").next().unwrap_or(clause);
+    let words: Vec<&str> = sentence
+        .split(|c: char| !(c.is_alphanumeric() || c == '\'' || c == '’'))
+        .filter(|w| !w.is_empty())
+        .collect();
+    let Some(end) = POSSESSING
+        .iter()
+        .find_map(|head| (words.get(..head.len()) == Some(*head)).then_some(head.len()))
+    else {
+        return false;
+    };
+    let rest = words.get(end..).unwrap_or_default();
+    let obliged = rest
+        .first()
+        .is_some_and(|w| matches!(*w, "to" | "à" | "a" | "que" | "qu'il"));
+    !obliged
+        && !rest
+            .iter()
+            .any(|w| writes(w) || listed(PLACING, bare(w)) || listed(REQUESTING, bare(w)))
 }
 
 /// The clause a connector belongs to: what `before` (lowercase) says since its last sentence
@@ -387,7 +479,7 @@ fn placement(clause: &str) -> Placement {
             }
         }
     }
-    if listed(LOCATED, last) {
+    if listed(LOCATED, last) || possesses(clause) {
         return Placement::Elsewhere;
     }
     if listed(RESULT_STATE, last) {

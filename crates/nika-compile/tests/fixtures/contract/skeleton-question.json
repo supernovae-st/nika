@@ -171,6 +171,7 @@
               "max_tokens": 300,
               "min_path_usd": 0.0,
               "model": "mock/echo",
+              "reasoning_beyond": false,
               "task": "extract_facts",
               "unbounded_reason": null,
               "usd": 0.0

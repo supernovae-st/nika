@@ -9,12 +9,115 @@
 //! question takes exactly the name's readings, the only answers the compiler bakes. A name no
 //! question or two questions name, or a key asked twice, binds nothing: the name stays owed
 //! exactly, as an exact path does.
+//!
+//! Before any question, Law 1 owes the reading the person settles (`owed_names`): the one a
+//! typed value is or the answer to the question about that very name binds (`answered`), else the
+//! one whose folder another path they state names, their replies to questions aside
+//! ([`paths::settled_reading`]). Only a name neither settles stays owed whole, and its finding
+//! lists the readings with the path alone as the stated default (`remedy`).
 
 use nika_compile_reader::paths::{self, PathShape};
 use serde_json::{Value, json};
 
-/// The remedy an unrealized open name adds to Law 1's finding.
-pub(super) const REMEDY: &str = " Its unquoted words leave where the file's name starts open: write this whole text only when it is the file's name. When the words name a shorter file, the human settles it: declare `<slug>: \"\"` under `const:`, read or write `${{ const.<slug> }}` whole as that task's path, keep one `\"\"` entry on that side of `permits.fs`, and ask `const.<slug>` in `questions` with this exact name quoted in its label; the compiler offers the name's readings as the only answers. Never shorten it yourself.";
+/// The paths Law 1 owes for the open names of `intent`, and the names it leaves open: a name a
+/// question binds (`waived`) is left whole to that answer; otherwise the reading one answer
+/// settles (a typed value outside any question, `allowed`, or the answer to the question about
+/// this very name, `native`), or else the one the person's own words settle (`settle`: the
+/// request's words without their answers' reply lines, [`paths::settled_reading`]), is owed; any
+/// other name is owed whole.
+pub(super) fn owed_names(
+    (intent, settle): (&str, &str),
+    (allowed, native, waived): (&[String], &[(String, String)], &[String]),
+) -> (Vec<String>, Vec<String>) {
+    let (mut owed, mut open) = (Vec::new(), Vec::new());
+    for name in paths::open_names(intent) {
+        let settled = if waived.contains(&name) {
+            None // a question binds it: Law 1 leaves it to that answer
+        } else {
+            let readings = paths::readings(&name);
+            let picked = |reading: &str| native.iter().any(|(of, r)| *of == name && r == reading);
+            let mut answered =
+                (readings.iter()).filter(|r| allowed.contains(r) || picked(r.as_str()));
+            match (answered.next(), answered.next()) {
+                (Some(one), None) => Some(one.clone()),
+                _ => paths::settled_reading(settle, &name).map(|settled| settled.reading),
+            }
+        };
+        if let Some(reading) = settled {
+            owed.push(reading);
+        } else {
+            owed.push(name.clone());
+            open.push(name);
+        }
+    }
+    (owed, open)
+}
+
+/// The remedy an open name nothing settles adds to Law 1's finding: its readings, longest first,
+/// and the path alone as the stated default.
+pub(super) fn remedy(name: &str) -> String {
+    let readings = paths::readings(name);
+    let alone = readings.last().map_or(name, String::as_str);
+    let listed = (readings.iter())
+        .map(|reading| format!("`{reading}`"))
+        .collect::<Vec<_>>()
+        .join(" or ");
+    format!(
+        " Its unquoted words leave where the file's name starts open, and nothing the person stated or answered settles it: it reads {listed}. Write this whole text only when it is the file's name. Otherwise the human settles it: declare `<slug>: \"\"` under `const:`, read or write `${{{{ const.<slug> }}}}` whole as that task's path, keep one `\"\"` entry on that side of `permits.fs`, and ask `const.<slug>` in `questions` with this exact name quoted in its label, its readings as the only answers and `{alone}`, the path alone, as the stated default. Never shorten it yourself."
+    )
+}
+
+/// An open name a question's words quote, as the Session asks or answers it: the name, its
+/// readings longest first, and the reading the person's own words settle, if any.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct OpenName {
+    /// The open name as the request writes it (`payload out/notification.json`).
+    pub name: String,
+    /// The files it may name, longest first, ending on the path alone ([`paths::readings`]).
+    pub readings: Vec<String>,
+    /// The reading the request's other paths settle ([`paths::settled_reading`]), if any.
+    pub settled: Option<String>,
+}
+
+impl OpenName {
+    /// An open name with its readings and its settled reading.
+    #[must_use]
+    pub fn new(name: impl Into<String>, readings: Vec<String>, settled: Option<String>) -> Self {
+        Self {
+            name: name.into(),
+            readings,
+            settled,
+        }
+    }
+}
+
+/// The one open name of `intent` that `words` (a question's label or why) state whole, as the
+/// reader spans it, with its readings and the reading the request settles; `None` when the words
+/// state no open name of the request, or two.
+#[must_use]
+pub fn quoted_open_name(intent: &str, words: &str) -> Option<OpenName> {
+    let name = quoting(&paths::open_names(intent), &[words])?;
+    let settled = paths::settled_reading(intent, &name).map(|settled| settled.reading);
+    Some(OpenName::new(name.clone(), paths::readings(&name), settled))
+}
+
+/// The one name of `open` the texts `said` state whole, as the reader spans them: a quoted
+/// literal, an unquoted placeholder, never a longer file that starts or ends with its words.
+fn quoting(open: &[String], said: &[&str]) -> Option<String> {
+    let spans: Vec<PathShape> = said.iter().copied().flat_map(paths::literals).collect();
+    let stated = |name: &&String| {
+        spans.iter().any(|span| match span {
+            PathShape::File(text) | PathShape::Placeholder(text) => text == *name,
+            _ => false,
+        })
+    };
+    let mut quoted = open.iter().filter(stated);
+    match (quoted.next(), quoted.next()) {
+        (Some(name), None) => Some(name.clone()),
+        _ => None,
+    }
+}
 
 /// The `(key, open name)` pairs the asked questions (`key` · `label` · `why`) bind, one to one:
 /// a key asked twice, or a name two questions name, binds nothing.
@@ -26,17 +129,7 @@ fn bound(intent: &str, doc: &Value, asked: &[Value]) -> Vec<(String, String)> {
             let twice = asked.iter().filter(|other| other["key"] == key).count() > 1;
             let slug = key.strip_prefix("const.").filter(|_| !twice)?;
             let said = [&question["label"], &question["why"]].map(|t| t.as_str().unwrap_or(""));
-            let spans: Vec<PathShape> = said.into_iter().flat_map(paths::literals).collect();
-            let stated = |name: &&String| {
-                spans.iter().any(|span| match span {
-                    PathShape::File(text) | PathShape::Placeholder(text) => text == *name,
-                    _ => false,
-                })
-            };
-            let mut quoted = open.iter().filter(stated);
-            let (Some(name), None) = (quoted.next(), quoted.next()) else {
-                return None;
-            };
+            let name = quoting(&open, &said)?;
             let whole = format!("const.{slug}");
             let path = |task: &Value| {
                 let arg = task["invoke"]["args"]["path"]
@@ -47,7 +140,7 @@ fn bound(intent: &str, doc: &Value, asked: &[Value]) -> Vec<(String, String)> {
                 inner.map(str::trim) == Some(whole.as_str())
             };
             let read = (doc["tasks"].as_object().into_iter().flatten()).any(|(_, task)| path(task));
-            (doc["const"][slug] == "" && read).then(|| (key.to_owned(), name.clone()))
+            (doc["const"][slug] == "" && read).then(|| (key.to_owned(), name))
         })
         .collect();
     let once = |name: &String| pairs.iter().filter(|(_, other)| other == name).count() == 1;
@@ -81,7 +174,7 @@ pub fn asked_readings(intent: &str, doc: Option<&Value>, asked: &[Value], key: &
 
 #[cfg(test)]
 mod tests {
-    use super::{asked_names, asked_readings};
+    use super::{OpenName, asked_names, asked_readings, quoted_open_name};
     use serde_json::{Value, json};
 
     /// The stock words: a report named exactly, a payload whose first word stays open.
@@ -281,6 +374,30 @@ mod tests {
             assert!(offers.is_empty(), "{offers:?}");
         }
         assert_eq!(asked_names(two, &doc, &[journal]), ["journal in/a.json"]);
+    }
+
+    /// The open name a question's words quote whole carries its readings and the reading the
+    /// request's other paths settle (`out/report.json` settles the stock payload); a request
+    /// whose report goes to `reports/` settles nothing; words quoting none, or two, give nothing.
+    #[test]
+    fn a_quoted_open_name_carries_its_readings_and_settlement() {
+        let label = format!("Quel fichier est « {PAYLOAD} » ?");
+        let readings = vec![PAYLOAD.to_owned(), "out/notification.json".to_owned()];
+        assert_eq!(
+            quoted_open_name(STOCK, &label),
+            Some(OpenName::new(
+                PAYLOAD,
+                readings,
+                Some("out/notification.json".to_owned())
+            ))
+        );
+        let open = STOCK.replace("Écris out/report.json", "Écris reports/report.json");
+        let unsettled = quoted_open_name(&open, &format!("Which file is `{PAYLOAD}`?"));
+        assert_eq!(unsettled.map(|name| name.settled), Some(None));
+        assert_eq!(quoted_open_name(STOCK, "Où va le payload ?"), None);
+        let two = "Lis un journal in/a.json. Puis prépare un payload out/c.json.";
+        let both = "« journal in/a.json » ou « payload out/c.json » ?";
+        assert_eq!(quoted_open_name(two, both), None);
     }
 
     /// A genuine spaced folder stays choosable whole: its readings start with the whole name.

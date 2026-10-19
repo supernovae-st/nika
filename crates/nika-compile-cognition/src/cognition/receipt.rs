@@ -123,7 +123,7 @@ async fn send<P: ProviderInferDyn>(
             // A local refusal says why in its own words; the kernel's prefix names another door.
             let message = match error {
                 ProviderError::AdmissionDenied { reason } => reason,
-                other => other.to_string(),
+                other => provider_failure(&policy.model, &other),
             };
             crate::finding(out, DiagnosticKind::Unknown, "authoring_provider", message);
             return None;
@@ -206,6 +206,33 @@ async fn timed<P: ProviderInferDyn>(
         call.finish();
     }
     result
+}
+
+/// What an authoring call's provider failure says: a refused key in plain words, never the hint a
+/// failed run prints for the command line (live gauntlet wave 6 r02, 2026-10-18: the run flag
+/// `--access <seat>` under a refused key, read by a person preparing a workflow); any other
+/// failure as the provider error says it.
+fn provider_failure(model: &str, error: &ProviderError) -> String {
+    let refused = match error.unobserved() {
+        ProviderError::AuthFailed { reason } => Some((None, Some(reason.as_str()))),
+        ProviderError::HttpResponse { details }
+            if matches!(details.status(), 401 | 403) && !details.is_quota_exhausted() =>
+        {
+            Some((Some(details.status()), details.message()))
+        }
+        _ => None,
+    };
+    let Some((status, said)) = refused else {
+        return error.to_string();
+    };
+    let provider = model.split('/').next().unwrap_or(model);
+    let status = status.map_or_else(String::new, |status| format!(" (HTTP {status})"));
+    let said = said.map_or_else(String::new, |said| {
+        format!("; the provider said: \"{said}\"")
+    });
+    format!(
+        "{provider} refused this connection's key{status}{said}; check it with « Test the key » in `/intelligence`, or choose another connection; usage and billing unknown"
+    )
 }
 
 fn timeout_message(policy: &AuthoringPolicy) -> String {
@@ -318,6 +345,30 @@ mod tests {
         assert_eq!(
             kept["shape"],
             json!({"type": "object", "known_keys": ["steps"], "other_keys": 1})
+        );
+    }
+
+    /// A refused key reads as plain words for the person preparing, with the provider's own
+    /// message, never the command line's hint; another failure keeps the provider's words.
+    #[test]
+    fn a_refused_key_reads_plainly_without_the_run_command_hint() {
+        let details = nika_kernel::ai::provider::ProviderHttpError::new(401, None, None, None)
+            .with_message("Incorrect API key provided", &[]);
+        let refused = ProviderError::HttpResponse { details };
+        let said = super::provider_failure("openai/gpt-6", &refused);
+        assert!(
+            said.starts_with("openai refused this connection's key (HTTP 401)")
+                && said.contains("Incorrect API key provided")
+                && !said.contains("--access")
+                && !said.contains("NIKA-"),
+            "{said}"
+        );
+        let other = ProviderError::Other {
+            reason: "the wire broke".to_owned(),
+        };
+        assert_eq!(
+            super::provider_failure("openai/gpt-6", &other),
+            other.to_string()
         );
     }
 }

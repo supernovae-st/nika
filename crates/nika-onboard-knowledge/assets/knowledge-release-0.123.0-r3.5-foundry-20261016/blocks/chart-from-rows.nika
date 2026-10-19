@@ -1,0 +1,15 @@
+nika: p46-chart
+permits:
+  fs: { write: ["./out/**"] }
+  tools: ["nika:chart"]
+tasks:
+  draw:
+    invoke:
+      tool: "nika:chart"
+      args:
+        data: [{ region: "north", total: 10 }, { region: "south", total: 4 }]
+        chart: { type: bar, x: region, y: total, title: "Totals by region" }
+        semantics: { region: category, total: count }
+        out: "./out/totals.svg"
+outputs:
+  chart: ${{ tasks.draw.output }}

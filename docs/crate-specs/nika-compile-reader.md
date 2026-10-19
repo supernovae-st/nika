@@ -517,3 +517,12 @@ template (`un payload out/notification.json` → `payload out/notification.json`
 `readings` lists the starts that placeholder leaves open, longest first: the whole name,
 then the name from each later word, down to the path alone (`out/notification.json`). Both
 are structural: no word decides a start, and a quoted name is one exact literal.
+`settled_reading(text, name)` is the one reading whose folder another literal of the text
+names: the folder a stated file sits in, or a stated directory, compared exactly without a
+leading `./` or a trailing `/`. It carries the literal it cites (« Écris out/report.json »
+settles `out/notification.json`). No reading, or two, settles nothing, and another open name
+never settles one.
+`hot::stated_workflows(intent)` states the workflow files the request names: the exact files of
+Nika's own format (`bilan.nika`, the lowercase `.nika` suffix after a name), in order, each once,
+a protection clause aside. It is structural and grants nothing; the fidelity crate says which is
+the requested workflow's own file (`fidelity::requested_workflow`).

@@ -113,7 +113,8 @@ impl Doubt {
     }
 
     /// The probability at or above which a decision seat's whole-request « unfaithful » decides:
-    /// with nothing located, it holds the bytes. Balanced labels (2026-10-10, correct references
+    /// with nothing located, it holds the bytes (with no run of them, only at
+    /// [`Self::UNLOCATED_HOLDING_PROBABILITY`]). Balanced labels (2026-10-10, correct references
     /// and their mutants, three options): as a hold, a reported confidence of 0.75 (this
     /// probability) was right 23 times of 23, held-out requests 3 of 3, where 0.7 held two correct
     /// candidates and 0.6 five. Below it the answer decides nothing and is stated. Calibrated with
@@ -132,6 +133,19 @@ impl Doubt {
     /// (`carried` first). The same part of one candidate read 0.57 to 0.80, then 0.44, on
     /// identical bytes (2026-10-10), all below it; identical calls jitter by about 0.11.
     pub const PART_CONFIDENCE: f64 = 0.75;
+
+    /// The probability at or above which a decision seat's whole-request « unfaithful », located
+    /// nowhere with no run of these bytes to decide it, holds them: below it the parts carry the
+    /// request and the doubt is stated. Read as [`Self::HOLDING_PROBABILITY`] is, `faithful`
+    /// listed first. It rests on history only. In the balanced labels (2026-10-10) every mutant's
+    /// whole rejection at or above that probability read 0.90 or more (23 of 23) and no
+    /// reference read above 0.773; on a request whose effect no run could rehearse (2026-10-13,
+    /// the earlier whole-question text), correct candidates read 0.82 to 0.88 with nothing
+    /// located and the one broken candidate (a check that always fails) 0.99. That separates
+    /// those samples alone, by a thin margin (0.88 against 0.90): the current whole-question
+    /// text and each build are qualified by paired witness runs, never by this history, and
+    /// those runs may move it.
+    pub const UNLOCATED_HOLDING_PROBABILITY: f64 = 0.90;
 
     /// The probability the seat reported for its own latest answer to `question` among
     /// `records`: its distribution's mass on the option it chose. `None` when it weighed nothing

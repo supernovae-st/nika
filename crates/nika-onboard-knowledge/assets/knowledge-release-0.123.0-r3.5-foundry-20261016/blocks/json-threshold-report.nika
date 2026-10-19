@@ -1,0 +1,48 @@
+nika: p60-json-threshold-report
+const:
+  source_path: "./data/records.json"
+  field: ["age_hours"]
+  op: ">"
+  threshold: 24.0
+  id_field: ["id"]
+  report_path: "./out/report.json"
+permits:
+  fs: { read: ["./data/records.json"], write: ["./out/report.json"] }
+  tools: ["nika:read", "nika:write"]
+tasks:
+  threshold_read:
+    invoke: { tool: "nika:read", args: { path: "${{ const.source_path }}" } }
+  threshold_parse:
+    with: { raw: "${{ tasks.threshold_read.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: "fromjson" } }
+  threshold_select:
+    with: { records: "${{ tasks.threshold_parse.output }}" }
+    invoke:
+      tool: nika:jq
+      args:
+        input: { records: "${{ with.records }}", field: "${{ const.field }}", op: "${{ const.op }}", threshold: "${{ const.threshold }}", id: "${{ const.id_field }}" }
+        expression: |
+          # a key path walked through objects only: anything else on the way reads null, never an error
+          def at($path): reduce $path[] as $key (.; if type == "object" then .[$key] else null end);
+          # the compared value: a number at the field's key path, else null
+          def value($path): at($path) | if type == "number" then . else null end;
+          def kept($op; $t):
+            if $op == ">" then . > $t elif $op == ">=" then . >= $t
+            elif $op == "<" then . < $t elif $op == "<=" then . <= $t
+            elif $op == "==" then . == $t elif $op == "!=" then . != $t
+            else error("op must be one of > >= < <= == !=, not \($op)") end;
+          .field as $field | .op as $op | .threshold as $t | .id as $id
+          | (.records | if type == "array" then . else error("the source document is not a JSON array of records") end) as $records
+          | ([$records[] | select(value($field) as $v | $v != null and ($v | kept($op; $t)))]) as $kept
+          | ([$records[] | select(value($field) == null)]) as $unreadable
+          | {
+              kept: $kept,
+              report: {count: ($kept | length), ids: [$kept[] | at($id)]},
+              unreadable: {count: ($unreadable | length), ids: [$unreadable[] | at($id)]}
+            }
+  threshold_write:
+    with: { report: "${{ tasks.threshold_select.output.report }}" }
+    invoke: { tool: "nika:write", args: { path: "${{ const.report_path }}", content: "${{ with.report }}" } }
+outputs:
+  selected: ${{ tasks.threshold_select.output.kept }}
+  report: ${{ tasks.threshold_select.output.report }}

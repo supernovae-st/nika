@@ -1,0 +1,23 @@
+# Expected: check-reject (gate verdict). PERMITS: net egress with no permits.net grant.
+nika: sec24-net-no-permit
+
+permits:
+  fs:
+    write: ["./out/security/**"]
+  tools: ["nika:fetch", "nika:write"]
+
+tasks:
+  attack:
+    invoke:
+      tool: nika:fetch
+      args:
+        url: "https://api.example.com/data"
+
+  sink:
+    with:
+      attack: ${{ tasks.attack.output }}
+    invoke:
+      tool: nika:write
+      args:
+        path: ./out/security/data.json
+        content: ${{ with.attack }}

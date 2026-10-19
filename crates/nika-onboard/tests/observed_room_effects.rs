@@ -9,8 +9,8 @@
 //!
 //! The screen reads every task whether or not it is reachable, so a branch that only runs on
 //! failure, on unwind, in a fan-out or behind a false condition is screened like any other. An
-//! unknown tool and any jq or convert step (no data bound is established for them, whatever the
-//! expression) refuse before any evaluator exists; a tool named by a template is refused sooner,
+//! unknown tool, and a jq step with no bounded evaluator (whatever its expression), refuse before
+//! any evaluator exists; a tool named by a template is refused sooner,
 //! by the parser, which requires a literal reference. A run past its bound is stopped, joined
 //! and cleaned, and nothing is written afterwards.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
@@ -216,13 +216,13 @@ async fn a_jq_expression_outside_the_bounded_subset_is_never_evaluated() {
 }
 
 #[tokio::test]
-async fn a_jq_or_convert_step_is_never_run_whatever_its_expression() {
+async fn a_jq_step_without_a_bounded_evaluator_is_never_run_whatever_its_expression() {
     const TEST: &str = concat!(
         module_path!(),
-        "::a_jq_or_convert_step_is_never_run_whatever_its_expression"
+        "::a_jq_step_without_a_bounded_evaluator_is_never_run_whatever_its_expression"
     );
-    // The ranking's jq expression is inside the subset an earlier design bounded; no bound is
-    // established for jq or convert, so it is refused like any other.
+    // The ranking's jq expression is inside the subset an earlier design bounded; with no bounded
+    // evaluator lent, its jq step is refused like any other (its convert step is admitted).
     let world = sales_world();
     let report = rehearse_in(TEST, &world, &ranking(&world, HIGHEST_FIRST)).await;
     assert!(

@@ -1,0 +1,11 @@
+nika: p07-outputs-typed
+permits: {}
+tasks:
+  compute:
+    invoke: { tool: "nika:jq", args: { input: { n: 2 }, expression: "{double: (.n * 2)}" } }
+outputs:
+  raw: ${{ tasks.compute.output }}
+  report:
+    value: ${{ tasks.compute.output }}
+    type: { object: { double: integer } }
+    description: "The doubled value"

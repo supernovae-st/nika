@@ -10,9 +10,10 @@
 //! `nika-catalog::export`); the bare form prints the human teaching
 //! listing.
 //!
-//! Teaching-surface ordering (the operator lock): LOCAL providers first
-//! (sovereign · zero key), then cloud with the doctrine head order
-//! (mistral · anthropic · openai), then the rest by id. The `zero
+//! Teaching-surface ordering: LOCAL providers first (sovereign · zero
+//! key), then cloud, each section in the order of the spec's design tokens
+//! (`presentation.providers_order`, vendored in the pack), a provider the
+//! token does not name after every named one, by id. The `zero
 //! network` claim is EARNED per run (P0-20): printed only when every
 //! local engine's EFFECTIVE endpoint resolves to loopback — an operator
 //! override (`NIKA_<ID>_BASE_URL` · `OLLAMA_HOST`) pointing at a LAN box
@@ -111,7 +112,8 @@ fn listing_header(theme: Theme, truth: MachineTruth, models: usize) -> String {
     )
 }
 
-/// The human teaching listing — sections LOCAL then CLOUD, doctrine order.
+/// The human teaching listing — sections LOCAL then CLOUD, each in the
+/// design tokens' presentation order.
 fn human_listing(
     export: &CatalogExport,
     theme: Theme,
@@ -124,7 +126,7 @@ fn human_listing(
     // « catalog only » suffix was correct and unreadable: 22 of 38 rows
     // repeated the same 30 characters, so the fact a reader needed had
     // to be found by scanning for its ABSENCE. LOCAL and CLOUD now hold
-    // only what this build resolves, in the doctrine order; everything
+    // only what this build resolves, in the presentation order; everything
     // the engine has no adapter for sits under its own head, where one
     // sentence covers all of them.
     let mut local: Vec<&ProviderExport> = export
@@ -132,16 +134,16 @@ fn human_listing(
         .iter()
         .filter(|p| p.local && p.resolves)
         .collect();
-    local.sort_by_key(|p| p.id);
+    local.sort_by_key(|p| presentation_rank(p.id));
     let mut cloud: Vec<&ProviderExport> = export
         .providers
         .iter()
         .filter(|p| !p.local && p.resolves)
         .collect();
-    cloud.sort_by(|a, b| cloud_rank(a.id).cmp(&cloud_rank(b.id)));
+    cloud.sort_by_key(|p| presentation_rank(p.id));
     let mut catalog_only: Vec<&ProviderExport> =
         export.providers.iter().filter(|p| !p.resolves).collect();
-    catalog_only.sort_by_key(|p| p.id);
+    catalog_only.sort_by_key(|p| presentation_rank(p.id));
 
     let mut out = listing_header(theme, truth, models);
     out.push('\n');
@@ -213,16 +215,37 @@ fn human_listing(
     out
 }
 
-/// Cloud head order: mistral (EU · open-weight) → anthropic → openai →
-/// everyone else alphabetically.
-fn cloud_rank(id: &str) -> (u8, &str) {
-    let head = match id {
-        "mistral" => 0,
-        "anthropic" => 1,
-        "openai" => 2,
-        _ => 3,
+/// A provider's place in the spec's teaching order: its index in the
+/// design tokens' `presentation.providers_order` (vendored in the pack), a
+/// provider the token does not name after every named one, by id. The code
+/// keeps no order of its own.
+fn presentation_rank(id: &str) -> (usize, &str) {
+    let order = presentation_order();
+    (
+        order.iter().position(|p| *p == id).unwrap_or(order.len()),
+        id,
+    )
+}
+
+/// The vendored token's provider slugs, each resolved to its catalog id
+/// (the token may name an alias: `google` is `gemini`).
+fn presentation_order() -> &'static [&'static str] {
+    static ORDER: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    ORDER.get_or_init(|| providers_order(nika_pack::design_tokens()))
+}
+
+/// `presentation.providers_order` of a design-token text: the `- slug` lines
+/// right under its key, in order.
+fn providers_order(tokens: &'static str) -> Vec<&'static str> {
+    let Some((_, after)) = tokens.split_once("providers_order:") else {
+        return Vec::new();
     };
-    (head, id)
+    after
+        .lines()
+        .skip(1)
+        .map_while(|line| line.trim().strip_prefix("- "))
+        .map(|slug| nika_catalog::find_provider(slug).map_or(slug, |p| p.id))
+        .collect()
 }
 
 /// One provider line of the human listing. A local engine whose
@@ -371,14 +394,22 @@ mod tests {
         let local = text.find("LOCAL").expect("a LOCAL section");
         let cloud = text.find("CLOUD").expect("a CLOUD section");
         assert!(local < cloud, "local providers lead the teaching surface");
-        // The doctrine head order within CLOUD: mistral → anthropic → openai.
+        // Within CLOUD the rows follow the design tokens' order.
         let pos = |id: &str| {
             // The rail grammar: `│  <id>` opens every provider row.
             text.find(&format!("\n\u{2502}  {id}"))
                 .unwrap_or_else(|| panic!("provider `{id}` missing from the listing"))
         };
-        assert!(pos("mistral") < pos("anthropic"), "mistral leads anthropic");
-        assert!(pos("anthropic") < pos("openai"), "anthropic leads openai");
+        let named: Vec<&str> = presentation_order()
+            .iter()
+            .copied()
+            .filter(|id| ["mistral", "anthropic", "openai"].contains(id))
+            .collect();
+        assert_eq!(named.len(), 3, "the token names the three: {named:?}");
+        assert!(
+            named.windows(2).all(|pair| pos(pair[0]) < pos(pair[1])),
+            "the listing follows the token: {named:?}"
+        );
         assert!(
             text.contains("--json"),
             "the human surface teaches the machine surface",
@@ -475,6 +506,28 @@ mod tests {
         assert!(text.contains("(lan)"), "the locus is named:\n{text}");
         // …while the un-overridden engines keep their bare ids.
         assert!(text.contains("lmstudio"), "{text}");
+    }
+
+    /// The order comes from the vendored design tokens only, aliases
+    /// resolved (`google` is `gemini`), an unnamed provider after every named
+    /// one by id.
+    #[test]
+    fn the_listing_order_is_the_design_tokens_order() {
+        let tokens = "presentation:\n  providers_order:\n    - ollama\n    - mistral\n    - google\n\nnext: 1\n";
+        assert_eq!(providers_order(tokens), ["ollama", "mistral", "gemini"]);
+        assert!(providers_order("no order here").is_empty());
+        let order = presentation_order();
+        assert!(
+            !order.is_empty(),
+            "the pack vendors presentation.providers_order"
+        );
+        let first_cloud = order.iter().position(|id| *id == "mistral");
+        let last_local = order.iter().rposition(|id| *id == "vllm");
+        assert!(last_local < first_cloud, "the local five lead: {order:?}");
+        let first = order.first().copied().expect("a named provider");
+        let unnamed = presentation_rank("zzz-vendor");
+        assert!(presentation_rank(first) < unnamed && unnamed.0 == order.len());
+        assert!(presentation_rank("azure") < presentation_rank("bedrock"));
     }
 
     /// B18 / issue 1306: the human listing prints wire ids (`grok-3`),

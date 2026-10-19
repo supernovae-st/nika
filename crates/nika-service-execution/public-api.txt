@@ -491,6 +491,7 @@ pub fn nika_service_execution::replay::ReplayScreen::behind(&self, task: &str) -
 pub fn nika_service_execution::replay::ReplayScreen::is_unexercised(&self, task: &str) -> bool
 pub fn nika_service_execution::replay::ReplayScreen::new(unexercised: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, upstream: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<alloc::string::String>>, filters: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_service_execution::replay::ReplayScreen::screens(&self, task: &nika_schema::raw::task::RawTask) -> bool
+pub fn nika_service_execution::replay::ReplayScreen::written_behind(&self, workflow: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<alloc::string::String>
 impl core::clone::Clone for nika_service_execution::replay::ReplayScreen
 pub fn nika_service_execution::replay::ReplayScreen::clone(&self) -> nika_service_execution::replay::ReplayScreen
 impl core::cmp::Eq for nika_service_execution::replay::ReplayScreen

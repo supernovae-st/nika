@@ -13,7 +13,7 @@ use nika_compile_reader::hot;
 /// Unsupported, conflicting and incomplete phrases all keep their words but no cron.
 #[must_use]
 pub fn fields(phrase: &str) -> Option<String> {
-    let folded = hot::fold(phrase);
+    let folded = quantified(&hot::fold(phrase));
     let phrase = folded.trim().trim_end_matches([',', '.', '!', '?']);
     if let Some(form) = crate::forms::read(phrase) {
         return Some(form);
@@ -76,6 +76,21 @@ pub fn fields(phrase: &str) -> Option<String> {
     ))
 }
 
+/// The folded phrase with « tout les » and « toute les », as people often type « tous les » and
+/// « toutes les », read as that quantifier: « les » says a plural period follows. The singular
+/// « tout le matin » (all morning long) is no such quantifier and stays as written.
+fn quantified(folded: &str) -> String {
+    let words: Vec<&str> = folded.split(' ').collect();
+    let read: Vec<&str> = (words.iter().enumerate())
+        .map(|(at, word)| match (*word, words.get(at + 1).copied()) {
+            ("tout", Some("les")) => "tous",
+            ("toute", Some("les")) => "toutes",
+            (word, _) => word,
+        })
+        .collect();
+    read.join(" ")
+}
+
 /// Cron steps reset at the field boundary. Accept only divisors so the local-clock
 /// interval remains constant across the boundary (5 hours would silently become 4).
 /// The zero phase, local clock and DST semantics are shown for activation consent.
@@ -129,6 +144,18 @@ mod tests {
             ("toutes les 2 heures", "0 */2 * * *"),
             ("toutes les deux heures", "0 */2 * * *"),
             ("every 15 minutes", "*/15 * * * *"),
+            // « tout les » / « toute les », as people type « tous les » / « toutes les ».
+            ("tout les matins à 9h", "0 9 * * *"),
+            ("tout les matins a 9h", "0 9 * * *"),
+            ("Tout les matins à 9h", "0 9 * * *"),
+            ("tous les matins à 9h", "0 9 * * *"),
+            ("tout les jours a 9h", "0 9 * * *"),
+            ("tout les mardis à 9h", "0 9 * * 2"),
+            ("toute les heures", "0 * * * *"),
+            ("toute les 2 heures", "0 */2 * * *"),
+            ("le dernier jour de tout les mois à 18h", "0 18 L * *"),
+            ("le 1er de chaque mois à 8h", "0 8 1 * *"),
+            ("le 1er de tout les mois à 8h", "0 8 1 * *"),
         ] {
             assert_eq!(fields(phrase).as_deref(), Some(expected), "{phrase}");
             nika_cadence::registry::Cadence::parse(&format!("TZ=Europe/Paris {expected}"))
@@ -157,6 +184,12 @@ mod tests {
             "every month at 9",
             "toutes les deux semaines",
             "every day at 9 except holidays",
+            // The singular says « all morning long », never a cadence; no hour is invented.
+            "tout le matin",
+            "tout le matin à 9h",
+            "toute la journée à 9h",
+            "tout les matins",
+            "tout les deux jours à 9h",
         ] {
             assert_eq!(fields(phrase), None, "{phrase}");
         }

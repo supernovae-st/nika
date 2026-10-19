@@ -62,6 +62,19 @@ fn table_parses_and_every_pull_has_one_owner() {
     }
 }
 
+/// An Anthropic key's first-run suggestion is the provider's catalog default, Claude
+/// Sonnet 5.5: a person reaches it without typing a model id.
+#[test]
+fn an_anthropic_key_suggests_its_catalog_default() {
+    let table: Table = serde_yaml_bw::from_str(TABLE_YAML).expect("models.yaml parses");
+    let row = (table.keys.iter())
+        .find(|row| row.env == "ANTHROPIC_API_KEY")
+        .expect("the Anthropic key row");
+    let anthropic = nika_catalog::find_provider("anthropic").expect("the anthropic row");
+    assert_eq!(row.model, "anthropic/claude-sonnet-5-5");
+    assert_eq!(row.model, format!("anthropic/{}", anthropic.default_model));
+}
+
 #[test]
 fn a_model_id_does_not_appear_under_two_owners_in_s3_surfaces() {
     let surfaces = [
@@ -552,11 +565,11 @@ fn next_with_two_non_hello_files_is_bare_run() {
     assert!(!after.contains("nika compile hello hello.nika"), "{human}");
 }
 
-/// The seat-cascade byte oracle: every expected digest below was captured
-/// by running the immutable pre-move renderer on these
-/// same inputs, never by the renderer under test. The doctor cascade case
-/// composes the doctor machine report with this cascade exactly as the
-/// doctor `--json` lane does (`v["cascade"] = …`, pretty-printed).
+/// The seat-cascade byte oracle retains the pre-move captures for human,
+/// welcome and cascade output. The six doctor captures include the additive
+/// `summary.unknown` and `scope.mode` fields, recorded by the renderer after
+/// that intentional change. Doctor cases compose the machine report with
+/// this cascade exactly as `doctor --json` does (`v["cascade"] = …`).
 mod cascade_oracle {
     use super::*;
     use crate::doctor::{Finding, Level};
@@ -686,7 +699,21 @@ mod cascade_oracle {
         ];
         let mut out = Vec::new();
         for (m, machine) in machines() {
-            let choice = collect_from(&machine);
+            let mut choice = collect_from(&machine);
+            if m == "no_adapter" {
+                // The live choice: the Anthropic key's catalog default, no ready harness.
+                assert_eq!(choice.arrow, "key");
+                assert_eq!(choice.chosen_model, "anthropic/claude-sonnet-5-5");
+                assert!(
+                    choice
+                        .rungs
+                        .iter()
+                        .any(|rung| rung.id == "harness" && !rung.ready)
+                );
+                // The pre-move captures were recorded when that default was
+                // claude-sonnet-4-6: the renderer is compared on that same input.
+                choice.chosen_model = "anthropic/claude-sonnet-4-6".to_owned();
+            }
             for (n, next) in nexts {
                 for (t, theme) in themes() {
                     let text = choice.render_human_next(theme, next);
@@ -737,7 +764,7 @@ mod cascade_oracle {
             .collect()
     }
 
-    /// `(group, cases, sha256)` captured from the pre-move code; never recomputed by the code under test.
+    /// `(group, cases, sha256)` recorded captures; the test never recomputes its expectations.
     const EXPECTED: &[(&str, usize, &str)] = &[
         (
             "bare8/human",
@@ -777,7 +804,7 @@ mod cascade_oracle {
         (
             "bare8/doctor",
             24,
-            "c29a390f4d8d224c7f0285f7b45bd204550bb5f6f89f51a70fed397441f9eea9",
+            "14128d8f33f5e8b1b8931d54a8a7c9ce3f0e1b84c8f986a9b69206c81aefe4df",
         ),
         (
             "unknown_ram/human",
@@ -817,7 +844,7 @@ mod cascade_oracle {
         (
             "unknown_ram/doctor",
             24,
-            "42002eb979a8d22d6b4c5e85061e89dd54348bb1a9a4b230a2a0577c473f8465",
+            "e5a89e9c5fc962ebf588cc7466bd4333f377aaafe63a6a82e136592bcf62196b",
         ),
         (
             "seat18/human",
@@ -857,7 +884,7 @@ mod cascade_oracle {
         (
             "seat18/doctor",
             24,
-            "48f41d9f4cef44b54b1175fd9d3f640423e53a5f9026cc7bc92588740289d8fb",
+            "6e5b40f5ae7c1c67e54c4538e28c2f6a789e487510b18d32152618e939f9cb4b",
         ),
         (
             "no_adapter/human",
@@ -897,7 +924,7 @@ mod cascade_oracle {
         (
             "no_adapter/doctor",
             24,
-            "69fcd84c8ae0075b61bedc1fa4951f8d89f901e8dd33a2907a91ada81bceb5a2",
+            "2eda7f61bb1ac10ec9cb6728a7b4a7cba5d187e4bc13d08ce2fb4d29c5500174",
         ),
         (
             "keys64/human",
@@ -937,7 +964,7 @@ mod cascade_oracle {
         (
             "keys64/doctor",
             24,
-            "e7cc6560cb2c4d917f5b74fe5b8e406e19dcb1c1ba5317fe07db8891416f923e",
+            "280384b16eedc8c4c95ab68e3d67218e9de46bb2e7285fabbff77dd9494a4f77",
         ),
         (
             "seat_pulled32/human",
@@ -977,7 +1004,7 @@ mod cascade_oracle {
         (
             "seat_pulled32/doctor",
             24,
-            "ebfcf42461773d39a5451de1374fe8aa935ec3e12ed90e9854241651fae4aa66",
+            "b7a4dceba169a014b58f8a84358f1ac621722f879d2ffac5faebd34ac13d39d4",
         ),
     ];
 

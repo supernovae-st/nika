@@ -654,6 +654,31 @@ fn a_single_question_refused_for_capacity_is_explicitly_over_capacity() {
     assert_eq!(exchange.error.as_ref(), Some(error));
 }
 
+/// A question larger than one the seat already refused alone is never sent, and the request after
+/// it still settles in its own place (live gauntlet r06, 2026-10-17: the Session panicked at
+/// `slots[at]`, index out of bounds).
+#[test]
+fn a_question_not_sent_for_capacity_leaves_the_next_request_in_place() {
+    let first = [reference(9, &"y".repeat(2_000))];
+    let second = [reference(0, &"x".repeat(6_000)), reference(1, "small")];
+    let peer = Peer::start(vec![
+        over_capacity(),
+        over_capacity(),
+        answering(&second, 1..2, USAGE),
+    ]);
+    let seat = seat(&peer);
+    let one = block_on(seat.exchange_each(&ChoiceBatch::of("a", &first)));
+    assert_eq!(one.outcomes, ["over_capacity"]);
+    let two = block_on(seat.exchange_each(&ChoiceBatch::of("b", &second)));
+    assert_eq!(
+        two.outcomes,
+        ["over_capacity", "chosen"],
+        "{:?}",
+        two.answers
+    );
+    assert_eq!(peer.heads().len(), 3, "the larger question was never sent");
+}
+
 /// One question too large alone amid three that fit: halving isolates it, the three are answered
 /// and it alone ends over capacity. Fewer siblings never claim to cure it.
 #[test]

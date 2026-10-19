@@ -662,7 +662,7 @@
         "options": [
           {
             "key": "rattraper",
-            "label": "fire every missed slot, oldest first"
+            "label": "fire the latest missed slot, once"
           },
           {
             "key": "rattraper-une-fois",

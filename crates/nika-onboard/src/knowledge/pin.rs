@@ -385,7 +385,9 @@ pub fn composed_record(
         .as_ref()
         .map_or(&[][..], |receipt| receipt.context.as_slice());
     // The Plan calls prepared with a semantic context, and which of them carried this pack:
-    // its door digest and every reference's receipt on that very call, never the round's.
+    // its door digest and every reference's receipt on that very call, never the round's — the
+    // reference whole, or by its first line when the call's opening was fitted to what one
+    // request carries (the receipt keeps the whole entry's digest).
     let marked: Vec<&Value> = context
         .iter()
         .filter(|call| call.get("semantic_context").is_some())
@@ -395,8 +397,10 @@ pub fn composed_record(
         call["semantic_context"]["pack_sha256"].as_str() == Some(digest.as_str())
             && pack.references.iter().all(|r| {
                 let sha = sha256_hex(r.text.as_bytes());
-                refs.iter()
-                    .any(|row| row["id"] == r.id && row["sha256"] == sha)
+                refs.iter().any(|row| {
+                    row["id"] == r.id
+                        && (row["sha256"] == sha || row["first_line_only"]["sha256"] == sha)
+                })
             })
     };
     let plan: Vec<&Value> = (marked.iter().copied())

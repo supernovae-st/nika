@@ -43,6 +43,7 @@ pub mod admitted {
 }
 pub use crate::{
     UNJUDGED_DEPENDENCY, finding, finish, initial, literal_answer, parse, question, ready_by_law,
+    state_check_refusals, surface_check_refusals,
 };
 
 /// The sketch door's semantic record (slice C): the request basis read before any proposal, and

@@ -51,6 +51,7 @@ pub use nika_onboard::compile::compile_with_cognition_composed
 pub use nika_onboard::compile::compile_with_cognition_rehearsed
 pub use nika_onboard::compile::compile_with_provider
 pub use nika_onboard::compile::decide
+pub use nika_onboard::compile::finding
 pub use nika_onboard::compile::fold
 pub use nika_onboard::compile::intent_sha256
 pub use nika_onboard::compile::materialize_ready
@@ -2062,6 +2063,7 @@ pub nika_onboard::lifecycle::Lifecycle::saved: nika_onboard::lifecycle::Stage
 impl nika_onboard::lifecycle::Lifecycle
 pub fn nika_onboard::lifecycle::Lifecycle::from_facts(facts: &nika_onboard::lifecycle::LifecycleFacts) -> Self
 pub fn nika_onboard::lifecycle::Lifecycle::rail(&self) -> alloc::string::String
+pub fn nika_onboard::lifecycle::Lifecycle::rail_named(&self, names: [&str; 5]) -> alloc::string::String
 impl core::clone::Clone for nika_onboard::lifecycle::Lifecycle
 pub fn nika_onboard::lifecycle::Lifecycle::clone(&self) -> nika_onboard::lifecycle::Lifecycle
 impl core::cmp::Eq for nika_onboard::lifecycle::Lifecycle

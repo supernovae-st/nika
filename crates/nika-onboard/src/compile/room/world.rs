@@ -19,7 +19,7 @@ use nika_compile_cognition::rehearse::{
     CopyReceipt, Digest, FinalState, Held, LedgerFacts, Refusal,
 };
 use nika_fs::{EffectLedger, LedgerRefusal, OwnedDir, Phase, RoomLimits, RootedFs};
-use nika_kernel::fs::{FsError, FsMetaDyn as _, FsReadDyn as _, FsWriteDyn as _};
+use nika_kernel::fs::{FsError, FsListDyn as _, FsMetaDyn as _, FsReadDyn as _, FsWriteDyn as _};
 
 use super::ObservedRoom;
 use super::screen::Refused;
@@ -116,7 +116,11 @@ pub(super) async fn originals(project: &Path) -> Result<RootedFs, Refused> {
 }
 
 /// Copy every observed input into `room`, whole and bounded in total, never through a symlink
-/// nor from a special file, each copy read back from the room: a receipt per input, in order.
+/// nor from a special file, each copy read back from the room: a receipt per file, in order. A
+/// folder the request names is copied with each file under it, and a pattern it names with each
+/// file it matches, within the same bounds (live gauntlet r05, 2026-10-17: « inbox/ » named a
+/// folder, which the room refused as no regular file, so nothing was rehearsed). A folder is made
+/// in the room even when it holds nothing: an empty one is a day the workflow must survive.
 pub(super) async fn copy_in(
     originals: &RootedFs,
     room: &RootedFs,
@@ -125,50 +129,147 @@ pub(super) async fn copy_in(
     let mut receipts = Vec::with_capacity(inputs.len());
     let mut total = 0_u64;
     for (named, at) in inputs {
-        let path = Path::new(at);
         let refused =
             |why: &str| Refused::new(Refusal::CopyIn, format!("the observed input {named} {why}"));
-        let found = match originals.metadata(path).await {
+        let files = match files_of(originals, room, at).await {
+            Ok(files) => files,
             Err(FsError::NotFound { .. }) if write_only.contains(at) => continue,
-            found => found.map_err(|error| refused(&unreadable(&error)))?,
+            // A folder the request names that is not there holds nothing to copy, as the real run
+            // finds it.
+            Err(FsError::NotFound { .. }) if named.ends_with('/') => continue,
+            Err(error) => return Err(refused(&unreadable(&error))),
         };
-        if !found.is_file {
-            return Err(refused("is not a regular file"));
+        let files = files.ok_or_else(|| refused("is not a regular file"))?;
+        if u64::try_from(files.len()).unwrap_or(u64::MAX) > ROOM_FILES {
+            return Err(refused(&format!(
+                "holds more than the {ROOM_FILES} files a room is given: a cut world is never \
+                 rehearsed"
+            )));
         }
-        let bytes = originals
-            .read(path)
-            .await
-            .map_err(|error| refused(&unreadable(&error)))?;
-        total = total.saturating_add(u64::try_from(bytes.len()).unwrap_or(u64::MAX));
-        if total > ObservedRoom::COPY_BOUND {
-            return Err(Refused::new(
-                Refusal::CopyIn,
-                format!(
-                    "the observed inputs pass the copy bound of {} bytes: a cut world is never \
-                     rehearsed",
-                    ObservedRoom::COPY_BOUND
-                ),
-            ));
+        for file in files {
+            let shown = if file == *at {
+                named.clone()
+            } else {
+                format!("./{file}")
+            };
+            receipts.push(copy_file(originals, room, (&shown, &file), &mut total).await?);
         }
-        room.write(path, &bytes)
-            .await
-            .map_err(|error| refused(&format!("could not be copied into the room: {error}")))?;
-        let copied = room
-            .read(path)
-            .await
-            .map_err(|error| refused(&format!("could not be read back in the room: {error}")))?;
-        if copied != bytes {
-            return Err(refused("differs in the room from its original"));
-        }
-        let held = Held::of(&copied, ObservedRoom::PREVIEW_BOUND);
-        receipts.push(CopyReceipt::new(
-            named.clone(),
-            Digest::of(&bytes),
-            Some(Digest::of(&copied)),
-            held,
-        ));
     }
     Ok(receipts)
+}
+
+/// The files the observed input `at` stands for, as the room spells them: itself when it is a
+/// regular file, each file under it when it is a folder (made in `room` first), each file it
+/// matches when it is a pattern (none when its folder is absent); `None` for anything else.
+async fn files_of(
+    originals: &RootedFs,
+    room: &RootedFs,
+    at: &str,
+) -> Result<Option<Vec<String>>, FsError> {
+    let path = Path::new(at);
+    if at.contains(['*', '?', '[', '{']) {
+        let (folder, pattern) = split_pattern(at);
+        return match originals.glob(Path::new(&folder), &pattern).await {
+            Ok(matched) => Ok(Some(spelled(matched))),
+            Err(FsError::NotFound { .. }) => Ok(Some(Vec::new())),
+            Err(error) => Err(error),
+        };
+    }
+    let found = originals.metadata(path).await?;
+    if found.is_file {
+        return Ok(Some(vec![at.to_owned()]));
+    }
+    if !found.is_dir {
+        return Ok(None);
+    }
+    room.create_dir_all(path).await?;
+    let under = originals.glob(path, "**/*").await?;
+    Ok(Some(spelled(under)))
+}
+
+/// A pattern split at its first component holding a wildcard: the folder it walks (`.` for the
+/// room's root) and the pattern relative to it.
+fn split_pattern(at: &str) -> (String, String) {
+    let parts: Vec<&str> = at.split('/').collect();
+    let literal = (parts.iter())
+        .take_while(|part| !part.contains(['*', '?', '[', '{']))
+        .count();
+    let folder = parts.get(..literal).unwrap_or_default().join("/");
+    let pattern = parts.get(literal..).unwrap_or_default().join("/");
+    let folder = if folder.is_empty() {
+        ".".to_owned()
+    } else {
+        folder
+    };
+    (folder, pattern)
+}
+
+/// Matched paths as the room spells them, `.` components dropped, each once, sorted.
+fn spelled(paths: Vec<std::path::PathBuf>) -> Vec<String> {
+    let mut spelled: Vec<String> = (paths.into_iter())
+        .map(|path| {
+            (path.components())
+                .filter_map(|part| match part {
+                    std::path::Component::Normal(name) => name.to_str(),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join("/")
+        })
+        .filter(|path| !path.is_empty())
+        .collect();
+    spelled.sort();
+    spelled.dedup();
+    spelled
+}
+
+/// Copy the regular file `at` into `room`, whole and within the bound `total` keeps, read back
+/// from the room: its receipt under the name `named`.
+async fn copy_file(
+    originals: &RootedFs,
+    room: &RootedFs,
+    (named, at): (&str, &str),
+    total: &mut u64,
+) -> Result<CopyReceipt, Refused> {
+    let path = Path::new(at);
+    let refused =
+        |why: &str| Refused::new(Refusal::CopyIn, format!("the observed input {named} {why}"));
+    let found = (originals.metadata(path).await).map_err(|error| refused(&unreadable(&error)))?;
+    if !found.is_file {
+        return Err(refused("is not a regular file"));
+    }
+    let bytes = originals
+        .read(path)
+        .await
+        .map_err(|error| refused(&unreadable(&error)))?;
+    *total = total.saturating_add(u64::try_from(bytes.len()).unwrap_or(u64::MAX));
+    if *total > ObservedRoom::COPY_BOUND {
+        return Err(Refused::new(
+            Refusal::CopyIn,
+            format!(
+                "the observed inputs pass the copy bound of {} bytes: a cut world is never \
+                 rehearsed",
+                ObservedRoom::COPY_BOUND
+            ),
+        ));
+    }
+    room.write(path, &bytes)
+        .await
+        .map_err(|error| refused(&format!("could not be copied into the room: {error}")))?;
+    let copied = room
+        .read(path)
+        .await
+        .map_err(|error| refused(&format!("could not be read back in the room: {error}")))?;
+    if copied != bytes {
+        return Err(refused("differs in the room from its original"));
+    }
+    let held = Held::of(&copied, ObservedRoom::PREVIEW_BOUND);
+    Ok(CopyReceipt::new(
+        named.to_owned(),
+        Digest::of(&bytes),
+        Some(Digest::of(&copied)),
+        held,
+    ))
 }
 
 /// Why an original could not be read, in the words of what it is.

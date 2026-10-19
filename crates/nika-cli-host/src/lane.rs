@@ -121,6 +121,56 @@ mod tests {
         );
     }
 
+    /// A run refused before its first frame says why from its stderr, where an access refusal
+    /// writes its reason alone (live gauntlet, 2026-10-16: the person read only « exit 3 ·
+    /// refused by the environment »). A reason already on the stream is never doubled, and a
+    /// stderr flood never blocks the stream.
+    #[test]
+    fn a_run_refused_before_its_first_frame_says_why_from_its_stderr() {
+        let (busy, _heard) = std::sync::mpsc::channel();
+        let slot: ChildSlot = std::sync::Arc::default();
+        let run = |script: &str| {
+            drive_child(
+                Path::new("/bin/sh"),
+                &["-c".to_owned(), script.to_owned()],
+                Path::new("/"),
+                &busy,
+                &slot,
+            )
+        };
+        let (code, trace, lines) =
+            run("printf 'NIKA-1800 · no ready access path\n\n  drop the effort\n' >&2; exit 3");
+        assert_eq!(code, 3);
+        assert!(trace.is_none());
+        assert_eq!(
+            lines,
+            vec![
+                "the run stopped before it started: NIKA-1800 · no ready access path · drop the effort"
+                    .to_owned()
+            ]
+        );
+        let (code, _, lines) = run(concat!(
+            "printf '%s\\n' '{\"error\":{\"code\":null,\"message\":\"refused here\"}}';",
+            " printf 'refused here\\n' >&2; exit 3"
+        ));
+        assert_eq!(code, 3);
+        assert_eq!(lines.len(), 1, "the stream's own reason, once: {lines:?}");
+        assert!(
+            !lines[0].starts_with("the run stopped before it started"),
+            "{lines:?}"
+        );
+        let (code, _, lines) = run(concat!(
+            "head -c 300000 /dev/zero | tr '\\0' 'e' >&2;",
+            " echo '{\"kind\":\"workflow_started\",\"fields\":[{\"key\":\"workflow\",\"value\":\"w\"}]}'; exit 0"
+        ));
+        assert_eq!(code, 0);
+        assert_eq!(
+            lines,
+            vec!["running · w".to_owned()],
+            "a flood never blocks the stream"
+        );
+    }
+
     /// A sink that takes the frames too hears the very story lines a busy
     /// sender hears, and every machine frame typed: the runtime event, then
     /// the settlement that closes the stream, both naming their execution.
@@ -175,34 +225,28 @@ mod tests {
         );
     }
 
-    /// A frame over 1 MiB on the plain lane stops the reading: the child is
-    /// ended and reaped (its pid leaves the slot), the story says the stream
-    /// stopped and that effects may have happened, and the exit is the
-    /// environment's, never the child's success.
+    /// A frame over 1 MiB is drained unread and the stream goes on: the frames after it are told
+    /// and the child's own exit stands. Live gauntlet, 2026-10-15: a task that fetched three job
+    /// boards (more than 1 MiB of output in its settle frame) stopped the run itself, « Run
+    /// frame exceeds 1 MiB; no automatic retry ».
     #[test]
-    fn an_oversize_frame_ends_the_child_and_is_said() {
+    fn an_oversize_frame_is_drained_and_the_run_goes_on() {
         let (busy, _heard) = std::sync::mpsc::channel();
         let slot: ChildSlot = std::sync::Arc::default();
-        let script = "head -c 1048600 /dev/zero | tr '\\0' 'a'; echo; exec sleep 30";
-        let started = std::time::Instant::now();
-        let (code, trace, lines) = drive_child(
+        let started = r#"{"kind":"workflow_started","fields":[{"key":"workflow","value":"jobs"}]}"#;
+        let script =
+            format!("head -c 1048600 /dev/zero | tr '\\0' 'a'; echo; echo '{started}'; exit 0");
+        let (code, _trace, lines) = drive_child(
             Path::new("/bin/sh"),
-            &["-c".to_owned(), script.to_owned()],
+            &["-c".to_owned(), script],
             Path::new("/"),
             &busy,
             &slot,
         );
-        assert_eq!(code, 3);
-        assert!(trace.is_none());
+        assert_eq!(code, 0, "{lines:?}");
         assert!(
-            lines.last().is_some_and(
-                |l| l.contains("Run frame exceeds 1 MiB") && l.contains("may have had effects")
-            ),
-            "{lines:?}"
-        );
-        assert!(
-            started.elapsed() < std::time::Duration::from_secs(20),
-            "the child was ended, not waited for"
+            lines.iter().any(|l| l.contains("running · jobs")),
+            "the frame after the oversize one is told: {lines:?}"
         );
         assert!(slot.lock().expect("slot").is_none(), "reaped");
     }

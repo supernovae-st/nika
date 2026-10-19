@@ -1,4 +1,5 @@
 pub mod nika_compile
+pub use nika_compile::ModelSink
 pub use nika_compile::Substituted
 pub use nika_compile::fold
 pub use nika_compile::stated_destinations
@@ -1266,6 +1267,56 @@ impl<T> nika_error::traits::AsAny for nika_compile::MaterializeError where T: 's
 pub fn nika_compile::MaterializeError::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile::MaterializeError
 pub type nika_compile::MaterializeError::Output = T
+#[non_exhaustive] pub enum nika_compile::ModelFound
+pub nika_compile::ModelFound::Decorative
+pub nika_compile::ModelFound::Decorative::task: alloc::string::String
+pub nika_compile::ModelFound::Met
+pub nika_compile::ModelFound::Met::task: alloc::string::String
+pub nika_compile::ModelFound::Missing
+pub nika_compile::ModelFound::Undecided
+pub nika_compile::ModelFound::Undecided::child: alloc::string::String
+pub nika_compile::ModelFound::Undecided::task: alloc::string::String
+impl core::clone::Clone for nika_compile::ModelFound
+pub fn nika_compile::ModelFound::clone(&self) -> nika_compile::ModelFound
+impl core::cmp::Eq for nika_compile::ModelFound
+impl core::cmp::PartialEq for nika_compile::ModelFound
+pub fn nika_compile::ModelFound::eq(&self, other: &nika_compile::ModelFound) -> bool
+impl core::fmt::Debug for nika_compile::ModelFound
+pub fn nika_compile::ModelFound::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::ModelFound
+impl<D> owo_colors::OwoColorize for nika_compile::ModelFound
+impl<Q, K> equivalent::Equivalent<K> for nika_compile::ModelFound where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::ModelFound::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile::ModelFound where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::ModelFound::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile::ModelFound where U: core::convert::From<T>
+pub fn nika_compile::ModelFound::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::ModelFound where U: core::convert::Into<T>
+pub type nika_compile::ModelFound::Error = core::convert::Infallible
+pub fn nika_compile::ModelFound::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::ModelFound where U: core::convert::TryFrom<T>
+pub type nika_compile::ModelFound::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::ModelFound::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::ModelFound where T: core::clone::Clone
+pub type nika_compile::ModelFound::Owned = T
+pub fn nika_compile::ModelFound::clone_into(&self, target: &mut T)
+pub fn nika_compile::ModelFound::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::ModelFound where T: 'static + ?core::marker::Sized
+pub fn nika_compile::ModelFound::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::ModelFound where T: ?core::marker::Sized
+pub fn nika_compile::ModelFound::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::ModelFound where T: ?core::marker::Sized
+pub fn nika_compile::ModelFound::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::ModelFound where T: core::clone::Clone
+pub unsafe fn nika_compile::ModelFound::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::ModelFound
+pub fn nika_compile::ModelFound::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::ModelFound where T: core::clone::Clone
+pub fn nika_compile::ModelFound::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::ModelFound where T: 'static
+pub fn nika_compile::ModelFound::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::ModelFound
+pub type nika_compile::ModelFound::Output = T
 #[non_exhaustive] pub enum nika_compile::NativeMode
 pub nika_compile::NativeMode::Escalate
 pub nika_compile::NativeMode::Off
@@ -1319,6 +1370,49 @@ impl<T> outref::AsOut<T> for nika_compile::NativeMode where T: core::marker::Cop
 pub fn nika_compile::NativeMode::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_compile::NativeMode
 pub type nika_compile::NativeMode::Output = T
+#[non_exhaustive] pub enum nika_compile::PartBasis
+pub nika_compile::PartBasis::Sink
+pub nika_compile::PartBasis::Sink::cited: core::option::Option<alloc::string::String>
+pub nika_compile::PartBasis::Sink::p: f64
+pub nika_compile::PartBasis::Words
+pub nika_compile::PartBasis::Words::result: alloc::string::String
+pub nika_compile::PartBasis::Words::words: alloc::string::String
+impl core::clone::Clone for nika_compile::PartBasis
+pub fn nika_compile::PartBasis::clone(&self) -> nika_compile::PartBasis
+impl core::cmp::PartialEq for nika_compile::PartBasis
+pub fn nika_compile::PartBasis::eq(&self, other: &nika_compile::PartBasis) -> bool
+impl core::fmt::Debug for nika_compile::PartBasis
+pub fn nika_compile::PartBasis::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::PartBasis
+impl<D> owo_colors::OwoColorize for nika_compile::PartBasis
+impl<T, U> core::convert::Into<U> for nika_compile::PartBasis where U: core::convert::From<T>
+pub fn nika_compile::PartBasis::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::PartBasis where U: core::convert::Into<T>
+pub type nika_compile::PartBasis::Error = core::convert::Infallible
+pub fn nika_compile::PartBasis::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::PartBasis where U: core::convert::TryFrom<T>
+pub type nika_compile::PartBasis::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::PartBasis::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::PartBasis where T: core::clone::Clone
+pub type nika_compile::PartBasis::Owned = T
+pub fn nika_compile::PartBasis::clone_into(&self, target: &mut T)
+pub fn nika_compile::PartBasis::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::PartBasis where T: 'static + ?core::marker::Sized
+pub fn nika_compile::PartBasis::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::PartBasis where T: ?core::marker::Sized
+pub fn nika_compile::PartBasis::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::PartBasis where T: ?core::marker::Sized
+pub fn nika_compile::PartBasis::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::PartBasis where T: core::clone::Clone
+pub unsafe fn nika_compile::PartBasis::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::PartBasis
+pub fn nika_compile::PartBasis::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::PartBasis where T: core::clone::Clone
+pub fn nika_compile::PartBasis::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::PartBasis where T: 'static
+pub fn nika_compile::PartBasis::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::PartBasis
+pub type nika_compile::PartBasis::Output = T
 #[non_exhaustive] pub enum nika_compile::PreviewScope
 pub nika_compile::PreviewScope::SourceOnly
 impl core::clone::Clone for nika_compile::PreviewScope
@@ -1815,6 +1909,8 @@ pub type nika_compile::CompileDiagnostic::Output = T
 pub nika_compile::CompileOutcome::candidate: core::option::Option<alloc::string::String>
 pub nika_compile::CompileOutcome::check_preview: core::option::Option<nika_compile::CompilePreview>
 pub nika_compile::CompileOutcome::diagnostics: alloc::vec::Vec<nika_compile::CompileDiagnostic>
+pub nika_compile::CompileOutcome::model_parts: core::option::Option<alloc::vec::Vec<nika_compile::ModelPart>>
+pub nika_compile::CompileOutcome::model_parts_unrun: core::option::Option<alloc::string::String>
 pub nika_compile::CompileOutcome::provenance: nika_compile::CompileProvenance
 pub nika_compile::CompileOutcome::questions: alloc::vec::Vec<nika_compile::CompileQuestion>
 pub nika_compile::CompileOutcome::requested_boundary: core::option::Option<nika_check::effective::EffectivePermits>
@@ -2145,6 +2241,48 @@ impl<T> nika_error::traits::AsAny for nika_compile::KnowledgeReference where T: 
 pub fn nika_compile::KnowledgeReference::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile::KnowledgeReference
 pub type nika_compile::KnowledgeReference::Output = T
+#[non_exhaustive] pub struct nika_compile::ModelPart
+pub nika_compile::ModelPart::basis: nika_compile::PartBasis
+pub nika_compile::ModelPart::found: nika_compile::ModelFound
+pub nika_compile::ModelPart::sink: core::option::Option<nika_compile_fidelity::model_paths::ModelSink>
+impl nika_compile::ModelPart
+pub fn nika_compile::ModelPart::new(basis: nika_compile::PartBasis, sink: core::option::Option<nika_compile_fidelity::model_paths::ModelSink>, found: nika_compile::ModelFound) -> Self
+impl core::clone::Clone for nika_compile::ModelPart
+pub fn nika_compile::ModelPart::clone(&self) -> nika_compile::ModelPart
+impl core::cmp::PartialEq for nika_compile::ModelPart
+pub fn nika_compile::ModelPart::eq(&self, other: &nika_compile::ModelPart) -> bool
+impl core::fmt::Debug for nika_compile::ModelPart
+pub fn nika_compile::ModelPart::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::ModelPart
+impl<D> owo_colors::OwoColorize for nika_compile::ModelPart
+impl<T, U> core::convert::Into<U> for nika_compile::ModelPart where U: core::convert::From<T>
+pub fn nika_compile::ModelPart::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::ModelPart where U: core::convert::Into<T>
+pub type nika_compile::ModelPart::Error = core::convert::Infallible
+pub fn nika_compile::ModelPart::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::ModelPart where U: core::convert::TryFrom<T>
+pub type nika_compile::ModelPart::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::ModelPart::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::ModelPart where T: core::clone::Clone
+pub type nika_compile::ModelPart::Owned = T
+pub fn nika_compile::ModelPart::clone_into(&self, target: &mut T)
+pub fn nika_compile::ModelPart::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::ModelPart where T: 'static + ?core::marker::Sized
+pub fn nika_compile::ModelPart::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::ModelPart where T: ?core::marker::Sized
+pub fn nika_compile::ModelPart::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::ModelPart where T: ?core::marker::Sized
+pub fn nika_compile::ModelPart::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::ModelPart where T: core::clone::Clone
+pub unsafe fn nika_compile::ModelPart::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::ModelPart
+pub fn nika_compile::ModelPart::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::ModelPart where T: core::clone::Clone
+pub fn nika_compile::ModelPart::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::ModelPart where T: 'static
+pub fn nika_compile::ModelPart::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::ModelPart
+pub type nika_compile::ModelPart::Output = T
 #[non_exhaustive] pub struct nika_compile::RepresentationError
 impl core::convert::From<nika_compile::RepresentationError> for nika_compile::CompileError
 pub fn nika_compile::CompileError::from(source: nika_compile::RepresentationError) -> Self

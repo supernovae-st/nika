@@ -20,7 +20,6 @@
 
 use super::native::{
     self, Answer, Question, Shaped, Talk, cold, conclude, floor_refuses, judge_resolved, prelude,
-    system_message,
 };
 use super::rehearsal::Rehearsals;
 use super::sketch::{
@@ -229,14 +228,16 @@ async fn draft<P: ProviderInferDyn>(
 
 /// The talk the door opens: the card, the conventions and the qualified pack's references, the
 /// door's instruction and the language's complete schema; then the request's facts with every
-/// admitted component of the lent catalogue. Returns the talk and the receipts of what it sent.
+/// admitted component of the lent catalogue. An opening past what one request carries is fitted
+/// ([`native::capacity::system`]). Returns the talk and the receipts of what it sent.
 fn opened(
     (intent, reading, request): (&str, &Reading, &CompileRequest),
     catalog: Option<&dyn ComponentCatalog>,
     route: Vec<String>,
 ) -> (Talk, Vec<Value>) {
     let native::Prelude {
-        references,
+        mut references,
+        pack_from,
         callables,
         mut sent,
         mut opening,
@@ -256,12 +257,17 @@ fn opened(
         "count": components.as_array().map_or(0, Vec::len),
         "bytes": listed.len(), "sha256": sha(&listed)}));
     opening["components"] = components;
-    let mut system = system_message(&references, &callables);
-    system.push_str("\n\n");
-    system.push_str(INSTRUCTION);
-    system.push_str("\n\n# The language's complete schema (the Spec's workflow schema)\n");
-    system.push_str(&language);
-    let mut talk = Talk::open(system, opening.to_string(), route, allowed, request);
+    let instruction = format!(
+        "\n\n{INSTRUCTION}\n\n# The language's complete schema (the Spec's workflow schema)\n{language}"
+    );
+    let opening = opening.to_string();
+    let system = native::capacity::system(
+        (&mut references, &mut sent, pack_from),
+        &callables,
+        (&instruction, &opening),
+        &[answer_schema()],
+    );
+    let mut talk = Talk::open(system, opening, route, allowed, request);
     talk.presented = json!(sent);
     (talk, sent)
 }

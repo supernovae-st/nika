@@ -13,8 +13,8 @@ mod room_support;
 use nika_compile::surface::sha256;
 use nika_onboard::compile::rehearse::Rehearsal;
 use room_support::{
-    SALES, World, bound_to, completed, computed_target, conditional_copy, copy_file, gated_source,
-    never_attempted, not_run_because, published, rehearsed, sales_input,
+    SALES, World, bound_to, completed, computed_target, conditional_copy, copy_file, csv_to_json,
+    gated_source, never_attempted, not_run_because, published, rehearsed, sales_input,
 };
 
 const PREVIEW_BOUND: usize = 64 * 1024;
@@ -108,6 +108,41 @@ async fn a_required_output_skipped_while_a_copy_of_it_exists_is_still_missing() 
         "a copied file is never the run's write: {report:?}"
     );
     assert!(published(&report).is_empty(), "{report:?}");
+}
+
+/// A CSV parsed by `nika:convert` is rehearsed over the room's copy: its JSON is written in the
+/// room and read back, the original untouched (live gauntlet wave 6 r01, 2026-10-18: « task
+/// `parse_perso` runs `nika:convert`, outside any bounded subset a rehearsal vouches for », so
+/// no CSV workflow was ever tried before its first run).
+#[tokio::test]
+async fn a_csv_parsed_by_convert_is_rehearsed_over_the_rooms_copy() {
+    const TEST: &str = concat!(
+        module_path!(),
+        "::a_csv_parsed_by_convert_is_rehearsed_over_the_rooms_copy"
+    );
+    let world = World::new(&[("data/sales.csv", SALES)]);
+    let before = world.files();
+    let source = csv_to_json(&world);
+    let report = rehearsed(
+        TEST,
+        "only",
+        &world.room(),
+        &source,
+        &sales_input(&world),
+        &[],
+    )
+    .await;
+    let Rehearsal::Passed { outputs } = &report.outcome else {
+        assert!(
+            matches!(report.outcome, Rehearsal::Passed { .. }),
+            "a CSV workflow is rehearsed: {report:?}"
+        );
+        return;
+    };
+    let rows: serde_json::Value = serde_json::from_str(&outputs[0].text).expect("json");
+    assert_eq!(rows[1]["client"], "b", "{rows}");
+    assert_eq!(rows.as_array().map(Vec::len), Some(3), "{rows}");
+    assert_eq!(world.files(), before, "the original is untouched");
 }
 
 #[tokio::test]

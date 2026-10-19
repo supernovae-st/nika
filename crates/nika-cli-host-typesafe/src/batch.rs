@@ -102,6 +102,7 @@ impl TypesafeSeat {
             let Some((at, body)) = partition.begin(batch, &self.model) else {
                 break;
             };
+            journal_unsent(&partition, batch, watch, &mut slots, at);
             match watch.sending(partition.record(at, batch, &slots)) {
                 Ok(slot) => slots.push(slot),
                 Err(error) => {
@@ -111,17 +112,43 @@ impl TypesafeSeat {
                 }
             }
             let started = std::time::Instant::now();
-            match self.post(&body).await {
+            match self.post(body).await {
                 Ok(response) => partition.responded(at, batch, response.status, &response.body),
                 Err(failure) => {
                     partition.lost(at, failure.delivery != Delivery::NotSent, failure.error);
                 }
             }
             partition.timed(at, started.elapsed());
-            watch.settled(slots[at], partition.record(at, batch, &slots));
+            if let Some(&slot) = slots.get(at) {
+                watch.settled(slot, partition.record(at, batch, &slots));
+            }
         }
+        journal_unsent(
+            &partition,
+            batch,
+            watch,
+            &mut slots,
+            partition.attempts.len(),
+        );
         self.capacity.learn(&partition);
         BatchExchange::of(partition)
+    }
+}
+
+/// The attempts between the last one journaled and `upto` that were never sent (a question larger
+/// than one the seat refused alone): each journaled as such, and holding its place, so a slot
+/// always names its own attempt (live gauntlet r06, 2026-10-17: the next request settled out of
+/// place, past the end of its slots, and the Session panicked).
+fn journal_unsent(
+    partition: &system_one::Partition,
+    batch: &ChoiceBatch,
+    watch: &dyn Requests,
+    slots: &mut Vec<usize>,
+    upto: usize,
+) {
+    while slots.len() < upto {
+        watch.unsent(partition.record(slots.len(), batch, slots));
+        slots.push(usize::MAX);
     }
 }
 

@@ -45,13 +45,17 @@ use super::isolated_jq::IsolatedJq;
 use super::replay::{self, Capture, Captures};
 use crate::{ServiceExecutionDriver, SilentSink};
 
-/// The builtins a rehearsal runs: the room's file reads and writes, the run's clock, its logs
-/// and pure computation (`nika:validate` checks data against the schema it is given and
-/// resolves no reference). A host screens a candidate against this surface before any room
-/// exists; at run time the gate refuses every other tool.
+/// The builtins a rehearsal runs: the room's file reads, writes, listings and removals (all over
+/// the room's own copy), the run's clock, its logs and pure computation (`nika:validate` checks
+/// data against the schema it is given and resolves no reference; `nika:convert` reads a room
+/// copy within the copy bound, and every value a room run builds is bounded where it is built). A host screens a candidate
+/// against this surface before any room exists; at run time the gate refuses every other tool.
 pub const ADMITTED_TOOLS: &[&str] = &[
     "nika:read",
     "nika:write",
+    "nika:glob",
+    "nika:remove_file",
+    "nika:convert",
     "nika:wait",
     "nika:log",
     "nika:emit",
@@ -210,13 +214,81 @@ impl ServiceExecutionDriver {
     where
         F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn + Send + Sync + 'static,
     {
-        let seams = RunSeams::of(self.workflow.run.as_ref().map(|run| &run.value));
         let held = Arc::clone(&tally);
         let model = self
             .workflow
             .model
             .as_ref()
             .map_or("", |model| model.value.as_str());
+        // The same evaluator tries the skipped path once the run settled (`skipped_path`), and the
+        // shapes after a model step (`shape_pass`), each with a bound record of its own.
+        let probe = jq.clone();
+        let limit = values.as_ref().map(|values| values.limit());
+        let lent = Lent {
+            tally,
+            jq,
+            captures: captures.clone(),
+            values,
+        };
+        let mut outcome = self
+            .run_in(Arc::clone(&fs), plan.clone(), lent, model)
+            .await?;
+        if let Some(captures) = &captures {
+            let screen = replay::screen(&self.workflow, captures);
+            let order: Vec<String> = (self.workflow.tasks.iter())
+                .map(|task| task.value.id.value.clone())
+                .collect();
+            let failed: Vec<String> = (outcome.records.iter())
+                .filter(|(_, record)| record.status == TaskStatus::Failure)
+                .map(|(task, _)| task.clone())
+                .collect();
+            replay::settle_into(&mut outcome, &order, &screen);
+            for task in &self.workflow.tasks {
+                let id = &task.value.id.value;
+                let excused = failed.contains(id)
+                    && (outcome.records.get(id)).is_some_and(|r| r.status == TaskStatus::Skipped);
+                if excused {
+                    held.excuse(&task.value);
+                }
+            }
+        }
+        // The day a gated step is skipped: each filter after it tried on its null.
+        if let Some(jq) = &probe {
+            super::skipped_path::try_skipped(&self.workflow, &mut outcome, jq).await;
+        }
+        // The steps after a model step that declares its answer's shape, on an example of it.
+        if let (Some(captures), Some(jq)) = (&captures, &probe) {
+            let pass = super::shape_pass::Pass {
+                plan,
+                jq,
+                captures,
+                limit,
+            };
+            super::shape_pass::try_shapes(self, &fs, pass, &mut outcome).await;
+        }
+        Ok(outcome)
+    }
+
+    /// One run of the admitted workflow over the room `fs`, with what the room lends it (`lent`)
+    /// and `model` as the run's default model: the tool plane, the four verbs and the denied
+    /// seams [`Self::rehearse_over_replaying`] describes.
+    pub(super) async fn run_in<G>(
+        &self,
+        fs: Arc<G>,
+        plan: ExecutionAccessPlan,
+        lent: Lent,
+        model: &str,
+    ) -> Result<RunOutcome, RuntimeError>
+    where
+        G: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn + Send + Sync + 'static,
+    {
+        let Lent {
+            tally,
+            jq,
+            captures,
+            values,
+        } = lent;
+        let seams = RunSeams::of(self.workflow.run.as_ref().map(|run| &run.value));
         let permits = self.workflow.permits.as_ref().map(|permits| &permits.value);
         let http = RoomHttp {
             tally: Arc::clone(&tally),
@@ -256,30 +328,19 @@ impl ServiceExecutionDriver {
             None => runtime,
         };
         let (mut stamper, mut sink) = (seams.stamper(), SilentSink);
-        let mut outcome = runtime
+        runtime
             .run(&self.workflow, &self.report, stamper.as_mut(), &mut sink)
-            .await?;
-        if let Some(captures) = &captures {
-            let screen = replay::screen(&self.workflow, captures);
-            let order: Vec<String> = (self.workflow.tasks.iter())
-                .map(|task| task.value.id.value.clone())
-                .collect();
-            let failed: Vec<String> = (outcome.records.iter())
-                .filter(|(_, record)| record.status == TaskStatus::Failure)
-                .map(|(task, _)| task.clone())
-                .collect();
-            replay::settle_into(&mut outcome, &order, &screen);
-            for task in &self.workflow.tasks {
-                let id = &task.value.id.value;
-                let excused = failed.contains(id)
-                    && (outcome.records.get(id)).is_some_and(|r| r.status == TaskStatus::Skipped);
-                if excused {
-                    held.excuse(&task.value);
-                }
-            }
-        }
-        Ok(outcome)
+            .await
     }
+}
+
+/// What a room lends one run: the counter its denied capabilities share, its isolated jq, the
+/// captures a replay serves and its bound on the values a run builds.
+pub(super) struct Lent {
+    pub(super) tally: Arc<DeniedTally>,
+    pub(super) jq: Option<Arc<IsolatedJq>>,
+    pub(super) captures: Option<Arc<Captures>>,
+    pub(super) values: Option<Arc<ValueBound>>,
 }
 
 /// The tool plane of a rehearsal: the admitted surface reaches the builtin dispatcher, `nika:jq`

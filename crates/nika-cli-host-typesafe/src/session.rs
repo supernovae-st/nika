@@ -88,6 +88,15 @@ impl DecisionSetup {
         Some(Self::build(&word, "environment", TypesafeSeat::from_env))
     }
 
+    /// The seat the operator's saved default names (`typesafe/<jev>`): an explicit selection
+    /// like [`DECISION_ENV`]'s, its key read now from `TYPESAFE_API_KEY` through the same
+    /// sanctioned boundary. A seat that cannot be built (no key, a malformed name) carries its
+    /// refusal, as from the environment.
+    #[must_use]
+    pub fn named(word: &str) -> Self {
+        Self::build(word, "default", TypesafeSeat::from_env)
+    }
+
     /// A host's typed selection with the key in hand (`None`: no key) and, for a gateway or a
     /// loopback test peer, an explicit endpoint.
     #[must_use]
@@ -132,7 +141,8 @@ impl DecisionSetup {
         &self.word
     }
 
-    /// Where the selection came from: `environment` · `host`.
+    /// Where the selection came from: `environment` · `host` · `default` (the operator's saved
+    /// default).
     #[must_use]
     pub fn source(&self) -> &'static str {
         self.source
@@ -325,6 +335,11 @@ impl DecisionSeat for SessionSeat {
         &self.word
     }
 
+    /// The seat's answers weigh their keys, when it may answer at all: consulted, with a seat.
+    fn weighs(&self) -> bool {
+        self.allowed.is_ok() && self.seat.is_some()
+    }
+
     fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
         Box::pin(async move {
             if let Err(why) = &self.allowed {
@@ -444,7 +459,7 @@ fn settled_one(question: &ChoiceQuestion, result: &Result<Exchange, ExchangeErro
             json!({
                 "question": question.id,
                 "options": question.keys(),
-                "options_sent": super::system_one::sent_order(question),
+                "options_sent": super::system_one::sent_order_in(question, question.order),
                 "sent": true,
                 "outcome": outcome,
                 "status": exchange.status,
@@ -493,6 +508,59 @@ mod batch_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A one-question receipt keeps the order that `request_bytes` sends, including the reversed
+    /// twin used to check whether a decision depends on option position.
+    #[test]
+    fn a_single_question_receipt_keeps_its_requested_wire_order() {
+        use nika_onboard::compile::decide::{ChoiceOption, system_one::Order};
+
+        let question = ChoiceQuestion::new(
+            "order",
+            "Pick one.",
+            json!({}),
+            vec![
+                ChoiceOption::new("zeta", "last"),
+                ChoiceOption::new("alpha", "first"),
+            ],
+        )
+        .in_order(Order::Reversed);
+        let result = Ok(Exchange {
+            answer: ChoiceAnswer::new("zeta", "fixture"),
+            status: 200,
+            billing_units: None,
+        });
+        let receipt = settled_one(&question, &result);
+        assert_eq!(receipt["options"], json!(["zeta", "alpha", "none"]));
+        assert_eq!(receipt["options_sent"], json!(["none", "alpha", "zeta"]));
+    }
+
+    /// A seat the saved default names is built from its name as the environment's is: its source
+    /// says so, and a malformed or foreign name is refused whatever key is present.
+    #[test]
+    fn a_saved_default_names_its_seat_and_a_malformed_name_is_refused() {
+        let seat = DecisionSetup::named("typesafe/jev-1.13.0");
+        assert_eq!(
+            (seat.model(), seat.source()),
+            ("typesafe/jev-1.13.0", "default")
+        );
+        for word in ["typesafe/", "openai/gpt-5", "typesafe/a b"] {
+            assert!(DecisionSetup::named(word).refusal().is_some(), "{word}");
+        }
+    }
+
+    /// A consulted seat weighs its answers; a refused one, or one with no seat, answers nothing
+    /// and weighs nothing, so a compile asks it the whole question alone.
+    #[test]
+    fn a_consulted_seat_weighs_only_when_it_may_answer() {
+        let base = Some("http://127.0.0.1:1");
+        let setup = DecisionSetup::with_key("typesafe/jev-test", Some("fixture".into()), base);
+        assert!(setup.consult(Ok(())).weighs());
+        assert!(!setup.consult(Err("the allowance is spent".into())).weighs());
+        let keyless = DecisionSetup::with_key("typesafe/jev-test", None, base);
+        assert!(!keyless.consult(Ok(())).weighs());
+    }
+
     #[test]
     #[allow(clippy::expect_used, clippy::panic, clippy::disallowed_methods)]
     fn a_poisoned_journal_refuses_before_transport() {

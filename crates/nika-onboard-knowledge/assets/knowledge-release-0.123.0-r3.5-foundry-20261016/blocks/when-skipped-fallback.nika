@@ -1,0 +1,13 @@
+nika: p22-after-skipped
+permits: { tools: ["nika:log"] }
+inputs:
+  flag: { type: bool, default: false }
+tasks:
+  optional:
+    when: "${{ inputs.flag == true }}"
+    invoke: { tool: "nika:log", args: { message: "flag on" } }
+  fallback:
+    after: { optional: skipped }
+    invoke: { tool: "nika:log", args: { message: "flag off" } }
+outputs:
+  note: ${{ tasks.fallback.output }}

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! The day-part compounds and the recurrences a request names (`day_part_compound`,
-//! `recurrence`), read by the reader, the compiler and the trigger reading. Moved here from
+//! The day-part compounds, the numbered days of a month and the recurrences a request names
+//! (`day_part_compound`, `day_of_month`, `recurrence`), read by the reader, the compiler and
+//! the trigger reading. Moved here from
 //! nika-compile at the 15k prod-LOC wall (2026-09-22), unchanged; the word tables of the
 //! proposal merge and their classifiers ascended to `nika_compile_clauses::words` (ADR-145).
 
@@ -20,6 +21,25 @@ pub fn day_part_compound(folded: &str) -> Option<(&'static str, &'static str)> {
         .copied()
         .find(|p| *p == part)
         .map(|part| (day, part))
+}
+
+/// The day of the month a folded word numbers: digits with or without an ordinal ending
+/// (« 1er », « 2e », « 15th »), or the first by name (« first », « premier »). Whether every
+/// month has that day is the schedule's reading to judge, never this word's.
+#[must_use]
+pub fn day_of_month(folded: &str) -> Option<u32> {
+    if matches!(folded, "first" | "premier" | "premiere") {
+        return Some(1);
+    }
+    let digits = folded.trim_end_matches(|c: char| c.is_ascii_alphabetic());
+    let ending = folded.get(digits.len()..)?;
+    let ordinal = ["", "st", "nd", "rd", "th", "er", "re", "ere", "e", "eme"].contains(&ending);
+    let numeral =
+        !digits.is_empty() && digits.len() <= 2 && digits.bytes().all(|b| b.is_ascii_digit());
+    if !ordinal || !numeral {
+        return None;
+    }
+    digits.parse().ok()
 }
 
 /// The byte span of the first recurrence a text states without its cadence

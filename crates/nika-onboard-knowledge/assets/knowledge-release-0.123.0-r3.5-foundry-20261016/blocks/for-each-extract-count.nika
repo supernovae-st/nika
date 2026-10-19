@@ -1,0 +1,17 @@
+nika: p26-for-each
+permits:
+  fs: { read: ["./docs/**"] }
+  tools: ["nika:glob", "nika:read"]
+tasks:
+  discover:
+    invoke: { tool: "nika:glob", args: { pattern: "./docs/*.md" } }
+  read_all:
+    with: { paths: "${{ tasks.discover.output }}" }
+    for_each: { items: "${{ with.paths }}", max_parallel: 2, fail_fast: false }
+    invoke: { tool: "nika:read", args: { path: "${{ item }}" } }
+    extract: { head: ".[0:12]" }
+  count:
+    with: { texts: "${{ tasks.read_all.output }}", heads: "${{ tasks.read_all.head }}" }
+    invoke: { tool: "nika:jq", args: { input: { texts: "${{ with.texts }}" }, expression: ".texts | length" } }
+outputs:
+  count: ${{ tasks.count.output }}

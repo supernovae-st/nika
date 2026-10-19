@@ -9,6 +9,7 @@
 //! script). A rerun-if-changed on the directory makes cargo scan it, additions and removals
 //! included, so the build never serves an inventory its tree no longer holds.
 fn main() {
+    println!("cargo:rerun-if-changed=assets/knowledge-release-0.123.0-r3.5-foundry-20261016");
     println!("cargo:rerun-if-changed=assets/knowledge-release-0.123.0-r3.2-foundry-20261012");
     println!("cargo:rerun-if-changed=assets/knowledge-release-r2");
 }

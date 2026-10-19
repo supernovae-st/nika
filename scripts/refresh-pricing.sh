@@ -120,7 +120,8 @@ def status_of(m: dict):
 # (default_model rows) that upstream dropped — priced from LiteLLM's
 # historical table (values verified 2026-07-06). The integrity gate
 # (validate::provider_models_have_pricing) holds through upstream churn;
-# retiring these requires the default_model canon to move first.
+# retiring these requires the default_model canon to move first. The xAI
+# grok-3 supplements left when the defaults moved to grok-4.x on 2026-10-12.
 #
 # Served-but-unlisted: the vendor aliases DeepSeek's chat/completions
 # still answers although its /models list and pricing page dropped them
@@ -128,12 +129,15 @@ def status_of(m: dict):
 # "deepseek-flash"`). Priced as the model they resolve to — the
 # deepseek-flash row above — so a human naming the alias they know is
 # bounded at the run door instead of refused NIKA-1709 as unpriced.
+# DeepSeek retired both names (API change log, 2026-04-24: discontinued
+# 2026-07-24), so their rows keep the `deprecated` status models.dev gave
+# them while it listed them: priced for a recorded run, never offered.
+#
+# (provider, model, input, output, status)
 SUPPLEMENTS = [
-    ("anthropic", "claude-sonnet-4", 3.0, 15.0),
-    ("xai", "grok-3", 3.0, 15.0),
-    ("xai", "grok-3-mini-fast", 0.6, 4.0),
-    ("deepseek", "deepseek-chat", 0.15, 0.6),
-    ("deepseek", "deepseek-reasoner", 0.15, 0.6),
+    ("anthropic", "claude-sonnet-4", 3.0, 15.0, None),
+    ("deepseek", "deepseek-chat", 0.15, 0.6, "deprecated"),
+    ("deepseek", "deepseek-reasoner", 0.15, 0.6, "deprecated"),
 ]
 
 rules = []
@@ -175,15 +179,16 @@ for engine_id, upstream_id in PROVIDERS.items():
 
 # Supplements are hand-priced from LiteLLM's historical table and carry
 # NO model facts — upstream dropped these models, so there is nothing to
-# mirror. Every @1.2 field stays absent rather than guessed.
-for prov, mid, inp, outp in SUPPLEMENTS:
+# mirror. Every @1.2 field stays absent rather than guessed, except the
+# retirement status its vendor published.
+for prov, mid, inp, outp, status in SUPPLEMENTS:
     if (prov, mid) not in seen:
         seen.add((prov, mid))
         rules.append({
             "provider": prov, "pattern": mid, "input": inp, "output": outp,
             "cache_read": None, "cache_write": None,
             "max_output_tokens": None, "context_window_tokens": None,
-            "open_weights": None, "status": None,
+            "open_weights": None, "status": status,
         })
 
 # Contains-fallback safety: longest pattern first within each provider.

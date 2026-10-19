@@ -9,12 +9,52 @@ use serde_json::{Value, json};
 
 use super::super::{ChoiceBatch, ChoiceOption, ChoiceQuestion};
 use super::{
-    Capacity, Declared, Order, Partition, Refusal, body, read, refusal, request, sent_order,
-    sent_order_in,
+    Capacity, Declared, Order, Partition, Refusal, body, read, refusal, request, request_bytes,
+    sent_order, sent_order_in,
 };
 
 /// The refusal of a request past the context capacity, for many questions or one alone.
 const MAX_TOKENS: &str = r#"{"detail": {"error_type": "max_tokens_exceeded"}}"#;
+
+/// Every question keeps today's sorted bytes unless it asks its own order: a request of default
+/// questions writes exactly the bytes of serializing [`request`].
+#[test]
+fn an_alphabetical_request_keeps_its_exact_bytes() {
+    let (a, b) = (question(0), question(1));
+    let sorted = serde_json::to_vec(&request("jev", &[&a, &b])).expect("serializes");
+    assert_eq!(request_bytes("jev", &[&a, &b]), sorted);
+}
+
+/// A question that asks its own order reaches the wire in it, beside one that keeps the sorted
+/// order: a both-order reading's twin is sent reversed, never re-sorted.
+#[test]
+fn each_question_reaches_the_wire_in_its_own_order() {
+    let sorted = question(0);
+    let reversed = question(1).in_order(Order::Reversed);
+    let text = String::from_utf8(request_bytes("jev", &[&sorted, &reversed])).expect("utf-8");
+    let item = |k: usize| {
+        let at = text.find(&format!("\"item-{k}\":")).expect("the item");
+        let criteria = at + text[at..].find("\"criteria\"").expect("its criteria");
+        let applies = criteria + text[criteria..].find("\"applies\"").expect("applies");
+        let none = criteria + text[criteria..].find("\"none\"").expect("none");
+        applies < none
+    };
+    assert!(item(0), "the sorted question lists applies first: {text}");
+    assert!(!item(1), "the reversed question lists none first: {text}");
+    let batch = ChoiceBatch::of("orders", &[sorted, reversed]);
+    let mut partition = Partition::of(&batch);
+    let (at, bytes) = partition.begin(&batch, "jev").expect("request");
+    assert_eq!(bytes, text.as_bytes());
+    let receipt = partition.record(at, &batch, &[]);
+    assert_eq!(
+        receipt["items"][0]["options_sent"],
+        json!(["applies", "none"])
+    );
+    assert_eq!(
+        receipt["items"][1]["options_sent"],
+        json!(["none", "applies"])
+    );
+}
 
 /// The refusal of a question type the service does not define: also HTTP 400.
 const INVALID: &str =
@@ -122,15 +162,19 @@ fn only_a_capacity_refusal_halves_and_a_refused_single_item_ends_over_capacity()
     let mut partition = Partition::of(&batch);
     let (first, body) = partition.begin(&batch, "jev").unwrap_or_default();
     let all: Vec<&ChoiceQuestion> = batch.items.iter().map(|i| &i.question).collect();
-    assert_eq!((first, body), (0, request("jev", &all)));
+    assert_eq!((first, body), (0, request_bytes("jev", &all)));
     partition.responded(first, &batch, 400, MAX_TOKENS.as_bytes());
     assert!(partition.attempts[0].halved);
     let (second, body) = partition.begin(&batch, "jev").unwrap_or_default();
-    assert_eq!(body, request("jev", &all[..2]), "the first half first");
+    assert_eq!(
+        body,
+        request_bytes("jev", &all[..2]),
+        "the first half first"
+    );
     assert_eq!(partition.attempts[second].halves, Some(0));
     partition.responded(second, &batch, 200, &answering(&batch, &[0, 1], 7));
     let (third, body) = partition.begin(&batch, "jev").unwrap_or_default();
-    assert_eq!(body, request("jev", &all[2..]));
+    assert_eq!(body, request_bytes("jev", &all[2..]));
     partition.responded(third, &batch, 400, MAX_TOKENS.as_bytes());
     let (fourth, _) = partition.begin(&batch, "jev").unwrap_or_default();
     assert_eq!(partition.attempts[fourth].items, [2]);
@@ -474,7 +518,7 @@ fn a_record_names_each_physical_request_without_its_text() {
         json!({"question": "item-0", "options": ["applies", "none"],
         "options_sent": ["applies", "none"], "outcome": "in_flight"})
     );
-    let text = serde_json::to_string(&body).unwrap_or_default();
+    let text = String::from_utf8(body).unwrap_or_default();
     assert_eq!(flying["body"]["bytes"], text.len());
     assert_eq!(
         flying["body"]["sha256"],
@@ -698,4 +742,47 @@ fn the_order_writes_the_criteria_and_alphabetical_keeps_todays_bytes() {
             "{order:?}: the same request"
         );
     }
+}
+
+/// One item refused alone for capacity teaches what no request can carry: a later item whose
+/// body is at least as large is not sent, failed over capacity with why, while a smaller one
+/// still leaves (live gauntlet r06 and r07, 2026-10-16: every question of a verification over a
+/// state the seat could not hold was sent and refused, 1163 and 980 calls).
+#[test]
+fn an_item_as_large_as_one_refused_alone_is_never_sent() {
+    let ask = |id: &str, text: String| {
+        let options = vec![ChoiceOption::new("applies", "it serves it")];
+        ChoiceQuestion::new(id, "Decide.", json!({"text": text}), options)
+    };
+    let questions = [
+        ask("long", "x".repeat(4_000)),
+        ask("longer", "x".repeat(5_000)),
+        ask("short", "x".to_owned()),
+    ];
+    let batch = ChoiceBatch::of("b", &questions);
+    let mut partition = Partition::of(&batch).seeded(Some(1));
+    let mut sent = Vec::new();
+    while let Some((at, _)) = partition.begin(&batch, "jev") {
+        let items = partition.attempts[at].items.clone();
+        sent.push(items.clone());
+        let (status, body) = if items == [2] {
+            (200, answering(&batch, &items, 10))
+        } else {
+            (400, MAX_TOKENS.as_bytes().to_vec())
+        };
+        partition.responded(at, &batch, status, &body);
+    }
+    assert_eq!(sent, [vec![0], vec![2]], "the longer item never left");
+    assert_eq!(
+        partition.outcomes,
+        ["over_capacity", "over_capacity", "chosen"]
+    );
+    let withheld = &partition.attempts[1];
+    assert!(!withheld.sent && withheld.items == [1], "{withheld:?}");
+    let why = withheld
+        .error
+        .as_ref()
+        .map(|e| e.0.clone())
+        .unwrap_or_default();
+    assert!(why.contains("no request can carry it"), "{why}");
 }

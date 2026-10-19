@@ -105,3 +105,29 @@ fn the_retained_r2_release_reopens_its_exact_bytes() {
     let earlier = pin_of(&snapshot, identity).reopen().expect("r2 pin");
     assert_eq!(earlier.manifest_sha256(), RETAINED_R2_SNAPSHOT);
 }
+
+/// The r3.2 release current before r3.5, retained whole: its pins reopen its exact bytes.
+const RETAINED_R3_2_SNAPSHOT: &str =
+    "8d52df01a5105fc4661851218e89ca172c5799bf3016aedbce1574ecac096075";
+const RETAINED_R3_2_POLICY_SHA256: &str =
+    "fb070b7ac25066c86c3fe41d4253d25741565b8c494908658661b868d1ae5764";
+
+#[test]
+fn the_retained_r3_2_release_reopens_its_exact_bytes() {
+    let identity = TrustedIdentity::r2(
+        RETAINED_R3_2_SNAPSHOT,
+        "policy-r2",
+        RETAINED_R3_2_POLICY_SHA256,
+    )
+    .expect("issued");
+    let snapshot = bundled::admit(Some(&identity)).expect("retained r3.2 admitted");
+    assert_eq!(snapshot.manifest_sha256(), RETAINED_R3_2_SNAPSHOT);
+    assert_eq!(count(&snapshot, "block:"), 41);
+    assert_eq!(count(&snapshot, "family:"), 16);
+    let earlier = pin_of(&snapshot, identity).reopen().expect("r3.2 pin");
+    assert_eq!(earlier.manifest_sha256(), RETAINED_R3_2_SNAPSHOT);
+    assert_ne!(
+        earlier.manifest_sha256(),
+        bundled::identity().expect("issued").snapshot_sha256()
+    );
+}

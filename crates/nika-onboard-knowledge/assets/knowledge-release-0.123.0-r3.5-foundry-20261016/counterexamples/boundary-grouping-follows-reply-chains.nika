@@ -1,0 +1,24 @@
+nika: boundary-grouping-reply-chains
+const:
+  messages_path: "./inbox/messages.json"
+permits:
+  fs: { read: ["./inbox/messages.json"] }
+  tools: ["nika:read", "nika:jq"]
+tasks:
+  messages_read:
+    invoke: { tool: "nika:read", args: { path: "${{ const.messages_path }}" } }
+  conversations:
+    with: { raw: "${{ tasks.messages_read.output }}" }
+    invoke:
+      tool: nika:jq
+      args:
+        input: { raw: "${{ with.raw }}" }
+        expression: |
+          # messages grouped by the conversation they reply to, groups in order of their first message
+          (.raw | fromjson) as $messages
+          | reduce $messages[] as $m ({order: [], groups: {}};
+              ($m.in_reply_to // $m.id) as $key
+              | if .groups | has($key) then .groups[$key] += [$m.id] else .order += [$key] | .groups[$key] = [$m.id] end)
+          | {conversations: [.order[] as $key | .groups[$key]]}
+outputs:
+  conversations: ${{ tasks.conversations.output.conversations }}

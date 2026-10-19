@@ -1,0 +1,21 @@
+nika: p66-orders-summary-child
+inputs:
+  orders: { type: { array: { object: { order: string, total: number } } }, required: true }
+permits:
+  tools: ["nika:jq", "nika:write"]
+  fs: { write: ["./out/summary.json"] }
+tasks:
+  summary:
+    invoke:
+      tool: "nika:jq"
+      args: { input: "${{ inputs.orders }}", expression: "{count: length, total: (map(.total) | add // 0)}" }
+  write_report:
+    with: { summary: "${{ tasks.summary.output }}" }
+    invoke: { tool: "nika:write", args: { path: "./out/summary.json", content: "${{ with.summary }}", create_dirs: true } }
+outputs:
+  count:
+    value: ${{ tasks.summary.output.count }}
+    type: integer
+  total:
+    value: ${{ tasks.summary.output.total }}
+    type: number

@@ -1,0 +1,100 @@
+# Armed by the project's nika.yaml, never by saving this file (« le 1er de chaque mois à 8h » is 0 8 1 * *):
+#   nika: monthly-report
+#   arm:
+#     - workflow: monthly-report-previous-month.nika
+#       cadence: "TZ=Europe/Paris 0 8 1 * *"
+#       plafond: 0.05
+#       manqué: rattraper-une-fois
+# Each run reports the month before the one it runs in, in the person's zone, over every file the pattern finds.
+nika: p70-monthly-report-previous-month
+const:
+  files: "./statements/*.csv"
+  date_field: date
+  amount_field: amount
+  group_field: category
+  label_field: label
+  keep: expenses
+  threshold_cents: 50000
+  out_dir: ./reports
+  tz: Europe/Paris
+permits:
+  tools: ["nika:date", "nika:glob", "nika:read", "nika:convert", "nika:jq", "nika:write"]
+  fs: { read: ["./statements/**"], write: ["./reports/**"] }
+tasks:
+  clock:
+    invoke: { tool: "nika:date", args: { op: now, tz: "${{ const.tz }}" } }
+  files:
+    invoke: { tool: "nika:glob", args: { pattern: "${{ const.files }}" } }
+  texts:
+    with: { paths: "${{ tasks.files.output }}" }
+    for_each: { items: "${{ with.paths }}", max_parallel: 4 }
+    invoke: { tool: "nika:read", args: { path: "${{ item }}" } }
+  tables:
+    with: { texts: "${{ tasks.texts.output }}" }
+    when: "${{ with.texts != null }}"
+    for_each: { items: "${{ with.texts }}", max_parallel: 4 }
+    invoke: { tool: "nika:convert", args: { input: "${{ item }}", from: csv, to: json } }
+  report:
+    with: { now: "${{ tasks.clock.output }}", paths: "${{ tasks.files.output }}", tables: "${{ tasks.tables.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input:
+          now: "${{ with.now }}"
+          paths: "${{ with.paths }}"
+          tables: "${{ with.tables }}"
+          fields: { date: "${{ const.date_field }}", amount: "${{ const.amount_field }}", group: "${{ const.group_field }}", label: "${{ const.label_field }}" }
+          keep: "${{ const.keep }}"
+          threshold: "${{ const.threshold_cents }}"
+          out_dir: "${{ const.out_dir }}"
+        expression: |
+          # an amount as integer cents, read from its text: never a float multiplied by 100
+          def cents: (tostring | gsub("[ \u00a0\u202f]"; "")) as $t
+            | ([$t | capture("^(?<s>[-+]?)(?<i>[0-9]+)(?:[.,](?<f>[0-9]{1,2}))?$")] | first) as $m
+            | if $m == null then null
+              else (($m.i | tonumber) * 100 + ((($m.f // "") + "00")[0:2] | tonumber)) * (if $m.s == "-" then -1 else 1 end)
+              end;
+          def thousands: if . < 1000 then tostring
+            else ((. / 1000 | floor) | thousands) + " " + ("00" + ((. % 1000) | tostring))[-3:] end;
+          # integer cents written as 1 234,56 €
+          def money: (if . < 0 then "-" else "" end)
+            + ((if . < 0 then -. else . end) as $c | (($c / 100 | floor) | thousands) + "," + ("0" + (($c % 100) | tostring))[-2:])
+            + " €";
+          def cell: tostring | gsub("\\|"; "\\|");
+          .fields as $f | .keep as $keep | .threshold as $threshold
+          # the month before the run's local month, as YYYY-MM
+          | (.now[0:7] | split("-") | map(tonumber)) as [$y, $mo]
+          | (if $mo == 1 then [$y - 1, 12] else [$y, $mo - 1] end) as [$py, $pm]
+          | ("\($py)-" + ("0" + ($pm | tostring))[-2:]) as $month
+          | [(.tables // [])[] | (. // [])[]
+             | {date: (.[$f.date] // "" | tostring | .[0:10]), cents: (.[$f.amount] | cents),
+                group: (.[$f.group] // "" | tostring), label: (.[$f.label] // "" | tostring)}] as $rows
+          | [$rows[] | select(.date[0:7] == $month)] as $month_rows
+          | [$month_rows[] | select(.cents != null)
+             | if $keep == "expenses" then select(.cents < 0) | .cents = -.cents
+               elif $keep == "income" then select(.cents > 0) else . end] as $kept
+          | ($kept | group_by(.group) | map({group: .[0].group, cents: (map(.cents) | add)}) | sort_by(-.cents, .group)) as $groups
+          | ($kept | map(.cents) | add // 0) as $total
+          | [$kept[] | select((if .cents < 0 then -.cents else .cents end) > $threshold)] as $large
+          | {files: ((.paths // []) | length), rows: ($rows | length), in_month: ($month_rows | length),
+             unreadable: ([$month_rows[] | select(.cents == null)] | length),
+             undated: ([$rows[] | select(.date | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") | not)] | length)} as $n
+          | {month: $month, path: (.out_dir + "/" + $month + ".md"), counts: $n, total_cents: $total, groups: $groups,
+             markdown: ("# Report for " + $month + "\n\n"
+               + "| " + ($f.group | cell) + " | Total |\n| --- | ---: |\n"
+               + ($groups | map("| " + (.group | cell) + " | " + (.cents | money) + " |\n") | join(""))
+               + "| **Total** | **" + ($total | money) + "** |\n\n"
+               + "## Above " + ($threshold | money) + "\n\n"
+               + (if ($large | length) == 0 then "None.\n"
+                  else ($large | map("- " + .date + " · " + (.label | cell) + " · " + (.cents | money) + "\n") | join("")) end)
+               + "\nFiles read: \($n.files) · rows: \($n.rows) · rows in " + $month + ": \($n.in_month)"
+               + " · amounts unreadable: \($n.unreadable) · dates unreadable: \($n.undated)\n")}
+  write_report:
+    with: { report: "${{ tasks.report.output }}" }
+    invoke: { tool: "nika:write", args: { path: "${{ with.report.path }}", content: "${{ with.report.markdown }}", create_dirs: true } }
+outputs:
+  month: ${{ tasks.report.output.month }}
+  path: ${{ tasks.report.output.path }}
+  total_cents: ${{ tasks.report.output.total_cents }}
+  groups: ${{ tasks.report.output.groups }}
+  counts: ${{ tasks.report.output.counts }}

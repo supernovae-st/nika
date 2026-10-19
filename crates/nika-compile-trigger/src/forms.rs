@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The two cadence forms beyond plain cron fields that the cadence grammar holds
-//! (`nika-cadence`): the last day of a month (`L` in the day-of-month field) and an interval
-//! of weeks anchored on a start date (`every N weeks from DATE HH:MM`). The words are read
-//! exactly, EN and FR like the other projections: a form the words do not state whole (no
-//! clock, no start date, a start date on another weekday than the one named, a word left
+//! The calendar forms the period reading does not reach: one numbered day of every month
+//! (`D` in the day-of-month field), and the two forms beyond plain cron fields that the cadence
+//! grammar holds (`nika-cadence`): the last day of a month (`L` in the day-of-month field) and
+//! an interval of weeks anchored on a start date (`every N weeks from DATE HH:MM`). The words
+//! are read exactly, EN and FR like the other projections: a form the words do not state whole
+//! (no clock, no start date, a start date on another weekday than the one named, a word left
 //! over) is no proposal, and the cadence question stays. The start date carries which weeks
 //! fire, so it is never guessed; a date is read only in the ISO form `YYYY-MM-DD`.
 
@@ -29,6 +30,14 @@ const NAMED_DAYS: &[(&str, u32)] = &[
 
 /// Words that frame a month end without stating anything else (« on the », « de chaque »).
 const MONTH_END_FILLER: &str = "on the of each every a le la du de des chaque tous toutes les";
+
+use nika_compile_reader::words::day_of_month;
+
+/// Words that name the month a numbered day comes back in (« de chaque mois », « monthly »).
+const MONTH_WORDS: &str = "month monthly mois mensuel mensuelle mensuellement";
+
+/// Words that name the day a number counts (« the first day », « le 1er jour »).
+const DAY_WORDS: &str = "day jour";
 
 /// Words that introduce a start date (« from », « starting on », « à partir du », « dès le »).
 const ANCHOR_WORDS: &str = "from starting beginning since on a partir compter depuis des du le";
@@ -65,7 +74,7 @@ pub(super) fn read(phrase: &str) -> Option<String> {
         .collect();
     match date {
         Some(date) => anchored_weeks(&rest, &time, &date),
-        None => month_end(&rest, &time),
+        None => month_end(&rest, &time).or_else(|| month_day(&rest, &time)),
     }
 }
 
@@ -89,6 +98,35 @@ fn month_end(words: &[&str], time: &str) -> Option<String> {
     let (hour, minute) = time.split_once(':')?;
     Some(format!(
         "{} {} L * *",
+        minute.parse::<u8>().ok()?,
+        hour.parse::<u8>().ok()?
+    ))
+}
+
+/// `M H D * *` when the words say one numbered day of every month (« le 1er de chaque mois
+/// à 8h », « every month on the 15th at 9:30 »), a clock time read apart. Only a day every
+/// month has (1 to 28): a 29th, 30th or 31st would silently skip the months without one, so it
+/// is no proposal and the cadence question stays (the last day has its own form). Live
+/// gauntlet, 2026-10-16: « le 1er de chaque mois à 8h » had no reading, and the author bound a
+/// daily 8h with a date check inside the workflow, losing every missed 1st.
+fn month_day(words: &[&str], time: &str) -> Option<String> {
+    let stated: Vec<&str> = words
+        .iter()
+        .copied()
+        .filter(|w| !listed(MONTH_END_FILLER, w))
+        .collect();
+    let days: Vec<u32> = stated.iter().filter_map(|w| day_of_month(w)).collect();
+    let months = stated.iter().filter(|w| listed(MONTH_WORDS, w)).count();
+    let day_words = stated.iter().filter(|w| listed(DAY_WORDS, w)).count();
+    let [day] = days.as_slice() else {
+        return None;
+    };
+    if months != 1 || day_words > 1 || stated.len() != 2 + day_words || !(1..=28).contains(day) {
+        return None;
+    }
+    let (hour, minute) = time.split_once(':')?;
+    Some(format!(
+        "{} {} {day} * *",
         minute.parse::<u8>().ok()?,
         hour.parse::<u8>().ok()?
     ))
@@ -251,6 +289,43 @@ mod tests {
         ] {
             assert_eq!(proposal(phrase).as_deref(), Some(expected), "{phrase}");
             grammatical(expected);
+        }
+    }
+
+    #[test]
+    fn a_numbered_day_of_every_month_at_a_time_is_that_day() {
+        for (phrase, expected) in [
+            ("le 1er de chaque mois à 8h", "0 8 1 * *"),
+            ("Le 1er de chaque mois à 8h.", "0 8 1 * *"),
+            ("le premier de chaque mois à 8h", "0 8 1 * *"),
+            ("le 1er jour du mois à 8h30", "30 8 1 * *"),
+            ("tous les 15 du mois à 9h", "0 9 15 * *"),
+            ("chaque mois le 2 à 10h", "0 10 2 * *"),
+            ("le 28 de chaque mois à 23h59", "59 23 28 * *"),
+            ("every month on the 1st at 8 am", "0 8 1 * *"),
+            ("on the 15th of each month at 9:30", "30 9 15 * *"),
+            ("the first day of every month at 07:00", "0 7 1 * *"),
+            ("monthly on the 3rd at 18:00", "0 18 3 * *"),
+        ] {
+            assert_eq!(proposal(phrase).as_deref(), Some(expected), "{phrase}");
+            grammatical(expected);
+        }
+        for phrase in [
+            // no clock: no hour is invented
+            "le 1er de chaque mois",
+            // a day some months lack would silently skip them
+            "le 31 de chaque mois à 8h",
+            "le 29 de chaque mois à 8h",
+            "le 0 de chaque mois à 8h",
+            // two days, a weekday, a working day, a multiple, no month
+            "le 1er et le 15 de chaque mois à 8h",
+            "le premier lundi de chaque mois à 8h",
+            "the first business day of every month at 9",
+            "every 2 months on the 1st at 8",
+            "le 1er à 8h",
+            "every month at 9",
+        ] {
+            assert_eq!(proposal(phrase), None, "{phrase}");
         }
     }
 

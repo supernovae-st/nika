@@ -5,14 +5,56 @@ Versions move together across all manifests (the mirror gate pins it).
 
 ## Unreleased
 
+The arm teaching follows the engine. `nika arm --emit` refuses an
+UNREADY beat; an unknown alone leaves a beat READY, so a beat whose
+workflow calls a child is armed and names that unknown; a unit written
+for an earlier revision of the schedule refuses to fire until it is
+emitted again; a suspension ends at midnight after its `jusqu_au`; and
+`--emit --write` retires the unit of a beat removed from `nika.yaml`,
+printing its unload command. The operating and debugging skills, the
+project reference and the check-on-edit hook's comment said an UNREADY
+beat still got a unit and a beat calling a child read UNREADY.
+
+The consent teaching follows the product. One scoped instruction covers
+each effect it names, once: saving, running and, when it says so,
+activating a beat; the author carries it out without asking again.
+Facts the person gave, the project keeps or the person delegated are
+used, never asked again; a question asks, once, only for a material
+fact still missing. Before, the operating skill and the project
+reference made saving, running and activating three separate consents
+and had the author ask the person for every open beat value. The
+operating skill's local-model line no longer calls itself the
+sovereignty path, and every authority, permit and gate law is unchanged.
+
+The schedule teaching links the « Projects and schedules » guide
+(https://docs.nika.sh/guides/projects-and-schedules) from the
+operating skill, the migration row, the language rule, the session
+map, the README and the check-on-edit message on a `nika.yaml`
+finding.
+
+The authoring skill takes the project as its unit of work. A new
+`references/project.md` covers the project file, supporting files, child
+workflows and their two path bases, and beats with their zone, ceiling
+and missed-slot rule as each targeted binary reads them, with a checked
+three-file project. A new `references/decisions-and-effects.md`
+separates a question, a default and a human gate, and teaches exact
+identifiers, readback after an effect, refused writes and keeping the
+model steps a request needs; each example is checked, and run where it
+runs offline, on 0.122.0 and the 0.123 previews. The operating skill
+documents Stop and resume and how one instruction covers saving,
+running and activating a beat; the
+debugging skill adds an observed failure → remedy table. The
+check-on-edit hook reports an UNREADY beat only when `nika arm --json`
+names a blocker: a beat calling a child stays silent.
+
 Schedules are taught where the engine keeps them. The operating skill
 said to schedule with cron, CI or a systemd timer, a path that skips
 the firer (`nika arm fire`) and with it the missed-slot rule, the
 overlap lock, the ceiling of one firing and the firing record. It now
 teaches the `arm:` beat in the project's `nika.yaml`: the zone inside
 the cadence (`TZ=Europe/Paris 30 7 * * 1-5`), `plafond:` and `manqué:`
-chosen by the author, `nika arm --json` reading READY before the person
-activates the beat. The migration table gains the crontab row, and the
+chosen by the author, `nika arm --json` reading READY before the beat
+is activated. The migration table gains the crontab row, and the
 language rule and the session map name the beat. The check-on-edit hook
 now audits an edited `nika.yaml` too: `nika check` on its keys and
 `nika arm` on every beat, both read-only, so a refused or UNREADY beat

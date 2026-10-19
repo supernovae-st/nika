@@ -44,6 +44,12 @@ fn amount(raw: &str) -> Result<f64, &'static str> {
     }
 }
 
+/// A word written as an amount, well formed or not (`0,10`, `$abc`, `-1`, `NaN`).
+fn amount_like(word: &str) -> bool {
+    word.starts_with(|c: char| c.is_ascii_digit() || matches!(c, '+' | '-' | '$' | '.'))
+        || matches!(word, "nan" | "inf" | "infinity")
+}
+
 fn currency(word: &str) -> bool {
     matches!(word, "$" | "usd" | "dollar" | "dollars")
 }
@@ -56,17 +62,136 @@ fn anchor(word: &str) -> bool {
 }
 
 /// Link words between an anchor and its amount; a lone colon, which French typography sets
-/// apart (« Budget : 0 dollar »), is left empty once its punctuation is trimmed.
+/// apart (« Budget : 0 dollar »), is left empty once its punctuation is trimmed. « max » and
+/// « maximum » say the anchor is a limit (« budget max 0,10 $ », QA gauntlet q09).
 fn filler(word: &str) -> bool {
     matches!(
         word,
-        "of" | "to" | "at" | "under" | "de" | "à" | "is" | ":" | "=" | ""
+        "of" | "to" | "at" | "under" | "de" | "à" | "a" | "is" | "max" | "maximum" | ":" | "=" | ""
     )
+}
+
+/// Whether `words` say the amount before them bounds each run (« par run », « per run »): the
+/// Run ceiling is one run's, so this names the ceiling, never a rate of the work's data.
+pub(crate) fn per_run(words: &[String]) -> bool {
+    const PER_RUN: &[&[&str]] = &[
+        &["par", "run"],
+        &["par", "exécution"],
+        &["par", "execution"],
+        &["par", "lancement"],
+        &["à", "chaque", "run"],
+        &["à", "chaque", "exécution"],
+        &["per", "run"],
+        &["per", "execution"],
+        &["each", "run"],
+        &["for", "each", "run"],
+    ];
+    PER_RUN
+        .iter()
+        .any(|said| words.len() == said.len() && words.iter().zip(said.iter()).all(|(w, s)| w == s))
+}
+
+/// How many words right after a money anchor name the run it bounds (« du run », « of the run »,
+/// « pour ce workflow »): none when they name nothing. Live gauntlet, 2026-10-15: « Augmente le
+/// budget du run à 1 dollar et relance. » read `du` as its amount and refused the line.
+fn run_named(words: &[String]) -> usize {
+    const NAMES: &[&[&str]] = &[
+        &["du", "run"],
+        &["du", "workflow"],
+        &["du", "lancement"],
+        &["de", "la", "run"],
+        &["de", "ce", "run"],
+        &["de", "l'exécution"],
+        &["pour", "le", "run"],
+        &["pour", "ce", "run"],
+        &["pour", "ce", "workflow"],
+        &["of", "the", "run"],
+        &["for", "the", "run"],
+        &["for", "this", "run"],
+    ];
+    NAMES
+        .iter()
+        .find(|name| {
+            words.len() >= name.len() && words.iter().zip(name.iter()).all(|(w, n)| w == n)
+        })
+        .map_or(0, |name| name.len())
 }
 
 /// A skeleton's exact name (« hello », « 01-hello », a template's): the work named whole.
 pub(crate) fn skeleton(name: &str) -> bool {
     matches!(name, "hello" | "01-hello") || nika_pack::template_names().iter().any(|n| n == name)
+}
+
+/// A number with an ordinal ending: « 2e », « 3ème », « 1er », « 2nd », « 4th ».
+fn ordinal(word: &str) -> bool {
+    let digits = word.trim_start_matches(|c: char| c.is_ascii_digit());
+    digits.len() < word.len()
+        && matches!(
+            digits,
+            "e" | "è" | "er" | "ère" | "re" | "ème" | "eme" | "nd" | "rd" | "th" | "st" | "°"
+        )
+}
+
+/// Whether the word after a number is what it counts: a word of letters that is no currency,
+/// no money anchor, no filler and no time or repetition (« 3 messages », « 10 files »). A time
+/// or a repetition (« à 9 heures », « 2 fois ») still asks what the number means: it may say when
+/// or how often to run, never run once now.
+fn counted(next: Option<&str>) -> bool {
+    next.is_some_and(|word| {
+        word.chars().all(char::is_alphabetic)
+            && !currency(word)
+            && !anchor(word)
+            && !filler(word)
+            && !timing(word)
+    })
+}
+
+/// A unit of time or a repetition, after a number.
+fn timing(word: &str) -> bool {
+    matches!(
+        word,
+        "fois"
+            | "times"
+            | "time"
+            | "h"
+            | "heure"
+            | "heures"
+            | "hour"
+            | "hours"
+            | "min"
+            | "minute"
+            | "minutes"
+            | "s"
+            | "seconde"
+            | "secondes"
+            | "second"
+            | "seconds"
+            | "jour"
+            | "jours"
+            | "day"
+            | "days"
+            | "semaine"
+            | "semaines"
+            | "week"
+            | "weeks"
+            | "mois"
+            | "month"
+            | "months"
+            | "an"
+            | "ans"
+            | "année"
+            | "années"
+            | "year"
+            | "years"
+            | "am"
+            | "pm"
+    )
+}
+
+/// An ordinal that ranks the run itself (« une 2e fois », « for the 3rd time »): a run once more,
+/// never a time.
+fn ranks_the_run(word: &str, next: Option<&str>) -> bool {
+    ordinal(word) && next.is_some_and(|next| matches!(next, "fois" | "time"))
 }
 
 fn data(word: &str) -> bool {
@@ -202,7 +327,8 @@ pub fn parse(input: &str) -> Result<ParsedMoney, &'static str> {
             {
                 Some(i - 1)
             } else {
-                let mut end = i + 1;
+                // « le budget du run à 1 dollar »: the run the anchor bounds, then its amount.
+                let mut end = i + 1 + run_named(lower.get(i + 1..).unwrap_or_default());
                 while lower.get(end).is_some_and(|w| filler(w) || currency(w)) {
                     end += 1;
                 }
@@ -240,9 +366,14 @@ pub fn parse(input: &str) -> Result<ParsedMoney, &'static str> {
         }
         used[i.min(index)..=i.max(index)].fill(true);
     }
+    // A number that counts something (« 3 messages », « 2 fois ») or ranks it (« une 2e fois »)
+    // states no money: only a bare number does (live gauntlet, 2026-10-16: « J'ai déposé 3
+    // messages dans inbox/, relance-le stp » was refused as a ceiling without a currency).
     parsed.unbound_number = lower.iter().enumerate().any(|(i, w)| {
         !used[i]
             && !data(w)
+            && !ranks_the_run(w, lower.get(i + 1).map(String::as_str))
+            && !counted(lower.get(i + 1).map(String::as_str))
             && (w.parse::<f64>().is_ok() || w.starts_with(|c: char| c.is_ascii_digit()))
     });
     parsed.money_only = parsed.amount.is_some()

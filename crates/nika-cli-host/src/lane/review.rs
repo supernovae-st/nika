@@ -10,12 +10,31 @@ use nix::sys::signal::{Signal, kill};
 use nix::unistd::Pid;
 use std::io::{BufRead as _, Read as _, Write as _};
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdout, Command, Stdio};
+use std::process::{Child, ChildStderr, ChildStdout, Command, Stdio};
 use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
 
 pub(super) type RunResult = (u8, Option<PathBuf>, Vec<String>);
 /// The most bytes one frame of the child may hold.
 const FRAME_CAP: u64 = 1_048_576;
+/// What an oversize frame leaves: neither shown nor kept, since the trace's
+/// lines are bounded at the same 1 MiB.
+const OVERSIZE: &str = "a step's output over 1 MiB is not shown, and the run's trace cannot keep \
+                        it either (1 MiB per line): the run goes on, its trace stops there";
+/// The most of the child's stderr kept: its first lines say why a run stopped before its first
+/// frame; the rest is drained unread so the child never blocks on a full pipe.
+const DIAGNOSTICS_CAP: usize = 8_192;
+/// The lines and the length of one line of that reason a run's story carries.
+const REASON_LINES: usize = 4;
+const REASON_WIDTH: usize = 400;
+
+/// How long a completed run's story waits for its stderr reader to reach the pipe's end.
+const DIAGNOSTICS_GRACE: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// What the child wrote on stderr, up to [`DIAGNOSTICS_CAP`], as it arrives, and whether the
+/// reader reached the pipe's end.
+type Diagnostics = Arc<Mutex<(Vec<u8>, bool)>>;
+
 /// Only the live parent owns this non-cloneable, non-serializable child.
 #[non_exhaustive]
 pub enum RunProgress {
@@ -30,6 +49,7 @@ pub struct PendingRun {
     story: RunStory,
     slot: ChildSlot,
     challenge: Option<CostChallenge>,
+    diagnostics: Diagnostics,
 }
 impl Drop for PendingRun {
     fn drop(&mut self) {
@@ -87,8 +107,13 @@ impl PendingRun {
         }
     }
     /// Fold the child's frames until EOF (`false`) or a review question
-    /// (`true`), each frame bounded; an oversize frame, one that is not UTF-8
-    /// (never repaired: the review answers the exact bytes) or a read error stops.
+    /// (`true`), each frame bounded; one that is not UTF-8 (never repaired:
+    /// the review answers the exact bytes) or a read error stops. A frame past
+    /// the cap is drained unread and the run goes on (live gauntlet,
+    /// 2026-10-15: a task that fetched three job boards, more than 1 MiB of
+    /// output, stopped the run itself). The child's trace bounds its lines at
+    /// the same 1 MiB, so it cannot keep that frame either: its journal ends
+    /// there and the run settles with its evidence lost, as it says.
     pub(super) fn read(&mut self, sink: &dyn RunSink, allow_review: bool) -> Result<bool, String> {
         loop {
             let mut line = Vec::new();
@@ -103,7 +128,11 @@ impl PendingRun {
                 return Ok(false);
             }
             if size as u64 > FRAME_CAP {
-                return Err("Run frame exceeds 1 MiB".into());
+                if !line.ends_with(b"\n") {
+                    self.output.skip_until(b'\n').map_err(|e| e.to_string())?;
+                }
+                sink.unread(OVERSIZE);
+                continue;
             }
             let line = String::from_utf8(line).map_err(|_| "Run frame is not UTF-8")?;
             if serde_json::from_str::<serde_json::Value>(&line)
@@ -129,11 +158,42 @@ impl PendingRun {
             .and_then(|s| s.code())
             .and_then(|c| u8::try_from(c).ok())
             .unwrap_or(3);
+        // A run that stopped before saying why on its stream (an access path refused before the
+        // first frame, NIKA-1800, writes its reason on stderr alone) says it from there: live
+        // gauntlet, 2026-10-16, the person read only « exit 3 · refused by the environment ».
+        if !matches!(code, 0 | 4 | 130)
+            && self.story.lines.is_empty()
+            && let Some(reason) = self.reason()
+        {
+            self.story.lines.push(reason);
+        }
         (
             code,
             self.story.trace.take(),
             std::mem::take(&mut self.story.lines),
         )
+    }
+    /// The first lines the child wrote on stderr, as one story line; `None` when it wrote none.
+    /// The child has exited: its reader gets a short grace to reach the pipe's end, never a wait
+    /// on a process that inherited the pipe.
+    fn reason(&self) -> Option<String> {
+        let started = std::time::Instant::now();
+        while started.elapsed() < DIAGNOSTICS_GRACE
+            && self.diagnostics.lock().is_ok_and(|kept| !kept.1)
+        {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let kept = self.diagnostics.lock().ok()?;
+        let text = String::from_utf8_lossy(&kept.0);
+        let lines: Vec<String> = text
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .take(REASON_LINES)
+            .map(|line| line.chars().take(REASON_WIDTH).collect())
+            .collect();
+        (!lines.is_empty())
+            .then(|| format!("the run stopped before it started: {}", lines.join(" · ")))
     }
     fn refuse(&mut self, why: &str) -> RunResult {
         self.story.lines.push(format!(
@@ -173,7 +233,7 @@ pub(super) fn spawn(
     }
     let spawn = (command.current_dir(root))
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn();
     let mut child = spawn.map_err(|e| (3, None, vec![format!("the run could not start: {e}")]))?;
     let Some(output) = child.stdout.take() else {
@@ -181,6 +241,11 @@ pub(super) fn spawn(
         let _ = child.wait();
         return Err((3, None, vec!["Run stdout unavailable".into()]));
     };
+    let diagnostics = child
+        .stderr
+        .take()
+        .map(keep_diagnostics)
+        .unwrap_or_default();
     if let Ok(mut value) = slot.lock() {
         *value = Some(child.id());
     }
@@ -190,7 +255,34 @@ pub(super) fn spawn(
         story: RunStory::default(),
         slot: slot.clone(),
         challenge: None,
+        diagnostics,
     })
+}
+
+/// Keep the first [`DIAGNOSTICS_CAP`] bytes the child writes on stderr and drain the rest, on a
+/// reader of its own: the lane reads stdout, and a child whose stderr pipe filled would block.
+/// The reader ends at the pipe's end; the run's completion reads what it kept by then, never
+/// waiting on a process that inherited the pipe.
+#[allow(clippy::disallowed_methods)] // a blocking pipe reader beside the lane's own loop, not workflow scheduling
+fn keep_diagnostics(mut stderr: ChildStderr) -> Diagnostics {
+    let kept = Diagnostics::default();
+    let writer = Arc::clone(&kept);
+    std::thread::spawn(move || {
+        let mut chunk = [0_u8; 4_096];
+        while let Ok(read) = stderr.read(&mut chunk) {
+            if read == 0 {
+                break;
+            }
+            if let Ok(mut kept) = writer.lock() {
+                let room = DIAGNOSTICS_CAP.saturating_sub(kept.0.len());
+                kept.0.extend_from_slice(&chunk[..read.min(room)]);
+            }
+        }
+        if let Ok(mut kept) = writer.lock() {
+            kept.1 = true;
+        }
+    });
+    kept
 }
 /// Explicitly negotiate v1 with this binary's local Run. Normal frames still fold
 /// through `RunStory`, and the existing PID slot keeps terminal-exit cancellation.

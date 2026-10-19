@@ -8,6 +8,10 @@
 /// blocks, `password=`/`token=` values. Returns the text and the KINDS
 /// found (never a value). An unterminated private-key block hides the rest
 /// of the input; this shape-based filter is not a general secret detector.
+/// Eight key characters after a key marker make a key wherever the marker
+/// starts, even after an encoded separator (`token%3Dsk-…`); only a marker
+/// that continues a word and is followed by no digit and no capital is that
+/// word (`task-scheduler`, `risk-assessment`).
 #[must_use]
 pub fn redact(text: &str) -> (String, Vec<String>) {
     let mut kinds = Vec::new();
@@ -44,12 +48,7 @@ pub fn redact(text: &str) -> (String, Vec<String>) {
             while let Some(offset) = l[scan..].find(marker) {
                 let i = scan + offset;
                 scan = i + marker.len();
-                if l[i..].len() < marker.len() + 8
-                    || !l[scan..]
-                        .chars()
-                        .take(8)
-                        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-                {
+                if !is_key(&l[..i], &l[scan..]) {
                     continue;
                 }
                 let end = l[i..]
@@ -102,4 +101,85 @@ pub fn redact(text: &str) -> (String, Vec<String>) {
     kinds.sort();
     kinds.dedup();
     (out, kinds)
+}
+
+/// A character an API key's text can hold.
+fn key_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '-' || c == '_'
+}
+
+/// Whether the key characters that open `after` (the text after a key marker) are a key; what
+/// precedes the marker (`before`) never hides one: eight make a key wherever the marker starts,
+/// even glued to an encoded separator (`token%3Dsk-…`, a JSON `\n`). Only after a marker that
+/// continues a word is a run with no digit and no capital that word (`ta|sk-scheduler`).
+fn is_key(before: &str, after: &str) -> bool {
+    let run = &after[..after.find(|c: char| !key_char(c)).unwrap_or(after.len())];
+    let keyed = run
+        .bytes()
+        .any(|b| b.is_ascii_digit() || b.is_ascii_uppercase());
+    let inside_word = before.chars().next_back().is_some_and(key_char);
+    run.len() >= 8 && (keyed || !inside_word)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::redact;
+
+    /// A word that holds a key marker is the word: these names and phrases reach a model, and a
+    /// program's record, exactly as they were written.
+    #[test]
+    fn a_marker_inside_a_word_is_the_word_never_a_key() {
+        for text in [
+            "nika: weekly-task-scheduler",
+            "nika: ask-questions-intake",
+            "Write the risk-assessment summary",
+            "the task-scheduler reads ./in/task-scheduler.csv",
+            "desk-reporting, disk-usage-alerts and mask-everything",
+            "choose task-write_output or task-read_source",
+        ] {
+            assert_eq!(redact(text), (text.to_owned(), Vec::new()), "{text}");
+        }
+    }
+
+    /// The same marker where a key can start is still a key, and a credential's value is never
+    /// kept.
+    #[test]
+    fn a_key_at_a_word_boundary_is_still_redacted() {
+        let key = "sk-live-ABCDEFGH123456";
+        for text in [
+            key.to_owned(),
+            format!("OPENAI_API_KEY={key}"),
+            format!("key: {key}"),
+            format!("\"{key}\""),
+            format!("({key})"),
+            format!("Bearer {key} then text"),
+        ] {
+            let (out, kinds) = redact(&text);
+            assert!(!out.contains("ABCDEFGH123456"), "{text} -> {out}");
+            assert_eq!(kinds, vec!["api key"], "{text}");
+        }
+        let (out, kinds) = redact("https://x.test/feed?token=abc123&page=2");
+        assert_eq!(out, "https://x.test/feed?token=[redacted]");
+        assert_eq!(kinds, vec!["token"]);
+    }
+
+    /// A key glued to what precedes it is still a key when its own characters are a key's (a
+    /// digit, a capital): after an encoded separator (`%3D`, a JSON `\n` or `\u003d`,
+    /// quoted-printable `=3D`), an underscore or a letter.
+    #[test]
+    fn a_key_after_an_encoded_separator_is_still_redacted() {
+        let key = "sk-live-ABCDEFGH123456";
+        for text in [
+            format!("https://x.test/feed?token%3D{key}"),
+            format!(r#"{{"note": "first line\n{key}"}}"#),
+            format!(r"token\u003d{key}"),
+            format!("key=3D{key}"),
+            format!("KEY_{key}"),
+            format!("x{key}"),
+        ] {
+            let (out, kinds) = redact(&text);
+            assert!(!out.contains("ABCDEFGH123456"), "{text} -> {out}");
+            assert_eq!(kinds, vec!["api key"], "{text}");
+        }
+    }
 }

@@ -10,6 +10,24 @@ use nika_providers::probe::{ExecutionLocus, ProviderReadiness, env_present, ping
 /// The sober register — the byte-frozen baseline every pipe reads.
 const PLAIN: Theme = Theme::new(false, false, false);
 
+/// The one run-key custody every diagnosis here judges, the one CI has: a cargo test binary with
+/// no explicit key pair and no key file. The rows other custodies earn are judged in
+/// `custody_tests`; the keys of the machine running the tests never reach these.
+fn ci_custody() -> nika_dap::seal::Custody {
+    nika_dap::seal::Custody::new(
+        None,
+        nika_dap::seal::KeychainUse::TestBinary,
+        Some((
+            PathBuf::from("/home/u/.nika/keys/run-signing.key"),
+            nika_dap::seal::KeyFile::Absent,
+        )),
+    )
+}
+
+fn diagnose(probe: &Probe) -> Vec<Finding> {
+    super::diagnose_with(probe, &ci_custody())
+}
+
 fn readiness(configured: bool, locus: ExecutionLocus) -> ProviderReadiness {
     ProviderReadiness::new(
         true,
@@ -834,8 +852,9 @@ fn env_present_reflects_the_real_environment() {
 fn the_real_catalog_has_no_fail_and_renders() {
     // The wired run() over the canonical catalog: local providers exist, so
     // there is never a hard Fail (exit 0) even with no keys in the test env.
-    // ping=false — the default run stays fully offline, in tests too.
-    let out = run(false, false, true, PLAIN);
+    // ping=false — the default run stays fully offline, in tests too. The
+    // run-key custody is CI's, never the machine's (`ci_custody`).
+    let out = super::run_with_custody(false, false, true, PLAIN, Vec::new(), &ci_custody());
     assert_eq!(out.code, exit::OK, "the catalog always offers a path");
     assert!(out.text.contains("binary"), "renders the binary line");
     // The LLM test backend stays hidden (no `mock — key` provider row);
@@ -1464,5 +1483,50 @@ fn a_forbidden_key_is_refused_with_its_fix() {
     assert_eq!(
         refused.fix.as_deref(),
         Some("export OPENAI_API_KEY=…  # a key this route accepts")
+    );
+}
+
+/// NIK-153: a configured row names the variable that supplies the key, and two key variables set
+/// with different values earn a warning naming both, never their values, with the one the run
+/// uses; a bad key's fix names the variable that holds it.
+#[test]
+fn the_key_source_and_a_key_conflict_are_named() {
+    let both = vec![
+        "NIKA_ANTHROPIC_API_KEY".to_owned(),
+        "ANTHROPIC_API_KEY".to_owned(),
+    ];
+    let row = cloud("anthropic", "ANTHROPIC_API_KEY", true).with_key_vars(both.clone());
+    let ok = provider_finding(&row);
+    assert_eq!(ok.level, Level::Ok);
+    assert!(
+        ok.detail
+            .contains("configured (key present · not validated) · key from NIKA_ANTHROPIC_API_KEY"),
+        "{}",
+        ok.detail
+    );
+    assert_eq!(
+        key_conflict_finding(&row),
+        None,
+        "the same key twice is no conflict"
+    );
+    let conflict = key_conflict_finding(&row.clone().with_key_conflict(true)).expect("named");
+    assert_eq!(conflict.level, Level::Warn);
+    assert_eq!(
+        conflict.detail,
+        "anthropic — NIKA_ANTHROPIC_API_KEY and ANTHROPIC_API_KEY are both set with different \
+         values · Nika uses NIKA_ANTHROPIC_API_KEY"
+    );
+    assert!(
+        conflict
+            .fix
+            .as_deref()
+            .is_some_and(|f| f.starts_with("unset ANTHROPIC_API_KEY")),
+        "{:?}",
+        conflict.fix
+    );
+    let rejected = provider_finding_auth(&row, nika_providers::KeyAuth::Unauthorized);
+    assert_eq!(
+        rejected.fix.as_deref(),
+        Some("export NIKA_ANTHROPIC_API_KEY=…  # a live key")
     );
 }

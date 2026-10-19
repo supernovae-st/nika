@@ -90,6 +90,17 @@ impl IsolatedJq {
         }
     }
 
+    /// The same helper and deadline, with a bound record of its own: what a later evaluation
+    /// meets never marks this run's.
+    pub(super) fn fresh(&self) -> Self {
+        Self::new(self.helper.clone(), self.deadline)
+    }
+
+    /// The deadline no evaluation of this run passes.
+    pub(super) fn deadline(&self) -> Instant {
+        self.deadline
+    }
+
     /// The first bound an evaluation of this run met, if any.
     #[must_use]
     pub fn bound(&self) -> Option<JqBound> {

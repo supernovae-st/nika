@@ -695,3 +695,191 @@ async fn a_post_is_refused_even_at_a_captured_address() -> TestResult<()> {
     assert!(!dir.path().join(&p).join("out/feed.txt").exists());
     Ok(())
 }
+
+// ─── a replay trial keeps an access-pinned model step out ───────────────
+
+/// The authored route of every access-pin fixture: via the provider, over its API, no fallback.
+const PINNED: &str = "  access:\n    via: anthropic\n    protocol: api\n    fallback: none\n";
+
+/// A summary whose file pins its model's access as `access` (a `run.access` block's lines) and keeps
+/// it at `./<prefix>/out/summary.txt`.
+fn pinned_summary(prefix: &str, access: &str) -> String {
+    let to = format!("./{prefix}/out/summary.txt");
+    format!(
+        "nika: pinned\nmodel: anthropic/claude-sonnet-5-5\nrun:\n{access}permits:\n  tools: [\"nika:write\"]\n  fs:\n    write: [\"{to}\"]\ntasks:\n  summarize:\n    infer:\n      prompt: \"Summarize: hello\"\n  keep:\n    with: {{ text: \"${{{{ tasks.summarize.output }}}}\" }}\n    invoke: {{ tool: \"nika:write\", args: {{ path: \"{to}\", content: \"${{{{ with.text }}}}\", create_dirs: true, overwrite: true }} }}\n"
+    )
+}
+
+/// A pure-builtin write whose file still names a route for a model it never calls.
+fn routed_note(prefix: &str) -> String {
+    let to = format!("./{prefix}/out/note.txt");
+    format!(
+        "nika: routed\nrun:\n{PINNED}permits:\n  tools: [\"nika:write\"]\n  fs:\n    write: [\"{to}\"]\ntasks:\n  note:\n    invoke: {{ tool: \"nika:write\", args: {{ path: \"{to}\", content: \"noted\", create_dirs: true, overwrite: true }} }}\n"
+    )
+}
+
+/// The authored requirement of [`PINNED`], as a plan carries it.
+fn pinned_requirement() -> nika_types::access::AccessRequirement {
+    let mut requirement = nika_types::access::AccessRequirement::new();
+    requirement.via = Some("anthropic".to_owned());
+    requirement.protocol = Some(nika_types::access::AccessProtocol::Api);
+    requirement.fallback = Some(nika_types::access::AccessFallback::None);
+    requirement
+}
+
+/// One replay of `access`'s fixture: admitted, the model step refused where it stands by the pin
+/// family and excused, nothing written, nothing denied.
+async fn kept_out(test: &str, access: &str, code_is: fn(&str) -> bool) -> TestResult<()> {
+    let p = prefix();
+    let source = pinned_summary(&p, access);
+    let (dir, end, denied) = replayed(test, &source, Arc::new(Captures::new())).await?;
+    let outcome = end?;
+    let summary = &outcome.records["summarize"];
+    let code = (summary.error.as_ref()).map(|error| error.code.clone());
+    assert!(
+        summary.status == TaskStatus::Skipped && code.as_deref().is_some_and(code_is),
+        "{outcome:?}"
+    );
+    assert!(outcome.ok, "no exercised task failed: {outcome:?}");
+    assert!(!dir.path().join(&p).join("out/summary.txt").exists());
+    assert_eq!(
+        denied,
+        DeniedEffects::default(),
+        "refused before any request: {denied:?}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_model_step_pinned_by_its_access_is_kept_out_of_a_replay() -> TestResult<()> {
+    const TEST: &str = concat!(
+        module_path!(),
+        "::a_model_step_pinned_by_its_access_is_kept_out_of_a_replay"
+    );
+    kept_out(TEST, PINNED, |code| code == "NIKA-1802").await
+}
+
+#[tokio::test]
+async fn a_model_step_pinned_by_its_route_alone_is_kept_out_of_a_replay() -> TestResult<()> {
+    const TEST: &str = concat!(
+        module_path!(),
+        "::a_model_step_pinned_by_its_route_alone_is_kept_out_of_a_replay"
+    );
+    kept_out(TEST, "  access:\n    via: anthropic\n", |code| {
+        code == "NIKA-1802"
+    })
+    .await
+}
+
+#[tokio::test]
+async fn a_model_step_pinned_by_its_protocol_alone_is_kept_out_of_a_replay() -> TestResult<()> {
+    const TEST: &str = concat!(
+        module_path!(),
+        "::a_model_step_pinned_by_its_protocol_alone_is_kept_out_of_a_replay"
+    );
+    // Observed red (NIKA-1801): no access candidate serves the provider over the protocol here.
+    kept_out(TEST, "  access:\n    protocol: api\n", |code| {
+        code == "NIKA-1801"
+    })
+    .await
+}
+
+#[tokio::test]
+async fn a_model_step_that_only_refuses_fallback_runs_its_replay_as_before() -> TestResult<()> {
+    const TEST: &str = concat!(
+        module_path!(),
+        "::a_model_step_that_only_refuses_fallback_runs_its_replay_as_before"
+    );
+    let p = prefix();
+    let source = pinned_summary(&p, "  access:\n    fallback: none\n");
+    let (dir, end, denied) = replayed(TEST, &source, Arc::new(Captures::new())).await?;
+    let outcome = end?;
+    assert!(
+        outcome.records["summarize"].status == TaskStatus::Skipped && outcome.ok,
+        "{outcome:?}"
+    );
+    assert!(!dir.path().join(&p).join("out/summary.txt").exists());
+    assert_eq!(denied, DeniedEffects::default(), "{denied:?}");
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_routed_builtin_write_rehearses_under_its_plan() -> TestResult<()> {
+    const TEST: &str = concat!(
+        module_path!(),
+        "::a_routed_builtin_write_rehearses_under_its_plan"
+    );
+    let p = prefix();
+    let source = routed_note(&p);
+    let world = tempfile::tempdir()?;
+    let (driver, _, digest) = admitted(&source, world.path())?;
+    let plan = (driver.rehearsal_plan(None)).map_err(|refused| refused.to_string())?;
+    let (dir, fs) = room(&[]).await?;
+    let tally = Arc::new(DeniedTally::default());
+    evidence(&json!({
+        "event": "begin", "test": TEST, "subrun": "rehearsal", "candidate": handed(&source),
+        "admitted_digest": digest,
+    }));
+    let end = driver
+        .rehearse_over(Arc::clone(&fs), plan, Arc::clone(&tally))
+        .await;
+    evidence(&json!({
+        "event": "return", "test": TEST, "subrun": "rehearsal", "candidate": handed(&source),
+        "end": ended(&end), "denied": counts(&tally.counted()),
+    }));
+    let drained = fs.ledger().seal_and_drain().await;
+    let denied = tally.counted();
+    evidence(&json!({
+        "event": "drain", "test": TEST, "subrun": "rehearsal", "joined": drained.joined,
+        "panicked": drained.panicked, "written": fs.ledger().written().count(),
+        "late_refusals": fs.ledger().late_refusals(), "denied": counts(&denied),
+    }));
+    let outcome = end?;
+    assert!(outcome.ok, "{outcome:?}");
+    let noted = std::fs::read_to_string(dir.path().join(&p).join("out/note.txt"))?;
+    assert_eq!(noted, "noted");
+    assert_eq!(denied, DeniedEffects::default(), "{denied:?}");
+    Ok(())
+}
+
+#[test]
+fn a_real_plan_still_refuses_the_access_a_trial_keeps_out() -> TestResult<()> {
+    let world = tempfile::tempdir()?;
+    let (driver, plan, _) = admitted(&pinned_summary(&prefix(), PINNED), world.path())?;
+    // Over no probe rows the base resolver refuses the authored route, and the plan carries the
+    // requirement exactly as written: a real run is judged on its own plan, never the trial's.
+    assert_eq!(plan.requirement(), Some(&pinned_requirement()), "{plan:?}");
+    // Observed red (NIKA-1802): over no probe rows the route `anthropic` is no token this resolver
+    // knows, so it is refused as the same `--access anthropic` would be.
+    assert!(
+        matches!(
+            &plan.pin_refusal,
+            Some(nika_providers::PinRefusal::UnknownToken { message })
+                if message.contains("run.access.via: anthropic")
+        ),
+        "{plan:?}"
+    );
+    let trial = (driver.replay_plan(None)).map_err(|refused| refused.to_string())?;
+    assert_eq!(
+        trial.requirement(),
+        Some(&pinned_requirement()),
+        "{trial:?}"
+    );
+    assert!(
+        trial.pin_refusal.is_none() && trial.lanes.is_empty(),
+        "{trial:?}"
+    );
+    // The caller's own pin is still refused before anything is resolved.
+    assert!(driver.replay_plan(Some("api")).is_err());
+    let routed = tempfile::tempdir()?;
+    let (builtin, _, _) = admitted(&routed_note(&prefix()), routed.path())?;
+    let rehearsal = (builtin.rehearsal_plan(None)).map_err(|refused| refused.to_string())?;
+    assert_eq!(
+        rehearsal.requirement(),
+        Some(&pinned_requirement()),
+        "{rehearsal:?}"
+    );
+    assert!(rehearsal.pin_refusal.is_none(), "{rehearsal:?}");
+    assert!(builtin.rehearsal_plan(Some("api")).is_err());
+    Ok(())
+}

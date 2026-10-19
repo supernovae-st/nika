@@ -1,0 +1,6 @@
+# Expected: NIKA-PARSE-002 at CHECK.
+# INTENT: trigger NIKA-PARSE-002 (missing required envelope field: nika:)
+tasks:
+  step:
+    exec:
+      command: ["echo", "hello"]

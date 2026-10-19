@@ -1,6 +1,6 @@
 {
   "type": "array",
-  "description": "The concrete values the request authorizes without spelling them: a public source it names, sources it lets you choose, a routine new output inside the project, a file read under a folder it typed, the exact host of an address it typed. Empty when there is none.",
+  "description": "The concrete values the request authorizes without spelling them: a public source it names, sources it lets you choose, a routine new output inside the project, a file read under a folder it typed, the exact host of an address it typed, a setting the person leaves to you (a time zone, a count, a format) that only a pure step or a task's words use. Empty when there is none.",
   "items": {
     "type": "object",
     "additionalProperties": false,

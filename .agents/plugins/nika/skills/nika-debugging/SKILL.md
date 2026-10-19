@@ -90,6 +90,28 @@ missing decision or gate answer.
   tools or per-task model pins. Never hand-edit a `.golden.json` to make
   red green, or repeat irreversible effects merely to obtain a green run.
 
+## Observed failure → remedy
+
+| Observed | Remedy |
+|---|---|
+| The client shows no `nika_*` MCP tools though the kit is installed | Restart the client session so it starts `nika mcp` again (it needs `nika` on the client's PATH); `nika doctor` names the per-client fix |
+| `NIKA-1800 · no access path is ready for <model>` (run exit 3, or a child task failing) | Configure the key or the local server it names: `nika catalog` lists each provider's variable, and `--access` pins how a model is reached. `nika wire` connects an editor client, never a model |
+| A child fails `NIKA-1800` under `--model mock/echo` | The override does not reach a child that pins its own `model:`: give that model access, or change the child's pin with the person |
+| Exit 4 · `paused · awaiting an answer for <task>` | Surface the gate's question; resume with `--resume <trace> --answer <task>=<value>` once the person answers |
+| Exit 130 · `cancelled by the operator` | Reconcile the in-flight task's effects, then `--resume <trace>` |
+| `NIKA-BUILTIN-READ-001 · file not found` for a file that exists | The run started outside the project root: builtin paths resolve from the launch directory |
+| `NIKA-BUILTIN-WRITE-002` | `overwrite: false` kept an existing file: write elsewhere, or replace it only when asked |
+| `NIKA-AUTH-006` | No `permits:` block: review `nika check <file> --infer-permits` and grant the requested effects |
+| `NIKA-PARSE-005` on a `schedule:` key | A cadence is a beat in `nika.yaml`, never a workflow key |
+| `cadence.tz-missing` | Put the IANA zone inside the cadence: `TZ=Europe/Paris 0 8 * * *` |
+| `[UNREADY]` with a blocker in `nika arm --json` | Repair what the blocker names (a missing workflow, a required input with no value, a policy this firer does not support); `nika arm --emit` refuses it until then |
+| `arm --emit · … UNREADY`, no unit printed | No unit arms a beat that cannot run: repair what `nika arm` names, or suspend the beat (`actif: false`, `raison:`, `jusqu_au:`) |
+| `[READY]` naming « a nested workflow's routes are judged only at its own dispatch » | Not a defect: an unknown alone leaves the beat READY and it fires; `nika serve --once --dry` shows what a firing would do |
+| `arm fire … unité périmée` | The unit was written for an earlier revision of the schedule: run the re-emit it names (`nika arm --emit launchd --write`, or `systemd`), then load the unit again |
+| `NIKA-COMP-001` | The child path resolves from the parent file's directory, and the child must exist when the parent is checked |
+| `NIKA-COMP-002` | The parent's `permits:` must contain every effect of the child |
+| A green check from one `nika`, a refusal from another | Two binaries: call the one the work targets by its path (`NIKA_BIN` for the check-on-edit hook, which names its oracle) |
+
 ## Common root causes (check these before anything exotic)
 
 - **Provider connection interrupted**: `NIKA-INFER-001` names the service

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+use nika_compile_fidelity::model_paths::ModelSink;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -190,7 +191,9 @@ impl CompileRequest {
     /// conversation (each a `semantic_verification` attempt of an earlier outcome, `rejected`
     /// true): a judge of this compile is never asked again on bytes it already rejected (R6);
     /// the verifier repeats that verdict with no call. Data the host kept, never a judgment that
-    /// carries anything: a carried verdict can only keep bytes from READY.
+    /// carries anything: a carried verdict can only keep bytes from READY. An entry may carry
+    /// only an earlier reading of the same words (`request_interpretation`, `reading_only`): the
+    /// verifier proposes it to its reading and audits it anew; no rejection or repair reads it.
     #[must_use]
     pub fn with_declined(mut self, attempts: Vec<serde_json::Value>) -> Self {
         self.declined = attempts;
@@ -853,6 +856,83 @@ pub struct CompileOutcome {
     pub check_preview: Option<CompilePreview>,
     /// Reproduction metadata, not run evidence.
     pub provenance: CompileProvenance,
+    /// The parts of the result the request needs a model to write, and what the candidate's
+    /// bytes do with each: `None` when no judge stated them (the law did not run), `Some` with
+    /// no part when the judge stated that none is needed.
+    pub model_parts: Option<Vec<ModelPart>>,
+    /// Why the law did not run with the judge that verified these bytes (« model-step check not
+    /// run: … »): `None` when it ran, or no judge did.
+    pub model_parts_unrun: Option<String>,
+}
+
+/// One part of the result the request needs a model to write (a summary, a classification, a
+/// translation, a draft), as the judge stated it, and what the candidate's bytes do with it.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ModelPart {
+    /// What the judge's statement rests on: the person's words, or a seat's answer for a sink.
+    pub basis: PartBasis,
+    /// The sink the part shapes, chosen from the candidate's own sinks; `None` when the judge
+    /// named none.
+    pub sink: Option<ModelSink>,
+    /// What the candidate's data paths do with the part.
+    pub found: ModelFound,
+}
+
+impl ModelPart {
+    /// One model-written part, as settled.
+    #[must_use]
+    pub fn new(basis: PartBasis, sink: Option<ModelSink>, found: ModelFound) -> Self {
+        Self { basis, sink, found }
+    }
+}
+
+/// What a model part's statement rests on.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum PartBasis {
+    /// A provider judge quoted the request: the person's words, verbatim (the quote law checked
+    /// them), and the result they shape (shown, never parsed).
+    Words {
+        /// The person's words that ask for the part.
+        words: String,
+        /// The judge's description of the result the part shapes.
+        result: String,
+    },
+    /// A decision seat answered the per-sink question: the probability that the sink needs
+    /// content a model writes, averaged over both option orders, and the request sentence
+    /// holding the sink's literal path or URL (`None` for an `outputs:` key or a dynamic path).
+    Sink {
+        /// The request sentence that names the sink.
+        cited: Option<String>,
+        /// The averaged probability of `model`.
+        p: f64,
+    },
+}
+
+/// What a candidate's data paths do with a model-written part.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ModelFound {
+    /// A model step on the sink's data path writes it.
+    Met {
+        /// The model step's task id.
+        task: String,
+    },
+    /// No model step writes it: the candidate has none, or no sink carries the result.
+    Missing,
+    /// A model step exists, and its output reaches no sink: a decorative call.
+    Decorative {
+        /// The model step's task id.
+        task: String,
+    },
+    /// The sink's path runs through a child workflow, whose own steps are not judged here.
+    Undecided {
+        /// The calling task's id.
+        task: String,
+        /// The child workflow's target.
+        child: String,
+    },
 }
 
 /// Compiler machinery failures. Missing answers and unsupported requests are outcomes.

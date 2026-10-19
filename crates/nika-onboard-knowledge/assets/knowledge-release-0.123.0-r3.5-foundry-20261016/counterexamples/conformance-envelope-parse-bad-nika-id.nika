@@ -1,0 +1,7 @@
+# Expected: NIKA-PARSE-003 at CHECK.
+nika: Not_Kebab
+# INTENT: trigger NIKA-PARSE-003 (the nika: id is not kebab-case)
+tasks:
+  step:
+    exec:
+      command: ["echo", "hello"]

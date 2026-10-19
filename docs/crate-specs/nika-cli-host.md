@@ -511,7 +511,9 @@ The existing `Probe` and render function signatures remain compatible.
 
 A harness seat row reads its login check from the harness probe (`AdapterProbeRow::login`):
 a check that did not answer within its deadline is `sign-in unknown` in the harness's words,
-a warning that teaches no sign-in, never `not signed in`.
+an `unknown` row (glyph `?`, counted in `summary.unknown`, the exit code unchanged) that
+teaches no sign-in, never `not signed in`. A check that answers stays as it was: signed in is
+`ok`, signed out a warning that teaches the sign-in.
 
 The direct-API authoring backend records `cost_basis: unpriced; billing_unverified`. Its usage completeness and requested/observed model evidence are separate observations; this door does not calculate a catalog valuation or certify billing. Harness-provided descriptors retain their own basis.
 

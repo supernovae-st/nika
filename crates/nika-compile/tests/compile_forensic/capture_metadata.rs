@@ -466,7 +466,16 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 // ── Product parity with the reference ───────────────────────────────────────────────────────
 
 /// Reviewed prompt identities for [`three_calls`] under the unchanged legacy framing.
-/// Captured on three prompt inputs that changed together: the vendored pack at nika-spec d9b2d01
+/// Captured after the card's fan-out law reviewed on 2026-10-16: no `fail_fast: true` copied
+/// into every fan-out, a task reading a fan-out's output waits for it with `after:` (an empty
+/// collection then ends the run with nothing to do), and `on_error: { skip: true }` keeps the
+/// other items of independent per-item work. Before it, the card line reviewed on 2026-10-15:
+/// `observed_world.last_run`, the failed
+/// run a revision answers, to be fixed and nothing else. Before it, at nika-spec ac7e64cd, whose
+/// vendored pack grows the builtin contracts (the
+/// `nika:jq` examples bind upstream outputs through `with:`), each contract ending before
+/// the next chapter heading. Before it, on three prompt inputs that changed together: the
+/// vendored pack at nika-spec d9b2d01
 /// (its examples and authoring guide show only the forms the parser reads), the output
 /// conventions showing a total written alone as a workflow writes it (the total's field as the
 /// write's content, never a plan's `alone: true`), and the card showing each builtin with its own
@@ -480,9 +489,9 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 /// calls. The assertions below independently compare the observer with the legacy framing over
 /// each exact request before checking these values.
 const REVIEWED_PROMPTS: [&str; 3] = [
-    "6597e09db84e243db4b931c517019268b9627e37a612ff3be06115db9770c7d3",
-    "cfd2405036e6156c597cadaa66ed071eafa5a2bf3e45f271e22191dde4953a6f",
-    "9572d375adc85bc6ab35aa474e4b3d87ed3900c4ebe61fe4b734536eb386a68a",
+    "3080b173cda9e139508ff7ae151c75db652ea17c76af14b0a8fc05b775abaf2f",
+    "2043cc1fa269f267cb334f43420c819163dde7f8ffccc8da849689acdca0fc7c",
+    "c345f3dcfc16b088e6096c32baafc2a260cec8974379f78e0889dec80efd8de5",
 ];
 /// Legacy response identities, unchanged by the new prompt conventions.
 const PRE_CHANGE_FRAMED: [&str; 3] = [

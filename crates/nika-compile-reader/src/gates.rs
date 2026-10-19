@@ -81,11 +81,22 @@ const APPROVAL_VERBS: &[&str] = &[
     "approuve",
     "approuves",
     "approuvé",
+    // The infinitive and the `vous` form an approval question asks with (« Veux-tu valider
+    // chaque envoi ? », « Dois-je faire valider par un humain … ? », « Validez-vous … ? »).
+    "valider",
+    "validez",
+    "approuver",
+    "approuvez",
+    "confirmer",
+    "confirmez",
     "yes",
     "oui",
     "ok",
     "okay",
     // ES · IT · DE · PT
+    "aprobar",
+    "validar",
+    "confirmar",
     "apruebe",
     "apruebo",
     "aprueba",
@@ -97,6 +108,9 @@ const APPROVAL_VERBS: &[&str] = &[
     "valido",
     "validado",
     "sí",
+    "approvare",
+    "validare",
+    "confermare",
     "approvi",
     "approvo",
     "approva",
@@ -107,6 +121,10 @@ const APPROVAL_VERBS: &[&str] = &[
     "confermato",
     "validi",
     "validato",
+    "genehmigen",
+    "bestätigen",
+    "bestatigen",
+    "freigeben",
     "genehmige",
     "genehmigt",
     "bestätige",
@@ -116,6 +134,7 @@ const APPROVAL_VERBS: &[&str] = &[
     "freigebe",
     "freigegeben",
     "ja",
+    "aprovar",
     "aprove",
     "aprovo",
     "aprova",
@@ -142,6 +161,9 @@ const PERSONS: &[&str] = &[
     "moi",
     "mon",
     "ma",
+    "ton",
+    "ta",
+    "votre",
     "tu",
     "vous",
     "nous",
@@ -250,6 +272,15 @@ const UNTIL: &[&str] = &[
     "vorher", "até", "ate", "sem",
 ];
 
+/// Connectors that place an approval before the effect named after them (`une validation humaine
+/// avant d'écrire`, `i approve each run before it writes`): the `before` of [`UNTIL`] alone.
+const BEFORE: &[&str] = &["before", "avant", "antes", "prima", "bevor", "vor"];
+/// Words that deny the approval they precede (`pas de validation`, `no approval`, `sans accord`).
+const DENIALS: &[&str] = &[
+    "no", "not", "without", "never", "pas", "sans", "aucune", "aucun", "jamais", "nunca", "sin",
+    "ninguna", "senza", "nessuna", "mai", "ohne", "keine", "kein", "nie", "sem", "nenhuma",
+];
+
 /// A clitic person glued to a verb (`demande-moi`, `pergunte-me`, `chiedimi`): the verb and
 /// the person it addresses.
 fn clitic(word: &str) -> Option<(&str, &str)> {
@@ -316,12 +347,24 @@ fn is_approval(tokens: &[Token<'_>], k: usize) -> bool {
         return true;
     }
     if APPROVAL_VERBS.contains(&word) {
-        // `once i approve`, `a human must approve`, `if you say yes`: a person performs it.
+        // `once i approve`, `a human must approve`, `if you say yes`, `veux-tu valider`: a person
+        // performs it, named before it or glued to the verb that asks it; or it is done by one
+        // (`faire valider par un humain`, `approved by a human`).
         let from = k.saturating_sub(3);
-        return tokens[from..k].iter().any(|t| PERSONS.contains(&t.word));
+        let before = tokens[from..k]
+            .iter()
+            .any(|t| PERSONS.contains(&t.word) || clitic(t.word).is_some());
+        let by = tokens.get(k + 1).is_some_and(|t| AGENT.contains(&t.word))
+            && tokens[(k + 2).min(tokens.len())..(k + 5).min(tokens.len())]
+                .iter()
+                .any(|t| PERSONS.contains(&t.word));
+        return before || by;
     }
     false
 }
+
+/// The words that introduce who performs a passive approval (`validé par un humain`).
+const AGENT: &[&str] = &["par", "by", "por", "da", "von", "pelo", "pela"];
 
 /// A gate the effect it follows (or the subject before the requirement) must wait for:
 /// `only after my explicit approval`, `once i approve`, `the write needs my approval first`,
@@ -451,24 +494,55 @@ pub fn named_gate(lower: &str) -> Option<(usize, usize)> {
                     || tokens[a + 1..b].iter().any(|t| PERSONS.contains(&t.word))
                     || approval.is_some() =>
             {
-                // `avant de` / `avant d'écrire`: the preposition belongs to the connector.
-                let end = tokens.get(b + 1).map_or(tokens[b].end, |t| {
-                    if matches!(t.word, "de" | "di") {
-                        t.end
-                    } else if t.word.starts_with("d'") {
-                        t.start + 2
-                    } else {
-                        tokens[b].end
-                    }
-                });
-                return Some((token.start, end));
+                return Some((token.start, connector_end(&tokens, b)));
             }
             // `wait for my confirmation`, `ask me to approve it`: gate what follows or the last effect
             (Some(k), None) => return Some((token.start, tokens[k].end)),
             _ => {}
         }
     }
+    approval_before(&tokens)
+}
+
+/// A person's approval a `before` closes, with no asking verb: `une validation humaine avant
+/// d'écrire …`, `je valide chaque run avant l'écriture de …`, `attend ton OK avant d'écrire …`.
+/// A person stands beside an approval noun (`humaine`, `ta`, `my`): a schema validation before a
+/// write is the workflow's own step. A word that denies the approval just before it (`pas de
+/// validation avant …`) states no gate. Live gauntlet, 2026-10-15: these words, typed by the
+/// person or picked from an offer, were read as no gate, and every gate they asked for was refused
+/// as invented.
+fn approval_before(tokens: &[Token<'_>]) -> Option<(usize, usize)> {
+    for k in 0..tokens.len() {
+        let near = &tokens[k.saturating_sub(3)..(k + 4).min(tokens.len())];
+        if !is_approval(tokens, k)
+            || !near
+                .iter()
+                .any(|t| PERSONS.contains(&t.word) || clitic(t.word).is_some())
+            || tokens[k.saturating_sub(3)..k]
+                .iter()
+                .any(|t| DENIALS.contains(&t.word))
+        {
+            continue;
+        }
+        let to = (k + 7).min(tokens.len());
+        if let Some(b) = (k + 1..to).find(|j| BEFORE.contains(&tokens[*j].word)) {
+            return Some((tokens[k].start, connector_end(tokens, b)));
+        }
+    }
     None
+}
+
+/// Where the connector `tokens[b]` ends: `avant de` and `avant d'écrire` keep their preposition.
+fn connector_end(tokens: &[Token<'_>], b: usize) -> usize {
+    tokens.get(b + 1).map_or(tokens[b].end, |t| {
+        if matches!(t.word, "de" | "di") {
+            t.end
+        } else if t.word.starts_with("d'") {
+            t.start + 2
+        } else {
+            tokens[b].end
+        }
+    })
 }
 
 /// How many approval phrases a text states, left to right without overlap: one phrase is one
@@ -738,6 +812,52 @@ mod tests {
         assert_eq!(span(t, named_gate(t)), "attends ma validation avant d'");
         assert_eq!(named_gate("ask the api for the current rate"), None);
         assert_eq!(named_gate("wait 30 seconds then retry"), None);
+    }
+
+    /// A person's approval a `before` closes is a gate with no asking verb, typed or picked from
+    /// an offer: the live gauntlet's words of 2026-10-15. A denied approval, an agent's own
+    /// validation step and an approval no `before` closes are none.
+    #[test]
+    fn an_approval_closed_by_before_is_a_gate_without_an_asking_verb() {
+        for (text, gate) in [
+            (
+                "oui, je veux une validation humaine avant d'ecrire jobs-<date>.md",
+                "validation humaine avant d'",
+            ),
+            (
+                "oui, je valide chaque run (oui/non) avant l'écriture de jobs-<date>.md",
+                "valide chaque run (oui/non) avant",
+            ),
+            (
+                "oui : un humain (toi) valide au début de chaque run, avant que le workflow écrive jobs-<date>.md",
+                "valide au début de chaque run, avant",
+            ),
+            (
+                "lire profil.md à chaque run, avec une validation de ta part avant d'écrire jobs-<date>.md",
+                "validation de ta part avant d'",
+            ),
+            (
+                "il lit profil.md et attend ton ok avant d'écrire jobs-<date>.md",
+                "ok avant d'",
+            ),
+            (
+                "i approve each run before it writes out/jobs.md",
+                "approve each run before",
+            ),
+            ("human approval before the write", "approval before"),
+        ] {
+            assert_eq!(span(text, named_gate(text)), gate, "{text}");
+        }
+        for text in [
+            "non : pas de validation humaine avant d'écrire jobs.md",
+            "no human approval before the write",
+            "run a schema validation before writing out/report.md",
+            "validate the rows before writing ./out/rows.json",
+            "oui, je valide chaque run",
+            "non, aucune validation",
+        ] {
+            assert_eq!(named_gate(text), None, "{text}");
+        }
     }
 
     #[test]

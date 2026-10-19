@@ -1,0 +1,20 @@
+nika: p67-orders-report-parent
+const:
+  orders_path: ./data/orders.json
+permits:
+  tools: ["nika:read", "nika:jq", "nika:write"]
+  fs: { read: ["./data/orders.json"], write: ["./out/summary.json"] }
+tasks:
+  read_orders:
+    invoke: { tool: "nika:read", args: { path: "${{ const.orders_path }}" } }
+  orders:
+    with: { raw: "${{ tasks.read_orders.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: "fromjson" } }
+  summarize:
+    with: { orders: "${{ tasks.orders.output }}" }
+    invoke:
+      workflow: "./orders-summary-child.nika"
+      args: { orders: "${{ with.orders }}" }
+    returns: { object: { count: integer, total: number } }
+outputs:
+  summary: ${{ tasks.summarize.output }}

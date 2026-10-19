@@ -47,6 +47,12 @@ pub fn world(root: &Path, intent: &str) -> Option<Value> {
     let seen: Vec<(Value, Option<Value>)> = stated
         .iter()
         .flat_map(|path| match observe(root, path) {
+            // A file named alone that is not at the root (« la note tarifs-2027.md ») is the one
+            // file of that name under the project, when there is exactly one (live gauntlet r03,
+            // 2026-10-16: `./notes/**` was refused as not realizing `tarifs-2027.md`).
+            Some((row, _)) if row["state"] == "absent" && bare(path) => {
+                located(root, path).map_or_else(|| vec![(row, None)], |seen| vec![seen])
+            }
             Some(seen) => vec![seen],
             None => observe_folder(root, path),
         })
@@ -65,6 +71,64 @@ pub fn world(root: &Path, intent: &str) -> Option<Value> {
         world["kinds"] = Value::Object(kinds);
     }
     Some(world)
+}
+
+/// How deep under the root a file named alone is looked for.
+const LOCATE_DEPTH: usize = 4;
+/// The most entries looked at while locating one name.
+const LOCATE_ENTRIES: usize = 4_000;
+
+/// Whether a stated path is a file name alone: no folder, no pattern.
+fn bare(stated: &str) -> bool {
+    !stated.is_empty()
+        && !stated.contains(['/', '\\', '*', '?', '[', '{', '~', '$'])
+        && Path::new(stated).extension().is_some()
+}
+
+/// The one file named `name` under the project (hidden folders and build outputs aside,
+/// `LOCATE_DEPTH` deep), observed where it is, or said `located` when its format is not one the
+/// observer reads; `None` when none or several hold that name.
+fn located(root: &Path, name: &str) -> Option<(Value, Option<Value>)> {
+    let mut found: Vec<String> = Vec::new();
+    let mut seen = 0_usize;
+    let mut stack: Vec<(PathBuf, usize)> = vec![(root.to_path_buf(), 0)];
+    while let Some((dir, depth)) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.filter_map(Result::ok) {
+            seen += 1;
+            if seen > LOCATE_ENTRIES {
+                return None;
+            }
+            let file_name = entry.file_name();
+            let Some(entry_name) = file_name.to_str() else {
+                continue;
+            };
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            if kind.is_dir() {
+                let skipped = entry_name.starts_with('.')
+                    || matches!(entry_name, "node_modules" | "target" | "dist" | "build");
+                if !skipped && depth + 1 < LOCATE_DEPTH {
+                    stack.push((entry.path(), depth + 1));
+                }
+            } else if kind.is_file() && entry_name == name {
+                let relative = entry.path().strip_prefix(root).ok()?.to_path_buf();
+                found.push(format!("./{}", relative.to_string_lossy()));
+            }
+        }
+    }
+    let [path] = found.as_slice() else {
+        return None;
+    };
+    Some(observe(root, path).unwrap_or_else(|| {
+        (
+            json!({"path": path, "state": "located", "named": name, "complete": false}),
+            None,
+        )
+    }))
 }
 
 /// The files of a stated folder, each observed as if stated: `./reports/juillet.csv`.
@@ -581,5 +645,33 @@ mod tests {
         assert_eq!(seen["observed"][0]["columns"], json!(["id", "tail_key"]));
         assert_eq!(seen["observed"][0]["common_columns"], json!(["id"]));
         assert_eq!(seen["kinds"]["./rows.json"]["sampled"], 200);
+    }
+
+    /// A file named alone that is not at the root is the one file of that name under the
+    /// project: read where it is when the observer reads its format, else said `located`; two
+    /// files of that name, or a hidden one, leave it absent (live gauntlet r03, 2026-10-16).
+    #[test]
+    fn a_file_named_alone_is_located_under_the_project() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("notes")).unwrap();
+        std::fs::write(dir.path().join("notes/tarifs-2027.md"), "# Tarifs\n").unwrap();
+        std::fs::write(dir.path().join("notes/ventes.csv"), "mois,total\n").unwrap();
+        let seen = world(dir.path(), "si la note tarifs-2027.md échoue").unwrap();
+        assert_eq!(
+            seen["observed"][0],
+            json!({"path": "./notes/tarifs-2027.md", "state": "located",
+                "named": "tarifs-2027.md", "complete": false})
+        );
+        let read = world(dir.path(), "lis ventes.csv").unwrap();
+        assert_eq!(read["observed"][0]["path"], "./notes/ventes.csv");
+        assert_eq!(read["observed"][0]["state"], "observed");
+        std::fs::create_dir_all(dir.path().join("archive")).unwrap();
+        std::fs::write(dir.path().join("archive/tarifs-2027.md"), "old\n").unwrap();
+        let twice = world(dir.path(), "si la note tarifs-2027.md échoue").unwrap();
+        assert_eq!(twice["observed"][0]["state"], "absent", "{twice}");
+        std::fs::create_dir_all(dir.path().join(".nika")).unwrap();
+        std::fs::write(dir.path().join(".nika/secret.md"), "x\n").unwrap();
+        let hidden = world(dir.path(), "lis secret.md").unwrap();
+        assert_eq!(hidden["observed"][0]["state"], "absent", "{hidden}");
     }
 }

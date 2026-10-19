@@ -230,3 +230,41 @@ fn a_defect_that_stands_across_revisions_keeps_its_key() {
     assert_eq!(identities(&renamed), first);
     assert_ne!(identities(&digest(HACKER_NEWS, "./news/other.md")), first);
 }
+
+/// The welcome demo of the live gauntlet (2026-10-15): a workflow that only computes, shown in
+/// the conversation, then « Bon. Enregistre ce workflow et lance-le. », Nika's own suggestion
+/// « sauvegarde-le sous le nom aggregate-by-key et exécute-le », and the `/help` keyword « run
+/// aggregate-by-key ». Each was refused as a create the workflow had to perform, so the demo
+/// could never be saved from the conversation; asking to save or run the workflow itself is the
+/// Session's act, and the document stands.
+#[test]
+fn saving_or_running_the_workflow_itself_asks_no_effect_of_it() {
+    const DEMO: &str = r#"nika: aggregate-by-key
+const:
+  records:
+  - { region: north, amount: 10 }
+  - { region: south, amount: 20 }
+  - { region: north, amount: 5 }
+permits:
+  tools: ["nika:jq"]
+tasks:
+  totals:
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ const.records }}
+        expression: 'group_by(.region) | map({region: .[0].region, total: (map(.amount) | add)})'
+outputs:
+  totals: ${{ tasks.totals.output }}
+"#;
+    for line in [
+        "Ok, montre-moi cette démo aggregate-by-key dont tu parles sur l'écran d'accueil.\nBon. Enregistre ce workflow et lance-le.",
+        "sauvegarde-le sous le nom aggregate-by-key et exécute-le",
+        "run aggregate-by-key",
+    ] {
+        // Red before 2026-10-15: « DROPPED EFFECT: the request states `create` (« Enregistre ce
+        // workflow et lance-le ») and no task carries it ».
+        let refusals = judge_document(line, DEMO, (&[], &[]), None);
+        assert!(refusals.is_empty(), "{line}: {refusals:?}");
+    }
+}

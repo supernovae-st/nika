@@ -94,9 +94,15 @@ pub fn verdict_layers_for(
     let mut lines = Vec::new();
     let mut blockers = Vec::new();
     // W3-F1 · the pin's own verdict (a seat whose binary this machine
-    // lacks · an unsatisfied pin) is a blocker before any lane is read.
-    if let (Some(pin), Some(refusal)) = (&plan.pin, &plan.pin_refusal) {
-        let line = format!("pin `{pin}` refused · {}", pin_message(refusal));
+    // lacks · an unsatisfied pin) is a blocker before any lane is read; so is
+    // the file's own `run.access`/`run.reasoning` refusal with no `--access`
+    // pin (an effort the model does not document), which once left ACCESS
+    // READY red with no blocker named.
+    if let Some(refusal) = &plan.pin_refusal {
+        let line = match &plan.pin {
+            Some(pin) => format!("pin `{pin}` refused · {}", pin_message(refusal)),
+            None => format!("declared access refused · {}", pin_message(refusal)),
+        };
         blockers.push(format!("access: {line}"));
         lines.push(line);
     }
@@ -277,6 +283,13 @@ pub fn unresolvable_models_for_plan(
                 .catalog_warnings
                 .push(ModelFinding::new(m.model.clone(), m.tasks.clone(), why));
         }
+        // A published retirement floor rides the same advisory line: the
+        // model still runs, and the author learns its successor's name.
+        if let Some(why) = nika_providers::lifecycle_note(judged) {
+            audit
+                .catalog_warnings
+                .push(ModelFinding::new(m.model.clone(), m.tasks.clone(), why));
+        }
     }
     audit
 }
@@ -409,6 +422,27 @@ mod tests {
         )
     }
 
+    /// A model with a published retirement floor stays green and earns one
+    /// advisory line naming its successor.
+    #[test]
+    fn a_retirement_floor_is_one_advisory_line_never_a_finding() {
+        let wf = nika_schema::parse(
+            "nika: aging\nmodel: anthropic/claude-haiku-4-5-20251001\ntasks:\n  say:\n    infer: { prompt: hi, max_tokens: 512 }\n",
+            nika_schema::FileId::new(0), nika_schema::ParseMode::Strict).expect("fixture");
+        let report = nika_check::check(&wf);
+        let audit = unresolvable_models(&report, &wf);
+        assert!(audit.findings.is_empty(), "{:?}", audit.findings);
+        let [note] = audit.catalog_warnings.as_slice() else {
+            panic!("one advisory line: {:?}", audit.catalog_warnings);
+        };
+        assert!(
+            note.why.contains("not retired before 2026-10-15")
+                && note.why.contains("claude-haiku-5-5 is available"),
+            "{}",
+            note.why
+        );
+    }
+
     #[test]
     fn configured_compat_endpoint_changes_only_model_ownership_finding() {
         let wf = nika_schema::parse(
@@ -442,6 +476,32 @@ mod tests {
             seat.map(str::to_owned),
             refusal,
         )
+    }
+
+    /// NIK-157 · the file's own access refusal with no `--access` pin (a
+    /// declared effort the model does not document) is a named blocker beside
+    /// ACCESS READY ✖, never an empty list; a pin's refusal keeps its words.
+    #[test]
+    fn a_declared_access_refusal_is_a_named_blocker() {
+        let message = "`run.reasoning.effort: high` is not offered by `anthropic/claude-sonnet-4-6`: \
+                       its model catalog lists no effort level";
+        let refused = || {
+            Some(PinRefusal::NoPath {
+                message: message.to_owned(),
+            })
+        };
+        let layers = verdict_layers_for(&plan(None, None, refused()), true, &[], None);
+        assert_eq!(layers.access_ready, Some(false));
+        assert_eq!(
+            layers.blockers,
+            [format!("access: declared access refused · {message}")]
+        );
+        assert_eq!(layers.run_ready(), Some(false));
+        let pinned = verdict_layers_for(&plan(Some("codex"), None, refused()), true, &[], None);
+        assert_eq!(
+            pinned.blockers,
+            [format!("access: pin `codex` refused · {message}")]
+        );
     }
 
     /// W3-F13 · an `infer:` with no model and no seat pinned has no path:

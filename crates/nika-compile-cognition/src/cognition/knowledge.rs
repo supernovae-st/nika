@@ -77,17 +77,33 @@ pub(super) fn plan_context(
     reading: &crate::lexicon::Reading,
     request: &super::CompileRequest,
 ) -> PlanContext {
-    let prelude = super::native::prelude(intent, reading, request);
-    let mut facts = prelude.opening;
+    let super::native::Prelude {
+        mut references,
+        pack_from,
+        callables,
+        mut sent,
+        opening: mut facts,
+        ..
+    } = super::native::prelude(intent, reading, request);
     if let Some(map) = facts.as_object_mut() {
         // The request rides apart, as the user's own words.
         map.remove("request");
     }
-    let text = format!(
-        "{PLAN_CONTEXT}{}\n# Facts already held (the reader's floor, the observed world, the answers)\n{}\n",
-        rendered(&prelude.references, &prelude.callables),
+    let held = format!(
+        "\n# Facts already held (the reader's floor, the observed world, the answers)\n{}\n",
         serde_json::to_string_pretty(&facts).unwrap_or_default()
     );
+    // The Plan call sends this section after its instructions, the request apart, under the plan
+    // schema: a section past what one request carries is fitted (`native::capacity`).
+    let escaped = super::native::capacity::escaped;
+    let fixed = escaped(&format!("{}\n\n{PLAN_CONTEXT}", super::INSTRUCTIONS))
+        + escaped(&rendered(&[], &callables))
+        + escaped(&held)
+        + escaped(intent)
+        + escaped(&super::plan_schema().to_string())
+        + super::native::capacity::FRAMING;
+    super::native::capacity::fit(&mut references, &mut sent, pack_from, fixed);
+    let text = format!("{PLAN_CONTEXT}{}{held}", rendered(&references, &callables));
     let pack = (request.authoring_knowledge.as_ref())
         .and_then(|pack| pack.identity.pointer("/door/pack_sha256"))
         .and_then(Value::as_str);
@@ -95,7 +111,7 @@ pub(super) fn plan_context(
     let world = request.knowledge.as_ref().map(|w| sha256(&w.to_string()));
     PlanContext {
         text,
-        references: prelude.sent,
+        references: sent,
         marker: json!({"pack_sha256": pack, "world_sha256": world}),
     }
 }
@@ -142,7 +158,24 @@ mod tests {
             "{}",
             cut[0].text
         );
-        assert!(cut[1].text.len() <= 2_000);
+        // Each callable is its whole stdlib section, never more of the page, however long the Spec
+        // makes it: it starts at its own heading, and after that first line no heading of level 3
+        // or above (`#`, `##`, `###`) follows outside a code block.
+        let jq = &cut[1].text;
+        assert!(jq.starts_with("### `nika:jq`"), "{jq}");
+        let mut fenced = false;
+        let next_heading = jq.lines().skip(1).find(|line| {
+            if line.trim_start().starts_with("```") {
+                fenced = !fenced;
+                return false;
+            }
+            let hashes = line.len() - line.trim_start_matches('#').len();
+            !fenced && (1..=3).contains(&hashes) && line[hashes..].starts_with(' ')
+        });
+        assert!(
+            next_heading.is_none(),
+            "the cut stops before the next heading, {next_heading:?}: {jq}"
+        );
     }
 
     #[test]
@@ -245,5 +278,71 @@ mod tests {
         assert_eq!(unknown["reasoning_capability"], json!("unrecorded"));
         assert_eq!(output_caps(&answered("mock/echo")), Value::Null);
         assert_eq!(output_caps(&std::collections::BTreeMap::new()), Value::Null);
+    }
+
+    /// The Plan door's context for a pack larger than one bounded request carries: its call
+    /// (the instructions, this section, the request, the plan schema) fits under the capacity
+    /// less the rounds' share, the head of each kind whole, the receipts naming the references
+    /// shown by their first line with their whole entries (red before 2026-10-16: the whole pack
+    /// rode every Plan call).
+    #[test]
+    fn a_plan_context_past_the_request_capacity_is_fitted() {
+        let intent = "Read ./data/orders.csv, keep the paid rows and write them to ./out/paid.csv";
+        let references: Vec<nika_compile::KnowledgeReference> = (1..=40)
+            .flat_map(|n| {
+                ["pattern", "block"].map(|kind| nika_compile::KnowledgeReference {
+                    kind: kind.to_owned(),
+                    id: format!("{kind}:{n}"),
+                    text: format!("{kind} {kind}:{n} — a title\n{}", "x".repeat(16_000)),
+                })
+            })
+            .collect();
+        let pack = nika_compile::AuthoringKnowledge {
+            references: references.clone(),
+            ..nika_compile::AuthoringKnowledge::default()
+        };
+        let request = super::super::CompileRequest::create(intent).with_authoring_knowledge(pack);
+        let context = plan_context(intent, &crate::lexicon::read(intent), &request);
+        let system = format!("{}\n\n{}", super::super::INSTRUCTIONS, context.text);
+        let schema = super::super::plan_schema().to_string();
+        let bytes = [system.as_str(), intent, schema.as_str()]
+            .map(|text| serde_json::to_string(text).map_or(0, |s| s.len()))
+            .iter()
+            .sum::<usize>();
+        let capacity = nika_providers::admission::BOUNDED_REQUEST_BYTES;
+        assert!(bytes <= capacity - capacity / 8, "{bytes}");
+        let row = |id: &str| {
+            (context.references.iter())
+                .find(|row| row["id"] == id)
+                .expect("receipted")
+        };
+        for kind in ["pattern", "block"] {
+            let fitted: Vec<usize> = (1..=40)
+                .filter(|n| row(&format!("{kind}:{n}")).get("first_line_only").is_some())
+                .collect();
+            assert!(
+                !fitted.is_empty() && fitted.len() < 40,
+                "{kind}: {fitted:?}"
+            );
+            assert_eq!(
+                fitted,
+                (41 - fitted.len()..=40).collect::<Vec<_>>(),
+                "{kind}"
+            );
+        }
+        for reference in &references {
+            let row = row(&reference.id);
+            let whole = sha256(&reference.text);
+            if let Some(fitted) = row.get("first_line_only") {
+                assert_eq!(fitted["sha256"], whole);
+            } else {
+                assert_eq!(row["sha256"], whole);
+                assert!(
+                    context.text.contains(&reference.text),
+                    "{} whole",
+                    reference.id
+                );
+            }
+        }
     }
 }

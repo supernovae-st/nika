@@ -126,6 +126,7 @@ async fn bytes_a_judge_declined_are_never_asked_of_it_again() {
         "candidate_sha256": sha,
         "declined": true, "rejected": true, "settled": false, "stopped": false,
         "unresolved": false, "engine": [],
+        "model_parts_unrun": "model-step check not run: the judge stated no model parts",
         "whole_asked": true,
         "request": INTENT,
         "same_bytes_as": 0,
@@ -419,4 +420,32 @@ fn the_forensic_summary_states_the_last_verdict_and_its_binding() {
         "last_unknown": 0, "last_contested": 0, "last_declined": false,
         "last_settled_by": "verify-request", "candidate_binding": "other_bytes"});
     assert_eq!(summary(true, settled), elsewhere);
+}
+
+/// A verdict repeated with no call is read back from its attempt's record with the choices the
+/// provider judge listed where the request leaves one open: the repeat records them as the
+/// original did.
+#[test]
+fn a_repeat_keeps_the_choices_the_judge_listed() {
+    let policy = AuthoringPolicy::new(MODEL, 256, Duration::from_secs(2));
+    let provider = Approving::default();
+    let judge = Judge::Provider(&policy, &provider);
+    let listed = vec!["the replies are written in English".to_owned()];
+    let verdict = Verdict {
+        doubt: vec!["unfaithful".to_owned()],
+        contested: vec![INTENT.to_owned()],
+        declined: Declined::Rejected,
+        whole_asked: true,
+        request: Some(INTENT.to_owned()),
+        assumed: listed.clone(),
+        ..Verdict::default()
+    };
+    let mut out = crate::initial();
+    record(&mut out, &judge, &verdict, 0);
+    let original = attempts(&out)[0].clone();
+    assert_eq!(original["assumed"], json!(listed));
+    let repeated = Verdict::recorded(&original, 0);
+    assert_eq!(repeated.assumed, listed);
+    record(&mut out, &judge, &repeated, 1);
+    assert_eq!(attempts(&out)[1]["assumed"], original["assumed"]);
 }
