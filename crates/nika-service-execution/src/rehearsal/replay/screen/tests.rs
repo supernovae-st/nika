@@ -196,3 +196,77 @@ fn a_trial_captures_the_addresses_known_before_the_run_once_each() {
     );
     assert!(sources(&parsed(&crawl)).is_empty());
 }
+
+#[test]
+fn a_trial_names_unrun_writes_at_literal_and_constant_paths() {
+    for declaration in [
+        "  out_path: ./news/digest.md\n",
+        "  out_path: { type: string, value: ./news/digest.md }\n",
+    ] {
+        let source = NEWS
+            .replace("const:\n", &format!("const:\n{declaration}"))
+            .replace(
+                "path: \"./news/digest.md\"",
+                "path: \"${{ const.out_path }}\"",
+            );
+        let workflow = parsed(&source);
+        let screened = screen(&workflow, &captured(&[FEED]));
+        assert_eq!(
+            screened.written_behind(&workflow),
+            ["./news/digest.md"],
+            "{declaration}"
+        );
+    }
+    let workflow = parsed(NEWS);
+    let screened = screen(&workflow, &captured(&[FEED]));
+    assert_eq!(screened.written_behind(&workflow), ["./news/digest.md"]);
+}
+
+#[test]
+fn a_trial_does_not_guess_a_write_path_known_only_at_run_time() {
+    for path in [
+        "${{ const.absent }}",
+        "${{ inputs.output }}",
+        "${{ tasks.summarize.output }}",
+        "./news/${{ const.name }}.md",
+    ] {
+        let source = NEWS.replace("path: \"./news/digest.md\"", &format!("path: {path:?}"));
+        let workflow = parsed(&source);
+        let screened = screen(&workflow, &captured(&[FEED]));
+        assert!(screened.written_behind(&workflow).is_empty(), "{path}");
+    }
+}
+
+#[test]
+fn a_trial_does_not_guess_a_write_path_from_an_unknown_constant() {
+    for declaration in [
+        "  out_path: 7\n",
+        "  out_path: { type: string }\n",
+        "  out_path: \"${{ inputs.output }}\"\n",
+    ] {
+        let source = NEWS
+            .replace("const:\n", &format!("const:\n{declaration}"))
+            .replace(
+                "path: \"./news/digest.md\"",
+                "path: \"${{ const.out_path }}\"",
+            );
+        let workflow = parsed(&source);
+        let screened = screen(&workflow, &captured(&[FEED]));
+        assert!(
+            screened.written_behind(&workflow).is_empty(),
+            "{declaration}"
+        );
+    }
+}
+
+#[test]
+fn a_trial_does_not_call_an_exercised_write_unrun() {
+    let source = NEWS.replace(
+        "${{ tasks.summarize.output }}",
+        "${{ tasks.filter.output }}",
+    );
+    let workflow = parsed(&source);
+    let screened = screen(&workflow, &captured(&[FEED]));
+    assert!(!screened.behind("write_digest"));
+    assert!(screened.written_behind(&workflow).is_empty());
+}
