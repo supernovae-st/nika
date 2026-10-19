@@ -443,10 +443,10 @@ fn a_french_cost_line_says_the_unpriced_reason_in_french() {
         ],
     );
     let facts = RunFacts::read(&trace).expect("frames");
+    let unreported = "son fournisseur n'a pas déclaré d'usage complet (dépensé, jamais gratuit)";
     assert_eq!(
         facts.cost_line_in(true),
-        "coût · INCONNU · 2 appels non tarifés : a_future_reason · son fournisseur n'a pas \
-         déclaré d'usage complet (dépensé, jamais gratuit)"
+        format!("coût · INCONNU · 2 appels non tarifés : a_future_reason · {unreported}")
     );
     assert!(
         facts
