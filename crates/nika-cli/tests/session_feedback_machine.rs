@@ -463,7 +463,8 @@ fn assert_ran(
         .collect();
     assert_eq!(kinds, ["run_requested", "facts"], "{ran}");
     let observed = ran["outcomes"][1]["text"].as_str().expect("observation");
-    assert!(observed.contains("run observed · exit 0"), "{observed}");
+    // The person writes French, so the observation is said in French.
+    assert!(observed.contains("run observé · sortie 0"), "{observed}");
     assert_eq!(read(root, workflow), source, "the bytes shown ran");
     let report = if source.contains(DETAILED) {
         SECOND_REPORT

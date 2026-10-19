@@ -32,6 +32,18 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # master
         with:
           toolchain: "1.91"
+      # This job builds diamond-ci's tests-leg battery, so it needs that leg's disk: from
+      # 2026-10-13 its linker died with a bus error (no space left) and the pin stopped
+      # following the spec. The same two steps as the tests leg: the image's unused SDKs go
+      # first, then the debug build keeps line tables only.
+      - name: Free the runner's unused SDKs
+        run: |
+          df -h / | tail -1
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/share/swift
+          df -h / | tail -1
+      - name: Line tables only for the battery's debug build
+        run: echo "CARGO_PROFILE_DEV_DEBUG=line-tables-only" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           shared-key: diamond

@@ -1108,18 +1108,20 @@ mod tests {
 
     /// A reasoning effort the named model's catalog does not offer makes every run refused before
     /// its first task: such bytes are not clean (live gauntlet r03 B3, 2026-10-17: « clean ✔ »,
-    /// then NIKA-1800 at the run). The same workflow without the effort is clean.
+    /// then NIKA-1800 at the run, on a Gemini model). The same workflow without the effort is
+    /// clean. The mock model offers no effort level and needs no key, so the law is judged on
+    /// any machine: a provider model is only judged where its key admits the lane.
     #[test]
     fn an_effort_the_model_does_not_offer_is_not_clean() {
         let dir = tempfile::tempdir().expect("tmp");
-        let effort = "nika: translate\nmodel: gemini/gemini-4-argon\nrun:\n  reasoning:\n    effort: low\npermits: {}\ntasks:\n  draft:\n    infer: { prompt: \"Say hello\", max_tokens: 4000 }\n";
+        let effort = "nika: translate\nmodel: mock/echo\nrun:\n  reasoning:\n    effort: low\npermits: {}\ntasks:\n  draft:\n    infer: { prompt: \"Say hello\", max_tokens: 4000 }\n";
         std::fs::write(dir.path().join("translate.nika"), effort).expect("workflow");
         let audit = check_on_disk(dir.path(), Path::new("translate.nika"));
         assert!(!audit.clean, "{:?}", audit.findings);
         assert!(
             audit.findings.iter().any(|f| f
                 .starts_with("NIKA-1800 · every run is refused before it starts")
-                && f.contains("is not offered by `gemini/gemini-4-argon`")),
+                && f.contains("is not offered by `mock/echo`")),
             "{:?}",
             audit.findings
         );

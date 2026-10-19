@@ -42,7 +42,7 @@ Outcome = (class, cause, payload)
 | `skipped` | `gate` | the `when:` gate (or the default gate's decision) evaluated false — a decision, not a defect; `.error` reads defined-`null` |
 | `skipped` | `error_skip` | `on_error: { skip: true }` fired — the PRESERVED error rides `.error` ([03 §fields](./03-dag.md)) |
 | `cancelled` | `upstream` | the default gate became unsatisfiable (an upstream failure/cancellation propagated) |
-| `cancelled` | `operator` | the run was cancelled from outside (user signal · `NIKA-CANCEL-001`) |
+| `cancelled` | `operator` | the run was cancelled from outside (user signal · `NIKA-CANCEL-001`): this task had not started when the run stopped at a wave boundary; in-flight work completes and is counted, except an MCP call under way, which is stopped and named in the settlement's `stopped_calls` |
 | `cancelled` | `budget` | the run crossed `--max-cost-usd`: this task was UNSTARTED when the cap hit (in-flight work completes and is counted · [05](./05-errors.md) `NIKA-RUN-1704`) |
 
 **Any (class, cause) pair outside this table is an engine bug, never a
