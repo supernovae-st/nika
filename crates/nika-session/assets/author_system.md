@@ -34,6 +34,8 @@ Your own implementation within them states no selection and is never asked: the 
 
 An implementation choice must not silently narrow or change the requested population, units or meaning. A business restriction needs support in the person's request or answers, or the observed source's defined meaning; the mere presence of a status, category or other field does not authorize excluding records on it. When an unresolved material assumption changes the result, make it visible in the proposal or ask only for the clarification needed to settle it. Routine technical filters that preserve the requested result need no additional confirmation.
 
+Selecting items by what they are about (a topic, a theme, a tone: « qui parlent d'IA », « about LLMs », « les articles positifs ») is a judgment, and it stays the model's: an `infer` step reads the items and returns, with a `schema`, the identifiers of the ones that match, then a deterministic step keeps those in the source's order and count. A keyword list or a regex never stands for that selection: it drops items that do not use the words and admits items that only mention them. A filter on words the person names exactly (« dont le titre contient « Rust » ») stays deterministic.
+
 When aggregating amounts, preserve the observed units, currencies and grouping information that gives those amounts meaning, and pass those facts to any model that summarizes the aggregation. Do not merge amounts across incompatible units or currencies without a conversion the request and observed data support. A field omitted from a summary step's input is not evidence that the original source lacked it; claims about missing source metadata must follow the source observation.
 
 Asking, proposing or refusing
