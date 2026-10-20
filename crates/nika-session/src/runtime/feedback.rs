@@ -157,13 +157,16 @@ impl SessionRuntime {
     /// After a run the session observed (`facts`): any offer about an earlier result closes, then
     /// a successful run of the conversation's current candidate earns its offer, once for its
     /// bytes: the opinion when it is a later revision of the request whose adjustment the person
-    /// picked, the adjustment otherwise. Its question for the person; `None` for any other run, or
-    /// once those bytes were offered.
-    pub(super) fn feedback_after(&mut self, facts: &RunFacts) -> Option<String> {
+    /// picked, the adjustment otherwise. The offer is the work snapshot's, which a host shows as
+    /// its own question; the run's words never repeat it. Nothing for any other run, or once
+    /// those bytes were offered.
+    pub(super) fn feedback_after(&mut self, facts: &RunFacts) {
         self.feedback.close();
-        let (scope, source) = self.feedback_scope(facts)?;
+        let Some((scope, source)) = self.feedback_scope(facts) else {
+            return;
+        };
         if self.feedback.offered.contains(&scope.source_sha256) {
-            return None;
+            return;
         }
         let follows = match &self.feedback.adjusted {
             // Another request's result: the adjustment picked never reached it.
@@ -173,7 +176,7 @@ impl SessionRuntime {
             }
             Some(lineage) if scope.revision > lineage.revision => Some(lineage.answer.clone()),
             // The revision the adjustment was picked on: nothing amended it yet.
-            Some(_) => return None,
+            Some(_) => return,
             None => None,
         };
         let lang = self.language;
@@ -199,7 +202,6 @@ impl SessionRuntime {
             self.feedback.adjusted = None;
         }
         self.feedback.offer = Some(FeedbackOffer::new(kind, question, scope, follows));
-        Some(text.to_owned())
     }
 
     /// The result `facts` record, when it is a success of the conversation's current candidate:

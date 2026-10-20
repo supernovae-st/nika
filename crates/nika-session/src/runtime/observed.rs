@@ -83,15 +83,14 @@ impl SessionRuntime {
             (0 | 1, Some(f), Some(workflow)) => {
                 // The conversation's author hears of its candidate's run: a failure is repaired.
                 // A success of its current candidate that wrote its artifact earns the optional
-                // offer about that result.
-                let offered = (exit == 0).then(|| self.feedback_after(&f)).flatten();
-                let said = format!("{}\n  {line}", f.result_in(&root, &workflow, fr));
-                match (self.after_run(exit, said), offered) {
-                    (TurnOutcome::Facts(said), Some(offer)) => {
-                        TurnOutcome::Facts(format!("{said}\n\n{offer}"))
-                    }
-                    (outcome, _) => outcome,
+                // offer about that result, which the host shows as its own question: the run's
+                // words never repeat it (live gauntlet wave 8, 2026-10-19: « Que voulez-vous
+                // ajuster dans ce résultat ? » printed twice on every run card, r01 and r02).
+                if exit == 0 {
+                    self.feedback_after(&f);
                 }
+                let said = format!("{}\n  {line}", f.result_in(&root, &workflow, fr));
+                self.after_run(exit, said)
             }
             // Any other end (a refusal before or around the execution, an unreadable trace) is
             // still the conversation's to know with the person's next line.
