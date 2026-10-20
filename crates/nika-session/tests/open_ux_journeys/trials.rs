@@ -409,3 +409,73 @@ pub(super) fn oversized_read() -> Scenario {
         },
     }
 }
+
+/// A teacher's request naming her essays' folder with its slash (live gauntlet wave 9 and 10, r12).
+pub(crate) const ESSAYS_REQUEST: &str = "Dans le dossier copies/ j'ai les rédactions de mes élèves : écris dans ./retours/notes.csv le nombre de mots de chacune et une note sur 20.";
+/// A per-essay jq step whose `|` binds looser than its `,`: it reads `.mots` in the file's name.
+pub(super) const ESSAYS_SLIP: &str =
+    r#"[.list[] | [.fichier | ascii_downcase, (.mots | tostring)] | join(",")] | join("\n")"#;
+/// The same step, its first item parenthesized.
+pub(super) const ESSAYS_RIGHT: &str =
+    r#"[.list[] | [(.fichier | ascii_downcase), (.mots | tostring)] | join(",")] | join("\n")"#;
+
+/// The essays read by pattern, counted, marked by the session's model (a declared shape), then
+/// assembled by `assemble` into one file.
+pub(super) fn essays(assemble: &str) -> Value {
+    let source = format!(
+        "nika: essay-marks\nmodel: {SEAT}\npermits:\n  tools: [\"nika:glob\", \"nika:read\", \"nika:jq\", \"nika:write\"]\n  fs:\n    read: [\"./copies/**\"]\n    write: [\"./retours/**\"]\ntasks:\n  listed:\n    invoke: {{ tool: \"nika:glob\", args: {{ pattern: \"./copies/*.txt\" }} }}\n  texts:\n    with: {{ paths: \"${{{{ tasks.listed.output }}}}\" }}\n    for_each: {{ items: \"${{{{ with.paths }}}}\" }}\n    invoke: {{ tool: \"nika:read\", args: {{ path: \"${{{{ item }}}}\" }} }}\n  items:\n    with: {{ paths: \"${{{{ tasks.listed.output }}}}\", texts: \"${{{{ tasks.texts.output }}}}\" }}\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        input: {{ paths: \"${{{{ with.paths }}}}\", texts: \"${{{{ with.texts }}}}\" }}\n        expression: '[range(0; (.paths | length)) as $i | {{fichier: (.paths[$i] | sub(\"^.*/\"; \"\")), mots: ([.texts[$i] | scan(\"\\\\S+\")] | length)}}]'\n  marks:\n    with: {{ list: \"${{{{ tasks.items.output }}}}\" }}\n    for_each: {{ items: \"${{{{ with.list }}}}\" }}\n    infer:\n      prompt: \"Note sur 20 la rédaction ${{{{ item.fichier }}}}\"\n      max_tokens: 400\n      schema: {{ type: object, required: [note], properties: {{ note: {{ type: integer }} }} }}\n  assemble:\n    with: {{ list: \"${{{{ tasks.items.output }}}}\", marks: \"${{{{ tasks.marks.output }}}}\" }}\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        input: {{ list: \"${{{{ with.list }}}}\", marks: \"${{{{ with.marks }}}}\" }}\n        expression: '{assemble}'\n  save:\n    with: {{ csv: \"${{{{ tasks.assemble.output }}}}\" }}\n    invoke: {{ tool: \"nika:write\", args: {{ path: \"./retours/notes.csv\", content: \"${{{{ with.csv }}}}\", create_dirs: true }} }}\n"
+    );
+    json!({"source": source, "resolutions": [],
+        "summary": "le nombre de mots et la note de chaque rédaction dans ./retours/notes.csv"})
+}
+
+/// The essays' slip proposed, then its repair: the trial on a copy of `copies/` sends the slip
+/// back.
+pub(super) fn essays_tried() -> Scenario {
+    Scenario {
+        files: vec![
+            ("copies/emma.txt", "Un été au bord de la mer."),
+            ("copies/noah.txt", "La forêt était calme."),
+        ],
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(ESSAYS_REQUEST)],
+        script: Script {
+            agent: vec![
+                call("candidate_write", essays(ESSAYS_SLIP)),
+                call("propose", json!({})),
+                call("candidate_write", essays(ESSAYS_RIGHT)),
+                call_saying(TRIED, "propose", json!({})),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// The essays' repaired candidate over a `copies/` folder past the files a rehearsal room is
+/// given: no world can be observed for it, so no rehearsal is bound to its bytes.
+pub(super) fn essays_past_the_room() -> Scenario {
+    let files: Vec<(&'static str, &'static str)> = (0..=512)
+        .map(|at| {
+            let path: &'static str = Box::leak(format!("copies/e{at:03}.txt").into_boxed_str());
+            (path, "Un mot.")
+        })
+        .collect();
+    Scenario {
+        files,
+        history: false,
+        preparing: false,
+        acts: vec![Act::Turn(ESSAYS_REQUEST)],
+        script: Script {
+            agent: vec![
+                call("candidate_write", essays(ESSAYS_RIGHT)),
+                call_saying(TRIED, "propose", json!({})),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}

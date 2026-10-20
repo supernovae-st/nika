@@ -1439,14 +1439,16 @@ impl SessionRuntime {
         let tried = (driver.verified.lock())
             .ok()
             .and_then(|mut kept| kept.take_tried());
-        if let Some(tried) = tried {
-            self.bind_trial((&id, &set), tried, &mut bytes);
-        } else {
-            // No trial of its own: the revision shown, proposed again under the verdict the
-            // person saw, may carry the rehearsal of those very bytes from that proposal only.
-            let shown = (shown.as_ref()).map(|(old, before)| (old, before));
-            let reused = reused == Some(candidate.number);
-            self.carry_rehearsal((shown, reused), (&id, &set), &mut bytes);
+        match tried {
+            Some((Ok(tried), words)) => self.bind_trial((&id, &set), (tried, words), &mut bytes),
+            Some((Err(why), _)) => self.untried(&why, &mut bytes),
+            None => {
+                // No trial of its own: the revision shown, proposed again under the verdict the
+                // person saw, may carry the rehearsal of those very bytes from that proposal only.
+                let shown = (shown.as_ref()).map(|(old, before)| (old, before));
+                let reused = reused == Some(candidate.number);
+                self.carry_rehearsal((shown, reused), (&id, &set), &mut bytes);
+            }
         }
         self.bind_proposal_money(&id);
         // The source basis of these bytes, bound to the identity the person reviews.

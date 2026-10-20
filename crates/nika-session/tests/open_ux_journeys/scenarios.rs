@@ -452,6 +452,8 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "complaint_after_success" => complaint_after_success(),
         "doubted_candidate" => doubted_candidate(),
         "trial_offset" => tried("raw", OFFSET_BROKEN, OFFSET_FIXED),
+        "essays_tried" => trials::essays_tried(),
+        "essays_past_the_room" => trials::essays_past_the_room(),
         "trial_kept_nothing" => tried("feed", RFC_822_BROKEN, RFC_822_FIXED),
         "trial_assert" => trial_assert(),
         "trial_names_what_it_skips" => trial_names_what_it_skips(),

@@ -771,6 +771,17 @@ impl SessionRuntime {
         });
     }
 
+    /// The trial of the shown bytes came to no decision (`why`): `preview` says no rehearsal is
+    /// bound to them, and why, where a rehearsal's lines go, and no proof is bound, as for a
+    /// trial that bound no world.
+    pub(super) fn untried(&mut self, why: &str, preview: &mut String) {
+        let lines = format!(
+            "No rehearsal bound to these bytes · {why} · source-only preview · `yes` saves only; running is separate\n"
+        );
+        shown_in(preview, &self.said(&lines));
+        self.rehearsals.pending = None;
+    }
+
     /// A test's rehearsal host in place of the observed room.
     #[cfg(test)]
     pub(super) fn with_rehearsal_host(&mut self, host: std::sync::Arc<TestHost>) {

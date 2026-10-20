@@ -782,3 +782,48 @@ fn the_flow_a_host_counted_rides_with_the_run_and_is_shown_to_the_judge() {
         "{shown}"
     );
 }
+
+/// A folder is copied by the files under it and a pattern by the files it matches, with no
+/// receipt of its own: each copy under one is named by it and shown to the judge, and one spelled
+/// as a folder or a pattern may hold none (an empty folder is a day the workflow must survive).
+/// A file the host was asked to copy still needs its receipt, and a copy no input names is still
+/// an invalid harness (live gauntlet wave 10, 2026-10-20: every folder's rehearsal was invalid).
+#[test]
+fn a_folder_or_a_pattern_is_copied_by_its_files_and_a_file_still_by_its_own_receipt() {
+    let essays = || {
+        vec![
+            copy("./copies/emma.txt", "Emma"),
+            copy("./copies/noah.txt", "Noah"),
+        ]
+    };
+    let marks = || vec![file(RESULT, COUNT_TWO)];
+    for folder in ["./copies/", "./copies", "./copies/*.txt", "*/*.txt"] {
+        let report = completed(passed(), observed(essays(), marks(), &[RESULT]));
+        let inputs = [folder.to_owned()];
+        let run = judged_run("observed", &report, &inputs, &outputs(), &outputs());
+        assert_eq!(run.end, RunEnd::Completed, "{folder}: {run:?}");
+        let shown: Vec<&str> = run.consumed.iter().map(|read| read.path.as_str()).collect();
+        assert_eq!(shown, ["copies/emma.txt", "copies/noah.txt"], "{folder}");
+    }
+    for empty in ["./copies/", "./copies/*.txt"] {
+        let report = completed(passed(), observed(Vec::new(), marks(), &[RESULT]));
+        let inputs = [empty.to_owned()];
+        let run = judged_run("observed", &report, &inputs, &outputs(), &outputs());
+        assert_eq!(run.end, RunEnd::Completed, "{empty}: {run:?}");
+    }
+    let invalid = [
+        ("./copies", Vec::new()),
+        ("./copies/emma.txt", vec![copy("./copies/noah.txt", "Noah")]),
+        ("./copies/", vec![copy("./other/emma.txt", "Emma")]),
+        ("./copies/*.txt", vec![copy("./elsewhere/emma.txt", "Emma")]),
+    ];
+    for (input, copies) in invalid {
+        let report = completed(passed(), observed(copies, marks(), &[RESULT]));
+        let inputs = [input.to_owned()];
+        let run = judged_run("observed", &report, &inputs, &outputs(), &outputs());
+        assert!(
+            matches!(run.end, RunEnd::InvalidHarness { .. }),
+            "{input}: {run:?}"
+        );
+    }
+}

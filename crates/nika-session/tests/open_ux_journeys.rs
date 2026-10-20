@@ -1246,6 +1246,62 @@ fn a_trial_names_the_steps_it_did_not_run() {
     );
 }
 
+/// A request that names a folder is tried on a copy of the files in it: a jq step that indexes
+/// the file's name fails the trial before any proposal, the author reads the failure and
+/// proposes the repaired revision, whose proposal says it was rehearsed on a copy of the
+/// person's files and binds that rehearsal (live gauntlet wave 10, 2026-10-20: « copies/ » was
+/// refused before any rehearsal, and every proposal over a folder was shown checked with no
+/// rehearsal at all).
+#[test]
+fn a_request_over_a_folder_is_rehearsed_on_a_copy_of_its_files_before_the_proposal() {
+    let journey = run("essays_tried");
+    let step = journey.step(0);
+    assert_eq!(step["outcome"]["kind"], "proposal", "{step}");
+    let failed = answered(&journey, 2);
+    let caught = [
+        "NIKA-REHEARSAL-SHAPE",
+        "\"task\":\"assemble\"",
+        "cannot index",
+    ];
+    assert!(caught.iter().all(|fact| failed.contains(fact)), "{failed}");
+    assert!(
+        !failed.contains("shown to the person"),
+        "nothing was proposed: {failed}"
+    );
+    let text = step["outcome"]["text"].as_str().unwrap();
+    let rehearsed = "Répété sur une copie de vos fichiers";
+    assert!(text.contains(rehearsed), "{text}");
+    assert!(
+        text.contains("[(.fichier | ascii_downcase)"),
+        "the repaired revision is the one shown: {text}"
+    );
+    assert_eq!(
+        step["shown"]["work"]["candidate"]["rehearsed"], true,
+        "{step}"
+    );
+    let drawn = step["shown"]["rehearsed"].as_str().unwrap_or_default();
+    assert!(drawn.starts_with(rehearsed), "{drawn}");
+}
+
+/// A trial that binds nothing to the proposal says so, and why, beside the proposal: here the
+/// folder the request names holds more files than a rehearsal room is given, so no world is
+/// observed for it (live gauntlet wave 10, 2026-10-20: a trial whose world could not be observed
+/// was dropped in silence, and the proposal read checked with no word of any rehearsal).
+#[test]
+fn a_trial_that_binds_nothing_is_said_on_the_proposal() {
+    let journey = run("essays_past_the_room");
+    let step = journey.step(0);
+    assert_eq!(step["outcome"]["kind"], "proposal", "{step}");
+    let text = step["outcome"]["text"].as_str().unwrap();
+    let said = "No rehearsal bound to these bytes · the original world could not be observed: `./copies/` holds more than the 512 files a room is given: a cut world is never rehearsed";
+    assert!(text.contains(said), "{text}");
+    assert!(!text.contains("Répété sur une copie"), "{text}");
+    assert_eq!(
+        step["shown"]["work"]["candidate"]["rehearsed"], false,
+        "{step}"
+    );
+}
+
 /// An agent-led proposal that reads a project file is saved after the person's yes; its
 /// sources are judged by the exact bytes it was shown over, never by a compile it never had.
 #[test]
