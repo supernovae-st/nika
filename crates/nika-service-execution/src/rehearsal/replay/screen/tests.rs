@@ -114,7 +114,7 @@ fn each_step_beyond_the_room_is_named_in_its_own_words() {
         ),
         (
             fetch("url: \"https://feed.example/items\", mode: jq, jq: \".items\""),
-            "a jq extraction",
+            "a web read through jq",
         ),
         (
             fetch("url: \"https://feed.example/items\", method: DELETE"),

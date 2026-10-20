@@ -26,7 +26,10 @@ const NEEDS: &[(&str, &str)] = &[
     ("a request other than GET", "une requête autre que GET"),
     ("the network", "le réseau"),
     ("a crawl", "un parcours de site"),
-    ("a jq extraction", "une extraction jq"),
+    (
+        "a web read through jq",
+        "une lecture du réseau filtrée par jq",
+    ),
     ("a notification", "une notification"),
     ("a person", "une personne"),
     ("an mcp server", "un serveur MCP"),

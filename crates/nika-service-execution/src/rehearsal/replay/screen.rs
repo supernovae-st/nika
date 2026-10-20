@@ -4,9 +4,9 @@
 //! What a replay trial cannot exercise of a workflow, named before any run, and what each task
 //! reads. A model step, a process, a notification, a person, an mcp server and a provider stay
 //! outside every room. A fetch is exercised when it GETs an address a capture holds, or one known
-//! only at run time: the room then serves an exact capture, or refuses. A crawl, a jq extraction
-//! (it would run in this process, with no bound), a request other than GET and an address no
-//! capture holds are not exercised. Pure: the workflow is read, nothing is run.
+//! only at run time: the room then serves an exact capture, or refuses. A crawl, a web read
+//! through jq (it would run in this process, with no bound), a request other than GET and an
+//! address no capture holds are not exercised. Pure: the workflow is read, nothing is run.
 
 use std::collections::BTreeMap;
 
@@ -26,7 +26,7 @@ mod tests;
 pub struct ReplayScreen {
     /// The tasks the trial does not exercise, in the workflow's order, each with what it needs
     /// in plain words: `the model step`, `a process`, `a request other than GET`, `the network`,
-    /// `a crawl`, `a jq extraction`, `a notification`, `a person`, `an mcp server` or
+    /// `a crawl`, `a web read through jq`, `a notification`, `a person`, `an mcp server` or
     /// `a provider`.
     pub unexercised: Vec<(String, String)>,
     /// Every task, with the tasks it reads, each once: each `tasks.<id>` and each member of a
@@ -136,7 +136,7 @@ pub fn screen(workflow: &RawWorkflow, captures: &Captures) -> ReplayScreen {
 }
 
 /// The addresses `workflow` GETs that are known before the run, each once, in the workflow's
-/// order: what a host captures for a trial. A crawl, a jq extraction and a request other than
+/// order: what a host captures for a trial. A crawl, a web read through jq and a request other than
 /// GET are left out, as the trial leaves them unexercised.
 #[must_use]
 pub fn sources(workflow: &RawWorkflow) -> Vec<String> {
@@ -202,8 +202,10 @@ fn fetched(
         return Some("a crawl");
     }
     let mode = arg("mode").and_then(|mode| known(workflow, mode));
+    // A read of the web whose answer jq shapes, never a jq step of its own (live gauntlet wave 8,
+    // r04: « pas lancé : une extraction jq (front_ids) » for a `nika:fetch`).
     if arg("jq").is_some() || mode.as_deref() == Some("jq") {
-        return Some("a jq extraction");
+        return Some("a web read through jq");
     }
     let method = arg("method").and_then(|method| known(workflow, method));
     if method.is_some_and(|method| !method.eq_ignore_ascii_case("GET")) {
