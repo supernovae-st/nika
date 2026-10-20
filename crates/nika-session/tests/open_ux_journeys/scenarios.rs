@@ -501,6 +501,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "spend_asked" => session_facts::spend_asked(),
         "failing_check" => failing_checks::failing_check(),
         "claimed_after_refusal" => failing_checks::claimed_after_refusal(),
+        "claimed_beside_a_pending_proposal" => failing_checks::claimed_beside_a_pending_proposal(),
         "kept_defaults" => kept_defaults::kept_defaults(),
         "kept_defaults_other_zone" => kept_defaults::kept_defaults_other_zone(),
         other => panic!("unknown scenario {other}"),

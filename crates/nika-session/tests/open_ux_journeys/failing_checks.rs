@@ -94,6 +94,37 @@ pub(super) fn claimed_after_refusal() -> Scenario {
     }
 }
 
+/// A proposal shown and still waiting, then a change whose revision Nika's check refuses and the
+/// author's claim that it was saved and run (live gauntlet wave 10 r08, 2026-10-20: « Rien n'a été
+/// proposé … » beside a proposal the person could still save).
+pub(super) fn claimed_beside_a_pending_proposal() -> Scenario {
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![
+            Act::Turn(REQUEST),
+            Act::Turn("et mets la température du modèle à zéro"),
+        ],
+        script: Script {
+            agent: vec![
+                call("candidate_write", written(&on_claude(""))),
+                call_saying("Voici le workflow.", "propose", json!({})),
+                call(
+                    "candidate_write",
+                    written(&on_claude(&format!("      {TEMPERATURE}\n"))),
+                ),
+                call_saying("Voici le workflow corrigé.", "propose", json!({})),
+                crate::peer::say(CLAIMED_RUN),
+                crate::peer::say(CLAIMED_RUN),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
 /// The request, answered by the author's failing then repaired candidate.
 pub(super) fn failing_check() -> Scenario {
     Scenario {

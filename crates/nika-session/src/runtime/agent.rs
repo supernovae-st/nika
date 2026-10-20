@@ -1495,14 +1495,24 @@ impl SessionRuntime {
     /// The words of a turn that shows no proposal: the author's own, then, when a proposal it
     /// asked for was refused, what the turn did, whatever those words claim (live gauntlet wave 9
     /// r07, 2026-10-20: « C'est enregistré et lancé » while nothing was proposed, saved or run).
+    /// Beside a proposal shown before and still waiting, the turn changed nothing and that
+    /// proposal still waits: never « nothing was proposed » beside a proposal the person can
+    /// still save (live gauntlet wave 10 r08, 2026-10-20).
     fn refused_said(&self, decided: &Decided, said: String) -> String {
         if !decided.refused {
             return said;
         }
-        let fact = self.language.pick(
-            "Nothing was proposed, saved or run in this turn: Nika's check refused the draft.",
-            "Rien n'a été proposé, enregistré ni lancé pendant ce tour : la vérification de Nika a refusé le brouillon.",
-        );
+        let fact = if self.pending.is_some() {
+            self.language.pick(
+                "This turn changed nothing: Nika's check refused the revision, and the proposal shown before still waits for your answer.",
+                "Ce tour n'a rien changé : la vérification de Nika a refusé la révision, et la proposition affichée avant attend toujours votre réponse.",
+            )
+        } else {
+            self.language.pick(
+                "Nothing was proposed, saved or run in this turn: Nika's check refused the draft.",
+                "Rien n'a été proposé, enregistré ni lancé pendant ce tour : la vérification de Nika a refusé le brouillon.",
+            )
+        };
         if said.trim().is_empty() {
             fact.to_owned()
         } else {
