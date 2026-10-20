@@ -112,10 +112,11 @@ async fn a_listing_no_observed_input_holds_is_refused() {
 }
 
 /// The account a Session's proposal is rehearsed through holds the folder the request names as
-/// the room copies it: the run passes on the room's copy, its proof binds each file under the
-/// folder, and the originals end as they began (live gauntlet wave 10, 2026-10-20: the world
-/// before the trial refused « copies/ » as no regular file, so no proposal over a folder was
-/// ever rehearsed, and each was shown checked with no rehearsal at all).
+/// the room copies it: the run passes on the room's copy, its proof binds what the run writes,
+/// the inbox's later life is no drift, and the originals end as they began (live gauntlet wave
+/// 10, 2026-10-20: the world before the trial refused « copies/ » as no regular file, so no
+/// proposal over a folder was ever rehearsed, and each was shown checked with no rehearsal at
+/// all).
 #[tokio::test]
 async fn a_folder_the_request_names_is_rehearsed_and_bound_through_the_session_account() {
     use nika_onboard::compile::copy::{Allowance, Limits, Seen, Usage, native};
@@ -143,17 +144,11 @@ async fn a_folder_the_request_names_is_rehearsed_and_bound_through_the_session_a
     let bound: Vec<(&str, bool)> = (witness.world().iter())
         .map(|(path, seen)| (path.as_str(), matches!(seen, Seen::File(_))))
         .collect();
-    let (a, b) = (world.path("inbox/a.txt"), world.path("inbox/b.txt"));
-    assert_eq!(
-        bound,
-        [
-            (a.as_str(), true),
-            (b.as_str(), true),
-            (out.as_str(), false)
-        ]
-    );
-    assert!(witness.drift(&world.project(), None).is_none());
+    assert_eq!(bound, [(out.as_str(), false)]);
     assert_eq!(world.files(), before, "the originals end as they began");
+    world.put("inbox/c.txt", "c\n");
+    world.put("inbox/a.txt", "a, edited\n");
+    assert!(witness.drift(&world.project(), None).is_none());
 }
 
 /// A destination folder the request names binds what the run writes there as the absence it was

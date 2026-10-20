@@ -10,7 +10,7 @@ use nika_compile::surface::sha256;
 use nika_compile_cognition::rehearse::{Attempt, Rehearsal, RehearsalReport, judged_run};
 use nika_compile_fidelity::behavior::RunEnd;
 
-use super::{Seen, Witness, changed, listed, observe, relative};
+use super::{Seen, Witness, changed, listed, observe, relative, same_path};
 
 #[cfg(test)]
 mod tests;
@@ -25,8 +25,6 @@ pub struct WorldBefore {
     inputs: Vec<String>,
     targets: Vec<String>,
     world: Vec<(String, Seen)>,
-    /// The inputs that list files, each file under them one path of `world`.
-    folders: Vec<String>,
     /// The destinations as paths of `world`: a destination folder stands for each file it holds.
     outlets: Vec<String>,
 }
@@ -37,9 +35,11 @@ impl WorldBefore {
     /// the candidate; the caller supplies the effective request's sources and destinations.
     ///
     /// A folder or a pattern the request reads is observed as the room copies it: each file
-    /// under it or matching it, one path of the world each. A destination folder is observed the
-    /// same way, each file it holds a destination: never as one path whose folder a run then
-    /// makes, which would read as drift at the next run.
+    /// under it or matching it, one path of this world each, and a destination folder the same
+    /// way, each file it holds a destination (live gauntlet wave 10, 2026-10-20: « copies/ » was
+    /// refused as no regular file, so no proposal over a folder was ever rehearsed). These files
+    /// bind the rehearsal to the copies it ran on; the proof keeps only what the request names and
+    /// what the run wrote ([`Self::witness`]).
     ///
     /// # Errors
     /// Refuses a path outside the project, a symlink, an unreadable/non-regular file, a folder or
@@ -51,8 +51,8 @@ impl WorldBefore {
         inputs: &[String],
         targets: &[String],
     ) -> Result<Self, String> {
-        let (sources, folders) = listed(root, inputs).await?;
-        let (outlets, _) = listed(root, targets).await?;
+        let sources = listed(root, inputs).await?;
+        let outlets = listed(root, targets).await?;
         let mut paths: Vec<String> = Vec::new();
         for path in sources.iter().chain(&outlets) {
             let at = relative(path)
@@ -77,7 +77,6 @@ impl WorldBefore {
             inputs: inputs.to_vec(),
             targets: targets.to_vec(),
             world,
-            folders,
             outlets,
         })
     }
@@ -91,6 +90,12 @@ impl WorldBefore {
     /// destination from then on; one that holds a file there was never in the room, and refuses
     /// (live gauntlet wave 10, 2026-10-20: a rehearsal that passed bound nothing of a workflow
     /// that wrote one note per file).
+    ///
+    /// The proof keeps the paths the request names and those the run wrote. The other files of a
+    /// folder it reads or writes bound this rehearsal to the copies it ran on, and stay out of the
+    /// proof: a folder's files come and go between runs (an inbox fills and empties, a new day's
+    /// export arrives), and that is no drift of what was rehearsed. A path that held nothing and
+    /// under which the run wrote is a folder it made, and leaves the proof too.
     ///
     /// This consumes the capture. It does not run a workflow, record consent, prove a whole
     /// output from a preview, or provide an atomic snapshot against concurrent external edits.
@@ -166,12 +171,23 @@ impl WorldBefore {
                 }
             }
         }
+        let written: Vec<String> = (declared.iter())
+            .chain(&report.observation.ledger.written)
+            .cloned()
+            .collect();
         let (mut world, mut outlets) = (self.world, self.outlets);
+        let named =
+            |path: &str| (self.inputs.iter().chain(&self.targets)).any(|it| same_path(it, path));
+        world.retain(|(path, _)| named(path) || written.iter().any(|it| same_path(it, path)));
         world.extend(unnamed.iter().map(|path| (path.clone(), Seen::Absent)));
         outlets.extend(unnamed);
+        // A path the run writes is its own state from then on, a source it rewrites included:
+        // its next write advances it, never « changed » at the run after (review of wave 10's
+        // fix, 2026-10-20).
+        outlets.extend(written);
         Ok(Witness::new(self.candidate_sha256, world)
             .writing(&outlets)
-            .listing(&self.folders))
+            .made_folders(&report.observation.ledger.written))
     }
 
     fn before(&self, path: &str) -> Option<&Seen> {

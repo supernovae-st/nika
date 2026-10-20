@@ -44,10 +44,6 @@ pub struct Witness {
     /// The world paths the request writes, its own state among them (a path it writes and also
     /// reads): the only ones a run's own completed write may advance.
     destinations: Vec<String>,
-    /// The folders and patterns the request reads, each standing for the files under it or
-    /// matching it, which `world` holds one by one: a file that appears there later is no file
-    /// the rehearsal saw.
-    folders: Vec<String>,
 }
 
 impl Witness {
@@ -57,13 +53,26 @@ impl Witness {
             candidate_sha256,
             world,
             destinations: Vec::new(),
-            folders: Vec::new(),
         }
     }
 
-    /// This witness with `folders` as the folders and patterns its world lists file by file.
-    pub(super) fn listing(mut self, folders: &[String]) -> Self {
-        self.folders = folders.to_vec();
+    /// This witness without the absences a run made into folders: a world path that held
+    /// nothing, that the run did not write itself and under which it wrote (`written`, what its
+    /// ledger recorded, never an output it only declared), is a folder the run made (« dans
+    /// ./retours » before `retours/` exists), never a file that appeared. Kept, it would read
+    /// « cannot be observed: it is not a regular file » at every later run.
+    pub(super) fn made_folders(mut self, written: &[String]) -> Self {
+        let made = |at: &str| {
+            !written.iter().any(|path| same_path(at, path))
+                && written.iter().any(|path| under(at, path))
+        };
+        let folders: Vec<String> = (self.world.iter())
+            .filter(|(at, seen)| *seen == Seen::Absent && made(at))
+            .map(|(at, _)| at.clone())
+            .collect();
+        let kept = |at: &String| !folders.iter().any(|folder| same_path(folder, at));
+        self.world.retain(|(at, _)| kept(at));
+        self.destinations.retain(kept);
         self
     }
 
@@ -92,8 +101,8 @@ impl Witness {
     /// were, so a source edit, a foreign write after this observation, or anything else is
     /// still drift.
     ///
-    /// A file the run wrote new in a folder the request reads is the run's own: it joins this
-    /// world as a destination, so the next run neither finds it appeared nor refuses its rewrite.
+    /// A world path that held nothing and under which the run wrote is the folder it made, and
+    /// leaves the world.
     ///
     /// The observation follows the run's settlement: a write by another process between the
     /// run's end and this read is bound as if the run had made it. That window is the time the
@@ -110,39 +119,36 @@ impl Witness {
         if let Some(path) = written.iter().find(|path| relative(path).is_none()) {
             return Err(format!("`{path}` lies outside the project"));
         }
-        let known = |path: &str| self.world.iter().any(|(at, _)| same_path(at, path));
-        let listed = |path: &str| self.folders.iter().any(|folder| holds(folder, path));
+        let next = self.clone().made_folders(written);
         let written: Vec<String> = (written.iter())
-            .filter(|path| known(path) || listed(path))
+            .filter(|path| next.world.iter().any(|(at, _)| same_path(at, path)))
             .cloned()
             .collect();
         if let Some(path) = written
             .iter()
-            .find(|path| known(path) && !self.destinations.iter().any(|it| same_path(it, path)))
+            .find(|path| !next.destinations.iter().any(|it| same_path(it, path)))
         {
             return Err(format!("`{path}` is no destination the rehearsal bound"));
         }
         if written.is_empty() {
-            return Ok(self.clone());
+            return Ok(next);
         }
         let now = match on_worker(|| observe(root, &written)) {
             Some(Ok(now)) => now,
             Some(Err(why)) => return Err(format!("the project cannot be observed again: {why}")),
             None => return Err("the project cannot be observed again".to_owned()),
         };
-        let mut next = self.clone();
+        let mut next = next;
         for (path, seen) in written.iter().zip(now) {
             let digest = match seen {
                 Ok(Seen::File(digest)) => digest,
                 Ok(Seen::Absent) => return Err(format!("`{path}` is absent after the run")),
                 Err(why) => return Err(format!("`{path}` cannot be observed: it {why}")),
             };
-            if let Some(entry) = next.world.iter_mut().find(|(at, _)| same_path(at, path)) {
-                entry.1 = Seen::File(digest);
-            } else {
-                next.world.push((path.clone(), Seen::File(digest)));
-                next.destinations.push(path.clone());
-            }
+            let Some(entry) = next.world.iter_mut().find(|(at, _)| same_path(at, path)) else {
+                return Err(format!("`{path}` is no path of the rehearsed world"));
+            };
+            entry.1 = Seen::File(digest);
         }
         Ok(next)
     }
@@ -187,17 +193,6 @@ impl Witness {
                 Err(why) => moved.push(format!(
                     "the saved workflow `{path}` cannot be observed: it {why}"
                 )),
-            }
-        }
-        if !self.folders.is_empty() {
-            match on_worker(|| listed(root, &self.folders)) {
-                Some(Ok((files, _))) => moved.extend(
-                    (files.iter())
-                        .filter(|file| !self.world.iter().any(|(at, _)| same_path(at, file)))
-                        .map(|file| format!("`{file}` appeared")),
-                ),
-                Some(Err(why)) => moved.push(format!("the project cannot be listed again: {why}")),
-                None => moved.push("the project cannot be listed again".to_owned()),
             }
         }
         (!moved.is_empty()).then(|| moved.join(" · "))
@@ -256,19 +251,15 @@ async fn read_only(root: &Path) -> Result<RootedFs, String> {
     Ok(RootedFs::new(held, ledger))
 }
 
-/// The paths `inputs` stand for as the room copies them, then those of `inputs` that list
-/// files: a folder stands for each file under it, a pattern for each file it matches (none when
-/// its folder is absent), a folder spelled as one (`inbox/`) that is absent for nothing, any
-/// other path for itself. Read through the same read-only handle as [`observe`]; a folder or a
+/// The paths `inputs` stand for as the room copies them: a folder stands for each file under it,
+/// a pattern for each file it matches (none when its folder is absent), a folder spelled as one
+/// (`inbox/`) that is absent for nothing, any other path for itself. Read through the same read-only handle as [`observe`]; a folder or a
 /// pattern past the files a room is given is refused, never cut (live gauntlet wave 10,
 /// 2026-10-20: « copies/ » was refused as no regular file before any rehearsal, so no proposal
 /// over a folder was ever rehearsed).
-pub(super) async fn listed(
-    root: &Path,
-    inputs: &[String],
-) -> Result<(Vec<String>, Vec<String>), String> {
+pub(super) async fn listed(root: &Path, inputs: &[String]) -> Result<Vec<String>, String> {
     let project = read_only(root).await?;
-    let (mut paths, mut folders) = (Vec::new(), Vec::new());
+    let mut paths = Vec::new();
     for path in inputs {
         let at =
             relative(path).ok_or_else(|| format!("`{path}` is not a path inside the project"))?;
@@ -283,10 +274,9 @@ pub(super) async fn listed(
                 "`{path}` holds more than the {ROOM_FILES} files a room is given: a cut world is never rehearsed"
             ));
         }
-        folders.push(path.clone());
         paths.extend(found.into_iter().map(|file| format!("./{file}")));
     }
-    Ok((paths, folders))
+    Ok(paths)
 }
 
 /// The files the input `at` lists, as the room spells them: each file under it when it is a
@@ -315,21 +305,13 @@ async fn files_of(
     }
 }
 
-/// Whether `path` lies under the folder `folder` names (a pattern's: its components before the
-/// first wildcard): lexical, nothing read from a file system.
-fn holds(folder: &str, path: &str) -> bool {
+/// Whether `path` lies under `folder` inside the project: lexical, nothing read from a file
+/// system.
+fn under(folder: &str, path: &str) -> bool {
     let (Some(folder), Some(path)) = (relative(folder), relative(path)) else {
         return false;
     };
-    let literal: PathBuf = (folder.components())
-        .take_while(|part| {
-            !part
-                .as_os_str()
-                .to_string_lossy()
-                .contains(['*', '?', '[', '{'])
-        })
-        .collect();
-    path.starts_with(&literal) && path != literal
+    path.starts_with(&folder) && path != folder
 }
 
 /// What the project holds at `at`.

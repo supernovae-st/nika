@@ -342,7 +342,6 @@ async fn protected_parent_is_not_captured_and_an_explicit_folder_read_is_each_fi
             ),
         ],
     );
-    assert_eq!(captured.folders, directory);
     assert_eq!(
         std::fs::read_to_string(root.path().join("records/input.json")).unwrap(),
         input
@@ -532,18 +531,23 @@ async fn witnessed(root: &Path, folder: &str) -> Witness {
     captured.witness(CANDIDATE, &marked()).await.unwrap()
 }
 
-/// A folder the request reads binds each file under it, as the room copied them (live gauntlet
-/// wave 10, 2026-10-20: « copies/ » was refused as no regular file before any rehearsal, so no
-/// proposal over a folder was ever rehearsed). An edit of an essay, an essay gone and an essay
-/// that appeared are each drift; the same folder again is none.
+/// A folder the request reads is observed as the room copies it, each file under it, and binds
+/// the rehearsal to those copies: an essay edited while the room ran refuses the witness (live
+/// gauntlet wave 10, 2026-10-20: « copies/ » was refused as no regular file before any
+/// rehearsal, so no proposal over a folder was ever rehearsed). The proof keeps what the request
+/// names and what the run wrote: an essay added, edited or removed afterwards is the folder's
+/// life between runs, never drift.
 #[tokio::test]
-async fn a_folder_the_request_reads_binds_each_file_under_it_and_drifts_on_any_change() {
+async fn a_folder_the_request_reads_binds_its_rehearsal_and_its_life_is_no_drift() {
     for folder in ["copies/", "./copies", "./copies/*.txt"] {
         let root = essays();
-        let witness = witnessed(root.path(), folder).await;
+        let inputs = [folder.to_owned()];
+        let captured = WorldBefore::capture(root.path(), CANDIDATE, &inputs, &[MARKS.into()])
+            .await
+            .unwrap();
         let essay = |text: &str| Seen::File(Digest::of(text.as_bytes()));
         assert_eq!(
-            witness.world(),
+            captured.world,
             [
                 ("./copies/emma.txt".to_owned(), essay(ESSAYS[0].1)),
                 ("./copies/noah.txt".to_owned(), essay(ESSAYS[1].1)),
@@ -551,69 +555,52 @@ async fn a_folder_the_request_reads_binds_each_file_under_it_and_drifts_on_any_c
             ],
             "{folder}"
         );
-        assert!(witness.drift(root.path(), None).is_none(), "{folder}");
-        let lea = root.path().join("copies/lea.txt");
-        std::fs::write(&lea, "Lea").unwrap();
-        let appeared = witness.drift(root.path(), None).unwrap();
-        assert_eq!(appeared, "`./copies/lea.txt` appeared", "{folder}");
-        std::fs::remove_file(&lea).unwrap();
-        std::fs::write(root.path().join("copies/emma.txt"), "rewritten").unwrap();
-        let changed = witness.drift(root.path(), None).unwrap();
-        assert!(
-            changed.starts_with("`./copies/emma.txt` changed"),
-            "{changed}"
+        std::fs::write(root.path().join("copies/emma.txt"), "edited while it ran").unwrap();
+        let moved = captured.witness(CANDIDATE, &marked()).await.unwrap_err();
+        assert!(moved.starts_with("`./copies/emma.txt` changed"), "{moved}");
+        let root = essays();
+        let witness = witnessed(root.path(), folder).await;
+        assert_eq!(
+            witness.world(),
+            [(MARKS.to_owned(), Seen::Absent)],
+            "{folder}"
         );
-        std::fs::remove_file(root.path().join("copies/emma.txt")).unwrap();
-        let gone = witness.drift(root.path(), None).unwrap();
-        assert_eq!(gone, "`./copies/emma.txt` is gone", "{folder}");
+        std::fs::write(root.path().join("copies/lea.txt"), "Lea").unwrap();
+        std::fs::write(root.path().join("copies/emma.txt"), "rewritten").unwrap();
+        std::fs::remove_file(root.path().join("copies/noah.txt")).unwrap();
+        assert!(witness.drift(root.path(), None).is_none(), "{folder}");
     }
 }
 
-/// A pattern binds the files it matches only: another file of its folder is none of its world.
+/// A pattern is observed by the files it matches only: another file of its folder is none of
+/// the world the rehearsal ran on.
 #[tokio::test]
-async fn a_pattern_the_request_reads_binds_only_the_files_it_matches() {
+async fn a_pattern_the_request_reads_is_observed_by_the_files_it_matches() {
     let root = essays();
     std::fs::write(root.path().join("copies/consignes.md"), "not an essay").unwrap();
-    let witness = witnessed(root.path(), "./copies/*.txt").await;
-    assert_eq!(witness.world().len(), 3, "{:?}", witness.world());
-    std::fs::write(root.path().join("copies/plan.md"), "neither").unwrap();
-    assert!(witness.drift(root.path(), None).is_none());
-    std::fs::write(root.path().join("copies/zoe.txt"), "Zoe").unwrap();
-    let appeared = witness.drift(root.path(), None).unwrap();
-    assert_eq!(appeared, "`./copies/zoe.txt` appeared");
+    let inputs = ["./copies/*.txt".to_owned()];
+    let captured = WorldBefore::capture(root.path(), CANDIDATE, &inputs, &[MARKS.into()])
+        .await
+        .unwrap();
+    let paths: Vec<&str> = (captured.world.iter())
+        .map(|(path, _)| path.as_str())
+        .collect();
+    assert_eq!(paths, ["./copies/emma.txt", "./copies/noah.txt", MARKS]);
 }
 
-/// A file the run writes new in the folder it reads is its own from then on: no drift after the
-/// run, its rewrite by the next run advances again, and a file anyone else adds is still drift.
-/// An essay the run rewrote is a source the request only reads: it never advances.
+/// A file the run writes in the folder it reads binds nothing the request did not name: the
+/// witness stays, and nothing of that file can drift.
 #[tokio::test]
-async fn a_new_file_the_run_writes_in_the_folder_it_reads_is_its_own() {
+async fn a_file_the_run_writes_in_the_folder_it_reads_binds_nothing() {
     let root = essays();
     let witness = witnessed(root.path(), "copies/").await;
-    let summary = root.path().join("copies/bilan.txt");
-    std::fs::write(&summary, "2 essays").unwrap();
+    std::fs::write(root.path().join("copies/bilan.txt"), "2 essays").unwrap();
     let next = witness
         .advanced(root.path(), &["./copies/bilan.txt".into()])
         .unwrap();
-    assert!(
-        next.drift(root.path(), None).is_none(),
-        "its own file is no drift"
-    );
-    std::fs::write(&summary, "3 essays").unwrap();
-    let again = next
-        .advanced(root.path(), &["./copies/bilan.txt".into()])
-        .unwrap();
-    assert!(
-        again.drift(root.path(), None).is_none(),
-        "its rewrite advances"
-    );
-    std::fs::write(root.path().join("copies/lea.txt"), "Lea").unwrap();
-    let foreign = again.drift(root.path(), None).unwrap();
-    assert_eq!(foreign, "`./copies/lea.txt` appeared");
-    let rewritten = witness
-        .advanced(root.path(), &["./copies/emma.txt".into()])
-        .unwrap_err();
-    assert!(rewritten.contains("no destination"), "{rewritten}");
+    assert_eq!(next, witness, "nothing witnessed moved");
+    std::fs::write(root.path().join("copies/bilan.txt"), "3 essays").unwrap();
+    assert!(next.drift(root.path(), None).is_none());
 }
 
 /// A folder past the files a room is given is refused before any room, never cut.
@@ -631,53 +618,135 @@ async fn a_folder_past_the_files_a_room_is_given_refuses_capture() {
     assert!(error.contains("a cut world is never rehearsed"), "{error}");
 }
 
-/// A destination folder stands for each file it holds, each a destination; one that is absent
-/// for nothing. The files a run writes there are bound as the absences they were, and the folder
-/// the real run then makes is never drift (live gauntlet wave 10, 2026-10-20: a destination
-/// folder would have been one path, refused as no regular file once a run had made it).
+/// A destination folder, there or not, spelled as a folder or not: what the run writes there is
+/// bound as the absence it was, the files it held before stay out of the proof, and the folder
+/// the real run then makes is never drift (live gauntlet wave 10, 2026-10-20: a destination folder
+/// would have been one path, refused as no regular file once a run had made it).
 #[tokio::test]
-async fn a_destination_folder_is_each_file_it_holds_and_its_new_files_bind_as_absences() {
-    for held in [Some("ancien"), None] {
+async fn a_destination_folder_binds_what_the_run_writes_there_as_its_absence() {
+    for (spelled, held) in [
+        ("./retours/", Some("ancien")),
+        ("./retours/", None),
+        ("./retours", Some("ancien")),
+        ("./retours", None),
+    ] {
         let root = essays();
         if let Some(text) = held {
             std::fs::create_dir(root.path().join("retours")).unwrap();
             std::fs::write(root.path().join("retours/ancien.csv"), text).unwrap();
         }
-        let captured = WorldBefore::capture(
-            root.path(),
-            CANDIDATE,
-            &["copies/".into()],
-            &["./retours/".into()],
-        )
-        .await
-        .unwrap();
+        let (inputs, targets) = (["copies/".to_owned()], [spelled.to_owned()]);
+        let captured = WorldBefore::capture(root.path(), CANDIDATE, &inputs, &targets)
+            .await
+            .unwrap();
         // The room reads its destination folder back as the folder the run made there.
         let mut report = marked();
         let made = FinalReceipt::new("retours", FinalState::Directory);
         report.observation.finals.push(made);
         let witness = captured.witness(CANDIDATE, &report).await.unwrap();
-        let paths: Vec<&str> = witness
-            .world()
-            .iter()
-            .map(|(path, _)| path.as_str())
-            .collect();
-        let mut expected = vec!["./copies/emma.txt", "./copies/noah.txt"];
-        expected.extend(held.map(|_| "./retours/ancien.csv"));
-        expected.push("retours/notes.csv");
-        assert_eq!(paths, expected, "{held:?}");
+        let bound = ("retours/notes.csv".to_owned(), Seen::Absent);
+        assert_eq!(witness.world(), [bound], "{spelled} {held:?}");
         std::fs::create_dir_all(root.path().join("retours")).unwrap();
         std::fs::write(root.path().join("retours/notes.csv"), OUTPUT).unwrap();
         let next = witness
             .advanced(root.path(), &["retours/notes.csv".into()])
             .unwrap();
-        assert!(next.drift(root.path(), None).is_none(), "{held:?}");
-        if held.is_some() {
-            std::fs::write(root.path().join("retours/ancien.csv"), "edited").unwrap();
-            let drift = next.drift(root.path(), None).unwrap();
-            assert!(
-                drift.starts_with("`./retours/ancien.csv` changed"),
-                "{drift}"
-            );
-        }
+        assert!(
+            next.drift(root.path(), None).is_none(),
+            "{spelled} {held:?}"
+        );
+        std::fs::write(root.path().join("retours/ancien.csv"), "edited").unwrap();
+        assert!(
+            next.drift(root.path(), None).is_none(),
+            "{spelled} {held:?}"
+        );
+        std::fs::write(root.path().join("retours/notes.csv"), "by hand").unwrap();
+        let drift = next.drift(root.path(), None).unwrap();
+        assert!(drift.starts_with("`retours/notes.csv` changed"), "{drift}");
     }
+}
+
+/// A run that makes a folder where the proof held one absent path is no drift of it: the run's
+/// files under it are its own, and the folder leaves the proof.
+#[tokio::test]
+async fn a_folder_the_run_makes_at_an_absent_path_leaves_the_proof() {
+    let root = world(None);
+    let absent = Witness::new(
+        sha256(CANDIDATE),
+        vec![("./notes".to_owned(), Seen::Absent)],
+    )
+    .writing(&["./notes".into()]);
+    std::fs::create_dir(root.path().join("notes")).unwrap();
+    std::fs::write(root.path().join("notes/a.md"), "a").unwrap();
+    let drift = absent.drift(root.path(), None).unwrap();
+    assert!(drift.contains("not a regular file"), "{drift}");
+    let next = absent
+        .advanced(root.path(), &["notes/a.md".into()])
+        .unwrap();
+    assert!(next.world().is_empty(), "{:?}", next.world());
+    assert!(next.drift(root.path(), None).is_none());
+}
+
+/// A source the run rewrites in place is its own state from then on: the real run's rewrite
+/// advances it, so the next run of the same bytes is no drift; an edit by anyone else is.
+#[tokio::test]
+async fn a_source_the_run_rewrites_is_its_own_state() {
+    let root = world(None);
+    let captured = WorldBefore::capture(root.path(), CANDIDATE, &[SOURCE.into()], &[])
+        .await
+        .unwrap();
+    let mut report = passed();
+    let cleaned = "the cleaned input";
+    let digest = Digest::of(cleaned.as_bytes());
+    let held = Held::Whole(cleaned.into());
+    let finals = FinalState::File { digest, held };
+    report.observation.finals = vec![FinalReceipt::new("in.txt", finals)];
+    report.observation.ledger = LedgerFacts::clean(vec!["in.txt".into()]);
+    let copied = Digest::of(INPUT.as_bytes()).bytes;
+    report.observation.spent = Spent::new(copied, Digest::of(cleaned.as_bytes()).bytes);
+    report.outcome = Rehearsal::Passed {
+        outputs: vec![RehearsedOutput::new("in.txt", cleaned)],
+    };
+    let witness = captured.witness(CANDIDATE, &report).await.unwrap();
+    std::fs::write(root.path().join("in.txt"), cleaned).unwrap();
+    let next = witness.advanced(root.path(), &["in.txt".into()]).unwrap();
+    assert!(next.drift(root.path(), None).is_none());
+    std::fs::write(root.path().join("in.txt"), "edited by hand").unwrap();
+    assert!(next.drift(root.path(), None).unwrap().contains("in.txt"));
+}
+
+/// A named destination the run writes as a file stays in the proof, even beside an output it
+/// only declared under that name (a step skipped by its `when:`): only what the run wrote under
+/// a path makes it a folder.
+#[tokio::test]
+async fn a_written_file_is_never_taken_for_a_folder_by_an_output_it_only_declared() {
+    let root = world(None);
+    let target = "./rapport";
+    let captured = WorldBefore::capture(root.path(), CANDIDATE, &[SOURCE.into()], &[target.into()])
+        .await
+        .unwrap();
+    let mut report = passed();
+    let digest = Digest::of(OUTPUT.as_bytes());
+    let held = Held::Whole(OUTPUT.into());
+    report.observation.finals = vec![
+        FinalReceipt::new("rapport", FinalState::File { digest, held }),
+        FinalReceipt::new("rapport/erreurs.txt", FinalState::Absent),
+    ];
+    report.observation.ledger = LedgerFacts::clean(vec!["rapport".into()]);
+    report.outcome = Rehearsal::Passed {
+        outputs: vec![
+            RehearsedOutput::new("rapport", OUTPUT),
+            RehearsedOutput::new("rapport/erreurs.txt", ""),
+        ],
+    };
+    let witness = captured.witness(CANDIDATE, &report).await.unwrap();
+    let kept = (witness.world().iter()).any(|(path, seen)| path == target && *seen == Seen::Absent);
+    assert!(kept, "{:?}", witness.world());
+    std::fs::write(root.path().join("rapport"), "made by hand").unwrap();
+    assert!(
+        witness
+            .drift(root.path(), None)
+            .unwrap()
+            .contains("rapport")
+    );
 }
