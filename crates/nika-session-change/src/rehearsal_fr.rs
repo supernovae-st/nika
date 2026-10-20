@@ -5,6 +5,8 @@
 //! engine's own phrases said in French, the names, paths, excerpts and reasons as written (live
 //! gauntlet r04 B3, 2026-10-17: « répétition · Rehearsed on a copy of your files … » and « not run:
 //! … » under French answers). A line this map does not know stays as it is: never another fact.
+//! Pure words, read by the Session's rehearsal (it descended here for the session crate's
+//! 25,000-line wall).
 
 /// Whole lines, word for word.
 const WHOLE: &[(&str, &str)] = &[
@@ -46,7 +48,8 @@ const READ_BACK: &[(&str, &str)] = &[
 ];
 
 /// `english`, a rehearsal's lines, in French line by line; its final line break kept.
-pub(super) fn lines(english: &str) -> String {
+#[must_use]
+pub fn lines(english: &str) -> String {
     let mut said: Vec<String> = english.lines().map(line).collect();
     if english.ends_with('\n') {
         said.push(String::new());
