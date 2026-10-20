@@ -206,7 +206,9 @@ fn json_items(value: &Value) -> Option<Vec<Value>> {
 }
 
 /// What the earlier legs of a resumed run spent, summed: how many legs, their priced and
-/// unpriced calls, their total when one was recorded, and why calls stayed unpriced.
+/// unpriced calls, their total when one was recorded, and why calls stayed unpriced. With the
+/// ceiling the first of them was admitted under: the run's own, where a resumed leg's start
+/// records only what it left.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Before {
     pub(crate) legs: usize,
@@ -214,6 +216,7 @@ pub(crate) struct Before {
     pub(crate) unpriced_calls: u64,
     pub(crate) total_cost_usd: Option<f64>,
     pub(crate) unpriced_reasons: BTreeSet<String>,
+    pub(crate) ceiling_usd: Option<f64>,
 }
 
 /// A failure's detail with its code said once (live gauntlet r04 B14: « NIKA-BUILTIN-JQ-001 ·
@@ -263,6 +266,7 @@ fn before(trace: &Path, resumed_from: Option<&str>) -> Before {
         before.unpriced_calls += unpriced;
         before.total_cost_usd = summed(before.total_cost_usd, total);
         before.unpriced_reasons.extend(leg.unpriced_reasons);
+        before.ceiling_usd = leg.ceiling_usd.or(before.ceiling_usd);
         next = leg.resumed_from;
     }
     before
@@ -563,6 +567,13 @@ impl RunFacts {
     #[must_use]
     pub fn spent_usd(&self) -> Option<f64> {
         summed(self.total_cost_usd, self.before.total_cost_usd)
+    }
+
+    /// The ceiling the run was admitted under: its first leg's when a gate split it, since a
+    /// resumed leg's start records only what that left (live gauntlet wave 8, r04: « plafond ·
+    /// 0,212482 $ » for a run started under 0,25 $).
+    fn run_ceiling(&self) -> Option<f64> {
+        self.before.ceiling_usd.or(self.ceiling_usd)
     }
 
     /// What the ceiling this leg was admitted under leaves after what this leg spent (its pause's
@@ -1153,7 +1164,7 @@ impl RunFacts {
             );
         }
         let _ = write!(view, "\n  {}", self.cost_line_in(french));
-        if let Some(ceiling) = self.ceiling_usd {
+        if let Some(ceiling) = self.run_ceiling() {
             let stated = nika_display::vocab::stated_usd(ceiling);
             if french {
                 let _ = write!(
@@ -1365,7 +1376,7 @@ impl RunFacts {
     fn ceiling_stop(&self, workflow: &Path, french: bool) -> String {
         let usd = |cost: f64| format!("{cost:.4}");
         let spent = self.spent_usd().map(usd);
-        let ceiling = self.ceiling_usd.map(usd);
+        let ceiling = self.run_ceiling().map(usd);
         let never: Vec<&str> = (self.tasks.iter())
             .filter(|t| matches!(t.state, TaskState::Scheduled | TaskState::Cancelled))
             .map(|t| t.id.as_str())
