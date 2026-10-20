@@ -301,13 +301,22 @@ fn expired_gate_head(
 }
 
 /// A decision's `label` above the words of its block, said once: an activation's question and
-/// a run's ceiling are their block's own first line, so the words alone read it.
+/// a run's ceiling are their block's own first line, so the words alone read it. A block that
+/// says what landed before asking (a trigger's decision after its declaration) keeps the label
+/// on top and its own words without that line (live gauntlet wave 8, 2026-10-19: « Installer le
+/// déclencheur sur ce Mac ? » twice in one card, r01 and r04).
 fn said_once(label: &str, words: &str) -> String {
-    if words.lines().next().map(str::trim) == Some(label.trim()) {
-        words.to_owned()
-    } else {
-        format!("{label}\n{words}")
+    let asked = label.trim();
+    if words.lines().next().map(str::trim) == Some(asked) {
+        return words.to_owned();
     }
+    if asked.is_empty() || !words.lines().any(|line| line.trim() == asked) {
+        return format!("{label}\n{words}");
+    }
+    let rest: Vec<&str> = (words.lines())
+        .filter(|line| line.trim() != asked)
+        .collect();
+    format!("{label}\n{}", rest.join("\n"))
 }
 
 /// What the Session keeps of the request beside a typed choice, one quiet

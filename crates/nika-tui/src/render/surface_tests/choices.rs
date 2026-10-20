@@ -399,6 +399,45 @@ fn an_activation_question_is_said_once_in_its_decision() {
     );
 }
 
+/// A trigger's decision says what its declaration landed before asking: the decision's head
+/// still says the question once, on top, and the landing under it (live gauntlet wave 8, r04).
+#[test]
+fn a_decision_after_its_landing_says_its_question_once() {
+    let sentence = "Installer le déclencheur sur ce Mac ?";
+    let said = format!(
+        "appliqué · écrit `nika.yaml`\nDéclaré dans `nika.yaml` · pas actif\n\n{sentence}\n  \
+         `digest.nika` · tous les jours à 9h (heure de Maurice)"
+    );
+    let offers = vec![
+        Offer::new("install", "Installer et activer"),
+        Offer::new("declared", "Garder déclaré seulement"),
+    ];
+    let asked = Asked::new(sentence, "", true, Shape::Choice(offers), "action:1", 1);
+    let waiting = Waiting::action("trigger.install", asked);
+    let mut state = state(Presentation::Focus, (100, 30), waiting, false);
+    state.transcript.push(Committed::new(Kind::Question, said));
+    let composer = composer(&state.waiting, "");
+    let rows = rows(&state, &composer);
+    let head = rows.iter().position(|row| row.contains("Decision"));
+    let below = head.map_or(&rows[..], |at| &rows[at..]);
+    assert_eq!(
+        below.iter().filter(|row| row.contains(sentence)).count(),
+        1,
+        "{rows:#?}"
+    );
+    let asked_at = below.iter().position(|row| row.contains(sentence));
+    let landed_at = below
+        .iter()
+        .position(|row| row.contains("appliqué · écrit"));
+    assert!(
+        asked_at
+            .zip(landed_at)
+            .is_some_and(|(asked, landed)| asked < landed),
+        "the question on top, the landing under it: {rows:#?}"
+    );
+    assert!(below.iter().any(|row| row.contains("tous les jours à 9h")));
+}
+
 /// A question's choice opens on what Nika said since the person's last line: the surface covers
 /// the conversation, so the reply that led to the question reads above it (r08 B9).
 #[test]
