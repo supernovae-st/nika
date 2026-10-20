@@ -1273,7 +1273,7 @@ impl SessionRuntime {
                 // message that called `propose` (else its summary); the next line answers it.
                 let current = driver.toolbox.with(|c| c.candidate().cloned());
                 let Some(candidate) = current.filter(|c| decided.proposed == Some(c.number)) else {
-                    return TurnOutcome::Reply(said);
+                    return TurnOutcome::Reply(self.refused_said(&decided, said));
                 };
                 let text = if said.is_empty() {
                     candidate.summary
@@ -1306,7 +1306,7 @@ impl SessionRuntime {
                             (authorized, decided.trigger, decided.reused),
                         )
                     }
-                    _ => TurnOutcome::Reply(text),
+                    _ => TurnOutcome::Reply(self.refused_said(&decided, text)),
                 }
             }
             Outcome::Stopped { .. } => {
@@ -1490,6 +1490,24 @@ impl SessionRuntime {
             "Your last proposal was the very bytes of the saved workflow `{at}`: the Session told the person nothing changed and how to run or activate it. Propose again only for a change the person asks."
         ));
         Some(TurnOutcome::Facts(format!("{said}\n\n{unchanged}")))
+    }
+
+    /// The words of a turn that shows no proposal: the author's own, then, when a proposal it
+    /// asked for was refused, what the turn did, whatever those words claim (live gauntlet wave 9
+    /// r07, 2026-10-20: « C'est enregistré et lancé » while nothing was proposed, saved or run).
+    fn refused_said(&self, decided: &Decided, said: String) -> String {
+        if !decided.refused {
+            return said;
+        }
+        let fact = self.language.pick(
+            "Nothing was proposed, saved or run in this turn: Nika's check refused the draft.",
+            "Rien n'a été proposé, enregistré ni lancé pendant ce tour : la vérification de Nika a refusé le brouillon.",
+        );
+        if said.trim().is_empty() {
+            fact.to_owned()
+        } else {
+            format!("{said}\n\n{fact}")
+        }
     }
 
     /// What this revision changes in the bytes the person saw, said in words, and the very same

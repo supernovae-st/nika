@@ -58,7 +58,7 @@ pub(crate) use self::dropped_questions::{DROP, SIMPLE};
 
 #[path = "failing_checks.rs"]
 mod failing_checks;
-pub(crate) use self::failing_checks::{CLAUDE, TEMPERATURE};
+pub(crate) use self::failing_checks::{CLAIMED_RUN, CLAUDE, PLAIN_ANSWER, TEMPERATURE};
 
 #[path = "kept_defaults.rs"]
 mod kept_defaults;
@@ -500,6 +500,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "details_after_a_run" => session_facts::details_after_a_run(),
         "spend_asked" => session_facts::spend_asked(),
         "failing_check" => failing_checks::failing_check(),
+        "claimed_after_refusal" => failing_checks::claimed_after_refusal(),
         "kept_defaults" => kept_defaults::kept_defaults(),
         "kept_defaults_other_zone" => kept_defaults::kept_defaults_other_zone(),
         other => panic!("unknown scenario {other}"),
