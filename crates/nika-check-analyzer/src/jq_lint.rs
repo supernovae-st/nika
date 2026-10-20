@@ -176,7 +176,46 @@ fn check_action(action: &RawAction, errors: &mut Vec<SchemaError>) {
             reason: format!("jq compile error — {reason}"),
             span: Some(span),
         });
+        return;
     }
+    // The runtime's regex engine (jaq's) has no Unicode classes: `\p{L}` compiles as jq, then
+    // fails on the first item it meets (live gauntlet wave 8, 2026-10-19, r12: « invalid regex:
+    // Unicode character classes are not supported » on the first run after a clean check).
+    if let Some(class) = unicode_class(program) {
+        errors.push(SchemaError::ExpressionViolation {
+            reason: format!(
+                "jq regex error — the regex engine has no Unicode classes (`{class}`): name the \
+                 characters instead, as `[A-Za-zÀ-ÖØ-öø-ÿ]`"
+            ),
+            span: Some(span),
+        });
+    }
+}
+
+/// The first Unicode class a string of `program` names for a regex (`\p{L}`, `\pL`, `\P{N}`),
+/// as a regex reads it; `None` when it names none. In jq source a regex's backslash is doubled
+/// (`test("\\p{L}")`), and a doubled backslash before a lowercase word (`"C:\\Program"` reads
+/// `\P` then `r`) names no class.
+fn unicode_class(program: &str) -> Option<String> {
+    let mut rest = program;
+    while let Some(at) = rest.find("\\\\") {
+        let after = &rest[at + 2..];
+        let mut chars = after.chars();
+        if let Some(sign @ ('p' | 'P')) = chars.next() {
+            match chars.next() {
+                Some('{') => {
+                    let name: String = after[2..].chars().take_while(|c| *c != '}').collect();
+                    return Some(format!("\\{sign}{{{name}}}"));
+                }
+                Some(letter) if letter.is_ascii_uppercase() => {
+                    return Some(format!("\\{sign}{letter}"));
+                }
+                _ => {}
+            }
+        }
+        rest = after;
+    }
+    None
 }
 
 /// The nesting ceiling for a jq program at CHECK time — aligned with the
@@ -454,6 +493,48 @@ tasks:
         let mut errors = Vec::new();
         scan_jq(&wf, &mut errors);
         assert!(errors.is_empty(), "a valid jq program is clean: {errors:?}");
+    }
+
+    /// A Unicode class compiles as jq, then the runtime's regex engine refuses it on the first
+    /// item it meets (live gauntlet wave 8, r12): the check names it before any run.
+    #[test]
+    fn scan_jq_flags_a_unicode_regex_class_the_runtime_refuses() {
+        let wf = wf_of(
+            "\
+nika: jq-unicode
+tasks:
+  names:
+    invoke: { tool: \"nika:jq\", args: { expression: '[.[] | select(.name | test(\"^\\\\p{L}+$\"))]' } }
+",
+        );
+        let mut errors = Vec::new();
+        scan_jq(&wf, &mut errors);
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        let SchemaError::ExpressionViolation { reason, .. } = &errors[0] else {
+            panic!("expected an ExpressionViolation, got {:?}", errors[0]);
+        };
+        assert!(
+            reason.contains("jq regex error") && reason.contains("(`\\p{L}`)"),
+            "{reason}"
+        );
+    }
+
+    /// The class a regex string names, as the regex reads it; a doubled backslash before a
+    /// lowercase word, or any other escape, names none.
+    #[test]
+    fn a_unicode_class_is_read_from_a_jq_string() {
+        assert_eq!(
+            unicode_class(r#"test("^\\p{L}+$")"#).as_deref(),
+            Some(r"\p{L}")
+        );
+        assert_eq!(unicode_class(r#"test("\\pN")"#).as_deref(), Some(r"\pN"));
+        assert_eq!(
+            unicode_class(r#"sub("\\P{Lu}"; "")"#).as_deref(),
+            Some(r"\P{Lu}")
+        );
+        assert_eq!(unicode_class(r#""C:\\Program Files""#), None);
+        assert_eq!(unicode_class(r#"test("^[a-z]+$")"#), None);
+        assert_eq!(unicode_class(r#"test("\\d+")"#), None);
     }
 }
 
