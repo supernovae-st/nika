@@ -651,6 +651,25 @@ impl Live {
         self.mapped(outcome, None)
     }
 
+    /// The line a run starts under, in the person's language: a run once under its ceiling
+    /// (`Some`), or a paused run resumed with the person's answer (live gauntlet wave 8, r04:
+    /// « resuming `…` with your answer » after a French « oui »).
+    fn launch_label(&self, workflow: &std::path::Path, ceiling: Option<f64>) -> String {
+        let french = (self.runtime.as_ref())
+            .is_some_and(|runtime| runtime.language() == nika_session::Lang::Fr);
+        let shown = workflow.display();
+        let stated = ceiling.map(nika_display::vocab::stated_usd);
+        match (stated, french) {
+            (Some(stated), true) => format!(
+                "lancement unique de `{shown}` · plafond {} $",
+                stated.replace('.', ",")
+            ),
+            (Some(stated), false) => format!("running `{shown}` once · ceiling ${stated}"),
+            (None, true) => format!("reprise de `{shown}` avec votre réponse"),
+            (None, false) => format!("resuming `{shown}` with your answer"),
+        }
+    }
+
     /// [`Self::map`] with the footer's `reply` label, as its caller scopes it.
     fn mapped(
         &mut self,
@@ -699,21 +718,7 @@ impl Live {
             TurnOutcome::RunRequested { report, run } => {
                 self.run_started.store(true, Ordering::Release);
                 beats.push(Beat::Say(Committed::new(Kind::Report, report)));
-                let stated = nika_display::vocab::stated_usd(run.max_cost_usd);
-                let french = (self.runtime.as_ref())
-                    .is_some_and(|runtime| runtime.language() == nika_session::Lang::Fr);
-                let label = if french {
-                    format!(
-                        "lancement unique de `{}` · plafond {} $",
-                        run.workflow.display(),
-                        stated.replace('.', ",")
-                    )
-                } else {
-                    format!(
-                        "running `{}` once · ceiling ${stated}",
-                        run.workflow.display()
-                    )
-                };
+                let label = self.launch_label(&run.workflow, Some(run.max_cost_usd));
                 beats.push(Beat::Say(Committed::new(Kind::Report, label.clone())));
                 let work = Work::Run(run);
                 return self.run_or_handoff(work, label, beats);
@@ -730,15 +735,7 @@ impl Live {
                 answer,
             } => {
                 self.run_started.store(true, Ordering::Release);
-                // In the person's language (live gauntlet wave 8, r04: « resuming `…` with your
-                // answer » after a French « oui »).
-                let french = (self.runtime.as_ref())
-                    .is_some_and(|runtime| runtime.language() == nika_session::Lang::Fr);
-                let label = if french {
-                    format!("reprise de `{}` avec votre réponse", workflow.display())
-                } else {
-                    format!("resuming `{}` with your answer", workflow.display())
-                };
+                let label = self.launch_label(&workflow, None);
                 beats.push(Beat::Say(Committed::new(Kind::Report, label.clone())));
                 let work = Work::Resume {
                     workflow,
