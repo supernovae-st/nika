@@ -1486,4 +1486,32 @@ mod tests {
         assert!(!stated_sources(words).contains(&"./inbox/".to_owned()));
         assert!(named_folders("Prépare le dossier du client.").is_empty());
     }
+
+    /// The folders wave 9's requests wrote with a trailing slash are named folders, each once
+    /// (live gauntlet wave 9, 2026-10-20: r03, r05, r10 and r12 rehearsed nothing of them). A
+    /// protected one is still none.
+    #[test]
+    fn a_folder_written_with_its_slash_is_listed() {
+        let cases = [
+            (
+                "Dans le dossier copies/ j'ai les rédactions de mes élèves (des fichiers .txt).",
+                "./copies/",
+            ),
+            (
+                "pour chaque nouveau fichier .txt qui arrive dans le dossier inbox/, tu lis le message. Quand inbox/ est vide c'est normal.",
+                "./inbox/",
+            ),
+            (
+                "Chaque jour je dépose l'export des commandes dans commandes/ : un fichier par jour.",
+                "./commandes/",
+            ),
+            (
+                "traduit chacune des notes du dossier notes/ et écrit chaque traduction ailleurs.",
+                "./notes/",
+            ),
+        ];
+        for (words, folder) in cases {
+            assert_eq!(named_folders(words), [folder], "{words}");
+        }
+    }
 }

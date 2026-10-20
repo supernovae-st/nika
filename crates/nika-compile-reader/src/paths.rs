@@ -99,36 +99,55 @@ pub(crate) fn located(text: &str) -> Vec<(PathShape, usize, usize)> {
     found
 }
 
-/// The folders a phrase names by a noun and a bare name (`le dossier inbox`, `in the folder
-/// drafts`), each the directory literal `./<name>/`, with the byte span of its name. The name has
-/// no path shape of its own and is no function word (live gauntlet wave 6 r05, 2026-10-18:
-/// « les fichiers .txt du dossier inbox » named no folder the trial could hold).
+/// The folders a phrase names, each the directory literal `./<name>/` with the byte span of its
+/// name, in occurrence order:
+/// - by a noun and a bare name (`le dossier inbox`, `in the folder drafts`): the name has no path
+///   shape of its own and is no function word (live gauntlet wave 6 r05, 2026-10-18: « les
+///   fichiers .txt du dossier inbox » named no folder the trial could hold);
+/// - by a bare directory literal (`copies/`), a noun before it or not (live gauntlet wave 9,
+///   2026-10-20: « dans le dossier copies/ » and « dans commandes/ » named none, and no rehearsal
+///   held the files the workflow read). A rooted path is a path literal of its own.
 pub(crate) fn named_folders(text: &str) -> Vec<(PathShape, usize, usize)> {
     let items = items(text);
     // Every item is a subslice of `text`: its offset is its distance from the start.
     let offset = |part: &str| part.as_ptr() as usize - text.as_ptr() as usize;
     let mut found = Vec::new();
-    for pair in items.windows(2) {
-        let [(noun, None), (name, None)] = pair else {
-            continue;
-        };
-        if noun.ends_with(CLOSERS) || !FOLDER_NOUNS.contains(&trim(noun).to_lowercase().as_str()) {
+    for (at, (word, span)) in items.iter().enumerate() {
+        if span.is_some() {
             continue;
         }
-        let core = trim(name);
-        let bare = core.chars().count() >= 2
-            && core
-                .chars()
-                .all(|c| c.is_alphanumeric() || "_-".contains(c))
-            && core.chars().any(char::is_alphabetic);
-        if !bare || function_word(core) || token(name).is_some() {
-            continue;
+        let core = trim(word);
+        let named = (core.strip_suffix('/'))
+            .filter(|name| bare_name(name) && !function_word(name))
+            .or_else(|| {
+                let (noun, None) = items.get(at.checked_sub(1)?)? else {
+                    return None;
+                };
+                let folder_noun = !noun.ends_with(CLOSERS)
+                    && FOLDER_NOUNS.contains(&trim(noun).to_lowercase().as_str());
+                (folder_noun && bare_name(core) && !function_word(core) && token(word).is_none())
+                    .then_some(core)
+            });
+        if let Some(name) = named {
+            let start = offset(word);
+            found.push((
+                PathShape::Directory(format!("./{name}/")),
+                start,
+                start + word.len(),
+            ));
         }
-        let start = offset(name);
-        let shape = PathShape::Directory(format!("./{core}/"));
-        found.push((shape, start, start + name.len()));
     }
     found
+}
+
+/// Whether `name` is a bare folder or file name: at least two letters, digits, `_` or `-`, one
+/// of them a letter.
+fn bare_name(name: &str) -> bool {
+    name.chars().count() >= 2
+        && name
+            .chars()
+            .all(|c| c.is_alphanumeric() || "_-".contains(c))
+        && name.chars().any(char::is_alphabetic)
 }
 
 /// The one exact file a phrase names: the whole phrase when it is one file's literal
@@ -623,6 +642,45 @@ mod folder_tests {
         );
         assert_eq!(named("mets-le dans le dossier."), Vec::<PathShape>::new());
         assert_eq!(named("dans le dossier ./out/"), Vec::<PathShape>::new());
+    }
+
+    /// A folder a phrase writes as a bare directory literal (`copies/`) is that folder, a noun
+    /// before it or not (live gauntlet wave 9, 2026-10-20: « dans le dossier copies/ », « dans
+    /// commandes/ », « du dossier notes/ » and « le dossier inbox/ » named no folder, so no
+    /// rehearsal held the files the workflow read). A rooted path, a pattern, a file, an
+    /// address and a fraction name none.
+    #[test]
+    fn a_bare_directory_literal_is_a_directory() {
+        let named = |text: &str| -> Vec<String> {
+            named_folders(text)
+                .into_iter()
+                .filter_map(|(shape, ..)| match shape {
+                    PathShape::Directory(path) => Some(path),
+                    _ => None,
+                })
+                .collect()
+        };
+        assert_eq!(
+            named("Dans le dossier copies/ j'ai les rédactions de mes élèves"),
+            ["./copies/"]
+        );
+        assert_eq!(
+            named("je dépose l'export des commandes dans commandes/ : un fichier par jour"),
+            ["./commandes/"]
+        );
+        assert_eq!(
+            named("chacune des notes du dossier notes/ dans le dossier notes-en/."),
+            ["./notes/", "./notes-en/"]
+        );
+        assert_eq!(named("dans le dossier ./out/"), Vec::<String>::new());
+        assert_eq!(
+            named("lis inbox/*.txt puis écris rapports/<date>.md et bilan.md"),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            named("voir https://example.com/ ouvert 24/7 et/ou a/"),
+            Vec::<String>::new()
+        );
     }
 }
 
