@@ -322,6 +322,7 @@ pub fn nika_session_change::change::ProjectChangeSet::preview(&self) -> alloc::s
 pub fn nika_session_change::change::ProjectChangeSet::preview_condensed(&self) -> alloc::string::String
 pub fn nika_session_change::change::ProjectChangeSet::project_change(root: &std::path::Path, goal: &str, change: nika_session_change::change::ProjectChange) -> Self
 pub fn nika_session_change::change::ProjectChangeSet::project_reads(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_session_change::change::ProjectChangeSet::unchanged(&self) -> bool
 pub fn nika_session_change::change::ProjectChangeSet::workflow_at(root: &std::path::Path, goal: &str, path: &str, content: alloc::string::String) -> core::result::Result<Self, nika_session_change::change::ChangeError>
 pub fn nika_session_change::change::ProjectChangeSet::workflows(&self) -> alloc::vec::Vec<std::path::PathBuf>
 impl nika_session_change::change::ProjectChangeSet

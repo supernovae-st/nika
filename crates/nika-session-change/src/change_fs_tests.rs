@@ -263,3 +263,24 @@ fn a_regular_file_is_witnessed_and_an_absent_path_is_a_create() {
     ));
     assert!(create.preview().contains("creates `fresh.nika`"));
 }
+
+/// A set that replaces a workflow with the very bytes it holds writes nothing new: it says so,
+/// and new bytes or a created file never read unchanged (live gauntlet wave 8, r12: « appliqué ·
+/// écrit » for identical before and after hashes).
+#[test]
+fn a_set_of_the_bytes_already_held_is_unchanged() {
+    let root = tempfile::tempdir().expect("root");
+    let created =
+        ProjectChangeSet::workflow_at(root.path(), "daily", "daily.nika", WORKFLOW.to_owned())
+            .expect("a create");
+    assert!(!created.unchanged(), "a created file is new bytes");
+    std::fs::write(root.path().join("daily.nika"), WORKFLOW).expect("held");
+    let same =
+        ProjectChangeSet::workflow_at(root.path(), "daily", "daily.nika", WORKFLOW.to_owned())
+            .expect("an update");
+    assert!(same.unchanged());
+    let other = WORKFLOW.replace("hi", "hello");
+    let revised = ProjectChangeSet::workflow_at(root.path(), "daily", "daily.nika", other)
+        .expect("an update");
+    assert!(!revised.unchanged());
+}
