@@ -46,12 +46,17 @@ fn update<'a>(activity: &'a Activity, at: Duration, said: Option<&'a str>) -> Up
 }
 
 /// A tool step in the person's words, in `voice`: what the tool does, never its name (live
-/// gauntlet 4: « ✓ Generating · `candidate_write` · 28 ms »), a failure said, then the time it
-/// took.
+/// gauntlet 4: « ✓ Generating · `candidate_write` · 28 ms »), a failure said with why as the run
+/// reported it, then the time it took (live gauntlet wave 8, 2026-10-19: « échec · 3 ms » with no
+/// reason in seven reports).
 fn tool_said(tool: &ToolMark, voice: Voice) -> String {
     let words = voice.say(tool_words(&tool.name));
     let said = if tool.state == ToolState::Failed {
-        fill(voice.say("{tool} failed"), &[("{tool}", words)])
+        let failed = fill(voice.say("{tool} failed"), &[("{tool}", words)]);
+        match tool.reply.as_deref().and_then(failure_reason) {
+            Some(why) => format!("{failed} · {why}"),
+            None => failed,
+        }
     } else {
         words.to_owned()
     };
@@ -59,6 +64,32 @@ fn tool_said(tool: &ToolMark, voice: Voice) -> String {
         .elapsed_ms
         .map_or_else(String::new, |ms| format!(" · {ms} ms"));
     format!("{said}{elapsed}")
+}
+
+/// Why a step failed, from its reply's excerpt: the `error` or `message` of a JSON object, else
+/// its first line, on one line and at most 100 characters; `None` when it says nothing.
+fn failure_reason(reply: &str) -> Option<String> {
+    let parsed = serde_json::from_str::<serde_json::Value>(reply).ok();
+    let field = (parsed.as_ref())
+        .and_then(|value| value.get("error").or_else(|| value.get("message")))
+        .and_then(serde_json::Value::as_str);
+    let text = field.unwrap_or_else(|| {
+        reply
+            .lines()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or("")
+    });
+    let words = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if words.is_empty() {
+        return None;
+    }
+    let mut chars = words.chars();
+    let head: String = chars.by_ref().take(100).collect();
+    Some(if chars.next().is_some() {
+        format!("{head}…")
+    } else {
+        head
+    })
 }
 
 /// The busy row's words for `activity`: a tool step as the card says it, a call's producer in
@@ -189,6 +220,49 @@ mod tests {
             card.observe(update(&activity, Duration::ZERO, said.as_deref()));
             assert_eq!(card.lines(false), ["Working", row]);
         }
+    }
+
+    /// A failed step says why, as the run reported its reply: a JSON reply's `error`, or its first
+    /// line, cut to one short line; a failure with no reply stays as it was (live gauntlet wave 8:
+    /// « échec · 3 ms » with no reason in seven reports).
+    #[test]
+    fn a_failed_tool_says_why_it_failed() {
+        use crate::lang::Lang;
+        use nika_display::activity::tool_activity;
+
+        let failed = |reply: Option<&str>| {
+            let mut activity = tool_activity("call-1", "propose", ToolState::Failed, Some(3));
+            activity.tool = (activity.tool).map(|mark| mark.with_reply(reply.map(str::to_owned)));
+            let Some(tool) = activity.tool else {
+                panic!("a tool mark");
+            };
+            tool
+        };
+        let french = Voice {
+            lang: Lang::Fr,
+            ascii: false,
+        };
+        assert_eq!(
+            tool_said(
+                &failed(Some("no draft to propose yet\nwrite one first")),
+                Voice::default()
+            ),
+            "proposing the workflow failed · no draft to propose yet · 3 ms"
+        );
+        assert_eq!(
+            tool_said(&failed(Some(r#"{"error":"a question waits"}"#)), french),
+            "proposition du workflow : échec · a question waits · 3 ms"
+        );
+        assert_eq!(
+            tool_said(&failed(None), french),
+            "proposition du workflow : échec · 3 ms"
+        );
+        let long = "x".repeat(140);
+        let said = tool_said(&failed(Some(&long)), Voice::default());
+        assert!(
+            said.contains(&format!("{}… · 3 ms", "x".repeat(100))),
+            "{said}"
+        );
     }
 
     /// A tool step that failed and that a later attempt of the same tool finished keeps its row in
