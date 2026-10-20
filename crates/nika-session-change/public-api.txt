@@ -1,6 +1,7 @@
 pub mod nika_session_change
 pub mod nika_session_change::arm
 pub fn nika_session_change::arm::removes_the_schedule(line: &str) -> bool
+pub fn nika_session_change::arm::said_and_meant(when: &str, meant: &str) -> alloc::string::String
 pub fn nika_session_change::arm::with_cadence(content: &str, workflow: &std::path::Path, cadence: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_session_change::arm::without_entry(content: &str, workflow: &std::path::Path) -> core::option::Option<alloc::string::String>
 pub mod nika_session_change::change

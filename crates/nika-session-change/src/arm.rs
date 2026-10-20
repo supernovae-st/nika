@@ -68,6 +68,27 @@ fn indent(line: &str) -> usize {
     line.len() - line.trim_start().len()
 }
 
+/// The person's words for when a workflow runs beside what its cadence means, said once when the
+/// meaning repeats those words and only adds the zone: « tous les jours à 9h (heure de Maurice) »
+/// for « tous les jours à 9h », never « tous les jours à 9h · tous les jours à 9h (heure de
+/// Maurice) » (live gauntlet wave 8, 2026-10-19, r01 and r04). Other words stay beside the
+/// meaning they were read as.
+#[must_use]
+pub fn said_and_meant(when: &str, meant: &str) -> String {
+    let fold = |words: &str| {
+        (words.split_whitespace())
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    let (said, meaning) = (fold(when), fold(meant));
+    if !said.is_empty() && (meaning == said || meaning.starts_with(&format!("{said} ("))) {
+        meant.to_owned()
+    } else {
+        format!("{when} · {meant}")
+    }
+}
+
 /// `content` with the `cadence:` line of `workflow`'s entry set to `cadence`, every other byte as
 /// it was; `None` when the entry or its cadence line is not found.
 #[must_use]
@@ -150,6 +171,22 @@ mod tests {
 
     /// The removal's words, measured (live gauntlet wave 7 r01): a verb that removes, then the
     /// schedule's name; a removal of something else is not one (NIK-204's corpus).
+    #[test]
+    fn the_schedule_words_are_said_once_when_the_cadence_repeats_them() {
+        let meant = "tous les jours à 9h (heure de Maurice)";
+        assert_eq!(said_and_meant("tous les jours à 9h", meant), meant);
+        assert_eq!(said_and_meant("Tous les jours  à 9h", meant), meant);
+        let paris = "le 1er de chaque mois à 8h (heure de Paris)";
+        assert_eq!(said_and_meant(paris, paris), paris);
+        assert_eq!(
+            said_and_meant(
+                "tous les matins à 7h",
+                "tous les jours à 7h (heure de Maurice)"
+            ),
+            "tous les matins à 7h · tous les jours à 7h (heure de Maurice)"
+        );
+    }
+
     #[test]
     fn the_words_that_remove_the_schedule() {
         for line in [

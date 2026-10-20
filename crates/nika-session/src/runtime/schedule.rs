@@ -897,7 +897,7 @@ fn declaration_header(
         .as_deref()
         .unwrap_or("the schedule");
     let lang = activation.lang;
-    let words = cadence_words(cadence, lang);
+    let runs = nika_session_change::arm::said_and_meant(when, &cadence_words(cadence, lang));
     let missed = missed_words(
         activation.answers.get(MISSED).map_or("", String::as_str),
         lang,
@@ -917,10 +917,10 @@ fn declaration_header(
     };
     match lang {
         Lang::Fr => format!(
-            "Nika propose de déclarer la planification dans `nika.yaml` :\nExécutions\n  {when} · {words}\n  dans `nika.yaml` : `{cadence}`\n  si manqué · {missed}\n  plafond · {ceiling} $ par run planifié\nChangements\n  {mark} `nika.yaml`\n{after}\n"
+            "Nika propose de déclarer la planification dans `nika.yaml` :\nExécutions\n  {runs}\n  dans `nika.yaml` : `{cadence}`\n  si manqué · {missed}\n  plafond · {ceiling} $ par run planifié\nChangements\n  {mark} `nika.yaml`\n{after}\n"
         ),
         _ => format!(
-            "Nika proposes to declare the schedule in `nika.yaml`:\nRuns\n  {when} · {words}\n  in `nika.yaml`: `{cadence}`\n  if missed · {missed}\n  ceiling · ${ceiling} per scheduled run\nChanges\n  {mark} `nika.yaml`\n{after}\n"
+            "Nika proposes to declare the schedule in `nika.yaml`:\nRuns\n  {runs}\n  in `nika.yaml`: `{cadence}`\n  if missed · {missed}\n  ceiling · ${ceiling} per scheduled run\nChanges\n  {mark} `nika.yaml`\n{after}\n"
         ),
     }
 }
