@@ -861,12 +861,163 @@ fn writers_route_through_the_atomic_house() {
 
     // The JSON writer, create path.
     let json = dir.join("mcp.json");
-    write_json(&json, &json!({"mcpServers": {}})).expect("json");
+    write_json(&json, &json!({"mcpServers": {}}), None).expect("json");
     assert_eq!(mode_of(&json), 0o600, "a new JSON config is owner-only");
 
     // The JSON writer over a pre-existing 0640 file preserves the mode.
     std::fs::set_permissions(&json, std::fs::Permissions::from_mode(0o640)).expect("chmod");
-    write_json(&json, &json!({"mcpServers": {"nika": {"command": "nika"}}})).expect("rewrite");
+    let before = std::fs::read_to_string(&json).expect("before");
+    write_json(
+        &json,
+        &json!({"mcpServers": {"nika": {"command": "nika"}}}),
+        Some(&before),
+    )
+    .expect("rewrite");
     assert_eq!(mode_of(&json), 0o640, "an existing mode is preserved");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A server table that is not a JSON object is the user's: every
+/// JSON writer refuses it, names why, and leaves the file byte-identical
+/// (it once became `{}`, the user's servers erased).
+#[test]
+fn wire_refuses_a_non_object_server_table_without_writing() {
+    type Patch = fn(&Path, bool) -> Result<WireAction, String>;
+    let dir = temp_dir("non-object-table");
+    let families: [(&str, &str, Patch); 6] = [
+        ("vscode.json", "servers", patch_vscode),
+        ("cursor.json", "mcpServers", |path, dry| {
+            patch_cursor_like(path, "mcpServers", "cursor", false, dry)
+        }),
+        ("opencode.json", "mcp", patch_opencode),
+        ("copilot.json", "mcpServers", patch_copilot),
+        ("zed.json", "context_servers", patch_zed),
+        ("amp.json", "amp.mcpServers", patch_amp),
+    ];
+    for (file, key, patch) in families {
+        let path = dir.join(file);
+        let seeded = format!("{{\"{key}\":[\"keep\"],\"x\":1}}");
+        std::fs::write(&path, &seeded).expect("seed");
+        for dry_run in [true, false] {
+            let refused = patch(&path, dry_run).expect_err("a non-object table is refused");
+            assert!(
+                refused.contains("is not a JSON object"),
+                "{file}: {refused}"
+            );
+            assert_eq!(
+                std::fs::read_to_string(&path).expect("read"),
+                seeded,
+                "{file}: byte-identical"
+            );
+        }
+    }
+    let toml = dir.join("config.toml");
+    std::fs::write(&toml, "mcp_servers = [\"keep\"]\n").expect("seed toml");
+    let refused = patch_toml_mcp(&toml, "codex", false).expect_err("refused");
+    assert!(refused.contains("is not a TOML table"), "{refused}");
+    assert_eq!(
+        std::fs::read_to_string(&toml).expect("read"),
+        "mcp_servers = [\"keep\"]\n"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The preview of such a config says `skipped`, never « would
+/// update », and exits ENV.
+#[test]
+fn dry_run_of_a_non_object_table_says_skipped() {
+    let dir = temp_dir("non-object-dry-run");
+    std::fs::create_dir_all(dir.join(".vscode")).expect("dir");
+    let seeded = r#"{"servers":["keep"],"x":1}"#;
+    std::fs::write(dir.join(".vscode").join("mcp.json"), seeded).expect("seed");
+    let out = run_with(
+        WireTarget::Vscode,
+        dir.to_str().expect("utf8"),
+        WireOptions {
+            dry_run: true,
+            ..WireOptions::default()
+        },
+    );
+    assert_eq!(out.code, crate::output::exit::ENV, "{out:?}");
+    assert!(
+        out.text.contains("✖ skipped") && !out.text.contains("would update"),
+        "{out:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.join(".vscode").join("mcp.json")).expect("read"),
+        seeded
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// `detected` and `all` preflight every client before the first
+/// write: one malformed config leaves every config untouched, exit ENV,
+/// never the first client written before the second is found invalid.
+/// (Driven through the shared door with project-scope clients, so no test
+/// ever reads this machine's HOME.)
+#[test]
+fn detected_wire_writes_nothing_when_one_client_is_malformed() {
+    let dir = temp_dir("detected-preflight");
+    let opencode = r#"{"mcp":["keep"]}"#;
+    std::fs::write(dir.join("opencode.json"), opencode).expect("seed");
+    let out = wire_targets(
+        &[WireTarget::Vscode, WireTarget::Opencode, WireTarget::Junie],
+        dir.to_str().expect("utf8"),
+        false,
+    );
+    assert_eq!(out.code, crate::output::exit::ENV, "{out:?}");
+    assert!(out.text.starts_with("nothing written"), "{out:?}");
+    assert!(
+        !dir.join(".vscode").join("mcp.json").exists(),
+        "the first client is never written before the second is found invalid"
+    );
+    assert!(!dir.join(".junie").exists(), "nor the third");
+    assert_eq!(
+        std::fs::read_to_string(dir.join("opencode.json")).expect("read"),
+        opencode
+    );
+    // Once the config is repaired, the same run wires all three.
+    std::fs::write(dir.join("opencode.json"), "{}").expect("repair");
+    let out = wire_targets(
+        &[WireTarget::Vscode, WireTarget::Opencode, WireTarget::Junie],
+        dir.to_str().expect("utf8"),
+        false,
+    );
+    assert_eq!(out.code, crate::output::exit::OK, "{out:?}");
+    assert!(dir.join(".vscode").join("mcp.json").exists());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Every write is read back: when the file does not hold what was
+/// written, it is restored as it was (its original text, or no file when
+/// there was none) and the write fails, naming why.
+#[test]
+fn a_write_that_does_not_read_back_is_restored() {
+    let dir = temp_dir("readback");
+    let path = dir.join("mcp.json");
+    let tampering: fn(&Path, &str) -> Result<(), String> =
+        |path, _| write_atomic(path, "{\"tampered\":true}\n");
+
+    std::fs::write(&path, "{\"x\":1}\n").expect("seed");
+    let failed = write_read_back(&path, "{\"nika\":1}\n", Some("{\"x\":1}\n"), tampering)
+        .expect_err("a mismatch fails");
+    assert!(failed.contains("restored as it was"), "{failed}");
+    assert_eq!(std::fs::read_to_string(&path).expect("read"), "{\"x\":1}\n");
+
+    let fresh = dir.join("fresh.json");
+    let failed =
+        write_read_back(&fresh, "{\"nika\":1}\n", None, tampering).expect_err("a mismatch fails");
+    assert!(failed.contains("restored as it was"), "{failed}");
+    assert!(
+        !fresh.exists(),
+        "a file this write created is removed again"
+    );
+
+    write_read_back(&path, "{\"nika\":2}\n", Some("{\"x\":1}\n"), write_atomic)
+        .expect("a faithful write reads back");
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("read"),
+        "{\"nika\":2}\n"
+    );
     let _ = std::fs::remove_dir_all(dir);
 }

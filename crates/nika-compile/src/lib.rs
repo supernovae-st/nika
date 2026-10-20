@@ -113,6 +113,7 @@ use types::{EditChange, Input};
 pub use doors::import::{Substituted, source_revision, substitute};
 pub use doors::intent_sha256;
 pub use materialize::{MaterializeError, materialize_ready};
+pub use nika_compile_fidelity::model_paths::ModelSink;
 pub use nika_compile_reader::hot::{fold, stated_destinations, stated_sources};
 pub use nika_compile_reader::text;
 pub use observed::basis::{Basis, basis, basis_for};
@@ -121,8 +122,8 @@ pub use types::{
     AuthoringCognition, AuthoringKnowledge, AuthoringPolicy, AuthoringReasoning, AuthoringReceipt,
     ChoiceOffer, CompileDiagnostic, CompileError, CompileOutcome, CompilePreview,
     CompileProvenance, CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind, HotPolicy,
-    KnowledgeReference, NativeMode, PreviewScope, QuestionType, RepresentationError, Strategy,
-    TriggerKind, TriggerRequirement, TriggerStatus,
+    KnowledgeReference, ModelFound, ModelPart, NativeMode, PartBasis, PreviewScope, QuestionType,
+    RepresentationError, Strategy, TriggerKind, TriggerRequirement, TriggerStatus,
 };
 pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
 
@@ -279,6 +280,8 @@ pub fn initial() -> CompileOutcome {
         requested_boundary: None,
         requested_trigger: None,
         check_preview: None,
+        model_parts: None,
+        model_parts_unrun: None,
         provenance: CompileProvenance {
             authoring: None,
             compiler_version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -728,32 +731,19 @@ pub fn finish(source: String, out: &mut CompileOutcome) {
             finding(out, DiagnosticKind::Unknown, target, UNJUDGED_DEPENDENCY);
         }
     }
-    let unresolved = out
-        .diagnostics
-        .iter()
-        .any(|d| d.kind != DiagnosticKind::Applied);
-    // A question that does not block Ready (a schedule's binding values) may stay open.
-    let asked = out.questions.iter().any(|q| q.mandatory);
+    // Project files (spec 02 §Project files): read by no source-only preview and carried by no
+    // run yet, so a candidate naming one is never Ready, whatever a host lifts.
+    for (task, field, file) in nika_schema::project_file_refs(&wf) {
+        let message = format!(
+            "{UNSUPPORTED_PROJECT_FILE} `{field}` names `{}`.",
+            file.path.value
+        );
+        finding(out, DiagnosticKind::Unknown, task, message);
+    }
     if ready_by_law(out, report.is_clean()) {
         out.status = CompileStatus::Ready;
-    } else if out.status != CompileStatus::Refused && !asked && !unresolved && !report.is_clean() {
-        // Nothing to ask and nothing else to report: the preview's own refusals are the
-        // reason the candidate is not ready, and they must be visible without opening it.
-        let refusals: Vec<String> = report
-            .findings
-            .iter()
-            .take(3)
-            .map(|f| {
-                format!(
-                    "Check refuses the candidate ({}): {}",
-                    f.code.as_deref().unwrap_or(f.kind),
-                    f.message
-                )
-            })
-            .collect();
-        for message in refusals {
-            finding(out, DiagnosticKind::Unknown, "check_preview", message);
-        }
+    } else {
+        surface_check_refusals(out, &report);
     }
     out.requested_boundary = Some(report.permits.clone());
     out.check_preview = Some(CompilePreview {
@@ -762,9 +752,57 @@ pub fn finish(source: String, out: &mut CompileOutcome) {
     });
 }
 
+/// State Check's own refusals as the candidate's findings (the first three, on `check_preview`)
+/// when they are the only reason it is not READY: nothing refused, asked (mandatorily) or
+/// unresolved, and Check not clean. [`finish`] calls it on its preview, and a host that lifted a
+/// hold later calls it again, so a candidate never waits on a reason it does not show.
+pub fn surface_check_refusals(out: &mut CompileOutcome, report: &nika_check::CheckReport) {
+    let unresolved = out
+        .diagnostics
+        .iter()
+        .any(|d| d.kind != DiagnosticKind::Applied);
+    // A question that does not block Ready (a schedule's binding values) may stay open.
+    let asked = out.questions.iter().any(|q| q.mandatory);
+    if out.status == CompileStatus::Refused || asked || unresolved {
+        return;
+    }
+    // Nothing to ask and nothing else to report: the preview's own refusals are the
+    // reason the candidate is not ready, and they must be visible without opening it.
+    state_check_refusals(out, report);
+}
+
+/// State Check's own refusals as the candidate's findings (the first three, on `check_preview`)
+/// unless Check is clean or they are stated already: a host that judged a hold states them beside
+/// whatever remains, so no remaining cause hides another, and never twice.
+pub fn state_check_refusals(out: &mut CompileOutcome, report: &nika_check::CheckReport) {
+    let stated = out.diagnostics.iter().any(|d| d.target == "check_preview");
+    if report.is_clean() || stated {
+        return;
+    }
+    let refusals: Vec<String> = report
+        .findings
+        .iter()
+        .take(3)
+        .map(|f| {
+            format!(
+                "Check refuses the candidate ({}): {}",
+                f.code.as_deref().unwrap_or(f.kind),
+                f.message
+            )
+        })
+        .collect();
+    for message in refusals {
+        finding(out, DiagnosticKind::Unknown, "check_preview", message);
+    }
+}
+
 /// The finding [`finish`] states on a dependency a source-only preview cannot resolve: a child
 /// workflow, an MCP registry entry or a skill. Only a host that checked it may lift it.
 pub const UNJUDGED_DEPENDENCY: &str = "Source-only preview cannot resolve this child workflow, MCP registry entry or skill. No environment/admission claim is made.";
+
+/// The hold [`finish`] states on a project file: no host that checked a dependency lifts it.
+const UNSUPPORTED_PROJECT_FILE: &str =
+    "Source-only preview reads no project file, and no run carries project files yet:";
 
 /// READY by the law [`finish`] states, for a host that lifted a hold later: nothing refused,
 /// asked (mandatorily) or unresolved, and Check clean.

@@ -779,20 +779,23 @@ pub fn risk_handle(report: &CheckReport, grade: nika_check::RiskGrade) -> String
             .tasks
             .iter()
             .all(|c| matches!(c.unbounded_reason, None | Some(UnboundedReason::NoPrice)));
-        parts.push(
-            if unpriced_only {
-                "no dollar meter for a local/unknown model · cap a cloud seat on the run: `nika run <file> --max-cost-usd <usd>`"
-            } else {
-                "declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>`"
-            }
-            .to_owned(),
-        );
+        let nika = crate::program::program();
+        parts.push(if unpriced_only {
+            format!(
+                "no dollar meter for a local/unknown model · cap a cloud seat on the run: `{nika} run <file> --max-cost-usd <usd>`"
+            )
+        } else {
+            format!(
+                "declare max_tokens/ceilings, or cap it on the run: `{nika} run <file> --max-cost-usd <usd>`"
+            )
+        });
     }
     let grants = nika_check::wildcard_grants(report);
     if !grants.is_empty() {
         parts.push(format!(
-            "no ceiling on the grant: {} · narrow it to what the body reaches (`nika check --infer-permits <file>` derives that boundary)",
-            grants.join(" · ")
+            "no ceiling on the grant: {} · narrow it to what the body reaches (`{} check --infer-permits <file>` derives that boundary)",
+            grants.join(" · "),
+            crate::program::program()
         ));
     }
     if parts.is_empty() {

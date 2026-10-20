@@ -534,6 +534,27 @@ fn parse(logical_path: &str, text: &str) -> Result<RawWorkflow, ExecutionError> 
     })
 }
 
+/// A captured world does not carry project files yet (spec 02 §Project files): a workflow that
+/// names one is refused before any run, never run with an unread file.
+pub(crate) fn refuse_project_files(
+    logical_path: &str,
+    workflow: &RawWorkflow,
+) -> Result<(), ExecutionError> {
+    let findings: Vec<String> = nika_schema::project_file_refs(workflow)
+        .into_iter()
+        .map(|(task, field, file)| {
+            format!(
+                "[NIKA-FILE-002 · project files] `{logical_path}` task `{task}` {field} `{}` · a captured world does not carry project files yet, so the run is refused before any task · fix: nika explain NIKA-FILE-002",
+                file.path.value
+            )
+        })
+        .collect();
+    if findings.is_empty() {
+        return Ok(());
+    }
+    Err(ExecutionError::CheckFailed { findings })
+}
+
 fn validate_skills(
     snapshot: &ExecutionSnapshot,
     logical_path: &str,
@@ -578,6 +599,7 @@ fn checked_root(
             logical_path: root.clone(),
         })?;
     let workflow = parse(&root, root_text)?;
+    refuse_project_files(&root, &workflow)?;
     let mut reader = |path: &str| {
         snapshot
             .text(path)
@@ -606,6 +628,7 @@ fn validate_child_worlds(
             logical_path: unit.logical_path().to_owned(),
         })?;
         let workflow = parse(unit.logical_path(), text)?;
+        refuse_project_files(unit.logical_path(), &workflow)?;
         let mut reader = |path: &str| {
             snapshot
                 .text(path)

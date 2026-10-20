@@ -36,6 +36,17 @@ const CLOSERS: [char; 12] = ['.', ',', ';', ':', '!', '?', ')', ']', '»', '"', 
 const ROOTS: [&str; 4] = ["../", "./", "~/", "/"];
 /// Nouns that introduce a file's name (`le fichier Notes équipe.txt`).
 const FILE_NOUNS: &[&str] = &["file", "fichier", "archivo", "fichero", "datei", "arquivo"];
+/// Nouns that introduce a folder's name (`le dossier inbox`, `the folder drafts`).
+const FOLDER_NOUNS: &[&str] = &[
+    "dossier",
+    "folder",
+    "répertoire",
+    "repertoire",
+    "directory",
+    "carpeta",
+    "ordner",
+    "pasta",
+];
 /// Words never part of an unquoted file name (articles, prepositions, conjunctions,
 /// pronouns, auxiliaries, read and write verbs), one per line.
 const FUNCTION_WORDS: &str = include_str!("../assets/function_words.txt");
@@ -88,6 +99,38 @@ pub(crate) fn located(text: &str) -> Vec<(PathShape, usize, usize)> {
     found
 }
 
+/// The folders a phrase names by a noun and a bare name (`le dossier inbox`, `in the folder
+/// drafts`), each the directory literal `./<name>/`, with the byte span of its name. The name has
+/// no path shape of its own and is no function word (live gauntlet wave 6 r05, 2026-10-18:
+/// « les fichiers .txt du dossier inbox » named no folder the trial could hold).
+pub(crate) fn named_folders(text: &str) -> Vec<(PathShape, usize, usize)> {
+    let items = items(text);
+    // Every item is a subslice of `text`: its offset is its distance from the start.
+    let offset = |part: &str| part.as_ptr() as usize - text.as_ptr() as usize;
+    let mut found = Vec::new();
+    for pair in items.windows(2) {
+        let [(noun, None), (name, None)] = pair else {
+            continue;
+        };
+        if noun.ends_with(CLOSERS) || !FOLDER_NOUNS.contains(&trim(noun).to_lowercase().as_str()) {
+            continue;
+        }
+        let core = trim(name);
+        let bare = core.chars().count() >= 2
+            && core
+                .chars()
+                .all(|c| c.is_alphanumeric() || "_-".contains(c))
+            && core.chars().any(char::is_alphabetic);
+        if !bare || function_word(core) || token(name).is_some() {
+            continue;
+        }
+        let start = offset(name);
+        let shape = PathShape::Directory(format!("./{core}/"));
+        found.push((shape, start, start + name.len()));
+    }
+    found
+}
+
 /// The one exact file a phrase names: the whole phrase when it is one file's literal
 /// (a quoted name, a name given as an answer), else its only literal when a file.
 #[must_use]
@@ -126,6 +169,57 @@ pub fn readings(name: &str) -> Vec<String> {
     (0..words.len())
         .map(|from| words[from..].join(" "))
         .collect()
+}
+
+/// The reading of an open name the person's own words settle: the file it names, and the other
+/// path they state whose folder settles it, as they wrote it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct SettledReading {
+    /// The file the open name names: one of its [`readings`].
+    pub reading: String,
+    /// The other literal of the request whose folder settles it (`out/report.json`).
+    pub cited: String,
+}
+
+/// The one reading of the open name `name` whose folder another literal of `text` names: the
+/// folder a stated file sits in, or a stated directory (« Écris out/report.json » settles
+/// `un payload out/notification.json` as `out/notification.json`). Folders compare exactly,
+/// without a leading `./` or a trailing `/`. No such reading, or two, settles nothing: the start
+/// stays the human's. Another open name never settles one; it is itself open.
+#[must_use]
+pub fn settled_reading(text: &str, name: &str) -> Option<SettledReading> {
+    let named: Vec<(String, String)> = (literals(text).into_iter())
+        .filter_map(|shape| match shape {
+            PathShape::File(path) => Some((folder_of(&path)?, path)),
+            PathShape::Directory(path) => Some((bare(&path).to_owned(), path)),
+            _ => None,
+        })
+        .collect();
+    let mut settled = readings(name).into_iter().filter_map(|reading| {
+        let folder = folder_of(&reading)?;
+        let (_, cited) = named.iter().find(|(other, _)| *other == folder)?;
+        Some(SettledReading {
+            reading,
+            cited: cited.clone(),
+        })
+    });
+    match (settled.next(), settled.next()) {
+        (Some(one), None) => Some(one),
+        _ => None,
+    }
+}
+
+/// The folder a path sits in, lexically (`./out/report.json` → `out`); `None` at the top level.
+fn folder_of(path: &str) -> Option<String> {
+    let (folder, _) = bare(path).rsplit_once('/')?;
+    let folder = bare(folder);
+    (!folder.is_empty()).then(|| folder.to_owned())
+}
+
+/// A path without its leading `./` or its trailing `/`.
+fn bare(path: &str) -> &str {
+    path.trim_start_matches("./").trim_end_matches('/')
 }
 
 /// One literal read as a path, or nothing when it is prose. A word is the common case;
@@ -499,6 +593,37 @@ fn whole(text: &str, part: &str, goes_on: &[char]) -> bool {
                     .chars()
                     .all(|c| WRAPS.contains(c) || TAIL.contains(&c)))
     })
+}
+
+#[cfg(test)]
+mod folder_tests {
+    use super::{PathShape, named_folders};
+
+    /// A folder a noun names by a bare word is that folder; a function word, a path and a
+    /// noun ending its clause name none.
+    #[test]
+    fn a_folder_named_by_its_noun_is_a_directory() {
+        let named = |text: &str| -> Vec<PathShape> {
+            named_folders(text)
+                .into_iter()
+                .map(|(shape, ..)| shape)
+                .collect()
+        };
+        assert_eq!(
+            named("il lit tous les fichiers .txt du dossier inbox, puis les déplace"),
+            [PathShape::Directory("./inbox/".to_owned())]
+        );
+        assert_eq!(
+            named("read the files in the folder drafts"),
+            [PathShape::Directory("./drafts/".to_owned())]
+        );
+        assert_eq!(
+            named("le dossier du client Dupont"),
+            Vec::<PathShape>::new()
+        );
+        assert_eq!(named("mets-le dans le dossier."), Vec::<PathShape>::new());
+        assert_eq!(named("dans le dossier ./out/"), Vec::<PathShape>::new());
+    }
 }
 
 #[cfg(test)]
@@ -987,5 +1112,76 @@ mod tests {
             assert!(open_names(closed).is_empty(), "{closed}");
         }
         assert_eq!(readings("out/report.json"), ["out/report.json"]);
+    }
+
+    /// The payload's two readings sit in `payload out` and `out`; « Écris out/report.json »
+    /// names `out` alone, so the words settle the name, citing that path. A stated directory
+    /// names its folder the same way.
+    #[test]
+    fn another_stated_folder_settles_an_open_name() {
+        let stock = "Écris out/report.json avec les alertes. Si des alertes existent, prépare \
+                     exactement un payload out/notification.json contenant les ids.";
+        assert_eq!(
+            settled_reading(stock, "payload out/notification.json"),
+            Some(SettledReading {
+                reading: "out/notification.json".to_owned(),
+                cited: "out/report.json".to_owned(),
+            })
+        );
+        let directory = "Range tout sous ./out/. Prépare un payload out/notification.json.";
+        assert_eq!(
+            settled_reading(directory, "payload out/notification.json"),
+            Some(SettledReading {
+                reading: "out/notification.json".to_owned(),
+                cited: "./out/".to_owned(),
+            })
+        );
+    }
+
+    /// No other literal names a reading's folder: another folder, a top-level file, or the other
+    /// open name of the request (itself open) settles nothing.
+    #[test]
+    fn an_open_name_no_other_folder_names_stays_open() {
+        let alone = "Si des alertes existent, prépare exactement un payload out/notification.json.";
+        assert_eq!(
+            settled_reading(alone, "payload out/notification.json"),
+            None
+        );
+        let elsewhere =
+            "Lis ./in/a.json et report.json, puis prépare un payload out/notification.json.";
+        assert_eq!(
+            settled_reading(elsewhere, "payload out/notification.json"),
+            None
+        );
+        let two = "Copy the file project notes/input.json to team draft notes/output.json";
+        assert_eq!(settled_reading(two, "team draft notes/output.json"), None);
+    }
+
+    /// Two readings each sit in a folder the request names (the quoted `payload out/old.json`
+    /// names the whole name's, `out/report.json` the path alone's): the start stays the human's.
+    #[test]
+    fn two_named_folders_settle_nothing() {
+        let two = "Garde « payload out/old.json ». Écris out/report.json. Prépare un payload \
+                   out/notification.json.";
+        assert_eq!(settled_reading(two, "payload out/notification.json"), None);
+    }
+
+    /// A request names two outputs and leaves where one's name starts open: « Il faudra générer
+    /// out/stock.json » reads as `faudra générer out/stock.json` (neither word is a function
+    /// word), and the other output, `out/stock.md`, names the folder `out`, which holds one
+    /// reading only. The words settle the name as `out/stock.json`, citing that output.
+    #[test]
+    fn a_second_output_in_the_folder_settles_an_open_name() {
+        let request = "Prépare un workflow stock.nika qui lit articles.csv et ne garde que les \
+                       articles en rupture. Il faudra générer out/stock.json avec le nombre et la \
+                       liste des références, puis un court résumé dans out/stock.md.";
+        assert_eq!(open_names(request), ["faudra générer out/stock.json"]);
+        assert_eq!(
+            settled_reading(request, "faudra générer out/stock.json"),
+            Some(SettledReading {
+                reading: "out/stock.json".to_owned(),
+                cited: "out/stock.md".to_owned(),
+            })
+        );
     }
 }

@@ -11,8 +11,9 @@
 //! what the trace proves. The public surface is the read-only doors of
 //! [`RunFacts`] (`read` · `result` · `gate` · `proof` · `pause_gate`) and,
 //! for a paused journal's resume, what it would run again ([`resumed_live`]
-//! · [`live_again`]); the facts' fields and the per-task, permit, approval,
-//! pause and seal facts stay crate-private.
+//! · [`live_again`]), and whether a kept run's execution ran a component of
+//! saved bytes ([`KeptRun::component_run`]); the facts' fields and the
+//! per-task, permit, approval, pause and seal facts stay crate-private.
 //!
 //! One reading (`RunFacts::read`) feeds three views:
 //! - RESULT · after a run ended: produced · read · sent · asked · approved
@@ -29,7 +30,7 @@
 //! as it happened) · RE-READ (a file as it is now, not as it was written)
 //! · NOT PROVEN (the content's fitness · trust outside this machine).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -105,6 +106,8 @@ pub(crate) struct Pause {
     pub(crate) task: String,
     pub(crate) message: String,
     pub(crate) mode: String,
+    pub(crate) choices: Option<Vec<String>>,
+    pub(crate) approval: Option<nika_runtime::approval::ApprovalTicket>,
     /// The values its message shows (`values`) and the keys withheld with why (`withheld`),
     /// each a JSON object; `None` on a frame that carries none.
     pub(crate) shown: (Option<Value>, Option<Value>),
@@ -135,11 +138,17 @@ pub struct RunFacts {
     pub(crate) sandbox: Option<String>,
     /// `succeeded` · `failed` · `cancelled` — the terminal frame's word.
     pub(crate) status: Option<String>,
+    /// Why the run ended, as its terminal frame names it (`budget`: its ceiling was reached).
+    pub(crate) cause: Option<String>,
     pub(crate) elapsed_ms: Option<u64>,
     pub(crate) priced_calls: Option<u64>,
     pub(crate) unpriced_calls: Option<u64>,
+    /// Why calls stayed unpriced: the `cost_unpriced` reasons the task frames name.
+    pub(crate) unpriced_reasons: BTreeSet<String>,
     pub(crate) cost_qualifier: Option<String>,
     pub(crate) total_cost_usd: Option<f64>,
+    /// The cost ceiling the run was admitted under (`workflow_started` · `budget`).
+    pub(crate) ceiling_usd: Option<f64>,
     pub(crate) tasks: Vec<TaskFact>,
     pub(crate) permits: Vec<PermitFact>,
     pub(crate) approvals: Vec<Approval>,
@@ -156,6 +165,147 @@ pub struct RunFacts {
     pub(crate) unidentified: usize,
     /// The source hash each `workflow_started` names, in order (`None`: none named).
     pub(crate) starts: Vec<Option<String>>,
+    /// The workflow's declared `outputs:` as its terminal frame recorded them (`outputs`), when
+    /// it kept them.
+    pub(crate) outputs: Option<serde_json::Map<String, Value>>,
+    /// The run this journal continued (`workflow_started` · `resumed_from`), as its trace id.
+    pub(crate) resumed_from: Option<String>,
+    /// What the run had spent when it stopped at a gate (`workflow_paused`): priced calls,
+    /// unpriced calls and the total, as that frame recorded them.
+    pub(crate) pause_spend: (Option<u64>, Option<u64>, Option<f64>),
+    /// What the legs this journal continued spent, as their own journals recorded it
+    /// ([`RunFacts::read`]): a run a gate split is one run, and its cost is every leg's.
+    pub(crate) before: Before,
+    /// The items of a step's list that failed and were recovered, as the step's frames kept them.
+    pub(crate) recovered_items: Vec<RecoveredItem>,
+}
+
+/// One item of a step's list that failed and was recovered (its `items` status `recovered`):
+/// the step, the item, the failure's code, and whether the failure was the transport declining a
+/// documentation host (RFC 2606/6761), which it never dials.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct RecoveredItem {
+    pub(crate) task: String,
+    pub(crate) item: String,
+    pub(crate) code: String,
+    pub(crate) documentation_host: bool,
+}
+
+/// A field's items as the array they encode: the field holds their JSON text, which a frame may
+/// itself keep as a JSON string.
+fn json_items(value: &Value) -> Option<Vec<Value>> {
+    let mut value = value.clone();
+    for _ in 0..3 {
+        match value {
+            Value::Array(items) => return Some(items),
+            Value::String(text) => value = serde_json::from_str(&text).ok()?,
+            _ => return None,
+        }
+    }
+    None
+}
+
+/// What the earlier legs of a resumed run spent, summed: how many legs, their priced and
+/// unpriced calls, their total when one was recorded, and why calls stayed unpriced.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Before {
+    pub(crate) legs: usize,
+    pub(crate) priced_calls: u64,
+    pub(crate) unpriced_calls: u64,
+    pub(crate) total_cost_usd: Option<f64>,
+    pub(crate) unpriced_reasons: BTreeSet<String>,
+}
+
+/// A failure's detail with its code said once (live gauntlet r04 B14: « NIKA-BUILTIN-JQ-001 ·
+/// tool `nika:jq` reported an error: NIKA-BUILTIN-JQ-001 · jq runtime error … »).
+fn code_once(detail: &str) -> String {
+    let Some((code, rest)) = detail.split_once(" · ") else {
+        return detail.to_owned();
+    };
+    if !code.starts_with("NIKA-") {
+        return detail.to_owned();
+    }
+    let again = format!(": {code} · ");
+    format!("{code} · {}", rest.replacen(&again, ": ", 1))
+}
+
+/// `a` and `b` summed, a missing total missing only when both are.
+fn summed(a: Option<f64>, b: Option<f64>) -> Option<f64> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a + b),
+        (a, b) => a.or(b),
+    }
+}
+
+/// What the legs a resumed journal continued spent: each journal of `trace`'s directory whose
+/// run the one before names as the run it continued (`resumed_from`), followed up to
+/// [`crate::lineage::MAX_LINKS`] links. A link no journal there answers, or a loop, ends the
+/// walk; nothing is guessed. Each leg's spend is its terminal frame's, or its pause's when it
+/// stopped at a gate.
+fn before(trace: &Path, resumed_from: Option<&str>) -> Before {
+    let mut before = Before::default();
+    let Some(dir) = trace.parent() else {
+        return before;
+    };
+    let mut seen = BTreeSet::new();
+    let mut next = resumed_from.map(str::to_owned);
+    while let Some(run) = next.take() {
+        if before.legs >= crate::lineage::MAX_LINKS || !seen.insert(run.clone()) {
+            break;
+        }
+        let Some(leg) = journal_of(dir, &run).and_then(|(path, raw)| RunFacts::of(&path, &raw))
+        else {
+            break;
+        };
+        let (priced, unpriced, total) = leg.spend();
+        before.legs += 1;
+        before.priced_calls += priced;
+        before.unpriced_calls += unpriced;
+        before.total_cost_usd = summed(before.total_cost_usd, total);
+        before.unpriced_reasons.extend(leg.unpriced_reasons);
+        next = leg.resumed_from;
+    }
+    before
+}
+
+/// The journal of `dir` whose opening frame carries the run `run` (a trace id, as a
+/// continuation names it), and its bytes: the files whose name ends with the run's last four
+/// characters first (the store's naming), every other one after. Only a journal's opening frame
+/// identifies it.
+fn journal_of(dir: &Path, run: &str) -> Option<(PathBuf, String)> {
+    let mut names: Vec<PathBuf> = (std::fs::read_dir(dir).ok()?.flatten())
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "ndjson"))
+        .collect();
+    let tail = run.get(run.len().saturating_sub(4)..).unwrap_or(run);
+    let suffixed = |path: &PathBuf| {
+        (path.file_stem().and_then(|stem| stem.to_str())).is_some_and(|stem| stem.ends_with(tail))
+    };
+    names.sort_by_key(|path| !suffixed(path));
+    names.into_iter().find_map(|path| {
+        let raw = std::fs::read_to_string(&path).ok()?;
+        let opening: Value = serde_json::from_str(raw.lines().next()?).ok()?;
+        let execution: ExecutionId =
+            serde_json::from_value(opening.get("execution")?.clone()).ok()?;
+        (nika_types::id::TraceId::from(execution).to_string() == run).then_some((path, raw))
+    })
+}
+
+/// The cost ceiling a `workflow_started` frame's `budget` names (`{"max_cost_usd": 0.1}`, an object
+/// or its JSON text): what the person and the conversation are told the run was allowed to cost.
+/// Live gauntlet, 2026-10-16: asked whether her $0.10 ceiling held, the author answered that the
+/// run's summary did not say which ceiling applied.
+fn budget_ceiling(f: &BTreeMap<String, Value>) -> Option<f64> {
+    let budget = f.get("budget")?;
+    let parsed;
+    let budget = match budget {
+        Value::String(text) => {
+            parsed = serde_json::from_str::<Value>(text).ok()?;
+            &parsed
+        }
+        other => other,
+    };
+    budget.get("max_cost_usd").and_then(Value::as_f64)
 }
 
 /// The last run under `root`, read from the store's newest journal (the
@@ -266,7 +416,32 @@ fn first_gate(frame: &Value) -> Option<Pause> {
         message: field("message").unwrap_or_else(|| "the run awaits your answer".to_owned()),
         mode: field("mode").unwrap_or_else(|| "text".to_owned()),
         shown: (object("values"), object("withheld")),
+        choices: field("choices").and_then(|text| serde_json::from_str(&text).ok()),
+        approval: pause_approval(frame),
     })
+}
+
+/// Display evidence only. Keep first-field semantics and the runtime's TTL law.
+fn pause_approval(frame: &Value) -> Option<nika_runtime::approval::ApprovalTicket> {
+    let field = |key| {
+        frame
+            .get("fields")?
+            .as_array()?
+            .iter()
+            .find(|row| row.get("key").and_then(Value::as_str) == Some(key))?
+            .get("value")
+    };
+    let minted = field("approval_minted_at_ms")?.as_i64()?;
+    if minted < 0 {
+        return None;
+    }
+    Some(nika_runtime::approval::ApprovalTicket::new(
+        field("approval_shown_hash")?.as_str()?.to_owned(),
+        field("approval_nonce")?.as_str()?.to_owned(),
+        field("task")?.as_str()?.to_owned(),
+        minted,
+        u32::try_from(field("approval_ttl_seconds")?.as_u64()?).ok()?,
+    ))
 }
 
 fn text(map: &BTreeMap<String, Value>, key: &str) -> Option<String> {
@@ -288,10 +463,30 @@ fn count(map: &BTreeMap<String, Value>, key: &str) -> Option<u64> {
 impl RunFacts {
     /// Read a trace's frames. `None` when the file cannot be read or no
     /// line is an event (the view then falls back to the door's line).
+    ///
+    /// A resumed journal also reads what the legs it continued spent, from their own journals
+    /// in the same directory: a run a gate split costs every leg's calls.
     #[must_use]
     pub fn read(trace: &Path) -> Option<Self> {
         let raw = std::fs::read_to_string(trace).ok()?;
-        Self::of(trace, &raw)
+        let mut facts = Self::of(trace, &raw)?;
+        facts.before = before(trace, facts.resumed_from.as_deref());
+        Some(facts)
+    }
+
+    /// What this leg spent: its terminal frame's priced calls, unpriced calls and total, or its
+    /// pause's when it stopped at a gate.
+    fn spend(&self) -> (u64, u64, Option<f64>) {
+        if self.status.is_some() {
+            let (priced, unpriced) = (self.priced_calls, self.unpriced_calls);
+            return (
+                priced.unwrap_or(0),
+                unpriced.unwrap_or(0),
+                self.total_cost_usd,
+            );
+        }
+        let (priced, unpriced, total) = self.pause_spend;
+        (priced.unwrap_or(0), unpriced.unwrap_or(0), total)
     }
 
     /// The frames of journal bytes a host already captured from `trace`:
@@ -323,9 +518,15 @@ impl RunFacts {
                 facts.starts.push(text(&fields, "workflow_sha256"));
             }
             facts.absorb(kind, &fields);
-            if kind == "workflow_paused" && !paused {
-                paused = true;
-                facts.gate = first_gate(&frame);
+            if kind == "workflow_paused" {
+                if !paused {
+                    paused = true;
+                    facts.gate = first_gate(&frame);
+                } else if let Some(gate) = &mut facts.gate {
+                    // Session displays the first pause; runtime folds the last ticket.
+                    // Multiple pauses cannot establish one displayed ticket's expiry.
+                    gate.approval = None;
+                }
             }
         }
         (facts.events > 0).then_some(facts)
@@ -357,6 +558,35 @@ impl RunFacts {
         self.workflow_sha256.as_deref()
     }
 
+    /// What the run cost in all, the legs a gate split included, as its frames recorded it:
+    /// `None` when no total was recorded.
+    #[must_use]
+    pub fn spent_usd(&self) -> Option<f64> {
+        summed(self.total_cost_usd, self.before.total_cost_usd)
+    }
+
+    /// What the ceiling this leg was admitted under leaves after what this leg spent (its pause's
+    /// spend when it stopped at a gate): the ceiling the run continues under when it is resumed.
+    /// `None` when the leg was admitted under no ceiling.
+    #[must_use]
+    pub fn ceiling_left(&self) -> Option<f64> {
+        let ceiling = self.ceiling_usd?;
+        Some((ceiling - self.spend().2.unwrap_or(0.0)).max(0.0))
+    }
+
+    /// Whether the person refused one of the run's gates (an approval decided otherwise than
+    /// `allow`): the run ended where their answer stopped it, never as a plain success.
+    #[must_use]
+    pub fn refused_at_gate(&self) -> bool {
+        (self.approvals.iter()).any(|a| a.decision != "allow")
+    }
+
+    /// Whether the run's ceiling stopped it (its terminal frame's cause is `budget`).
+    #[must_use]
+    pub fn stopped_by_ceiling(&self) -> bool {
+        self.cause.as_deref() == Some("budget")
+    }
+
     /// The terminal frame's word (`succeeded` · `failed` · `cancelled`, or
     /// `paused` when the journal ends at a gate); `None` when it holds no
     /// terminal frame, never « done ».
@@ -385,6 +615,25 @@ impl RunFacts {
         (self.gate.as_ref()).map_or((None, None), |g| (g.shown.0.as_ref(), g.shown.1.as_ref()))
     }
 
+    /// The exact string options of the first pause, when its first `choices` field
+    /// contains a JSON string array. Missing or malformed fields stay unknown;
+    /// later fields and pauses never supply replacements. This is display data,
+    /// not an approval or a claim that the trace is trusted.
+    #[must_use]
+    pub fn pause_choices(&self) -> Option<&[String]> {
+        self.gate.as_ref()?.choices.as_deref()
+    }
+
+    /// Whether the single paused gate's recorded ticket has expired at Unix
+    /// milliseconds `now_ms`, using the runtime's exact remaining-seconds law.
+    /// Missing/malformed timing, negative time or multiple pauses stay unknown.
+    /// This is display evidence, never a trust verdict or resume authority.
+    #[must_use]
+    pub fn pause_approval_expired(&self, now_ms: i64) -> Option<bool> {
+        (now_ms >= 0).then_some(())?;
+        Some(self.gate.as_ref()?.approval.as_ref()?.is_expired(now_ms))
+    }
+
     fn task_mut(&mut self, id: &str) -> &mut TaskFact {
         if let Some(i) = self.tasks.iter().position(|t| t.id == id) {
             return &mut self.tasks[i];
@@ -405,11 +654,17 @@ impl RunFacts {
                 self.semantic_hash = text(f, "semantic_hash");
                 self.engine_version = text(f, "engine_version");
                 self.sandbox = text(f, "sandbox");
+                self.ceiling_usd = budget_ceiling(f);
+                self.resumed_from = text(f, "resumed_from");
             }
             "task_scheduled" | "task_started" | "task_completed" | "task_failed"
             | "task_recovered" | "task_skipped" | "task_cancelled" | "task_cache_hit" => {
                 self.absorb_task(kind, f);
+                if kind == "task_completed" {
+                    self.absorb_items(f);
+                }
             }
+            "task_items" => self.absorb_items(f),
             "permit_checked" => self.permits.push(PermitFact {
                 task: text(f, "task").unwrap_or_default(),
                 plane: text(f, "plane").unwrap_or_default(),
@@ -422,6 +677,12 @@ impl RunFacts {
                 source: text(f, "source").unwrap_or_default(),
             }),
             "workflow_paused" => {
+                // What the run had spent at its gate: a continuation adds it to its own.
+                self.pause_spend = (
+                    count(f, "priced_calls"),
+                    count(f, "unpriced_calls"),
+                    f.get("total_cost_usd").and_then(Value::as_f64),
+                );
                 self.pause = Some(Pause {
                     task: text(f, "task").unwrap_or_default(),
                     message: text(f, "message")
@@ -441,11 +702,18 @@ impl RunFacts {
                         .to_owned(),
                     )
                 });
+                self.cause = text(f, "cause");
                 self.elapsed_ms = count(f, "elapsed_ms");
                 self.priced_calls = count(f, "priced_calls");
                 self.unpriced_calls = count(f, "unpriced_calls");
                 self.cost_qualifier = text(f, "cost_qualifier");
                 self.total_cost_usd = f.get("total_cost_usd").and_then(Value::as_f64);
+                // The terminal frame keeps the outputs as their compact JSON text.
+                self.outputs = match f.get("outputs") {
+                    Some(Value::String(json)) => serde_json::from_str(json).ok(),
+                    Some(Value::Object(map)) => Some(map.clone()),
+                    _ => None,
+                };
             }
             "run_sealed" => self.absorb_seal(f),
             _ => {}
@@ -462,6 +730,9 @@ impl RunFacts {
         let output = (kind == "task_completed")
             .then(|| completed_output(f))
             .flatten();
+        if let Some(reason) = text(f, "cost_unpriced") {
+            self.unpriced_reasons.insert(reason);
+        }
         let task = self.task_mut(&id);
         if let Some(note) = note
             && kind != "task_cache_hit"
@@ -490,6 +761,29 @@ impl RunFacts {
             "task_cache_hit" => TaskState::CacheHit,
             _ => task.state,
         };
+    }
+
+    /// The recovered items a step's `items` field names, as a `task_completed` frame or a page
+    /// of `task_items` carries them (live gauntlet wave 7 r11, 2026-10-19: `example.com` was
+    /// never dialed, recovered to a code 0, and the report said nothing of it).
+    fn absorb_items(&mut self, f: &BTreeMap<String, Value>) {
+        let Some(task) = text(f, "task") else {
+            return;
+        };
+        let Some(items) = f.get("items").and_then(json_items) else {
+            return;
+        };
+        let recovered = items.iter().filter(|item| item["status"] == "recovered");
+        for item in recovered {
+            let message = item["message"].as_str().unwrap_or_default();
+            self.recovered_items.push(RecoveredItem {
+                task: task.clone(),
+                item: (item["item"].as_str())
+                    .map_or_else(|| item["item"].to_string(), str::to_owned),
+                code: item["code"].as_str().unwrap_or_default().to_owned(),
+                documentation_host: message.contains("documentation host"),
+            });
+        }
     }
 
     fn absorb_seal(&mut self, f: &BTreeMap<String, Value>) {
@@ -529,6 +823,37 @@ impl RunFacts {
             .collect();
         paths.dedup();
         paths
+    }
+
+    /// The paths an allowed read checked for a task that failed and was recovered, and that no
+    /// task which completed read: nothing of them was read.
+    fn recovered_reads(&self) -> Vec<String> {
+        let tasks_in = |state: TaskState| -> Vec<&str> {
+            (self.tasks.iter())
+                .filter(|t| t.state == state)
+                .map(|t| t.id.as_str())
+                .collect()
+        };
+        let (recovered, read) = (tasks_in(TaskState::Recovered), tasks_in(TaskState::Ok));
+        let gate = |p: &PermitFact| p.gate.strip_prefix("permits.fs.read ").map(str::to_owned);
+        let allowed = |p: &&PermitFact| p.plane == "fs" && p.decision == "allow";
+        let read_ok: Vec<String> = (self.permits.iter().filter(allowed))
+            .filter(|p| read.contains(&p.task.as_str()))
+            .filter_map(gate)
+            .collect();
+        (self.permits.iter().filter(allowed))
+            .filter(|p| recovered.contains(&p.task.as_str()))
+            .filter_map(gate)
+            .filter(|path| !read_ok.contains(path))
+            .collect()
+    }
+
+    /// Whether an allowed write of `path` was checked for one of the `tasks` named.
+    fn written_by(&self, path: &str, tasks: &[String]) -> bool {
+        let gate = format!("permits.fs.write {path}");
+        self.permits.iter().any(|p| {
+            p.plane == "fs" && p.decision == "allow" && p.gate == gate && tasks.contains(&p.task)
+        })
     }
 
     /// The paths this run completed writing: an `invoke · nika:write` task that a start frame
@@ -602,16 +927,25 @@ impl RunFacts {
         out
     }
 
-    fn cost_line(&self) -> String {
-        let priced = self.priced_calls.unwrap_or(0);
-        let unpriced = self.unpriced_calls.unwrap_or(0);
-        let mut line = match (self.total_cost_usd, priced, unpriced) {
+    /// What the run cost, its legs a gate split included, and why any call stayed unpriced, said
+    /// in French when `french`.
+    fn cost_line_in(&self, french: bool) -> String {
+        // A run a gate split is one run: its earlier legs' calls count with this one's.
+        let before = &self.before;
+        let priced = self.priced_calls.unwrap_or(0) + before.priced_calls;
+        let unpriced = self.unpriced_calls.unwrap_or(0) + before.unpriced_calls;
+        let total = summed(self.total_cost_usd, before.total_cost_usd);
+        if french {
+            return self.cost_line_fr(total, priced, unpriced);
+        }
+        let mut line = match (total, priced, unpriced) {
             (Some(usd), p, _) => format!(
                 "cost · ${usd:.4} · {p} priced call(s) · recorded estimate, invoice not verified"
             ),
             (None, 0, 0) => "cost · no model usage recorded".to_owned(),
             (None, 0, u) => format!(
-                "cost · UNKNOWN · {u} unpriced call(s): a route with no price table (a local model is unpriced, never free)"
+                "cost · UNKNOWN · {u} unpriced call(s): {}",
+                self.why_unpriced()
             ),
             (None, p, _) => {
                 format!("cost · UNKNOWN · {p} priced call(s) journaled without a total")
@@ -620,20 +954,136 @@ impl RunFacts {
         if unpriced > 0 && priced > 0 {
             let _ = write!(
                 line,
-                " · {unpriced} unpriced call(s): a route with no price table (a local model is unpriced, never free)"
+                " · {unpriced} unpriced call(s): {}",
+                self.why_unpriced()
             );
         }
+        if before.legs > 0 {
+            let legs = before.legs + 1;
+            let _ = write!(line, " · over its {legs} legs, a gate split the run");
+        }
         line
+    }
+
+    /// The cost line in French: the same facts, the unpriced reasons said in French.
+    fn cost_line_fr(&self, total: Option<f64>, priced: u64, unpriced: u64) -> String {
+        let s = |n: u64| if n > 1 { "s" } else { "" };
+        let mut line = match (total, priced, unpriced) {
+            (Some(usd), p, _) => format!(
+                "coût · {} $ · {p} appel{} tarifé{} · estimation enregistrée, facture non vérifiée",
+                format!("{usd:.4}").replace('.', ","),
+                s(p),
+                s(p)
+            ),
+            (None, 0, 0) => "coût · aucun appel de modèle enregistré".to_owned(),
+            (None, 0, u) => format!(
+                "coût · INCONNU · {u} appel{} non tarifé{} : {}",
+                s(u),
+                s(u),
+                self.why_unpriced_in(true)
+            ),
+            (None, p, _) => format!(
+                "coût · INCONNU · {p} appel{} tarifé{} journalisé{} sans total",
+                s(p),
+                s(p),
+                s(p)
+            ),
+        };
+        if unpriced > 0 && priced > 0 {
+            let _ = write!(
+                line,
+                " · {unpriced} appel{} non tarifé{} : {}",
+                s(unpriced),
+                s(unpriced),
+                self.why_unpriced_in(true)
+            );
+        }
+        if self.before.legs > 0 {
+            let legs = self.before.legs + 1;
+            let _ = write!(line, " · en {legs} parties, une validation a coupé le run");
+        }
+        line
+    }
+
+    /// Why the unpriced calls have no price, from the reasons their frames name. Live gauntlet,
+    /// 2026-10-16: every unpriced call read « a local model is unpriced » — said of `OpenRouter`
+    /// and Gemini routes, remote and billed.
+    fn why_unpriced(&self) -> String {
+        self.why_unpriced_in(false)
+    }
+
+    /// [`Self::why_unpriced`], in French when `french`: a French cost line said its reasons in
+    /// English (« 1 appel non tarifé : its provider reported no complete usage », 2026-10-19).
+    /// A reason this view does not know keeps the engine's own name.
+    fn why_unpriced_in(&self, french: bool) -> String {
+        let say = |en: &'static str, fr: &'static str| if french { fr } else { en };
+        let all: BTreeSet<&String> = (self.unpriced_reasons.iter())
+            .chain(&self.before.unpriced_reasons)
+            .collect();
+        if all.is_empty() {
+            return say(
+                "a route with no price table, or usage its provider did not report (never free)",
+                "une route sans table de prix, ou un usage que son fournisseur n'a pas déclaré \
+                 (jamais gratuit)",
+            )
+            .to_owned();
+        }
+        let reasons: Vec<&str> = (all.into_iter())
+            .map(|reason| match reason.as_str() {
+                "local_model" => say(
+                    "a local model is unpriced, never free",
+                    "un modèle local n'est pas tarifé, jamais gratuit",
+                ),
+                "mock_provider" => say(
+                    "the mock provider is unpriced",
+                    "le fournisseur fictif n'est pas tarifé",
+                ),
+                "missing_catalog_price" => say(
+                    "no verified tariff for its route (never free)",
+                    "aucun tarif vérifié pour sa route (jamais gratuit)",
+                ),
+                "provider_did_not_report_usage" => say(
+                    "its provider reported no complete usage (spent, never free)",
+                    "son fournisseur n'a pas déclaré d'usage complet (dépensé, jamais gratuit)",
+                ),
+                "subscription_quota" => say(
+                    "a subscription seat draws quota, not metered dollars",
+                    "un siège d'abonnement consomme un quota, pas des dollars mesurés",
+                ),
+                "usage_rejected" => say(
+                    "the usage it reported contradicted the admitted request (spent, never free)",
+                    "l'usage déclaré contredisait la requête admise (dépensé, jamais gratuit)",
+                ),
+                other => other,
+            })
+            .collect();
+        reasons.join(" · ")
     }
 
     /// The result view, once a run ended (exit 0 or 1).
     #[must_use]
     pub fn result(&self, root: &Path, workflow: &Path) -> String {
+        self.result_in(root, workflow, false)
+    }
+
+    /// [`Self::result`], a stop by the ceiling said in French when `french`.
+    #[must_use]
+    pub fn result_in(&self, root: &Path, workflow: &Path, french: bool) -> String {
+        if self.stopped_by_ceiling() {
+            return self.ceiling_stop(workflow, french);
+        }
+        self.ended(root, workflow, french)
+    }
+
+    /// The view of a run that ended on its own: its failure, or what it did and produced, said
+    /// in French when `french`.
+    fn ended(&self, root: &Path, workflow: &Path, french: bool) -> String {
         if self.status.as_deref() == Some("failed")
             || self.tasks.iter().any(|t| t.state == TaskState::Failed)
         {
-            return self.failure(workflow);
+            return self.failure(workflow, french);
         }
+        let say = |en: &'static str, fr: &'static str| if french { fr } else { en };
         let ran = self
             .tasks
             .iter()
@@ -649,64 +1099,328 @@ impl RunFacts {
             .iter()
             .filter(|t| t.state == TaskState::Skipped)
             .count();
-        let sent = self.sent();
-        let word = match self.status.as_deref() {
-            Some("succeeded") | None => "Done",
-            Some("cancelled") => "Cancelled",
-            Some(other) => other,
+        // A run whose gate the person refused ended where their answer stopped it, never as a
+        // plain success (live gauntlet r04 B9: « succeeded » after a « non »).
+        let refused = self.refused_at_gate();
+        let word = match (self.status.as_deref(), refused) {
+            (Some("succeeded") | None, true) => say(
+                "Done · stopped at your no",
+                "Terminé · arrêté à votre « non »",
+            ),
+            (Some("succeeded") | None, false) => say("Done", "Terminé"),
+            (Some("cancelled"), _) => say("Cancelled", "Annulé"),
+            (Some(other), _) => other,
         };
         let mut view = format!("{word} · `{}`", workflow.display());
         if let Some(ms) = self.elapsed_ms {
             let _ = write!(view, " · {}", human_ms(ms));
         }
-        let _ = write!(view, " · {ran} task{} ran", plural(ran));
+        if french {
+            let s = if ran > 1 { "s" } else { "" };
+            let _ = write!(view, " · {ran} étape{s} exécutée{s}");
+        } else {
+            let _ = write!(view, " · {ran} task{} ran", plural(ran));
+        }
         if cached > 0 {
-            let _ = write!(view, " ({cached} from cache)");
+            let _ = write!(view, " ({cached} {})", say("from cache", "depuis le cache"));
         }
         if skipped > 0 {
-            let _ = write!(view, " · {skipped} skipped");
-        }
-        for path in self.fs_paths("write") {
-            let size = std::fs::metadata(root.join(&path))
-                .ok()
-                .filter(std::fs::Metadata::is_file)
-                .map_or_else(String::new, |m| format!(" ({})", human_size(m.len())));
-            let _ = write!(view, "\n  produced · {path}{size}");
-        }
-        for path in self.fs_paths("read") {
-            let _ = write!(view, "\n  read · {path}");
-        }
-        for target in &sent {
-            let _ = write!(view, "\n  network / notification · {target}");
-        }
-        for model in self.asked() {
-            let _ = write!(view, "\n  asked · {model}");
-        }
-        for a in &self.approvals {
-            let verdict = if a.decision == "allow" {
-                "approved · your answer let it go on"
+            if french {
+                let s = if skipped > 1 { "s" } else { "" };
+                let _ = write!(view, " · {skipped} sautée{s}");
             } else {
-                "refused · your answer stopped it there"
-            };
-            let by = if a.source == "resume" {
-                "answered in this session"
-            } else {
-                &a.source
-            };
-            let _ = write!(view, "\n  {verdict} · `{}` · {by}", a.task);
+                let _ = write!(view, " · {skipped} skipped");
+            }
         }
-        let _ = write!(view, "\n  {}", self.cost_line());
-        view.push_str("\n  `/proof` shows the records and their limits · « run it » runs it again");
+        for line in self.written_lines(root, workflow, french) {
+            let _ = write!(view, "\n  {line}");
+        }
+        for line in self.reached_lines(french) {
+            let _ = write!(view, "\n  {line}");
+        }
+        for line in self.sent_lines(root, workflow, french) {
+            let _ = write!(view, "\n  {line}");
+        }
+        // What the workflow declared as its result, said where the person reads the run (live
+        // gauntlet r08 and r03, 2026-10-16: the totals and the report message were only in a
+        // side panel's JSON).
+        for (key, value) in self.outputs.iter().flatten() {
+            let _ = write!(
+                view,
+                "\n  {} · {key} · {}",
+                say("output", "résultat"),
+                shown_output(value, french)
+            );
+        }
+        let _ = write!(view, "\n  {}", self.cost_line_in(french));
+        if let Some(ceiling) = self.ceiling_usd {
+            let stated = nika_display::vocab::stated_usd(ceiling);
+            if french {
+                let _ = write!(
+                    view,
+                    "\n  plafond · {} $ · le plus que ce run pouvait coûter",
+                    stated.replace('.', ",")
+                );
+            } else {
+                let _ = write!(
+                    view,
+                    "\n  ceiling · ${stated} · the most this run was allowed to cost"
+                );
+            }
+        }
+        view.push_str(say(
+            "\n  `/proof` shows the records and their limits · « run it » runs it again",
+            "\n  `/proof` montre les preuves et leurs limites · « lance-le » le relance",
+        ));
         view
     }
 
-    /// The failure view: which task failed, what ran before it.
-    fn failure(&self, workflow: &Path) -> String {
-        let mut view = format!("Failed · `{}`", workflow.display());
+    /// What the run read, sent, asked of a model and was answered at its gates, said in French
+    /// when `french`.
+    fn reached_lines(&self, french: bool) -> Vec<String> {
+        let say = |en: &'static str, fr: &'static str| if french { fr } else { en };
+        let mut lines = Vec::new();
+        // A read whose task failed and was recovered read nothing (live gauntlet r02: the first
+        // run's « read · ./python-version.txt » for a file that did not exist yet).
+        let unread = self.recovered_reads();
+        for path in self.fs_paths("read") {
+            if unread.contains(&path) {
+                let said = say(
+                    "not there · {path} · nothing was read",
+                    "absent · {path} · rien n'a été lu",
+                );
+                lines.push(said.replace("{path}", &path));
+            } else {
+                lines.push(format!("{} · {path}", say("read", "lu")));
+            }
+        }
+        for target in &self.sent() {
+            lines.push(format!(
+                "{} · {target}",
+                say("network / notification", "réseau / notification")
+            ));
+        }
+        for model in self.asked() {
+            lines.push(format!("{} · {model}", say("asked", "modèle appelé")));
+        }
+        for a in &self.approvals {
+            let verdict = if a.decision == "allow" {
+                say(
+                    "approved · your answer let it go on",
+                    "approuvé · votre réponse l'a laissé continuer",
+                )
+            } else {
+                say(
+                    "refused · your answer stopped it there",
+                    "refusé · votre réponse l'a arrêté là",
+                )
+            };
+            let by = if a.source == "resume" {
+                say("answered in this session", "répondu dans cette session")
+            } else {
+                &a.source
+            };
+            lines.push(format!("{verdict} · `{}` · {by}", a.task));
+        }
+        for r in &self.recovered_items {
+            let said = if r.documentation_host {
+                say(
+                    "not dialed · {item} · a documentation address (RFC 2606) Nika never dials · `{task}` went on without it",
+                    "pas contacté · {item} · une adresse de documentation (RFC 2606) que Nika ne contacte jamais · `{task}` a continué sans elle",
+                )
+            } else if r.code.is_empty() {
+                say(
+                    "failed and recovered · {item} · `{task}` went on",
+                    "en erreur, repris · {item} · `{task}` a continué",
+                )
+            } else {
+                say(
+                    "failed and recovered · {item} · `{task}` went on ({code})",
+                    "en erreur, repris · {item} · `{task}` a continué ({code})",
+                )
+            };
+            lines.push(
+                said.replace("{item}", &r.item)
+                    .replace("{task}", &r.task)
+                    .replace("{code}", &r.code),
+            );
+        }
+        lines
+    }
+
+    /// What became of each step of the workflow that sends beyond this machine (a notification,
+    /// a request other than GET): sent when it completed (the receiver's side unproven), or not
+    /// sent and why, said in French when `french` (live gauntlet r02 B13, 2026-10-17: the report
+    /// never said whether the webhook was pinged).
+    fn sent_lines(&self, root: &Path, workflow: &Path, french: bool) -> Vec<String> {
+        let say = |en: &'static str, fr: &'static str| if french { fr } else { en };
+        let mut lines = Vec::new();
+        for id in sending_tasks(root, workflow) {
+            let state = (self.tasks.iter()).find(|t| t.id == id).map(|t| t.state);
+            let (sent, why) = match state {
+                Some(TaskState::Ok | TaskState::Recovered) => (
+                    true,
+                    say(
+                        "the step completed (the receiver's side is not proven)",
+                        "l'étape s'est terminée (le côté du destinataire n'est pas prouvé)",
+                    ),
+                ),
+                Some(TaskState::Skipped) => (
+                    false,
+                    say("its condition was false", "sa condition était fausse"),
+                ),
+                Some(TaskState::Cancelled) => (
+                    false,
+                    say(
+                        "cancelled: a step before it did not go on",
+                        "annulé : une étape avant lui n'a pas continué",
+                    ),
+                ),
+                Some(TaskState::Failed) => (false, say("it failed", "il a échoué")),
+                Some(TaskState::CacheHit) => (
+                    false,
+                    say(
+                        "served from the cache: nothing was sent again",
+                        "servi depuis le cache : rien n'a été renvoyé",
+                    ),
+                ),
+                _ => (
+                    false,
+                    say("the run ended before it", "le run s'est arrêté avant lui"),
+                ),
+            };
+            let word = if sent {
+                say("sent", "envoyé")
+            } else {
+                say("not sent", "pas envoyé")
+            };
+            lines.push(format!("{word} · `{id}` · {why}"));
+        }
+        lines
+    }
+
+    /// What became of each file the run may write: produced (with its size), removed, or not
+    /// there now, said in French when `french`; then each file it left empty, and how many it
+    /// removed beside it (live gauntlet wave 7 r05, 2026-10-19: « produit · ./journal.md (0 B) »
+    /// among green ticks under « réussi », the three messages already moved away).
+    fn written_lines(&self, root: &Path, workflow: &Path, french: bool) -> Vec<String> {
+        let say = |en: &'static str, fr: &'static str| if french { fr } else { en };
+        let mut lines = Vec::new();
+        let (mut empty, mut removed) = (Vec::new(), 0_usize);
+        let removals = removal_tasks(root, workflow);
+        let written: Vec<String> = (self.completed_writes().iter())
+            .map(|path| path.strip_prefix("./").unwrap_or(path).to_owned())
+            .collect();
+        for path in self.fs_paths("write") {
+            let file = std::fs::metadata(root.join(&path))
+                .ok()
+                .filter(std::fs::Metadata::is_file);
+            // A path the run may write but that is not there now was not produced: the run removed
+            // it (live gauntlet q05: three inbox files moved away read « produced »), or another
+            // step did.
+            let produced = say("produced", "produit");
+            let line = match file {
+                Some(meta) => {
+                    if meta.len() == 0 {
+                        empty.push(path.clone());
+                    }
+                    format!("{produced} · {path} ({})", human_size(meta.len()))
+                }
+                // The run's own completed write, read on a disk where the file is not.
+                None if written
+                    .iter()
+                    .any(|w| w == path.strip_prefix("./").unwrap_or(&path)) =>
+                {
+                    format!("{produced} · {path}")
+                }
+                None if self.written_by(&path, &removals) => {
+                    removed += 1;
+                    format!("{} · {path}", say("removed", "retiré"))
+                }
+                None => format!("{} · {path}", say("not there now", "absent maintenant")),
+            };
+            lines.push(line);
+        }
+        for path in empty {
+            lines.push(match (french, removed) {
+                (true, 0) => format!("attention · {path} est vide (0 o) : vérifiez le résultat"),
+                (true, n) => format!(
+                    "attention · {path} est vide (0 o) alors que ce run a retiré {n} fichier{} : vérifiez le résultat avant de relancer",
+                    if n > 1 { "s" } else { "" }
+                ),
+                (false, 0) => format!("warning · {path} is empty (0 B): check the result"),
+                (false, n) => format!(
+                    "warning · {path} is empty (0 B) while this run removed {n} file{}: check the result before running it again",
+                    plural(n)
+                ),
+            });
+        }
+        lines
+    }
+
+    /// The view of a run its ceiling stopped: what it spent against the ceiling, what never ran,
+    /// and what to do, which is never a repair of the workflow (live gauntlet r09, 2026-10-17:
+    /// « repair the workflow, then « run it » again » for a run that only cost more than its
+    /// ceiling).
+    fn ceiling_stop(&self, workflow: &Path, french: bool) -> String {
+        let usd = |cost: f64| format!("{cost:.4}");
+        let spent = self.spent_usd().map(usd);
+        let ceiling = self.ceiling_usd.map(usd);
+        let never: Vec<&str> = (self.tasks.iter())
+            .filter(|t| matches!(t.state, TaskState::Scheduled | TaskState::Cancelled))
+            .map(|t| t.id.as_str())
+            .collect();
+        let shown = workflow.display();
+        let mut view = match (french, spent, ceiling) {
+            (true, Some(spent), Some(ceiling)) => format!(
+                "Arrêté · `{shown}` · le plafond est atteint : {} $ dépensés pour un plafond de {} $",
+                spent.replace('.', ","),
+                ceiling.replace('.', ",")
+            ),
+            (true, _, _) => format!("Arrêté · `{shown}` · le plafond est atteint"),
+            (false, Some(spent), Some(ceiling)) => format!(
+                "Stopped · `{shown}` · the ceiling was reached: ${spent} spent for a ${ceiling} ceiling"
+            ),
+            (false, _, _) => format!("Stopped · `{shown}` · the ceiling was reached"),
+        };
+        view.push_str(if french {
+            "
+  l'appel déjà parti a été terminé et compté · les étapes suivantes n'ont pas été lancées"
+        } else {
+            "
+  the call already under way finished and was counted · the steps after it were not started"
+        });
+        if !never.is_empty() {
+            let label = if french {
+                "pas lancées"
+            } else {
+                "not started"
+            };
+            let _ = write!(
+                view,
+                "
+  {label} · {}",
+                never.join(" · ")
+            );
+        }
+        view.push_str(if french {
+            "
+  le workflow n'est pas en cause · relevez le plafond (« lance-le avec un plafond de … $ ») ou rendez-le moins cher (un modèle moins cher, moins de texte en sortie)"
+        } else {
+            "
+  the workflow is not at fault · raise the ceiling (« run it with a ceiling of $… ») or make it cheaper (a cheaper model, less output)"
+        });
+        view
+    }
+
+    /// The failure view: which task failed, what ran before it, said in French when `french`.
+    fn failure(&self, workflow: &Path, french: bool) -> String {
+        let say = |en: &'static str, fr: &'static str| if french { fr } else { en };
+        let mut view = format!("{} · `{}`", say("Failed", "Échoué"), workflow.display());
         if let Some(t) = self.tasks.iter().find(|t| t.state == TaskState::Failed) {
-            let _ = write!(view, " · `{}` failed", t.id);
+            let _ = write!(view, " · `{}` {}", t.id, say("failed", "a échoué"));
             if let Some(detail) = &t.detail {
-                let _ = write!(view, "\n  {}", first_line(detail));
+                let _ = write!(view, "\n  {}", code_once(first_line(detail)));
             }
         }
         let before: Vec<String> = self
@@ -719,9 +1433,17 @@ impl RunFacts {
             })
             .collect();
         if before.is_empty() {
-            view.push_str("\n  nothing completed before it");
+            view.push_str(say(
+                "\n  nothing completed before it",
+                "\n  rien n'a abouti avant",
+            ));
         } else {
-            let _ = write!(view, "\n  ran before it · {}", before.join(" · "));
+            let _ = write!(
+                view,
+                "\n  {} · {}",
+                say("ran before it", "exécutées avant"),
+                before.join(" · ")
+            );
         }
         let never: Vec<&str> = self
             .tasks
@@ -730,12 +1452,18 @@ impl RunFacts {
             .map(|t| t.id.as_str())
             .collect();
         if !never.is_empty() {
-            let _ = write!(view, "\n  never ran · {}", never.join(" · "));
+            let _ = write!(
+                view,
+                "\n  {} · {}",
+                say("never ran", "jamais lancées"),
+                never.join(" · ")
+            );
         }
-        let _ = write!(view, "\n  {}", self.cost_line());
-        view.push_str(
-            "\n  the trace holds the failure · `/proof` reads it · repair the workflow, then « run it » again",
-        );
+        let _ = write!(view, "\n  {}", self.cost_line_in(french));
+        view.push_str(say(
+            "\n  the trace holds the failure · `/proof` reads it · repair the workflow if the cause is its own, then « run it » again",
+            "\n  la trace garde l'échec · `/proof` la lit · corrigez le workflow si la cause est la sienne, puis « lance-le » à nouveau",
+        ));
         view
     }
 
@@ -743,10 +1471,32 @@ impl RunFacts {
     /// yes lets happen (`gated`, from the workflow's bytes) · what a no does.
     #[must_use]
     pub fn gate(&self, workflow: &Path, message: &str, mode: &str, gated: &[String]) -> String {
-        let mut view = format!(
-            "Paused · `{}` asks you before it goes on",
-            workflow.display()
-        );
+        self.gate_in(workflow, message, mode, gated, false)
+    }
+
+    /// [`Self::gate`], said in French when `french`: the person's words around the gate's own
+    /// question, which stays as the workflow wrote it.
+    #[must_use]
+    pub fn gate_in(
+        &self,
+        workflow: &Path,
+        message: &str,
+        mode: &str,
+        gated: &[String],
+        french: bool,
+    ) -> String {
+        let say = |en: &'static str, fr: &'static str| if french { fr } else { en };
+        let mut view = if french {
+            format!(
+                "En pause · `{}` vous demande avant de continuer",
+                workflow.display()
+            )
+        } else {
+            format!(
+                "Paused · `{}` asks you before it goes on",
+                workflow.display()
+            )
+        };
         let so_far: Vec<String> = self
             .tasks
             .iter()
@@ -757,29 +1507,60 @@ impl RunFacts {
                 (true, _) => t.id.clone(),
             })
             .collect();
+        let so_far_lead = say("so far", "jusqu'ici");
         if so_far.is_empty() {
-            view.push_str("\n  so far · nothing has run before the gate");
+            let nothing = say(
+                "nothing has run before the gate",
+                "rien n'a tourné avant la validation",
+            );
+            let _ = write!(view, "\n  {so_far_lead} · {nothing}");
         } else {
-            let _ = write!(view, "\n  so far · {}", so_far.join(" · "));
+            let _ = write!(view, "\n  {so_far_lead} · {}", so_far.join(" · "));
         }
-        if let Some(again) = live_again(&self.trace) {
+        if let Some(again) = live_again_in(&self.trace, french) {
             let _ = write!(view, "\n  {again}");
         }
         let _ = write!(view, "\n  « {message} »");
-        if gated.is_empty() {
-            view.push_str("\n  a yes lets happen · the tasks after this gate (the workflow's bytes name them)");
+        let after = if mode == "choice" {
+            say("after your choice", "après votre choix")
         } else {
-            let _ = write!(view, "\n  a yes lets happen · {}", gated.join(" · "));
+            say("a yes lets happen", "un oui permet")
+        };
+        if gated.is_empty() {
+            let tasks = say(
+                "the tasks after this gate (the workflow's bytes name them)",
+                "les tâches après cette validation (le workflow les nomme)",
+            );
+            let _ = write!(view, "\n  {after} · {tasks}");
+        } else {
+            let _ = write!(view, "\n  {after} · {}", gated.join(" · "));
         }
         let how = match mode {
-            "confirm" => "yes or no",
-            "choice" => "one of the choices, as written",
-            _ => "in words",
+            "confirm" => say("yes or no", "oui ou non"),
+            "choice" => say(
+                "one of the choices, as written",
+                "l'un des choix, tel qu'écrit",
+            ),
+            _ => say("in words", "en mots"),
         };
-        let _ = write!(
-            view,
-            "\n  a no ends the run there · nothing after the gate has happened yet\n  answer {how} · « why? » explains · nothing answers for you"
-        );
+        let outcome = if mode == "choice" {
+            say(
+                "the chosen value resumes the run",
+                "la valeur choisie reprend le run",
+            )
+        } else {
+            say("a no ends the run there", "un non arrête le run ici")
+        };
+        let tail = if french {
+            format!(
+                "\n  {outcome} · rien après la validation n'a encore eu lieu\n  répondez {how} · « pourquoi ? » explique · rien ne répond à votre place"
+            )
+        } else {
+            format!(
+                "\n  {outcome} · nothing after the gate has happened yet\n  answer {how} · « why? » explains · nothing answers for you"
+            )
+        };
+        view.push_str(&tail);
         view
     }
 
@@ -911,26 +1692,38 @@ fn attestation(trace: &Path) -> Attestation {
         ..Default::default()
     };
     let out = crate::trace_verify::verify_with(&trace.display().to_string(), &options);
-    let Ok(doc) = serde_json::from_str::<Value>(out.text.trim()) else {
-        return Attestation::NotAttested;
-    };
-    let word = |outer: &str, inner: &str| {
-        doc.get(outer)
-            .and_then(|v| v.get(inner))
-            .and_then(Value::as_str)
-    };
-    if word("chain", "headline") != Some("intact") {
-        return Attestation::NotAttested;
+    serde_json::from_str::<Value>(out.text.trim())
+        .map_or(Attestation::NotAttested, |doc| Attestation::of(&doc))
+}
+
+impl Attestation {
+    /// The verdict a verify document carries: the CLI's `--json`, or a
+    /// door's projection of it (`door_verdict` keeps its `tier`, `chain` and
+    /// `seal`). Pure: the one reading every view and every kept run makes.
+    fn of(doc: &Value) -> Self {
+        let word = |outer: &str, inner: &str| {
+            doc.get(outer)
+                .and_then(|v| v.get(inner))
+                .and_then(Value::as_str)
+        };
+        if word("chain", "headline") != Some("intact") {
+            return Self::NotAttested;
+        }
+        match (
+            doc.get("tier").and_then(Value::as_str),
+            word("seal", "tier"),
+        ) {
+            (Some("anchored" | "replayed"), Some("sealed")) => Self::Anchored,
+            (Some("sealed"), Some("sealed")) => Self::Signed,
+            (Some("ok"), Some("unsealed")) => Self::Unsigned,
+            (_, Some("unattributable")) => Self::KeyElsewhere,
+            _ => Self::NotAttested,
+        }
     }
-    match (
-        doc.get("tier").and_then(Value::as_str),
-        word("seal", "tier"),
-    ) {
-        (Some("anchored" | "replayed"), Some("sealed")) => Attestation::Anchored,
-        (Some("sealed"), Some("sealed")) => Attestation::Signed,
-        (Some("ok"), Some("unsealed")) => Attestation::Unsigned,
-        (_, Some("unattributable")) => Attestation::KeyElsewhere,
-        _ => Attestation::NotAttested,
+
+    /// The run key signed the journal and its signature verifies here.
+    fn signed(self) -> bool {
+        matches!(self, Self::Anchored | Self::Signed)
     }
 }
 
@@ -1055,12 +1848,25 @@ pub fn resumed_live(trace: &Path) -> Vec<String> {
 /// `None` when the plan carries every completion (nothing is said then, and nothing promised).
 #[must_use]
 pub fn live_again(trace: &Path) -> Option<String> {
+    live_again_in(trace, false)
+}
+
+/// [`live_again`], said in French when `french`.
+#[must_use]
+pub fn live_again_in(trace: &Path, french: bool) -> Option<String> {
     let live = resumed_live(trace);
     (!live.is_empty()).then(|| {
-        format!(
-            "any answer resumes the run, and these completed tasks run again, live · {} (the journal cannot serve them back)",
-            live.join(" · ")
-        )
+        if french {
+            format!(
+                "toute réponse reprend le run, et ces tâches terminées tournent à nouveau, en direct · {} (le journal ne peut pas les resservir)",
+                live.join(" · ")
+            )
+        } else {
+            format!(
+                "any answer resumes the run, and these completed tasks run again, live · {} (the journal cannot serve them back)",
+                live.join(" · ")
+            )
+        }
     })
 }
 
@@ -1107,6 +1913,91 @@ pub fn produced(root: &Path, workflow: &Path) -> Option<String> {
     (!produced.is_empty()).then(|| format!("produced · {}", produced.join(" · ")))
 }
 
+/// A declared output as the run report says it: a string's one line, or its first and its last
+/// line with their count when it holds more (a journal a run appends to ends with what this run
+/// wrote: live gauntlet wave 6 r08 B2, 2026-10-18, three runs read « résultat · journal · » the
+/// first run's line), any other value as its compact JSON; each part cut with « … ».
+fn shown_output(value: &Value, french: bool) -> String {
+    let cut = |text: &str, at: usize| match text.char_indices().nth(at) {
+        Some((end, _)) => format!("{}…", &text[..end]),
+        None => text.to_owned(),
+    };
+    let Value::String(text) = value else {
+        return cut(&value.to_string(), 160);
+    };
+    let lines: Vec<&str> = (text.lines())
+        .filter(|line| !line.trim().is_empty())
+        .collect();
+    match lines.as_slice() {
+        [] => String::new(),
+        [only] => cut(only, 160),
+        [first, .., last] => {
+            let count = lines.len();
+            let counted = if french {
+                format!("{count} lignes")
+            } else {
+                format!("{count} lines")
+            };
+            format!("{} … {} ({counted})", cut(first, 80), cut(last, 80))
+        }
+    }
+}
+
+/// The tasks of `workflow` that remove a file (`nika:remove_file`), read from its bytes now.
+fn removal_tasks(root: &Path, workflow: &Path) -> Vec<String> {
+    let Ok(source) = std::fs::read_to_string(root.join(workflow)) else {
+        return Vec::new();
+    };
+    let Ok(wf) = nika_schema::parse(
+        &source,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    ) else {
+        return Vec::new();
+    };
+    (wf.tasks.iter())
+        .filter(|task| match &task.value.action {
+            nika_schema::raw::RawAction::Invoke(invoke) => invoke
+                .tool()
+                .is_some_and(|tool| tool.value == "nika:remove_file"),
+            _ => false,
+        })
+        .map(|task| task.value.id.value.clone())
+        .collect()
+}
+
+/// The tasks of the workflow at `root`/`workflow` that send beyond this machine, in its order: a
+/// `nika:notify`, and a `nika:fetch` whose literal method is not GET.
+fn sending_tasks(root: &Path, workflow: &Path) -> Vec<String> {
+    let Ok(source) = std::fs::read_to_string(root.join(workflow)) else {
+        return Vec::new();
+    };
+    let Ok(wf) = nika_schema::parse(
+        &source,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    ) else {
+        return Vec::new();
+    };
+    (wf.tasks.iter())
+        .filter(|task| {
+            let nika_schema::raw::RawAction::Invoke(invoke) = &task.value.action else {
+                return false;
+            };
+            let Some(tool) = invoke.tool() else {
+                return false;
+            };
+            let method = (invoke.args.as_ref())
+                .and_then(|args| args.value.get("method"))
+                .and_then(Value::as_str);
+            tool.value == "nika:notify"
+                || (tool.value == "nika:fetch"
+                    && method.is_some_and(|method| !method.eq_ignore_ascii_case("GET")))
+        })
+        .map(|task| task.value.id.value.clone())
+        .collect()
+}
+
 /// In a git work tree (`git_root`) whose `.gitignore` does not keep
 /// `.nika/traces/` out, a run's trace (model outputs · file contents · 0600)
 /// would be one `git add` away from a commit: the note that says so.
@@ -1124,6 +2015,9 @@ pub fn hygiene_note(git_root: Option<&Path>) -> Option<String> {
     })
 }
 
+mod join;
+pub use join::{ComponentRun, ComponentTask};
+
 mod kept;
 pub use kept::KeptRun;
 
@@ -1134,6 +2028,10 @@ mod identity_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod completed_write_tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod join_tests;
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]

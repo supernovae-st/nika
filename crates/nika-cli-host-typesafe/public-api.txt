@@ -58,6 +58,7 @@ pub fn nika_cli_host_typesafe::session::DecisionSetup::consult(&self, allowed: c
 pub fn nika_cli_host_typesafe::session::DecisionSetup::from_env() -> core::option::Option<Self>
 pub fn nika_cli_host_typesafe::session::DecisionSetup::line(&self) -> alloc::string::String
 pub fn nika_cli_host_typesafe::session::DecisionSetup::model(&self) -> &str
+pub fn nika_cli_host_typesafe::session::DecisionSetup::named(word: &str) -> Self
 pub fn nika_cli_host_typesafe::session::DecisionSetup::observations(&self) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_cli_host_typesafe::session::DecisionSetup::refusal(&self) -> core::option::Option<&str>
 pub fn nika_cli_host_typesafe::session::DecisionSetup::source(&self) -> &'static str
@@ -117,6 +118,7 @@ impl nika_compile_seats::decide::DecisionSeat for nika_cli_host_typesafe::sessio
 pub fn nika_cli_host_typesafe::session::SessionSeat::choose<'a>(&'a self, question: &'a nika_compile_seats::decide::ChoiceQuestion) -> nika_compile_seats::decide::ChoiceFuture<'a>
 pub fn nika_cli_host_typesafe::session::SessionSeat::choose_each<'a>(&'a self, batch: &'a nika_compile_seats::decide::batch::ChoiceBatch) -> nika_compile_seats::decide::batch::BatchFuture<'a>
 pub fn nika_cli_host_typesafe::session::SessionSeat::name(&self) -> &str
+pub fn nika_cli_host_typesafe::session::SessionSeat::weighs(&self) -> bool
 impl<D> owo_colors::OwoColorize for nika_cli_host_typesafe::session::SessionSeat
 impl<T, U> core::convert::Into<U> for nika_cli_host_typesafe::session::SessionSeat where U: core::convert::From<T>
 pub fn nika_cli_host_typesafe::session::SessionSeat::into(self) -> U
@@ -309,6 +311,7 @@ impl nika_compile_seats::decide::DecisionSeat for nika_cli_host_typesafe::Typesa
 pub fn nika_cli_host_typesafe::TypesafeSeat::choose<'a>(&'a self, question: &'a nika_compile_seats::decide::ChoiceQuestion) -> nika_compile_seats::decide::ChoiceFuture<'a>
 pub fn nika_cli_host_typesafe::TypesafeSeat::choose_each<'a>(&'a self, batch: &'a nika_compile_seats::decide::batch::ChoiceBatch) -> nika_compile_seats::decide::batch::BatchFuture<'a>
 pub fn nika_cli_host_typesafe::TypesafeSeat::name(&self) -> &str
+pub fn nika_cli_host_typesafe::TypesafeSeat::weighs(&self) -> bool
 impl<D> owo_colors::OwoColorize for nika_cli_host_typesafe::TypesafeSeat
 impl<T, U> core::convert::Into<U> for nika_cli_host_typesafe::TypesafeSeat where U: core::convert::From<T>
 pub fn nika_cli_host_typesafe::TypesafeSeat::into(self) -> U

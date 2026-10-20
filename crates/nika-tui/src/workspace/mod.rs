@@ -25,13 +25,28 @@ pub mod candidate;
 pub(crate) mod cards;
 pub mod conversation;
 pub(crate) mod desk;
+pub(crate) use nika_tui_view::workspace::fired;
 pub mod focus;
 pub mod geometry;
 pub mod header;
 pub mod inspect;
-pub mod live;
+/// The live run in view, relocated to [`nika_tui_view::workspace::live`] (ADR-143): this path
+/// keeps the renderer's callers unchanged. Its tests stay here, beside the desk that drives it.
+pub use nika_tui_view::workspace::live;
 pub mod object;
 pub mod pinned;
 pub mod project;
 pub mod screen;
 mod text;
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod live_tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod live_task_tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod live_child_tests;

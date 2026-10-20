@@ -2,8 +2,8 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! Issued knowledge releases embedded by this build. New authoring uses the current release, the
-//! r3 Foundry release under the r2 run contract; retained r2, a8 and R3 pins reopen their exact
-//! bytes. Selection by snapshot does not admit a payload: every version still passes
+//! r3.5 Foundry release under the r2 run contract; retained r3.2, r2, a8 and R3 pins reopen their
+//! exact bytes. Selection by snapshot does not admit a payload: every version still passes
 //! `Snapshot::from_files` against the caller's complete trusted identity.
 
 // One typed table for each finite embedded r1 release; paths remain literal and compiled in. The
@@ -17,6 +17,7 @@ macro_rules! embedded_files {
 mod a8;
 mod current;
 mod r2_20261009;
+mod r3_2_20261012;
 
 #[cfg(test)]
 use std::collections::BTreeMap;
@@ -88,6 +89,7 @@ pub fn admit(identity: Option<&TrustedIdentity>) -> Result<Snapshot, KnowledgeEr
             .collect(),
         Some((a8::SNAPSHOT_SHA256, _) | (_, ADMISSION_PROFILE)) => a8::files(),
         Some((r2_20261009::SNAPSHOT_SHA256, _)) => r2_20261009::files(),
+        Some((r3_2_20261012::SNAPSHOT_SHA256, _)) => r3_2_20261012::files(),
         _ => current::files(),
     };
     Snapshot::from_files(LABEL, files, identity)

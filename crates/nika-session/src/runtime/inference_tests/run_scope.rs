@@ -33,7 +33,11 @@ fn restored_draft_run_ceiling_does_not_poison_following_cognition_or_reopen() {
         TurnOutcome::Proposal { .. }
     ));
     assert!(matches!(resumed.consent("yes"), TurnOutcome::Facts(_)));
-    assert!(matches!(resumed.turn("run it"), TurnOutcome::Refusal(_)));
+    // No ceiling can be proved for the restored draft's Save: the run asks for one, and a run
+    // line stating one is a request of its own (NIK-170).
+    assert!(matches!(resumed.turn("run it"),
+        TurnOutcome::Question { ref key, .. } if key == "run.ceiling"));
+    assert!(resumed.work().requested.is_none());
     assert!(matches!(resumed.turn("run it with a ceiling of 0"),
         TurnOutcome::RunRequested { ref run, .. } if run.max_cost_usd.to_bits() == 0.0_f64.to_bits()));
     assert_eq!(
@@ -47,9 +51,12 @@ fn restored_draft_run_ceiling_does_not_poison_following_cognition_or_reopen() {
     );
     resumed.observe_run(0, None); // synthetic host completion, not a real Run proof
     assert!(
-        matches!(resumed.turn("run it"), TurnOutcome::Refusal(_)),
-        "the prior explicit Run ceiling is not inherited"
+        matches!(resumed.turn("run it"),
+            TurnOutcome::Question { ref key, .. } if key == "run.ceiling"),
+        "the prior explicit Run ceiling is not inherited: it is asked again"
     );
+    assert!(matches!(resumed.turn("cancel"), TurnOutcome::Facts(_)));
+    assert_eq!(resumed.waiting(), crate::work::Waiting::Free);
     assert!(matches!(
         resumed.turn("What can you tell me about stars?"),
         TurnOutcome::Reply(_)

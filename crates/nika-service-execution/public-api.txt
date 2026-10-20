@@ -491,6 +491,7 @@ pub fn nika_service_execution::replay::ReplayScreen::behind(&self, task: &str) -
 pub fn nika_service_execution::replay::ReplayScreen::is_unexercised(&self, task: &str) -> bool
 pub fn nika_service_execution::replay::ReplayScreen::new(unexercised: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, upstream: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<alloc::string::String>>, filters: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_service_execution::replay::ReplayScreen::screens(&self, task: &nika_schema::raw::task::RawTask) -> bool
+pub fn nika_service_execution::replay::ReplayScreen::written_behind(&self, workflow: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<alloc::string::String>
 impl core::clone::Clone for nika_service_execution::replay::ReplayScreen
 pub fn nika_service_execution::replay::ReplayScreen::clone(&self) -> nika_service_execution::replay::ReplayScreen
 impl core::cmp::Eq for nika_service_execution::replay::ReplayScreen
@@ -1139,6 +1140,7 @@ pub fn nika_service_execution::AuthorizedRuntime::with_resume_compat(self, compa
 pub fn nika_service_execution::AuthorizedRuntime::with_resume_plan(self, plan: nika_runtime::resume::ResumePlan) -> Self
 pub fn nika_service_execution::AuthorizedRuntime::with_resume_unverified(self, unverified: core::option::Option<nika_runtime::resume::ResumeUnverified>) -> Self
 pub fn nika_service_execution::AuthorizedRuntime::with_resumed_from(self, resumed_from: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_service_execution::AuthorizedRuntime::with_run_facts(self, facts: nika_runtime::run_facts::RunFacts) -> Self
 pub fn nika_service_execution::AuthorizedRuntime::with_var_overrides(self, overrides: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
 impl core::fmt::Debug for nika_service_execution::AuthorizedRuntime
 pub fn nika_service_execution::AuthorizedRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -1574,6 +1576,7 @@ pub fn nika_service_execution::ServiceExecutionOptions::with_inputs(self, inputs
 pub fn nika_service_execution::ServiceExecutionOptions::with_max_cost_usd(self, max_cost_usd: core::option::Option<f64>) -> Self
 pub fn nika_service_execution::ServiceExecutionOptions::with_mirror(self, factory: nika_service_execution::MirrorFactory) -> Self
 pub fn nika_service_execution::ServiceExecutionOptions::with_model_override(self, model: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_service_execution::ServiceExecutionOptions::with_run_facts(self, facts: nika_runtime::run_facts::RunFacts) -> Self
 impl nika_service_execution::ServiceExecutionOptions
 pub fn nika_service_execution::ServiceExecutionOptions::with_runtime_config(self, config: nika_runtime::config::RuntimeConfig) -> Self
 impl core::clone::Clone for nika_service_execution::ServiceExecutionOptions

@@ -103,8 +103,11 @@ fn every_face_of_a_look_comes_from_the_one_read() {
     for face in Face::ALL {
         let rows = text(&look.face_lines(face, 78, true, false));
         assert!(rows[0].contains(&format!("[{}]", face.label())), "{rows:?}");
+        // Each face says it shows the file as last read, never its witness's hex.
+        let read = (rows.iter()).any(|r| r.to_lowercase().contains("as last read"));
+        assert!(read, "{face:?}: {rows:?}");
         assert!(
-            rows.iter().any(|r| r.contains(&short)),
+            !rows.iter().any(|r| r.contains(&short)),
             "{face:?}: {rows:?}"
         );
     }

@@ -17,7 +17,7 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
 use crate::seal::{
-    KEYRING_USER_PUB, fallback_key_path, fingerprint, key_file_env, keyring_entry, retired_path,
+    fallback_key_path, fingerprint, key_file_env, keychain_public_item, retired_path,
 };
 
 #[must_use]
@@ -31,9 +31,8 @@ pub fn sidecar_path(workflow: &Path) -> PathBuf {
 fn enrolled_pubboxes() -> Vec<String> {
     let current = if let Ok(pf) = key_file_env("NIKA_RUN_PUB_FILE") {
         std::fs::read_to_string(pf).ok() // seam-bypass-ok: CLI custody read (L4 surface)
-    } else if let Some(pk) =
-        keyring_entry(KEYRING_USER_PUB).and_then(|entry| entry.get_password().ok())
-    {
+    } else if let Some(pk) = keychain_public_item() {
+        // The public item alone, read once per process: never the secret one.
         Some(pk)
     } else {
         fallback_key_path().and_then(|p| std::fs::read_to_string(p.with_extension("pub")).ok()) // seam-bypass-ok: same custody read

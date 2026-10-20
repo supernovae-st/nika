@@ -32,7 +32,7 @@ pub struct UnifiedFinding {
     /// The class slug (`conformance` · `secret_leak` · `secret_egress` ·
     /// `capability_escape` · `exec_floor` · `permit_taint` · `data_sink` ·
     /// `consent` · `trifecta` · `schema_type` · `gate` ·
-    /// `run_decl` · `retry_safety` · `write_conflict` · `composition` ·
+    /// `run_decl` · `retry_safety` · `write_conflict` · `composition` · `project_file` ·
     /// `unknown_tool` ·
     /// `unknown_arg` · `missing_arg` · `schema_lint`).
     pub kind: &'static str,
@@ -85,6 +85,21 @@ fn fold_write_conflicts(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
         f.code = Some(w.wire_code().to_owned());
         f.docs_url = Some(format!("{}/{}", super::ERROR_DOCS_BASE, w.wire_code()));
         f.task = Some(w.task.clone());
+        out.push(f);
+    }
+}
+
+/// The project-file fold (spec 02 §Project files): task · field · path · law, with its code.
+fn fold_project_files(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for p in &report.project_files {
+        let mut f = UnifiedFinding::new(
+            "project_file",
+            "PROJECT FILES",
+            format!("{} {} `{}` — {}", p.task, p.field, p.path, p.detail),
+        );
+        f.code.clone_from(&p.code);
+        f.docs_url = (p.code.as_ref()).map(|code| format!("{}/{code}", super::ERROR_DOCS_BASE));
+        f.task = Some(p.task.clone());
         out.push(f);
     }
 }
@@ -286,6 +301,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
     fold_retry_safety(report, &mut out);
     fold_write_conflicts(report, &mut out);
     fold_composition(report, &mut out);
+    fold_project_files(report, &mut out);
     fold_tools(report, &mut out);
     fold_slots(report, &mut out);
     for l in &report.schema_lints {
@@ -1052,11 +1068,44 @@ tasks:
         );
     }
 
+    /// The pin advisory beside C04: a registered server whose pins were never approved is named
+    /// with its approval command, as advice; the check stays clean (it never blocks). Approved
+    /// pins that hold the tool leave nothing to advise.
+    #[test]
+    fn a_registered_but_unapproved_mcp_server_is_advised_never_refused() {
+        let registry = r#"{"mcp_servers_format":1,"servers":{"spotify":{"command":"npx"}}}"#;
+        let pins = r#"{"mcp_pins_format":1,"servers":{"spotify":{"pinned_at":"t","tools":{"search":{"description":"","inputSchema":{}}}}}}"#;
+        let files = |approved: bool| {
+            move |p: &str| match p {
+                ".nika/mcp_servers.json" => Ok(registry.to_owned()),
+                ".nika/mcp_pins.json" if approved => Ok(pins.to_owned()),
+                _ => Err("absent".to_owned()),
+            }
+        };
+        let unapproved = composed(SPOTIFY_SEARCH, &mut files(false));
+        assert!(unapproved.is_clean(), "{:#?}", unapproved.findings);
+        let advice: Vec<&str> = (unapproved.hints.iter())
+            .filter(|h| h.kind == "mcp-pins")
+            .map(|h| h.advice.as_str())
+            .collect();
+        assert_eq!(advice.len(), 1, "{advice:?}");
+        assert!(advice[0].contains("nika mcp approve spotify"), "{advice:?}");
+        let approved = composed(SPOTIFY_SEARCH, &mut files(true));
+        assert!(
+            !approved.hints.iter().any(|h| h.kind == "mcp-pins"),
+            "{:#?}",
+            approved.hints
+        );
+    }
+
     /// C04 mutation: a registry that lists `spotify` must not raise the
     /// ghost-server finding (the predicate is membership, not "any file").
     #[test]
     fn check_accepts_mcp_spotify_when_the_registry_names_it() {
         let r = composed(SPOTIFY_SEARCH, &mut |p| {
+            if p == ".nika/mcp_pins.json" {
+                return Err("no pins approved".to_owned());
+            }
             assert_eq!(p, ".nika/mcp_servers.json");
             Ok(r#"{"mcp_servers_format":1,"servers":{"spotify":{"command":"npx"}}}"#.to_owned())
         });

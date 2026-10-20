@@ -125,3 +125,35 @@ async fn protocol_nack_retry_is_disabled_only_in_bounded_configuration() {
         let _ = server.await;
     }
 }
+
+/// The idle-read guard follows `idle_read_timeout`, apart from the
+/// default total deadline: a server that computes before it answers outlives a
+/// 100 ms default when the guard and the request's own deadline allow it, and
+/// dies at the guard when only the request's deadline does.
+#[tokio::test]
+async fn the_idle_guard_is_apart_from_the_default_deadline() {
+    for (guard, answers) in [(Some(Duration::from_secs(5)), true), (None, false)] {
+        let origin = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/slow", origin.local_addr().unwrap());
+        tokio::spawn(async move {
+            let (mut stream, _) = origin.accept().await.unwrap();
+            let mut b = [0; 4096];
+            let _ = stream.read(&mut b).await.unwrap();
+            tokio::time::sleep(Duration::from_millis(400)).await;
+            let _ = stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+                .await;
+        });
+        let config = HttpConfig {
+            ssrf: SsrfMode::Disabled,
+            timeout: Duration::from_millis(100),
+            idle_read_timeout: guard,
+            ..Default::default()
+        };
+        let http = ReqwestHttp::with_config(config).unwrap();
+        let mut request = HttpRequest::get(&url);
+        request.timeout = Some(Duration::from_secs(5));
+        let result = http.get(request).await;
+        assert_eq!(result.is_ok(), answers, "{guard:?}: {result:?}");
+    }
+}

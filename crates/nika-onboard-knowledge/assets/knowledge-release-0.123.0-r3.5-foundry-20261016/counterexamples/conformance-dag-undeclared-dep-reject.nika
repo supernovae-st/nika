@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# Expected: NIKA-DAG-002 at CHECK.
+nika: e08-dag-undeclared-dep
+# INTENT: trigger NIKA-DAG-002 (after: references an undeclared task)
+tasks:
+  step:
+    after: { nonexistent_task: success }
+    exec:
+      command: ["echo", "hello"]

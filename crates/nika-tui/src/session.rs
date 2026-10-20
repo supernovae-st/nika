@@ -18,10 +18,9 @@
 //! an interruption cancels them without sending anything, and `details` reads
 //! the same review's evidence without answering it.
 //!
-//! Without a kept intelligence choice the runtime opens all the same
-//! (`open_unchosen`): the first screen is asked through the composer under
-//! the `›` prompt the first time a turn needs an intelligence, by the
-//! runtime's own `choose` law, and the line that waited resumes after it.
+//! The native conversation requires a ready intelligence. Without one the
+//! composer opens its current choices immediately, and keeps any interrupted
+//! request until a usable choice resumes it through the runtime's `choose` law.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -38,6 +37,8 @@ use feed::{Feed, Seen};
 use legs::{Leg, Legs};
 use nika_display::run_story::{ChildRun, ExecutionId};
 use nika_session::{KeptRun, Lifecycle, LifecycleFacts, RunFact, Stage};
+
+use crate::lang::{Voice, fill};
 
 /// A fresh Run may suspend at a child-owned cost question. Only the run's
 /// story reaches the sender: no frame is typed, so the workspace cannot follow
@@ -62,6 +63,10 @@ use nika_session::ProjectSnapshot;
 
 /// The exit code and the trace a run left.
 pub type RunOutcome = (u8, Option<PathBuf>);
+/// One free check of a provider's API key, by the provider's id, sent only when the person
+/// picks « Test the key » (`nika_session::reasoner::check_api_key` at the composition root):
+/// what it observed, or why it could not run. Never the key.
+pub type CheckKey = Box<dyn Fn(&str) -> Result<nika_session::KeyCheck, String> + Send>;
 /// `nika run <workflow>` once, under the request's ceiling: (root, request).
 pub type RunOnce = Box<dyn Fn(&Path, &RunRequest) -> RunOutcome + Send>;
 /// `nika run --resume <trace> --answer <answer>`: (root, workflow, trace, answer).
@@ -167,8 +172,8 @@ pub struct Live {
     /// The program the host named to run `nika:jq` in the observed room, given to every
     /// runtime this Live opens.
     jq: Option<nika_session::JqHelper>,
-    /// Set once the current turn hands a Run to its runner: the turn's stop
-    /// then answers that a Run is under way and cancels nothing.
+    /// True while the current turn's runner owns execution. Once it returns, Stop and
+    /// corrections can reach any preparation triggered by observing its failure.
     run_started: Arc<AtomicBool>,
     /// HOME display preferences, with no Session or Run authority.
     layout: layout::Store,
@@ -177,6 +182,57 @@ pub struct Live {
     shown: work::Waiting,
     /// Presentation scope for selections; runtime identity remains the strong shown token.
     question_epoch: u64,
+    /// The list the native intelligence picker shows, with no selection authority.
+    intelligence_view: intelligence::View,
+    /// The words that guide that list while it is open ([`crate::model::Asked`]'s guide):
+    /// its own navigation says them in its head, never into the conversation.
+    picker_guide: Option<String>,
+    /// The shell draws in the ASCII glyph column: the words built here for the screen take it.
+    ascii: bool,
+    /// The machine's zone, as the shell says it ([`Conversation::clock`]): the instants said here
+    /// read on its clock. UTC until the shell says it, so no test reads the machine's.
+    zone: jiff::tz::TimeZone,
+    /// The model the person asked for the next workflows' AI steps, as said to the author.
+    run_requested: Option<String>,
+    /// The host's key check, when it lends one; sent only when the person picks it.
+    check_key: Option<CheckKey>,
+    /// The last key check the person asked for: the provider and what the check observed.
+    key_checked: Option<(String, Result<nika_session::KeyCheck, String>)>,
+    /// The key variables each provider has set, by name, as the census probed them.
+    key_names: Vec<intelligence::keys::KeyNames>,
+    /// Exact finite decision painted; no authority beyond the Session door.
+    action: Option<actions::Pending>,
+    /// The known preparation spend, in nano-USD, the Session observed when this
+    /// conversation opened: what [`Conversation::spend`] counts from.
+    spend_base: i128,
+    /// What the trigger of each declared schedule decided, as the Session read it last
+    /// ([`SessionRuntime::schedule_history`]): the rail, the list and the conversation read it.
+    schedules: Vec<nika_session::ScheduleHistory>,
+    /// What each schedule's line in the conversation last said, by its label.
+    schedules_said: Vec<(String, crate::workspace::fired::Said)>,
+    /// This conversation observed a run: the footer no longer tells an earlier session's run
+    /// (live gauntlet 5, r09 B13: « Run ○ (précédent ×) » after a green run here, once a save
+    /// reset the Run field).
+    ran_here: bool,
+    /// The language this machine's locale names, as the composition root read it
+    /// ([`Self::with_locale`]): the TUI's own words take it before the person's words say one.
+    locale: nika_session::Lang,
+    /// The language the person's newest line that says one is written in, in this process.
+    heard: Option<nika_session::Lang>,
+}
+
+/// The language the TUI's own words take: the one the person's newest line said (`heard`),
+/// else the one the Session resumed from their earlier lines (a French history), else this
+/// machine's `locale` (live gauntlet 6, r04 and r10: the top bar and the first screen spoke
+/// English until the first French line).
+fn speaking(
+    runtime: Option<&SessionRuntime>,
+    heard: Option<nika_session::Lang>,
+    locale: nika_session::Lang,
+) -> nika_session::Lang {
+    let resumed = (runtime.map(SessionRuntime::language))
+        .filter(|lang| *lang != nika_session::Lang::default());
+    heard.or(resumed).unwrap_or(locale)
 }
 
 impl std::fmt::Debug for Live {
@@ -190,8 +246,8 @@ impl std::fmt::Debug for Live {
 
 impl Live {
     /// A conversation over `cwd`. `kept` is the intelligence choice found
-    /// under the home, when one exists; without it the runtime opens
-    /// unchosen and asks the first screen when a turn needs one.
+    /// under the home, when one exists; without a usable choice the opening
+    /// screen guides the person to the intelligence this conversation needs.
     #[must_use]
     pub fn new(
         cwd: PathBuf,
@@ -202,6 +258,7 @@ impl Live {
         runners: Runners,
     ) -> Self {
         let layout = layout::Store::open(home.as_deref());
+        let key_names = intelligence::keys::names_of(&census.provider_context);
         let mut live = Self {
             cwd,
             census,
@@ -224,9 +281,38 @@ impl Live {
             layout,
             shown: work::Waiting::Free,
             question_epoch: 0,
+            intelligence_view: intelligence::View::Home,
+            picker_guide: None,
+            ascii: false,
+            zone: jiff::tz::TimeZone::UTC,
+            run_requested: None,
+            check_key: None,
+            key_checked: None,
+            key_names,
+            action: None,
+            spend_base: 0,
+            schedules: Vec::new(),
+            schedules_said: Vec::new(),
+            ran_here: false,
+            locale: nika_session::Lang::default(),
+            heard: None,
         };
         live.open_runtime(kept);
         live
+    }
+
+    /// Say the TUI's own words in `lang`, this machine's locale as the composition root reads
+    /// it, until the person's words say a language: the top bar and the first screen speak it
+    /// before the first line. A conversation the Session resumes in French speaks French.
+    #[must_use]
+    pub fn with_locale(mut self, lang: nika_session::Lang) -> Self {
+        self.locale = lang;
+        self
+    }
+
+    /// The language the TUI's own words take now ([`speaking`]).
+    fn lang(&self) -> nika_session::Lang {
+        speaking(self.runtime.as_ref(), self.heard, self.locale)
     }
 
     /// Supply actual monetary scope evidence for this host, before opening beats.
@@ -246,6 +332,26 @@ impl Live {
             runtime.with_jq_helper(helper.clone());
         }
         self.jq = Some(helper);
+        self
+    }
+
+    /// Install and remove the trigger a declared schedule needs through `host`, on the person's
+    /// own yes (D1): a person's own terminal on a Mac lends [`nika_session::LaunchdHost`].
+    /// Without one the Session keeps [`nika_session::DeclaredOnly`]: a landed declaration stays
+    /// declared, said with the command that installs it, and nothing is asked.
+    #[must_use]
+    pub fn with_trigger_host(mut self, host: Box<dyn nika_session::TriggerHost>) -> Self {
+        if let Some(runtime) = self.runtime.as_mut() {
+            runtime.with_trigger_host(host);
+        }
+        self
+    }
+
+    /// Lend the picker a key check (« Test the key »), sent only when the person picks it,
+    /// never at open; without one the row is not offered.
+    #[must_use]
+    pub fn with_key_check(mut self, check: CheckKey) -> Self {
+        self.check_key = Some(check);
         self
     }
 
@@ -325,13 +431,19 @@ impl Live {
 
     /// The beats that open a runtime: banner, history, restored state.
     fn opening_beats(&mut self) -> Vec<Beat> {
+        let (heard, locale) = (self.heard, self.locale);
         let Some(runtime) = self.runtime.as_mut() else {
             return Vec::new();
         };
         let mut beats = vec![Beat::Say(Committed::new(Kind::Banner, runtime.banner()))];
+        // The Session's own notice that the conversation was restored, when it gives one.
+        let mut restored = false;
         match self.home.as_deref() {
             Some(home) => match runtime.enable_history(home) {
-                Ok(Some(notice)) => beats.push(Beat::Say(Committed::new(Kind::Notice, notice))),
+                Ok(Some(notice)) => {
+                    restored = true;
+                    beats.push(Beat::Say(Committed::new(Kind::Notice, notice)));
+                }
                 Ok(None) => {}
                 Err(why) => {
                     beats.push(Beat::Say(Committed::new(Kind::Refusal, why.to_string())));
@@ -345,11 +457,38 @@ impl Live {
             ))),
         }
         if let Some(notice) = runtime.restore_state() {
-            beats.push(Beat::Say(Committed::new(Kind::Notice, notice)));
+            // A restored live gate includes its exact question in this owner text.
+            let kind = if matches!(runtime.waiting(), work::Waiting::Gate { .. }) {
+                Kind::Gate
+            } else {
+                Kind::Notice
+            };
+            beats.push(Beat::Say(Committed::new(kind, notice)));
         }
-        beats.extend(earlier(runtime.kept_turns()));
+        if !intelligence::ready(runtime) {
+            let _ = runtime.turn("/intelligence");
+            let guide = intelligence::guidance(runtime, speaking(Some(runtime), heard, locale));
+            // The opening list's guide stands in its head while it is open, as every list's
+            // does, so the welcome card never says a choice is pending once it is made (live
+            // gauntlet, 16 October: « A message typed here waits for your choice. » stayed in
+            // it after the choice). With no list to show, the conversation says what is missing.
+            if intelligence::listed(runtime) && runtime.pending_choice() {
+                self.picker_guide = Some(guide);
+            } else {
+                beats.push(Beat::Say(Committed::new(Kind::Notice, guide)));
+            }
+        }
+        let voice = Voice {
+            lang: speaking(Some(runtime), heard, locale),
+            ascii: self.ascii,
+        };
+        beats.extend(earlier(
+            runtime.kept_turns(),
+            |index| runtime.kept_turn_is_human(index),
+            (voice, restored),
+        ));
         let kept = runtime.kept_run();
-        if let Some(line) = kept_line(kept.as_ref()) {
+        if let Some(line) = kept_line(kept.as_ref(), voice) {
             beats.push(Beat::Say(Committed::new(Kind::Notice, line)));
         }
         if let (Some(Ok(run)), Ok(mut legs)) = (&kept, self.legs.lock()) {
@@ -359,8 +498,42 @@ impl Live {
         if let Some(notice) = self.layout.notice() {
             beats.push(Beat::Say(Committed::new(Kind::Notice, notice)));
         }
+        beats.extend(self.schedule_news());
         beats.extend(self.footer());
         beats.push(self.wait());
+        beats
+    }
+
+    /// Read what each declared schedule's trigger decided ([`SessionRuntime::schedule_history`],
+    /// a read only), then say in the conversation each schedule with news since its line was
+    /// last said: at the opening, every one that decided anything or cannot be read.
+    fn schedule_news(&mut self) -> Vec<Beat> {
+        let Some(runtime) = self.runtime.as_ref() else {
+            return Vec::new();
+        };
+        let voice = Voice {
+            lang: self.lang(),
+            ascii: self.ascii,
+        };
+        self.schedules = runtime.schedule_history();
+        let mut beats = Vec::new();
+        for history in &self.schedules {
+            let before = (self.schedules_said.iter())
+                .find(|(label, _)| *label == history.label)
+                .map(|(_, said)| *said);
+            if crate::workspace::fired::news(before, crate::workspace::fired::state(history)) {
+                let line = crate::workspace::fired::said(history, (voice, &self.zone));
+                beats.push(Beat::Say(Committed::new(Kind::Notice, line)));
+            }
+        }
+        self.schedules_said = (self.schedules.iter())
+            .map(|history| {
+                (
+                    history.label.clone(),
+                    crate::workspace::fired::state(history),
+                )
+            })
+            .collect();
         beats
     }
 
@@ -371,13 +544,32 @@ impl Live {
             return Vec::new();
         };
         let quiet = self.quiet_prompt();
-        footer_beats(
-            runtime.lifecycle(),
-            runtime.status_line(),
-            self.kept.as_ref(),
-            quiet,
-        )
-        .into()
+        let voice = Voice {
+            lang: runtime.language(),
+            ascii: self.ascii,
+        };
+        // Declared is never active: the rail's activation field reads ● only once a fire of the
+        // saved workflow's schedule is proved, and back to declared once its trigger is removed.
+        let mut lifecycle = runtime.lifecycle();
+        let saved = (runtime.work().saved).map(|saved| saved.workflow.display().to_string());
+        let schedule =
+            (saved.as_deref()).and_then(|path| crate::workspace::fired::of(&self.schedules, path));
+        if lifecycle.active == Stage::Declared
+            && schedule.is_some_and(crate::workspace::fired::proved)
+        {
+            lifecycle.active = Stage::Working;
+        }
+        // Still declared, its ◐ says which: declared only, or a firer standing that has not fired.
+        let standing = (lifecycle.active == Stage::Declared)
+            .then(|| crate::workspace::fired::standing(schedule, voice));
+        // An earlier session's run is told only while this conversation observed none.
+        let kept = self.kept.as_ref().filter(|_| !self.ran_here);
+        let [rail, status] = footer_beats(lifecycle, runtime.status_line(), kept, (quiet, voice));
+        let rail = match (rail, standing) {
+            (Beat::Rail(words), Some(word)) => Beat::Rail(with_activation(&words, word)),
+            (rail, _) => rail,
+        };
+        vec![rail, status]
     }
 
     /// The prompt the shell paints next, remembering the Session state it stands for: the
@@ -388,9 +580,51 @@ impl Live {
         self.shown = snapshot
             .as_ref()
             .map_or(work::Waiting::Free, |work| work.waiting.clone());
-        Beat::Wait(snapshot.as_ref().map_or(Waiting::Free, |work| {
+        let mut waiting = snapshot.as_ref().map_or(Waiting::Free, |work| {
             asked::capture(work, self.question_epoch)
-        }))
+        });
+        if let (Some(snapshot), Some(runtime)) = (&snapshot, &self.runtime) {
+            let voice = Voice {
+                lang: self.lang(),
+                ascii: self.ascii,
+            };
+            // The last check's verdict word, said in the language the picker speaks now.
+            let checked = (self.key_checked.as_ref()).map(|(provider, checked)| {
+                let (word, _) = intelligence::keys::verdict(provider, checked, voice);
+                (provider.as_str(), word)
+            });
+            let shown = intelligence::Shown {
+                view: &self.intelligence_view,
+                run: self.run_requested.as_deref(),
+                saved: runtime.operator_default(),
+                jev: (runtime.jev_seat()).map(|seat| (seat.model(), seat.refusal())),
+                keys: &self.key_names,
+                testable: self.check_key.is_some(),
+                checked: (checked.as_ref()).map(|(provider, word)| (*provider, word.as_str())),
+                voice,
+            };
+            intelligence::project(&mut waiting, snapshot, &shown);
+        }
+        if let Waiting::Selection { asked } = &mut waiting {
+            asked.guide.clone_from(&self.picker_guide);
+        } else {
+            self.picker_guide = None;
+        }
+        self.action = None;
+        let voice = Voice {
+            lang: self.lang(),
+            ascii: self.ascii,
+        };
+        if let (Some(runtime), Some(snapshot)) = (&self.runtime, &snapshot)
+            && let Some((pending, native)) = actions::capture(runtime, snapshot, voice)
+        {
+            self.action = Some(pending);
+            waiting = native;
+        }
+        if !matches!(waiting, Waiting::Selection { .. }) {
+            self.intelligence_view = intelligence::View::Home;
+        }
+        Beat::Wait(waiting)
     }
 
     /// Whether the runtime's prompt is quiet; a retained run keeps its own footer.
@@ -410,8 +644,10 @@ impl Live {
     }
 
     /// A Run's own observation to beats: its status is that Run's, never a
-    /// reply beside a retained Run, so its footer takes no reply label.
+    /// reply beside a retained Run, so its footer takes no reply label. From
+    /// now on the footer tells no earlier session's run.
     fn observed(&mut self, outcome: TurnOutcome) -> (Vec<Beat>, Option<Handoff>) {
+        self.ran_here = true;
         self.mapped(outcome, None)
     }
 
@@ -422,7 +658,13 @@ impl Live {
         reply: Option<&str>,
     ) -> (Vec<Beat>, Option<Handoff>) {
         let mut beats = Vec::new();
-        let mut handoff = None;
+        // A turn that says something in the conversation (a picked row's result, a refusal)
+        // takes the head of the intelligence list from the guide its navigation set there.
+        let guides = matches!(&outcome, TurnOutcome::Facts(text) if text.is_empty())
+            || matches!(&outcome, TurnOutcome::Ask(_));
+        if !guides {
+            self.picker_guide = None;
+        }
         match outcome {
             TurnOutcome::Quit => return (self.quit_beats(), None),
             TurnOutcome::RunReviewed { review, approve } => {
@@ -441,11 +683,7 @@ impl Live {
                     beats.push(Beat::Say(Committed::new(Kind::Reply, text)));
                 }
             }
-            // The first screen, in context or on `/intelligence`: the runtime
-            // now waits for the choice (`waiting()` reads it).
-            TurnOutcome::Ask(screen) => {
-                beats.push(Beat::Say(Committed::new(Kind::Reply, screen)));
-            }
+            TurnOutcome::Ask(screen) => beats.extend(self.first_screen(screen)),
             // The choice landed and the waiting line resumed under it: the
             // choice's fact, then whatever that line became.
             TurnOutcome::Resumed { notice, outcome } => {
@@ -457,24 +695,28 @@ impl Live {
             TurnOutcome::Proposal { id, preview } => {
                 beats.push(Beat::Say(Committed::proposal(id, preview)));
             }
-            TurnOutcome::Held { preview, .. } => {
-                beats.push(Beat::Say(Committed::new(Kind::Proposal, preview)));
-            }
+            TurnOutcome::Held { preview, .. } => beats.push(self.held_changes(preview)),
             TurnOutcome::RunRequested { report, run } => {
                 self.run_started.store(true, Ordering::Release);
                 beats.push(Beat::Say(Committed::new(Kind::Report, report)));
-                let label = format!(
-                    "running `{}` once · ceiling ${:.2}",
-                    run.workflow.display(),
-                    run.max_cost_usd
-                );
+                let stated = nika_display::vocab::stated_usd(run.max_cost_usd);
+                let french = (self.runtime.as_ref())
+                    .is_some_and(|runtime| runtime.language() == nika_session::Lang::Fr);
+                let label = if french {
+                    format!(
+                        "lancement unique de `{}` · plafond {} $",
+                        run.workflow.display(),
+                        stated.replace('.', ",")
+                    )
+                } else {
+                    format!(
+                        "running `{}` once · ceiling ${stated}",
+                        run.workflow.display()
+                    )
+                };
                 beats.push(Beat::Say(Committed::new(Kind::Report, label.clone())));
                 let work = Work::Run(run);
-                if self.runner(&work).is_some() {
-                    beats.extend(self.run_inline(&work));
-                    return (beats, None);
-                }
-                handoff = Some(self.keep(work, label));
+                return self.run_or_handoff(work, label, beats);
             }
             TurnOutcome::Question { key, question, .. } => {
                 beats.push(Beat::Say(self.question(&key, question)));
@@ -495,11 +737,7 @@ impl Live {
                     trace,
                     answer,
                 };
-                if self.runner(&work).is_some() {
-                    beats.extend(self.run_inline(&work));
-                    return (beats, None);
-                }
-                handoff = Some(self.keep(work, label));
+                return self.run_or_handoff(work, label, beats);
             }
             TurnOutcome::Refusal(why) => {
                 beats.push(Beat::Say(Committed::new(Kind::Refusal, why.to_string())));
@@ -509,11 +747,55 @@ impl Live {
             TurnOutcome::Cancelled(note) => beats.push(Beat::Cancelled(note)),
             _ => {}
         }
-        if handoff.is_none() {
-            beats.extend(self.reply_footer(reply));
-            beats.push(self.wait());
+        beats.extend(self.schedule_news());
+        beats.extend(self.reply_footer(reply));
+        beats.push(self.wait());
+        (beats, None)
+    }
+
+    /// The first screen, in context or on `/intelligence`: the runtime now waits for the choice
+    /// (`waiting()` reads it), and the list's own guide is its head's, never a message of the
+    /// conversation (live gauntlet r02 to r09: « Choose an intelligence below. » stayed in the
+    /// history). Without a choice waiting, the screen is said as a reply.
+    fn first_screen(&mut self, screen: String) -> Option<Beat> {
+        let lang = self.lang();
+        let guide = (self.runtime.as_ref())
+            .filter(|runtime| runtime.pending_choice())
+            .map(|runtime| intelligence::guidance(runtime, lang));
+        self.picker_guide = guide;
+        self.picker_guide
+            .is_none()
+            .then(|| Beat::Say(Committed::new(Kind::Reply, screen)))
+    }
+
+    /// The exact bytes open on what they change in each file they replace, line by line
+    /// against the file as it is now (live gauntlet r06 B8: « Inspect the exact changes »
+    /// printed the file whole, and the one changed line had to be found).
+    fn held_changes(&self, preview: String) -> Beat {
+        let compared = self.runtime.as_ref().and_then(|runtime| {
+            let candidate = runtime.work().candidate?;
+            changes::against_saved(&runtime.snapshot.root, &candidate)
+        });
+        let text = match compared {
+            Some(changes) => format!("{changes}\n\n{preview}"),
+            None => preview,
+        };
+        Beat::Say(Committed::new(Kind::Proposal, text))
+    }
+
+    /// Dispatch an admitted Run or resume without adding another reply footer or prompt.
+    fn run_or_handoff(
+        &mut self,
+        work: Work,
+        label: String,
+        mut beats: Vec<Beat>,
+    ) -> (Vec<Beat>, Option<Handoff>) {
+        if self.runner(&work).is_some() {
+            beats.extend(self.run_inline(&work));
+            (beats, None)
+        } else {
+            (beats, Some(self.keep(work, label)))
         }
-        (beats, handoff)
     }
 
     /// Preserve the cost wording or capture the logical question's strong identity.
@@ -522,7 +804,17 @@ impl Live {
             return Committed::new(Kind::Question, authoring_cost_question(&question));
         }
         match self.runtime.as_ref() {
-            Some(runtime) => asked::question(&runtime.work(), key, question, self.question_epoch),
+            // The trigger's decision follows the declaration that just landed: the Session's
+            // report of what it wrote reads above the question; its options are the rows.
+            Some(runtime) => match runtime.waiting_activation_choices() {
+                Some((asked, _, options, _)) if asked == key && key == actions::INSTALL => {
+                    Committed::new(Kind::Question, without_options(&question, &options))
+                }
+                // An activation question shown with its rows reads as its sentence and one short
+                // line: its options are the rows, never repeated as text.
+                Some((asked, said, ..)) if asked == key => Committed::new(Kind::Question, said),
+                _ => asked::question(&runtime.work(), key, question, self.question_epoch),
+            },
             None => Committed::new(Kind::Question, question),
         }
     }
@@ -600,9 +892,14 @@ impl Live {
     /// The sink of the turn under way: the shell's busy row and queue, or a
     /// row nobody reads between turns.
     fn feed(&self) -> Feed {
+        let voice = Voice {
+            lang: self.lang(),
+            ascii: self.ascii,
+        };
         (self.busy.lock().ok())
             .and_then(|guard| guard.clone())
             .unwrap_or_else(|| Feed::new(std::sync::mpsc::channel().0, None))
+            .speaking(voice)
     }
 
     /// A declined (or interrupted) Run review: the child got no answer,
@@ -624,6 +921,9 @@ impl Live {
         &mut self,
         (code, trace, story): (u8, Option<PathBuf>, Vec<String>),
     ) -> Vec<Beat> {
+        // Observation may begin model-led repair before this turn ends. The child has
+        // returned, so that preparation must be stoppable through the existing token.
+        self.run_started.store(false, Ordering::Release);
         let mut beats = Vec::new();
         if !story.is_empty() {
             beats.push(Beat::Say(Committed::new(Kind::Run, story.join("\n"))));
@@ -633,12 +933,12 @@ impl Live {
             return beats;
         };
         // The leg this host relayed for this request, when frames came: its
-        // identity rides the observation into HOME history.
+        // identity rides the observation into HOME history. What the stream
+        // told the person rides it too: a run refused before its first frame
+        // says why there alone, and the conversation hears the same reason.
         let leg = (self.legs.lock().ok()).and_then(|legs| legs.newest().map(Leg::kept_run));
-        let outcome = match leg {
-            Some(leg) => runtime.observe_run_leg(code, trace.as_deref(), leg),
-            None => runtime.observe_run(code, trace.as_deref()),
-        };
+        let outcome =
+            runtime.observe_run_told(code, trace.as_deref(), leg.unwrap_or_default(), &story);
         let (more, again) = self.observed(outcome);
         beats.extend(more);
         if again.is_some() {
@@ -657,18 +957,41 @@ impl Live {
 /// the same words as the first screen of a fresh Run cost question.
 const REVIEW_CHOICE: &str = "Continue once? yes / no";
 const CHOICES: &str = "Continue once? yes / no / details";
-/// The recent turns HOME history kept, repainted as history: what was said
-/// in an earlier session, never replayed.
-fn earlier(turns: &[(String, String)]) -> Vec<Beat> {
-    if turns.is_empty() {
+/// What the Session's history records as the person's side of its own note on a recovery.
+const RECOVERY: &str = "(recovery)";
+
+/// The recent turns HOME history kept, repainted as history: what was said in an earlier
+/// session, never replayed. One notice says the conversation was kept (live gauntlet 6, r02:
+/// one card said the recovery three times, in English and French): the Session's, when it said
+/// the conversation was `restored`, else a header of the TUI's own in `voice`; the Session's
+/// notes on a recovery (`(recovery)`) are no turn of the conversation and say what its notice
+/// says, so they are not repainted.
+fn earlier(
+    turns: &[(String, String)],
+    human: impl Fn(usize) -> bool,
+    (voice, restored): (Voice, bool),
+) -> Vec<Beat> {
+    let kept: Vec<(usize, &(String, String))> = (turns.iter().enumerate())
+        .filter(|(index, (said, _))| said != RECOVERY || human(*index))
+        .collect();
+    if kept.is_empty() {
         return Vec::new();
     }
-    let mut beats = vec![Beat::Say(Committed::new(
-        Kind::Notice,
-        "earlier in this conversation · kept in your history · nothing is replayed",
-    ))];
-    for (said, reply) in turns {
-        beats.push(Beat::Say(Committed::new(Kind::Human, said.clone())));
+    let mut beats = Vec::new();
+    if !restored {
+        beats.push(Beat::Say(Committed::new(
+            Kind::Notice,
+            voice.say("earlier in this conversation · kept in your history · nothing is replayed"),
+        )));
+    }
+    for (index, (said, reply)) in kept {
+        let input = if human(index) {
+            Committed::new(Kind::Human, said.clone())
+        } else {
+            let context = voice.say("earlier context · {said}");
+            Committed::new(Kind::Notice, fill(context, &[("{said}", said)]))
+        };
+        beats.push(Beat::Say(input));
         beats.push(Beat::Say(Committed::new(Kind::Reply, reply.clone())));
     }
     beats
@@ -676,7 +999,7 @@ fn earlier(turns: &[(String, String)]) -> Vec<Beat> {
 
 /// The last run an earlier session kept, in one line: evidence of what was
 /// observed then; its journal is verified again only when its proof opens.
-fn kept_line(kept: Option<&Result<KeptRun, String>>) -> Option<String> {
+fn kept_line(kept: Option<&Result<KeptRun, String>>, voice: Voice) -> Option<String> {
     Some(match kept? {
         Ok(run) => {
             let id: String = run
@@ -690,30 +1013,39 @@ fn kept_line(kept: Option<&Result<KeptRun, String>>) -> Option<String> {
             let exit = run
                 .exit
                 .map_or_else(|| "not recorded".to_owned(), |e| e.to_string());
-            format!(
-                "last run, observed in an earlier session · {id} of `{workflow}` · exit {exit} · its proof is read again from its journal when you open it · nothing replays"
+            let line = voice.say(
+                "last run, observed in an earlier session · {id} of `{workflow}` · exit {exit} · its proof is read again from its journal when you open it · nothing replays",
+            );
+            fill(
+                line,
+                &[("{id}", &id), ("{workflow}", workflow), ("{exit}", &exit)],
             )
         }
-        Err(why) => format!(
-            "the last run's record is unreadable ({why}) · kept unchanged · nothing replays"
-        ),
+        Err(why) => {
+            let line = voice.say(
+                "the last run's record is unreadable ({why}) · kept unchanged · nothing replays",
+            );
+            fill(line, &[("{why}", why)])
+        }
     })
 }
 
 /// The rail and the status row of this session, told apart from the last run
-/// an earlier session kept. While no run or gate is observed here and nothing
-/// but a choice waits, the rail's Run field adds that run's stage (« Run ○
-/// (earlier ✓) ») and the status row opens with it (« last run ✓ exit 0 in an
-/// earlier session · Saved · no current Run result · … »), first so that a
-/// narrow row keeps it. Checked and Run stay this session's facts and the
-/// Session's words follow unchanged; a kept run without an exit adds nothing.
+/// an earlier session kept. The rail names its stages in the person's language,
+/// in the Session's words ([`nika_session::Lang::rail`]). While no run or gate
+/// is observed here and nothing but a choice waits, the rail's Run field adds
+/// that run's stage (« Run ○ (earlier ✓) ») and the status row opens with it
+/// (« last run ✓ exit 0 in an earlier session · Saved · no current Run result ·
+/// … »), first so that a narrow row keeps it. Checked and Run stay this
+/// session's facts and the Session's words follow unchanged; a kept run without
+/// an exit adds nothing.
 fn footer_beats(
     lifecycle: Lifecycle,
     status: String,
     kept: Option<&Result<KeptRun, String>>,
-    quiet: bool,
+    (quiet, voice): (bool, Voice),
 ) -> [Beat; 2] {
-    let rail = lifecycle.rail();
+    let rail = voice.lang.rail(&lifecycle);
     let earlier = match kept {
         Some(Ok(run)) if quiet && lifecycle.run == Stage::Pending => {
             run.exit.map(|exit| (run.workflow.as_deref(), exit))
@@ -727,20 +1059,38 @@ fn footer_beats(
     facts.run = RunFact::Exit(exit);
     let glyph = Lifecycle::from_facts(&facts).run.glyph();
     // The status names the saved workflow; another one is named here.
-    let of = workflow
-        .filter(|w| !status.contains(&format!("`{w}`")))
-        .map(|w| format!(" of `{w}`"))
-        .unwrap_or_default();
-    let note = format!("last run{of} {glyph} exit {exit} in an earlier session");
+    let other = workflow.filter(|w| !status.contains(&format!("`{w}`")));
+    let phrase = voice.say(if other.is_some() {
+        "last run of `{workflow}` {glyph} exit {exit} in an earlier session"
+    } else {
+        "last run {glyph} exit {exit} in an earlier session"
+    });
+    let (glyph, exit) = (glyph.to_string(), exit.to_string());
+    let values = [
+        ("{workflow}", other.unwrap_or("")),
+        ("{glyph}", glyph.as_str()),
+        ("{exit}", exit.as_str()),
+    ];
+    let note = fill(phrase, &values);
     let status = if status.is_empty() {
         note
     } else {
         format!("{note} · {status}")
     };
-    [
-        Beat::Rail(format!("{rail} (earlier {glyph})")),
-        Beat::Status(status),
-    ]
+    let earlier = voice.say("{rail} (earlier {glyph})");
+    let rail = fill(earlier, &[("{glyph}", glyph.as_str()), ("{rail}", &rail)]);
+    [Beat::Rail(rail), Beat::Status(status)]
+}
+
+/// `rail` with `word` beside its activation field's glyph, the fourth of its five fields
+/// (« Actif ◐ en attente »): the rest as the Session and the footer drew it.
+fn with_activation(rail: &str, word: &str) -> String {
+    let mut fields: Vec<String> = rail.split(" · ").map(str::to_owned).collect();
+    if let Some(field) = fields.get_mut(3) {
+        field.push(' ');
+        field.push_str(word);
+    }
+    fields.join(" · ")
 }
 
 /// The Session's one-time unknown-cost question, told apart from Save and
@@ -772,7 +1122,8 @@ impl Conversation for Live {
 
     fn commands(&self) -> Vec<String> {
         // `/restore` completes only while a kept draft can be proposed again.
-        self.runtime
+        let mut commands: Vec<String> = self
+            .runtime
             .as_ref()
             .map_or_else(
                 || nika_session::runtime::SLASH_COMMANDS.to_vec(),
@@ -780,12 +1131,52 @@ impl Conversation for Live {
             )
             .into_iter()
             .map(str::to_owned)
-            .collect()
+            .collect();
+        // `/new` begins a new conversation (the Session's door, not its command list), before
+        // `/quit`.
+        if !commands.iter().any(|command| command == NEW) {
+            let at = (commands.iter()).position(|command| command == "/quit");
+            commands.insert(at.unwrap_or(commands.len()), NEW.to_owned());
+        }
+        commands
     }
 
     fn open(&mut self) -> Vec<Beat> {
         let beats = self.opening_beats();
         self.fold_candidate();
+        self.spend_base = (self.runtime.as_ref())
+            .and_then(|runtime| spend::prepared_nano(&runtime.cost_observations()))
+            .unwrap_or(0);
+        beats
+    }
+
+    fn spend(&self) -> Option<f64> {
+        let now = spend::prepared_nano(&self.runtime.as_ref()?.cost_observations())?;
+        let spent = now.checked_sub(self.spend_base)?;
+        (spent > 0).then(|| spend::usd(spent))
+    }
+
+    fn language(&self) -> Option<nika_session::Lang> {
+        self.runtime.as_ref().map(|_| self.lang())
+    }
+
+    fn glyphs(&mut self, ascii: bool) {
+        self.ascii = ascii;
+    }
+
+    fn clock(&mut self, zone: &jiff::tz::TimeZone) {
+        self.zone = zone.clone();
+    }
+
+    /// What the trigger of a declared schedule decided while the door stood open, read
+    /// again from the Session's history of its arm ledger (a read only): its line once, and
+    /// the rail with it.
+    fn idle(&mut self) -> Vec<Beat> {
+        let mut beats = self.schedule_news();
+        if !beats.is_empty() {
+            let rail = (self.footer().into_iter()).filter(|beat| matches!(beat, Beat::Rail(_)));
+            beats.extend(rail);
+        }
         beats
     }
 
@@ -805,6 +1196,20 @@ impl Conversation for Live {
         seen: &Seen,
     ) -> Turn {
         self.lent_answer(Feed::new(busy.clone(), Some(seen.clone())), text, witness)
+    }
+
+    fn delegate_bound(&mut self, witness: &str, busy: &Sender<String>, seen: &Seen) -> Turn {
+        self.lent_delegation(Feed::new(busy.clone(), Some(seen.clone())), witness)
+    }
+
+    fn pick_bound(
+        &mut self,
+        keys: &str,
+        witness: &str,
+        busy: &Sender<String>,
+        seen: &Seen,
+    ) -> Turn {
+        self.lent_pick(Feed::new(busy.clone(), Some(seen.clone())), keys, witness)
     }
 
     fn submit(&mut self, line: &str) -> Turn {
@@ -827,8 +1232,9 @@ impl Conversation for Live {
 
     /// A fresh preparation token for the turn about to start (the Session's
     /// `begin_preparation_turn`). A turn answering the retained Run review
-    /// arms none, and once this turn hands a Run to its runner the stop
-    /// cancels nothing: a Run keeps its own doors.
+    /// arms none. While this turn hands a Run to its runner the stop cancels
+    /// nothing: a Run keeps its own doors. After the runner returns, the same
+    /// token can stop model-led preparation of a repair.
     fn stopper(&mut self) -> Option<Stopper> {
         if self.pending_run.is_some() {
             return None;
@@ -872,7 +1278,7 @@ impl Conversation for Live {
         if runtime.waiting_cost_choice() {
             return Some("answering the fresh authoring cost question".into());
         }
-        let label = if runtime.pending_choice() {
+        let label = if runtime.pending_choice() && !self.converses(line) {
             "seating the intelligence you chose"
         } else if runtime.pending_proposal().is_some() {
             if line.trim().is_empty() {
@@ -897,7 +1303,8 @@ impl Conversation for Live {
 
     fn project(&self) -> Option<ProjectView> {
         let runtime = self.runtime.as_ref()?;
-        Some(project_view(runtime, self.home.as_deref()))
+        let view = project_view(runtime, self.home.as_deref());
+        Some(view.scheduling(self.schedules.clone()))
     }
 
     /// The look (the crate-private `look::take`): only a workflow the runtime's snapshot
@@ -1014,8 +1421,12 @@ impl Live {
     /// cancellation or the opening ended: on that turn's thread, never while
     /// the shell draws.
     fn fold_candidate(&mut self) {
+        let voice = Voice {
+            lang: self.lang(),
+            ascii: self.ascii,
+        };
         self.candidate = (self.runtime.as_ref())
-            .and_then(|runtime| candidate::take(runtime, self.candidate.as_ref()));
+            .and_then(|runtime| candidate::take(runtime, self.candidate.as_ref(), voice));
     }
 
     /// The Session decided the cost review this host shows: one yes answers the held child
@@ -1045,6 +1456,28 @@ impl Live {
 
     /// One submitted line to the state that waits for it.
     fn answer(&mut self, line: &str) -> Turn {
+        // The person's words decide the language from here, as the Session reads them.
+        if let Some(lang) = nika_session::Lang::of(line) {
+            self.heard = Some(lang);
+        }
+        if line.trim() == NEW {
+            return self.new_conversation();
+        }
+        if let Some(turn) = self.refused_connection(line) {
+            return turn;
+        }
+        if let Some(turn) = self.converse_over_list(line) {
+            return turn;
+        }
+        if let Some(outcome) = self.require_intelligence(line) {
+            let refused = matches!(outcome, TurnOutcome::Refusal(_));
+            let (mut beats, handoff) = self.map(outcome);
+            if refused && !line.trim().starts_with('/') {
+                beats.push(Beat::NotTaken(line.to_owned()));
+            }
+            return Turn { beats, handoff };
+        }
+        let choosing = matches!(self.shown, work::Waiting::IntelligenceChoice);
         let outcome = {
             let Some(runtime) = self.runtime.as_mut() else {
                 return Turn {
@@ -1069,7 +1502,18 @@ impl Live {
             };
             runtime.submit(line, &shown)
         };
-        let (beats, handoff) = self.map(outcome);
+        let retained = choosing
+            && self
+                .runtime
+                .as_ref()
+                .is_some_and(SessionRuntime::pending_choice)
+            && !line.trim().is_empty()
+            && !line.trim().starts_with('/')
+            && !nika_session::authoring::is_cancel(line);
+        let (mut beats, handoff) = self.map(outcome);
+        if retained {
+            beats.push(Beat::NotTaken(line.to_owned()));
+        }
         Turn { beats, handoff }
     }
 
@@ -1112,6 +1556,7 @@ impl Live {
                 answer,
             } => (self.runners.run_resume)(&root, workflow, trace, answer),
         };
+        self.run_started.store(false, Ordering::Release);
         let Some(runtime) = self.runtime.as_mut() else {
             return vec![Beat::Quit];
         };
@@ -1189,15 +1634,34 @@ fn governing(snapshot: &ProjectSnapshot, home: Option<&Path>) -> Manifest {
     }
 }
 
+/// The Session's `question` without the line that numbers its `options` as text
+/// (`1 Install and activate · 2 Keep declared only`): the rows say them.
+fn without_options(question: &str, options: &[work::Offer]) -> String {
+    let labels: Vec<String> = (options.iter().enumerate())
+        .map(|(at, offer)| format!("{} {}", at + 1, offer.label))
+        .collect();
+    let numbered = labels.join(" · ");
+    (question.lines())
+        .filter(|line| line.trim() != numbered)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 pub mod acquire;
+mod actions;
+mod new_conversation;
+use new_conversation::NEW;
 mod asked;
 mod candidate;
+mod changes;
 pub mod feed;
 mod footer;
+mod intelligence;
 mod layout;
 pub(crate) mod legs;
 mod look;
 mod selection;
+pub(crate) mod spend;
 mod typed_answer;
 
 /// The one audit fold of a look, for the workspace's own tests.
@@ -1222,6 +1686,14 @@ fn asked_world(
 #[cfg(test)]
 pub(crate) fn judge_for_tests(path: &str, witness: String, source: &str) -> Inspected {
     look::judge(path.to_owned(), witness, source.to_owned())
+}
+
+#[cfg(all(test, unix))]
+impl Live {
+    /// The Session this conversation holds, read by the crate's own tests.
+    pub(crate) fn session_for_tests(&self) -> Option<&SessionRuntime> {
+        self.runtime.as_ref()
+    }
 }
 
 #[cfg(all(test, unix))]
@@ -1384,19 +1856,19 @@ mod project_view_tests {
                 false,
                 None,
                 Some("deepseek/default"),
-                "deepseek/default - deepseek API, metered; verifier: same model",
+                "deepseek/default - deepseek API, metered; Decision: same model",
             ),
             (
                 true,
                 None,
                 Some("ollama/local"),
-                "ollama/local - ollama, on this machine; verifier: same model",
+                "ollama/local - ollama, on this machine; Decision: same model",
             ),
             (
                 false,
                 Some("deepseek/selected"),
                 Some("deepseek/default"),
-                "deepseek/selected - deepseek API, metered; verifier: same model",
+                "deepseek/selected - deepseek API, metered; Decision: same model",
             ),
             (
                 false,

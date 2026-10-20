@@ -1,0 +1,30 @@
+nika: boundary-window-half-open
+const:
+  sales_path: "./data/sales.json"
+  today: "2026-10-12"
+  days: 14
+permits:
+  fs: { read: ["./data/sales.json"] }
+  tools: ["nika:read", "nika:jq"]
+tasks:
+  sales_read:
+    invoke: { tool: "nika:read", args: { path: "${{ const.sales_path }}" } }
+  sales_by_day:
+    with: { raw: "${{ tasks.sales_read.output }}" }
+    invoke:
+      tool: nika:jq
+      args:
+        input: { raw: "${{ with.raw }}", today: "${{ const.today }}", days: "${{ const.days }}" }
+        expression: |
+          # the paid sales of each of the `days` UTC days before `today`
+          (.today + "T00:00:00Z" | fromdateiso8601) as $stop
+          | [range(.days; 0; -1) | $stop - . * 86400] as $starts
+          | [.raw | fromjson | .[] | select(.status == "paid") | {units, t: (.paid_at | fromdateiso8601)}] as $paid
+          | {
+              per_day: [$starts[] as $s | {day: ($s | todate | .[0:10]),
+                         units: ([$paid[] | select(.t >= $s and .t <= $s + 86400) | .units] | add // 0)}],
+              window_units: ([$paid[] | select(.t >= $starts[0] and .t <= $stop) | .units] | add // 0)
+            }
+outputs:
+  per_day: ${{ tasks.sales_by_day.output.per_day }}
+  window_units: ${{ tasks.sales_by_day.output.window_units }}

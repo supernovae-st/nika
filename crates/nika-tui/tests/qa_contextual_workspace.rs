@@ -52,6 +52,14 @@ fn draft_with_prompt(screen: &qa_support::vt::Screen, prompt: &str) -> bool {
     })
 }
 
+/// The transcript reads earlier rows: the workspace's ` ↓ latest ` marker, or
+/// the status cue of a full screen, which may wrap with the busy row.
+fn reading_earlier(screen: &qa_support::vt::Screen) -> bool {
+    let rows = screen.lines().join(" ");
+    let words = rows.split_whitespace().collect::<Vec<_>>().join(" ");
+    screen.contains("↓ latest") || words.contains("reading earlier messages")
+}
+
 /// Read the pane edge after the actual draft, independently of the layout
 /// calculation. A wide expanded object must move this edge to the left.
 fn conversation_right(screen: &qa_support::vt::Screen) -> Option<usize> {
@@ -60,17 +68,6 @@ fn conversation_right(screen: &qa_support::vt::Screen) -> Option<usize> {
         let edge = start + row[start..].find('│')?;
         Some(row[..edge].width())
     })
-}
-
-fn mouse_restored(term: &Term) {
-    for mode in [1000, 1002, 1003, 1006] {
-        assert_eq!(
-            term.screen.mode(mode),
-            Some(false),
-            "mode {mode}\n{}",
-            term.dump()
-        );
-    }
 }
 
 fn open_workspace(term: &mut Term) {
@@ -125,6 +122,17 @@ fn action_at_width(screen: &qa_support::vt::Screen, label: &str, cols: u16) -> b
         row.find(label)
             .is_some_and(|byte| row[..byte].width() + label.width() == usize::from(cols))
     })
+}
+
+/// Open the listed workflow through the project, without submitting the draft.
+/// Expansion needs a selected object; an empty welcome now yields to the exchange.
+fn open_listed_workflow(term: &mut Term) {
+    term.send("\x1b[17;2~"); // Shift+F6: conversation -> project.
+    term.send("\x1b[B\r"); // The first workflow follows the conversation.
+    term.wait_workspace_frame("the listed workflow is the selected object", |screen| {
+        screen.contains("path   release.nika") && screen.contains("tasks  4")
+    });
+    term.send(F6); // Project -> conversation; later keys keep their ordinary route.
 }
 
 #[test]
@@ -396,11 +404,20 @@ fn pending_stop_feedback_survives_palette_and_scrolling() {
             "{}",
             term.dump()
         );
+        // A full screen reads both page keys while the turn works: each frame
+        // below shows one was read before the release, so neither reaches the
+        // idle row, where any key disarms the press. Inline defers `PgUp`.
         term.send("\x1b[5~");
-        term.settle(Duration::from_millis(150));
+        if presentation == "inline" {
+            term.settle(Duration::from_millis(150));
+        } else {
+            term.wait_workspace_frame("scrolled back after Stop", |screen| {
+                reading_earlier(screen) && draft_is_exact(screen)
+            });
+        }
         term.send("\x1b[F");
         term.wait_workspace_frame("returned to live after Stop", |screen| {
-            draft_is_exact(screen)
+            draft_is_exact(screen) && !reading_earlier(screen)
         });
         assert!(
             term.screen.contains("stopping the preparation"),
@@ -424,7 +441,15 @@ fn pending_stop_feedback_survives_palette_and_scrolling() {
         assert!(!term.screen.seen(SECOND));
         assert!(draft_is_exact(&term.screen), "{}", term.dump());
         // Inline never enables mouse capture; full-screen modes restore it.
-        leave_with_mouse_mode(&mut term, (presentation != "inline").then_some(false));
+        let mouse = (presentation != "inline").then_some(false);
+        if presentation == "inline" {
+            // Inline scrolls nothing while a turn works: its `PgUp` waited and
+            // was read once the turn ended, as any other key there, disarming
+            // the stop's press. A full screen scrolled at once and kept it.
+            leave_with_mouse_mode(&mut term, mouse);
+        } else {
+            leave_after_settlement(&mut term, mouse);
+        }
     }
 }
 
@@ -454,15 +479,40 @@ fn shrink_busy_workspace(term: &mut Term) {
     });
 }
 
-/// Stop consumes its press; leaving after settlement takes two new presses.
-fn leave_after_settlement(term: &mut Term) {
-    term.send("\x03");
+/// A stop keeps its second press past the settlement: the idle row says the
+/// next `Ctrl+C` leaves (any other key stays), and one press leaves, the
+/// pointer modes as `expected`.
+fn leave_after_settlement(term: &mut Term, expected: Option<bool>) {
     term.wait_text("any key stays");
     term.send("\x03");
     let status = term.finish();
     assert_eq!(exit_code(status), Some(130), "{status:?}\n{}", term.dump());
     assert_restored(term);
-    mouse_restored(term);
+    for mode in [1000, 1002, 1003, 1006] {
+        assert_eq!(
+            term.screen.mode(mode),
+            expected,
+            "mode {mode}\n{}",
+            term.dump()
+        );
+    }
+}
+
+fn assert_no_empty_object_expansion(term: &mut Term) {
+    term.send(F4);
+    term.send("\x0f");
+    term.wait_text("commands ›");
+    term.send("\x0f");
+    term.wait_workspace_frame(
+        "F4 is inert while the preparation has no object",
+        |screen| {
+            !screen.contains("commands ›")
+                && !screen.contains(EXPAND)
+                && !screen.contains(RESTORE)
+                && screen.contains(BUSY)
+                && draft_is_exact(screen)
+        },
+    );
 }
 
 #[test]
@@ -479,6 +529,8 @@ fn stop_is_reachable_from_an_expanded_palette_and_the_small_terminal() {
         term.wait_text(BUSY);
         term.send("keep this draft");
         term.wait_text(DRAFT);
+        assert_no_empty_object_expansion(&mut term);
+        open_listed_workflow(&mut term);
         term.send(F4);
         term.wait_text(RESTORE);
         if small {
@@ -560,7 +612,7 @@ fn stop_is_reachable_from_an_expanded_palette_and_the_small_terminal() {
                     && draft_is_exact(screen)
             });
         }
-        leave_after_settlement(&mut term);
+        leave_after_settlement(&mut term, Some(false));
     }
 }
 
@@ -637,9 +689,7 @@ fn a_pending_question_and_its_answer_survive_expansion_palette_and_resize() {
         .into_iter()
         .all(|part| screen.contains(part))
     };
-    let mut term = Term::proto_with(&[], 120, 40, &[("NO_COLOR", "1")]);
-    term.wait_prompt(FREE);
-    term.send("\x14");
+    let mut term = child::spawn("demo:0:workspace", None, 120, 40);
     term.wait_workspace_frame("workspace before the question", |screen| {
         screen.on_alt() && screen.contains("this conversation") && screen.contains(FREE)
     });
@@ -656,6 +706,20 @@ fn a_pending_question_and_its_answer_survive_expansion_palette_and_resize() {
     term.wait_workspace_frame("commands temporarily over the pending answer", |screen| {
         screen.contains("commands ›")
     });
+    term.send(F4);
+    term.wait_workspace_frame(
+        "F4 preserves the pending answer when no object exists",
+        |screen| {
+            !screen.contains(EXPAND)
+                && !screen.contains(RESTORE)
+                && !screen.contains("commands ›")
+                && draft_with_prompt(screen, answer)
+                && question_visible(screen)
+        },
+    );
+    open_listed_workflow(&mut term);
+    term.send("\x0f");
+    term.wait_text("commands ›");
     term.send(F4);
     term.wait_workspace_frame("expansion returns to the same pending answer", |screen| {
         screen.contains(RESTORE)

@@ -1,0 +1,4 @@
+{"data": {"id": "vendor/metered-image", "endpoints": [
+ {"tag": "vendor-a", "context_length": 32768, "max_completion_tokens": 8192,
+  "pricing": {"prompt": "0.000001", "completion": "0.000002", "image": "0.001"}}
+]}}

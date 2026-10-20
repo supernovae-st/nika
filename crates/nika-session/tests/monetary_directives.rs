@@ -350,3 +350,15 @@ fn a_consent_line_changes_money_only_as_a_whole_money_amendment() {
         assert_eq!(held.effective_usd, Some(0.0), "{amendment}");
     }
 }
+
+/// QA gauntlet q09, its first request as typed: what each run may cost, then the aside that
+/// restates it, is the request's ceiling (the Session held its default, $0.25).
+#[test]
+fn what_each_run_may_cost_in_the_request_is_its_ceiling() {
+    const Q09: &str = "Bonjour. J'ai mes ventes dans ventes-2026.csv (colonnes mois, region, ventes_eur : 9 mois, 4 régions). Je veux un rapport : le total mensuel toutes régions confondues, la croissance en % par rapport au mois précédent, la meilleure et la pire région sur toute la période, puis une étape IA qui écrit un commentaire de 5 lignes en français. Tout doit être écrit dans rapport-ventes.md. L'étape IA doit utiliser Claude Haiku (le moins cher) et chaque exécution doit coûter au maximum 0,10 $ (budget max 0,10 $ par run).";
+    let dir = tempfile::tempdir().expect("fixture");
+    assert_eq!(
+        misread(dir.path(), "q09", Q09, Money::Ceiling(0.1), &[]),
+        None
+    );
+}

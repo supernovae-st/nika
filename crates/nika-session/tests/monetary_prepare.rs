@@ -175,7 +175,8 @@ fn comma_zero_and_unset_are_distinct_and_intent_is_verbatim() {
             TurnOutcome::Aside(view) => assert!(view.contains("money:")),
             TurnOutcome::Held { id, preview } => {
                 assert_eq!(proposal.as_ref(), Some(&id));
-                assert!(preview.contains("money:"));
+                // A French person reads the money line in French (live gauntlet wave 6).
+                assert!(preview.contains("money:") || preview.contains("argent :"));
             }
             other => panic!("meaning must remain read-only: {other:?}"),
         }
@@ -384,7 +385,7 @@ fn monetary_revision_has_new_consent_identity_and_carries_explicit_money_through
         panic!("monetary revision")
     };
     assert_ne!(id, old);
-    assert!(preview.contains("$0.5 USD"));
+    assert!(preview.contains("$0.50 USD"));
     let money = runtime.monetary_decision().expect("money");
     assert_eq!(money.original_intent, COPY);
     assert_eq!(money.input, "budget 0,50 dollars");

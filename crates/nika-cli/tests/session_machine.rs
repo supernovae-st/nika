@@ -13,6 +13,10 @@ use std::process::{Child, Command, Stdio};
 use serde_json::{Value, json};
 
 #[path = "support/loopback_model.rs"]
+#[allow(
+    dead_code,
+    reason = "the machine suite keeps the plain loopback, not its scripted reading"
+)]
 mod loopback_model;
 use loopback_model::{CHOICE, Model, SAID};
 
@@ -162,6 +166,11 @@ fn the_machine_door_opens_with_the_conversation_s_named_choice() {
     // The doors' steer and follow_up, which this door takes: a client finds them before it sends.
     assert!(
         words.contains(&Value::from("sessionSteering")),
+        "{identity}"
+    );
+    // A reply bound to one question (`answer`, `delegate`), which this door takes too.
+    assert!(
+        words.contains(&Value::from("sessionQuestion")),
         "{identity}"
     );
 }

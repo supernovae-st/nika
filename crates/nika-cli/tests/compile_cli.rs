@@ -17,6 +17,8 @@ use std::thread::JoinHandle;
 mod capture;
 #[path = "compile_cli/held.rs"]
 mod held;
+#[path = "compile_cli/pinned.rs"]
+mod pinned;
 
 fn command(room: &Path) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));

@@ -6,7 +6,8 @@
 //! failed with the time it took. A step names the call and the tool, never its arguments; of its
 //! reply only a failed call's excerpt ([`ToolReply::excerpt`]: bounded, on one line, its secret
 //! shapes redacted), so a host can say why a call failed and still shows no file content or
-//! secret. Between turns no sink watches, and nothing is reported.
+//! secret. A finished proposal may separately carry its producer's versioned verification,
+//! unchanged and never interpreted as prose. Between turns no sink watches, and nothing is reported.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -44,6 +45,8 @@ pub struct ToolStep {
     pub reply_bytes: Option<u64>,
     /// Why it failed, as a host may show it ([`ToolReply::excerpt`]); `None` unless it failed.
     pub reply: Option<String>,
+    /// Original compiler verification on a finished proposal, separate from the reply excerpt.
+    pub verification: Option<serde_json::Value>,
 }
 
 /// Where a turn's steps go.
@@ -91,7 +94,7 @@ impl SessionTools for Observed {
             format!("step-{n}")
         });
         let at_ms = crate::tree::unix_ms(SystemTime::now());
-        let step = |state, elapsed_ms, reply_bytes, why| ToolStep {
+        let step = |state, elapsed_ms, reply_bytes, why, verification| ToolStep {
             call: id.clone(),
             name: call.name.clone(),
             state,
@@ -99,8 +102,9 @@ impl SessionTools for Observed {
             at_ms,
             reply_bytes,
             reply: why,
+            verification,
         };
-        sink(&step(StepState::Started, None, None, None));
+        sink(&step(StepState::Started, None, None, None, None));
         let started = Instant::now();
         let reply = self.tools.call(call.clone());
         let elapsed = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
@@ -110,7 +114,10 @@ impl SessionTools for Observed {
             (StepState::Finished, None)
         };
         let size = u64::try_from(reply.text.len()).unwrap_or(u64::MAX);
-        sink(&step(state, Some(elapsed), Some(size), why));
+        let verification = (call.name == "propose" && reply.ends_turn && !reply.is_error)
+            .then(|| reply.verification.clone())
+            .flatten();
+        sink(&step(state, Some(elapsed), Some(size), why, verification));
         reply
     }
 }

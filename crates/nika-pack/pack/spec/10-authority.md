@@ -312,6 +312,14 @@ law (see [§the authored doors](#the-authored-doors-normative) for the
 construct):
 
 ```yaml
+inputs:
+  p: { type: string, required: true }   # a deployment-supplied path
+
+permits:
+  tools: ["nika:read"]
+  fs:
+    read: ["./vendor/**"]            # the lifted value must still sit inside it
+
 tasks:
   load:
     invoke:
@@ -458,7 +466,7 @@ The secret-flow and permit-taint codes join the existing `NIKA-SEC` and
 
 - A capability boundary is spelled `permits:` — nothing else re-spells a
   permits grant.
-- A human gate is `invoke: { tool: "nika:prompt" }` — the pause IS the
+- A human gate is `invoke: { tool: "nika:prompt", args: { message: "…" } }` — the pause IS the
   consent mechanism; a `when:` on an input flag is not a gate.
 - A law that reads the graph is UNCONDITIONAL — there is no block to
   declare it in, and none to disable it from. A rule an author can opt
@@ -527,7 +535,7 @@ to give.
   `nika:prompt` pause; a dedicated approval surface (delegation ·
   quorum · `via:`) is future work with its own chapter.
 - **No law inheritance.** A file's law is the file's — composition
-  across `invoke: workflow:` calls judges the callee by the same
+  across `invoke: { workflow: <path> }` calls judges the callee by the same
   unconditional laws (the ceiling algebra is reserved, unwired).
 - **No memory category.** Recall is a **tool**, reached through `invoke:`
   like every other callable ([08 §H9](./08-out-of-scope.md) · today

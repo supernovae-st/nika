@@ -54,7 +54,11 @@ where
         target: &nika_schema::source::Spanned<String>,
         raw_args: Option<&nika_schema::source::Spanned<Value>>,
         scope: &Scope<'_>,
-        (deadline, child_budget): (Option<std::time::Duration>, Option<f64>),
+        (deadline, child_budget, run_start): (
+            Option<std::time::Duration>,
+            Option<f64>,
+            nika_kernel::tool_executor::ToolRunStart,
+        ),
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
         let note = format!("invoke · workflow:{}", target.value);
@@ -109,6 +113,14 @@ where
             remaining_budget_usd: child_budget,
             deadline,
             parent_permits: scope.permits().cloned(),
+            // The child serves this run's instant (spec 04 §`run`): the
+            // facts as this run opened with them, at its opening stamp.
+            run_facts: self
+                .run_facts
+                .resolved(nika_types::timestamp::Timestamp::from_unix_ns(
+                    run_start.unix_ns(),
+                ))
+                .told(),
         };
         match nika_runtime_laws::stack::grown(|| runner.run_child(call)).await {
             Ok(out) => Self::settle_child_outcome(&note, &target.value, out, contract),
@@ -197,6 +209,7 @@ where
         Dispatched {
             note: note.to_owned(),
             result: Err(FailedDispatch {
+                operator_cancelled: false,
                 access_refused: None,
                 record: TaskErrorRecord::new(
                     code,

@@ -437,3 +437,33 @@ fn model_kinds_rank_with_hosts_in_the_reach() {
         "remote_model"
     );
 }
+
+/// The summary in French names the same reach and places, each target as written (live
+/// gauntlet wave 6 r12 B1, 2026-10-18: « connected: … (remote model) » on a French card).
+#[test]
+fn the_summary_reads_in_french_with_its_targets_as_written() {
+    let connected = world(
+        &[
+            ("net.http", "news.ycombinator.com", tasks(&["fetch"])),
+            (
+                "model.remote",
+                "anthropic/claude-sonnet-5-5",
+                tasks(&["grade"]),
+            ),
+        ],
+        &["token"],
+    );
+    assert_eq!(
+        connected.summary_fr(),
+        "connecté : news.ycombinator.com, anthropic/claude-sonnet-5-5 (modèle distant) · identifiants : token"
+    );
+    assert_eq!(
+        connected.summary(),
+        "connected: news.ycombinator.com, anthropic/claude-sonnet-5-5 (remote model) · credentials: token"
+    );
+    let local = world(&[("fs.read", "./notes", tasks(&["read"]))], &[]);
+    assert_eq!(
+        local.summary_fr(),
+        "local seulement · des fichiers, aucun service atteint"
+    );
+}

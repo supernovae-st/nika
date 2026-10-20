@@ -47,8 +47,17 @@ fn one_edit_keeps_the_one_passage_words() {
         twice,
         Err("`old` must occur exactly once in the candidate; it occurs 2 times".to_owned())
     );
-    assert!(none.is_err(), "an empty old passage replaces nothing");
+    assert_eq!(none, Err("`old` is empty: give the exact passage to replace, or use candidate_write to replace the whole document".to_owned()));
     assert!(edited(SOURCE, &[]).is_err(), "no edit, no revision");
+}
+
+#[test]
+fn an_empty_passage_in_a_batch_rejects_the_whole_revision_with_repair_guidance() {
+    let edits = pairs(&[("url: a", "url: z"), ("", "replacement")]);
+    assert_eq!(
+        edited(SOURCE, &edits),
+        Err("edit 2: `old` is empty: give the exact passage to replace, or use candidate_write to replace the whole document".to_owned())
+    );
 }
 
 /// A document with comments, an opaque block prompt, literal values, an explicit default and a

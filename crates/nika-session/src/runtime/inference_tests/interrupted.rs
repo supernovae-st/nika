@@ -248,7 +248,10 @@ fn a_request_in_flight_is_recorded_before_transport_and_its_restart_replays_noth
     assert_eq!(last["unknown_calls"], 1);
     assert_eq!(last["unknown_attempts"][0]["usage"], Value::Null);
     assert_eq!(last["billed_nano_usd"], Value::Null);
-    assert_eq!(last_history_event(home.path())["effect"], "unknown");
+    assert_eq!(
+        last_history_event(home.path())["effect"],
+        "inference_charge_unknown"
+    );
     drop(first);
     std::fs::write(dir.path().join(RECORD), &image).unwrap();
     restart_from_the_crash_image(dir.path(), history.path(), &peer);
@@ -284,15 +287,25 @@ fn restart_from_the_crash_image(root: &Path, home: &Path, peer: &HeldPeer) {
         matches!(&replay, TurnOutcome::Refusal(r) if r.class == RefusalClass::WrongState),
         "a pending approval never survives a restart: {replay:?}"
     );
-    for line in ["hello", "run compiled-workflow.nika"] {
-        let out = resumed.turn(line);
-        assert!(
-            matches!(&out, TurnOutcome::Refusal(r)
-                if r.text.contains("restored inference exposure is unknown")
-                && r.text.contains("« run <workflow>.nika budget 0.50 USD »")),
-            "{line}: {out:?}"
-        );
-    }
+    let out = resumed.turn("hello");
+    assert!(
+        matches!(&out, TurnOutcome::Refusal(r)
+            if r.text.contains("restored inference exposure is unknown")
+            && r.text.contains("« run <workflow>.nika budget 0.50 USD »")),
+        "hello: {out:?}"
+    );
+    // The Save before the crash kept its execution constraint: a fresh plain Run of that exact
+    // file runs on the one that Save recorded, never a new default.
+    let receipt = std::fs::read_to_string(root.join(".nika/saved-money.ndjson")).unwrap();
+    let saved: serde_json::Value = serde_json::from_str(receipt.lines().last().unwrap()).unwrap();
+    assert_eq!(saved["bindings"][0]["source"], "session_default");
+    let ceiling = saved["bindings"][0]["effective_usd"].as_f64().unwrap();
+    let out = resumed.turn("run compiled-workflow.nika");
+    assert!(
+        matches!(&out, TurnOutcome::RunRequested { run, .. }
+            if run.max_cost_usd.to_bits() == ceiling.to_bits()),
+        "{out:?}"
+    );
     assert!(matches!(
         resumed.turn("run compiled-workflow.nika budget 0.50 USD"),
         TurnOutcome::RunRequested { ref run, .. } if run.max_cost_usd.to_bits() == 0.5_f64.to_bits()
@@ -329,7 +342,7 @@ fn history_and_record_agree_after_a_settled_or_contradicted_call() {
         let (state, effect) = if settled {
             ("Closed", "no_uncertainty_reported")
         } else {
-            ("Uncertain", "unknown")
+            ("Uncertain", "inference_charge_unknown")
         };
         assert_eq!(last["state"], state, "{served}");
         assert_eq!(
@@ -341,10 +354,16 @@ fn history_and_record_agree_after_a_settled_or_contradicted_call() {
         // A restart without an interrupted dispatch names the same way on.
         let mut resumed = open_unpriced(dir.path());
         assert!(resumed.restore_state().is_some());
-        let out = resumed.turn("run compiled-workflow.nika");
+        let out = resumed.turn("hello");
         assert!(
             matches!(&out, TurnOutcome::Refusal(r)
                 if r.text.contains("budget 0.50 USD") && !r.text.contains("left without a recorded settlement")),
+            "{out:?}"
+        );
+        // Nothing was ever saved here and the named file does not exist: nothing to run.
+        let out = resumed.turn("run compiled-workflow.nika");
+        assert!(
+            matches!(&out, TurnOutcome::Refusal(r) if r.class == RefusalClass::WrongState),
             "{out:?}"
         );
         assert_eq!(peer.bodies().len(), 1, "{served}");
@@ -443,7 +462,10 @@ fn a_no_budget_request_in_flight_is_recorded_and_its_restart_keeps_the_model() {
     assert_eq!(last["unbudgeted"], true);
     assert_eq!(last["state"], "Uncertain", "abort is not completion");
     assert_eq!(last["attempts"][0]["usage"], Value::Null);
-    assert_eq!(last_history_event(home.path())["effect"], "unknown");
+    assert_eq!(
+        last_history_event(home.path())["effect"],
+        "inference_charge_unknown"
+    );
     drop(first);
     std::fs::write(dir.path().join(RECORD), &image).unwrap();
     restart_without_a_budget(dir.path(), history.path(), &peer);
@@ -515,7 +537,10 @@ fn a_contradicted_or_failed_no_budget_call_is_never_retried_or_priced() {
         assert_eq!(last["schema"], DURABLE, "{status}: the durable form (E35)");
         let estimated = &last["attempts"][0]["estimated_nano_usd"];
         assert_eq!(estimated, &Value::Null, "{status}: never an invented price");
-        assert_eq!(last_history_event(home.path())["effect"], "unknown");
+        assert_eq!(
+            last_history_event(home.path())["effect"],
+            "inference_charge_unknown"
+        );
         // No ceremony follows: the next operation observes afresh.
         let next = s.turn("hello");
         assert!(

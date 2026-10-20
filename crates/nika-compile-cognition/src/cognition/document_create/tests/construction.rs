@@ -568,8 +568,11 @@ async fn unrelated_offers_force_no_reuse_and_the_written_document_stands() {
     let created = &out.provenance.decision.as_ref().expect("decision")["document_create"];
     assert_eq!(created["mode"], "written", "{created:#}");
     assert_eq!(created["reuse"]["expanded"], 0, "{created:#}");
-    let facts = author.last_facts();
-    assert_eq!(facts["offered"]["total"], 2, "{facts:#}");
+    // The door records each offer's contract; a question that weighs none is sent them folded.
+    let seen = author.last_facts();
+    assert_eq!(seen["offered"]["total"], 2, "{seen:#}");
+    let plan = out.provenance.plan.as_ref().expect("the native record");
+    let facts = &plan["document_create"]["facts"];
     let statuses: Vec<&Value> = (facts["offered"]["components"].as_array().into_iter())
         .flatten()
         .map(|row| &row["construction"])

@@ -21,9 +21,12 @@
 ```yaml
 nika: research-pipeline
 
+inputs:
+  article: { type: string, required: true }   # a type, written where it is declared
+
 tasks:
   summarize:
-    with: { article: "${{ tasks.fetch.output }}" }
+    with: { article: "${{ inputs.article }}" }
     infer:
       prompt: "Summarize · ${{ with.article }}"
     returns:
@@ -323,6 +326,9 @@ The type never silently changes how the runtime reads bytes — decoding
 is **declared** ·
 
 ```yaml
+permits:
+  exec: ["jq"]
+
 tasks:
   stats:
     exec:

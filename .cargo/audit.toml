@@ -18,4 +18,15 @@ ignore = [
   # Review: 2026-08-10 · drop when xcb/xcap cross 0.41 upstream.
   "RUSTSEC-2026-0194",
   "RUSTSEC-2026-0195",
+  # RUSTSEC-2026-0367 + RUSTSEC-2026-0368 + RUSTSEC-2026-0369 · zip 7.2.0
+  # extraction (SUID/SGID bits, symlink targets, permissions through symlinks ·
+  # fix >=9.0.0), all in `ZipArchive::extract` / `ZipStreamReader::extract`.
+  # Only candle-core 0.10.2 → nika-infer-local pulls zip 7.2, and it reads
+  # `.npz` / `.pth` entries and writes `.npz`: it never extracts an archive.
+  # candle-core 0.11.0 still requires zip ^8.6. Review: when candle-core
+  # accepts zip >=9.0. The unmaintained zbus trio (RUSTSEC-2026-0370..0372)
+  # stays a cargo-audit warning, as `paste` does; deny.toml documents it.
+  "RUSTSEC-2026-0367",
+  "RUSTSEC-2026-0368",
+  "RUSTSEC-2026-0369",
 ]

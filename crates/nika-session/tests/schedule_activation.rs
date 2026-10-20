@@ -73,14 +73,18 @@ fn review(session: &mut SessionRuntime, root: &Path) -> (ProposalId, String) {
     };
     assert!(!root.join("nika.yaml").exists());
     assert!(!root.join("out/copy.md").exists());
-    assert!(preview.contains("Declared is not active"), "{preview}");
+    // The Session says its own lines in the person's language: English or French requests.
+    assert!(
+        preview.contains("Declared is not active") || preview.contains("Déclaré n'est pas actif"),
+        "{preview}"
+    );
     (id, preview)
 }
 
 fn declared(session: &mut SessionRuntime, root: &Path, id: &ProposalId, expected: &str) {
     let out = session.consent_to(id, "yes");
     assert!(
-        matches!(out, TurnOutcome::Facts(ref text) if text.contains("Declared in `nika.yaml` · not active")),
+        matches!(out, TurnOutcome::Facts(ref text) if text.contains("Declared in `nika.yaml` · not active") || text.contains("Déclaré dans `nika.yaml` · pas actif")),
         "{out:?}"
     );
     let text = std::fs::read_to_string(root.join("nika.yaml")).unwrap();
@@ -135,7 +139,10 @@ fn compile_to_persisted_cadence_preserves_weekday_interval_and_explicit_time() {
         let (id, preview) = review(&mut session, dir.path());
         let expected = format!("TZ=Europe/Paris {fields}");
         assert!(preview.contains(&expected), "{phrase}: {preview}");
-        assert!(preview.contains("interval steps start at zero on the local clock"));
+        assert!(
+            preview.contains(&format!("in `nika.yaml`: `{expected}`")),
+            "{phrase}: {preview}"
+        );
         declared(&mut session, dir.path(), &id, &expected);
     }
 }
@@ -158,7 +165,8 @@ fn incomplete_conflicting_and_unsupported_periods_never_declare_a_schedule() {
         let mut session = saved(dir.path(), phrase);
         let out = session.turn("activate");
         assert!(
-            matches!(out, TurnOutcome::Refusal(ref r) if r.text.contains("incomplete, conflicting or unsupported")),
+            matches!(out, TurnOutcome::Refusal(ref r) if r.text.contains("incomplete, conflicting or unsupported")
+                || r.text.contains("incomplète, contradictoire ou pas encore prise en charge")),
             "{phrase}: {out:?}"
         );
         assert!(session.pending_activation().is_none());
@@ -300,4 +308,251 @@ fn a_clarified_cadence_reaches_the_same_activation_consumer() {
     let (id, preview) = review(&mut session, dir.path());
     assert!(preview.contains("TZ=Europe/Paris 0 10 * * 5"), "{preview}");
     declared(&mut session, dir.path(), &id, "TZ=Europe/Paris 0 10 * * 5");
+}
+
+/// The saved workflow's name, as its `nika:` line states it.
+fn workflow_name(root: &Path) -> String {
+    let saved = (std::fs::read_dir(root).unwrap().flatten())
+        .map(|entry| entry.path())
+        .find(|path| path.extension().is_some_and(|ext| ext == "nika"))
+        .expect("a saved workflow");
+    let text = std::fs::read_to_string(saved).unwrap();
+    let line = text.lines().find_map(|line| line.strip_prefix("nika: "));
+    line.expect("its name").trim().to_owned()
+}
+
+/// A succeeded run of `name` under `root` whose trace states `cost` as its total.
+fn ran(root: &Path, name: &str, cost: f64) {
+    ran_with(
+        root,
+        name,
+        &format!(r#",{{"key":"total_cost_usd","value":{cost}}}"#),
+    );
+}
+
+/// A succeeded run of `name` whose settlement carries `cost` (its `total_cost_usd` field, or
+/// nothing when the run recorded no priced cost).
+fn ran_with(root: &Path, name: &str, cost: &str) {
+    let frame = |kind: &str, ms: u64, fields: &str| {
+        format!(
+            r#"{{"id":{{"uuid":"01a0e819-b6cd-70f2-8edf-c29fbd00bc4d"}},"timestamp":{ms}000000,"kind":"{kind}","execution":{{"uuid":"01a0e819-b6c9-7781-bb7b-48dc617a41fb"}},"run":null,"correlation":null,"fields":[{fields}]}}"#
+        )
+    };
+    let named = format!(r#"{{"key":"workflow","value":"{name}"}}"#);
+    let settled = format!(r#"{named},{{"key":"status","value":"succeeded"}}{cost}"#);
+    let traces = root.join(".nika/traces");
+    std::fs::create_dir_all(&traces).unwrap();
+    let body = format!(
+        "{}\n{}\n",
+        frame("workflow_started", 1_790_600_394_445, &named),
+        frame("workflow_completed", 1_790_600_394_945, &settled)
+    );
+    std::fs::write(traces.join("2026-10-15T09-00-00Z-run.ndjson"), body).unwrap();
+}
+
+/// The activation of a saved weekly copy, answered up to the policy for a missed run.
+fn at_the_missed_policy(root: &Path) -> SessionRuntime {
+    let mut session = saved(root, "Every Tuesday at 9");
+    assert!(matches!(
+        session.turn("activate"),
+        TurnOutcome::Question { .. }
+    ));
+    let out = session.turn("Europe/Paris");
+    let TurnOutcome::Question { key, question } = out else {
+        panic!("{out:?}")
+    };
+    assert_eq!(key, "project.missed");
+    // A host with no rows still reads every option as text.
+    assert!(
+        question.contains("1  run once when it comes back"),
+        "{question}"
+    );
+    session
+}
+
+#[test]
+fn the_finite_activation_questions_offer_their_options_natively() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut session = at_the_missed_policy(dir.path());
+    let (key, said, options, typed) = session.waiting_activation_choices().expect("rows");
+    assert_eq!(key, "project.missed");
+    assert!(
+        said.starts_with("If this machine is off at 09:00 (Europe/Paris)"),
+        "{said}"
+    );
+    assert_eq!(
+        said.lines().count(),
+        2,
+        "the sentence and one short line: {said}"
+    );
+    assert!(
+        !said.contains("run once"),
+        "the rows are never repeated as text: {said}"
+    );
+    let keys: Vec<&str> = options.iter().map(|o| o.key.as_str()).collect();
+    assert_eq!(keys, ["1", "2", "3"]);
+    assert!(options.iter().all(|o| !o.recommended) && !typed);
+    let out = session.turn("2");
+    let TurnOutcome::Question { key, question } = out else {
+        panic!("{out:?}")
+    };
+    assert_eq!(key, "project.ceiling");
+    let fallback = "0.25  recommended · no run of this workflow observed yet";
+    assert!(question.contains(fallback), "{question}");
+    assert!(question.contains("or type another amount"), "{question}");
+    let (key, said, options, typed) = session.waiting_activation_choices().expect("rows");
+    assert_eq!(key, "project.ceiling");
+    assert_eq!(said.lines().count(), 2, "{said}");
+    let keys: Vec<&str> = options.iter().map(|o| o.key.as_str()).collect();
+    assert_eq!(keys, ["0.10", "0.25", "0.50", "1.00"]);
+    let recommended: Vec<&str> = (options.iter())
+        .filter(|o| o.recommended)
+        .map(|o| o.label.as_str())
+        .collect();
+    assert_eq!(
+        recommended,
+        ["$0.25 · no run of this workflow observed yet"]
+    );
+    assert!(typed, "another amount is typed");
+    // No amount is ever applied for the person: a consent word answers nothing.
+    assert!(matches!(session.turn("yes"), TurnOutcome::Refusal(_)));
+    assert_eq!(session.pending_activation(), Some("project.ceiling"));
+    let out = session.turn("0.25");
+    let TurnOutcome::Proposal { preview, .. } = out else {
+        panic!("{out:?}")
+    };
+    assert!(
+        preview.contains("ceiling · $0.25 per scheduled run"),
+        "{preview}"
+    );
+    assert!(session.waiting_activation_choices().is_none());
+}
+
+#[test]
+fn the_ceiling_recommended_reads_the_workflows_last_run() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut session = saved(dir.path(), "Every Tuesday at 9");
+    ran(dir.path(), &workflow_name(dir.path()), 0.033);
+    assert!(matches!(
+        session.turn("activate"),
+        TurnOutcome::Question { .. }
+    ));
+    assert!(
+        session.waiting_activation_choices().is_none(),
+        "a zone is typed"
+    );
+    assert!(matches!(
+        session.turn("Europe/Paris"),
+        TurnOutcome::Question { .. }
+    ));
+    assert!(matches!(session.turn("1"), TurnOutcome::Question { .. }));
+    let (_, _, options, _) = session.waiting_activation_choices().expect("rows");
+    let recommended: Vec<(&str, &str)> = (options.iter())
+        .filter(|o| o.recommended)
+        .map(|o| (o.key.as_str(), o.label.as_str()))
+        .collect();
+    assert_eq!(recommended, [("0.10", "$0.10 · 3 × the last run ($0.033)")]);
+    // Picking the offered amount answers as typing it does.
+    let out = session.turn("0.10");
+    let TurnOutcome::Proposal { preview, .. } = out else {
+        panic!("{out:?}")
+    };
+    assert!(
+        preview.contains("ceiling · $0.1 per scheduled run"),
+        "{preview}"
+    );
+}
+
+/// A green run that recorded no priced cost (no model call) is still a run observed: the
+/// ceiling says it cost nothing priced, never that no run was observed (live gauntlet,
+/// 2026-10-16: three personas read « no run of this workflow observed yet » after green runs).
+#[test]
+fn a_run_without_a_priced_cost_is_still_observed() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut session = saved(dir.path(), "Every Tuesday at 9");
+    ran_with(dir.path(), &workflow_name(dir.path()), "");
+    assert!(matches!(
+        session.turn("activate"),
+        TurnOutcome::Question { .. }
+    ));
+    assert!(matches!(
+        session.turn("Europe/Paris"),
+        TurnOutcome::Question { .. }
+    ));
+    assert!(matches!(session.turn("1"), TurnOutcome::Question { .. }));
+    let (_, _, options, _) = session.waiting_activation_choices().expect("rows");
+    let recommended: Vec<&str> = (options.iter())
+        .filter(|o| o.recommended)
+        .map(|o| o.label.as_str())
+        .collect();
+    assert_eq!(recommended, ["$0.10 · the last run cost nothing priced"]);
+}
+
+/// A choice left to Nika on the activation's questions takes the run-once policy and the
+/// recommended ceiling, both shown in the declaration the person consents to (live gauntlet,
+/// 2026-10-16: « choisis pour moi » was dropped on these two questions).
+#[test]
+fn a_delegated_activation_answer_takes_the_shown_defaults() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut session = at_the_missed_policy(dir.path());
+    let TurnOutcome::Question { key, .. } = session.turn("choisis pour moi") else {
+        panic!("the ceiling is asked next");
+    };
+    assert_eq!(key, "project.ceiling");
+    let out = session.turn("fais au mieux, ça coûte presque rien");
+    let TurnOutcome::Proposal { preview, .. } = out else {
+        panic!("{out:?}")
+    };
+    assert!(preview.contains("if missed · catch up once"), "{preview}");
+    assert!(
+        preview.contains("ceiling · $0.25 per scheduled run"),
+        "{preview}"
+    );
+}
+
+/// « Active-le » with its cadence declares that cadence, the person's words read as they speak
+/// (live gauntlet r02/r05/r08, 2026-10-16): a city for the zone, a sentence for the missed run,
+/// a delegation after another clause for the ceiling.
+#[test]
+fn an_activation_that_states_its_cadence_declares_it_in_the_persons_words() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::create_dir_all(root.join("notes")).unwrap();
+    std::fs::write(root.join("notes/brief.md"), "unchanged input\n").unwrap();
+    let mut session = open(root);
+    save(
+        &mut session,
+        root,
+        "Read ./notes/brief.md and write it to ./out/copy.md",
+    );
+    for (line, expected) in [
+        (
+            "Maintenant active-le tous les matins à 7h stp",
+            "project.timezone",
+        ),
+        ("heure de Paris", "project.missed"),
+        (
+            "si l'ordinateur est éteint, le faire une fois quand il se rallume",
+            "project.ceiling",
+        ),
+    ] {
+        let out = session.turn(line);
+        assert!(
+            matches!(out, TurnOutcome::Question { ref key, .. } if key == expected),
+            "{line}: {out:?}"
+        );
+    }
+    let out = session.turn("je ne comprends pas, choisissez pour moi");
+    let TurnOutcome::Proposal { preview, .. } = out else {
+        panic!("{out:?}")
+    };
+    assert!(preview.contains("TZ=Europe/Paris 0 7 * * *"), "{preview}");
+    assert!(
+        preview.contains("si manqué · le rattraper une fois"),
+        "a French activation is declared in French: {preview}"
+    );
+    assert!(
+        !root.join("nika.yaml").exists(),
+        "nothing declared before consent"
+    );
 }

@@ -27,14 +27,18 @@ mod judged;
 #[cfg(test)]
 mod judged_tests;
 mod observed;
+mod pinned;
+#[cfg(test)]
+mod pinned_tests;
 pub mod record;
 mod shown;
 
-pub use judged::{judged_run, targets_of};
+pub use judged::{judged_run, normal as room_spelling, targets_of};
 pub use observed::{
     Bounds, CopyReceipt, Digest, FailureRecord, FinalReceipt, FinalState, Held, LedgerFacts,
     Observation, RecordedCause, Refusal, Spent,
 };
+pub use pinned::{PinnedTool, judged_tools};
 pub use shown::{trial_receipts, trial_shown, trial_whole};
 
 /// One declared output a rehearsal read back from its room.
@@ -475,5 +479,24 @@ pub trait Rehearse: Send + Sync {
     fn compose(&self, candidate: &str) -> Composed {
         let _ = candidate;
         Composed::Unoffered
+    }
+    /// What the project says about the tool `mcp:<server>/<tool>`, read from its registry and its
+    /// approved pins, never by reaching the server. A host that keeps this default reads no pins,
+    /// and every `mcp:` step keeps the source-only hold.
+    fn pinned(&self, server: &str, tool: &str) -> PinnedTool {
+        let _ = (server, tool);
+        PinnedTool::Unoffered
+    }
+    /// Whether this host rehearses at all. A host that lends only the project's pins answers
+    /// `false`: the compile then asks it for no rehearsal and records none, exactly as with no
+    /// host, and judges its `mcp:` steps on those pins.
+    fn offers_rehearsal(&self) -> bool {
+        true
+    }
+    /// Whether the runs this host's compile answers for can make an `mcp:` call. A host that
+    /// answers `false` keeps a judged `mcp:` step held, in words saying so: a READY never
+    /// promises a run its server cannot make.
+    fn runs_mcp_steps(&self) -> bool {
+        true
     }
 }

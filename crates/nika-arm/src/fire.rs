@@ -387,6 +387,7 @@ pub struct RunShot {
     scheduled_for: jiff::Timestamp,
     fired_at: jiff::Timestamp,
     inputs: BTreeMap<String, String>,
+    missed: Option<(jiff::Timestamp, u32)>,
 }
 
 impl RunShot {
@@ -450,6 +451,14 @@ impl RunShot {
     #[must_use]
     pub const fn scheduled_for(&self) -> jiff::Timestamp {
         self.scheduled_for
+    }
+
+    /// The silence a catch-up covers (`rattraper-une-fois`): its first slot and
+    /// how many slots it holds, the last being [`Self::scheduled_for`]. `None`
+    /// for a fire on time.
+    #[must_use]
+    pub const fn missed(&self) -> Option<(jiff::Timestamp, u32)> {
+        self.missed
     }
 
     /// Resident decision instant.
@@ -631,7 +640,9 @@ fn decide_locked(ctx: &FireCtx, lease: super::state::LockLease) -> FireVerdict {
             slot,
             journal,
         } => act_on_skip(ctx, line, reason, slot.as_ref(), journal),
-        TickDecision::Fire { slot, slots } => claim_run_receipt(ctx, &lock.lease, &slot, slots),
+        TickDecision::Fire { slot, slots, first } => {
+            claim_run_receipt(ctx, &lock.lease, &slot, (slots, first.as_ref()))
+        }
         _ => FireVerdict {
             line: "arm fire · engine fault: unknown tick decision".to_owned(),
             code: exit::FILE,
@@ -842,7 +853,7 @@ fn claim_run_receipt(
     ctx: &FireCtx,
     lease: &super::state::LockLease,
     slot: &Zoned,
-    slots: Option<u32>,
+    (slots, first): (Option<u32>, Option<&Zoned>),
 ) -> FireVerdict {
     let (beat, plafond, pinned) = match admit_due_workflow(ctx) {
         Ok(admitted) => admitted,
@@ -854,11 +865,9 @@ fn claim_run_receipt(
     let Some(source) = admitted_root_source(&pinned.admitted) else {
         return invalid_execution_identity(ctx);
     };
-    let schedule_revision = match ScheduleDraft::from_project(ctx.label.clone(), beat)
-        .and_then(ScheduleDraft::validate)
-    {
-        Ok(schedule) => schedule.revision(),
-        Err(error) => return schedule_identity_refused(ctx, &error),
+    let schedule_revision = match beat_schedule_revision(ctx, beat) {
+        Ok(revision) => revision,
+        Err(verdict) => return verdict,
     };
     let request = RunShot {
         project: pinned.project,
@@ -874,6 +883,9 @@ fn claim_run_receipt(
         scheduled_for: slot.timestamp(),
         fired_at: ctx.now.timestamp(),
         inputs: beat.inputs.clone(),
+        missed: first
+            .zip(slots)
+            .map(|(first, count)| (first.timestamp(), count)),
     };
     let (execution, run): (ExecutionLink, Box<dyn FnOnce() -> RunUpshot + '_>) = match &ctx.run {
         RunAdapter::Coordinated(prepare) => match prepare(pinned.admitted, &request) {
@@ -964,6 +976,15 @@ fn admitted_root_source(admitted: &AdmittedExecution) -> Option<String> {
         .snapshot()
         .text(admitted.snapshot().root())
         .map(str::to_owned)
+}
+
+/// The revision of the schedule the beat declares (its durable identity), or the refusal that
+/// identity earns (split out of `claim_run_receipt` at the 100-line ratchet).
+fn beat_schedule_revision(ctx: &FireCtx, beat: &Beat) -> Result<ScheduleRevision, FireVerdict> {
+    match ScheduleDraft::from_project(ctx.label.clone(), beat).and_then(ScheduleDraft::validate) {
+        Ok(schedule) => Ok(schedule.revision()),
+        Err(error) => Err(schedule_identity_refused(ctx, &error)),
+    }
 }
 
 fn schedule_identity_refused(ctx: &FireCtx, error: &nika_cadence::ScheduleFinding) -> FireVerdict {
@@ -1284,6 +1305,7 @@ mod tests {
             scheduled_for,
             fired_at,
             inputs: BTreeMap::from([("tenant".to_owned(), "acme".to_owned())]),
+            missed: None,
         };
         assert_eq!(shot.inputs().collect::<Vec<_>>(), [("tenant", "acme")]);
         assert_eq!(shot.input_vars().collect::<Vec<_>>(), ["tenant=acme"]);

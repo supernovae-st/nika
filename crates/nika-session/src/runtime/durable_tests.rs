@@ -1383,3 +1383,97 @@ fn restored_questions_expire_from_both_stores_without_rewriting_evidence() {
 }
 
 mod recovery_notice_tests;
+
+/// A reopened conversation checks the workflow it saved again, on the bytes on disk: an
+/// unchanged clean file stays « Vérifié », a file changed into findings does not (wave 5: the rail
+/// said « Vérifié ○ » after a reopen).
+#[test]
+fn a_reopened_conversation_checks_its_saved_workflow_again() {
+    let root = project();
+    let home = tempfile::tempdir().expect("home");
+    let (mut first, _) = open(root.path(), &[ANSWER, ANSWER]);
+    first.enable_history(home.path()).expect("fresh history");
+    let _ = proposed(first.turn(COPY));
+    assert!(matches!(first.consent("yes"), TurnOutcome::Facts(_)));
+    assert_eq!(first.last_check_clean, Some(true));
+    // The program record a consent keeps names the saved file.
+    first.programs = Some(serde_json::json!({"version": 1, "entries": [], "last_saved": LANDED}));
+    let _ = first.turn(GOAL);
+    drop(first);
+    let (mut resumed, seen) = open(root.path(), &[ANSWER]);
+    resumed.enable_history(home.path()).expect("resume");
+    assert_eq!(resumed.last_workflow.as_deref(), Some(Path::new(LANDED)));
+    assert_eq!(resumed.last_check_clean, Some(true), "checked again, clean");
+    assert!(seen.lock().expect("record").is_empty(), "no model read it");
+    let _ = resumed.turn(GOAL);
+    drop(resumed);
+    std::fs::write(
+        root.path().join(LANDED),
+        "nika: broken
+tasks:
+  a: {}
+",
+    )
+    .expect("edit");
+    let (mut changed, _) = open(root.path(), &[]);
+    changed.enable_history(home.path()).expect("resume");
+    assert_eq!(
+        changed.last_check_clean,
+        Some(false),
+        "the bytes on disk decide"
+    );
+}
+
+/// `/new` seals the conversation beside its journal, never deleting it, and begins the next one:
+/// a restart resumes the new conversation without the old turns, the saved workflow still the
+/// project's (NIK-197).
+#[test]
+fn a_new_conversation_seals_the_journal_and_a_restart_resumes_the_new_one() {
+    let root = project();
+    let home = tempfile::tempdir().expect("home");
+    let (mut first, _) = open(root.path(), &[ANSWER]);
+    first.enable_history(home.path()).expect("fresh history");
+    let _ = proposed(first.turn(COPY));
+    assert!(matches!(first.consent("yes"), TurnOutcome::Facts(_)));
+    assert!(matches!(first.turn(GOAL), TurnOutcome::Reply(_)));
+    let TurnOutcome::Facts(said) = first.turn("/new") else {
+        panic!("the new conversation is said");
+    };
+    assert!(
+        said.starts_with("New conversation · the previous one is kept as it was (`events-"),
+        "{said}"
+    );
+    let dir = history_dir(home.path(), root.path());
+    let sealed: Vec<String> = (std::fs::read_dir(&dir).expect("history dir"))
+        .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+        .filter(|name| name.starts_with("events-"))
+        .collect();
+    assert_eq!(sealed.len(), 1, "{sealed:?}");
+    let old = std::fs::read_to_string(dir.join(&sealed[0])).expect("sealed journal");
+    assert!(old.contains("violet comet"), "the old turns stay on record");
+    let fresh = std::fs::read_to_string(dir.join("events.ndjson")).expect("fresh journal");
+    assert_eq!(fresh.lines().count(), 3, "opened, begun, carried: {fresh}");
+    assert!(!fresh.contains("violet comet"), "{fresh}");
+    assert!(first.intent.goal.is_none() && first.recent.is_empty());
+    assert_eq!(first.last_workflow.as_deref(), Some(Path::new(LANDED)));
+    drop(first);
+    let (mut resumed, seen) = open(root.path(), &[]);
+    let _ = resumed.enable_history(home.path()).expect("resume");
+    assert!(resumed.intent.goal.is_none(), "{:?}", resumed.intent);
+    assert!(
+        resumed
+            .recent
+            .iter()
+            .all(|(line, _)| !line.contains("violet comet")),
+        "the old turns do not come back: {:?}",
+        resumed.recent
+    );
+    assert!(
+        root.path().join(LANDED).is_file(),
+        "the saved workflow stays the project's"
+    );
+    assert!(
+        seen.lock().expect("record").is_empty(),
+        "opening is observation"
+    );
+}

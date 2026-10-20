@@ -26,6 +26,16 @@ const UNCHANGED: &str = "`/help` lists the commands · nothing was sent, nothing
 const QUESTION_WAITS: &str =
     "the question still waits · reply on the next line · `cancel` drops it";
 
+/// [`QUESTION_WAITS`] in French.
+const QUESTION_WAITS_FR: &str =
+    "la question attend toujours · répondez sur la ligne suivante · « annuler » l'abandonne";
+
+/// What an authoring round's cancel says.
+const AUTHORING_DISCARDED: (&str, &str) = (
+    "authoring discarded · nothing was written · describe the work again when ready",
+    "préparation abandonnée · rien n'a été écrit · décrivez le travail à nouveau quand vous voulez",
+);
+
 /// `why` when nothing waits and nothing failed.
 const NOTHING_WAITS: &str =
     "nothing waits for you right now · describe work, ask a fact, or `run …` an accepted workflow";
@@ -98,6 +108,12 @@ impl SessionRuntime {
     /// what waits — which keeps waiting (`waits` names it). `None` for any other line.
     pub(super) fn beside(&self, line: &str, waits: &str) -> Option<TurnOutcome> {
         if is_what_happened(line) {
+            // A bare word of confusion with no recovery to tell asks what waits, never a run's
+            // fact (live gauntlet wave 6 r02 B3, 2026-10-18: « quoi ? » beside a question read
+            // « no run yet under this root »).
+            if self.last_recovery.is_none() && is_confused(line) {
+                return Some(self.explain_pending());
+            }
             let said = self
                 .last_recovery
                 .clone()
@@ -127,9 +143,18 @@ impl SessionRuntime {
             "/knowledge" => TurnOutcome::Facts(self.knowledge_card()),
             _ if is_why(input) => self.explain_pending(),
             _ if is_meaning(input) => self.meaning_unrecorded(),
+            // « est-ce que c'est actif ? »: from `nika.yaml` and this Mac, never a model.
+            _ if !owned && super::active::is_active_question(input) => self.active_turn(),
             _ if is_what_happened(input) => match self.last_recovery() {
                 Some(card) => card,
-                None if owned => self.beside(input, QUESTION_WAITS)?,
+                None if owned => {
+                    let waits = self.language.pick(QUESTION_WAITS, QUESTION_WAITS_FR);
+                    self.beside(input, waits)?
+                }
+                // A bare word of confusion with no recovery to tell is the conversation's to
+                // answer, never a run's fact (live gauntlet wave 6 r02 B3, 2026-10-18: « quoi ? »
+                // beside an unreadable question read « no run yet under this root »).
+                None if is_confused(input) => return None,
                 None => TurnOutcome::Facts(crate::facts::last_run(&self.snapshot.root)),
             },
             _ if owned
@@ -162,22 +187,18 @@ impl SessionRuntime {
             self.authoring = None;
             self.intent.unresolved.clear();
             self.remember(line, "(authoring discarded)");
-            return Some(TurnOutcome::Facts(
-                "authoring discarded · nothing was written · describe the work again when ready"
-                    .to_owned(),
-            ));
+            let (en, fr) = AUTHORING_DISCARDED;
+            return Some(TurnOutcome::Facts(self.language.pick(en, fr).to_owned()));
         }
         let text = unserved_command(line)?;
-        let refusal = Refusal::new(
-            RefusalClass::WrongState,
-            format!("{text}\n  {QUESTION_WAITS}"),
-        );
+        let waits = self.language.pick(QUESTION_WAITS, QUESTION_WAITS_FR);
+        let refusal = Refusal::new(RefusalClass::WrongState, format!("{text}\n  {waits}"));
         Some(self.answer_refused(self.pending_question_id(), TurnOutcome::Refusal(refusal)))
     }
 
-    /// `/why` — the aside for whatever waits: an authoring question, a
-    /// declared input, an activation's value, a gate, a proposal; a fact when
-    /// nothing waits.
+    /// `/why` — the aside for whatever waits: an authoring question, a run's
+    /// ceiling, a declared input, an activation's value, a gate, a proposal; a
+    /// fact when nothing waits.
     pub(super) fn explain_pending(&self) -> TurnOutcome {
         if self.knowledge.held.is_some() {
             return TurnOutcome::Aside(self.knowledge_card());
@@ -185,7 +206,10 @@ impl SessionRuntime {
         if let Some(round) = &self.authoring
             && let Some(question) = round.current()
         {
-            return TurnOutcome::Aside(aside::explain_question(question, round));
+            return TurnOutcome::Aside(aside::explain_question(question, round, self.language));
+        }
+        if let Some(text) = self.explain_ceiling() {
+            return TurnOutcome::Aside(text);
         }
         if let Some(inputs) = &self.run_inputs
             && let Some(name) = inputs.first_needed()
@@ -194,6 +218,7 @@ impl SessionRuntime {
                 inputs.workflow(),
                 name,
                 inputs.remaining(),
+                self.language,
             ));
         }
         if let Some(activation) = &self.activation
@@ -202,7 +227,11 @@ impl SessionRuntime {
             return TurnOutcome::Aside(activation.why());
         }
         if let Some(gate) = &self.pending_gate {
-            return TurnOutcome::Aside(aside::explain_gate(gate, &self.snapshot.root));
+            return TurnOutcome::Aside(aside::explain_gate(
+                gate,
+                &self.snapshot.root,
+                self.language,
+            ));
         }
         if let Some(set) = &self.pending {
             return TurnOutcome::Aside(format!(
@@ -218,6 +247,16 @@ impl SessionRuntime {
         self.last_recovery()
             .unwrap_or_else(|| TurnOutcome::Facts(NOTHING_WAITS.to_owned()))
     }
+}
+
+/// A bare word of confusion (« quoi ? », « hein ? »): the person did not follow, which asks
+/// nothing of a run.
+pub(super) fn is_confused(input: &str) -> bool {
+    let word = (input.trim().trim_end_matches(['?', '!', '.', ' '])).to_lowercase();
+    matches!(
+        word.as_str(),
+        "quoi" | "de quoi" | "hein" | "comment ça" | "comment ca"
+    )
 }
 
 #[cfg(test)]

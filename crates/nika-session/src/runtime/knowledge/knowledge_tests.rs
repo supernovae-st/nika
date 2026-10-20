@@ -76,7 +76,7 @@ fn overridden(dir: &Path) -> AuthoringContext {
     AuthoringContext::from_settings(&AuthoringSettings::none(), &env)
 }
 
-/// A session on the `mock/echo` API seat, its reasoner recorded, under `context` and the
+/// A known API selection with a recorded `mock/echo` authoring fixture, under `context` and the
 /// continuous preparation every door opens with; `home` keeps its history when named.
 fn seated(
     root: &Path,
@@ -85,11 +85,11 @@ fn seated(
     home: Option<&Path>,
 ) -> SessionRuntime {
     let mut census = IntelligenceCensus::empty();
-    census.api_keys.push("mock".to_owned());
+    census.api_keys.push("deepseek".to_owned());
     let api = IntelligenceKind::Api {
-        provider: "mock".to_owned(),
+        provider: "deepseek".to_owned(),
     };
-    let pref = UserIntelligencePreference::new(api, Some("mock/echo".to_owned()));
+    let pref = UserIntelligencePreference::new(api, Some("deepseek/recorded-fixture".to_owned()));
     let recorder = Arc::clone(prompts);
     let mut session = SessionRuntime::open_with(
         root,
@@ -145,13 +145,16 @@ fn a_default_session_reads_the_embedded_release_and_says_nothing_about_it() {
     let TurnOutcome::Facts(card) = s.turn("/knowledge") else {
         panic!("`/knowledge` answers from the session's own facts");
     };
-    assert!(card.starts_with("knowledge: built into Nika · "), "{card}");
+    assert!(
+        card.starts_with("knowledge: built into Nika · "),
+        "the card names the built-in knowledge"
+    );
     let TurnOutcome::Facts(again) = s.turn("/knowledge embedded") else {
         panic!("a no-op is said");
     };
     assert!(
         again.contains("already in use") && again.ends_with("nothing changed"),
-        "{again}"
+        "a no-op is said"
     );
     assert_eq!(
         s.work()
@@ -271,7 +274,10 @@ fn a_refused_override_holds_work_and_chat_before_any_model_request() {
         let TurnOutcome::Facts(dropped) = s.submit("cancel", &held) else {
             panic!("`cancel` drops the held line");
         };
-        assert!(dropped.contains("not sent anywhere"), "{dropped}");
+        assert!(
+            dropped.contains("not sent anywhere"),
+            "the held line is not sent"
+        );
         assert_eq!(s.waiting(), Waiting::Free);
     }
     assert!(prompts_seen(&prompts).is_empty());
@@ -330,12 +336,18 @@ fn the_embedded_choice_resumes_the_held_line_once_and_changes_nothing_else() {
     let TurnOutcome::Facts(again) = s.submit("/knowledge embedded", &Waiting::Free) else {
         panic!("a second choice is a no-op, said");
     };
-    assert!(again.contains("already in use"), "{again}");
+    assert!(
+        again.contains("already in use"),
+        "a second choice is a no-op"
+    );
     assert_eq!(prompts_seen(&prompts).len(), 1, "nothing resent");
     let TurnOutcome::Facts(card) = s.turn("/knowledge") else {
         panic!("the card");
     };
-    assert!(card.ends_with("chosen in this conversation"), "{card}");
+    assert!(
+        card.ends_with("chosen in this conversation"),
+        "the card names the conversation choice"
+    );
 }
 
 /// A line that needs no model is read as before under a refused source: a fact, a deterministic
@@ -404,7 +416,10 @@ fn the_embedded_choice_is_kept_with_the_conversation() {
     let TurnOutcome::Facts(notice) = s.submit("/knowledge embedded", &Waiting::Free) else {
         panic!("applied, nothing held");
     };
-    assert!(notice.ends_with("holds for this conversation"), "{notice}");
+    assert!(
+        notice.ends_with("holds for this conversation"),
+        "the notice names its scope"
+    );
     assert_eq!(s.knowledge.conversation.as_deref(), Some(EMBEDDED));
     drop(s);
     let mut again = seated(
@@ -456,8 +471,7 @@ fn an_embedded_choice_that_cannot_apply_changes_nothing() {
     };
     assert!(
         refused.text.ends_with("nothing changed"),
-        "{}",
-        refused.text
+        "the refusal says nothing changed"
     );
     assert_eq!(s.authoring_context(), &before, "nothing changed");
     assert!(s.knowledge.conversation.is_none());
@@ -466,8 +480,7 @@ fn an_embedded_choice_that_cannot_apply_changes_nothing() {
     };
     assert!(
         other.text.contains("is not a knowledge choice"),
-        "{}",
-        other.text
+        "the refusal names a non-choice"
     );
     assert!(prompts_seen(&prompts).is_empty());
 }

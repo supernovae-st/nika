@@ -48,6 +48,7 @@ pub(crate) use provenance::run_verdict;
 pub use provenance::{run_with_inputs_json, run_with_repair_target};
 mod heartbeat;
 mod literal_inputs;
+mod resume_facts;
 mod resume_setup;
 mod teardown;
 mod thread;
@@ -335,6 +336,13 @@ fn execute_and_ask(
             break;
         };
         legs += 1;
+        // The continuation runs under what the paused leg's ceiling leaves, never the whole
+        // ceiling again (live gauntlet r04 B8): its spend before the gate counts.
+        let leg_ceiling = max_cost_usd.map(|ceiling| {
+            (nika_trace::run_view::RunFacts::read(&leg.trace))
+                .and_then(|facts| facts.ceiling_left())
+                .unwrap_or(ceiling)
+        });
         let request = ResumeRequest {
             trace: Some(leg.trace),
             from: None,
@@ -351,7 +359,7 @@ fn execute_and_ask(
             binding,
             model_override,
             access_pin,
-            max_cost_usd,
+            leg_ceiling,
             theme,
             mode,
             (json, output_json, no_trace_file, !no_outputs, scoped),
@@ -424,6 +432,7 @@ fn answered_leg(
         &plan,
         inputs,
         setup,
+        nika_runtime::RunFacts::default(),
         max_cost_usd,
         // A resumed leg never inherits unknown-cost authority: only a fresh observer.
         nika_cli_host::run_cost::leg_observer(wf, &plan, model_override),
@@ -558,6 +567,7 @@ fn composed_runtime(
     plan: &nika_providers::ExecutionAccessPlan,
     inputs: inputs::ValidatedInputs,
     setup: ResumeSetup,
+    run_facts: nika_runtime::RunFacts,
     max_cost_usd: Option<f64>,
     cost_config: Option<nika_runtime::RuntimeConfig>,
     (_no_trace_file, output_json): (bool, bool),
@@ -566,6 +576,7 @@ fn composed_runtime(
     // `restore_from` was consumed when the durable step bound the setup.
     let ResumeSetup {
         plan: resume_plan,
+        run_facts: recorded_facts,
         answers,
         paused,
         compat,
@@ -594,6 +605,7 @@ fn composed_runtime(
         Ok(rt) => {
             let rt = rt
                 .with_var_overrides(overrides)
+                .with_run_facts(recorded_facts.unwrap_or(run_facts))
                 // F-P13 · the input origins (NEP-0014 law 2), journaled on the boot manifest.
                 .with_input_origins(origins)
                 .with_max_cost_usd(max_cost_usd)
@@ -695,6 +707,7 @@ pub(crate) fn capture_mock_outputs(
             values: BTreeMap::new(),
             origins: BTreeMap::new(),
         },
+        nika_runtime::RunFacts::default(),
         theme,
     )
 }
@@ -707,6 +720,7 @@ pub(crate) fn capture_mock_outputs_with_answers(
     skills: BTreeMap<String, String>,
     answers: BTreeMap<String, Value>,
     inputs: inputs::ValidatedInputs,
+    facts: nika_runtime::RunFacts,
     theme: Theme,
 ) -> Result<(u8, BTreeMap<String, Value>), String> {
     let mock_wf = force_mock_models(wf);
@@ -721,7 +735,8 @@ pub(crate) fn capture_mock_outputs_with_answers(
         .with_skills(skills)
         .with_prompt_answers(answers)
         .with_var_overrides(inputs.values)
-        .with_input_origins(inputs.origins);
+        .with_input_origins(inputs.origins)
+        .with_run_facts(facts);
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

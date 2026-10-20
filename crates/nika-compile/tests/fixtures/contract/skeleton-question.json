@@ -171,6 +171,7 @@
               "max_tokens": 300,
               "min_path_usd": 0.0,
               "model": "mock/echo",
+              "reasoning_beyond": false,
               "task": "extract_facts",
               "unbounded_reason": null,
               "usd": 0.0
@@ -321,7 +322,7 @@
       "cognition": "deterministicOnly",
       "compiler_version": "0.123.0-preview.1",
       "skeleton": "classify-and-route",
-      "spec_pin": "d9b2d01abd08af0296bf631224641c26a62d1b54",
+      "spec_pin": "6390b08eb9791ce49c63ee17f8466fab118cadb8",
       "strategy": "skeleton",
       "suggested_file": null
     },

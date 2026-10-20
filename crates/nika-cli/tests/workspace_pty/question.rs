@@ -2,13 +2,19 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The real Live question, its retained text and a distinct newer draft.
-//! No provider or implicit Save/Run; the same native frame owns the reply.
+//! The kept intelligence reads each typed reply (a scripted loopback: the
+//! routed lines are asserted exactly); no implicit Save or Run and no workflow
+//! effect; the same native frame owns the reply.
+//! The proposal an answer completes waits as a finite action (`action ›`),
+//! which still takes typed words.
 
 use super::*;
 
 #[test]
 fn an_unread_live_answer_and_newer_draft_survive_without_binding_or_writes() {
-    let rig = Rig::new("typed-question");
+    // The kept intelligence routes each typed reply: the two-line one, naming two currencies,
+    // is UNKNOWN to it and binds nothing; `EUR` is the ANSWER.
+    let rig = Rig::scripted("typed-question", &["UNKNOWN", "ANSWER"]);
     let before = rig.tree();
     let mut term = rig.spawn_with(
         "22-typed-question",
@@ -37,8 +43,10 @@ fn an_unread_live_answer_and_newer_draft_survive_without_binding_or_writes() {
             && screen.contains(newer)
             && screen.contains("reply ›")
             && !screen.contains("Save? ›")
+            && !action_prompt_shown(screen)
     });
     assert_eq!(rig.tree(), before, "no workflow or business write");
+    rig.routed(&[words.trim()], "a reply that binds nothing");
     // With the caret after the retained words, erase that known exact draft.
     // Backspace edits, it cannot answer. Unit tests assert every retained byte.
     term.send(&"\x7f".repeat(words.chars().count() + 1 + newer.chars().count()));
@@ -49,22 +57,23 @@ fn an_unread_live_answer_and_newer_draft_survive_without_binding_or_writes() {
         })
     });
     term.send("EUR\r");
+    // The consent now holds the line as a finite action (`action ›`); its band covers the
+    // conversation, and the full proposal's reader below shows the value bound (`currency: EUR`).
     term.wait_workspace_frame("one explicit value yields a proposal", |screen| {
-        screen.contains("Save? ›")
-            && screen.contains("aggregate-by-key.nika")
-            && screen.contains("Answer taken")
-            && screen.contains("«EUR»")
-            && screen.contains("as you typed it")
+        action_holds(screen) && screen.contains("aggregate-by-key.nika")
     });
     assert_eq!(rig.tree(), before, "binding is neither Save nor Run");
+    rig.routed(&[words.trim(), "EUR"], "each typed reply, read once");
     for (cols, rows) in [(80, 24), (180, 48), (120, 40)] {
         term.resize(cols, rows);
         term.wait_workspace_frame("the unsaved proposal at a native size", |screen| {
-            screen.size() == (usize::from(cols), usize::from(rows)) && screen.contains("Save? ›")
+            screen.size() == (usize::from(cols), usize::from(rows)) && action_holds(screen)
         });
         assert_eq!(rig.tree(), before, "viewing and resize grant no effect");
     }
     read_full_proposal(&mut term, &rig, &before);
+    rig.routed(&[words.trim(), "EUR"], "viewing and resize read no reply");
+    rig.no_run("binding, viewing and resize run nothing");
     term.signal(Signal::SIGTERM);
     let status = term.finish();
     assert_eq!(exit_code(status), Some(143), "{status:?}\n{}", term.dump());
@@ -73,6 +82,7 @@ fn an_unread_live_answer_and_newer_draft_survive_without_binding_or_writes() {
 
 /// Reading the Session's complete preview is view only; Enter returns to the
 /// exact pending draft rather than submitting it as a consent or revision.
+/// The decision's own reply field holds the draft on the action's row.
 fn read_full_proposal(term: &mut Term, rig: &Rig, before: &[(String, Vec<u8>)]) {
     let draft = "hold for review";
     term.send(draft);
@@ -80,23 +90,24 @@ fn read_full_proposal(term: &mut Term, rig: &Rig, before: &[(String, Vec<u8>)]) 
         screen
             .lines()
             .iter()
-            .any(|row| row.contains("Save? ›") && row.contains(draft))
+            .any(|row| row.contains("action ›") && row.contains(draft))
     });
     term.send("\x1bOQ");
     term.wait_workspace_frame("the whole proposal in a read-only reader", |screen| {
         screen.lines()[0].contains("Full proposal")
             && screen.contains("the Session's words, read only")
-            && screen.contains("Nothing has run yet")
+            && screen.contains("nothing ran on the originals")
             && screen.contains("currency: EUR")
     });
     assert_eq!(rig.tree(), before, "reading grants no Save or Run");
     term.send("\r");
     term.wait_workspace_frame("reader Enter returns without sending the draft", |screen| {
         !screen.lines()[0].contains("Full proposal")
+            && action_holds(screen)
             && screen
                 .lines()
                 .iter()
-                .any(|row| row.contains("Save? ›") && row.contains(draft))
+                .any(|row| row.contains("action ›") && row.contains(draft))
     });
     assert_eq!(rig.tree(), before, "closing the reader grants no effect");
 }
@@ -110,6 +121,7 @@ fn question_sizes(term: &mut Term, rig: &Rig, before: &[(String, Vec<u8>)]) {
                 && question_words_visible(screen)
                 && screen.contains("reply ")
                 && !screen.contains("Save?")
+                && !action_prompt_shown(screen)
         });
         let words = question_region_rows(&term.screen)
             .expect("the current question region")
@@ -117,9 +129,16 @@ fn question_sizes(term: &mut Term, rig: &Rig, before: &[(String, Vec<u8>)]) {
             .split_whitespace()
             .collect::<Vec<_>>()
             .join(" ");
+        // The workspace always reads with a chosen intelligence, so the
+        // Session's rule for a reply nothing reads is never attached; the
+        // question's own reply line is the rule beside the input.
         assert!(
-            words.contains("it is taken exactly as you type it"),
+            words.contains("reply on the next line"),
             "the reply rule must be visible beside the input at {cols}x{rows}: {words}"
+        );
+        assert!(
+            !words.contains("no intelligence reads this reply"),
+            "a chosen intelligence is never said to be absent at {cols}x{rows}: {words}"
         );
         assert!(
             !words.contains("the whole question: F2"),
@@ -192,8 +211,13 @@ fn read_full_question(term: &mut Term, rig: &Rig, before: &[(String, Vec<u8>)]) 
         screen.lines()[0].contains("Full question")
             && screen.contains("the Session's words, read only")
             && screen.contains("the currency code")
-            && screen.contains("no intelligence reads this reply")
+            && screen.contains("reply on the next line")
     });
+    assert!(
+        !term.screen.contains("no intelligence reads this reply"),
+        "the whole words never deny the chosen intelligence\n{}",
+        term.dump()
+    );
     assert_eq!(rig.tree(), before, "question reading grants no effect");
     term.send("\r");
     term.wait_workspace_frame("reader returns the exact unsent question draft", |screen| {
@@ -203,6 +227,7 @@ fn read_full_question(term: &mut Term, rig: &Rig, before: &[(String, Vec<u8>)]) 
                 .iter()
                 .any(|row| row.contains("reply ") && row.contains(draft))
             && !screen.contains("Save?")
+            && !action_prompt_shown(screen)
     });
     assert_eq!(rig.tree(), before, "reader Enter submits no answer");
     term.send(&"\x7f".repeat(draft.chars().count()));
@@ -255,14 +280,43 @@ fn the_pending_question_keeps_its_words_and_composer_across_sizes_and_appearance
         let status = term.finish();
         assert_eq!(exit_code(status), Some(143), "{status:?}\n{}", term.dump());
         term.assert_restored();
+        // The deterministic reader asked it; nothing was answered.
+        rig.no_model_call(&format!("{tag}: the question asked and resized"));
     }
+}
+
+/// The scripted loopback reads a judge's closed choice where the route carries it: the vLLM
+/// route sends the keys in its own JSON schema (`response_format`) and ends the turn with the
+/// options; a JSON mode that folds the schema into the turn carries it on the turn's last line.
+#[test]
+fn the_scripted_loopback_reads_a_judge_choice_where_the_route_carries_it() {
+    let keys = ["faithful", "unfaithful", "none"];
+    let schema = serde_json::json!({"type": "object", "properties": {"choice": {"enum": keys}}});
+    let turn = concat!(
+        "STATE:\n{\"request\": \"aggregate-by-key\"}\n\n",
+        "OPTIONS:\n- faithful: it does the request",
+    );
+    let format = serde_json::json!({
+        "type": "json_schema",
+        "json_schema": {"name": "choice", "schema": schema},
+    });
+    let routed = serde_json::json!({
+        "messages": [{"role": "user", "content": turn}],
+        "response_format": format,
+    });
+    let expected = Asked::Choice(keys.iter().map(|key| (*key).to_owned()).collect());
+    assert_eq!(Asked::of(&routed), expected, "{routed:#}");
+    let folded = format!("{turn}\n{schema}");
+    let folded = serde_json::json!({"messages": [{"role": "user", "content": folded}]});
+    assert_eq!(Asked::of(&folded), expected, "{folded:#}");
 }
 
 /// A small native decision exposes what Save would apply beside unsent input.
 /// Reading or changing size cannot create that workflow or execute it.
 #[test]
 fn the_compact_proposal_keeps_its_identity_effects_and_unsent_input_in_view() {
-    let rig = Rig::new("compact-decision");
+    // The kept intelligence routes the typed value: `EUR` is the ANSWER.
+    let rig = Rig::scripted("compact-decision", &["ANSWER"]);
     let before = rig.tree();
     let mut term = rig.spawn_with(
         "30-compact-decision",
@@ -278,15 +332,16 @@ fn the_compact_proposal_keeps_its_identity_effects_and_unsent_input_in_view() {
     });
     term.send("EUR\r");
     term.wait_workspace_frame("the current unsaved proposal", |screen| {
-        screen.contains("Save? ") && screen.contains("aggregate-by-key.nika")
+        action_holds(screen) && screen.contains("aggregate-by-key.nika")
     });
+    // Typed at the decision, the words wait in its own reply field.
     let draft = "hold this decision";
     term.send(draft);
     term.wait_workspace_frame("an unsent consent draft", |screen| {
         screen
             .lines()
             .iter()
-            .any(|row| row.contains("Save? ") && row.contains(draft))
+            .any(|row| row.contains("action ›") && row.contains(draft))
     });
     for (cols, rows) in [(80, 24), (80, 30), (99, 30), (80, 40), (120, 40)] {
         term.resize(cols, rows);
@@ -311,15 +366,10 @@ fn the_compact_proposal_keeps_its_identity_effects_and_unsent_input_in_view() {
                     .collect::<Vec<_>>()
                     .join(" ")
             };
-            // The identity a yes answers rides the card's border beside its
-            // reader key, whatever else names the proposal; the status row
-            // keeps the scoped standing, the card the material facts.
-            let footed = words.split("proposal ").skip(1).any(|rest| {
-                rest.split_once(" · F2: whole words")
-                    .is_some_and(|(id, _)| {
-                        id.len() == 12 && id.chars().all(|c| c.is_ascii_hexdigit())
-                    })
-            });
+            // The proposal a yes answers rides the card's border beside its
+            // reader key, by where it lands, never by its identity's hex; the
+            // status row keeps the scoped standing, the card the material facts.
+            let footed = words.contains("aggregate-by-key.nika · F2");
             let facts = [
                 "Not saved yet",
                 "creates aggregate-by-key.nika",
@@ -330,7 +380,7 @@ fn the_compact_proposal_keeps_its_identity_effects_and_unsent_input_in_view() {
                 && screen
                     .lines()
                     .iter()
-                    .any(|row| row.contains("Save? ") && row.contains(draft))
+                    .any(|row| row.contains("action ›") && row.contains(draft))
         });
         assert_eq!(
             rig.tree(),
@@ -342,4 +392,6 @@ fn the_compact_proposal_keeps_its_identity_effects_and_unsent_input_in_view() {
     let status = term.finish();
     assert_eq!(exit_code(status), Some(143), "{status:?}\n{}", term.dump());
     term.assert_restored();
+    rig.routed(&["EUR"], "a value, then the decision read at every size");
+    rig.no_run("the decision read at every size");
 }

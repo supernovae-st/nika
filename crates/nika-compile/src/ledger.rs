@@ -497,7 +497,8 @@ impl Ledger {
                 || plan.constraints.iter().any(|c| named(c))
                 || plan.bindings.iter().any(|b| named(&b.literal))
                 || plan.trigger.as_deref().is_some_and(named)
-                || reading.policy_clauses.iter().any(|c| named(c));
+                || reading.policy_clauses.iter().any(|c| named(c))
+                || reading.session_commands.iter().any(|c| named(c));
             if clause.is_empty() || carried || omitted.iter().any(|d| d.evidence == clause) {
                 continue;
             }

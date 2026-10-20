@@ -32,12 +32,17 @@ fn registry(text: &str) -> ArmRegistry {
     reg
 }
 
+/// The project key the fixtures carry, as the L4 edge derives it from the
+/// canonical root's fingerprint ([`emit::project_key`]).
+const KEY: &str = "0a1b2c3d";
+
 /// The machine facts, literal — the renderer is pure, nothing is read.
 fn ctx() -> EmitCtx {
     EmitCtx::new(
         PathBuf::from("/usr/local/bin/nika"),
         PathBuf::from("/projet"),
         PathBuf::from("/projet/nika.yaml"),
+        KEY.to_owned(),
         None,
         PathBuf::from("/projet/.nika/arm/logs"),
         "Europe/Paris".to_owned(),
@@ -51,6 +56,7 @@ fn ctx_with_env() -> EmitCtx {
         PathBuf::from("/usr/local/bin/nika"),
         PathBuf::from("/projet"),
         PathBuf::from("/projet/nika.yaml"),
+        KEY.to_owned(),
         Some(PathBuf::from("/projet/.env")),
         PathBuf::from("/projet/.nika/arm/logs"),
         "Europe/Paris".to_owned(),
@@ -111,13 +117,13 @@ fn launchd_per_beat() {
     let reg = registry(TWO_BEATS);
     let units = emit::render(&reg, &ctx(), Target::Launchd, Mode::PerBeat).expect("rendu");
     assert_eq!(units.len(), 2, "une unité par beat local actif");
-    assert_eq!(units[0].file_name, "nika.arm.weekly.plist");
-    assert_eq!(units[1].file_name, "nika.arm.nightly.plist");
+    assert_eq!(units[0].file_name, "nika.arm.0a1b2c3d.weekly.plist");
+    assert_eq!(units[1].file_name, "nika.arm.0a1b2c3d.nightly.plist");
     assert!(units[0].body.contains(emit::GENERATED_MARK), "la marque");
     assert!(
         units[0]
             .body
-            .contains("<key>Label</key>\n\t<string>nika.arm.weekly</string>"),
+            .contains("<key>Label</key>\n\t<string>nika.arm.0a1b2c3d.weekly</string>"),
         "{}",
         units[0].body
     );
@@ -206,6 +212,7 @@ fn env_file_named_in_unit_survives_an_apostrophe_in_the_path() {
         PathBuf::from("/usr/local/bin/nika"),
         PathBuf::from("/projet"),
         PathBuf::from("/projet/nika.yaml"),
+        KEY.to_owned(),
         Some(PathBuf::from("/projet/o's.env")),
         PathBuf::from("/projet/.nika/arm/logs"),
         "Europe/Paris".to_owned(),
@@ -224,7 +231,7 @@ fn launchd_serve() {
     let reg = registry(TWO_BEATS);
     let units = emit::render(&reg, &ctx(), Target::Launchd, Mode::Serve).expect("rendu");
     assert_eq!(units.len(), 1, "une seule unité serve");
-    assert_eq!(units[0].file_name, "nika.serve.plist");
+    assert_eq!(units[0].file_name, "nika.serve.0a1b2c3d.plist");
     assert!(units[0].body.contains("KeepAlive"), "le démon veillé");
     snap("launchd_serve", &joined(&units));
 }
@@ -235,8 +242,8 @@ fn systemd_per_beat() {
     let units = emit::render(&reg, &ctx(), Target::SystemdUser, Mode::PerBeat).expect("rendu");
     // timer + service per beat.
     assert_eq!(units.len(), 4, "le couple timer/service par beat");
-    assert_eq!(units[0].file_name, "nika.arm.weekly.timer");
-    assert_eq!(units[1].file_name, "nika.arm.weekly.service");
+    assert_eq!(units[0].file_name, "nika.arm.0a1b2c3d.weekly.timer");
+    assert_eq!(units[1].file_name, "nika.arm.0a1b2c3d.weekly.service");
     assert!(
         units[0]
             .body
@@ -284,7 +291,7 @@ fn systemd_serve() {
     let reg = registry(TWO_BEATS);
     let units = emit::render(&reg, &ctx(), Target::SystemdUser, Mode::Serve).expect("rendu");
     assert_eq!(units.len(), 1);
-    assert_eq!(units[0].file_name, "nika.serve.service");
+    assert_eq!(units[0].file_name, "nika.serve.0a1b2c3d.service");
     assert!(units[0].body.contains("Type=simple"));
     assert!(units[0].body.contains("Restart=on-failure"));
     assert!(
@@ -297,11 +304,69 @@ fn systemd_serve() {
 
 // ── the refusal classes, exact fields ──────────────────────────────
 
+/// D10: a beat in another zone wakes, on launchd, at each machine hour its slots fall on over the
+/// year after the render: Tokyo's 03:00 is 19:00 or 20:00 in Paris, as Paris keeps winter or
+/// summer time, every day (the firer reads the day in Tokyo), and nothing else.
+#[test]
+fn a_beat_in_another_zone_wakes_at_the_machine_hours_its_slots_fall_on() {
+    let reg = registry(concat!(
+        "nika: proj\n",
+        "arm:\n",
+        "  - workflow: workflows/doctor.nika\n",
+        "    cadence: \"TZ=Asia/Tokyo 0 3 * * 1-5\"\n",
+        "    plafond: 0.25\n",
+        "    manqué: sauter\n",
+    ));
+    let now: jiff::Timestamp = "2026-10-16T12:00:00Z".parse().expect("now");
+    let units = emit::render(&reg, &ctx().at(now), Target::Launchd, Mode::PerBeat)
+        .expect("a foreign zone wakes at the machine's hours");
+    let body = &units[0].body;
+    let dict = |hour: u8| {
+        format!(
+            "\t\t<dict>\n\t\t\t<key>Hour</key>\n\t\t\t<integer>{hour}</integer>\n\t\t\t<key>Minute</key>\n\t\t\t<integer>0</integer>\n\t\t</dict>\n"
+        )
+    };
+    assert!(
+        body.contains(&dict(19)) && body.contains(&dict(20)),
+        "{body}"
+    );
+    assert_eq!(
+        body.matches("<dict>").count(),
+        3,
+        "the plist and two wakes: {body}"
+    );
+    assert!(
+        !body.contains("Weekday") && !body.contains("<key>Day</key>"),
+        "{body}"
+    );
+    assert!(
+        body.contains("<string>arm</string>\n\t\t<string>fire</string>"),
+        "{body}"
+    );
+    // Mauritius keeps no summer time, Paris does: 08:00 Paris is 10:00 or 11:00 there.
+    let paris = registry(concat!(
+        "nika: proj\n",
+        "arm:\n",
+        "  - workflow: workflows/daily.nika\n",
+        "    cadence: \"TZ=Europe/Paris 0 8 * * *\"\n",
+        "    plafond: 0.25\n",
+        "    manqué: sauter\n",
+    ));
+    let mut mauritius = ctx().at(now);
+    mauritius.machine_tz = "Indian/Mauritius".to_owned();
+    let units = emit::render(&paris, &mauritius, Target::Launchd, Mode::PerBeat).expect("paris");
+    assert!(
+        units[0].body.contains(&dict(10)) && units[0].body.contains(&dict(11)),
+        "{}",
+        units[0].body
+    );
+}
+
 #[test]
 fn a_beat_in_another_zone_refuses_on_launchd_and_rides_systemd() {
-    // D10: launchd fires in the MACHINE's zone — a beat whose TZ=
-    // differs is refused, naming both zones. systemd carries the zone,
-    // so the same beat renders there.
+    // D10: launchd fires in the MACHINE's zone — rendered without the
+    // edge's clock, a beat whose TZ= differs is refused, naming both
+    // zones. systemd carries the zone, so the same beat renders there.
     let reg = registry(concat!(
         "nika: proj\n",
         "arm:\n",
@@ -434,16 +499,126 @@ fn deux_beats_meme_workflow_rendent_deux_labels() {
     ));
     assert_eq!(emit::labels(&reg), ["doctor", "doctor-2"], "l'identité D4");
     let units = emit::render(&reg, &ctx(), Target::Launchd, Mode::PerBeat).expect("rendu");
-    assert_eq!(units[0].file_name, "nika.arm.doctor.plist");
-    assert_eq!(units[1].file_name, "nika.arm.doctor-2.plist");
+    assert_eq!(units[0].file_name, "nika.arm.0a1b2c3d.doctor.plist");
+    assert_eq!(units[1].file_name, "nika.arm.0a1b2c3d.doctor-2.plist");
     assert!(
         units[1].body.contains("<string>doctor-2</string>"),
         "le label D4 dans l'appel"
     );
 }
 
+// ── a unit carries its project ─────────────────────────────────────
+
+/// Two projects arming a beat of the same name. Without the key both
+/// rendered `nika.arm.<label>`: the second `--write` replaced the first
+/// project's unit, and the first project's disarm deleted the second's.
 #[test]
-fn suspended_and_cloud_beats_emit_nothing() {
+fn two_projects_arming_the_same_beats_never_share_a_unit() {
+    let reg = registry(TWO_BEATS);
+    let other = EmitCtx::new(
+        PathBuf::from("/usr/local/bin/nika"),
+        PathBuf::from("/autre"),
+        PathBuf::from("/autre/nika.yaml"),
+        "9f8e7d6c".to_owned(),
+        None,
+        PathBuf::from("/autre/.nika/arm/logs"),
+        "Europe/Paris".to_owned(),
+    );
+    for target in [Target::Launchd, Target::SystemdUser] {
+        for mode in [Mode::PerBeat, Mode::Serve] {
+            let ours = emit::render(&reg, &ctx(), target, mode).expect("rendu");
+            let theirs = emit::render(&reg, &other, target, mode).expect("rendu");
+            assert_eq!(ours.len(), theirs.len(), "the same units");
+            for (a, b) in ours.iter().zip(&theirs) {
+                assert_ne!(a.file_name, b.file_name, "one unit per project");
+                assert_eq!(emit::generated_source(&a.body), Some("/projet/nika.yaml"));
+                assert_eq!(emit::generated_source(&b.body), Some("/autre/nika.yaml"));
+            }
+        }
+    }
+}
+
+#[test]
+fn the_unit_names_spell_the_project_key_then_the_beat_label() {
+    let fingerprint = "0a1b2c3d4e5f60718293a4b5c6d7e8f9";
+    assert_eq!(emit::project_key(fingerprint), KEY);
+    assert_eq!(emit::beat_unit(KEY, "daily"), "nika.arm.0a1b2c3d.daily");
+    assert_eq!(emit::legacy_beat_unit("daily"), "nika.arm.daily");
+    assert_eq!(emit::serve_unit(KEY), "nika.serve.0a1b2c3d");
+    assert_eq!(
+        emit::beat_unit_files(Target::Launchd, "nika.arm.0a1b2c3d.daily"),
+        ["nika.arm.0a1b2c3d.daily.plist"]
+    );
+    assert_eq!(
+        emit::beat_unit_files(Target::SystemdUser, "nika.arm.0a1b2c3d.daily"),
+        [
+            "nika.arm.0a1b2c3d.daily.timer",
+            "nika.arm.0a1b2c3d.daily.service"
+        ]
+    );
+}
+
+/// The L4 edge finds a beat's units by the helpers alone (disarm renders
+/// nothing): they spell exactly the files the render writes.
+#[test]
+fn the_naming_helpers_spell_the_rendered_files() {
+    let reg = registry(TWO_BEATS);
+    for target in [Target::Launchd, Target::SystemdUser] {
+        let units = emit::render(&reg, &ctx(), target, Mode::PerBeat).expect("rendu");
+        let spelled: Vec<String> = emit::labels(&reg)
+            .iter()
+            .flat_map(|label| emit::beat_unit_files(target, &emit::beat_unit(KEY, label)))
+            .collect();
+        let rendered: Vec<&str> = units.iter().map(|u| u.file_name.as_str()).collect();
+        assert_eq!(rendered, spelled);
+    }
+}
+
+#[test]
+fn generated_source_reads_the_project_back_and_none_without_the_mark() {
+    let reg = registry(TWO_BEATS);
+    for target in [Target::Launchd, Target::SystemdUser] {
+        for mode in [Mode::PerBeat, Mode::Serve] {
+            let units = emit::render(&reg, &ctx_with_env(), target, mode).expect("rendu");
+            for unit in &units {
+                assert_eq!(
+                    emit::generated_source(&unit.body),
+                    Some("/projet/nika.yaml"),
+                    "{}",
+                    unit.file_name
+                );
+                let stripped = unit.body.replace(emit::GENERATED_MARK, "hand-kept from");
+                assert_eq!(
+                    emit::generated_source(&stripped),
+                    None,
+                    "{}",
+                    unit.file_name
+                );
+            }
+        }
+    }
+    // A project path that holds the separator itself still reads back whole.
+    let ctx = EmitCtx::new(
+        PathBuf::from("/usr/local/bin/nika"),
+        PathBuf::from("/a · b"),
+        PathBuf::from("/a · b/nika.yaml"),
+        KEY.to_owned(),
+        None,
+        PathBuf::from("/a · b/.nika/arm/logs"),
+        "Europe/Paris".to_owned(),
+    );
+    let units = emit::render(&reg, &ctx, Target::SystemdUser, Mode::PerBeat).expect("rendu");
+    assert_eq!(
+        emit::generated_source(&units[0].body),
+        Some("/a · b/nika.yaml")
+    );
+}
+
+/// A suspended beat keeps its unit: the firer journals it « inactive » until
+/// its `jusqu_au`, then wakes it, so nothing has to re-arm it. A cloud beat's
+/// calendar stays the operator's: no unit.
+#[test]
+fn a_suspended_beat_keeps_its_unit_and_a_cloud_beat_has_none() {
     let reg = registry(concat!(
         "nika: proj\n",
         "arm:\n",
@@ -465,8 +640,15 @@ fn suspended_and_cloud_beats_emit_nothing() {
         "    manqué: sauter\n",
     ));
     let units = emit::render(&reg, &ctx(), Target::Launchd, Mode::PerBeat).expect("rendu");
-    assert_eq!(units.len(), 1, "seul le beat local actif émet");
-    assert_eq!(units[0].file_name, "nika.arm.local.plist");
+    let names: Vec<&str> = units.iter().map(|u| u.file_name.as_str()).collect();
+    assert_eq!(
+        names,
+        [
+            "nika.arm.0a1b2c3d.local.plist",
+            "nika.arm.0a1b2c3d.sommeil.plist"
+        ],
+        "every local beat, suspended or not, has its unit; the cloud beat none"
+    );
 }
 
 // ── the budget property ────────────────────────────────────────────
@@ -507,6 +689,7 @@ fn check_budget(cadence_text: &str) {
         PathBuf::from("/usr/local/bin/nika"),
         PathBuf::from("/projet"),
         PathBuf::from("/projet/nika.yaml"),
+        KEY.to_owned(),
         None,
         PathBuf::from("/projet/.nika/arm/logs"),
         "UTC".to_owned(),
@@ -570,6 +753,76 @@ fn the_corpus_renders_within_budget_or_refuses_the_count() {
     for text in CORPUS {
         check_budget(text);
     }
+}
+
+/// A unit's schedule revision names what decides when the OS wakes it: the
+/// cadence as written, and on launchd the machine zone it was rendered in.
+/// Twelve hex characters, stable for the same schedule; a systemd calendar
+/// names its own zone, so the machine zone never moves its revision.
+#[test]
+fn a_unit_revision_moves_with_the_schedule_it_encodes() {
+    let at_three = "TZ=Europe/Paris 0 3 * * *";
+    let at_four = "TZ=Europe/Paris 0 4 * * *";
+    let rev = emit::unit_revision(at_three, Target::Launchd, "Europe/Paris");
+    assert_eq!(rev.len(), emit::UNIT_REV_LEN);
+    assert!(rev.bytes().all(|b| b.is_ascii_hexdigit()), "{rev}");
+    assert_eq!(
+        rev,
+        emit::unit_revision(at_three, Target::Launchd, "Europe/Paris")
+    );
+    assert_ne!(
+        rev,
+        emit::unit_revision(at_four, Target::Launchd, "Europe/Paris"),
+        "an edited cadence"
+    );
+    assert_ne!(
+        rev,
+        emit::unit_revision(at_three, Target::Launchd, "Asia/Tokyo"),
+        "a launchd unit rendered in another machine zone"
+    );
+    assert_eq!(
+        emit::unit_revision(at_three, Target::SystemdUser, "Europe/Paris"),
+        emit::unit_revision(at_three, Target::SystemdUser, "Asia/Tokyo"),
+        "systemd's calendar names its own zone"
+    );
+    assert_ne!(
+        rev,
+        emit::unit_revision(at_three, Target::SystemdUser, "Europe/Paris"),
+        "the two OS forms never share a revision"
+    );
+}
+
+/// Every rendered beat unit names its revision in its header and hands it to
+/// the firer; the header still names its project for the ownership law.
+#[test]
+fn a_beat_unit_names_its_revision_and_hands_it_to_the_firer() {
+    let reg = registry(TWO_BEATS);
+    for target in [Target::Launchd, Target::SystemdUser] {
+        let units = emit::render(&reg, &ctx(), target, Mode::PerBeat).expect("rendu");
+        let expected = emit::unit_revision("TZ=Europe/Paris lundi 9h07", target, "Europe/Paris");
+        let weekly = &units[0].body;
+        assert_eq!(
+            emit::revision_in_unit(weekly),
+            Some(expected.as_str()),
+            "{target:?}"
+        );
+        assert!(weekly.contains(&expected), "{weekly}");
+        // launchd's one plist, or systemd's service beside the timer.
+        assert!(
+            units
+                .iter()
+                .any(|unit| unit.body.contains("--unit-rev") && unit.body.contains(&expected)),
+            "{target:?}: the firer is handed the revision"
+        );
+        assert_eq!(emit::generated_source(weekly), Some("/projet/nika.yaml"));
+    }
+    assert_eq!(
+        emit::revision_in_unit(
+            "<!-- nika arm · GENERATED from /p/nika.yaml · beat weekly · do not hand-edit · regenerated by nika arm emit launchd -->"
+        ),
+        None,
+        "a unit written before revisions"
+    );
 }
 
 proptest! {

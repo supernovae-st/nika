@@ -59,7 +59,7 @@ struct KeptAttempt {
 fn hash(bytes: &[u8]) -> String {
     blake3::hash(bytes).to_hex().to_string()
 }
-fn route_tariff(t: InferenceTariff, endpoint: &str) -> String {
+fn route_tariff(t: &InferenceTariff, endpoint: &str) -> String {
     // Debug contains every pinned rate and limit. A changed representation also
     // refuses; it cannot silently reinterpret or reprice a previous settlement.
     hash(format!("{t:?}\0{endpoint}").as_bytes())
@@ -233,7 +233,7 @@ impl KeptAttempt {
         };
         Ok(Self {
             id: a.id,
-            route_tariff: route_tariff(a.tariff, &a.endpoint),
+            route_tariff: route_tariff(&a.tariff, &a.endpoint),
             reserved: a.reserved.nano_usd.to_string(),
             max_output_tokens: a.max_output_tokens,
             sent: a.sent,
@@ -251,7 +251,7 @@ impl KeptAttempt {
             .find_map(|t| {
                 t.endpoints
                     .iter()
-                    .find(|endpoint| route_tariff(*t, endpoint) == self.route_tariff)
+                    .find(|endpoint| route_tariff(t, endpoint) == self.route_tariff)
                     .map(|endpoint| (*t, *endpoint))
             })
             .ok_or_else(|| denied("checkpoint's exact tariff/route is unavailable"))?;
@@ -259,20 +259,33 @@ impl KeptAttempt {
         let estimated = self.estimated.as_deref().map(cost).transpose()?;
         let reported = self.reported_estimate.as_deref().map(cost).transpose()?;
         let price = self.usage.as_ref().and_then(|u| {
-            tariff.price(
-                u.input_tokens,
-                u.output_tokens,
-                u.cache_read_tokens.unwrap_or(0),
-            )
+            crate::retry::cache_writes(u).and_then(|written| {
+                tariff.price_written(
+                    u.input_tokens,
+                    u.output_tokens,
+                    u.cache_read_tokens.unwrap_or(0),
+                    written,
+                )
+            })
         });
+        // A provider-reported charge is its own evidence (it may exceed the
+        // reservation); a catalog settlement is the tariff's price within it.
+        let charged = if super::settles_at_reported_charge(&tariff) {
+            estimated.is_some()
+        } else {
+            estimated.is_some()
+                && estimated == price
+                && estimated.is_some_and(|c| c.nano_usd <= reserved.nano_usd)
+        };
         let valid_phase = match self.phase {
             Phase::Settled => {
                 self.sent
-                    && estimated.is_some()
-                    && estimated == price
+                    && charged
                     && reported == price
-                    && estimated.is_some_and(|c| c.nano_usd <= reserved.nano_usd)
-                    && self.response_model.as_deref() == Some(tariff.model)
+                    && self
+                        .response_model
+                        .as_deref()
+                        .is_some_and(|model| tariff.serves(model))
                     && self.usage.as_ref().is_some_and(|u| {
                         u.input_tokens <= tariff.context_tokens
                             && u.output_tokens <= u64::from(self.max_output_tokens)

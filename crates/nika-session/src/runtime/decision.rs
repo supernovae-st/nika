@@ -12,7 +12,7 @@ use super::{SessionRuntime, TurnOutcome};
 
 pub use nika_session_change::decision::{DecisionAnswer, decision_answer};
 pub(super) use nika_session_change::decision::{
-    is_gate_token, is_no, is_save_and_run, is_yes, local_command_of,
+    is_gate_token, is_no, is_plain_yes, is_save_and_run, is_yes, local_command_of,
 };
 
 impl SessionRuntime {

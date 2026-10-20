@@ -18,15 +18,15 @@ use serde_json::Value;
 
 use super::*;
 use crate::run::{
-    Admitted, JobDoor, JobEnd, JobFuture, Jobs, LaneRunDoor, NoRunDoor, RunDoor, RunRequest,
-    RunSink, RunStep,
+    Admitted, JobDoor, JobEnd, JobError, JobFuture, Jobs, LaneRunDoor, NoRunDoor, RunDoor,
+    RunRequest, RunSink, RunStep,
 };
 use crate::wire::CONTRACT;
 
 /// A Ready intent the compiler settles with no question and no model.
 pub(crate) const COPY: &str = "Read ./notes/brief.md and write it to ./out/copy.md";
 /// An intent whose model the compiler must ask.
-const DRAFT: &str = "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md";
+pub(crate) const DRAFT: &str = "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md";
 const BRIEF: &str = "# Brief\n\nThe launch moves to October.\n";
 const WAIT: Duration = Duration::from_secs(60);
 
@@ -870,6 +870,10 @@ fn a_stop_reaches_the_run_under_way_once_and_its_settlement_reads_stopped() {
     let run = &settled["snapshot"]["work"]["run"];
     assert_eq!(run["end"]["end"], "interrupted", "{run}");
     assert_eq!(run["sealed"], true, "{run}");
+    assert!(
+        run["seal_verified"].is_null() && run["signed"].is_null(),
+        "the Stop reads its receipt's chain head, never a verifier's judgment: {run}"
+    );
     assert_eq!(settled["snapshot"]["busy"], Value::Null);
 }
 
@@ -886,7 +890,12 @@ fn a_run_cut_after_its_stop_reads_aborted_not_stopped() {
         ["run_requested", "facts", "run_aborted"],
         "{settled}"
     );
-    assert_eq!(settled["snapshot"]["work"]["run"]["sealed"], false);
+    let run = &settled["snapshot"]["work"]["run"];
+    assert_eq!(run["sealed"], false, "{run}");
+    assert!(
+        run["seal_verified"].is_null() && run["signed"].is_null(),
+        "cut mid-flight: no verifier's judgment reads otherwise: {run}"
+    );
     assert_eq!(stops.load(Ordering::SeqCst), 1);
 }
 
@@ -963,10 +972,13 @@ fn a_stop_taken_before_the_native_door_spawns_is_applied_at_the_spawn() {
 }
 
 /// A resident whose one job runs until it is cancelled, counting the cancellations it is asked.
+/// A cancelled job ends only once the test released it: a job that ended at its first
+/// cancellation made a later Stop find nothing to stop on a loaded runner (CI, 2026-10-19).
 struct Cancellable {
     entered: Mutex<mpsc::Sender<()>>,
     cancels: AtomicUsize,
     cancelled: AtomicBool,
+    released: AtomicBool,
 }
 
 impl Jobs for Cancellable {
@@ -982,7 +994,9 @@ impl Jobs for Cancellable {
         Box::pin(async move {
             let _ = self.entered.lock().expect("entered").send(());
             let mut waited = 0;
-            while !self.cancelled.load(Ordering::SeqCst) && waited < 6000 {
+            let ended =
+                || self.cancelled.load(Ordering::SeqCst) && self.released.load(Ordering::SeqCst);
+            while !ended() && waited < 6000 {
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 waited += 1;
             }
@@ -1015,6 +1029,7 @@ fn a_stop_reaches_the_job_a_resident_runs_once() {
         entered: Mutex::new(entered),
         cancels: AtomicUsize::new(0),
         cancelled: AtomicBool::new(false),
+        released: AtomicBool::new(false),
     });
     let door = JobDoor::new(
         resident.handle().clone(),
@@ -1033,11 +1048,77 @@ fn a_stop_reaches_the_job_a_resident_runs_once() {
     assert_eq!(receipt["snapshot"]["busy"]["stop_requested"], true);
     let second = reply(host.dispatch(stop("s-2")));
     assert_eq!(second["receipt"], "run_stopping", "{second}");
+    jobs.released.store(true, Ordering::SeqCst);
     let settled = json(&host.wait_result("c-3").expect("settled"));
     assert_eq!(kinds(&settled)[0], "run_requested", "{settled}");
     assert_eq!(
         jobs.cancels.load(Ordering::SeqCst),
         1,
         "one cancellation for two Stops"
+    );
+}
+
+/// A resident that refuses its one job before any task runs, as it refuses an unpriced route.
+struct Refusing;
+
+/// The resident's words for that refusal, as its job record names them.
+const REFUSED: &str = "refusing to start: cloud model deepseek/x is unpriced";
+
+impl Jobs for Refusing {
+    fn admit<'a>(&'a self, _run: &'a RunRequest) -> JobFuture<'a, Result<Admitted, String>> {
+        Box::pin(async move { Ok(Admitted::Job("job-r".to_owned())) })
+    }
+
+    fn decide<'a>(&'a self, _: &'a str, _: bool) -> JobFuture<'a, Result<Option<String>, String>> {
+        Box::pin(async move { Ok(None) })
+    }
+
+    fn settled<'a>(&'a self, _id: &'a str) -> JobFuture<'a, Result<JobEnd, String>> {
+        Box::pin(async move {
+            let error = JobError::new("NIKA-1709", REFUSED);
+            Ok(JobEnd::new(1, None).with_error(Some(error), true))
+        })
+    }
+
+    fn cancel<'a>(&'a self, _id: &'a str) -> JobFuture<'a, Result<(), String>> {
+        Box::pin(async move { Ok(()) })
+    }
+}
+
+/// A job its resident refused before any task ran is a run that did not start, told in the
+/// resident's own words. Before, it settled « run observed · exit 1 · the workflow failed » with
+/// nothing to read, and the author could « repair » a workflow that never ran.
+#[test]
+fn a_job_refused_before_any_task_ran_is_a_run_that_did_not_start() {
+    let resident = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .expect("the resident's runtime");
+    let root = world();
+    let door = JobDoor::new(
+        resident.handle().clone(),
+        Arc::new(Refusing) as Arc<dyn Jobs>,
+    );
+    let host = SessionHost::start(runtime(root.path()), Box::new(door), Vec::new()).expect("host");
+    assert_eq!(kinds(&settle(&host, "c-1", COPY)), ["proposal"]);
+    settle(&host, "c-2", "yes");
+    assert!(matches!(
+        host.dispatch(submit("c-3", &handle(&host), "run it")),
+        Dispatch::Accepted { .. }
+    ));
+    let settled = json(&host.wait_result("c-3").expect("settled"));
+    assert_eq!(
+        kinds(&settled),
+        ["run_requested", "run_not_started"],
+        "{settled}"
+    );
+    assert_eq!(
+        settled["outcomes"][1]["text"],
+        format!("{REFUSED} (NIKA-1709) · nothing ran")
+    );
+    assert!(
+        settled["snapshot"]["work"]["run"].is_null(),
+        "a run that never started is never observed: {settled}"
     );
 }

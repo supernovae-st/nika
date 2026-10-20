@@ -163,24 +163,71 @@ pub fn hang(words: &str, indent: usize, width: usize) -> Vec<String> {
 }
 
 /// The renderer's own words in the glyph column in use: under `ascii` its
-/// markers, separators and arrows (`›`, `·`, `…`, `↑↓`) take their ASCII
-/// twins. Only text the renderer writes goes through here; the Session's words
-/// are never rewritten.
+/// markers, separators, bounds and arrows (`›`, `·`, `…`, `≤`, `↑↓`) take their
+/// ASCII twins. Only text the renderer writes goes through here; the Session's
+/// words are never rewritten.
 #[must_use]
 pub fn own(text: &str, ascii: bool) -> String {
     if ascii {
         text.replace('›', ">")
             .replace('·', "-")
             .replace('…', "...")
+            .replace('≤', "<=")
             .replace("↑↓", "Up/Down")
     } else {
         text.to_owned()
     }
 }
 
+/// `text` without its accents and French marks, letter for letter (`é` is
+/// `e`, `œ` is `oe`, `«` and `»` are `"`, a no-break space a space): what the
+/// ASCII glyph column shows of a French phrase the renderer writes. Any other
+/// character stays; the Session's and the person's words never come here.
+#[must_use]
+pub fn fold(text: &str) -> String {
+    let mut plain = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            'à' | 'â' | 'ä' => plain.push('a'),
+            'À' | 'Â' | 'Ä' => plain.push('A'),
+            'ç' => plain.push('c'),
+            'Ç' => plain.push('C'),
+            'é' | 'è' | 'ê' | 'ë' => plain.push('e'),
+            'É' | 'È' | 'Ê' | 'Ë' => plain.push('E'),
+            'î' | 'ï' => plain.push('i'),
+            'Î' | 'Ï' => plain.push('I'),
+            'ô' | 'ö' => plain.push('o'),
+            'Ô' | 'Ö' => plain.push('O'),
+            'ù' | 'û' | 'ü' => plain.push('u'),
+            'Ù' | 'Û' | 'Ü' => plain.push('U'),
+            'ÿ' => plain.push('y'),
+            'œ' => plain.push_str("oe"),
+            'Œ' => plain.push_str("OE"),
+            'æ' => plain.push_str("ae"),
+            'Æ' => plain.push_str("AE"),
+            '«' | '»' => plain.push('"'),
+            '’' => plain.push('\''),
+            '\u{a0}' | '\u{202f}' => plain.push(' '),
+            other => plain.push(other),
+        }
+    }
+    plain
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_renderers_glyphs_take_their_ascii_twins() {
+        let note = "from $0.10 in / $0.50 out per MTok (≤100k tokens) · 1M context";
+        assert_eq!(own(note, false), note);
+        assert_eq!(
+            own(note, true),
+            "from $0.10 in / $0.50 out per MTok (<=100k tokens) - 1M context"
+        );
+        assert_eq!(own("› a … ↑↓", true), "> a ... Up/Down");
+    }
 
     #[test]
     fn hanging_keeps_each_word_whole_where_a_row_holds_it() {

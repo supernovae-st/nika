@@ -557,17 +557,18 @@ mod tests;
 pub const SESSION_HELP: &str = "text                 describe work to build (« read ./notes, draft a summary, write ./out/summary.md ») · Nika compiles it,
                      asks what it cannot invent, shows the workflow, and writes it only when you say yes · consent is never a run
 run …                run the workflow you accepted, or one you name (« run brief.nika with a ceiling of 0.05 ») · a paused run asks you
-activate             declare the schedule your request asked for in nika.yaml (Nika asks the time zone, the missed policy, the ceiling) · declared is not active: a firer must run
+activate             declare the schedule your request asked for in nika.yaml (Nika asks the time zone, the missed policy, the ceiling), then, on a Mac, offer to install its trigger on your yes · « deactivate it » removes it
 text                 ask, in words · these answer from the engine, no AI asked: your workflows · a file's verdict (« is X valid »)
                      · the builtins · the providers · an example or template for a job · a code (« explain NIKA-… »)
                      · what Nika calls a node, step, trigger, secret, action · the rest goes to your chosen intelligence, in words
-/intelligence        the AI this session reasons with · asks the first screen again, the next line is your answer
+/intelligence        the AI this session reasons with · reopen the intelligence choices
 /status              where you are: the project root, the intelligence and where your context goes, the authoring seat
 /why                 beside a question or a gate: what the answer is for, what it lets happen · nothing is consumed
-/meaning             what Nika kept of your request, clause by clause, from the compiler's own ledger · a proposal still waits
+/meaning             what Nika kept of your request: the compiler's clauses, or your words and the values the workflow relies on · a proposal still waits
 /proof               after a run: what its trace records (chain · seal · boundary · task hashes) and what it does not prove · judged by `nika trace verify`, never a second walker
 /details             how the last workflow was built: the authoring backend and model, calls, tokens and time, the strategy, the decision seat, the engine and spec identity · advanced, on demand
 /show                while a proposal waits: print its exact bytes (the review shows the boundary)
+/new                 begin a new conversation in this project · the current one is kept · its workflows, schedules and runs stay
 /help                this card
 /quit                close the session
 Name a workflow file in your question to let the session read it (only files under the root are ever read).";

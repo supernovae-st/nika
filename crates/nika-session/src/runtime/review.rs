@@ -27,6 +27,8 @@ impl SessionRuntime {
     /// names. The child, its pipe and its one-use reply stay with the host; a later review
     /// replaces this one.
     pub fn run_review_asked(&mut self, question: &str, details: &str) -> ReviewId {
+        // A run's review owns the next line: the offer about an earlier result closes.
+        self.feedback.close();
         self.reviews_asked += 1;
         let id = ReviewId::new(self.reviews_asked, question, details);
         self.run_review = Some(RunReview {

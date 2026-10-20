@@ -1,0 +1,63 @@
+nika: p61-records-join-by-key
+const:
+  left_path: "./data/orders.json"
+  right_path: "./data/customers.json"
+  left_key: ["customer_email"]
+  right_key: ["email"]
+  match: "folded"
+  fields: ["name", "segment"]
+  into: "customer"
+  output_path: "./out/orders-with-customers.json"
+permits:
+  fs: { read: ["./data/orders.json", "./data/customers.json"], write: ["./out/orders-with-customers.json"] }
+  tools: ["nika:read", "nika:write"]
+tasks:
+  join_read_left:
+    invoke: { tool: "nika:read", args: { path: "${{ const.left_path }}" } }
+  join_read_right:
+    invoke: { tool: "nika:read", args: { path: "${{ const.right_path }}" } }
+  join_records:
+    with: { left: "${{ tasks.join_read_left.output }}", right: "${{ tasks.join_read_right.output }}" }
+    invoke:
+      tool: nika:jq
+      args:
+        input: { left: "${{ with.left }}", right: "${{ with.right }}", left_key: "${{ const.left_key }}", right_key: "${{ const.right_key }}", match: "${{ const.match }}", fields: "${{ const.fields }}", into: "${{ const.into }}" }
+        expression: |
+          # a key path walked through objects only: anything else on the way reads null, never an error
+          def at($path): reduce $path[] as $key (.; if type == "object" then .[$key] else null end);
+          # a comparable key: a text, ASCII letters folded and surrounding spaces removed when match is "folded",
+          # or a number (1 and 1.0 alike, "1" apart); anything else (absent, null, a boolean, a list, an object)
+          # matches nothing
+          def key($match):
+            if type == "string" then (if $match == "folded" then ascii_downcase | trim else . end)
+            elif type == "number" then . else null end;
+          def records($name):
+            fromjson | if type == "array" then . else error("the \($name) document is not a JSON array of records") end;
+          .match as $match | .left_key as $lk | .right_key as $rk | .fields as $fields | .into as $into
+          | if $match == "exact" or $match == "folded" then . else error("match is exact or folded, not \($match)") end
+          # every right record by its key, holding only the copied fields (an absent field copies as null)
+          | [.right | records("right") | .[] | select(type == "object")
+             | {k: (at($rk) | key($match)), v: (. as $r | reduce $fields[] as $f ({}; .[$f] = $r[$f]))}
+             | select(.k != null)] as $index
+          # each left record, in source order, with the distinct copies its key finds
+          | [.left | records("left") | .[]
+             | (if type == "object" then at($lk) | key($match) else null end) as $k
+             | {record: ., copies: (if $k == null then [] else [$index[] | select(.k == $k) | .v] | unique end)}] as $rows
+          # one copy fills `into`; none, or several different copies (a conflict, never a choice), leave it null
+          | {
+              joined: [$rows[] | .copies as $copies | .record
+                       | if type == "object" then . + {($into): (if ($copies | length) == 1 then $copies[0] else null end)}
+                         else . end],
+              report: {
+                count: ($rows | length),
+                matched: ([$rows[] | select((.copies | length) == 1)] | length),
+                unmatched: [$rows[] | select((.copies | length) == 0) | .record | if type == "object" then at($lk) else null end],
+                conflicts: [$rows[] | select((.copies | length) > 1) | .record | at($lk)]
+              }
+            }
+  join_write:
+    with: { joined: "${{ tasks.join_records.output.joined }}" }
+    invoke: { tool: "nika:write", args: { path: "${{ const.output_path }}", content: "${{ with.joined }}" } }
+outputs:
+  joined: ${{ tasks.join_records.output.joined }}
+  report: ${{ tasks.join_records.output.report }}

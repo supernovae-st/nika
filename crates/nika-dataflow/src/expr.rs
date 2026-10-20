@@ -113,6 +113,11 @@ pub struct Scope<'a> {
     /// boundary). `None` = nothing bound: a `group.X` read is unresolved
     /// (NIKA-1702 · loud), never a silent empty array.
     groups: Option<&'a BTreeMap<String, Vec<String>>>,
+    /// `run.<fact>` — the facts of this run (spec 04 §`run`): the one object
+    /// `{ scheduled_for, missed }` the engine sets before the first task, the
+    /// same on every scope of the run. `None` = nothing bound: a `run.X` read
+    /// is unresolved (NIKA-1702 · loud), never a guessed instant.
+    run: Option<&'a Value>,
     /// The bound a rehearsal room puts on every value this scope's evaluations build;
     /// `None` outside a room.
     bound: Option<&'a ValueBound>,
@@ -163,6 +168,7 @@ impl<'a> Scope<'a> {
             index: None,
             permits: None,
             groups: None,
+            run: None,
             bound: None,
         }
     }
@@ -192,6 +198,14 @@ impl<'a> Scope<'a> {
     #[must_use]
     pub fn with_value_bound(mut self, bound: Option<&'a ValueBound>) -> Self {
         self.bound = bound;
+        self
+    }
+
+    /// Bind the facts of the run (spec 04 §`run`): the object `${{ run.<fact> }}`
+    /// reads. `None` leaves the root unbound.
+    #[must_use]
+    pub fn with_run(mut self, run: Option<&'a Value>) -> Self {
+        self.run = run;
         self
     }
 
@@ -261,6 +275,12 @@ impl<'a> Scope<'a> {
     #[must_use]
     pub const fn value_bound(&self) -> Option<&'a ValueBound> {
         self.bound
+    }
+
+    /// The facts of the run bound on this scope, if any.
+    #[must_use]
+    pub const fn run(&self) -> Option<&'a Value> {
+        self.run
     }
 
     /// Evaluate one `${{ … }}` body (an island reference OR a richer
@@ -334,6 +354,10 @@ impl Resolver for ScopeResolver<'_, '_> {
             // value is DATA bound here, never expression text (injection-safe
             // · same boundary as every other namespace).
             "secrets" if !scope.secrets.is_empty() => Some(ns_object(scope.secrets)),
+            // `run` → the facts of this run (spec 04 §`run`), one object the
+            // engine bound before the first task (`None` when no engine
+            // bound it → unresolved · loud, never a guessed instant).
+            "run" => scope.run.cloned(),
             // an unbound root falls here → unresolved (1702).
             _ => None,
         }
@@ -480,7 +504,8 @@ pub fn render(text: &str, scope: &Scope<'_>) -> Result<String, DataflowError> {
 /// A string leaf that is EXACTLY one island (`"${{ ref }}"`) resolves
 /// to the referenced VALUE (type-preserving — an array stays an array ·
 /// the `for_each` collection + `with:` object passing rely on this) ·
-/// any other string renders textually.
+/// any other string renders textually, whitespace around the island
+/// included: `"${{ ref }}\n"` is the value followed by its newline.
 ///
 /// # Errors
 ///
@@ -500,7 +525,10 @@ pub fn render_json(value: &Value, scope: &Scope<'_>) -> Result<Value, DataflowEr
 /// [`render_json`]'s walk: each leaf rendered, the containers rebuilt around them.
 fn build_json(value: &Value, scope: &Scope<'_>) -> Result<Value, DataflowError> {
     Ok(match value {
-        Value::String(text) => match single_island(text) {
+        // Only the island alone keeps the value's type: a newline after it is text the author
+        // wrote (live gauntlet, 2026-10-16: `content: "${{ with.d.version }}\n"` wrote
+        // `3.15.0` without its newline).
+        Value::String(text) => match single_island(text).filter(|_| text.trim() == text.as_str()) {
             Some(reference) => scope.resolve_expr(reference)?,
             None => Value::String(render(text, scope)?),
         },

@@ -48,6 +48,10 @@ mod tests;
 #[path = "admission/unknown_tests.rs"]
 mod unknown_tests;
 
+/// The largest request bounded inference sends, in bytes of its HTTP body (1 MiB): a larger one
+/// is refused before any byte leaves. A door that composes a long instruction fits under it.
+pub const BOUNDED_REQUEST_BYTES: usize = 1_048_576;
+
 /// Whether another bounded inference may be admitted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -162,6 +166,15 @@ pub(crate) fn denied(reason: impl Into<String>) -> ProviderError {
         reason: reason.into(),
     }
 }
+/// Why a route its provider billed above its own catalog reservation admits
+/// nothing more: the tariff that reserved it is stale.
+const TARIFF_BELOW_CHARGE: &str = "the catalogue tariff is below the provider's charge; refresh it";
+/// Whether this tariff's biller reports its own account charge on each reply
+/// (`OpenRouter`'s `usage.cost`, xAI's `usage.cost_in_usd_ticks`): that charge settles, and
+/// the tariff reserves.
+pub(crate) fn settles_at_reported_charge(tariff: &InferenceTariff) -> bool {
+    matches!(tariff.billing_provider, "openrouter" | "xai")
+}
 fn add(a: Cost, b: Cost) -> Result<Cost, ProviderError> {
     a.nano_usd
         .checked_add(b.nano_usd)
@@ -175,6 +188,17 @@ impl State {
     fn refuse(&mut self, reason: &str) -> ProviderError {
         self.refusal = Some(reason.to_owned());
         denied(reason)
+    }
+    /// A settled known charge above its own reservation: the provider bills this
+    /// exact route above its catalog tariff, so the route admits nothing more.
+    fn tariff_below_charge(&self, provider: &str, model: &str, endpoint: &str) -> bool {
+        self.attempts.iter().any(|a| {
+            a.tariff.provider == provider
+                && a.model == model
+                && a.endpoint == endpoint
+                && a.estimated
+                    .is_some_and(|c| c.nano_usd > a.reserved.nano_usd)
+        })
     }
 }
 impl InferenceAdmission {
@@ -314,7 +338,15 @@ impl InferenceAdmission {
         let endpoint = registry
             .effective_base_url(provider)
             .ok_or("unknown provider endpoint")?;
-        Self::qualify(provider, name, endpoint).map_err(|e| e.to_string())?;
+        // The route a call resolves: the canonical provider of an alias (`claude`), the wire
+        // model of a nickname (`sonnet`), as the registry resolves them at dispatch.
+        let canonical = crate::profile::canonical_provider(provider);
+        let profile = registry.profiles().iter().find(|p| p.id == canonical);
+        let wire = profile.map_or(name, |p| p.resolve_model(name));
+        Self::qualify(canonical, wire, endpoint).map_err(|e| e.to_string())?;
+        if !profile.is_some_and(|p| crate::registry::settles_bounded(p.wire)) {
+            return Err(crate::registry::UNSETTLED_WIRE.into());
+        }
         Ok(())
     }
 
@@ -366,9 +398,23 @@ impl InferenceAdmission {
             return Err(s.refuse("admission arithmetic overflow"));
         };
         if !s.unbudgeted && total.nano_usd > s.limit.nano_usd {
-            return Err(
-                s.refuse("remaining catalog allowance cannot cover the full-context reservation")
+            let remaining =
+                Cost::new((s.limit.nano_usd - (total.nano_usd - quote.nano_usd)).max(0));
+            let covers = if tariff.reserved_output(output) > Some(u64::from(output)) {
+                "its admitted prompt and its whole generation, since a request cannot bound its reasoning"
+            } else {
+                "its admitted prompt and the requested output"
+            };
+            let why = format!(
+                "the remaining allowance ({} of {}) cannot cover the full-context reservation of {} \
+                 one call to `{provider}/{model}` needs ({covers}): state at least {} for this work, \
+                 or choose a model whose call reserves less",
+                usd(remaining),
+                usd(s.limit),
+                usd(quote),
+                usd(quote),
             );
+            return Err(s.refuse(&why));
         }
         s.active = add(s.active, quote)?;
         let id = s.attempts.len();
@@ -456,16 +502,35 @@ impl PricedAttempt {
             ));
         }
         let u = &response.usage;
-        let estimate = self.tariff.price(
-            u.input_tokens,
-            u.output_tokens,
-            u.cache_read_tokens.unwrap_or(0),
-        );
+        let estimate = crate::retry::cache_writes(u).and_then(|written| {
+            self.tariff.price_written(
+                u.input_tokens,
+                u.output_tokens,
+                u.cache_read_tokens.unwrap_or(0),
+                written,
+            )
+        });
+        // A biller that reports its own account charge settles at that charge,
+        // even above the reservation: the person's real bill is never lost. The
+        // catalog price of the same usage stays beside it as `reported_estimate`.
+        let reported = settles_at_reported_charge(&self.tariff);
+        let charge = if reported { response.cost } else { estimate };
         let complete = response.usage_completeness == UsageCompleteness::Complete
-            && response.gen_ai.response_model.as_deref() == Some(self.tariff.model)
+            && response
+                .gen_ai
+                .response_model
+                .as_deref()
+                .is_some_and(|model| self.tariff.serves(model))
             && u.input_tokens <= self.tariff.context_tokens
-            && u.output_tokens <= u64::from(self.output)
-            && estimate.is_some_and(|c| c.nano_usd <= self.quote.nano_usd);
+            // The output the reservation covers: the requested bound, or the route's whole
+            // generation when no request parameter bounds its reasoning (xAI).
+            && self
+                .tariff
+                .reserved_output(self.output)
+                .is_some_and(|bound| u.output_tokens <= bound)
+            && charge.is_some_and(|c| {
+                c.nano_usd >= 0 && (reported || c.nano_usd <= self.quote.nano_usd)
+            });
         let mut s = self.account.lock()?;
         s.attempts[self.id].usage = Some(u.clone());
         s.attempts[self.id]
@@ -482,18 +547,38 @@ impl PricedAttempt {
                 s.refuse("incomplete or contradictory provider usage; charge remains unknown")
             );
         }
-        let cost = estimate.ok_or_else(|| denied("unpriceable response"))?;
+        let cost = charge.ok_or_else(|| denied("unpriceable response"))?;
         let total = add(s.estimated, cost)?;
         s.active = Cost::new(s.active.nano_usd - self.quote.nano_usd);
         s.estimated = total;
         s.attempts[self.id].estimated = Some(cost);
-        s.attempts[self.id].note = if self.tariff.provider == "openrouter" && self.quote == Cost::zero() {
-            "complete usage priced at pinned catalog tariff; provider-reported usage.cost=0, non-BYOK; invoice unknown"
-        } else {
-            "complete usage priced at pinned catalog tariff; invoice unknown"
-        }.into();
+        // A charge above the reservation stays settled; `tariff_below_charge`
+        // then refuses this route's next admission, with no account-wide state.
+        s.attempts[self.id].note = settled_note(reported, cost, self.quote).into();
         self.done = true;
         Ok(())
+    }
+}
+
+/// A dollar amount as a person reads it: cents, or the first significant digits below a cent.
+fn usd(cost: Cost) -> String {
+    let dollars = cost.to_usd_f64();
+    if dollars >= 0.01 || dollars == 0.0 {
+        format!("${dollars:.2}")
+    } else {
+        format!("${dollars:.6}")
+    }
+}
+
+fn settled_note(reported: bool, cost: Cost, quote: Cost) -> &'static str {
+    if !reported {
+        "complete usage priced at pinned catalog tariff; invoice unknown"
+    } else if cost.nano_usd > quote.nano_usd {
+        "complete usage settled at the provider-reported usage.cost, non-BYOK, above its catalog reservation: the catalogue tariff is below the provider's charge; refresh it; invoice unknown"
+    } else if cost == Cost::zero() {
+        "complete usage settled at the provider-reported usage.cost=0, non-BYOK; invoice unknown"
+    } else {
+        "complete usage settled at the provider-reported usage.cost, non-BYOK; invoice unknown"
     }
 }
 impl Drop for PricedAttempt {
@@ -527,6 +612,18 @@ mod wire_tests;
 #[cfg(test)]
 #[path = "admission/zero_wire_tests.rs"]
 mod zero_wire_tests;
+
+#[cfg(test)]
+#[path = "admission/paid_wire_tests.rs"]
+mod paid_wire_tests;
+
+#[cfg(test)]
+#[path = "admission/xai_wire_tests.rs"]
+mod xai_wire_tests;
+
+#[cfg(test)]
+#[path = "admission/gemini_wire_tests.rs"]
+mod gemini_wire_tests;
 
 impl InferenceReceipt {
     /// The exact observation (`@1`), naming every endpoint whole, NEVER

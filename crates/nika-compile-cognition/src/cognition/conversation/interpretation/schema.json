@@ -1,0 +1,165 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "runtime_obligations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "requirement": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "span": {
+                  "type": "string"
+                },
+                "quote": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "span",
+                "quote"
+              ]
+            }
+          },
+          "answer_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "requirement",
+          "evidence",
+          "answer_keys"
+        ]
+      }
+    },
+    "preparation_requests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "request": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "span": {
+                  "type": "string"
+                },
+                "quote": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "span",
+                "quote"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "request",
+          "evidence"
+        ]
+      }
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "span": {
+            "type": "string"
+          },
+          "runtime_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preparation_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unresolved": {
+            "type": "boolean",
+            "description": "True only if source meaning or runtime-versus-preparation scope cannot be resolved; false for a clearly understood but pending preparation choice, delegated implementation or not-yet-performed action. Never certifies fulfillment or authority."
+          }
+        },
+        "required": [
+          "span",
+          "runtime_ids",
+          "preparation_ids",
+          "unresolved"
+        ]
+      }
+    },
+    "answer_coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "runtime_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preparation_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unresolved": {
+            "type": "boolean",
+            "description": "True only if source meaning or runtime-versus-preparation scope cannot be resolved; false for a clearly understood but pending preparation choice, delegated implementation or not-yet-performed action. Never certifies fulfillment or authority."
+          }
+        },
+        "required": [
+          "key",
+          "runtime_ids",
+          "preparation_ids",
+          "unresolved"
+        ]
+      }
+    }
+  },
+  "required": [
+    "runtime_obligations",
+    "preparation_requests",
+    "coverage",
+    "answer_coverage"
+  ]
+}

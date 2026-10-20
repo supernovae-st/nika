@@ -19,7 +19,7 @@ mod screen;
 mod world;
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use nika_compile::surface::sha256;
@@ -39,6 +39,69 @@ pub use nika_service_execution::JqHelper;
 
 use record::{Ran, Record};
 use screen::{Refused, Screened};
+
+/// What the project's MCP registry and approved pins say about one `mcp:` tool, read under a
+/// project root without reaching the server. This crate cannot name the MCP client, so the binary
+/// installs it once ([`install_pin_lookup`]).
+pub use nika_compile_cognition::rehearse::PinnedTool;
+
+/// The pin lookup every room consults: `(project root, server, tool)`.
+pub type PinLookup = dyn Fn(&Path, &str, &str) -> PinnedTool + Send + Sync;
+
+static PINS: OnceLock<Arc<PinLookup>> = OnceLock::new();
+
+/// Install the pin lookup every room of this process consults, once: a second install is
+/// ignored and answers `false`. A process that installs none reads no pins, and every `mcp:`
+/// step keeps its source-only hold.
+pub fn install_pin_lookup(lookup: Arc<PinLookup>) -> bool {
+    PINS.set(lookup).is_ok()
+}
+
+/// The host a server's compile door lends when its request names no observed world: the pins of
+/// the server's own project, read fresh at each judgment, and nothing else. It builds no room,
+/// starts no MCP server and reaches no network; asked to rehearse, it answers not run, never
+/// attempted, the room not built. The server's runs make no MCP call, so a step these pins judge
+/// stays held, in words saying so.
+#[derive(Clone, Debug)]
+pub struct ProjectPins {
+    root: PathBuf,
+}
+
+impl ProjectPins {
+    /// The pins of the project at `root`, through the lookup the process installed.
+    #[must_use]
+    pub fn new(root: impl Into<PathBuf>) -> Self {
+        Self { root: root.into() }
+    }
+}
+
+impl Rehearse for ProjectPins {
+    fn rehearse<'a>(&'a self, candidate: &'a str, _inputs: &'a [String]) -> RehearsalFuture<'a> {
+        let reason = "this server lends its project's MCP pins only: no rehearsal room is built";
+        let report = record::refused(sha256(candidate), Refused::new(Refusal::NotBuilt, reason));
+        Box::pin(std::future::ready(report))
+    }
+
+    /// No rehearsal runs here, so none is bounded.
+    fn bound(&self) -> Duration {
+        Duration::ZERO
+    }
+
+    /// The pins of the server's project, through the lookup the process installed.
+    fn pinned(&self, server: &str, tool: &str) -> PinnedTool {
+        PINS.get().map_or(PinnedTool::Unoffered, |lookup| {
+            lookup(&self.root, server, tool)
+        })
+    }
+
+    fn offers_rehearsal(&self) -> bool {
+        false
+    }
+
+    fn runs_mcp_steps(&self) -> bool {
+        false
+    }
+}
 use world::Scratch;
 
 /// The code a value over the room's bound fails its task with (`DataflowError::ValueBound`).
@@ -260,6 +323,13 @@ impl Rehearse for ObservedRoom {
 
     fn bound(&self) -> Duration {
         self.bound
+    }
+
+    /// The pins of this room's project, through the lookup the process installed.
+    fn pinned(&self, server: &str, tool: &str) -> PinnedTool {
+        PINS.get().map_or(PinnedTool::Unoffered, |lookup| {
+            lookup(&self.root, server, tool)
+        })
     }
 
     fn rehearse_reading<'a>(

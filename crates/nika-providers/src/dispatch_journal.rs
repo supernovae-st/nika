@@ -122,6 +122,24 @@ impl DispatchJournal {
             .count()
     }
 
+    /// What the returned requests settled so far: the sum of their known estimates, in
+    /// nano-USD, and how many returned with none. A request still in flight counts in
+    /// neither, so both only grow.
+    pub(crate) fn settled(&self) -> (i128, usize) {
+        let requests = self.lock();
+        let mut known = 0_i128;
+        let mut unpriced = 0_usize;
+        for recorded in &requests.recorded {
+            if let Recorded::Returned { call, .. } = recorded {
+                match call.known_estimate() {
+                    Some(cost) => known = known.saturating_add(cost.nano_usd),
+                    None => unpriced += 1,
+                }
+            }
+        }
+        (known, unpriced)
+    }
+
     /// A poisoned lock still holds a plain record: recover it, never lose it.
     fn lock(&self) -> MutexGuard<'_, Requests> {
         match self.0.lock() {

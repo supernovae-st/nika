@@ -1,0 +1,83 @@
+name: Catalog Refresh
+
+# Manual refresh of the vendored price tables, for review: it never commits.
+#   1. the models.dev snapshot (scripts/refresh-pricing.sh, live fetch), then
+#      its LiteLLM differential (exit 4 = an unexplained skew to triage);
+#   2. the generated OpenRouter admission rows against OpenRouter's public
+#      endpoint listings (scripts/refresh-admission.sh --check, exit 4 = drift),
+#      with the windows and caps report beside the snapshot and the live list.
+# The diffs, the report and the fetched bytes are uploaded; a maintainer
+# replays the bytes locally (--from DIR) and commits the reviewed result.
+#
+# Security note: every `run:` step uses env-var indirection (no inline
+# `${{ }}` expansion into shell); no user-controlled input reaches a shell.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: catalog-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    name: refresh and cross-check prices
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Generator and differential selftests
+        run: |
+          python3 scripts/admission/refresh_admission.py --selftest
+          python3 scripts/pricing-differential.py --selftest
+
+      - name: Refresh the models.dev snapshot
+        id: pricing
+        continue-on-error: true
+        run: |
+          bash scripts/refresh-pricing.sh
+          git diff -- crates/nika-catalog/data/model-pricing.toml > pricing.diff
+          git diff --stat -- crates/nika-catalog/data/model-pricing.toml
+
+      - name: Differential against LiteLLM
+        id: differential
+        continue-on-error: true
+        run: python3 scripts/pricing-differential.py
+
+      - name: Admission rows against OpenRouter
+        id: admission
+        continue-on-error: true
+        run: |
+          set +e
+          bash scripts/refresh-admission.sh --check > admission.diff
+          code=$?
+          bash scripts/refresh-admission.sh --capacity --from "target/admission-sources/$(date -u +%F)" > capacity.txt
+          cat admission.diff capacity.txt
+          exit "$code"
+
+      - name: Upload the refresh evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: catalog-refresh
+          path: |
+            pricing.diff
+            admission.diff
+            capacity.txt
+            target/admission-sources/
+          retention-days: 30
+
+      - name: Verdict
+        env:
+          PRICING: ${{ steps.pricing.outcome }}
+          DIFFERENTIAL: ${{ steps.differential.outcome }}
+          ADMISSION: ${{ steps.admission.outcome }}
+        run: |
+          echo "refresh-pricing: $PRICING · differential: $DIFFERENTIAL · admission: $ADMISSION"
+          if [ "$PRICING" != success ] || [ "$DIFFERENTIAL" != success ] || [ "$ADMISSION" != success ]; then
+            echo "::warning ::a refresh found drift or failed; read the catalog-refresh artifact"
+            exit 1
+          fi

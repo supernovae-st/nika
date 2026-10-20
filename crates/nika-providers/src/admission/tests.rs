@@ -26,7 +26,7 @@ fn complete() -> InferResponse {
     r
 }
 
-const FREE_MODEL: &str = "qwen/qwen3.8-27b:free";
+const FREE_MODEL: &str = "nvidia/nemotron-3-super-120b-a12b:free";
 const FREE_ENDPOINT: &str = "https://openrouter.ai/api/v1/chat/completions";
 
 #[test]
@@ -38,6 +38,8 @@ fn an_exact_zero_tariff_fits_a_zero_monetary_allowance_and_settles() {
     call.sent().expect("dispatch");
     let mut response = complete();
     response.gen_ai.response_model = Some(FREE_MODEL.into());
+    // OpenRouter reports its own charge; its wire sets this zero only under the zero law.
+    response.cost = Some(Cost::zero());
     call.settle(&response).expect("qualified complete response");
     let receipt = account.snapshot().expect("receipt");
     assert_eq!(receipt.estimated, Cost::zero());
@@ -51,6 +53,26 @@ fn an_exact_zero_tariff_fits_a_zero_monetary_allowance_and_settles() {
             .reserve("openrouter", FREE_MODEL, FREE_ENDPOINT, 512)
             .is_err()
     );
+}
+
+/// A biller that reports its own charge settles only at that charge.
+/// A complete reply without it stays unknown, even on a zero tariff.
+#[test]
+fn a_zero_tariff_never_settles_a_reply_without_its_reported_charge() {
+    let account = InferenceAdmission::new(Cost::zero()).expect("zero allowance");
+    let mut call = account
+        .reserve("openrouter", FREE_MODEL, FREE_ENDPOINT, 512)
+        .expect("zero reservation");
+    call.sent().expect("dispatch");
+    let mut response = complete();
+    response.gen_ai.response_model = Some(FREE_MODEL.into());
+    assert!(
+        call.settle(&response).is_err(),
+        "no reported charge, no settlement"
+    );
+    let receipt = account.snapshot().expect("receipt");
+    assert_eq!(receipt.state, AdmissionState::Uncertain);
+    assert_eq!(receipt.attempts[0].estimated, None);
 }
 
 #[test]
@@ -325,4 +347,63 @@ fn an_unbudgeted_account_keeps_qualification_and_the_contradiction_law() {
         "existing bytes unchanged"
     );
     assert!(strict["limit_nano_usd"].is_string());
+}
+
+/// A GPT-6 call that wrote the prompt cache settles at the page's write rate, beside the read and
+/// the plain input; GPT-5.5 lists no write rate, so the same reply stays unknown there.
+#[test]
+fn an_openai_cache_write_settles_only_where_the_page_prices_it() {
+    const OPENAI: &str = "https://api.openai.com/v1/chat/completions";
+    for (model, answer, priced) in [
+        // 60 plain input at 2,000, 10 read at 200, 30 written at 2,500, 20 output at 10,000.
+        (
+            "gpt-6-sol",
+            "gpt-6-sol",
+            Some(60 * 2_000 + 10 * 200 + 30 * 2_500 + 20 * 10_000),
+        ),
+        ("gpt-5.5", "gpt-5.5-2026-04-23", None),
+    ] {
+        let a = InferenceAdmission::new(Cost::new(10_000_000_000)).expect("account");
+        let mut call = a
+            .reserve("openai", model, OPENAI, 8192)
+            .expect("reservation");
+        call.sent().expect("dispatch");
+        let mut r = complete();
+        r.usage.cache_read_tokens = Some(10);
+        r.usage.cache_write_tokens = Some(30);
+        r.gen_ai.response_model = Some(answer.into());
+        assert_eq!(call.settle(&r).is_ok(), priced.is_some(), "{model}");
+        let s = a.snapshot().expect("snapshot");
+        assert_eq!(s.attempts[0].estimated, priced.map(Cost::new), "{model}");
+    }
+}
+
+/// `OpenAI`'s direct row names the dated snapshot its replies report: a reply naming it, or the
+/// model itself, settles the exact route at the row's price; an undocumented date or another
+/// model leaves the charge unknown.
+#[test]
+fn an_openai_reply_naming_its_documented_snapshot_settles_the_route() {
+    const OPENAI: &str = "https://api.openai.com/v1/chat/completions";
+    for (answer, settles) in [
+        ("gpt-4o-mini", true),
+        ("gpt-4o-mini-2024-07-18", true),
+        ("gpt-4o-mini-2099-01-01", false),
+        ("gpt-4o", false),
+    ] {
+        let a = account();
+        let mut call = a
+            .reserve("openai", "gpt-4o-mini", OPENAI, 8192)
+            .expect("reservation");
+        call.sent().expect("dispatch");
+        let mut r = complete();
+        r.gen_ai.response_model = Some(answer.into());
+        assert_eq!(call.settle(&r).is_ok(), settles, "{answer}");
+        // 100 input tokens, none cached, at 150 nano-USD; 20 output tokens at 600.
+        let priced = if settles { 100 * 150 + 20 * 600 } else { 0 };
+        assert_eq!(
+            a.snapshot().expect("snapshot").estimated,
+            Cost::new(priced),
+            "{answer}"
+        );
+    }
 }

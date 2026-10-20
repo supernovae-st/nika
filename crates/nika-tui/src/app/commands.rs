@@ -31,6 +31,7 @@
 
 mod catalog;
 pub(super) mod diagnostic;
+mod keys;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -54,6 +55,9 @@ pub(super) enum KeyDecision {
     Present(Presentation),
     /// `Ctrl+L`: everything drawn again, in every presentation.
     Repaint,
+    /// `Ctrl+N`: `/new`, a new conversation in this project, through the conversation's door
+    /// (which refuses while a decision waits).
+    New,
     /// A full-screen presentation read the key.
     Route(Route),
     /// The composer's key.
@@ -71,6 +75,7 @@ pub(super) fn decide(state: &UiState, desk: &mut Desk, key: KeyEvent) -> KeyDeci
             return KeyDecision::Present(state.presentation.toggled_at(state.size));
         }
         KeyCode::Char('l') if ctrl => return KeyDecision::Repaint,
+        KeyCode::Char('n') if ctrl => return KeyDecision::New,
         _ => {}
     }
     let route = match state.presentation {
@@ -204,19 +209,28 @@ impl<C: Conversation + 'static> Shell<C> {
             .and_then(|index| self.state.transcript.get(index))
             .map(|block| catalog::Read::of(block.kind));
         let view = catalog::View {
+            read,
+            ..self.view()
+        };
+        let entries = catalog::offered(&self.commands, view, self.state.voice());
+        self.composer.offer(entries);
+        let focused = self.composer_has_keys();
+        self.composer.set_focused(focused);
+    }
+
+    /// What the presentation in use routes now, for its view keys; the
+    /// reader's `F2` only where a palette asks for it ([`Self::sync_choices`]).
+    fn view(&self) -> catalog::View {
+        catalog::View {
             presentation: self.state.presentation,
             fits: geometry::fits(self.state.size),
             // A palette's own height changes while searching; keep its return
             // action available even when that temporarily fits all messages.
             scrolled: self.state.focus_scroll > 0 || self.composer.palette_open(),
-            read,
+            read: None,
             // What F4 does now, as the object's own action says it.
             object: self.desk.toggled(self.state.size),
-        };
-        let entries = catalog::offered(&self.commands, view);
-        self.composer.offer(entries);
-        let focused = self.composer_has_keys();
-        self.composer.set_focused(focused);
+        }
     }
 
     /// The transcript block whose whole words the reader shows, by index:
@@ -268,6 +282,9 @@ impl<C: Conversation + 'static> Shell<C> {
                 diagnostic::Viewed::Passed => self.diagnostic = None,
             }
         }
+        if self.open_keys(key, false) {
+            return Some(self.caught(Caught::Read));
+        }
         if is_palette_key(&key) {
             if self.composer.palette_open() {
                 self.close_palette();
@@ -304,7 +321,9 @@ impl<C: Conversation + 'static> Shell<C> {
             Chosen::Pass => None,
             Chosen::Read | Chosen::Inserted => Some(self.caught(Caught::Read)),
             Chosen::Run(words) => Some(self.run_command(words)),
-            Chosen::Press(key) if self.open_diagnostic(key) => Some(self.caught(Caught::Read)),
+            Chosen::Press(key) if self.open_diagnostic(key) || self.open_keys(key, true) => {
+                Some(self.caught(Caught::Read))
+            }
             Chosen::Press(key) => {
                 // These entries name the conversation, regardless of where
                 // the palette opened. Other view keys retain their origin.
@@ -318,6 +337,35 @@ impl<C: Conversation + 'static> Shell<C> {
                 Some(self.caught(Caught::Press(key)))
             }
         }
+    }
+
+    /// `?` opens the keys of what is on screen now ([`keys`]) while nothing
+    /// is typed where the keys go (the box, or a typed choice's own reply),
+    /// or always when the palette `chosen` it; once words are typed, `?` is
+    /// a word.
+    fn open_keys(&mut self, key: KeyEvent, chosen: bool) -> bool {
+        let plain = key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT;
+        if key.code != KeyCode::Char('?') || !plain {
+            return false;
+        }
+        if !chosen {
+            let choosing = self.state.busy.is_none() && self.composer.choosing(&self.state.waiting);
+            let typed = if choosing {
+                !self.composer.own_reply().is_empty()
+            } else {
+                !self.composer.is_blank()
+            };
+            if typed || self.composer.palette_open() || !self.composer_has_keys() {
+                return false;
+            }
+        }
+        self.sync_choices();
+        let view = self.view();
+        let offered = catalog::offered(&[], view, self.state.voice());
+        let words = keys::words(&self.state, &self.composer, &offered, self.hold.can_stop());
+        let words = crate::render::own(&words, self.state.ascii);
+        self.diagnostic = Some(diagnostic::Diagnostic::keys(words));
+        true
     }
 
     /// Both the physical key and the palette entry open the same reader.
@@ -400,6 +448,11 @@ impl<C: Conversation + 'static> Shell<C> {
     /// reply of a typed choice holding the line, else the draft; data every
     /// way, never a key.
     pub(super) fn paste(&mut self, text: &str) {
+        if !text.is_empty() {
+            // New pasted words are a new act, just like a typed edit. Their Enter
+            // must not be consumed as a repeat of the previous choice's activation.
+            self.guard.edited();
+        }
         if self.composer.paste_query(text) {
             return;
         }
@@ -415,7 +468,7 @@ impl<C: Conversation + 'static> Shell<C> {
 mod tests {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-    use super::{Busy, during_turn, is_palette_key};
+    use super::{Busy, KeyDecision, decide, during_turn, is_palette_key};
     use crate::model::Presentation;
 
     /// While Nika works the composer takes words and edits, a bare `Enter`
@@ -476,6 +529,34 @@ mod tests {
             ),
         ] {
             assert!(!is_palette_key(&other), "{other:?}");
+        }
+    }
+
+    /// `Ctrl+N` is the new conversation's key in every presentation, before any region or the
+    /// composer reads it; a plain `n` stays the composer's.
+    #[test]
+    fn ctrl_n_begins_a_new_conversation_in_every_presentation() {
+        use crate::model::UiState;
+        use crate::workspace::desk::Desk;
+        for presentation in [
+            Presentation::Inline,
+            Presentation::Focus,
+            Presentation::Workspace,
+        ] {
+            let state = UiState::new(presentation, false, (120, 40));
+            let mut desk = Desk::new();
+            let ctrl_n = KeyEvent::new(KeyCode::Char('n'), KeyModifiers::CONTROL);
+            let plain = KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE);
+            assert_eq!(
+                decide(&state, &mut desk, ctrl_n),
+                KeyDecision::New,
+                "{presentation:?}"
+            );
+            assert_ne!(
+                decide(&state, &mut desk, plain),
+                KeyDecision::New,
+                "{presentation:?}"
+            );
         }
     }
 }

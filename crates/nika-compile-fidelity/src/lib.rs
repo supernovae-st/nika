@@ -43,6 +43,7 @@ pub mod decimal;
 pub mod fidelity;
 pub mod grounding;
 pub mod literal;
+pub mod model_paths;
 pub mod observed;
 pub mod predicate;
 pub mod sketch;

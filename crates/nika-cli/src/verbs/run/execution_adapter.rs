@@ -126,6 +126,7 @@ struct CliExecutionRequest<'a> {
     max_cost_usd: Option<f64>,
     review_channel: nika_cli_host::run_cost::ReviewChannel,
     invocation_cost: Option<f64>,
+    run_facts: nika_runtime::RunFacts,
 }
 
 impl CliExecutionRequest<'_> {
@@ -153,6 +154,29 @@ impl CliExecutionRequest<'_> {
         ) {
             eprintln!("{notice}");
         }
+    }
+
+    /// The `--dry-run` lane over the admitted world (split out of `run_admitted_context_over` at
+    /// the 100-line ratchet): what the run would do, nothing run.
+    fn dry_run_lane(
+        &self,
+        world: &AdmittedWorld,
+        (source, wf, report): (&str, &nika_schema::raw::RawWorkflow, &CheckReport),
+        plan: &nika_providers::ExecutionAccessPlan,
+    ) -> RunVerdict {
+        dry_run::lane(
+            self.file,
+            source,
+            wf,
+            report,
+            world.driver.skills(),
+            self.repair_target,
+            self.model_override,
+            plan,
+            self.json,
+            self.theme,
+            self.output_json,
+        )
     }
 }
 
@@ -183,8 +207,33 @@ pub(crate) fn run_arm_context(
         max_cost_usd: Some(shot.ceiling()),
         review_channel: nika_cli_host::run_cost::ReviewChannel::Unavailable,
         invocation_cost: Some(shot.ceiling()),
+        run_facts: arm_run_facts(shot),
     };
     run_admitted_context(context, &request, shot.root().to_path_buf())
+}
+
+/// The slot an arm fire serves and the silence a catch-up covers, as the run
+/// is told them (spec 04 §`run`). A slot past the run clock's range (beyond
+/// 2262) leaves the run its own start.
+fn arm_run_facts(shot: &nika_arm::fire::RunShot) -> nika_runtime::RunFacts {
+    let instant = |at: jiff::Timestamp| {
+        i64::try_from(at.as_nanosecond())
+            .ok()
+            .map(nika_types::timestamp::Timestamp::from_unix_ns)
+    };
+    let Some(scheduled_for) = instant(shot.scheduled_for()) else {
+        return nika_runtime::RunFacts::default();
+    };
+    let facts = nika_runtime::RunFacts::slot(scheduled_for);
+    match shot
+        .missed()
+        .and_then(|(first, count)| Some((instant(first)?, count)))
+    {
+        Some((first, count)) => {
+            facts.with_missed(nika_runtime::MissedSlots::new(first, scheduled_for, count))
+        }
+        None => facts,
+    }
 }
 
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
@@ -255,6 +304,7 @@ pub(super) fn run_admitted(
             (!(json || output_json) && resume.is_none()).into()
         },
         invocation_cost,
+        run_facts: nika_runtime::RunFacts::default(),
     };
     let session = service.begin(admitted);
     let outcome = run_admitted_context_over(session.context(), &request, display_root, &probes);
@@ -349,19 +399,7 @@ fn run_admitted_context_over(
         .driver
         .resolve_access_plan(request.model_override, request.access_pin);
     if request.dry_run {
-        return dry_run::lane(
-            request.file,
-            source,
-            &wf,
-            &report,
-            world.driver.skills(),
-            request.repair_target,
-            request.model_override,
-            &plan,
-            request.json,
-            request.theme,
-            request.output_json,
-        );
+        return request.dry_run_lane(&world, (source, &wf, &report), &plan);
     }
     // Judge the trace and access change before monetary review. This phase reads
     // and folds only: durable approval claims stay untouched until cost admits.
@@ -404,6 +442,7 @@ fn run_admitted_context_over(
         &plan,
         inputs,
         setup,
+        request.run_facts,
         request.max_cost_usd.filter(|_| !unknown),
         cost.as_ref().map(|c| c.config.clone()),
         (request.no_trace_file, machine),
@@ -674,6 +713,7 @@ mod tests {
             max_cost_usd: None,
             review_channel: nika_cli_host::run_cost::ReviewChannel::Unavailable,
             invocation_cost: None,
+            run_facts: nika_runtime::RunFacts::default(),
         };
         let session = service.begin(admitted);
         let outcome =

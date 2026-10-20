@@ -249,8 +249,8 @@ fn project_paths_are_typed_as_dynamic_or_unconfined() {
     assert_eq!(read_path(&dynamic), Err(RunShapeError::DynamicPath));
 }
 
-const FREE: &str = "openrouter/qwen/qwen3.8-27b:free";
-const FREE_ONE: &str = "nika: free\nmodel: openrouter/qwen/qwen3.8-27b:free\npermits: {}\ntasks:\n  first:\n    infer: { prompt: text, max_tokens: 64 }\n";
+const FREE: &str = "openrouter/nvidia/nemotron-3-super-120b-a12b:free";
+const FREE_ONE: &str = "nika: free\nmodel: openrouter/nvidia/nemotron-3-super-120b-a12b:free\npermits: {}\ntasks:\n  first:\n    infer: { prompt: text, max_tokens: 64 }\n";
 
 /// An admitted API plan over the given (model, provider, key env) lanes.
 fn lanes(needs: &[(&str, &str, &str)]) -> nika_providers::ExecutionAccessPlan {

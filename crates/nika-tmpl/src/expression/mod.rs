@@ -32,7 +32,7 @@ mod parser;
 mod refs;
 mod template;
 
-pub use ast::{Expr, Literal, NamespaceRef, RelOp};
+pub use ast::{Expr, Literal, NamespaceRef, RUN_FACTS, RelOp};
 pub use error::ExprError;
 pub use lookalike::single_brace_reference_heads;
 pub use parser::parse_expression;

@@ -5,7 +5,7 @@
 
 use std::io;
 
-use super::{ArmState, Folded, LastRecord, replay};
+use super::{ArmState, Decision, FireKind, Folded, LastRecord, replay};
 
 /// Read-only projections from one verified journal snapshot.
 #[non_exhaustive]
@@ -13,6 +13,7 @@ pub struct ArmInspection {
     last: Option<LastRecord>,
     folded: Option<Folded>,
     tallies: Option<(usize, usize)>,
+    decisions: Option<Vec<Decision>>,
 }
 
 impl ArmInspection {
@@ -29,6 +30,21 @@ impl ArmInspection {
     #[must_use]
     pub fn tallies(&self) -> Option<(usize, usize)> {
         self.tallies
+    }
+
+    /// How many decisions of `kind` the journal records: zero for an absent sidecar, `None` when
+    /// an existing journal does not count (its format or chain refuses).
+    #[must_use]
+    pub fn count(&self, kind: FireKind) -> Option<usize> {
+        let decisions = self.decisions.as_ref()?;
+        Some(decisions.iter().filter(|seen| seen.kind == kind).count())
+    }
+
+    /// Every decision the journal records, in order: empty for an absent sidecar, `None` when an
+    /// existing journal does not count.
+    #[must_use]
+    pub fn decisions(&self) -> Option<&[Decision]> {
+        self.decisions.as_deref()
     }
 }
 
@@ -47,12 +63,16 @@ impl ArmState {
                     last: None,
                     folded: None,
                     tallies: None,
+                    decisions: Some(Vec::new()),
                 });
             }
             Err(error) => return Err(error),
         };
         let replayed = replay::replay_safe(&dir)?;
         let folded = replay::fold_replay(&replayed, now);
+        let decisions = nika_cadence::ledger::decisions(
+            (replayed.journals.iter()).map(|(text, versioned)| (text.as_str(), *versioned)),
+        );
         let tallies = if replayed.journals.is_empty() {
             None
         } else {
@@ -67,6 +87,7 @@ impl ArmState {
             last: replayed.last,
             folded,
             tallies,
+            decisions,
         })
     }
 }

@@ -83,6 +83,97 @@ pub fn effect_words(lower: &str, columns: &[String]) -> Vec<EffectVerb> {
     verbs
 }
 
+/// The forms of writing whose object may be a file named by its path alone. « écrire » heads a
+/// draft as well, so a file must follow it: « avant d'écrire `jobs-<date>.md` », « avant l'écriture
+/// de notes.md », « before it writes out/report.md » (live gauntlet, 2026-10-15: the gate before
+/// such a write gated nothing).
+const WRITE_FORMS: &[&str] = &[
+    "write",
+    "writes",
+    "writing",
+    "wrote",
+    "written",
+    "save",
+    "saves",
+    "saving",
+    "saved",
+    "écris",
+    "écrit",
+    "écrire",
+    "écrive",
+    "écrivent",
+    "écriture",
+    "ecris",
+    "ecrit",
+    "ecrire",
+    "ecrive",
+    "ecrivent",
+    "ecriture",
+    "enregistre",
+    "enregistrer",
+    "enregistrement",
+    "sauvegarde",
+    "sauvegarder",
+];
+
+/// Whether `lower` writes a file it names: a form of writing (an elided article such as « d' »
+/// or « l' » set aside), then, within its next six words, a file path whose extension is said
+/// (a bare `jobs-<date>.md` included, a placeholder in its name).
+fn writes_named_file(lower: &str) -> bool {
+    use super::super::paths::{PathShape, token};
+    let named = |path: &str| {
+        std::path::Path::new(path)
+            .extension()
+            .is_some_and(|extension| !extension.is_empty())
+    };
+    let file = |word: &str| {
+        let word = word.trim_start_matches(['(', '«', '"', '`', '[']);
+        [token(word), token(&format!("./{word}"))]
+            .into_iter()
+            .flatten()
+            .any(|shape| match shape {
+                PathShape::File(path) | PathShape::Placeholder(path) => named(&path),
+                _ => false,
+            })
+    };
+    let words = (lower.char_indices())
+        .filter(|(at, c)| {
+            (c.is_alphanumeric() || *c == '\'')
+                && lower[..*at]
+                    .chars()
+                    .next_back()
+                    .is_none_or(|before| !before.is_alphanumeric() && before != '\'')
+        })
+        .map(|(at, _)| {
+            let end = lower[at..]
+                .find(|c: char| !c.is_alphanumeric() && c != '\'')
+                .map_or(lower.len(), |length| at + length);
+            (at, end)
+        });
+    for (at, end) in words {
+        let word = &lower[at..end];
+        let bare = (word.split_once('\''))
+            .filter(|(article, _)| article.chars().count() <= 2)
+            .map_or(word, |(_, rest)| rest);
+        if WRITE_FORMS.contains(&bare) && lower[end..].split_whitespace().take(6).any(file) {
+            return true;
+        }
+    }
+    false
+}
+
+/// The effect verbs the words a human gate guards name ([`effect_words`]), a write included when
+/// they write a file they name (« avant d'écrire jobs.md »). Only a gate reads a write this way: a
+/// ban keeps its own cues, so « non, je veux plutot ecrire le total dans ./out/total.txt » (a
+/// person turning down a proposal) never becomes a ban of the write.
+pub(super) fn gated_effect_words(lower: &str, columns: &[String]) -> Vec<EffectVerb> {
+    let mut verbs = effect_words(lower, columns);
+    if !verbs.contains(&EffectVerb::Write) && writes_named_file(lower) {
+        verbs.push(EffectVerb::Write);
+    }
+    verbs
+}
+
 /// The word position of the first effect word of a text (words split on whitespace and
 /// apostrophes, columns masked), and the text after that word.
 pub(super) fn first_effect_word(lower: &str, columns: &[String]) -> Option<(usize, String)> {

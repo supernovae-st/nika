@@ -41,10 +41,11 @@
 use crate::work::{AnswerAct, ValueSource};
 use nika_onboard::compile::{CompileQuestion, QuestionType};
 use nika_session_change::reply::{
-    as_typed, carries_an_offer, choice_prompt, names_a_model, names_an_offer_alone, offered_keys,
-    offered_part, reading_prompt, verbatim_part,
+    as_typed, carries_an_offer, choice_prompt, delegates, names_a_model, names_an_offer_alone,
+    offered_keys, offered_part, reading_prompt, verbatim_part,
 };
 
+use super::model_answer::ModelReading;
 use super::{SessionRuntime, TurnOutcome};
 use crate::authoring::AuthoringRound;
 use crate::outcome::{Refusal, RefusalClass};
@@ -58,6 +59,9 @@ pub(super) enum AnswerReading {
     Part(String),
     /// Nothing is bound: the question keeps waiting, for this reason.
     Waits(String),
+    /// The line left the value to Nika (« choisis toi-même », « carte blanche »): nothing is
+    /// bound, and the question's choice becomes the author's within the person's words.
+    Delegated,
 }
 
 /// What a value question says when no intelligence reads its reply.
@@ -159,6 +163,11 @@ impl SessionRuntime {
     /// against its offers; any other answer binds only standing alone.
     pub(super) fn answers_by_protocol(&self, round: &AuthoringRound, line: &str) -> bool {
         round.current().is_some_and(|question| {
+            // The `model` question's reply binds as typed with no reader, and is read against
+            // the models offered here with one (`model_answer.rs`).
+            if question.key == "model" {
+                return true;
+            }
             if is_value_question(question) && !restated_in_words(question) {
                 self.reads_answers() || as_typed(line)
             } else {
@@ -199,6 +208,8 @@ impl SessionRuntime {
         };
         // The Session's metered label seat: a spending limit refuses before any call.
         match self.reason_with_money(&prompt, true) {
+            // « choisis toi-même » is no value to copy: the choice is left to Nika.
+            Ok(reply) if delegates(&reply.text) => AnswerReading::Delegated,
             Ok(reply) => {
                 let part = if choice {
                     offered_part(&reply.text, line, question)
@@ -236,8 +247,20 @@ impl SessionRuntime {
     ) -> TurnOutcome {
         let offered = (round.current())
             .is_some_and(|q| is_offered_choice(q) && names_an_offer_alone(q, line));
-        let reading = match round.current() {
-            Some(question) => self.read_answer(question, line),
+        let reading = match round.current().cloned() {
+            // A reply at the `model` question that types no `<provider>/<model>` is read
+            // against the models this machine runs (`model_answer.rs`).
+            Some(question) if question.key == "model" && !defaulted && !names_a_model(line) => {
+                match self.read_model_answer(&question, line) {
+                    ModelReading::AsTyped => AnswerReading::AsTyped,
+                    ModelReading::Named(model) => AnswerReading::Part(model),
+                    ModelReading::Delegated(model) => {
+                        return self.bind_delegated_model(round, line, &model);
+                    }
+                    ModelReading::Waits(why) => AnswerReading::Waits(why),
+                }
+            }
+            Some(question) => self.read_answer(&question, line),
             None => AnswerReading::AsTyped,
         };
         let (value, reading) = match reading {
@@ -246,6 +269,7 @@ impl SessionRuntime {
             AnswerReading::AsTyped => (line.to_owned(), ValueSource::AsTyped),
             AnswerReading::Part(value) => (value, ValueSource::ModelRead),
             AnswerReading::Waits(why) => return self.answer_waits(round, &why),
+            AnswerReading::Delegated => return self.answer_delegated(round, line),
         };
         // An explicit Create clarification makes its answer the request: new bytes carry
         // only the spans admitted for them; identical bytes keep their own.
@@ -278,6 +302,80 @@ impl SessionRuntime {
         self.remember(line, &format!("(answered {key} · read as « {value} »)"));
         let outcome = self.compile_again(round);
         disclosed(outcome, &value, line)
+    }
+
+    /// The person left this question's value to Nika (« choisis toi-même », « carte
+    /// blanche »). Nothing is bound and the question closes; the request carries their words
+    /// under the question's label, so the author chooses within that delegation and cites
+    /// it — the one admitted source of a delegated selection — instead of the person
+    /// being told to « say the value alone ».
+    pub(super) fn answer_delegated(
+        &mut self,
+        mut round: AuthoringRound,
+        line: &str,
+    ) -> TurnOutcome {
+        let asked = self.question_id_of(&round);
+        let Some(question) = round.current().cloned() else {
+            let refusal = Refusal::new(RefusalClass::WrongState, "no authoring question waits");
+            return self.answer_refused(asked, TurnOutcome::Refusal(refusal));
+        };
+        let words = line.trim();
+        round.intent = format!(
+            "{}\n« {} » : {words}",
+            round.intent.trim_end(),
+            question.label
+        );
+        round.answers.retain(|key, _| key == "model");
+        (round.continuation, round.knowledge, round.authoring_receipt) = (None, None, None);
+        round.questions.clear();
+        self.answer_act(
+            asked.clone(),
+            AnswerAct::Delegated {
+                key: question.key.clone(),
+            },
+        );
+        self.questions.close(asked);
+        self.remember(line, &format!("(left « {} » to Nika)", question.label));
+        self.compile_again(round)
+    }
+
+    /// The person left the `model` question to Nika (« choisis toi-même »): the model it
+    /// offers binds, said beside the outcome as Nika's choice and how to change it.
+    fn bind_delegated_model(
+        &mut self,
+        mut round: AuthoringRound,
+        line: &str,
+        model: &str,
+    ) -> TurnOutcome {
+        let asked = self.question_id_of(&round);
+        let Some(key) = round.answer_current(model) else {
+            let refusal = Refusal::new(RefusalClass::WrongState, "no authoring question waits");
+            return self.answer_refused(asked, TurnOutcome::Refusal(refusal));
+        };
+        let bound = AnswerAct::Bound {
+            key: key.clone(),
+            value: model.to_owned(),
+            reading: ValueSource::Delegated,
+        };
+        self.answer_act(asked.clone(), bound);
+        self.questions.close(asked);
+        self.remember(line, &format!("(answered {key} · Nika chose « {model} »)"));
+        let note = format!(
+            "Nika chose « {model} », the model offered here, for « {} » — name another model to change it",
+            line.trim()
+        );
+        match self.compile_again(round) {
+            TurnOutcome::Proposal { id, preview } => TurnOutcome::Proposal {
+                id,
+                preview: format!("{note}\n{preview}"),
+            },
+            TurnOutcome::Question { key, question } => TurnOutcome::Question {
+                key,
+                question: format!("{note}\n{question}"),
+            },
+            TurnOutcome::Facts(text) => TurnOutcome::Facts(format!("{note}\n{text}")),
+            other => other,
+        }
     }
 
     /// The question keeps waiting, said with the reason nothing was bound.
@@ -331,6 +429,29 @@ mod tests {
             "my notes/out file.txt",
         ] {
             assert!(!as_typed(line), "{line}");
+        }
+    }
+
+    /// The reading's own word for a reply that leaves the choice to Nika, alone on its line —
+    /// its `Value:` cue and quotes aside; anything else is no delegation.
+    #[test]
+    fn delegated_alone_is_the_reading_of_a_reply_that_leaves_the_choice() {
+        for reply in [
+            "DELEGATED",
+            "  Value: DELEGATED ",
+            "«DELEGATED»",
+            "\"DELEGATED\"",
+        ] {
+            assert!(delegates(reply), "{reply}");
+        }
+        for reply in [
+            "NONE",
+            "sortie.txt",
+            "DELEGATED\nsortie.txt",
+            "delegated",
+            "",
+        ] {
+            assert!(!delegates(reply), "{reply}");
         }
     }
 

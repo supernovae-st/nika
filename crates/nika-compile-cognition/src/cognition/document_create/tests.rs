@@ -1038,6 +1038,82 @@ async fn an_unstated_selection_is_repaired_by_stating_it_never_only_asked() {
     );
 }
 
+/// A recalled pack larger than one bounded request carries (red before 2026-10-16: the opening
+/// went past it and bounded inference refused the call before any byte left, so nothing was
+/// authored). The door still opens: under the capacity less the rounds' share, the head of each
+/// kind whole, its last references by their first line, each receipted with its whole entry.
+#[tokio::test]
+async fn a_pack_past_the_request_capacity_still_opens_the_door() {
+    let only = policy().with_native(crate::NativeMode::Only);
+    let text = |kind: &str, id: &str| format!("{kind} {id} — a title\n{}", "x".repeat(12_000));
+    let references: Vec<nika_compile::KnowledgeReference> = (1..=40)
+        .flat_map(|n| {
+            ["pattern", "block", "example"].map(|kind| nika_compile::KnowledgeReference {
+                kind: kind.to_owned(),
+                id: format!("{kind}:{n}"),
+                text: text(kind, &format!("{kind}:{n}")),
+            })
+        })
+        .collect();
+    let pack = nika_compile::AuthoringKnowledge {
+        references: references.clone(),
+        ..nika_compile::AuthoringKnowledge::default()
+    };
+    let request = crate::CompileRequest::create(STALE_INTENT)
+        .with_authoring_policy(only)
+        .with_authoring_knowledge(pack);
+    let author = Scripted::new(vec![door(ENVELOPE, &[compose(48)])]);
+    let out = compiled(&request, &author).await;
+    assert!(!author.openings().is_empty(), "the author was asked");
+    let receipt = out
+        .provenance
+        .authoring
+        .as_ref()
+        .expect("authoring receipt");
+    let call = (receipt.context.iter())
+        .find(|call| call["call"] == "document")
+        .expect("the document call");
+    let capacity = nika_providers::admission::BOUNDED_REQUEST_BYTES;
+    let sent = call["message_bytes"].as_u64().expect("message bytes");
+    assert!(sent <= (capacity - capacity / 8) as u64, "{sent}");
+    let rows = call["references"].as_array().expect("references");
+    let row = |id: &str| {
+        (rows.iter())
+            .find(|row| row["id"] == id)
+            .expect("receipted")
+    };
+    for reference in &references {
+        let row = row(&reference.id);
+        let whole = sha256(&reference.text);
+        match row.get("first_line_only") {
+            Some(fitted) => {
+                assert_eq!(fitted["bytes"], reference.text.len());
+                assert_eq!(fitted["sha256"], whole);
+                assert!(row["bytes"].as_u64() < Some(reference.text.len() as u64));
+            }
+            None => assert_eq!(row["sha256"], whole, "{} whole", reference.id),
+        }
+    }
+    let fitted = |kind: &str| {
+        (1..=40)
+            .filter(|n| row(&format!("{kind}:{n}")).get("first_line_only").is_some())
+            .collect::<Vec<_>>()
+    };
+    for kind in ["pattern", "block", "example"] {
+        let fitted = fitted(kind);
+        assert!(
+            !fitted.is_empty() && fitted.len() < 40,
+            "{kind}: {fitted:?}"
+        );
+        // The tail of the kind's order, never its head.
+        assert_eq!(
+            fitted,
+            (41 - fitted.len()..=40).collect::<Vec<_>>(),
+            "{kind}"
+        );
+    }
+}
+
 mod construction;
 /// An open name asked through the document door and answered on its recorded document.
 mod open_extent;

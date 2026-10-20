@@ -28,6 +28,13 @@ use nika_service_execution::JqHelper;
 use serde_json::{Value, json};
 use std::sync::Mutex;
 
+#[path = "support/finite_action.rs"]
+#[allow(
+    dead_code,
+    reason = "the room's TUI journeys read the painted action and choose with part of its keys"
+)]
+mod finite_action;
+
 /// The two exposed rows, one paid.
 const ROWS: &str =
     r#"[{"id":1,"amount_usd":5,"status":"paid"},{"id":2,"amount_usd":20,"status":"late"}]"#;
@@ -662,6 +669,15 @@ fn until(session: &mut LoggedSession, needle: &str) -> String {
     String::from_utf8_lossy(found.before()).into_owned()
 }
 
+/// The text the TUI printed up to its painted finite action: the `action ›` row the diff
+/// renderer may part from its first word with a cursor move, never the title's « action
+/// required » ([`finite_action::PAINTED`]). Keys are sent only once it shows.
+fn until_decision(session: &mut LoggedSession) -> String {
+    use expectrl::Expect as _;
+    let found = session.expect(finite_action::PAINTED).unwrap();
+    String::from_utf8_lossy(found.before()).into_owned()
+}
+
 #[test]
 fn in_session_a_wrong_count_is_repaired_before_it_is_proposed_and_the_run_writes_the_paid_count() {
     use expectrl::Expect as _;
@@ -868,8 +884,9 @@ fn in_the_tui_a_wrong_count_is_repaired_before_it_is_proposed_and_the_run_writes
     );
     let mut s = tui_session(&world, home.path(), &seat);
     s.send(format!("{SESSION_INTENT}\r")).unwrap();
-    // The TUI asks consent at `Save? ›` (the plain loop keeps `apply? ›`).
-    let proposal = until(&mut s, "Save?");
+    // The TUI asks consent as a finite action, its offers in the « Decision » band above its
+    // own `action ›` row (the plain loop keeps `apply? ›`).
+    let proposal = until_decision(&mut s);
     // Semantic: the disconnected graph was rehearsed and refused before any proposal.
     assert_eq!(
         seat.asked(),
@@ -889,7 +906,9 @@ fn in_the_tui_a_wrong_count_is_repaired_before_it_is_proposed_and_the_run_writes
         "{}",
         squash(&proposal)
     );
-    s.send("yes\r").unwrap();
+    // « Save workflow », the decision's first offer, chosen with the arrows: Save only.
+    assert!(seen(&proposal, "Save workflow"), "{}", squash(&proposal));
+    s.send(finite_action::choose(0)).unwrap();
     until(&mut s, "paid-count.nika");
     assert!(
         !world.project().join("out/result.json").exists(),
@@ -933,8 +952,9 @@ fn in_the_tui_a_decoy_holding_the_filter_text_is_never_proposed_saved_or_run() {
     );
     assert!(!seen(&answer, "apply this?"), "{}", squash(&answer));
     assert!(
-        !seen(&answer, "Save?"),
-        "no TUI consent prompt for the decoy"
+        !seen(&answer, "Save?") && !seen(&answer, "action ›"),
+        "no TUI consent decision for the decoy: {}",
+        squash(&answer)
     );
     assert!(
         !world.project().join("paid-count.nika").exists(),
@@ -952,6 +972,7 @@ fn in_the_tui_a_decoy_holding_the_filter_text_is_never_proposed_saved_or_run() {
 #[test]
 fn in_the_tui_an_unjudged_phrasing_shows_the_wrong_result_it_cannot_repair() {
     use expectrl::Expect as _;
+    use finite_action::{ENTER, UP};
     let world = World::new();
     let home = tempfile::tempdir().unwrap();
     let seat = LoopbackSeat::start(
@@ -960,8 +981,15 @@ fn in_the_tui_an_unjudged_phrasing_shows_the_wrong_result_it_cannot_repair() {
     );
     let mut s = tui_session(&world, home.path(), &seat);
     s.send(format!("{UNJUDGED_INTENT}\r")).unwrap();
-    let proposal = until(&mut s, "Save?");
-    s.send("no\r").unwrap();
+    let proposal = until_decision(&mut s);
+    // « Discard this proposal »: the first Up selects the last offer (« Inspect the exact
+    // changes »), the second the one above it; Discard asks once, the second Enter does it.
+    assert!(
+        seen(&proposal, "Discard this proposal") && seen(&proposal, "Inspect the exact changes"),
+        "{}",
+        squash(&proposal)
+    );
+    s.send([UP, UP, ENTER, ENTER].concat()).unwrap();
     until(&mut s, "nika ›");
     s.send("/quit\r").unwrap();
     let _ = s.expect(expectrl::Eof);

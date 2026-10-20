@@ -69,10 +69,24 @@ the request never states is a claim the judges read, as for a direction.
 
 The fidelity move preserves the existing onboarding facade entry points. Direct Rust
 imports of `nika_compile_reader::{candidate, fidelity, sketch}` must instead name
-`nika_compile_fidelity`; these reader paths are removed. Nothing of this crate is
-re-exported by core or reader. In the composed ADR-140 boundary, core reads `fidelity`
+`nika_compile_fidelity`; these reader paths are removed. The compiler facade re-exports
+`model_paths::ModelSink`; the reader does not re-export this crate. In the composed ADR-140 boundary, core reads `fidelity`
 and cognition reads `fidelity`, `sketch` and `candidate`. The reader cannot re-export
 the new member without introducing a production dependency cycle.
+
+## Model-written results
+
+`model_paths::model_steps_on_paths` walks a parsed candidate backward from each effect task
+and workflow output through `with:` data bindings, including group members. `after:` only
+orders tasks and cannot establish that a model result feeds an output. The walk returns the
+model steps reaching each `ModelSink`, unreachable model steps, literal destinations and
+child-workflow calls on those paths. An unparsed document returns `None`.
+
+This is a static data-path fact, not a verdict on a model's generated content. A model step
+whose output reaches no result cannot fulfill a requested model-written part. A child call
+records its target but does not expose its internal model steps; that part remains undecided
+without further evidence. Cognition qualifies the requested part and its sink, while Session
+can repeat the pure walk after a revision without another model call.
 
 ## Grounding observed source facts
 
@@ -205,7 +219,8 @@ needs keeps its default.
   bare `${{ const.<name> }}` is read from `const:`, and a query or fragment is ignored:
   `POST /notifications/stock` to a stated `http://127.0.0.1:57468`. A source never is, even
   after a destination sentence, and no fs authority is granted. An unquoted spaced name keeps
-  its exact extent: no neighbouring literal, article or last words settle it.
+  its exact extent unless the person settles it (the open-name entry below): no article or last
+  words do.
   `stated_paths`, which takes no plan, passes no `url` binding: it realizes no route.
   `fidelity::stated_routes(intent, doc)` names the destinations realized that way that no
   `permits.fs` entry covers, from the same `url` bindings of the intent's reading: a route is
@@ -214,7 +229,15 @@ needs keeps its default.
 - Added after the move, an open name's typed answer (`fidelity::asked_names`,
   `fidelity::asked_readings`). An open name is the reader's unquoted spaced name holding a path
   whose first word it leaves open (`paths::open_names`: `un payload out/notification.json`).
-  Law 1 still owes it exactly, and its finding says how the human settles it. A question asks
+  Law 1 owes the reading one value the person answered is (the laws' `allowed` values: a typed
+  value with no question context, as the direct compile API takes it), or the one a Session's
+  answer to the question about that very name binds within its scope (`fidelity::laws_answered`:
+  the open name its question quotes, the answering line, the role the question asked, and the
+  option picked or, for a free entry, the person's own words; `fidelity/answered`), else
+  the reading their words settle (`paths::settled_reading`: a folder another stated path names;
+  a reply line a Session's answer cites settles no name there),
+  unless a question binds the name; a name nothing settles is owed exactly, and its finding lists
+  the readings with the path alone as the stated default (`asked::remedy`). A question asks
   it when its label or why names it verbatim and no other open name, its `const.<slug>` is
   declared blank, and a task reads `${{ const.<slug> }}` whole as its `path`. The native judge
   then passes it as waived, and the admitted question is the closed choice of the name's
@@ -223,6 +246,13 @@ needs keeps its default.
   quoted name is no open name. `literal::answered::grant_paths` completes the side's one empty
   `permits.fs` entry in place with the inferred paths the record's questions answered, every
   other entry kept, as `grant_host` completes an answered endpoint.
+- Added after the move, the workflow file a request names (`fidelity::requested_workflow`):
+  the one file of Nika's own format the request states (`hot::stated_workflows`: `bilan.nika`,
+  one file however often it is written, with or without its leading `./`)
+  that the candidate neither calls as a child nor names as a task's file (both read from the
+  parsed candidate, never its text; a bare `${{ const.<name> }}` read as its declared value,
+  through the Check's `static_args`), as a path inside the project. A host saves a new workflow
+  there whatever its `nika:`; it grants and refuses nothing, and no law reads it.
 - Added after the move, Law 1's observed placement (`fidelity::laws_observed`, the door that
   also takes the host's observation; `laws` runs it with none and is unchanged). It applies to
   a bare file name the request states (`orders.csv`: one component, with no directory, home,

@@ -1,0 +1,40 @@
+# OpenRouter routes whose admission rows scripts/refresh-admission.sh generates.
+#
+# Each route is read from OpenRouter's public endpoint listing
+# (GET /api/v1/models/<slug>/endpoints) and becomes one
+# nika/inference-admission@1.3 row inside the generated region of
+# crates/nika-catalog/data/inference-admission.toml. Adding a route here is
+# the whole act of admitting it: the next refresh writes its row.
+#
+# context = "bound": an override from `min_prompt_tokens = T` (a long-prompt
+# surcharge) is excluded by admitting at most T - 1 input tokens.
+# context = "full": the override's prices join the peak and the whole window
+# is admitted.
+schema = "nika/admission-sources@1"
+endpoint = "https://openrouter.ai/api/v1/chat/completions"
+route_source = "https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request"
+
+[[routes]]
+model = "z-ai/glm-5.3-flash"
+context = "bound"
+
+[[routes]]
+model = "xiaomi/mimo-v2.6-flash"
+context = "bound"
+
+[[routes]]
+model = "stepfun/step-5-preview"
+context = "bound"
+
+[[routes]]
+model = "tencent/hy4-preview"
+context = "bound"
+
+[[routes]]
+model = "openai/gpt-6-luna"
+context = "bound"
+
+# Declared free: every endpoint lists a zero price on every axis.
+[[routes]]
+model = "nvidia/nemotron-3-super-120b-a12b:free"
+context = "bound"

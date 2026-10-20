@@ -43,7 +43,7 @@ pub(super) fn render_boundary_with(
 
 /// Whether a JSON value's `${{ }}` islands reference the `for_each`
 /// loop-locals (`item` / `index`) — those bindings are per-iteration.
-fn references_loop_locals(value: &Value) -> bool {
+pub(crate) fn references_loop_locals(value: &Value) -> bool {
     use nika_schema::expression::{NamespaceRef, expr_refs, scan_templates};
     match value {
         Value::String(s) => {

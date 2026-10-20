@@ -279,9 +279,57 @@ impl<T> nika_error::traits::AsAny for nika_compile_fidelity::fidelity::Diagnosti
 pub fn nika_compile_fidelity::fidelity::Diagnostic::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_fidelity::fidelity::Diagnostic
 pub type nika_compile_fidelity::fidelity::Diagnostic::Output = T
+#[non_exhaustive] pub struct nika_compile_fidelity::fidelity::OpenName
+pub nika_compile_fidelity::fidelity::OpenName::name: alloc::string::String
+pub nika_compile_fidelity::fidelity::OpenName::readings: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_fidelity::fidelity::OpenName::settled: core::option::Option<alloc::string::String>
+impl nika_compile_fidelity::fidelity::OpenName
+pub fn nika_compile_fidelity::fidelity::OpenName::new(name: impl core::convert::Into<alloc::string::String>, readings: alloc::vec::Vec<alloc::string::String>, settled: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_compile_fidelity::fidelity::OpenName
+pub fn nika_compile_fidelity::fidelity::OpenName::clone(&self) -> nika_compile_fidelity::fidelity::OpenName
+impl core::cmp::Eq for nika_compile_fidelity::fidelity::OpenName
+impl core::cmp::PartialEq for nika_compile_fidelity::fidelity::OpenName
+pub fn nika_compile_fidelity::fidelity::OpenName::eq(&self, other: &nika_compile_fidelity::fidelity::OpenName) -> bool
+impl core::fmt::Debug for nika_compile_fidelity::fidelity::OpenName
+pub fn nika_compile_fidelity::fidelity::OpenName::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::fidelity::OpenName
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::fidelity::OpenName
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::fidelity::OpenName where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::OpenName::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::fidelity::OpenName where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::OpenName::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::fidelity::OpenName where U: core::convert::From<T>
+pub fn nika_compile_fidelity::fidelity::OpenName::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::fidelity::OpenName where U: core::convert::Into<T>
+pub type nika_compile_fidelity::fidelity::OpenName::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::fidelity::OpenName::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::fidelity::OpenName where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::fidelity::OpenName::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::fidelity::OpenName::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::fidelity::OpenName where T: core::clone::Clone
+pub type nika_compile_fidelity::fidelity::OpenName::Owned = T
+pub fn nika_compile_fidelity::fidelity::OpenName::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::fidelity::OpenName::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::fidelity::OpenName where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::OpenName::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::fidelity::OpenName where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::OpenName::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::fidelity::OpenName where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::fidelity::OpenName::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::fidelity::OpenName where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::fidelity::OpenName::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::fidelity::OpenName
+pub fn nika_compile_fidelity::fidelity::OpenName::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::fidelity::OpenName where T: core::clone::Clone
+pub fn nika_compile_fidelity::fidelity::OpenName::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::fidelity::OpenName where T: 'static
+pub fn nika_compile_fidelity::fidelity::OpenName::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::fidelity::OpenName
+pub type nika_compile_fidelity::fidelity::OpenName::Output = T
 pub const nika_compile_fidelity::fidelity::SOURCE_PATHS: &str
 pub fn nika_compile_fidelity::fidelity::allowed_values(answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_fidelity::fidelity::approvals(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
+pub fn nika_compile_fidelity::fidelity::approved_by_reply(question: &str, reply: &str) -> bool
 pub fn nika_compile_fidelity::fidelity::asked_names(intent: &str, doc: &serde_json::value::Value, asked: &[serde_json::value::Value]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_fidelity::fidelity::asked_readings(intent: &str, doc: core::option::Option<&serde_json::value::Value>, asked: &[serde_json::value::Value], key: &str) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_compile_fidelity::fidelity::clarified_sources(answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> alloc::vec::Vec<alloc::string::String>
@@ -293,10 +341,14 @@ pub fn nika_compile_fidelity::fidelity::invented(intent: &str, literals: &[alloc
 pub fn nika_compile_fidelity::fidelity::invented_except(intent: &str, literals: &[alloc::string::String], (allowed, covered): (&[alloc::string::String], &[alloc::string::String]), out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::invented_gates(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::laws(intent: &str, plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, allowed: &[alloc::string::String], waived: &[alloc::string::String], clarified: &[alloc::string::String], out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
+pub fn nika_compile_fidelity::fidelity::laws_answered(intent: &str, plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, (answers, covered): (&alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, &[alloc::string::String]), world: core::option::Option<&serde_json::value::Value>, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::laws_observed(intent: &str, plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, allowed: &[alloc::string::String], waived: &[alloc::string::String], clarified: &[alloc::string::String], world: core::option::Option<&serde_json::value::Value>, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::laws_resolved(intent: &str, plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, (allowed, covered): (&[alloc::string::String], &[alloc::string::String]), waived: &[alloc::string::String], clarified: &[alloc::string::String], world: core::option::Option<&serde_json::value::Value>, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::prohibitions(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
+pub fn nika_compile_fidelity::fidelity::quoted_open_name(intent: &str, words: &str) -> core::option::Option<nika_compile_fidelity::fidelity::OpenName>
 pub fn nika_compile_fidelity::fidelity::raw_text_as_records(doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
+pub fn nika_compile_fidelity::fidelity::requested_workflow(intent: &str, candidate: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_fidelity::fidelity::requested_workflow_answered(intent: &str, candidate: &str, answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::option::Option<alloc::string::String>
 pub fn nika_compile_fidelity::fidelity::stated_paths(intent: &str, doc: &serde_json::value::Value, waived: &[alloc::string::String], clarified: &[alloc::string::String], out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::stated_routes(intent: &str, doc: &serde_json::value::Value) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_fidelity::fidelity::strings(value: &serde_json::value::Value, out: &mut alloc::vec::Vec<alloc::string::String>)
@@ -434,6 +486,107 @@ pub fn nika_compile_fidelity::literal::fill_slot(node: &mut serde_json::value::V
 pub fn nika_compile_fidelity::literal::has_expression(value: &serde_json::value::Value) -> bool
 pub fn nika_compile_fidelity::literal::inexact_integer(json: &str) -> core::option::Option<&str>
 pub fn nika_compile_fidelity::literal::literal_at<'a>(doc: &'a mut serde_json::value::Value, path: &str) -> core::option::Option<&'a mut serde_json::value::Value>
+pub mod nika_compile_fidelity::model_paths
+#[non_exhaustive] pub enum nika_compile_fidelity::model_paths::ModelSink
+pub nika_compile_fidelity::model_paths::ModelSink::Output(alloc::string::String)
+pub nika_compile_fidelity::model_paths::ModelSink::Task(alloc::string::String)
+impl core::clone::Clone for nika_compile_fidelity::model_paths::ModelSink
+pub fn nika_compile_fidelity::model_paths::ModelSink::clone(&self) -> nika_compile_fidelity::model_paths::ModelSink
+impl core::cmp::Eq for nika_compile_fidelity::model_paths::ModelSink
+impl core::cmp::Ord for nika_compile_fidelity::model_paths::ModelSink
+pub fn nika_compile_fidelity::model_paths::ModelSink::cmp(&self, other: &nika_compile_fidelity::model_paths::ModelSink) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_compile_fidelity::model_paths::ModelSink
+pub fn nika_compile_fidelity::model_paths::ModelSink::eq(&self, other: &nika_compile_fidelity::model_paths::ModelSink) -> bool
+impl core::cmp::PartialOrd for nika_compile_fidelity::model_paths::ModelSink
+pub fn nika_compile_fidelity::model_paths::ModelSink::partial_cmp(&self, other: &nika_compile_fidelity::model_paths::ModelSink) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_compile_fidelity::model_paths::ModelSink
+pub fn nika_compile_fidelity::model_paths::ModelSink::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::model_paths::ModelSink
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::model_paths::ModelSink
+impl<Q, K> equivalent::Comparable<K> for nika_compile_fidelity::model_paths::ModelSink where Q: core::cmp::Ord + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::model_paths::ModelSink::compare(&self, key: &K) -> core::cmp::Ordering
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::model_paths::ModelSink where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::model_paths::ModelSink::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::model_paths::ModelSink where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::model_paths::ModelSink::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::model_paths::ModelSink where U: core::convert::From<T>
+pub fn nika_compile_fidelity::model_paths::ModelSink::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::model_paths::ModelSink where U: core::convert::Into<T>
+pub type nika_compile_fidelity::model_paths::ModelSink::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::model_paths::ModelSink::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::model_paths::ModelSink where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::model_paths::ModelSink::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::model_paths::ModelSink::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::model_paths::ModelSink where T: core::clone::Clone
+pub type nika_compile_fidelity::model_paths::ModelSink::Owned = T
+pub fn nika_compile_fidelity::model_paths::ModelSink::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::model_paths::ModelSink::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::model_paths::ModelSink where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::model_paths::ModelSink::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::model_paths::ModelSink where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::model_paths::ModelSink::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::model_paths::ModelSink where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::model_paths::ModelSink::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::model_paths::ModelSink where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::model_paths::ModelSink::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::model_paths::ModelSink
+pub fn nika_compile_fidelity::model_paths::ModelSink::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::model_paths::ModelSink where T: core::clone::Clone
+pub fn nika_compile_fidelity::model_paths::ModelSink::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::model_paths::ModelSink where T: 'static
+pub fn nika_compile_fidelity::model_paths::ModelSink::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::model_paths::ModelSink
+pub type nika_compile_fidelity::model_paths::ModelSink::Output = T
+#[non_exhaustive] pub struct nika_compile_fidelity::model_paths::ModelPaths
+pub nika_compile_fidelity::model_paths::ModelPaths::children: alloc::vec::Vec<(alloc::string::String, alloc::string::String, nika_compile_fidelity::model_paths::ModelSink)>
+pub nika_compile_fidelity::model_paths::ModelPaths::destinations: alloc::vec::Vec<(nika_compile_fidelity::model_paths::ModelSink, alloc::string::String)>
+pub nika_compile_fidelity::model_paths::ModelPaths::sinks: alloc::vec::Vec<nika_compile_fidelity::model_paths::ModelSink>
+pub nika_compile_fidelity::model_paths::ModelPaths::steps: alloc::vec::Vec<(alloc::string::String, nika_compile_fidelity::model_paths::ModelSink)>
+pub nika_compile_fidelity::model_paths::ModelPaths::unreached: alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_compile_fidelity::model_paths::ModelPaths
+pub fn nika_compile_fidelity::model_paths::ModelPaths::clone(&self) -> nika_compile_fidelity::model_paths::ModelPaths
+impl core::cmp::Eq for nika_compile_fidelity::model_paths::ModelPaths
+impl core::cmp::PartialEq for nika_compile_fidelity::model_paths::ModelPaths
+pub fn nika_compile_fidelity::model_paths::ModelPaths::eq(&self, other: &nika_compile_fidelity::model_paths::ModelPaths) -> bool
+impl core::default::Default for nika_compile_fidelity::model_paths::ModelPaths
+pub fn nika_compile_fidelity::model_paths::ModelPaths::default() -> nika_compile_fidelity::model_paths::ModelPaths
+impl core::fmt::Debug for nika_compile_fidelity::model_paths::ModelPaths
+pub fn nika_compile_fidelity::model_paths::ModelPaths::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::model_paths::ModelPaths
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::model_paths::ModelPaths
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::model_paths::ModelPaths where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::model_paths::ModelPaths::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::model_paths::ModelPaths where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::model_paths::ModelPaths::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::model_paths::ModelPaths where U: core::convert::From<T>
+pub fn nika_compile_fidelity::model_paths::ModelPaths::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::model_paths::ModelPaths where U: core::convert::Into<T>
+pub type nika_compile_fidelity::model_paths::ModelPaths::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::model_paths::ModelPaths::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::model_paths::ModelPaths where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::model_paths::ModelPaths::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::model_paths::ModelPaths::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::model_paths::ModelPaths where T: core::clone::Clone
+pub type nika_compile_fidelity::model_paths::ModelPaths::Owned = T
+pub fn nika_compile_fidelity::model_paths::ModelPaths::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::model_paths::ModelPaths::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::model_paths::ModelPaths where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::model_paths::ModelPaths::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::model_paths::ModelPaths where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::model_paths::ModelPaths::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::model_paths::ModelPaths where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::model_paths::ModelPaths::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::model_paths::ModelPaths where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::model_paths::ModelPaths::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::model_paths::ModelPaths
+pub fn nika_compile_fidelity::model_paths::ModelPaths::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::model_paths::ModelPaths where T: core::clone::Clone
+pub fn nika_compile_fidelity::model_paths::ModelPaths::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::model_paths::ModelPaths where T: 'static
+pub fn nika_compile_fidelity::model_paths::ModelPaths::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::model_paths::ModelPaths
+pub type nika_compile_fidelity::model_paths::ModelPaths::Output = T
+pub fn nika_compile_fidelity::model_paths::model_steps_on_paths(source: &str) -> core::option::Option<nika_compile_fidelity::model_paths::ModelPaths>
 pub mod nika_compile_fidelity::observed
 pub mod nika_compile_fidelity::observed::basis
 pub fn nika_compile_fidelity::observed::basis::for_base(world: core::option::Option<&serde_json::value::Value>, words: &str, graph: &serde_json::value::Value, basis: &serde_json::value::Value) -> core::option::Option<serde_json::value::Value>

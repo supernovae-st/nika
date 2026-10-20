@@ -69,7 +69,8 @@ pub fn as_typed(line: &str) -> bool {
 }
 
 /// The one bounded reading: the question in its own words, the reply verbatim, and one
-/// instruction — copy the value, or say NONE.
+/// instruction — copy the value, say DELEGATED when the reply leaves the value to Nika, or
+/// say NONE.
 #[must_use]
 pub fn reading_prompt(question: &CompileQuestion, line: &str) -> String {
     let why = if question.why.is_empty() {
@@ -78,7 +79,7 @@ pub fn reading_prompt(question: &CompileQuestion, line: &str) -> String {
         format!(" ({})", question.why)
     };
     format!(
-        "Nika, an automation tool, asked a human for one value: «{label}»{why}.\nThe human replied: «{reply}».\nCopy that value exactly as it appears in the reply, character for character: only the value, without the words or the sentence punctuation around it; if the whole reply is the value, copy the whole reply. Never correct, translate, complete or add anything. If the reply gives no value, or more than one possible value, answer NONE.\nValue:",
+        "Nika, an automation tool, asked a human for one value: «{label}»{why}.\nThe human replied: «{reply}».\nCopy that value exactly as it appears in the reply, character for character: only the value, without the words or the sentence punctuation around it; if the whole reply is the value, copy the whole reply. Never correct, translate, complete or add anything. If the reply leaves the choice to Nika instead of giving a value (as in « choisis toi-même », « carte blanche », « fais au mieux », « you decide »), answer DELEGATED. If the reply gives no value, or more than one possible value, answer NONE.\nValue:",
         label = question.label,
         reply = line.trim(),
     )
@@ -96,10 +97,23 @@ pub fn choice_prompt(question: &CompileQuestion, line: &str) -> String {
         .collect::<Vec<_>>()
         .join(" · ");
     format!(
-        "Nika, an automation tool, asked a human to choose one answer: «{label}».\nThe offered answers are exactly: {offers}.\nThe human replied: «{reply}».\nCopy the one offered answer the reply chooses, exactly as it appears in the reply, character for character: only that answer, without the words or the sentence punctuation around it. Never correct, translate, complete or add anything. If the reply chooses none of the offered answers, more than one, or only rejects one, answer NONE.\nValue:",
+        "Nika, an automation tool, asked a human to choose one answer: «{label}».\nThe offered answers are exactly: {offers}.\nThe human replied: «{reply}».\nCopy the one offered answer the reply chooses, exactly as it appears in the reply, character for character: only that answer, without the words or the sentence punctuation around it. Never correct, translate, complete or add anything. If the reply leaves the choice to Nika instead of choosing (as in « choisis toi-même », « carte blanche », « fais au mieux », « you decide »), answer DELEGATED. If the reply chooses none of the offered answers, more than one, or only rejects one, answer NONE.\nValue:",
         label = question.label,
         reply = line.trim(),
     )
+}
+
+/// Whether a reading answered that the human left the value or the choice to Nika (« choisis
+/// toi-même », « carte blanche »): the one word `DELEGATED` alone, its `Value:` cue and quotes
+/// aside. Such a reply carries no value to bind; the question's choice becomes the author's,
+/// within the person's own words.
+#[must_use]
+pub fn delegates(reply: &str) -> bool {
+    let mut lines = reply.lines().map(str::trim).filter(|l| !l.is_empty());
+    let (Some(first), None) = (lines.next(), lines.next()) else {
+        return false;
+    };
+    unquoted(first.strip_prefix("Value:").map_or(first, str::trim)) == "DELEGATED"
 }
 
 /// The value a reply points at: one line, its own `Value:` cue and one pair of quotes

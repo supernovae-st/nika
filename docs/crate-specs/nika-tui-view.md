@@ -99,6 +99,19 @@ row and the title row, and the clearing of the band. The renderer decides
 what a surface holds (the chooser's commands, a typed choice's offers) and
 routes its keys and pointer.
 
+On 19 October 2026 four more parts moved here (ADR-143 amendment of that date), to bring the
+renderer back under the 25,000 wall:
+
+- the TUI's own words in the person's language (`lang`);
+- the live run in view (`workspace::live`): the leg's fold, its faces, its task and child
+  views, and the values its host acquires for them (`workspace::live::acquired`);
+- the schedules that fired (`workspace::fired`), said from the Session's arm-ledger facts and
+  the embedded zone database;
+- the provider and model names the intelligence list shows (`names`).
+
+The host that reads the files and journals, the verifier that judges them, the desk around the
+live run and the fold's tests stay in the renderer.
+
 - Nothing here reads a file, a clock or the environment, spawns, blocks or stores. The faces
   tests are the only callers of `nika_cli_host::oracle::audit_source`, as the owner's stand-in,
   once per fixture.

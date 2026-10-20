@@ -12,7 +12,9 @@
 //! source is a public address read with GET; a source the person typed may also be a file
 //! inside the project, only read; a derived or delegated output is a new file inside the
 //! project; a derived read is a file under a folder the person typed, only read; a derived value
-//! is the exact host of an address the person typed (amended 2026-10-10).
+//! is the exact host of an address the person typed (amended 2026-10-10); a delegated value (a
+//! question the person left to Nika, « choisis toi-même », or « carte blanche pour le reste ») is
+//! carried by no effect: only a pure builtin call or a task's words hold it (amended 2026-10-15).
 //! Nothing here grants a permit, a Save or a Run, and the Check still judges the document whole.
 
 use nika_types::net;
@@ -305,16 +307,71 @@ fn refusal(
     match selection.role {
         ResolutionRole::ReadSource => read_source_refusal(doc, value, selection.kind),
         ResolutionRole::OutputPath => output_refusal(doc, value, selection.kind, world),
+        ResolutionRole::Value if selection.kind == ResolutionKind::Delegated => {
+            delegated_value_refusal(doc, value)
+        }
         ResolutionRole::RunModel | ResolutionRole::Value => None,
     }
 }
 
+/// The document sections whose value is authority or identity, never a setting: a value the
+/// person left to Nika never reaches them.
+const AUTHORITY_SECTIONS: [&str; 4] = ["model", "permits", "run", "secrets"];
+
+/// A value the person left to Nika (the time zone of a digest, a count, a format) stands only
+/// where nothing it carries leaves or changes the machine: an argument of a pure builtin call
+/// (`nika_cap`'s pure-internal class, the call proven pure) or a task's words. An `exec`
+/// command, any other tool's argument, an agent's configuration, and the document's model,
+/// permits, run access and secrets refuse it: there it would choose an effect, its target or
+/// an authority, which only the person's own words do.
+fn delegated_value_refusal(doc: &Value, value: &str) -> Option<String> {
+    let refused = |place: &str| {
+        Some(format!(
+            "OUT OF SCOPE: `{value}` is a value the person left to Nika: it may set a pure step or the words of a task, never an effect, its target or an authority; {place} carries it. Ask the person for it, or keep it out of that place."
+        ))
+    };
+    if let Some(section) = AUTHORITY_SECTIONS.iter().find(|key| {
+        doc.get(**key)
+            .is_some_and(|node| mentions(doc, node, value))
+    }) {
+        return refused(&format!("the document's `{section}`"));
+    }
+    let tasks = doc.get("tasks").and_then(Value::as_object)?;
+    for (id, task) in tasks {
+        let holds = |node: &Value| mentions(doc, node, value) || binds(doc, task, node, value);
+        if task.get("exec").is_some_and(holds) {
+            return refused(&format!("the command of task `{id}`"));
+        }
+        if task.pointer("/infer/model").is_some_and(holds) {
+            return refused(&format!("the model of task `{id}`"));
+        }
+        if let Some(agent) = task.get("agent").and_then(Value::as_object) {
+            let configured = (agent.iter())
+                .filter(|(key, _)| !matches!(key.as_str(), "prompt" | "instructions" | "goal"))
+                .any(|(_, node)| holds(node));
+            if configured {
+                return refused(&format!("the agent configuration of task `{id}`"));
+            }
+        }
+        if let Some(invoke) = task.get("invoke") {
+            let tool = invoke["tool"].as_str().unwrap_or_default();
+            let args = invoke.get("args");
+            let pure = nika_cap::is_pure_internal_call_proven(tool, args);
+            if !pure && args.is_some_and(holds) {
+                return refused(&format!("the `{tool}` call of task `{id}`"));
+            }
+        }
+    }
+    None
+}
+
 /// Why an author's selection may not take its role. Only what the person's words scope can
 /// stand for a value they did not spell: a named selection is a read source; a delegated one a
-/// read source or a new output; a derived one a new output, a file read under a folder the
-/// person typed ([`under_typed_folder`]), or the exact host of an address they typed
-/// ([`typed_host`]); an answered value is one the person typed, verbatim. Any other pairing
-/// would let a literal nobody wrote pass as stated.
+/// read source, a new output or a value no effect carries ([`delegated_value_refusal`]); a
+/// derived one a new output, a file read under a folder the person typed
+/// ([`under_typed_folder`]), or the exact host of an address they typed ([`typed_host`]); an
+/// answered value is one the person typed, verbatim. Any other pairing would let a literal
+/// nobody wrote pass as stated.
 fn misplaced(stated: &str, selection: &Resolution) -> Option<String> {
     let (value, kind, role) = (
         selection.value.as_str(),
@@ -325,7 +382,7 @@ fn misplaced(stated: &str, selection: &Resolution) -> Option<String> {
         ResolutionKind::Named => selection.role == ResolutionRole::ReadSource,
         ResolutionKind::Delegated => matches!(
             selection.role,
-            ResolutionRole::ReadSource | ResolutionRole::OutputPath
+            ResolutionRole::ReadSource | ResolutionRole::OutputPath | ResolutionRole::Value
         ),
         ResolutionKind::Derived => match selection.role {
             ResolutionRole::OutputPath => true,
@@ -341,7 +398,7 @@ fn misplaced(stated: &str, selection: &Resolution) -> Option<String> {
             "UNAUTHORIZED SELECTION: `{value}` is stated as answered, but the person's words do not contain it; an answered value is one they typed, verbatim."
         ),
         _ => format!(
-            "UNAUTHORIZED SELECTION: `{value}` is stated as {kind} for the role {role}: a named selection is a read source, a delegated one a read source or a new output, a derived one a new output, a file read under a folder the person typed or the host of an address they typed; any other value must be the person's own words."
+            "UNAUTHORIZED SELECTION: `{value}` is stated as {kind} for the role {role}: a named selection is a read source, a delegated one a read source, a new output or a value no effect carries, a derived one a new output, a file read under a folder the person typed or the host of an address they typed; any other value must be the person's own words."
         ),
     })
 }
@@ -460,10 +517,25 @@ fn read_source_refusal(doc: &Value, value: &str, kind: ResolutionKind) -> Option
     let misused = uses(doc, value)
         .into_iter()
         .find(|(_, tool, method, field)| !reads_with_get(tool, method.as_deref(), field));
-    misused.map(|(task, ..)| format!(
-        "OUT OF SCOPE: `{value}` is {a} {kind} read source: it is read with GET, never POST, sent to or written; task `{task}` uses it otherwise."
-    ))
+    misused.map(|(task, tool, ..)| {
+        // A pure step building addresses from it is the one misuse with a way to keep it (live
+        // gauntlet wave 6 r04 B5, 2026-10-18: the author then moved the address to a `const:`
+        // prefix stated with no words of the person, and asked them for it).
+        let args = (doc.get("tasks").and_then(|tasks| tasks.get(&task)))
+            .and_then(|step| step.pointer("/invoke/args"));
+        let compose = if nika_cap::is_pure_internal_call_proven(&tool, args) {
+            COMPOSE_WHERE_READ
+        } else {
+            ""
+        };
+        format!(
+            "OUT OF SCOPE: `{value}` is {a} {kind} read source: it is read with GET, never POST, sent to or written; task `{task}` uses it otherwise.{compose}"
+        )
+    })
 }
+
+/// How a read source a pure step builds addresses from stays in scope: composed where it is read.
+const COMPOSE_WHERE_READ: &str = " A step that builds addresses from it reads nothing: to read one address per item, keep the base address as the read source and compose it in the `url:` of the `nika:fetch` that reads it (`url: \"${{ const.base }}/${{ item }}.json\"` under `for_each:`).";
 
 /// A file of the project the person typed as a source: a relative path under the project root,
 /// only read (`nika:read` and `nika:grep` read it at `path`, `nika:glob` matches its `pattern`).
@@ -473,21 +545,21 @@ fn project_read_refusal(doc: &Value, value: &str) -> Option<String> {
             "OUT OF SCOPE: `{value}` is not a file inside the project: a source the person typed is a public address or a relative path under the project root, never absolute, hidden or above it."
         ));
     }
-    let read = |tool: &str, field: &str| {
-        matches!(
-            (tool, field),
-            ("nika:read" | "nika:grep", "path") | ("nika:glob", "pattern")
-        )
-    };
     let misused = uses(doc, value)
         .into_iter()
-        .find(|(_, tool, _, field)| !read(tool.as_str(), field.as_str()));
+        .find(|(_, tool, _, field)| !reads_back(tool, field));
     misused.map(|(task, ..)| format!(
         "OUT OF SCOPE: `{value}` is a source of the project: it is only read; task `{task}` uses it otherwise."
     ))
 }
 
-/// A derived output is a new file inside the project, only written.
+/// An output is a file inside the project that `nika:write` writes; a derived or delegated one
+/// is new. The workflow may read back what it writes there (`nika:read`, `nika:grep` at its
+/// `path`, `nika:glob` matching its `pattern`): the state a next run compares with (« il garde le
+/// chiffre d'affaires du jour pour le comparer au jour suivant »), or a file it adds lines to.
+/// Nothing else uses it: no send, no command, no address (live gauntlet wave 6 r10, 2026-10-18:
+/// four revisions keeping the day's revenue in a state file were refused, and the workflow
+/// re-parsed yesterday's report instead).
 fn output_refusal(
     doc: &Value,
     value: &str,
@@ -512,12 +584,30 @@ fn output_refusal(
             "OUT OF SCOPE: `{value}` already exists in the project: a {label} output never replaces a file; ask the person whether to replace it, or derive a new name."
         ));
     }
-    let misused = uses(doc, value)
-        .into_iter()
-        .find(|(_, tool, _, field)| !(tool == "nika:write" && field == "path"));
+    // Read back only what the workflow writes: a derived output read alone would let an author
+    // name a file of the project the person never typed as « new ».
+    let uses = uses(doc, value);
+    let writes = (uses.iter()).any(|(_, tool, _, field)| tool == "nika:write" && field == "path");
+    let misused = uses.into_iter().find(|(_, tool, _, field)| {
+        !((tool == "nika:write" && field == "path") || (writes && reads_back(tool, field)))
+    });
+    let a = if label.starts_with(['a', 'e', 'i', 'o', 'u']) {
+        "an"
+    } else {
+        "a"
+    };
     misused.map(|(task, ..)| format!(
-        "OUT OF SCOPE: `{value}` is a derived output: it is only written by `nika:write`; task `{task}` uses it otherwise."
+        "OUT OF SCOPE: `{value}` is {a} {label} output: `nika:write` writes it, and the workflow may read it back (`nika:read`, `nika:grep`, `nika:glob`); task `{task}` uses it otherwise."
     ))
+}
+
+/// Whether a use reads a file of the project back: `nika:read` and `nika:grep` at its `path`,
+/// `nika:glob` matching its `pattern`.
+fn reads_back(tool: &str, field: &str) -> bool {
+    matches!(
+        (tool, field),
+        ("nika:read" | "nika:grep", "path") | ("nika:glob", "pattern")
+    )
 }
 
 /// Whether a use reads its address: a `nika:fetch` URL read with GET (the default) or HEAD.
@@ -908,11 +998,14 @@ mod tests {
         let absent = json!({"observed": [{"path": "./news/digest.md", "state": "absent"}]});
         let (_, refused) = judge(&written, &[derived("./news/digest.md")], &[], Some(&absent));
         assert!(refused.is_empty(), "{refused:?}");
-        // Read rather than written: refused.
+        // Read rather than written: refused, as only what the workflow writes is read back.
         let read = json!({"tasks": {"read": {"invoke": {"tool": "nika:read",
             "args": {"path": "./news/digest.md"}}}}});
         let (_, refused) = judge(&read, &[derived("./news/digest.md")], &[], None);
-        assert!(refused[0].contains("only written"), "{refused:?}");
+        assert!(
+            refused.len() == 1 && refused[0].contains("task `read` uses it otherwise"),
+            "{refused:?}"
+        );
     }
 
     /// A case-insensitive file system holds `news/Digest.md` and `news/digest.md` as one file,
@@ -1047,6 +1140,103 @@ mod tests {
         assert!(out[0].message.contains("inside the project"), "{out:?}");
     }
 
+    /// A value the person left to Nika (amended 2026-10-15, the live gauntlet: « Votre fuseau
+    /// horaire IANA » answered « choisis toi-même, carte blanche » was refused as UNAUTHORIZED
+    /// SELECTION and asked again) stands where a pure builtin call or a task's words carry it,
+    /// and nowhere an effect, its target or an authority would.
+    #[test]
+    fn a_delegated_value_stands_only_where_no_effect_carries_it() {
+        const STATED: &str = "Fais-moi une veille quotidienne : lis Hacker News et écris le résultat dans veille/<date>.md.\n« Votre fuseau horaire IANA (ex. Europe/Paris) » : choisis toi-même, carte blanche";
+        const WORDS: &str = "« Votre fuseau horaire IANA (ex. Europe/Paris) » : choisis toi-même";
+        let zone = || {
+            Resolution::new(
+                "Europe/Paris",
+                ResolutionKind::Delegated,
+                ResolutionRole::Value,
+            )
+            .with_excerpt(WORDS)
+        };
+        let judged = |doc: &Value| {
+            let mut out = Vec::new();
+            let covered = admitted(STATED, doc, (&[zone()], &[]), None, &mut out);
+            (
+                covered,
+                out.into_iter().map(|d| d.message).collect::<Vec<_>>(),
+            )
+        };
+        let pure = json!({"const": {"tz": "Europe/Paris"}, "tasks": {
+            "today": {"invoke": {"tool": "nika:date", "args": {"op": "now", "tz": "${{ const.tz }}"}}},
+            "day": {"with": {"zone": "${{ const.tz }}"}, "invoke": {"tool": "nika:date",
+                "args": {"op": "format", "format": "%Y-%m-%d", "tz": "${{ with.zone }}"}}},
+            "digest": {"infer": {"prompt": "Résume la journée (fuseau Europe/Paris)."}},
+        }});
+        let (covered, refused) = judged(&pure);
+        assert!(refused.is_empty(), "{refused:?}");
+        assert_eq!(covered, ["Europe/Paris"]);
+        // An effect, its target or an authority never carries it.
+        let carried = [
+            (
+                json!({"tasks": {"send": {"invoke": {"tool": "nika:fetch",
+                "args": {"url": "https://example.org/Europe/Paris"}}}}}),
+                "`nika:fetch` call of task `send`",
+            ),
+            (
+                json!({"const": {"tz": "Europe/Paris"}, "tasks": {"save": {"invoke": {
+                "tool": "nika:write", "args": {"path": "${{ const.tz }}", "content": "x"}}}}}),
+                "`nika:write` call of task `save`",
+            ),
+            (
+                json!({"tasks": {"zone": {"exec": "echo Europe/Paris"}}}),
+                "the command of task `zone`",
+            ),
+            (
+                json!({"tasks": {"issue": {"invoke": {"tool": "github:create_issue",
+                "args": {"title": "Europe/Paris"}}}}}),
+                "`github:create_issue` call of task `issue`",
+            ),
+            (
+                json!({"tasks": {"helper": {"agent": {"prompt": "Europe/Paris",
+                "tools": ["Europe/Paris"]}}}}),
+                "the agent configuration of task `helper`",
+            ),
+            (
+                json!({"tasks": {"digest": {"infer": {"prompt": "x", "model": "Europe/Paris"}}}}),
+                "the model of task `digest`",
+            ),
+            (
+                json!({"permits": {"net": {"http": ["Europe/Paris"]}}, "tasks": {}}),
+                "the document's `permits`",
+            ),
+            (
+                json!({"model": "Europe/Paris", "tasks": {}}),
+                "the document's `model`",
+            ),
+        ];
+        for (doc, place) in carried {
+            let (covered, refused) = judged(&doc);
+            assert!(covered.is_empty(), "{place}");
+            assert!(
+                refused[0]
+                    .starts_with("OUT OF SCOPE: `Europe/Paris` is a value the person left to Nika")
+                    && refused[0].contains(place),
+                "{place}: {refused:?}"
+            );
+        }
+        // Still the person's words: a delegated value no words of theirs leave to Nika refuses.
+        let unanchored = Resolution::new(
+            "Europe/Paris",
+            ResolutionKind::Delegated,
+            ResolutionRole::Value,
+        )
+        .with_excerpt("mon fuseau habituel");
+        let mut out = Vec::new();
+        assert!(admitted(STATED, &pure, (&[unanchored], &[]), None, &mut out).is_empty());
+        assert!(
+            out[0].message.starts_with("UNAUTHORIZED SELECTION"),
+            "{out:?}"
+        );
+    }
+
     #[test]
     fn a_constant_carries_its_selection_to_the_argument_that_reads_it() {
         let doc = json!({"const": {"source": "https://news.ycombinator.com"},
@@ -1178,6 +1368,64 @@ mod tests {
         let refused = judged("Summarize file:/etc/hosts", &hosts, &[schemed]);
         assert!(
             refused.len() == 1 && refused[0].contains("is not a public address"),
+            "{refused:?}"
+        );
+    }
+
+    /// A base address a pure step builds item addresses from is refused with the way to keep
+    /// it, and the same base composed in the `url:` of the fetch that reads each item stands
+    /// (live gauntlet wave 6 r04 B5, 2026-10-18). A send keeps its refusal alone.
+    #[test]
+    fn a_base_address_a_pure_step_composes_is_told_where_to_compose_it() {
+        let base = "https://hacker-news.firebaseio.com/v0/item";
+        let built = json!({"const": {"item_base": base}, "tasks": {
+            "urls": {"with": {"base": "${{ const.item_base }}"}, "invoke": {"tool": "nika:jq",
+                "args": {"input": {"base": "${{ with.base }}"}, "expression": "[.base]"}}}}});
+        let (covered, refused) = judge(&built, &[delegated(base)], &[], None);
+        assert!(covered.is_empty(), "{covered:?}");
+        assert!(
+            refused.len() == 1
+                && refused[0].contains("task `urls` uses it otherwise")
+                && refused[0].contains("`url: \"${{ const.base }}/${{ item }}.json\"`"),
+            "{refused:?}"
+        );
+        let read = json!({"const": {"item_base": base}, "tasks": {
+            "items": {"with": {"base": "${{ const.item_base }}"},
+                "for_each": {"items": "${{ tasks.ids.output }}"},
+                "invoke": {"tool": "nika:fetch",
+                    "args": {"url": "${{ with.base }}/${{ item }}.json"}}}}});
+        let (covered, refused) = judge(&read, &[delegated(base)], &[], None);
+        assert_eq!(covered, [base], "{refused:?}");
+        let posted = json!({"tasks": {"send": {"invoke": {"tool": "nika:fetch",
+            "args": {"url": base, "method": "POST"}}}}});
+        let (_, refused) = judge(&posted, &[delegated(base)], &[], None);
+        assert!(
+            refused.len() == 1 && !refused[0].contains("compose it"),
+            "{refused:?}"
+        );
+    }
+
+    /// The state a workflow keeps for its next run is an output it writes and reads back: a
+    /// derived file both written and read stands, and any other use stays refused (live
+    /// gauntlet wave 6 r10, 2026-10-18: four revisions keeping the day's revenue were refused).
+    #[test]
+    fn a_derived_output_the_workflow_reads_back_is_its_state() {
+        let state = "./etat/dernier-ca.json";
+        let kept = json!({"tasks": {
+            "previous": {"invoke": {"tool": "nika:read", "args": {"path": state}}},
+            "keep": {"invoke": {"tool": "nika:write", "args": {"path": state, "content": "x"}}}}});
+        let (covered, refused) = judge(&kept, &[derived(state)], &[], None);
+        assert_eq!(
+            (covered, refused),
+            (vec![state.to_owned()], Vec::<String>::new())
+        );
+        let run = json!({"tasks": {
+            "keep": {"invoke": {"tool": "nika:write", "args": {"path": state, "content": "x"}}},
+            "send": {"invoke": {"tool": "nika:fetch",
+                "args": {"url": "https://example.org/in", "method": "POST", "body": state}}}}});
+        let (_, refused) = judge(&run, &[derived(state)], &[], None);
+        assert!(
+            refused.len() == 1 && refused[0].contains("task `send` uses it otherwise"),
             "{refused:?}"
         );
     }

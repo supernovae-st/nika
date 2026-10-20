@@ -364,12 +364,14 @@ fn static_class(route: &str) -> Option<AccessClass> {
 }
 
 /// A provider lane carries an explicit effort only when the exact model's
-/// catalog lists that level (the wire then also requires its exact direct
-/// endpoint before a byte leaves). Effort words are the route's own: no
-/// alias is ever applied.
+/// catalog lists that level (the wire then also requires its direct
+/// endpoint before a byte leaves). A catalog nickname is judged as the model
+/// it names (`anthropic/sonnet`); effort words are the route's own: no alias
+/// of a level is ever applied.
 fn catalog_effort_refusal(model: &str, effort: &str) -> Option<String> {
     let (provider, name) = model.split_once('/').unwrap_or((model, ""));
-    let listed = nika_catalog::model_capabilities(provider, name).reasoning_efforts;
+    let wire = nika_catalog::nickname_wire(provider, name).unwrap_or(name);
+    let listed = nika_catalog::model_capabilities(provider, wire).reasoning_efforts;
     if listed.iter().any(|level| level.word() == effort) {
         return None;
     }

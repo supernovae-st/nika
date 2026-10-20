@@ -27,8 +27,10 @@
 //! a retry storm cannot spend past the budget invisibly. An attempt
 //! dropped before it returns (a `fail_fast` sibling · a `timeout:`)
 //! debits every provider request it sent through the dispatch journal
-//! (B7), unanswered ones unpriced. Remaining unmetered class: `on_finally`
-//! cleanups (best-effort lane · outcome dropped by design).
+//! (B7), unanswered ones unpriced, and the known cost of every tool
+//! success it received through its receipts (`UnreturnedSpend`), read or
+//! not. Remaining unmetered class: `on_finally` cleanups (best-effort
+//! lane · outcome dropped by design).
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -41,6 +43,8 @@ pub(crate) struct RunLedger {
     /// `elapsed_ms`.
     started: Option<std::time::Instant>,
     inner: Mutex<LedgerInner>,
+    /// Run-owned witnesses survive dropped task/iteration/agent futures.
+    stopped: Mutex<BTreeMap<String, nika_verb_invoke::StoppedCallSlot>>,
 }
 
 #[derive(Default)]
@@ -55,6 +59,7 @@ struct LedgerInner {
 
 /// A point-in-time copy for the terminal frame + [`crate::RunOutcome`].
 pub(crate) struct LedgerSnapshot {
+    pub stopped_calls: Vec<nika_event::settlement::StoppedCall>,
     pub spent_usd: f64,
     /// Whether ANY leaf reported real spend — the totals only ride the
     /// terminal frame when true (a mock/local run stays field-free:
@@ -75,6 +80,7 @@ impl RunLedger {
             budget,
             started: None,
             inner: Mutex::new(LedgerInner::default()),
+            stopped: Mutex::new(BTreeMap::new()),
         }
     }
 
@@ -212,6 +218,7 @@ impl RunLedger {
             Err(poisoned) => poisoned.into_inner(),
         };
         LedgerSnapshot {
+            stopped_calls: self.stopped_calls(),
             spent_usd: inner.spent_usd,
             any_priced: inner.any_priced,
             priced_calls: inner.priced_calls,
@@ -219,6 +226,80 @@ impl RunLedger {
             budget: self.budget,
             by_source: inner.by_source.clone(),
             elapsed: None,
+        }
+    }
+
+    /// A task's shared parent; each cancellable attempt owns a fresh child.
+    pub(crate) fn stopped_slot(&self, task: &str) -> nika_verb_invoke::StoppedCallSlot {
+        self.stopped
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entry(task.to_owned())
+            .or_default()
+            .clone()
+    }
+
+    fn stopped_calls(&self) -> Vec<nika_event::settlement::StoppedCall> {
+        let slots = self
+            .stopped
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        slots
+            .iter()
+            .flat_map(|(task, slot)| {
+                slot.snapshot().into_iter().filter_map(move |call| {
+                    let outcome =
+                        nika_event::settlement::StopOutcome::parse(call.outcome.as_str())?;
+                    Some(nika_event::settlement::StoppedCall::new(
+                        task,
+                        call.tool,
+                        call.call_id,
+                        outcome,
+                    ))
+                })
+            })
+            .collect()
+    }
+}
+
+/// A dispatch's tool receipts while it runs (the dispatch journal's twin
+/// for tool spend). Dropped armed, because the dispatch was dropped before
+/// it returned (a `fail_fast` sibling · a `timeout:`), it debits the known
+/// cost of every tool success the dispatch received, once. A returned
+/// dispatch carries that spend in its own outcome and disarms it.
+pub(crate) struct UnreturnedSpend<'l> {
+    armed: Option<(
+        &'l RunLedger,
+        nika_verb_invoke::StoppedCallSlot,
+        Option<String>,
+    )>,
+}
+
+impl<'l> UnreturnedSpend<'l> {
+    /// Watch `receipts` (none: nothing to debit), attributed to `source`.
+    #[must_use = "dropping it debits the receipts at once"]
+    pub(crate) fn arm(
+        ledger: &'l RunLedger,
+        receipts: Option<nika_verb_invoke::StoppedCallSlot>,
+        source: Option<String>,
+    ) -> Self {
+        Self {
+            armed: receipts.map(|receipts| (ledger, receipts, source)),
+        }
+    }
+
+    /// The dispatch returned: its outcome owns the spend.
+    pub(crate) fn disarm(mut self) {
+        self.armed = None;
+    }
+}
+
+impl Drop for UnreturnedSpend<'_> {
+    fn drop(&mut self) {
+        if let Some((ledger, receipts, source)) = self.armed.take()
+            && let Some(cost) = receipts.reported_cost_usd()
+        {
+            ledger.debit(source.as_deref(), Some(cost), false);
         }
     }
 }

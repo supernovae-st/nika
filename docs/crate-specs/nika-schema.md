@@ -33,6 +33,19 @@ entire engine.
 > one way (judgment → parser). What stays: parser · raw · error · types ·
 > skill · source — the parse-only half of the pipeline.
 
+> **Project files (spec 02 §Project files).** `prompt:`, `system:` and
+> `schema:` of `infer:` and `agent:` accept the closed mapping
+> `{ file: <path> }`. The parser keeps a `raw::ProjectFileRef` beside the
+> field and judges only the context-independent lexical law
+> (`NIKA-FILE-001`). `compose_project_files` (and `compose_project_file`,
+> one field alone) judges the rest in the spec's order through an injected
+> byte reader: containment from the naming folder, the read boundary before
+> any read (`NIKA-AUTH-006` · `NIKA-SEC-004`), the read (a symbolic link is
+> `NIKA-FILE-001`, a missing or irregular file `NIKA-FILE-002`), the cap and
+> UTF-8 (`NIKA-FILE-003`), then the schema content law (`NIKA-TYPE-007`). It
+> hands back the workflow with each read field holding its content and the
+> reference marked read. The crate stays zero-I/O.
+
 ### The one phase
 
 ```

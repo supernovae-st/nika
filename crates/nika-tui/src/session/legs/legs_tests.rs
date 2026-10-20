@@ -122,9 +122,6 @@ fn the_live_host_reads_only_what_a_relayed_leg_names() {
     use crate::model::Conversation;
     use crate::session::feed::{Gap, Seen};
     use crate::session::{Live, Runners};
-    use nika_session::intelligence::{
-        IntelligenceCensus, IntelligenceKind, UserIntelligencePreference,
-    };
     use std::sync::Arc;
 
     let nanos = std::time::SystemTime::now()
@@ -136,11 +133,11 @@ fn the_live_host_reads_only_what_a_relayed_leg_names() {
     std::fs::write(room.join("two.nika"), source).expect("workflow");
     std::fs::write(room.join("out/copy.md"), "# Brief\n").expect("written");
     std::fs::write(room.join("out/other.md"), "secret\n").expect("other");
-    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let (census, selected) = crate::session::intelligence::fixture();
     let mut live = Live::new(
         room.clone(),
-        IntelligenceCensus::empty(),
-        Some(none),
+        census,
+        Some(selected),
         None,
         Box::new(|_| Box::new(nika_session::ScriptedReasoner::new(Vec::new()))),
         Runners {
@@ -245,9 +242,6 @@ fn a_reopen_repaints_history_and_runs_nothing() {
     use crate::model::{Beat, Conversation};
     use crate::session::feed::{Gap, Seen};
     use crate::session::{Live, Runners};
-    use nika_session::intelligence::{
-        IntelligenceCensus, IntelligenceKind, UserIntelligencePreference,
-    };
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -263,13 +257,11 @@ fn a_reopen_repaints_history_and_runs_nothing() {
     let calls = Arc::new(AtomicUsize::new(0));
     let open = |runners: Runners| {
         let counted = Arc::clone(&calls);
+        let (census, selected) = crate::session::intelligence::fixture();
         Live::new(
             room.clone(),
-            IntelligenceCensus::empty(),
-            Some(UserIntelligencePreference::new(
-                IntelligenceKind::None,
-                None,
-            )),
+            census,
+            Some(selected),
             Some(home.clone()),
             Box::new(move |_| Box::new(Counting(Arc::clone(&counted)))),
             runners,
@@ -309,7 +301,11 @@ fn a_reopen_repaints_history_and_runs_nothing() {
         })
         .collect();
     let shown = shown.join("\n");
-    assert!(shown.contains("earlier in this conversation"), "{shown}");
+    // One notice that the conversation was kept: the Session's, the earlier turns under it.
+    assert!(
+        shown.contains("conversation restored") && !shown.contains("earlier in this conversation"),
+        "{shown}"
+    );
     assert!(
         shown.contains("last run, observed in an earlier session"),
         "{shown}"
@@ -456,9 +452,6 @@ pub(crate) fn reopened_closing(
     use crate::model::Conversation;
     use crate::session::feed::{Gap, Seen};
     use crate::session::{Live, Runners};
-    use nika_session::intelligence::{
-        IntelligenceCensus, IntelligenceKind, UserIntelligencePreference,
-    };
     use std::sync::Arc;
 
     let (room, home) = (base.join("room"), base.join("home"));
@@ -472,13 +465,11 @@ pub(crate) fn reopened_closing(
     std::fs::write(room.join("out/copy.md"), "# Copy\n").expect("written");
     let open = |runners: Runners| {
         let counted = Arc::clone(calls);
+        let (census, selected) = crate::session::intelligence::fixture();
         Live::new(
             room.clone(),
-            IntelligenceCensus::empty(),
-            Some(UserIntelligencePreference::new(
-                IntelligenceKind::None,
-                None,
-            )),
+            census,
+            Some(selected),
             Some(home.clone()),
             Box::new(move |_| Box::new(Counting(Arc::clone(&counted)))),
             runners,

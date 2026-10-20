@@ -101,6 +101,21 @@ fn a_choice_is_shown_only_with_one_default_the_candidate_carries() {
     assert!(refused.contains("shown twice"), "{refused}");
 }
 
+/// A schedule's zone shown as a choice beside the candidate is refused with where it belongs,
+/// never with « write it in the candidate » (live gauntlet r05: 35 proposals refused so).
+#[test]
+fn a_zone_the_candidate_does_not_carry_is_said_to_be_the_schedules() {
+    let asker = Arc::new(Incarnation);
+    let (conversation, lines) = written();
+    let zone = json!({"key": "schedule_zone", "question": "Quel fuseau ?", "options": [
+        {"key": "mauritius", "label": "Indian/Mauritius", "recommended": true,
+         "values": [{"role": "value", "value": "Indian/Mauritius"}]},
+        {"key": "utc", "label": "UTC", "values": [{"role": "value", "value": "UTC"}]}]});
+    let refused = shown(&conversation, &lines, &json!([zone]), &asker).unwrap_err();
+    assert!(refused.contains("the schedule's `timezone`"), "{refused}");
+    assert!(refused.contains("leave it out of `open`"), "{refused}");
+}
+
 #[test]
 fn a_value_the_person_settled_is_never_shown_as_a_choice() {
     let asker = Arc::new(Incarnation);
@@ -254,4 +269,289 @@ fn the_card_states_the_doubt_and_each_choice_shown_with_its_default() {
         "{card}"
     );
     assert_eq!(Conversation::default().card("le résumé", None), "le résumé");
+}
+
+/// A default the candidate carries, picked by protocol (its key or label as the whole line, or a
+/// consent word) while nothing else changed, is kept with no revision; another option, a
+/// sentence, a refusal, a choice the card does not show or another question is not.
+#[test]
+fn a_default_picked_by_protocol_is_kept_while_nothing_else_changed() {
+    let asker = Arc::new(Incarnation);
+    let (conversation, _) = proposed(&asker);
+    let id = conversation.open()[0].id.clone();
+    let shown = ["output".to_owned()];
+    for line in ["md", "Markdown", "yes", "oui", " md. "] {
+        assert!(
+            conversation.keeps_default(&id, line, (&shown, None)),
+            "{line}"
+        );
+    }
+    let changes = [
+        "html",
+        "Page HTML",
+        "md, et ajoute un titre",
+        "no",
+        "choisis toi-même",
+    ];
+    for line in changes {
+        assert!(
+            !conversation.keeps_default(&id, line, (&shown, None)),
+            "{line}"
+        );
+    }
+    assert!(
+        !conversation.keeps_default(&id, "md", (&[], None)),
+        "a choice the card does not show"
+    );
+    let other = QuestionId::new("another question".to_owned(), &asker);
+    assert!(!conversation.keeps_default(&other, "md", (&shown, None)));
+}
+
+/// The author keeps the line when the candidate is no longer the revision shown, or when the
+/// proposal deferred the person's words to save to its last choice: its author proposes those
+/// bytes again, and the mandate continues.
+#[test]
+fn a_rewritten_candidate_or_a_mandate_on_its_last_choice_keeps_the_author() {
+    let asker = Arc::new(Incarnation);
+    let shown = ["output".to_owned()];
+    let (mut conversation, citations) = proposed(&asker);
+    let id = conversation.open()[0].id.clone();
+    let source = format!("nika: news\n# writes {DIGEST}\n# rewritten\n");
+    write(&mut conversation, &citations, &source, &json!([]));
+    assert!(!conversation.keeps_default(&id, "md", (&shown, None)));
+
+    let (mut conversation, _) = written();
+    let later = lines(&[
+        ("u1", "un résumé des news tech dans un fichier"),
+        ("u2", "parfait, enregistre-le"),
+    ]);
+    let open = markdown(&conversation, &later, &asker);
+    let said = json!({"acts": ["save"],
+        "authorized_by": {"message": "u2", "excerpt": "enregistre-le"}});
+    assert!(
+        conversation
+            .propose(&later, &said, ("S1".into(), open))
+            .is_err()
+    );
+    let id = conversation.open()[0].id.clone();
+    assert!(!conversation.keeps_default(&id, "md", (&shown, None)));
+}
+
+// ─── an asked question a shown choice covers is that choice ─────────────
+
+/// The default the live card's topics choice carries (status 65), as the candidate states it.
+const ALL_TOPICS: &str = "tous les sujets présents";
+
+fn option(key: &str, label: &str) -> Value {
+    json!({"key": key, "label": label})
+}
+
+/// The two questions the live author asked together after an adjust offer: depth, then topics,
+/// neither recommending an option.
+fn depth_and_topics() -> Value {
+    json!({"questions": [
+        {"key": "depth", "question": "Quelle profondeur pour le résumé ?", "role": "value",
+         "free_text": true, "options": [option("headlines", "Très court : une ligne par news"),
+             option("short", "Court : 2-3 phrases par news"),
+             option("detailed", "Détaillé : un paragraphe par news avec contexte et enjeux")]},
+        {"key": "topics", "question": "Quels sujets le digest doit-il couvrir ?", "role": "value",
+         "free_text": true, "multi_select": true,
+         "options": [option("all", "Tous les sujets présents dans sources.md"),
+             option("dev", "Développement et langages"), option("security", "Sécurité"),
+             option("ai", "Intelligence artificielle")]}]})
+}
+
+/// The live card's topics choice: `all` recommended with the value the candidate carries, then
+/// the options `others` names.
+fn topics_choice(others: &[(&str, &str)]) -> Value {
+    let mut options = vec![
+        json!({"key": "all", "label": "Tous les sujets présents dans sources.md",
+        "recommended": true, "values": [{"role": "value", "value": ALL_TOPICS}]}),
+    ];
+    options.extend(others.iter().map(|(key, label)| option(key, label)));
+    json!({"key": "topics", "question": "Quels sujets le digest doit-il couvrir ?", "role": "value",
+        "free_text": true, "multi_select": true, "options": options})
+}
+
+/// The live choice's other options, the asked question's own.
+const LIVE: [(&str, &str); 3] = [
+    ("dev", "Développement et langages"),
+    ("security", "Sécurité"),
+    ("ai", "Intelligence artificielle"),
+];
+
+/// Depth and topics asked together, depth answered by its identity, then a candidate that carries
+/// the default every topic, as the live author wrote it: topics still asked.
+fn asked_then_depth(asker: &Arc<Incarnation>) -> (Conversation, Citations, QuestionId) {
+    let mut conversation = Conversation::default();
+    let lines = lines(&[
+        ("u1", "un résumé des news tech dans un fichier"),
+        ("u2", "detailed"),
+        ("u3", "oui"),
+    ]);
+    let mut mint = |context: &str| QuestionId::new(context.to_owned(), asker);
+    let reply = conversation.ask(
+        &lines,
+        &depth_and_topics(),
+        Some("c0"),
+        (&mut mint, &mut |_: &str| None),
+    );
+    assert!(!reply.is_error, "{reply:?}");
+    let id = |key: &str| {
+        (conversation.questions().iter())
+            .find(|q| q.key == key)
+            .map(|q| q.id.clone())
+            .expect(key)
+    };
+    let (depth, topics) = (id("depth"), id("topics"));
+    conversation.answered_one_by(&depth, "u2", "detailed", &BTreeMap::new());
+    let source = format!("nika: news\n# résume en détail {ALL_TOPICS}\n");
+    write(&mut conversation, &lines, &source, &json!([]));
+    (conversation, lines, topics)
+}
+
+#[test]
+fn an_asked_question_a_shown_choice_covers_is_that_choice() {
+    let asker = Arc::new(Incarnation);
+    let (mut conversation, lines, _) = asked_then_depth(&asker);
+    let open = shown(
+        &conversation,
+        &lines,
+        &json!([topics_choice(&LIVE)]),
+        &asker,
+    )
+    .unwrap();
+    let choice = open[0].id.clone();
+    assert_eq!(
+        conversation.propose(&lines, &json!({}), ("S1".into(), open)),
+        Ok(None)
+    );
+    // One authoritative object: the asked `topics` is the card's choice now, under its identity.
+    let keys: Vec<&str> = (conversation.questions().iter())
+        .map(|q| q.key.as_str())
+        .collect();
+    assert!(!keys.contains(&"topics"), "the choice covers it: {keys:?}");
+    let shown_ids: Vec<QuestionId> = conversation.open().iter().map(|q| q.id.clone()).collect();
+    assert_eq!(shown_ids, vec![choice]);
+    assert_eq!(conversation.unsaved(&["topics".to_owned()]), None);
+    // A bare consent binds the default the card shows, and only it.
+    assert_eq!(conversation.consented("u3"), vec!["topics".to_owned()]);
+    let bound: Vec<(&str, ProvenanceKind, &str)> = (conversation.bindings().iter())
+        .filter(|b| b.key.as_deref() == Some("topics"))
+        .map(|b| {
+            let kind = b.provenance.kind;
+            (b.value.as_str(), kind, b.provenance.message.as_str())
+        })
+        .collect();
+    assert_eq!(bound, vec![(ALL_TOPICS, ProvenanceKind::Offered, "u3")]);
+}
+
+#[test]
+fn a_choice_that_only_reuses_the_key_covers_nothing() {
+    let asker = Arc::new(Incarnation);
+    let (mut conversation, lines, topics) = asked_then_depth(&asker);
+    let other = topics_choice(&[("cloud", "Le cloud")]);
+    let open = shown(&conversation, &lines, &json!([other]), &asker).unwrap();
+    assert_eq!(
+        conversation.propose(&lines, &json!({}), ("S1".into(), open)),
+        Ok(None)
+    );
+    // Another answer domain under the same key: the asked question stays and still holds consent.
+    assert!(conversation.questions().iter().any(|q| q.id == topics));
+    let why = conversation.unsaved(&["topics".to_owned()]).unwrap();
+    assert!(why.contains("Nika asked `topics`"), "{why}");
+}
+
+#[test]
+fn the_same_options_asked_another_way_cover_nothing() {
+    let asker = Arc::new(Incarnation);
+    let (mut conversation, lines, topics) = asked_then_depth(&asker);
+    // Which subjects to exclude, where the person was asked which to include: the same options.
+    let mut exclude = topics_choice(&LIVE);
+    exclude["question"] = json!("Quels sujets le digest doit-il exclure ?");
+    let open = shown(&conversation, &lines, &json!([exclude]), &asker).unwrap();
+    assert_eq!(
+        conversation.propose(&lines, &json!({}), ("S1".into(), open)),
+        Ok(None)
+    );
+    assert!(conversation.questions().iter().any(|q| q.id == topics));
+    let why = conversation.unsaved(&["topics".to_owned()]).unwrap();
+    assert!(why.contains("Nika asked `topics`"), "{why}");
+}
+
+#[test]
+fn a_card_the_session_refuses_removes_nothing() {
+    let asker = Arc::new(Incarnation);
+    let (conversation, lines, topics) = asked_then_depth(&asker);
+    // Its default names a value the candidate does not carry: the card is refused, nothing moves.
+    let mut uncarried = topics_choice(&LIVE);
+    uncarried["options"][0]["values"] = json!([{"role": "value", "value": "seulement le cloud"}]);
+    let refused = shown(&conversation, &lines, &json!([uncarried]), &asker).unwrap_err();
+    assert!(refused.contains("does not carry"), "{refused}");
+    assert!(conversation.questions().iter().any(|q| q.id == topics));
+}
+
+#[test]
+fn an_asked_question_answered_after_the_proposal_needs_a_revision() {
+    let asker = Arc::new(Incarnation);
+    let (mut conversation, lines, topics) = asked_then_depth(&asker);
+    assert_eq!(
+        conversation.propose(&lines, &json!({}), ("S1".into(), Vec::new())),
+        Ok(None)
+    );
+    let why = conversation.unsaved(&[]).unwrap();
+    assert!(
+        why.contains("Nika asked `topics`"),
+        "uncovered, it holds: {why}"
+    );
+    conversation.answered_one_by(&topics, "u3", r#"["security","ai"]"#, &BTreeMap::new());
+    // The proposal shown does not carry that answer: it is not saved as it is.
+    let why = conversation.unsaved(&[]).unwrap();
+    assert!(
+        why.contains("`topics` was answered after this proposal"),
+        "{why}"
+    );
+    assert!(why.contains("Nika revises it before saving"), "{why}");
+    // The revision the author proposes is what the person consents to.
+    let source = "nika: news\n# résume en détail la sécurité et l'IA\n";
+    write(&mut conversation, &lines, source, &json!([]));
+    assert_eq!(
+        conversation.propose(&lines, &json!({}), ("S2".into(), Vec::new())),
+        Ok(None)
+    );
+    assert_eq!(conversation.unsaved(&[]), None);
+}
+
+#[test]
+fn another_option_of_the_covering_choice_revises_and_its_revision_saves() {
+    let asker = Arc::new(Incarnation);
+    let (mut conversation, lines, _) = asked_then_depth(&asker);
+    let open = shown(
+        &conversation,
+        &lines,
+        &json!([topics_choice(&LIVE)]),
+        &asker,
+    )
+    .unwrap();
+    let choice = open[0].id.clone();
+    assert_eq!(
+        conversation.propose(&lines, &json!({}), ("S1".into(), open)),
+        Ok(None)
+    );
+    let said =
+        conversation.answered_one_by(&choice, "u3", r#"["security","ai"]"#, &BTreeMap::new());
+    assert!(said.iter().any(|s| s.contains("propose again")), "{said:?}");
+    let why = conversation.unsaved(&["topics".to_owned()]).unwrap();
+    assert!(why.contains("Nika revises it before saving"), "{why}");
+    let source = "nika: news\n# résume en détail la sécurité et l'IA\n";
+    write(&mut conversation, &lines, source, &json!([]));
+    assert_eq!(
+        conversation.propose(&lines, &json!({}), ("S2".into(), Vec::new())),
+        Ok(None)
+    );
+    assert_eq!(
+        conversation.unsaved(&[]),
+        None,
+        "the revision is what the person consents to"
+    );
 }

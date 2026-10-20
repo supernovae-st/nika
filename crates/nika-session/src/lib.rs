@@ -104,8 +104,15 @@ pub use nika_onboard::compile::room::JqHelper;
 pub use nika_runtime::cost_choice::{CapEvidence, CostHostEvidence};
 pub use outcome::{GateId, ProposalId, QuestionId, Refusal, RefusalClass};
 pub use reasoner::{ReasonError, Reply, ScriptedReasoner, SessionReasoner};
-pub use runtime::{SessionRuntime, TurnOutcome};
+pub use runtime::{
+    DeclaredOnly, Lang, LastDecision, LaunchdHost, ScheduleHistory, SessionRuntime, TriggerHost,
+    TurnOutcome, zone_place, zone_words,
+};
+
+/// The demo the welcome screen offers (« Try: aggregate-by-key »): a host's welcome names this
+/// one, and a person asking for « l'exemple de l'écran d'accueil » is given it.
+pub const WELCOME_DEMO: &str = "aggregate-by-key";
 pub use snapshot::ProjectSnapshot;
 pub use state::{Pending, SessionState};
 
-pub use nika_providers::{AdmissionState, AttemptReceipt, InferenceReceipt};
+pub use nika_providers::{AdmissionState, AttemptReceipt, InferenceReceipt, KeyCheck};

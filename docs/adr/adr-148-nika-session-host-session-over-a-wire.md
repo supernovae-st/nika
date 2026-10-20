@@ -130,6 +130,27 @@ The owners that would naturally host this adapter stand at the 15,000 prod-LOC w
     a resolved value an upstream output carries; `size`; `unresolved`). The gate outcome carries
     both as the pause wrote them; its text stays. A host or a consent review binds the exact
     values shown, and a value derived from a secret is only ever named.
+13. **A reply names its question** (amended 2026-10-15). Beside `submit`, `answer`
+    (`{command, snapshot, question, line}`) and `delegate` (`{command, snapshot, question}`)
+    bind a reply to the one question its identity names among those the current snapshot asks
+    (the question waiting, each of several asked together, or a choice the proposal waiting
+    shows), as the TUI answers a painted question. The host resolves that identity only among
+    the ones the snapshot retained, never one minted from the wire, and hands the reply to the
+    Session's identity door (`answer_question_for`, `answer_proposal_choice_for`, or their
+    delegation twins); the other questions keep waiting. A plain `submit` is unchanged: a line
+    typed for questions asked together still answers every one whose offers it names. An
+    identity the snapshot does not ask is refused `unknown_question` before anything reaches the
+    Session (one an earlier snapshot asked, or one this Session never asked), and the command
+    identity binds the question with the line. `delegate` leaves the choice to Nika as the
+    person's act, never as words: the recommended offer is bound as delegated, or the author
+    chooses; a question the compiler asks takes no delegation. Both doors advertise
+    `sessionQuestion`.
+14. **The offer about a result is answered by its identity** (amended 2026-10-15). While
+    nothing else waits, the snapshot's optional offer about the last result
+    (`work.feedback.offer`, NIK-174) is one more identity `answer` may name, and only then, as
+    the Session takes it; a plain `submit` at that prompt is the person's next line and closes
+    the offer unanswered. The offer takes no `delegate` (it recommends nothing), and an answer
+    records the person's view of one scoped result: it saves, runs or sends nothing.
 
 ## Consequences
 

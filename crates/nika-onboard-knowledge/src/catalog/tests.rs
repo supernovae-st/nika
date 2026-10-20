@@ -25,7 +25,7 @@ use nika_compile_seats::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, Dec
 const BLOCK: &str = "block:validate-quarantine-total";
 /// Its admitted bytes, as the release ships them.
 const BYTES: &str = include_str!(
-    "../../assets/knowledge-release-0.123.0-r3.2-foundry-20261012/blocks/validate-quarantine-total.nika"
+    "../../assets/knowledge-release-0.123.0-r3.5-foundry-20261016/blocks/validate-quarantine-total.nika"
 );
 
 fn current() -> Snapshot {
@@ -60,7 +60,7 @@ fn bindings() -> Vec<Binding> {
 fn a_checked_block_resolves_by_id_and_release_with_its_admitted_bytes() {
     let snapshot = current();
     let release = snapshot.release();
-    assert_eq!(release.version, "knowledge-0.123.0-r3.2-foundry-20261012");
+    assert_eq!(release.version, "knowledge-0.123.0-r3.5-foundry-20261016");
     assert_eq!(release.snapshot_sha256, snapshot.manifest_sha256());
     let pinned = ComponentRef::new(BLOCK)
         .at_version(release.version.clone())
@@ -69,7 +69,7 @@ fn a_checked_block_resolves_by_id_and_release_with_its_admitted_bytes() {
     assert_eq!(component.source, BYTES);
     assert_eq!(component.file_sha256, sha256(BYTES));
     assert_eq!(
-        component.file_sha256, "197b59e821e6b8c185c81153e18e2919d60c4ce45e63fd33f8ed5f85ab0eca9c",
+        component.file_sha256, "5fc83be2fba4916cf9f9cfedf6a8156660d8bbe897e81aec6e8ff06003c28b6e",
         "the manifest's pin for blocks/validate-quarantine-total.nika"
     );
     let holes: Vec<&str> = component.holes.iter().map(|h| h.name.as_str()).collect();
@@ -85,7 +85,7 @@ fn a_checked_block_resolves_by_id_and_release_with_its_admitted_bytes() {
     );
     assert_eq!(
         (component.status.as_str(), component.proof_level.as_str()),
-        ("EXPERIMENTAL", "CHECKED")
+        ("EXPERIMENTAL", "OUTCOME_PROVEN")
     );
     // Every refusal is typed; no other component and no text stands in.
     let resolve = |reference: ComponentRef| snapshot.resolve(&reference);
@@ -240,8 +240,8 @@ async fn a_request_sharing_no_word_with_the_block_reaches_it_through_the_whole_c
     let coverage = &record["coverage"];
     assert_eq!(coverage["complete"], true, "{coverage:#}");
     assert_eq!(
-        coverage["admitted_entries"], 491,
-        "every r3 row but its 9 source artifacts"
+        coverage["admitted_entries"], 525,
+        "every r3.5 row but its 9 source artifacts"
     );
     assert_eq!(coverage["resolved_in_full"], 1);
     assert_eq!(

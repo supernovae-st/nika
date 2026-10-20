@@ -13,7 +13,9 @@ use super::{EventSink, RunOutcome, Stamper, emit, emit_terminal, ledger, record,
 
 /// Settle every unstarted task as cancelled (the operator's cancellation when
 /// `operator`, the budget otherwise), end the run with its terminal frame and
-/// return the outcome. In-flight work completed and was counted before this.
+/// return the outcome. In-flight work settled and was counted before this:
+/// under the operator's Stop an `mcp:` call in flight was told to cancel and
+/// failed `NIKA-CANCEL-001`, other work completed.
 #[allow(clippy::too_many_arguments)] // the wave boundary's own knob set
 pub(super) fn abort_unran(
     wf: &RawWorkflow,
@@ -40,7 +42,7 @@ pub(super) fn abort_unran(
         let id = &task.value.id.value;
         if !records.contains_key(id) {
             // Spec 13 · cancelled/budget: this task was UNSTARTED when
-            // the boundary hit (in-flight work completed and was counted).
+            // the boundary hit (in-flight work settled and was counted).
             let record = DataflowTaskRecord::unran(nika_dataflow::TaskStatus::Cancelled, cause);
             emit(
                 stamper,
@@ -59,8 +61,8 @@ pub(super) fn abort_unran(
         (
             RunState::Cancelled,
             RunCause::Operator,
-            "cancelled by the operator — in-flight work completed and was counted · \
-             unstarted tasks were cancelled"
+            "cancelled by the operator — in-flight work settled and was counted (an MCP \
+             call in flight is told to cancel) · unstarted tasks were cancelled"
                 .to_owned(),
             None,
         )

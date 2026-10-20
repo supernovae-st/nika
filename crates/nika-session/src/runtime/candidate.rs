@@ -16,7 +16,8 @@ pub struct Candidate<'a> {
     pub id: ProposalId,
     /// The exact changes a yes lands, their destinations and the Session's audits.
     pub set: &'a ProjectChangeSet,
-    /// The words of the rehearsal proof bound to `id`; `None` when no proof binds it.
+    /// The words of the rehearsal proof bound to `id`, in the person's language; `None` when no
+    /// proof binds it.
     pub rehearsed: Option<&'a str>,
     /// Set aside while a revision's question waits: it is not consentable meanwhile.
     pub aside: bool,
@@ -33,7 +34,7 @@ impl SessionRuntime {
             (None, Some((set, _))) => (set, true, ProposalId::of(&self.draft_preview(set))),
             (None, None) => return None,
         };
-        let rehearsed = self.rehearsals.lines_of(&id);
+        let rehearsed = self.rehearsals.lines_of(&id, self.language);
         Some(Candidate {
             id,
             set,

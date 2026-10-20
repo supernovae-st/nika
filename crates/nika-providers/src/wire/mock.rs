@@ -51,6 +51,10 @@ use nika_kernel::ai::provider::{
 use super::mock_schema;
 use crate::registry::ResolvedProvider;
 
+/// The mock model a rehearsal stands in for a model's answer: a declared shape answered with
+/// every property it names ([`mock_schema::example`]).
+pub(crate) const STAND_IN: &str = "stand-in";
+
 /// Deterministic single-shot response — the echo, or (schema attached) a
 /// synthesized conformant instance as PURE JSON (no prefix noise: the
 /// schema instruction demands "ONLY a JSON value", and the mock complies
@@ -102,6 +106,11 @@ pub(crate) fn infer<H>(rp: &ResolvedProvider<H>, request: &InferRequest) -> Infe
     }
     let echo = last_user_text(request);
     let text = match &request.response_format {
+        // `mock/stand-in` answers a declared shape with every property it names: a rehearsal
+        // stands it in for a model's answer, so the steps after it read each field it offers.
+        ResponseFormat::JsonSchema(schema) if rp.wire_model() == STAND_IN => {
+            mock_schema::example(schema).to_string()
+        }
         ResponseFormat::JsonSchema(schema) => mock_schema::synthesize(schema).to_string(),
         _ => format!("mock({model}) · {echo}", model = rp.wire_model()),
     };

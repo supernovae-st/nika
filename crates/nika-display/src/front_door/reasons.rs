@@ -28,6 +28,9 @@ pub fn human_reasons(reasons: Vec<String>) -> Vec<String> {
 /// carried … », « the literal `v` is not in the request »); any other line
 /// is kept as the compiler said it.
 fn human_reason(raw: &str) -> String {
+    if let Some(words) = behaviour_words(raw.trim()) {
+        return words;
+    }
     let r = raw.trim().trim_end_matches('.');
     // A cut answer is the seat's output limit, an internal cause: its command-line advice
     // (`--authoring-max-tokens`) is no gesture a conversation has, and the request is not at
@@ -84,4 +87,30 @@ fn human_reason(raw: &str) -> String {
         return format!("the draft invented a value (« {value} ») your request never gave");
     }
     r.to_owned()
+}
+
+/// A behaviour round's located defects (`{"kind":"behaviour_failed","obligations":[…]}`, what a
+/// repair starts from) in words: what a rehearsal of the draft showed against each result the
+/// request asks for. A person read that record as raw JSON (2026-10-19). `None` for any other
+/// line.
+fn behaviour_words(raw: &str) -> Option<String> {
+    let record: serde_json::Value = serde_json::from_str(raw).ok()?;
+    if record["kind"] != "behaviour_failed" {
+        return None;
+    }
+    let defects: Vec<String> = (record["obligations"].as_array()?.iter())
+        .filter_map(|obligation| {
+            let requested = obligation["requested"].as_str()?;
+            let observed: Vec<&str> = (obligation["observed"].as_array()?.iter())
+                .filter_map(serde_json::Value::as_str)
+                .collect();
+            Some(format!("{} — asked: {requested}", observed.join(" · ")))
+        })
+        .collect();
+    (!defects.is_empty()).then(|| {
+        format!(
+            "a rehearsal of the draft gave a result your request does not ask for: {}",
+            defects.join(" ; ")
+        )
+    })
 }

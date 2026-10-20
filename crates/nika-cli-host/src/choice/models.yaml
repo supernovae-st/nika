@@ -36,10 +36,10 @@ keys:
     model: openai/gpt-4o-mini
   - env: XAI_API_KEY
     name: Your xAI key
-    model: xai/grok-3
+    model: xai/grok-4.3
   - env: ANTHROPIC_API_KEY
     name: Your Anthropic key
-    model: anthropic/claude-sonnet-4-6
+    model: anthropic/claude-sonnet-5-5
 harness_names:
   # The seat keys are the LIVE pin tokens (R4 — the wrapper ids were
   # NIKA-1802 as pins). The census looks a seat up by its pin ONLY, so

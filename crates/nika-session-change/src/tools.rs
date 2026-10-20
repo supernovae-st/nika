@@ -117,6 +117,10 @@ pub struct ToolReply {
     pub is_error: bool,
     /// The turn ends on this reply.
     pub ends_turn: bool,
+    /// Original compiler verification retained by a successful proposal; never admission authority.
+    /// Versioned separately from the text and omitted when its producer retained no safe evidence.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verification: Option<Value>,
 }
 
 impl ToolReply {
@@ -143,7 +147,19 @@ impl ToolReply {
             text,
             is_error,
             ends_turn,
+            verification: None,
         }
+    }
+
+    /// Attach the producer's unchanged, secret-checked semantic verification receipt.
+    #[must_use]
+    pub fn with_verification(mut self, verification: Option<Value>) -> Self {
+        self.verification = verification.filter(|value| {
+            let raw = value.to_string();
+            let (redacted, _) = nika_cli_host::context_redaction::redact(&raw);
+            !self.is_error && self.ends_turn && raw == redacted
+        });
+        self
     }
 
     /// The reply as a host may show it, to say why a call failed: the obvious secret shapes
@@ -294,5 +310,46 @@ mod tests {
         assert_eq!(reply, ToolReply::ok("1"));
         assert!(tools.call(ToolCall::new("run", json!({}))).is_error);
         assert_eq!(tools.tools()[0].name, "read");
+    }
+    /// Durable tool records must retain the original evidence, including payloads beyond the
+    /// failed-reply excerpt's bound, while older records still deserialize with no receipt.
+    #[test]
+    fn a_tool_reply_round_trip_preserves_original_verification() {
+        let verification = json!({
+            "schema": "nika/semantic-verification@1", "candidate_sha256": "a".repeat(64),
+            "candidate_revision": 3, "reused": false,
+            "records": [{"request": "report ".repeat(100), "consumed": 1, "settled": true}]
+        });
+        let value = json!({"text": "ready", "is_error": false, "ends_turn": true,
+            "verification": verification});
+        let reply: ToolReply = serde_json::from_value(value.clone()).expect("tool record");
+        assert_eq!(serde_json::to_value(reply).expect("tool record"), value);
+        let old = json!({"text": "read", "is_error": false, "ends_turn": false});
+        let reply: ToolReply = serde_json::from_value(old.clone()).expect("old record");
+        assert_eq!(serde_json::to_value(reply).expect("old record"), old);
+    }
+
+    #[test]
+    fn verification_is_never_attached_to_failure_or_secret_shaped_content() {
+        let record = json!({"schema": "nika/semantic-verification@1", "records": []});
+        assert_eq!(
+            ToolReply::error("failed")
+                .with_verification(Some(record.clone()))
+                .verification,
+            None
+        );
+        assert_eq!(
+            ToolReply::ok("read")
+                .with_verification(Some(record))
+                .verification,
+            None
+        );
+        let secret = json!({"records": [{"request": "use sk-live-ABCDEFGH12345678"}]});
+        assert_eq!(
+            ToolReply::ends_turn("ready")
+                .with_verification(Some(secret))
+                .verification,
+            None
+        );
     }
 }

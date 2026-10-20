@@ -44,6 +44,32 @@ fn the_composer_region_leaves_on_esc_and_scrolls_the_transcript() {
     }
 }
 
+/// A letter typed where the keys are not the composer's (the project list,
+/// the object) is never dropped: the keys come back to the conversation and
+/// its composer takes the letter. A region's own keys keep their work there,
+/// and a key with `Ctrl` or `Alt` is no letter.
+#[test]
+fn a_letter_typed_away_from_the_composer_brings_the_keys_back() {
+    for region in [Region::Aside, Region::Object] {
+        let mut desk = demo();
+        desk.focus.region = region;
+        assert_eq!(
+            desk.route(key(KeyCode::Char('b')), WIDE),
+            Route::Compose,
+            "{region:?}"
+        );
+        assert_eq!(desk.focus.region, Region::Conversation, "{region:?}");
+        desk.focus.region = region;
+        let alt = KeyEvent::new(KeyCode::Char('b'), KeyModifiers::ALT);
+        assert_eq!(desk.route(alt, WIDE), Route::Nothing, "{region:?}");
+        assert_eq!(desk.focus.region, region, "{region:?}: no letter");
+    }
+    let mut desk = demo();
+    desk.focus.region = Region::Aside;
+    assert_eq!(desk.route(key(KeyCode::Down), WIDE), Route::Repaint);
+    assert_eq!(desk.focus.region, Region::Aside, "its own key");
+}
+
 /// Esc in another region returns to the composer first; a second Esc
 /// leaves. The page keys scroll the object when it has the keys.
 #[test]
@@ -54,7 +80,6 @@ fn esc_climbs_the_ladder_one_region_at_a_time() {
         Route::Repaint
     );
     assert_eq!(desk.focus.region, Region::Aside);
-    assert_eq!(desk.route(key(KeyCode::Char('x')), WIDE), Route::Nothing);
     assert_eq!(desk.route(key(KeyCode::Esc), WIDE), Route::Repaint);
     assert_eq!(desk.focus.region, Region::Conversation);
     assert_eq!(desk.route(key(KeyCode::Esc), WIDE), Route::Leave);
@@ -196,7 +221,14 @@ fn a_look_is_shown_only_for_the_workflow_it_was_taken_of() {
         panic!("the look is in view");
     };
     assert!(title.to_string().contains("[source]"), "{title}");
-    assert!(body.iter().any(|l| l.to_string().contains("bbbbbbbbbbbb")));
+    assert!(title.to_string().starts_with("enrich"), "{title}");
+    let drawn = desk.drawn.as_ref().map(|drawn| drawn.key.witness.clone());
+    assert_eq!(drawn, Some(Some("bbbbbbbbbbbbcccc".to_owned())));
+    let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
+    assert!(
+        !rows.iter().any(|r| r.contains("bbbbbbbbbbbb")),
+        "no hex: {rows:?}"
+    );
     // The face turns in the object region; the cache follows it.
     desk.focus.region = Region::Object;
     assert_eq!(desk.route(key(KeyCode::Right), WIDE), Route::Repaint);
@@ -228,12 +260,12 @@ fn new_bytes_replace_the_look_and_its_rendering() {
         "the old rendering is not lent to the new bytes"
     );
     desk.prepare(WIDE, true, false);
-    let Object::Workflow { body, .. } = desk.screen(false).object else {
+    let Object::Workflow { .. } = desk.screen(false).object else {
         panic!("the new look is in view");
     };
-    let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
-    assert!(rows.iter().any(|r| r.contains("222222222222")), "{rows:?}");
-    assert!(!rows.iter().any(|r| r.contains("111111111111")), "{rows:?}");
+    // The face drawn is the new bytes' own, rendered anew for their witness.
+    let drawn = desk.drawn.as_ref().map(|drawn| drawn.key.witness.clone());
+    assert_eq!(drawn, Some(Some("222222222222".to_owned())));
 }
 
 /// Opening another workflow drops the previous look and starts at its
@@ -287,9 +319,9 @@ fn the_face_is_rendered_again_for_a_new_width() {
     desk.opened = Some(Target::Workflow("enrich.nika".to_owned()));
     desk.took("enrich.nika", Some(refused("enrich.nika", "abcdef")));
     desk.prepare((160, 48), true, false);
-    let wide = desk.drawn.as_ref().map(|d| d.key.4);
+    let wide = desk.drawn.as_ref().map(|d| d.key.width);
     desk.prepare((60, 18), true, false);
-    let narrow = desk.drawn.as_ref().map(|d| d.key.4);
+    let narrow = desk.drawn.as_ref().map(|d| d.key.width);
     // The face is rendered for its body: beside the conversation the object's
     // 69 columns less the one of air after the separator; stacked at 60
     // columns, the whole region.
@@ -331,9 +363,10 @@ fn candidate(preview: &str, path: &str, aside: bool) -> Proposed {
     Proposed::new(nika_session::ProposalId::of(preview), aside, look)
 }
 
-/// A proposal becomes the object in view, listed under this conversation;
-/// a revision (a new identity) replaces it in the face already in view,
-/// and the same candidate lent again changes nothing.
+/// A proposal becomes the object in view, listed under this conversation and
+/// named by where it lands, never by its identity's hex; a revision (a new
+/// identity) replaces it in the face already in view, rendered anew, and the
+/// same candidate lent again changes nothing.
 #[test]
 fn a_new_candidate_becomes_the_object_and_a_revision_replaces_it() {
     let mut desk = demo();
@@ -356,21 +389,36 @@ fn a_new_candidate_becomes_the_object_and_a_revision_replaces_it() {
         panic!("the candidate's face is in view");
     };
     let a = nika_session::ProposalId::of("A").to_string();
-    assert!(body.iter().any(|l| l.to_string().contains(&a)));
+    let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
+    let named = rows
+        .iter()
+        .any(|r| r.starts_with("proposal compiled-workflow.nika · "));
+    assert!(named, "{rows:?}");
+    assert!(
+        !rows.iter().any(|r| r.contains(&a[..12])),
+        "no hex: {rows:?}"
+    );
     // The face turns on a candidate; a revision keeps it and shows B only.
     desk.focus.region = Region::Object;
     assert_eq!(desk.route(key(KeyCode::Right), WIDE), Route::Repaint);
-    assert_eq!(desk.route(key(KeyCode::Char('r')), WIDE), Route::Nothing);
+    // Nothing to read again on a candidate: `r` is a letter, the composer's.
+    assert_eq!(desk.route(key(KeyCode::Char('r')), WIDE), Route::Compose);
+    assert_eq!(desk.focus.region, Region::Conversation);
+    desk.focus.region = Region::Object;
+    desk.prepare(WIDE, false, false);
+    let shown_a = desk.drawn.clone();
     desk.proposed(Some(candidate("B", "compiled-workflow.nika", false)));
     assert_eq!(desk.face, Face::Plan, "the face in view stays");
     desk.prepare(WIDE, false, false);
-    let Object::Workflow { body, .. } = desk.screen(false).object else {
+    let Object::Workflow { .. } = desk.screen(false).object else {
         panic!("B is in view");
     };
-    let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
-    let b = nika_session::ProposalId::of("B").to_string();
-    assert!(rows.iter().any(|r| r.contains(&b)), "{rows:?}");
-    assert!(!rows.iter().any(|r| r.contains(&a)), "A is gone: {rows:?}");
+    let b = nika_session::ProposalId::of("B");
+    assert_eq!(desk.candidate.as_ref().map(Proposed::id), Some(&b));
+    assert_ne!(
+        desk.drawn, shown_a,
+        "B's face is rendered anew, A's is gone"
+    );
     let drawn = desk.drawn.clone();
     desk.proposed(Some(candidate("B", "compiled-workflow.nika", false)));
     assert_eq!(desk.drawn, drawn, "the same candidate changes nothing");
@@ -431,7 +479,7 @@ fn an_asked_run_is_the_object_and_the_pinned_row() {
             .aside
             .entries
             .iter()
-            .any(|e| e.label == "run (starting) release.nika" && e.open)
+            .any(|e| e.label == "run (starting) release.nika" && e.open && e.verdict.is_none())
     );
     desk.prepare(WIDE, false, false);
     let Object::Workflow { title, body } = desk.screen(false).object else {
@@ -750,6 +798,153 @@ fn observed_run(workflow: &str, uuid: &str, task: &str) -> Vec<Observed> {
     ]
 }
 
+/// A leg of `workflow`'s run of execution `uuid` asked, its start naming the trace it continues
+/// (`from`, a resume), settled `status` when one is given.
+fn gated_leg(
+    workflow: &str,
+    uuid: &str,
+    from: Option<&str>,
+    status: Option<&str>,
+) -> Vec<Observed> {
+    let exec = format!(r#""execution":{{"uuid":"{uuid}"}}"#);
+    let link = from.map_or_else(String::new, |from| {
+        format!(r#"{{"key":"resumed_from","value":"{from}"}}"#)
+    });
+    let start = format!(
+        r#"{{"correlation":null,{exec},"fields":[{link}],"id":{{"uuid":"01a0ef11-03a7-74fb-bba0-000000000001"}},"kind":"workflow_started","run":null,"timestamp":1}}"#
+    );
+    let mut seen = vec![
+        Observed::Asked {
+            workflow: workflow.to_owned(),
+            resume: from.is_some(),
+            typed: true,
+            look: None,
+            world: None,
+        },
+        Observed::Frame(RunFrame::decode(&start).expect("a start")),
+    ];
+    if let Some(status) = status {
+        seen.push(settlement(uuid, from, status));
+    }
+    seen
+}
+
+/// The settlement of execution `uuid`, `status`, naming the trace it continued (`from`).
+fn settlement(uuid: &str, from: Option<&str>, status: &str) -> Observed {
+    let resumed = from.map_or_else(String::new, |from| format!(r#","resumed_from":"{from}""#));
+    let line = format!(
+        r#"{{"kind":"run_settled","status":"{status}","cause":"normal","execution":{{"uuid":"{uuid}"}},"spend":{{"priced_calls":0,"qualifier":"unmetered","unpriced_calls":0}},"evidence":"unsealed"{resumed}}}"#
+    );
+    Observed::Frame(RunFrame::decode(&line).expect("a settlement"))
+}
+
+/// One launch a gate split keeps one name and one row through the desk (live gauntlet 5: r02
+/// B13, two rows for one launch; r04 B10, runs named by hex with no outcome): the paused leg's
+/// row folds into the resumed leg's once its start names the run it continues; the row, the
+/// object's title and the story's fold name the launch by when it began, the row ends with how
+/// it stands, and the whole story (F2) keeps the resumed leg's own hex.
+#[test]
+fn a_resumed_leg_keeps_the_name_of_the_launch_it_continues() {
+    use crate::workspace::aside::Verdict;
+    use nika_display::state::TaskState;
+    let runs = |desk: &Desk| -> Vec<(String, Option<Verdict>)> {
+        (desk.screen(false).aside.entries.iter())
+            .filter(|entry| entry.icon == crate::visual::icon::Icon::Run)
+            .map(|entry| (entry.label.clone(), entry.verdict))
+            .collect()
+    };
+    let row = |state| {
+        vec![(
+            "run 10-17 07:04:30 release.nika".to_owned(),
+            Some(Verdict::Run(state)),
+        )]
+    };
+    let mut desk = demo();
+    let paused = "01a148ad-2830-70de-b8b3-99de9427fcc1";
+    desk.observe(gated_leg("release.nika", paused, None, Some("paused")).into_iter());
+    assert_eq!(runs(&desk), row(TaskState::Paused));
+    let (from, resumed) = (
+        paused.replace('-', ""),
+        "01a148b1-75c0-70de-b8b3-99de9427fcc2",
+    );
+    desk.observe(gated_leg("release.nika", resumed, Some(&from), None).into_iter());
+    assert_eq!(
+        runs(&desk),
+        row(TaskState::Running),
+        "one row while it runs"
+    );
+    desk.observe([settlement(resumed, Some(&from), "succeeded")].into_iter());
+    assert_eq!(runs(&desk), row(TaskState::Ok));
+    desk.prepare(WIDE, false, false);
+    let Object::Workflow { title, .. } = desk.screen(false).object else {
+        panic!("the resumed leg is in view");
+    };
+    assert!(title.to_string().contains("run 10-17 07:04:30 "), "{title}");
+    let fold = desk.folded().expect("a whole settled leg");
+    assert_eq!(
+        (fold.label.as_str(), fold.hex.as_deref()),
+        ("run 10-17 07:04:30", Some("01a148b175c0"))
+    );
+}
+
+/// The welcome in view speaks the language the person writes, once the shell says it.
+#[test]
+fn the_welcome_in_view_speaks_the_persons_language() {
+    let mut desk = demo();
+    let english = desk.screen(false).object;
+    desk.lang = Lang::Fr;
+    let Object::Welcome { words } = desk.screen(false).object else {
+        panic!("the welcome is in view");
+    };
+    assert!(
+        words
+            .iter()
+            .any(|line| line == "Transformez une intention en workflow."),
+        "{words:?}"
+    );
+    assert_ne!(Object::Welcome { words }, english);
+}
+
+/// The desk names its runs on the clock the shell gave it (the machine's) and in the person's
+/// language: its list, the run's title, its folded story and a later run's « again » fact.
+#[test]
+fn the_desk_names_its_runs_on_its_clock_in_the_persons_language() {
+    let mut desk = demo();
+    desk.zone = jiff::tz::TimeZone::fixed(jiff::tz::offset(4));
+    desk.lang = Lang::Fr;
+    let uuid = "01a148ad-2830-70de-b8b3-99de9427fcc1";
+    desk.observe(gated_leg("release.nika", uuid, None, Some("succeeded")).into_iter());
+    let runs = |desk: &Desk| -> Vec<String> {
+        (desk.screen(false).aside.entries.iter())
+            .filter(|entry| entry.icon == crate::visual::icon::Icon::Run)
+            .map(|entry| entry.label.clone())
+            .collect()
+    };
+    assert_eq!(runs(&desk), ["run 17/10 11:04:30 release.nika"]);
+    let fold = desk.folded().expect("a whole settled leg");
+    assert_eq!(fold.label, "run 17/10 11:04:30");
+    desk.prepare(WIDE, false, false);
+    let Object::Workflow { title, .. } = desk.screen(false).object else {
+        panic!("the run is in view");
+    };
+    assert!(title.to_string().contains("run 17/10 11:04:30 "), "{title}");
+    let again = "01a148b1-75c0-70de-b8b3-99de9427fcc2";
+    desk.observe(gated_leg("release.nika", again, None, None).into_iter());
+    assert_eq!(
+        runs(&desk),
+        [
+            "run 17/10 11:09:12 release.nika",
+            "run 17/10 11:04:30 release.nika · précédent"
+        ]
+    );
+    desk.prepare(WIDE, false, false);
+    let Object::Workflow { body, .. } = desk.screen(false).object else {
+        panic!("the second run is in view");
+    };
+    let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
+    assert!(rows.join(" ").contains("run 17/10 11:04:30"), "{rows:#?}");
+}
+
 /// The second run used to replace the only inspectable result: the first leg was kept in
 /// `past` but nothing could open it. It is now listed by its execution, opens as it was
 /// observed (its own workflow and task), and the run in flight comes back unchanged.
@@ -797,7 +992,7 @@ fn an_earlier_run_reopens_by_its_execution_and_the_current_one_returns() {
         panic!("the earlier run is in view");
     };
     let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
-    assert!(title.to_string().contains("01a0ef110212"), "{title}");
+    assert!(title.to_string().contains("run 09-29 21:27:44"), "{title}");
     assert!(rows.join(" ").contains("alpha"), "{rows:?}");
     assert!(!rows.join(" ").contains("beta"), "{rows:?}");
     assert_eq!(
@@ -815,7 +1010,7 @@ fn an_earlier_run_reopens_by_its_execution_and_the_current_one_returns() {
     let Object::Workflow { title, .. } = desk.screen(false).object else {
         panic!("the current run is in view");
     };
-    assert!(title.to_string().contains("02b0ef110212"), "{title}");
+    assert!(title.to_string().contains("run 10-07 02:06:08"), "{title}");
 }
 
 /// The run object states where the asked bytes reach as the Session declared it, and a fresh run
@@ -871,7 +1066,7 @@ fn a_repeated_run_names_the_earlier_one_beside_its_declared_reach() {
     );
     let second = rows(&mut desk).join(" ");
     assert!(
-        second.contains("again · after run 01a0ef110212 of this workflow (settled · succeeded)"),
+        second.contains("again · after run 09-29 21:27:44 of this workflow (settled · succeeded)"),
         "{second}"
     );
     assert!(

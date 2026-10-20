@@ -27,7 +27,6 @@ use crate::workspace::cards;
 use crate::workspace::cards::review::{self, Review};
 use crate::workspace::focus::Region;
 use crate::workspace::geometry::{Arrangement, Geometry, Layout, Separator};
-use crate::workspace::project::{self, Opened};
 use crate::workspace::screen;
 
 /// The rows of the exchange that led to a homed question or a reviewed
@@ -55,9 +54,27 @@ impl Desk {
     /// `None` below the minimum. Every reader of the frame takes this one.
     #[must_use]
     pub(crate) fn geometry(&self, size: (u16, u16)) -> Option<Geometry> {
-        let geometry = self.arranged(size)?;
+        let geometry = self.decision_geometry(size)?;
         Some(if self.folds(size) {
             screen::folded(geometry)
+        } else {
+            geometry
+        })
+    }
+
+    /// Before an object exists, the exchange takes the welcome’s space, unless the person asked
+    /// for the welcome again ([`Desk::welcome_again`]). This is a frame projection, never a
+    /// change to the kept arrangement.
+    pub(crate) fn conversation_only(&self) -> bool {
+        self.conversation_started && !self.welcomes && self.shown().is_none()
+    }
+
+    /// The space available before a decision folds an existing object. The
+    /// welcome has already yielded its space where the exchange owns it.
+    fn decision_geometry(&self, size: (u16, u16)) -> Option<Geometry> {
+        let geometry = self.arranged(size)?;
+        Some(if self.conversation_only() {
+            screen::conversation_only(geometry, self.focus.region)
         } else {
             geometry
         })
@@ -78,9 +95,12 @@ impl Desk {
     pub(crate) fn folds(&self, size: (u16, u16)) -> bool {
         self.fold == Some((size, self.arrangement, self.pins()))
             && self.focus.region != Region::Aside
+            && self
+                .decision_geometry(size)
+                .is_some_and(|geometry| !geometry.object.is_empty())
     }
 
-    /// Whether the current typed decision overflows the restored stacked
+    /// Whether the current typed decision overflows the available stacked
     /// conversation of the workspace: the proposal the conversation reviews
     /// or the question its live card carries (never a gate, a choice, a draft
     /// or set-aside candidate, or another identity), from its piece to the
@@ -91,17 +111,18 @@ impl Desk {
         let current = review::summarized(state, review);
         let reviewed = current.map(|(at, _)| at);
         let asked = question::asked_block(state);
-        let (Some(from), Some(geometry)) = (reviewed.or(asked), self.arranged(state.size)) else {
+        let (Some(from), Some(geometry)) = (reviewed.or(asked), self.decision_geometry(state.size))
+        else {
             return false;
         };
-        if state.presentation != Presentation::Workspace
+        if geometry.object.is_empty()
+            || state.presentation != Presentation::Workspace
             || self.arrangement.layout != Layout::Session
             || !geometry.stacked
         {
             return false;
         }
-        let label = self.shown().map(Opened::label);
-        let thread = project::thread(self.view.as_ref(), label.as_deref());
+        let thread = self.thread(self.voice(state.ascii));
         let consent = current.map(|(_, review)| review);
         let transcript = screen::rest_transcript(&geometry, state, &thread, consent);
         let context = if reviewed.is_some() || question::rest_homed(state) {
@@ -141,6 +162,9 @@ impl Desk {
     /// `size` ([`screen::toggled`]); `None` where they change nothing.
     #[must_use]
     pub(crate) fn toggled(&self, size: (u16, u16)) -> Option<Layout> {
+        if self.geometry(size)?.object.is_empty() {
+            return None;
+        }
         let area = Rect::new(0, 0, size.0, size.1);
         screen::toggled(area, self.pins(), &self.arrangement, self.folds(size))
     }
@@ -240,6 +264,13 @@ impl Desk {
         let Some(drag) = self.drag else {
             return false;
         };
+        if !self
+            .geometry(size)
+            .is_some_and(|geometry| geometry.shows(drag.separator))
+        {
+            self.drag = None;
+            return false;
+        }
         let moved = match drag.separator {
             Separator::Aside | Separator::Beside => i32::from(point.x) - i32::from(drag.from.x),
             // The conversation is under its rule: up gives it rows.

@@ -329,8 +329,11 @@ fn union(targets: &[String], declared: &[String]) -> Result<Vec<String>, String>
 }
 
 /// The room-relative spelling of `path` under the room's own law: `.` and empty components
-/// dropped; an absolute path, a `..` or no name at all is no room path.
-fn normal(path: &str) -> Option<String> {
+/// dropped; an absolute path, a `..` or no name at all is no room path. Lexical only: nothing
+/// is read from a file system. One identity for every place that compares the paths a
+/// rehearsal copies in or reads back.
+#[must_use]
+pub fn normal(path: &str) -> Option<String> {
     if path.starts_with('/') {
         return None;
     }

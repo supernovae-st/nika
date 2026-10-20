@@ -118,6 +118,7 @@ pub(crate) fn prompt_block(
     inputs: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
     markers: &BTreeMap<String, Value>,
+    run: Option<&Value>,
     leaks: &dyn Fn(&str) -> bool,
     approvals: &crate::approval::ApprovalBook,
 ) -> Option<WorkflowPause> {
@@ -130,7 +131,8 @@ pub(crate) fn prompt_block(
     }
     // Secret values NEVER reach the journal payload — markers only.
     // (`env:` is non-sensitive by construction — real values render.)
-    let scope = Scope::workflow_with_value_authorities(records, inputs, consts, markers);
+    let scope =
+        Scope::workflow_with_value_authorities(records, inputs, consts, markers).with_run(run);
     let args = invoke.args.as_ref().map(|a| &a.value);
     let mut pause = payload_of(task, args, &scope);
     // The shown values ride structured; one derived from a secret (its marker, or a resolved
@@ -350,6 +352,7 @@ mod tests {
             &vars,
             &BTreeMap::new(),
             &markers,
+            None,
             &|_: &str| false,
             &crate::approval::ApprovalBook::new(),
         )
@@ -398,6 +401,7 @@ tasks:
             &BTreeMap::new(),
             &BTreeMap::new(),
             ctx.markers(),
+            None,
             &|_: &str| false,
             &crate::approval::ApprovalBook::new(),
         )
@@ -469,6 +473,7 @@ tasks:
             &BTreeMap::new(),
             &consts,
             ctx.markers(),
+            None,
             &|text: &str| ctx.leaks_secret(text),
             &crate::approval::ApprovalBook::new(),
         )
@@ -510,6 +515,7 @@ tasks:
                 &vars,
                 &BTreeMap::new(),
                 &markers,
+                None,
                 &|_: &str| false,
                 &crate::approval::ApprovalBook::new(),
             )
@@ -525,6 +531,7 @@ tasks:
                 &vars,
                 &BTreeMap::new(),
                 &markers,
+                None,
                 &|_: &str| false,
                 &crate::approval::ApprovalBook::new(),
             )
@@ -548,6 +555,7 @@ tasks:
                 &vars,
                 &BTreeMap::new(),
                 &markers,
+                None,
                 &|_: &str| false,
                 &crate::approval::ApprovalBook::new(),
             )
@@ -806,6 +814,7 @@ tasks:
             &vars,
             &BTreeMap::new(),
             &markers,
+            None,
             &|_: &str| false,
             &crate::approval::ApprovalBook::new(),
         )

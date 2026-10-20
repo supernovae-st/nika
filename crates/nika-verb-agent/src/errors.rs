@@ -31,6 +31,17 @@ use nika_types::cost::SpendOnFailure;
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum VerbAgentError {
+    /// Genuine operator Stop ends the native loop before another model/tool call.
+    /// The physical stopped call is retained when a tool returned its typed witness.
+    #[error("agent stopped by the operator")]
+    #[diagnostic(code(nika::verb::agent_operator_stopped))]
+    #[non_exhaustive]
+    OperatorStopped {
+        /// The actual stopped call, absent when Stop preceded any new dispatch.
+        call: Option<Box<nika_kernel::tool_executor::StoppedCall>>,
+        /// Already incurred model/tool spend, decorated at the existing return seam.
+        spend: Box<SpendOnFailure>,
+    },
     /// The loop hit `max_turns` without completing (NIKA-460). F-P22
     /// (NEP-0017): the blame is APPENDED to the verdict, never a rewrite
     /// — a task-written `max_turns:` is imputed « by the caller » (F-A5);
@@ -274,6 +285,7 @@ impl VerbAgentError {
         let incurred = Box::new(incurred);
         match &mut self {
             Self::MaxTurns { spend, .. }
+            | Self::OperatorStopped { spend, .. }
             | Self::MaxTokens { spend, .. }
             | Self::FinalCut { spend, .. }
             | Self::TurnInterrupted { spend, .. }
@@ -297,6 +309,7 @@ impl VerbAgentError {
     pub fn spend(&self) -> Option<&SpendOnFailure> {
         match self {
             Self::MaxTurns { spend, .. }
+            | Self::OperatorStopped { spend, .. }
             | Self::MaxTokens { spend, .. }
             | Self::FinalCut { spend, .. }
             | Self::TurnInterrupted { spend, .. }
@@ -317,6 +330,11 @@ impl VerbAgentError {
     #[must_use]
     pub fn details_of(err: &dyn NikaErrorCode) -> Option<serde_json::Value> {
         match err.as_any().downcast_ref::<Self>()? {
+            Self::OperatorStopped {
+                call: Some(call), ..
+            } => Some(serde_json::json!({
+                "stopped_call": call.to_value(),
+            })),
             Self::FinalCut {
                 partial_output,
                 stop_reason,
@@ -333,6 +351,7 @@ impl VerbAgentError {
 impl NikaErrorCode for VerbAgentError {
     fn nika_code(&self) -> NikaCode {
         match self {
+            Self::OperatorStopped { .. } => nika_error::codes::NIKA_451,
             Self::MaxTurns { .. } => NIKA_460,
             Self::MaxTokens { .. } => NIKA_461,
             Self::FinalCut { .. } => NIKA_470,
@@ -369,6 +388,9 @@ impl NikaErrorCode for VerbAgentError {
     /// their numeric wire form via the trait default.
     fn spec_code(&self) -> String {
         match self {
+            Self::OperatorStopped { .. } => {
+                nika_kernel::tool_executor::STOPPED_CALL_CODE.to_owned()
+            }
             Self::MaxTurns { .. } => "NIKA-AGENT-001".to_owned(),
             Self::MaxTokens { .. } => "NIKA-AGENT-002".to_owned(),
             Self::FinalCut { .. } => "NIKA-AGENT-006".to_owned(),
@@ -392,6 +414,7 @@ impl NikaErrorCode for VerbAgentError {
             // A stall is the same class: the loop PROVED no progress; a
             // blind rerun replays the proof.
             Self::MaxTurns { .. }
+            | Self::OperatorStopped { .. }
             | Self::MaxTokens { .. }
             | Self::FinalCut { .. }
             | Self::WhitelistViolation { .. }

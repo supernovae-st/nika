@@ -146,6 +146,51 @@ fn the_filter_sentence_proves_its_write_and_judges_the_kept_rows() {
     }
 }
 
+/// The person's answer to « which observed field does `state` mean » binds the rule the
+/// request's own contract judges, as the compile binds it in the candidate (the workspace
+/// typed choice, 2026-10-19: the `status` filter wrote the two open rows, while the contract,
+/// still on `state`, asked for none and withdrew the proposal). An unanswered contract keeps
+/// the request's word, and a program a seat wrote is never renamed.
+#[test]
+fn an_answered_field_binds_the_rule_the_contract_judges() {
+    const TICKETS: &str = "./tickets.csv";
+    const OPEN: &str = "./open.csv";
+    const TABLE: &str = "id,status,amount\n1,open,10\n2,closed,20\n3,open,30\n";
+    const ASKED: &str =
+        "Read ./tickets.csv, keep only the rows whose state is open and write them to ./open.csv";
+    const KEPT_ROWS: &str = "id,status,amount\n1,open,10\n3,open,30\n";
+    let field =
+        |name: &str| BTreeMap::from([("const.rule_field_1".to_owned(), format!("\"{name}\""))]);
+    let unanswered = contract_of_request(ASKED, &BTreeMap::new());
+    assert_eq!(
+        outcome(&unanswered, run(TICKETS, TABLE, OPEN, KEPT_ROWS)),
+        Outcome::Failed,
+        "the request's own word reads no `state` column: {unanswered:?}"
+    );
+    // The kept rows hold; this phrasing proves no unconditional write, so nothing certifies.
+    let answered = contract_of_request(ASKED, &field("status"));
+    assert_eq!(
+        outcome(&answered, run(TICKETS, TABLE, OPEN, KEPT_ROWS)),
+        Outcome::Incomplete,
+        "{answered:?}"
+    );
+    for wrong in [
+        "id,status,amount\n1,open,10\n",
+        "id,status,amount\n2,closed,20\n",
+    ] {
+        assert_eq!(
+            outcome(&answered, run(TICKETS, TABLE, OPEN, wrong)),
+            Outcome::Failed,
+            "{wrong}"
+        );
+    }
+    // The same word answered is the request's word: nothing rebinds.
+    assert_eq!(
+        format!("{:?}", contract_of_request(ASKED, &field("state"))),
+        format!("{unanswered:?}")
+    );
+}
+
 #[test]
 fn a_request_outside_the_language_proves_nothing() {
     for intent in [

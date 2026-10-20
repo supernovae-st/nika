@@ -30,6 +30,8 @@ use hyper::header::{CACHE_CONTROL, CONTENT_TYPE, HeaderName, HeaderValue};
 use hyper::{Response, StatusCode};
 use nika_kernel::ai::provider::{InferRequest, InferResponse, ProviderError, ProviderInferDyn};
 use nika_onboard::compile::authority::{Seat as CountedSeat, Wire};
+use nika_onboard::compile::rehearse::Rehearse;
+use nika_onboard::compile::room::{ObservedRoom, ProjectPins};
 use nika_onboard::compile::{
     Cognition, CompileOutcome, Strategy, compile_with_cognition_composed, outcome_document,
     revise_intent,
@@ -271,6 +273,38 @@ fn held(outcome: &CompileOutcome) -> bool {
     })
 }
 
+/// What a round lends its compile as host: the requested trial's own room over the caller's
+/// observed world (its project kept alive beside it); without a trial, the server project's MCP
+/// pins and nothing else: no room, no spawn, no network, and no READY for an `mcp:` step this
+/// server's runs cannot make.
+enum Hosted {
+    Trial(Box<(TrialProject, ObservedRoom)>),
+    Pins(ProjectPins),
+    Nothing,
+}
+
+impl Hosted {
+    fn of(seat: &Seat, input: &Input) -> Result<Self, Refusal> {
+        match seat.trials.as_ref().zip(input.trial()) {
+            Some((jq, trial)) => TrialProject::room(trial, jq)
+                .map(|room| Self::Trial(Box::new(room)))
+                .map_err(|_| Refusal::Machinery),
+            None => Ok(seat
+                .project
+                .clone()
+                .map_or(Self::Nothing, |root| Self::Pins(ProjectPins::new(root)))),
+        }
+    }
+
+    fn host(&self) -> Option<&dyn Rehearse> {
+        match self {
+            Self::Trial(trial) => Some(&trial.1),
+            Self::Pins(pins) => Some(pins),
+            Self::Nothing => None,
+        }
+    }
+}
+
 /// The round itself: the core under the seat's policy, the pack beside the card; with a kept
 /// `plan`, that plan replayed and judged, no pack read (no authoring call reads one).
 async fn author(
@@ -344,11 +378,8 @@ async fn author(
         provider: Some(&gate),
         seat: judge.as_ref().map(Judge::seat),
     };
-    let room =
-        (seat.trials.as_ref().zip(input.trial())).map(|(jq, trial)| TrialProject::room(trial, jq));
-    let room = room.transpose().map_err(|_| Refusal::Machinery)?;
-    let host =
-        (room.as_ref()).map(|(_, room)| room as &dyn nika_onboard::compile::rehearse::Rehearse);
+    let hosted = Hosted::of(seat, input)?;
+    let host = hosted.host();
     let catalogue = (context.as_ref()).map(|(snapshot, exclude)| snapshot.catalogue(*exclude));
     let lent = (catalogue.as_ref())
         .map(|catalogue| catalogue as &dyn nika_onboard::knowledge::ComponentCatalog);

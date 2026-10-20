@@ -32,6 +32,15 @@
 //!   whole cap on the reasoning trace and the run dies NIKA-INFER-004.
 //!   Raising the cap to [`MIN_REASONING_MAX_TOKENS`] is the repair.
 //!   B21 / B30 / issue 1305.
+//! - **the seat fixes its sampling** — a `temperature:` other than the
+//!   default (on an `infer:` or an `agent:` task) on a catalog-known seat
+//!   whose provider refuses it ([`nika_catalog::refuses_sampling`]: the
+//!   Claude 5 models on Anthropic's API) is an HTTP 400 at run.
+//! - **the seat thinks adaptively** — a `thinking.budget_tokens` on a
+//!   catalog-known seat whose provider refuses a budget
+//!   ([`nika_catalog::refuses_thinking_budget`]) is an HTTP 400 at run; the
+//!   repair is `run.reasoning.effort`. A nickname is judged as the model it
+//!   names, and a value is never dropped: the check names it.
 //!
 //! A templated seat (`${{ }}`) is judged THROUGH its declared default —
 //! the same [`crate::static_literal_of`] law the MODELS rung applies;
@@ -44,6 +53,7 @@
 //! resolver the via-default arm reads. The judge stays pure; the CLI
 //! folds the rows into its `ModelsAudit` beside the resolver's findings.
 
+use nika_schema::Spanned;
 use nika_schema::raw::{RawAction, RawInferAction, RawWorkflow};
 
 /// Smallest `max_tokens` a catalog-known reasoning seat may declare.
@@ -92,10 +102,27 @@ impl ThinkingFinding {
 pub fn thinking_findings(wf: &RawWorkflow) -> Vec<ThinkingFinding> {
     let mut findings = Vec::new();
     for task in &wf.tasks {
-        let RawAction::Infer(action) = &task.value.action else {
-            continue;
-        };
         let id = task.value.id.value.as_str();
+        let action = match &task.value.action {
+            RawAction::Infer(action) => action,
+            RawAction::Agent(agent) => {
+                findings.extend(fixed_sampling(
+                    wf,
+                    id,
+                    agent.model.as_ref(),
+                    agent.temperature.as_ref(),
+                ));
+                continue;
+            }
+            _ => continue,
+        };
+        findings.extend(fixed_sampling(
+            wf,
+            id,
+            action.model.as_ref(),
+            action.temperature.as_ref(),
+        ));
+        findings.extend(adaptive_budget(wf, id, action));
         if let Some(thinking) = &action.thinking
             && thinking.value.enabled
         {
@@ -229,12 +256,75 @@ pub fn reasoning_cap_hints(wf: &RawWorkflow) -> Vec<ThinkingFinding> {
 
 /// The statically known seat a thinking law judges, if any.
 fn judged_seat(wf: &RawWorkflow, action: &RawInferAction) -> Option<String> {
-    let seat = action.model.as_ref().or(wf.model.as_ref())?;
+    judged_model(wf, action.model.as_ref())
+}
+
+/// The statically known seat of a task naming `model` (else the envelope default), if any.
+fn judged_model(wf: &RawWorkflow, model: Option<&Spanned<String>>) -> Option<String> {
+    let seat = model.or(wf.model.as_ref())?;
     if seat.value.contains("${{") {
         crate::static_literal_of(wf, &seat.value).and_then(|v| v.as_str().map(str::to_owned))
     } else {
         Some(seat.value.clone())
     }
+}
+
+/// The one temperature a model that fixes its sampling accepts: its default.
+const DEFAULT_TEMPERATURE: f64 = 1.0;
+
+/// The fixed-sampling law: a task's `temperature:` other than the default on a catalog-known
+/// seat whose provider refuses it ([`nika_catalog::refuses_sampling`]: the Claude 5 models on
+/// Anthropic's API answer HTTP 400). The declared value is never dropped: the check names it.
+fn fixed_sampling(
+    wf: &RawWorkflow,
+    id: &str,
+    model: Option<&Spanned<String>>,
+    temperature: Option<&Spanned<f64>>,
+) -> Option<ThinkingFinding> {
+    let temperature = temperature?.value;
+    if (temperature - DEFAULT_TEMPERATURE).abs() < f64::EPSILON {
+        return None;
+    }
+    let judged = judged_model(wf, model)?;
+    let (provider, name) = judged.split_once('/')?;
+    if !catalog_knows(provider, name, &judged) || !nika_catalog::refuses_sampling(provider, name) {
+        return None;
+    }
+    Some(ThinkingFinding::new(
+        id.to_owned(),
+        judged.clone(),
+        format!(
+            "`temperature: {temperature}` on `{id}` seats `{judged}`, which fixes its sampling: \
+             its provider refuses any temperature but the default (1) with HTTP 400 at run. \
+             Remove `temperature:` and steer the answer in the prompt, or seat a model that \
+             takes a temperature"
+        ),
+    ))
+}
+
+/// The adaptive-thinking law: a `thinking.budget_tokens` on a catalog-known seat whose
+/// provider refuses a budget ([`nika_catalog::refuses_thinking_budget`]: the Claude 5 models on
+/// Anthropic's API think adaptively and answer HTTP 400 to `thinking.type: enabled`).
+fn adaptive_budget(wf: &RawWorkflow, id: &str, action: &RawInferAction) -> Option<ThinkingFinding> {
+    let thinking = action.thinking.as_ref().filter(|t| t.value.enabled)?;
+    let budget = thinking.value.budget_tokens?;
+    let judged = judged_seat(wf, action)?;
+    let (provider, name) = judged.split_once('/')?;
+    if !catalog_knows(provider, name, &judged)
+        || !nika_catalog::refuses_thinking_budget(provider, name)
+    {
+        return None;
+    }
+    Some(ThinkingFinding::new(
+        id.to_owned(),
+        judged.clone(),
+        format!(
+            "`thinking.budget_tokens: {budget}` on `{id}` seats `{judged}`, which thinks \
+             adaptively: its provider refuses a thinking budget with HTTP 400 at run. Remove \
+             `budget_tokens` (`thinking: {{ enabled: true }}` keeps its thinking) and set \
+             `run.reasoning.effort` to steer how much it thinks"
+        ),
+    ))
 }
 
 /// The catalog POSITIVELY knows this exact seat: a provider row (the
@@ -554,6 +644,86 @@ mod tests {
                 f.iter().all(|x| !x.why.contains("NIKA-INFER-004")),
                 "no tiny-cap refusal here: {f:?}\n{yaml}"
             );
+        }
+    }
+
+    /// The Claude 5 models fix their sampling and think adaptively on Anthropic's API: a
+    /// temperature other than the default (on `infer:` or `agent:`) and a thinking budget are
+    /// findings naming the rule and the repair, under the wire id, a nickname or the alias.
+    /// The default temperature, a thinking block without a budget, an earlier Claude model
+    /// and another dialect's model stay clean.
+    #[test]
+    fn a_claude_5_seat_refuses_a_temperature_and_a_thinking_budget_at_check() {
+        let temp = |model: &str, value: &str| {
+            findings_of(&format!(
+                "nika: w\ntasks:\n  t:\n    infer:\n      prompt: hi\n      model: {model}\n      \
+                 temperature: {value}\n"
+            ))
+        };
+        for model in [
+            "anthropic/claude-sonnet-5-5",
+            "anthropic/sonnet",
+            "claude/claude-opus-5-5",
+            "anthropic/claude-haiku-5-5",
+            "anthropic/claude-fable-5-1",
+        ] {
+            let f = temp(model, "0.2");
+            assert_eq!(f.len(), 1, "{model}: {f:?}");
+            assert_eq!((f[0].task.as_str(), f[0].model.as_str()), ("t", model));
+            assert!(
+                f[0].why.contains("`temperature: 0.2`")
+                    && f[0].why.contains("fixes its sampling")
+                    && f[0].why.contains("HTTP 400")
+                    && f[0].why.contains("Remove `temperature:`"),
+                "{}",
+                f[0].why
+            );
+            assert!(
+                temp(model, "1").is_empty(),
+                "{model}: the default is accepted"
+            );
+        }
+        for model in ["anthropic/claude-sonnet-4-6", "deepseek/deepseek-v4-pro"] {
+            assert!(temp(model, "0.2").is_empty(), "{model}");
+        }
+        let agent = findings_of(
+            "nika: w\nmodel: anthropic/claude-sonnet-5-5\ntasks:\n  a:\n    agent:\n      \
+             prompt: hi\n      temperature: 0.3\n",
+        );
+        assert_eq!(agent.len(), 1, "{agent:?}");
+        assert_eq!(agent[0].task, "a");
+        assert!(
+            agent[0].why.contains("fixes its sampling"),
+            "{}",
+            agent[0].why
+        );
+        let budget = findings_of(&infer_wf(
+            "anthropic/claude-sonnet-5-5",
+            "16000",
+            "{ enabled: true, budget_tokens: 4000 }",
+        ));
+        assert_eq!(budget.len(), 1, "{budget:?}");
+        assert!(
+            budget[0].why.contains("`thinking.budget_tokens: 4000`")
+                && budget[0].why.contains("thinks adaptively")
+                && budget[0].why.contains("HTTP 400")
+                && budget[0].why.contains("run.reasoning.effort"),
+            "{}",
+            budget[0].why
+        );
+        for (model, thinking) in [
+            ("anthropic/claude-sonnet-5-5", "{ enabled: true }"),
+            (
+                "anthropic/claude-sonnet-5-5",
+                "{ enabled: false, budget_tokens: 4000 }",
+            ),
+            (
+                "anthropic/claude-sonnet-4-6",
+                "{ enabled: true, budget_tokens: 4000 }",
+            ),
+        ] {
+            let f = findings_of(&infer_wf(model, "16000", thinking));
+            assert!(f.is_empty(), "{model} {thinking}: {f:?}");
         }
     }
 }

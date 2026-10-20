@@ -304,13 +304,13 @@ Offline-runnable is the default expectation. Reach for it in this order:
 1. **A mock model** — `model: mock/echo`, or `provider: mock` for media
    builtins. Deterministic, zero keys.
 2. **A committed fixture** — the file the workflow reads lives in the repo.
-3. **`on_error: recover:`** — the honest dry run. A fetch at a placeholder
+3. **`on_error: { recover: … }`** — the honest dry run. A fetch at a placeholder
    host resolves nowhere, a literal recovery value mirroring the API's shape
    takes over, and the same `extract:` bindings work on both paths.
 
 **House rule · a rehearsal file ALWAYS stays green.** A task the sandbox can
 refuse — a confined `exec:` the macOS seatbelt or the `nika test` mock plane
-stops (NIKA-SEC-001) — carries a catch-all `on_error: recover:`, and the file
+stops (NIKA-SEC-001) — carries a catch-all `on_error: { recover: … }`, and the file
 header says so. Three disciplines keep the arm honest:
 
 - **catch-all, never `on_codes: [NIKA-SEC-001]`** — naming only the security

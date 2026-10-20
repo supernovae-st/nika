@@ -116,6 +116,7 @@ fn frame_of(
         arrangement,
         dragging: None,
         folded: false,
+        conversation_only: false,
     };
     terminal
         .draw(|frame| {
@@ -167,8 +168,8 @@ fn the_header_is_one_quiet_row_ending_with_the_preparation_intelligence() {
             let state = state((width, height), ascii, false, Waiting::Free);
             let composer = composer(DRAFT, ascii);
             let (rows, _) = frame_of(&screen, &state, &composer, paint(ascii, false), restored());
-            let brand = if ascii { "NIKA" } else { "◆ NIKA" };
-            assert!(rows[0].starts_with(brand), "{at}: {}", rows[0]);
+            // The wordmark opens the header in both glyph columns.
+            assert!(rows[0].starts_with("nika.  "), "{at}: {}", rows[0]);
             assert!(
                 rows[0].contains("studio") && rows[0].contains("local project"),
                 "{at}: {}",
@@ -191,6 +192,22 @@ fn the_header_is_one_quiet_row_ending_with_the_preparation_intelligence() {
             }
         }
     }
+    // In colour the name wears the accent and its dot the exec hue.
+    let state = state((120, 40), false, true, Waiting::Free);
+    let composer = composer(DRAFT, false);
+    let (_, buffer) = frame_of(
+        &studio(Some(SEAT)),
+        &state,
+        &composer,
+        paint(false, true),
+        restored(),
+    );
+    let accent = role::style(Role::Accent, true).fg;
+    assert!((0..4).all(|x| Some(buffer[(x, 0)].fg) == accent));
+    assert_eq!(
+        Some(buffer[(4, 0)].fg),
+        role::tone(role::Tone::Dot, role::Depth::Rgb).fg
+    );
 }
 
 /// While the project list is folded the header's first row ends with the
@@ -322,6 +339,7 @@ fn the_conversation_title_is_quiet_and_separators_stay_dim() {
                 arrangement: restored(),
                 dragging: None,
                 folded: false,
+                conversation_only: false,
             };
             terminal
                 .draw(|frame| {
@@ -552,7 +570,7 @@ fn the_draft_stays_the_same_text_across_resizes_and_expansion() {
 
 /// The panel paints the current proposal as the screen's review at every
 /// qualified size: the latest view ends on the card's border, which carries
-/// the identity and where the whole words are read, the status keeps the
+/// the proposal's name and where the whole words are read, the status keeps the
 /// proposal's own standing, the cost prose stays with the reader, the
 /// human's request stays in view where the transcript holds both, and the
 /// draft stays; a screen with no review paints the Session's words and the
@@ -560,7 +578,7 @@ fn the_draft_stays_the_same_text_across_resizes_and_expansion() {
 #[test]
 fn the_panel_paints_the_current_proposal_as_its_review() {
     use crate::workspace::cards::review::fixture;
-    let foot = format!("proposal {} · F2: whole words", fixture::id());
+    let foot = format!("{} · F2", fixture::PATH);
     for (width, height) in [(80, 24), (120, 40), (180, 48)] {
         let at = format!("{width}x{height}");
         let proposal = Committed::proposal(fixture::id(), fixture::PREVIEW);
@@ -644,7 +662,7 @@ fn the_reviewed_proposal_keeps_one_live_geometry_at_every_size() {
             let whole = !hint.ends_with('…') && !hint.ends_with("...");
             assert!(whole, "{at}: {hint}");
             let sep = if ascii { "-" } else { "·" };
-            let foot = format!("{} {sep} F2", fixture::id());
+            let foot = format!("{} {sep} F2", fixture::PATH);
             assert!(rows.join("\n").contains(&foot), "{at}: {foot}");
         }
     }
@@ -702,7 +720,13 @@ fn a_full_title_row_leaves_the_action_to_the_cue_row() {
         let size = (60, 16);
         let geometry = folded(Geometry::of(Rect::new(0, 0, 60, 16), false).expect("fits"));
         let next = Some(geometry::Layout::Workbench);
-        let action = object_action(&shown, &geometry, Region::Conversation, next, ascii);
+        let action = object_action(
+            &shown,
+            &geometry,
+            Region::Conversation,
+            next,
+            english(ascii),
+        );
         let (cells, words) = action.expect("the cue's row offers it");
         let (expand, below) = if ascii {
             ("[+] Expand - F4", "v More below - scroll")
@@ -720,6 +744,7 @@ fn a_full_title_row_leaves_the_action_to_the_cue_row() {
             arrangement: restored(),
             dragging: None,
             folded: true,
+            conversation_only: false,
         };
         let mut terminal = Terminal::new(TestBackend::new(size.0, size.1)).expect("terminal");
         terminal
@@ -776,7 +801,13 @@ fn a_free_last_row_carries_the_action_the_title_row_cannot() {
                 title: Line::raw("x".repeat(55)),
                 body: body.collect(),
             };
-            let action = object_action(&shown, &geometry, Region::Conversation, next, ascii);
+            let action = object_action(
+                &shown,
+                &geometry,
+                Region::Conversation,
+                next,
+                english(ascii),
+            );
             assert_eq!(action.is_some(), offered, "{at}");
             let mut screen = studio(None);
             screen.object = shown;
@@ -799,5 +830,13 @@ fn a_free_last_row_carries_the_action_the_title_row_cannot() {
             let title = &rows[usize::from(geometry.object.y)];
             assert!(title.starts_with(&"x".repeat(55)), "{at}: the title whole");
         }
+    }
+}
+
+/// The English voice in the glyph column `ascii`.
+const fn english(ascii: bool) -> crate::lang::Voice {
+    crate::lang::Voice {
+        lang: crate::lang::Lang::En,
+        ascii,
     }
 }

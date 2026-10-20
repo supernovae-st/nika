@@ -333,9 +333,11 @@ pub mod nika_compile_reader::hot
 pub const nika_compile_reader::hot::WRITE_HEADS: &[&str]
 pub fn nika_compile_reader::hot::destination_floor(intent: &str, plan: &mut nika_compile_reader::plan::Plan)
 pub fn nika_compile_reader::hot::fold(text: &str) -> alloc::string::String
+pub fn nika_compile_reader::hot::named_folders(intent: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_reader::hot::rejections(intent: &str, reading: &nika_compile_reader::lexicon::Reading) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_reader::hot::stated_destinations(intent: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_reader::hot::stated_sources(intent: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_reader::hot::stated_workflows(intent: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_reader::hot::unnamed_destination_floor(plan: &mut nika_compile_reader::plan::Plan)
 pub fn nika_compile_reader::hot::unopened_sources(intent: &str, plan: &nika_compile_reader::plan::Plan) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_reader::hot::unproduced_content(plan: &nika_compile_reader::plan::Plan, why: &mut alloc::vec::Vec<alloc::string::String>)
@@ -383,6 +385,7 @@ pub nika_compile_reader::lexicon::Reading::pending: alloc::vec::Vec<alloc::strin
 pub nika_compile_reader::lexicon::Reading::plan: nika_compile_reader::plan::Plan
 pub nika_compile_reader::lexicon::Reading::policy_clauses: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_reader::lexicon::Reading::seen: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_reader::lexicon::Reading::session_commands: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_reader::lexicon::Reading::soft_constraints: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_reader::lexicon::Reading::unresolved: alloc::vec::Vec<alloc::string::String>
 impl nika_compile_reader::lexicon::Reading
@@ -466,6 +469,7 @@ impl<T> core::convert::From<T> for nika_compile_reader::objects::Facet
 pub fn nika_compile_reader::objects::Facet::from(t: T) -> T
 pub fn nika_compile_reader::objects::as_clause(residue: &str) -> &str
 pub fn nika_compile_reader::objects::carried(target: &str, plan: &nika_compile_reader::plan::Plan) -> bool
+pub fn nika_compile_reader::objects::clause_role(request_lower: &str, path_at: usize) -> core::option::Option<bool>
 pub fn nika_compile_reader::objects::destination_at(detail_lower: &str, path_at: usize) -> core::option::Option<usize>
 pub fn nika_compile_reader::objects::has_literal(target: &str) -> bool
 pub fn nika_compile_reader::objects::page_facet(object: &str) -> core::option::Option<nika_compile_reader::objects::Facet>
@@ -546,6 +550,39 @@ impl<T> core::clone::CloneToUninit for nika_compile_reader::paths::Structured wh
 pub unsafe fn nika_compile_reader::paths::Structured::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_compile_reader::paths::Structured
 pub fn nika_compile_reader::paths::Structured::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::paths::SettledReading
+pub nika_compile_reader::paths::SettledReading::cited: alloc::string::String
+pub nika_compile_reader::paths::SettledReading::reading: alloc::string::String
+impl core::clone::Clone for nika_compile_reader::paths::SettledReading
+pub fn nika_compile_reader::paths::SettledReading::clone(&self) -> nika_compile_reader::paths::SettledReading
+impl core::cmp::Eq for nika_compile_reader::paths::SettledReading
+impl core::cmp::PartialEq for nika_compile_reader::paths::SettledReading
+pub fn nika_compile_reader::paths::SettledReading::eq(&self, other: &nika_compile_reader::paths::SettledReading) -> bool
+impl core::fmt::Debug for nika_compile_reader::paths::SettledReading
+pub fn nika_compile_reader::paths::SettledReading::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::paths::SettledReading
+impl<T, U> core::convert::Into<U> for nika_compile_reader::paths::SettledReading where U: core::convert::From<T>
+pub fn nika_compile_reader::paths::SettledReading::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::paths::SettledReading where U: core::convert::Into<T>
+pub type nika_compile_reader::paths::SettledReading::Error = core::convert::Infallible
+pub fn nika_compile_reader::paths::SettledReading::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::paths::SettledReading where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::paths::SettledReading::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::paths::SettledReading::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::paths::SettledReading where T: core::clone::Clone
+pub type nika_compile_reader::paths::SettledReading::Owned = T
+pub fn nika_compile_reader::paths::SettledReading::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::paths::SettledReading::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::paths::SettledReading where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::paths::SettledReading::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::paths::SettledReading where T: ?core::marker::Sized
+pub fn nika_compile_reader::paths::SettledReading::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::paths::SettledReading where T: ?core::marker::Sized
+pub fn nika_compile_reader::paths::SettledReading::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::paths::SettledReading where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::paths::SettledReading::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::paths::SettledReading
+pub fn nika_compile_reader::paths::SettledReading::from(t: T) -> T
 pub fn nika_compile_reader::paths::composed_from(lower: &str, token: &str) -> bool
 pub fn nika_compile_reader::paths::directory_of(path: &str) -> alloc::string::String
 pub fn nika_compile_reader::paths::extension(path: &str) -> core::option::Option<alloc::string::String>
@@ -553,6 +590,7 @@ pub fn nika_compile_reader::paths::literals(text: &str) -> alloc::vec::Vec<nika_
 pub fn nika_compile_reader::paths::open_names(text: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_reader::paths::origin_and_path(stated: &str, token: &str) -> bool
 pub fn nika_compile_reader::paths::readings(name: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_reader::paths::settled_reading(text: &str, name: &str) -> core::option::Option<nika_compile_reader::paths::SettledReading>
 pub fn nika_compile_reader::paths::single_file(text: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_compile_reader::paths::stem(path: &str) -> alloc::string::String
 pub fn nika_compile_reader::paths::token(word: &str) -> core::option::Option<nika_compile_reader::paths::PathShape>
@@ -1692,6 +1730,9 @@ pub const nika_compile_reader::trigger_words::WEEKDAYS: &[&str]
 pub const nika_compile_reader::trigger_words::WEEKLY: &[&str]
 pub mod nika_compile_reader::unknowns
 pub fn nika_compile_reader::unknowns::bound_by_the_compiler(unknown: &str, plan: &nika_compile_reader::plan::Plan) -> core::option::Option<&'static str>
+pub mod nika_compile_reader::withdrawal
+pub fn nika_compile_reader::withdrawal::withdrawn(intent: &str, path: &str) -> bool
 pub mod nika_compile_reader::words
+pub fn nika_compile_reader::words::day_of_month(folded: &str) -> core::option::Option<u32>
 pub fn nika_compile_reader::words::day_part_compound(folded: &str) -> core::option::Option<(&'static str, &'static str)>
 pub fn nika_compile_reader::words::recurrence(text: &str) -> core::option::Option<(usize, usize)>

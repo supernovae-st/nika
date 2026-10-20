@@ -49,7 +49,7 @@ pub fn feed_from_bytes(body: &[u8]) -> Result<serde_json::Value, ExtractError> {
 
     let mut out = serde_json::Map::new();
     if let Some(title) = parsed.title {
-        out.insert("title".to_owned(), title.content.into());
+        out.insert("title".to_owned(), plain(title).into());
     }
     if let Some(description) = parsed.description {
         out.insert("description".to_owned(), description.content.into());
@@ -75,7 +75,7 @@ fn feed_item(entry: feed_rs::model::Entry) -> serde_json::Value {
     // falls back to guid/link/title-hash) — always present.
     item.insert("id".to_owned(), entry.id.into());
     if let Some(title) = entry.title {
-        item.insert("title".to_owned(), title.content.into());
+        item.insert("title".to_owned(), plain(title).into());
     }
     // First link only: feed-rs orders rel=alternate first, and
     // multi-<link> channels/entries are vanishingly rare in the
@@ -145,6 +145,18 @@ fn feed_item(entry: feed_rs::model::Entry) -> serde_json::Value {
     serde_json::Value::Object(item)
 }
 
+/// A title as words: an HTML title (Atom `type="html"`, as The Verge writes « Bluesky&#8217;s »)
+/// keeps its text with its entities decoded and its tags dropped, never the markup a reader
+/// would see verbatim; a plain title is kept as it is. Summaries and contents stay raw.
+fn plain(text: feed_rs::model::Text) -> String {
+    if text.content_type.to_string().starts_with("text/html") {
+        let fragment = scraper::Html::parse_fragment(&text.content);
+        let words: String = fragment.root_element().text().collect();
+        return words.trim().to_owned();
+    }
+    text.content
+}
+
 /// The `&str` path (`extract()` API uniformity) — delegates to the
 /// bytes parser.
 pub(crate) fn feed(body: &str) -> Result<serde_json::Value, ExtractError> {
@@ -195,6 +207,32 @@ mod tests {
         let content = item["content"].as_str().unwrap_or_default();
         assert!(content.contains("full"), "content:encoded → content: {out}");
         assert_ne!(item["content"], item["summary"], "content ≠ summary: {out}");
+    }
+
+    /// An HTML title reads as its words, entities decoded and tags dropped (live gauntlet,
+    /// 2026-10-16: « Bluesky&#8217;s AI tool » was written to a reading list as is); a plain
+    /// title keeps its characters.
+    #[test]
+    fn an_html_title_reads_as_its_words() {
+        let atom = r#"<?xml version="1.0"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title type="html">The &lt;em&gt;Verge&lt;/em&gt;</title>
+  <entry>
+    <title type="html">Bluesky&amp;#8217;s AI &lt;em&gt;tool&lt;/em&gt; &amp;amp; games</title>
+    <link href="https://example.com/b"/>
+  </entry>
+  <entry>
+    <title>Plain &amp;#8217; stays</title>
+    <link href="https://example.com/c"/>
+  </entry>
+</feed>"#;
+        let out = feed(atom).expect("atom parses");
+        assert_eq!(out["title"], "The Verge", "{out}");
+        assert_eq!(
+            out["items"][0]["title"], "Bluesky\u{2019}s AI tool & games",
+            "{out}"
+        );
+        assert_eq!(out["items"][1]["title"], "Plain &#8217; stays", "{out}");
     }
 
     #[test]

@@ -13,6 +13,7 @@
 //! an operation, an effect or a policy; every element keeps its verbatim clause.
 
 mod admission;
+mod artifact;
 mod authoring;
 mod cadence;
 mod convert;
@@ -96,6 +97,9 @@ pub struct Reading {
     /// The columns the request lists beside its source: a word among them names a column,
     /// never an effect, and the closed rule grammar reads them.
     pub columns: Vec<String>,
+    /// Clauses that only ask to save or run the workflow itself (« enregistre ce workflow »,
+    /// « lance-le », « run aggregate-by-key »): accounted for, no element of the workflow.
+    pub session_commands: Vec<String>,
 }
 
 /// A clause the closed rule grammar read whole ("count the rows per client", "merge them on
@@ -626,6 +630,12 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         }
         return;
     }
+    // Saving or running the workflow itself is the Session's to do, never an effect of its
+    // tasks (`artifact.rs`).
+    if artifact::acts_on_the_workflow(text) {
+        reading.session_commands.push(clause.to_owned());
+        return;
+    }
     // The phrases read by substring read only what the clause states outside quotes.
     let open = unquoted(text);
     if (open.contains("pose-moi la question") || open.contains("ask me the question"))
@@ -736,10 +746,11 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         read_prefix(prefix_before(text, pos), clause, reading, state);
         reading.policy_clauses.push(clause.to_owned());
         let after = text.get(end..).unwrap_or_default();
-        let mut verbs = effect_words(after, &reading.columns);
+        let mut verbs = effects::gated_effect_words(after, &reading.columns);
         if verbs.is_empty() {
             // `the write needs my approval`: the subject of the requirement is gated.
-            verbs = effect_words(text.get(pos..end).unwrap_or_default(), &reading.columns);
+            let subject = text.get(pos..end).unwrap_or_default();
+            verbs = effects::gated_effect_words(subject, &reading.columns);
         }
         if verbs.is_empty() {
             gating::gate_last_automatic(reading, state, gating::names_sending(text));
@@ -771,7 +782,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
             .then(|| clause.get(from..))
             .flatten();
         let target = objects::destination_target(own.unwrap_or(after));
-        let verbs = effect_words(after, &reading.columns);
+        let verbs = effects::gated_effect_words(after, &reading.columns);
         if verbs.is_empty() {
             gating::gate_last_automatic(reading, state, gating::names_sending(text));
         } else {

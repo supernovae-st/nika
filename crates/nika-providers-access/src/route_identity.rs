@@ -40,13 +40,19 @@ use serde_json::{Map, Value};
 /// A label's origin when the endpoint has none to project.
 const UNKNOWN_ORIGIN: &str = "unknown origin";
 
-/// The table schema `BillingRoute::observation` writes, with or without a tariff.
-const TARIFF_SCHEMA: &str = "nika/inference-admission@1.1";
+/// The table schemas `BillingRoute::observation` writes, with or without a tariff:
+/// the current one, and the ones older records name.
+const TARIFF_SCHEMAS: [&str; 3] = [
+    "nika/inference-admission@1.3",
+    "nika/inference-admission@1.2",
+    "nika/inference-admission@1.1",
+];
 /// What a catalog tariff or `unknown` pricing keeps as written: rates, states and
 /// catalog constants.
 const TARIFF_KEYS: &[&str] = &[
     "as_of",
     "billing_provider",
+    "cache_write_rate",
     "cached_rate",
     "currency",
     "input_rate",
@@ -69,6 +75,9 @@ const SNAPSHOT_KEYS: &[&str] = &[
     "source_sha256_16",
     "table_schema",
 ];
+/// What a provider-reported charge keeps as written: the document that defines
+/// the charge and its observation.
+const REPORTED_KEYS: &[&str] = &["as_of", "currency", "kind", "source", "source_sha256"];
 /// What an operator-declared tariff keeps as written.
 const DECLARED_KEYS: &[&str] = &[
     "currency",
@@ -175,9 +184,10 @@ pub fn durable_calls(calls: &[InferenceCall]) -> Value {
 }
 
 /// The durable form of one pricing provenance text, or `null` when the text is
-/// not JSON or not one of the four kinds a producer writes (a catalog tariff or
+/// not JSON or not one of the five kinds a producer writes (a catalog tariff or
 /// `unknown` observation, a vendored snapshot estimate, an operator-declared
-/// tariff); each call element's `withheld` then says which.
+/// tariff, a provider-reported charge); each call element's `withheld` then
+/// says which.
 ///
 /// The object keeps its kind's own keys as written and names its `route` by
 /// origin. A declared tariff's free text is judged against the endpoints of
@@ -276,7 +286,9 @@ fn pricing_value(value: &Value, private: &[String]) -> Result<Value, &'static st
 fn pricing_shape(fields: &Map<String, Value>) -> Option<Shape> {
     let schema = fields.get("table_schema").and_then(Value::as_str);
     match (fields.get("kind").and_then(Value::as_str)?, schema) {
-        ("catalog_estimate_not_invoice" | "unknown", Some(TARIFF_SCHEMA)) => {
+        ("catalog_estimate_not_invoice" | "unknown", Some(schema))
+            if TARIFF_SCHEMAS.contains(&schema) =>
+        {
             Some((TARIFF_KEYS, &[]))
         }
         ("catalog_estimate_not_invoice", Some(schema))
@@ -285,6 +297,7 @@ fn pricing_shape(fields: &Map<String, Value>) -> Option<Shape> {
             Some((SNAPSHOT_KEYS, &[]))
         }
         ("user_declared_estimate_not_invoice", _) => Some((DECLARED_KEYS, DECLARED_TEXT)),
+        ("provider_reported_charge", None) => Some((REPORTED_KEYS, &[])),
         _ => None,
     }
 }

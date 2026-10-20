@@ -464,8 +464,8 @@ const ASIDE: &str = "Nika · Files";
 
 /// Cancelling the palette gives the keys back to the region that held them,
 /// the preview or the project aside, with the draft exact and nothing sent:
-/// a letter typed after `Esc` never reaches the draft, `F6` moves on from that
-/// region, and the aside opened before the palette is still over the object.
+/// the hint row says where the keys are, `F6` moves on from that region, and
+/// the aside opened before the palette is still over the object.
 #[test]
 fn cancelling_the_palette_returns_the_keys_to_the_region_that_held_them() {
     let mut term = opened(80, 24, true);
@@ -476,15 +476,13 @@ fn cancelling_the_palette_returns_the_keys_to_the_region_that_held_them() {
     term.send(CTRL_O);
     term.wait_text("commands ›");
     term.send(ESC);
-    term.wait_until("the palette closed", |screen| {
-        !screen.contains("commands ›") && screen.contains("nika › keep me")
-    });
-    term.send("x");
-    term.settle(SETTLE);
-    assert!(
-        !term.screen.contains("keep mex"),
-        "Esc gave the keys to the composer, not back to the preview\n{}",
-        term.dump()
+    term.wait_until(
+        "the palette closed, the preview holding the keys",
+        |screen| {
+            !screen.contains("commands ›")
+                && screen.contains("nika › keep me")
+                && screen.contains("keys: the object in view")
+        },
     );
     // From the preview, F6 reaches the aside, drawn over the object.
     term.send(F6);
@@ -493,10 +491,10 @@ fn cancelling_the_palette_returns_the_keys_to_the_region_that_held_them() {
     term.wait_text("commands ›");
     term.send(CTRL_O);
     term.wait_until("the aside back with the keys", |screen| {
-        !screen.contains("commands ›") && screen.contains(ASIDE)
+        !screen.contains("commands ›")
+            && screen.contains(ASIDE)
+            && screen.contains("keys: the project list")
     });
-    term.send("x");
-    term.settle(SETTLE);
     assert!(!term.screen.contains("keep mex"), "{}", term.dump());
     // Esc in the aside returns to the composer, the draft and cursor exact.
     term.send(ESC);
@@ -533,12 +531,9 @@ fn clicking_another_panel_closes_the_palette_and_keeps_the_clicked_focus() {
         !screen.contains("commands ›") && screen.contains("nika › keep pointer draft")
     });
     term.send(F6); // From the clicked object, F6 reaches the aside.
-    term.send("x");
-    term.settle(SETTLE);
-    assert!(
-        !term.screen.contains("keep pointer draftx"),
-        "the palette restored its old aside focus over the click: {}",
-        term.dump()
+    term.wait_until(
+        "the aside holds the keys after the clicked object",
+        |screen| screen.contains("keys: the project list"),
     );
     term.send(ESC);
     term.settle(Duration::from_millis(200)); // Separate Escape from a terminal Alt chord.
@@ -752,4 +747,22 @@ fn palette_conversation_navigation_reaches_the_transcript_from_other_regions() {
 #[test]
 fn palette_conversation_navigation_holds_when_frames_arrive_in_slices() {
     palette_conversation_navigation(&mut Term::proto(&[], 80, 24).reading_at_most(64));
+}
+
+/// A message typed after `F6` moved the keys away from the composer is never dropped: the
+/// hint row says where the keys are, the first letter brings them back to the composer, every
+/// letter lands in the draft and `Enter` sends it.
+#[test]
+fn a_message_typed_after_f6_reaches_the_composer() {
+    let mut term = opened(120, 40, true);
+    term.send(F6);
+    term.wait_text("keys: the object in view");
+    term.send("bonjour");
+    term.wait_until("the letters in the draft", |screen| {
+        screen.contains("nika › bonjour") && !screen.contains("keys: ")
+    });
+    term.send("\r");
+    // The demo answers any line it receives with its question.
+    term.wait_until("the message sent", |screen| screen.seen(QUESTION));
+    leave(&mut term);
 }

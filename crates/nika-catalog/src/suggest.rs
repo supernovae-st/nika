@@ -485,13 +485,18 @@ mod tests {
     fn pasteable_for_reads_the_nickname_and_the_wire_id() {
         assert_eq!(
             pasteable_for("sonnet").as_deref(),
-            Some("anthropic/claude-sonnet-4-6"),
+            Some("anthropic/claude-sonnet-5-5"),
             "the nickname alone resolves",
+        );
+        assert_eq!(
+            pasteable_for("claude-sonnet-5-5").as_deref(),
+            Some("anthropic/claude-sonnet-5-5"),
+            "the wire id alone resolves to the same row",
         );
         assert_eq!(
             pasteable_for("claude-sonnet-4-6").as_deref(),
             Some("anthropic/claude-sonnet-4-6"),
-            "the wire id alone resolves to the same row",
+            "an earlier explicit wire keeps its row",
         );
         assert_eq!(pasteable_for("no-such-model-anywhere").as_deref(), None);
     }

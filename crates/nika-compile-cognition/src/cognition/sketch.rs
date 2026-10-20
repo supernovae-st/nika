@@ -14,7 +14,7 @@
 
 use super::native::{
     self, Answer, Prelude, Question, Shaped, Talk, cold, conclude, decode, floor_refuses, judge,
-    prelude, repair_message, system_message,
+    prelude, repair_message,
 };
 use super::proposal::Composition;
 use super::{
@@ -756,25 +756,26 @@ pub(super) async fn author<P: ProviderInferDyn>(
         return Ok(out);
     }
     let Prelude {
-        references,
+        mut references,
+        pack_from,
         callables,
-        sent,
+        mut sent,
         revision,
         opening,
         allowed,
     } = prelude(intent, reading, request);
-    let mut system = system_message(&references, &callables);
-    system.push_str("\n\n");
-    system.push_str(SKETCH);
+    let opening = format!("{opening}\n\nAnswer with the SKETCH (call 1), not a file.");
+    // An opening past what one request carries is fitted, beside the answer schemas its
+    // conversation sends (the sketch's, then the fills').
+    let system = native::capacity::system(
+        (&mut references, &mut sent, pack_from),
+        &callables,
+        (&format!("\n\n{SKETCH}"), &opening),
+        &[schema(SKETCH_SCHEMA), schema(FILLS_SCHEMA)],
+    );
     // The request's own basis, read before any proposal: no answer of the seat reaches it.
     let basis = nika_compile::surface::semantic::request_basis(intent, request);
-    let mut talk = Talk::open(
-        system,
-        format!("{opening}\n\nAnswer with the SKETCH (call 1), not a file."),
-        route,
-        allowed,
-        request,
-    );
+    let mut talk = Talk::open(system, opening, route, allowed, request);
     talk.presented = json!(sent);
     talk.remember_under(policy);
     // One round count spans the sketch, its fills and every reopening (the last round leaves the

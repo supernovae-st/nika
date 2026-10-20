@@ -134,13 +134,13 @@ fn a_folded_frame_tiles_the_screen_exactly() {
 }
 
 /// At 80x24, 80x30 and 99x30 the review fits only folded: at rest the
-/// card's title, its changes, effects and rehearsal, its identity on its
+/// card's title, its changes, effects and rehearsal, its name on its
 /// border, the standing, the `Save?` line with the draft (once), the hint and
 /// the strip's own bytes all show together, in both glyph columns, a run
 /// pinned or not; the lead the standing replaced is gone.
 #[test]
 fn the_review_shows_whole_at_rest_above_the_folded_object() {
-    let id = fixture::id().to_string();
+    let path = fixture::PATH;
     for size in FOLDING {
         for (ascii, pinned) in [(false, false), (true, false), (false, true)] {
             let at = format!("{size:?} ascii={ascii} pinned={pinned}");
@@ -170,10 +170,10 @@ fn the_review_shows_whole_at_rest_above_the_folded_object() {
                 "creates compiled-workflow.nika (33 lines)".to_owned(),
                 "when it runs".to_owned(),
                 "rehearsal".to_owned(),
-                format!("proposal {id} {sep} F2"),
+                format!("{path} {sep} F2"),
                 format!("Not saved yet {sep} this proposal has not run"),
                 "yes + Enter: Save".to_owned(),
-                "these bytes 51835c93e564, the proposal's own".to_owned(),
+                "these bytes, the proposal's own".to_owned(),
             ] {
                 assert!(read.contains(&fact), "{at}: {fact}\n{shown:#?}");
             }
@@ -189,6 +189,32 @@ fn the_review_shows_whole_at_rest_above_the_folded_object() {
             );
         }
     }
+}
+
+/// The proposal's face cue names the keys that work from where the person types (T14, live
+/// gauntlet r03 and r09: « Left/Right change the face » while the question box had focus, where
+/// those keys do nothing): `F6 then Left/Right` from the box, `Left/Right` once the object holds
+/// the keys.
+#[test]
+fn the_face_cue_names_the_keys_from_where_the_person_types() {
+    // Wide enough that the object's first row holds the cue whole.
+    let size = (240, 50);
+    let mut desk = reviewing();
+    let (state, composer) = waiting(size);
+    desk.prepare_for(&state, false, false);
+    let read = reading(&rows(&desk, &state, &composer));
+    assert!(
+        read.contains("the proposal's own · F6 then Left/Right change the face"),
+        "{read}"
+    );
+    desk.focus.region = crate::workspace::focus::Region::Object;
+    desk.prepare_for(&state, false, false);
+    let read = reading(&rows(&desk, &state, &composer));
+    assert!(
+        read.contains("the proposal's own · Left/Right change the face"),
+        "{read}"
+    );
+    assert!(!read.contains("F6 then Left/Right"), "{read}");
 }
 
 /// A reviewed proposal keeps [`DECISION_CONTEXT`] rows of its exchange above
@@ -398,8 +424,13 @@ fn f4_expands_the_strip_and_restores_to_it() {
             assert_eq!(desk.toggled(size), Some(Layout::Workbench), "{at}");
             let shown = desk.screen(ascii);
             let next = desk.toggled(size);
-            let action =
-                screen::object_action(&shown.object, &strip, desk.focus.region, next, ascii);
+            let action = screen::object_action(
+                &shown.object,
+                &strip,
+                desk.focus.region,
+                next,
+                desk.voice(ascii),
+            );
             let (cells, words) = action.expect("the strip offers its action");
             assert!(words.starts_with("[+]"), "{at}: {words}");
             let rows = [strip.object.y, strip.object.bottom() - 1];
@@ -424,11 +455,9 @@ fn f4_expands_the_strip_and_restores_to_it() {
     }
 }
 
-/// A long typed question that keeps its card (a text; a typed choice opens
-/// the surface over the conversation instead) folds the object at 60x18 and
-/// 80x24: at rest its first words, the line that answers it and where the
-/// whole question is read show together. Where a short one folds is measured, not assumed
-/// ([`a_homed_question_keeps_three_rows_of_its_exchange_in_view`]).
+/// Before an object exists, a long typed question takes the welcome's space
+/// at 60x18 and 80x24. At rest its first words, the line that answers it and
+/// where the whole question is read show together, without an object strip.
 #[test]
 fn the_live_question_keeps_its_first_words_and_the_reader_cue() {
     let witness = "3:q-currency";
@@ -452,7 +481,8 @@ fn the_live_question_keeps_its_first_words_and_the_reader_cue() {
             let mut desk = Desk::new();
             desk.view = Some(demo_project());
             desk.prepare_for(&state, ascii, false);
-            assert!(desk.folds(size), "{at}");
+            assert!(!desk.folds(size), "{at}: no object remains to fold");
+            assert!(desk.geometry(size).expect("fits").object.is_empty());
             let shown = rows(&desk, &state, &Composer::new());
             let read = reading(&shown);
             assert!(
@@ -466,45 +496,104 @@ fn the_live_question_keeps_its_first_words_and_the_reader_cue() {
     }
 }
 
-/// The restored stacked conversation keeps three rows of the exchange that
-/// led to a homed question above the question's own row at rest; short of
-/// them the object folds to its strip, and folded they hold. The boundary is
-/// measured from the shared rest geometry at the shortest workspace and at
-/// 80x24, 80x30, 99x30 and 80x40, never pinned; both outcomes occur.
+/// A homed question keeps three rows of its preceding exchange at rest.
+/// Without an object, the welcome has yielded all its space. With an object,
+/// the restored split folds only where that actual geometry needs it; the
+/// object then keeps its three-row strip. Both cases use the shared measure.
 #[test]
 fn a_homed_question_keeps_three_rows_of_its_exchange_in_view() {
     let witness = "3:q-currency";
     let mut outcomes = Vec::new();
-    for size in [(60, 16), (60, 18), (80, 24), (80, 30), (99, 30), (80, 40)] {
-        let mut state = UiState::new(Presentation::Workspace, false, size);
-        state
-            .transcript
-            .push(Committed::new(Kind::Human, "sum the amounts"));
-        state
-            .transcript
-            .push(Committed::question(witness, "the currency code"));
-        let asked = Asked::new("the currency code", "", true, Shape::Text, witness, 3);
-        state.waiting = Waiting::asked("const.currency", asked);
-        let mut desk = Desk::new();
-        desk.view = Some(demo_project());
-        let thread = desk.screen(false).thread;
-        let from = question::asked_block(&state).expect("the question's block");
-        let context = (None, Some(from));
-        let rest = screen::rest_transcript(&restored(&desk, size), &state, &thread, None);
-        let need = cards::rows_from(&state, rest, context, from) + DECISION_CONTEXT;
-        let folds = need > usize::from(rest.height);
-        desk.prepare_for(&state, false, false);
-        let at = format!("{size:?}: {need} rows asked of {}", rest.height);
-        assert_eq!(desk.folds(size), folds, "{at}");
-        if folds {
+    for has_object in [false, true] {
+        for size in [(60, 16), (60, 18), (80, 24), (80, 30), (99, 30), (80, 40)] {
+            let mut state = UiState::new(Presentation::Workspace, false, size);
+            state
+                .transcript
+                .push(Committed::new(Kind::Human, "sum the amounts"));
+            state
+                .transcript
+                .push(Committed::question(witness, "the currency code"));
+            let asked = Asked::new("the currency code", "", true, Shape::Text, witness, 3);
+            state.waiting = Waiting::asked("const.currency", asked);
+            let mut desk = Desk::new();
+            desk.view = Some(demo_project());
+            if has_object {
+                desk.proposed(Some(fixture::candidate(fixture::id(), false)));
+            }
+            let thread = desk.screen(false).thread;
+            let from = question::asked_block(&state).expect("the question's block");
+            let context = (None, Some(from));
+            let baseline = if has_object {
+                restored(&desk, size)
+            } else {
+                screen::conversation_only(restored(&desk, size), Region::Conversation)
+            };
+            let rest = screen::rest_transcript(&baseline, &state, &thread, None);
+            let need = cards::rows_from(&state, rest, context, from) + DECISION_CONTEXT;
+            let folds = has_object && need > usize::from(rest.height);
+            desk.prepare_for(&state, false, false);
+            let at = format!(
+                "{size:?} object={has_object}: {need} rows asked of {}",
+                rest.height
+            );
+            assert_eq!(desk.folds(size), folds, "{at}");
             let geometry = desk.geometry(size).expect("fits");
-            assert_eq!(geometry.object.height, 3, "{at}: the strip");
+            if folds {
+                assert_eq!(geometry.object.height, 3, "{at}: the strip");
+            } else {
+                assert_eq!(geometry, baseline, "{at}: all available space");
+            }
             let held = screen::rest_transcript(&geometry, &state, &thread, None);
             let kept = cards::rows_from(&state, held, context, from) + DECISION_CONTEXT;
-            assert!(kept <= usize::from(held.height), "{at}: folded they hold");
+            assert!(
+                kept <= usize::from(held.height),
+                "{at}: the question and three context rows fit"
+            );
+            outcomes.push(folds);
         }
-        outcomes.push(folds);
     }
     let both = outcomes.contains(&true) && outcomes.contains(&false);
     assert!(both, "{outcomes:?}");
+}
+
+/// A choice the person must read before anything was said (the first run's
+/// required intelligence list) takes the welcome's width: the conversation
+/// holds the whole frame the welcome would have shared, so its rows read
+/// whole, not cut beside the mark.
+#[test]
+fn a_required_choice_list_takes_the_welcomes_width() {
+    use crate::model::Offer;
+    let offers = vec![
+        Offer::new(
+            "2 anthropic/claude-sonnet-5-5",
+            "Recommended for you · Claude Sonnet 5.5",
+        ),
+        Offer::new("/intelligence connections", "Other choice…"),
+    ];
+    let label = "Choose the intelligence for this conversation";
+    let asked = Asked::new(label, "", true, Shape::Choice(offers), "1:intelligence", 1);
+    for size in [(80, 24), (120, 40), (180, 48)] {
+        let mut state = UiState::new(Presentation::Workspace, false, size);
+        state.waiting = Waiting::selection(asked.clone());
+        let mut desk = Desk::new();
+        desk.view = Some(demo_project());
+        let mut composer = Composer::new();
+        composer.set_focused(true);
+        composer.follow(&state.waiting);
+        desk.prepare_for(&state, false, false);
+        assert!(desk.conversation_only(), "{size:?}");
+        let whole = screen::conversation_only(restored(&desk, size), Region::Conversation);
+        assert_eq!(desk.geometry(size), Some(whole), "{size:?}");
+        let read = reading(&rows(&desk, &state, &composer));
+        assert!(
+            read.contains("Recommended for you · Claude Sonnet 5.5"),
+            "{size:?}: {read}"
+        );
+    }
+    // Once nothing waits for a choice, the welcome keeps its share as before.
+    let state = UiState::new(Presentation::Workspace, false, (120, 40));
+    let mut desk = Desk::new();
+    desk.view = Some(demo_project());
+    desk.prepare_for(&state, false, false);
+    assert!(!desk.conversation_only());
 }

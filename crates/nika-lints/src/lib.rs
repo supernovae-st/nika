@@ -18,19 +18,24 @@
 //! run on the raw AST after [`nika_schema::parse`] succeeds and are orthogonal
 //! to [`nika_check::analyze`] (which emits spec ERRORS).
 //!
-//! v0.1 ships THREE rule sets · [`one_obvious_way`] — the control-flow
+//! v0.1 ships FOUR rule sets · [`one_obvious_way`] — the control-flow
 //! preference rules the spec marks « normative for linters » —
 //! [`native_first()`] — the verb-choice preference rules (spec
-//! `03-dag.md` §Native-first · exec with a probable native path) — and
+//! `03-dag.md` §Native-first · exec with a probable native path) —
 //! [`arg_injection()`] — argument-injection advisories for the array command
-//! form (spec `02-verbs.md` §exec Security · the differentiator).
+//! form (spec `02-verbs.md` §exec Security · the differentiator) — and
+//! [`egress()`] — a private key bound for the model provider in a prompt or
+//! system text, inline or composed from a prompt file (spec `02-verbs.md`
+//! §Project files).
 
 mod arg_injection;
+mod egress;
 #[cfg(test)]
 mod fixture_matrix_tests;
 mod native_first;
 mod preference_rules;
 
 pub use arg_injection::arg_injection;
+pub use egress::egress;
 pub use native_first::native_first;
 pub use preference_rules::{Lint, one_obvious_way};

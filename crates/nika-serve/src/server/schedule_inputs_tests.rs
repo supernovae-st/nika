@@ -289,16 +289,25 @@ async fn a_project_beat_with_inputs_binds_them_and_an_undeclared_key_is_containe
         .expect("a contained refusal stops clean");
 }
 
-/// Three beats due on the same tick, one job slot, a backend that never
-/// returns: the third fire finds the execution queue full. That is
-/// back-pressure, never a resident death: the resident stays alive, the
-/// deferred beat carries the finding, and the server stops clean. Before
-/// this law the scheduler task returned the error and the authority loop
-/// ended with `ExecutionQueueFull` (main's Diamond red on a slower host).
+/// Five beats first due on the same tick, a backend that never returns and
+/// room for four job records: a fire finds the execution queue or the job
+/// store full. That is back-pressure, never a resident death: the resident
+/// stays alive, the deferred beat carries the finding, and the server stops
+/// clean. Before this law the scheduler task returned the error and the
+/// authority loop ended with `ExecutionQueueFull` (main's Diamond red on a
+/// slower host). The beats first fire at 08:01, after the start, so no fire
+/// lands on a run of its own beat (`chevauchement: sauter` skips that one).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_fire_that_finds_the_queue_full_is_deferred_and_the_resident_lives() {
     let world = TestWorld::new();
-    for name in ["intake-one", "intake-two", "intake-three"] {
+    let beats = [
+        "intake-one",
+        "intake-two",
+        "intake-three",
+        "intake-four",
+        "intake-five",
+    ];
+    for name in beats {
         std::fs::write(
             world.workflows.join(format!("{name}.nika")),
             INTAKE_WORKFLOW.replacen("nika: intake", &format!("nika: {name}"), 1),
@@ -309,15 +318,17 @@ async fn a_fire_that_finds_the_queue_full_is_deferred_and_the_resident_lives() {
         world.workflows.join("nika.yaml"),
         concat!(
             "nika: proj\narm:\n",
-            "  - workflow: intake-one.nika\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n    manqué: sauter\n    inputs: { tenant: acme }\n",
-            "  - workflow: intake-two.nika\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n    manqué: sauter\n    inputs: { tenant: acme }\n",
-            "  - workflow: intake-three.nika\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n    manqué: sauter\n    inputs: { tenant: acme }\n",
+            "  - workflow: intake-one.nika\n    cadence: \"TZ=UTC 1 8 * * *\"\n    plafond: 0.25\n    manqué: sauter\n    inputs: { tenant: acme }\n",
+            "  - workflow: intake-two.nika\n    cadence: \"TZ=UTC 1 8 * * *\"\n    plafond: 0.25\n    manqué: sauter\n    inputs: { tenant: acme }\n",
+            "  - workflow: intake-three.nika\n    cadence: \"TZ=UTC 1 8 * * *\"\n    plafond: 0.25\n    manqué: sauter\n    inputs: { tenant: acme }\n",
+            "  - workflow: intake-four.nika\n    cadence: \"TZ=UTC 1 8 * * *\"\n    plafond: 0.25\n    manqué: sauter\n    inputs: { tenant: acme }\n",
+            "  - workflow: intake-five.nika\n    cadence: \"TZ=UTC 1 8 * * *\"\n    plafond: 0.25\n    manqué: sauter\n    inputs: { tenant: acme }\n",
         ),
     )
     .expect("project nika.yaml");
     let backend = Arc::new(super::tests::TestBackend::hangs());
     let clock = Arc::new(ManualClock::new("2026-09-01T08:00:30Z[UTC]"));
-    // One running job, a queue of one, room for the records.
+    // One running job, a queue of one, room for four records.
     let tight = super::ServerLimits::new(
         1024,
         Duration::from_secs(2),
@@ -334,12 +345,12 @@ async fn a_fire_that_finds_the_queue_full_is_deferred_and_the_resident_lives() {
         .await;
     clock.wait_for_sleeps(1).await;
     clock.advance_to("2026-09-01T08:01:01Z[UTC]");
-    // One slot: the fires after the first meet a full queue, and are
-    // deferred, named on their beat, contained; the resident lives.
+    // One tick, five first fires: those the queue or the store cannot take
+    // are deferred, named on their beat, contained; the resident lives.
     let deferred = tokio::time::timeout(Duration::from_secs(5), async {
         loop {
             let mut named = 0;
-            for id in ["intake-one", "intake-two", "intake-three"] {
+            for id in beats {
                 let response = server
                     .request(&get_request(&format!("/v1/schedules/{id}")))
                     .await;

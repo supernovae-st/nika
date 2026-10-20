@@ -442,9 +442,12 @@ fn comparable_http_endpoint(endpoint: &str) -> Option<url::Url> {
 /// `anthropic/sonnet` are the binary's OWN teaching, never ghosts) and
 /// the pricing snapshot's patterns. `None` otherwise. A warning, never
 /// a refusal: the snapshot is a dated artifact and providers ship new
-/// models weekly — the message says exactly that. Providers with no
-/// priced rows (the local five · mock) are never judged: their models
-/// are whatever the user pulled, and the catalog cannot know them.
+/// models weekly — the message says exactly that, and only that: the id
+/// is absent from this binary's snapshot, and the provider decides at run
+/// time. Catalog absence is never reported as an unavailable model.
+/// Providers with no priced rows (the local five · mock) are never
+/// judged: their models are whatever the user pulled, and the catalog
+/// cannot know them.
 ///
 /// Lives beside [`resolve_refusal`] for the same reason it does: ONE
 /// law, consulted by every audit surface (CLI check · MCP `nika_check`).
@@ -501,17 +504,43 @@ pub fn catalog_warning(model: &str) -> Option<String> {
             .filter(|m| !priced.contains(&m.model))
             .count();
     Some(format!(
-        "`{model}` resolves (the provider is runnable) but matches none of \
-         `{provider}`'s {known} known models — a typo, or newer than this \
-         binary's snapshot ({}); a run would fail at the provider{guess}",
+        "`{model}` resolves (the provider is runnable) but is not one of the \
+         {known} `{provider}` models in this binary's catalog snapshot ({}): a \
+         typo, or a model newer than the snapshot; the provider decides at run \
+         time{guess}",
         snapshot.as_of,
+    ))
+}
+
+/// The provider's published retirement floor for the model `model` names
+/// (a nickname or a wire id), with the successor it names: advice beside the
+/// green line, never a refusal and never a silent switch. The catalogue
+/// records the floor as a fact (schema `@1.2`); the author decides.
+#[must_use]
+pub fn lifecycle_note(model: &str) -> Option<String> {
+    let (provider, name) = model.split_once('/')?;
+    let row = nika_catalog::find_provider(canonical_provider(provider))?;
+    let entry = row
+        .models
+        .iter()
+        .find(|m| m.id == name || m.model == name)?;
+    let life = nika_catalog::model_facts(row.id, entry.model)?.lifecycle?;
+    let named = if entry.model == name {
+        format!("`{model}`")
+    } else {
+        format!("`{model}` resolves to {}", entry.model)
+    };
+    Some(format!(
+        "{named} ({}: not retired before {}); {} is available: name it to switch",
+        row.name, life.retires_not_before, life.successor
     ))
 }
 
 /// When `name` is uniquely served by a different canonical provider,
 /// that other seat's pasteable id. `None` when this seat lists the
-/// model, when the name is unknown, or when more than one catalog row
-/// serves it (ambiguous → the snapshot-warning class).
+/// model, when the name is unknown, when more than one catalog row
+/// serves it (ambiguous → the snapshot-warning class), or when it names
+/// an open-weight model, which any host may serve under the same id.
 fn unique_other_seat(canonical: &str, name: &str) -> Option<String> {
     if let Some(row) = nika_catalog::find_provider(canonical)
         && row
@@ -528,8 +557,22 @@ fn unique_other_seat(canonical: &str, name: &str) -> Option<String> {
         return None;
     }
     let pasteable = nika_catalog::pasteable_for(name)?;
-    let owner = pasteable.split_once('/')?.0;
-    (owner != canonical).then_some(pasteable)
+    let (owner, wire) = pasteable.split_once('/')?;
+    (owner != canonical && !open_weight(owner, wire, name)).then_some(pasteable)
+}
+
+/// Whether an id names an open-weight model: an `org/model` id (a hub's or a
+/// gateway's namespace, as written or as its owner's wire), or a model its
+/// owner's snapshot row marks `open_weights`. One catalog row listing it never
+/// makes the provider of that row its only host.
+fn open_weight(owner: &str, wire: &str, name: &str) -> bool {
+    name.contains('/')
+        || wire.contains('/')
+        || nika_catalog::all_pricing().iter().any(|p| {
+            p.open_weights == Some(true)
+                && pricing_provider_matches(p.provider, owner)
+                && (p.model_pattern == wire || p.model_pattern == name)
+        })
 }
 
 /// Persona 12 · `groq/grok-3` is xAI's model on Groq's prefix.
@@ -1014,6 +1057,58 @@ mod tests {
         );
     }
 
+    /// A wire whose model has a published retirement floor names the floor and
+    /// the successor; a model without a floor gets none. The `haiku` nickname
+    /// moved to its successor (decision of 2026-10-15), so it is quiet.
+    #[test]
+    fn a_retirement_floor_is_advice_that_names_the_successor() {
+        for wire in [
+            "claude/claude-haiku-4-5-20251001",
+            "anthropic/claude-haiku-4-5-20251001",
+        ] {
+            assert_eq!(
+                lifecycle_note(wire).as_deref(),
+                Some(
+                    format!(
+                        "`{wire}` (Anthropic Claude: not retired before 2026-10-15); \
+                         claude-haiku-5-5 is available: name it to switch"
+                    )
+                    .as_str()
+                )
+            );
+        }
+        for quiet in [
+            "anthropic/sonnet",
+            "anthropic/haiku",
+            "anthropic/opus",
+            "anthropic/claude-haiku-5-5",
+            "mock/echo",
+            "haiku",
+        ] {
+            assert_eq!(lifecycle_note(quiet), None, "{quiet}");
+        }
+    }
+
+    /// Models the catalog lists today resolve without the catalog warning and
+    /// carry a price, so no audit surface tells an author that a listed model
+    /// is unavailable. A binary whose rows did not list them yet warned on all
+    /// three.
+    #[test]
+    fn current_models_resolve_without_the_catalog_warning_and_are_priced() {
+        for model in [
+            "anthropic/claude-sonnet-5-5",
+            "anthropic/claude-haiku-5-5",
+            "openai/gpt-6.1-sol",
+        ] {
+            assert_eq!(catalog_warning(model), None, "{model}");
+            assert!(resolve_refusal(model).is_none(), "{model}");
+            assert!(
+                nika_catalog::find_pricing_for(model).is_some(),
+                "{model} is priced"
+            );
+        }
+    }
+
     /// The two-strike class (audit UX 2026-07-31): a ghost model on a
     /// RUNNABLE provider resolved green, the user bought a key, and only
     /// then met the typo. The catalog cross-check warns at audit time —
@@ -1025,8 +1120,9 @@ mod tests {
         // the snapshot — warned, with the snapshot date named.
         let ghost = catalog_warning("anthropic/claude-4-nonexistent").expect("ghost warned");
         assert!(
-            ghost.contains("matches none of `anthropic`'s")
-                && ghost.contains("newer than this binary's snapshot"),
+            ghost.contains("`anthropic` models in this binary's catalog snapshot")
+                && ghost.contains("the provider decides at run time")
+                && !ghost.contains("fail"),
             "{ghost}"
         );
         // A cataloged model never warns (exact then contains — the same
@@ -1065,10 +1161,89 @@ mod tests {
         let gemini_ghost =
             catalog_warning("gemini/nika-b20-unpriced-canary").expect("gemini is priced-cloud");
         assert!(
-            gemini_ghost.contains("matches none of `gemini`'s")
-                && gemini_ghost.contains("newer than this binary's snapshot"),
+            gemini_ghost.contains("`gemini` models in this binary's catalog snapshot")
+                && gemini_ghost.contains("the provider decides at run time")
+                && !gemini_ghost.contains("fail"),
             "{gemini_ghost}"
         );
+    }
+
+    /// An open-weight id one catalog row lists has no unique owner:
+    /// another hosted provider, a local engine and an OpenAI-compatible route
+    /// pointed elsewhere all keep it, with no wrong-seat refusal.
+    #[test]
+    fn an_open_weight_id_listed_by_one_provider_is_not_refused_elsewhere() {
+        // Groq's row lists it and the snapshot marks it open-weight.
+        assert_eq!(
+            nika_catalog::pasteable_for("llama-3.3-70b-versatile").as_deref(),
+            Some("groq/llama-3.3-70b-versatile")
+        );
+        // One provider's row lists this `org/model` id.
+        assert!(nika_catalog::pasteable_for("meta-llama/Llama-3.3-70B-Instruct").is_some());
+        for model in [
+            "scaleway/llama-3.3-70b-versatile",
+            "lmstudio/meta-llama/Llama-3.3-70B-Instruct",
+            "openai/llama-3.3-70b-versatile",
+        ] {
+            assert!(
+                resolve_refusal(model).is_none(),
+                "{model}: {:?}",
+                resolve_refusal(model)
+            );
+        }
+        assert!(
+            resolve_refusal_at(
+                "openai/llama-3.3-70b-versatile",
+                Some("https://api.scaleway.ai/v1/chat/completions")
+            )
+            .is_none()
+        );
+        // With Groq's gpt-oss rows present: Scaleway, a local engine, NVIDIA and
+        // the OpenAI profile at Scaleway's endpoint keep the same ids.
+        assert_eq!(
+            nika_catalog::pasteable_for("gpt-oss-120b").as_deref(),
+            Some("groq/openai/gpt-oss-120b")
+        );
+        for model in [
+            "scaleway/gpt-oss-120b",
+            "lmstudio/openai/gpt-oss-20b",
+            "nvidia/openai/gpt-oss-120b",
+            "openai/gpt-oss-120b",
+            "groq/gpt-oss-120b",
+            "groq/openai/gpt-oss-20b",
+        ] {
+            assert!(
+                resolve_refusal(model).is_none(),
+                "{model}: {:?}",
+                resolve_refusal(model)
+            );
+        }
+        assert!(
+            resolve_refusal_at(
+                "openai/gpt-oss-120b",
+                Some("https://api.scaleway.ai/v1/chat/completions")
+            )
+            .is_none()
+        );
+    }
+
+    /// The guard holds: a provider-exclusive id pasted on another provider is
+    /// still refused, with the owner's pasteable id as its repair.
+    #[test]
+    fn a_provider_exclusive_id_on_another_provider_is_still_refused() {
+        for (model, owner) in [
+            ("groq/grok-4.3", "xai/grok-4.3"),
+            ("ollama/grok-3", "xai/grok-3"),
+            ("anthropic/gpt-6-luna", "openai/gpt-6-luna"),
+            ("openai/claude-haiku-5-5", "anthropic/claude-haiku-5-5"),
+            (
+                "openai/deepseek-v4-flash-0731",
+                "scaleway/deepseek-v4-flash-0731",
+            ),
+        ] {
+            let refusal = resolve_refusal(model).expect("a wrong seat");
+            assert!(refusal.why.contains(owner), "{model}: {}", refusal.why);
+        }
     }
 
     /// B18 / issue 1306: `grok` is xAI's alias. `grok/grok-3` must

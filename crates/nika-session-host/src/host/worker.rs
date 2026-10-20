@@ -2,7 +2,8 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The one thread that owns the runtime: a turn through [`SessionRuntime::submit`] with the
-//! published `Waiting`, the Session's Stop token armed before it, the withdrawal of a stopped
+//! published `Waiting` (or, for a reply bound to one question, through that question's
+//! identity door), the Session's Stop token armed before it, the withdrawal of a stopped
 //! preparation's late result before anything is published, then what the turn asked of the run
 //! door (nothing once a Stop won: its run is not started), with that door's Stop armed while it
 //! runs, then one publication.
@@ -15,7 +16,7 @@ use nika_session::SessionRuntime;
 use nika_session::outcome::ReviewId;
 use nika_session::work::{RunEnd, Waiting};
 
-use super::{Job, Shared, publish};
+use super::{Job, Reply, Shared, publish};
 use crate::run::{RunDoor, RunStep};
 use crate::wire::{ActivityWire, Effect, Outcome, TurnPhase, project};
 
@@ -57,15 +58,17 @@ pub(super) fn serve(
     let mut held: Option<ReviewId> = None;
     while let Ok(Job::Submit {
         command,
-        line,
+        op,
+        reply,
         shown,
     }) = jobs.recv()
     {
         let turn = Turn {
             shared,
             command: &command,
+            op,
         };
-        if turn.run(&mut runtime, door.as_mut(), &mut held, &line, &shown) {
+        if turn.run(&mut runtime, door.as_mut(), &mut held, reply, &shown) {
             break;
         }
     }
@@ -74,10 +77,11 @@ pub(super) fn serve(
     drop(finish);
 }
 
-/// One turn of one command.
+/// One turn of one command, sent by `op`.
 struct Turn<'a> {
     shared: &'a Shared,
     command: &'a str,
+    op: &'static str,
 }
 
 impl RunSink for Turn<'_> {
@@ -99,7 +103,7 @@ impl Turn<'_> {
         runtime: &mut SessionRuntime,
         door: &mut dyn RunDoor,
         held: &mut Option<ReviewId>,
-        line: &str,
+        reply: Reply,
         shown: &Waiting,
     ) -> bool {
         // A review answer continues a held run and arms no preparation, as the terminal doors.
@@ -107,7 +111,7 @@ impl Turn<'_> {
             let token = runtime.begin_preparation_turn();
             self.shared.arm(self.command, token, runtime.steering());
         }
-        let outcome = runtime.submit(line, shown);
+        let outcome = reply.reach(runtime, shown);
         self.shared.checkpoint("returned");
         let stopped = self.shared.phase(self.command, TurnPhase::Settling);
         self.shared.checkpoint("settling");
@@ -138,7 +142,8 @@ impl Turn<'_> {
         }
         let quit = wire.iter().any(|outcome| matches!(outcome, Outcome::Quit));
         let published = publish(runtime, &self.shared.session);
-        self.shared.settle(self.command, wire, published, quit);
+        self.shared
+            .settle((self.command, self.op), wire, published, quit);
         quit
     }
 

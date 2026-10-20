@@ -54,8 +54,9 @@ pub(crate) fn apply(
     Ok(())
 }
 
-/// A door that carries no `reasoning_effort` key (the Anthropic and Gemini wires, the mock)
-/// refuses any explicit level before it produces anything.
+/// A door that carries no reasoning effort (the Gemini and Ollama wires, the mock) refuses any
+/// explicit level before it produces anything. The Anthropic wire carries its own
+/// (`output_config.effort`) on the models that document it.
 ///
 /// # Errors
 /// [`ProviderError::AdmissionDenied`] when the request names a level.

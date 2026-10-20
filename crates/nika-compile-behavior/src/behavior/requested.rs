@@ -35,6 +35,8 @@ type Policies = BTreeMap<String, NumberPolicy>;
 /// structure: the contract exists before, and independently of, any candidate.
 #[must_use]
 pub fn contract_of(plan: &Plan, intent: &str, answers: &BTreeMap<String, String>) -> Contract {
+    let rebound = answered_fields(plan, answers);
+    let plan = rebound.as_ref().unwrap_or(plan);
     let mut obligations = Vec::new();
     let composed = composed(plan, answers);
     unverified_work(plan, composed.as_ref(), &mut obligations);
@@ -87,6 +89,36 @@ pub fn contract_of(plan: &Plan, intent: &str, answers: &BTreeMap<String, String>
         .collect();
     kept_sources(plan, &sources, &mut obligations);
     Contract::new(obligations).with_sources(sources)
+}
+
+/// The plan whose rules read the fields the human named. The answer to « which observed field
+/// does `<word>` mean » (`const.rule_field_<n>`, a JSON string) names the n-th source field of
+/// each rule, counted as the compile counts it, and rebinds that field's typed references as
+/// the compile rebinds them in the candidate. A program a seat wrote is never renamed. `None`
+/// when no field is answered.
+fn answered_fields(plan: &Plan, answers: &Answers) -> Option<Plan> {
+    if !answers
+        .keys()
+        .any(|key| key.starts_with("const.rule_field_"))
+    {
+        return None;
+    }
+    let named = |index: usize| {
+        let raw = answers.get(&format!("const.rule_field_{}", index + 1))?;
+        let value: Value = serde_json::from_str(raw).ok()?;
+        let name = value.as_str()?.trim();
+        (!name.is_empty()).then(|| name.to_owned())
+    };
+    let mut plan = plan.clone();
+    for rule in &mut plan.rules {
+        for (index, field) in rule.source_fields().into_iter().enumerate() {
+            let rebound = named(index).and_then(|name| rule.with_source_field(&field, &name));
+            if let Some(rebound) = rebound {
+                *rule = rebound;
+            }
+        }
+    }
+    Some(plan)
 }
 
 /// A composed computation reads its write's words up to its file: the words after it (another

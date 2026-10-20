@@ -102,9 +102,9 @@ impl ProjectSnapshot {
         }
         match &self.project_file {
             Some(path) => {
-                let ceiling = self
-                    .ceiling
-                    .map_or(String::new(), |c| format!(" · ceiling ${c:.2}"));
+                let ceiling = self.ceiling.map_or(String::new(), |c| {
+                    format!(" · ceiling ${}", nika_display::vocab::stated_usd(c))
+                });
                 lines.push(format!("project file: {}{ceiling}", path.display()));
             }
             None => lines.push("project file: none (nika init founds one)".to_owned()),

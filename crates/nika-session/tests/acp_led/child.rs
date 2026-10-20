@@ -240,6 +240,21 @@ pub(crate) fn drive(name: &str, root: &Path, home: &Path, observed: &Path) -> Va
             let first = session.turn(CHOOSE);
             steps.push(step(&session, CHOOSE, &first));
         }
+        "grouped_answers" => {
+            let first = session.turn("help me choose two sources");
+            steps.push(step(&session, "help me choose two sources", &first));
+            let ids: Vec<_> = session
+                .work()
+                .questions
+                .iter()
+                .map(|q| q.id.clone())
+                .collect();
+            assert_eq!(ids.len(), 2, "two independent questions");
+            for id in ids {
+                let answer = session.answer_question_for(&id, "use");
+                steps.push(step(&session, "use", &answer));
+            }
+        }
         "unavailable" | "default" | "prose" => {
             let first = session.turn(REQUEST);
             steps.push(step(&session, REQUEST, &first));

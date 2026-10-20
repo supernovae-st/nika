@@ -3,7 +3,17 @@
 # Peak rates; no time discount. USD/M tokens * 1000 = nano-USD/token.
 # 1M interpreted conservatively as 1,048,576; 384K is explicitly 393,216
 # in the official Chat Completions reference. Thinking is included in output.
-schema = "nika/inference-admission@1.1"
+# @1.2 (both optional): `cache_write_nano_per_token` prices input written to
+# the provider's cache where the provider bills it apart; a row with it
+# reserves its whole context at the higher of its input and write rates, and
+# a row without it leaves a call that wrote the cache unknown. `served_models`
+# lists the models the provider's own documentation names as served for
+# `model` (a dated snapshot its replies report), each the same route; a
+# model names one row of its provider.
+# @1.3 (optional): `generation_tokens` is the most a route can generate
+# whatever the request names, when no request parameter bounds its reasoning;
+# the reservation covers it at the output rate in place of the requested output.
+schema = "nika/inference-admission@1.3"
 
 [[tariffs]]
 provider = "deepseek"
@@ -68,30 +78,726 @@ output_nano_per_token = 600
 # No cache discount is qualified. Cache input costs the input rate.
 cached_nano_per_token = 150
 
-# This admission covers only bounded text requests to the exact free variant.
-# The model itself also accepts images/video; those uses are not qualified here.
-# No inference from a :free suffix, absent component, or 0/0
-# models.dev row. No plugin, media-generation, BYOK or dynamic-router claim.
-# The official model page also declares this variant free:
-# https://openrouter.ai/qwen/qwen3.8-27b:free
-# Both byte hashes below name the complete observed GET /api/v1/models body.
-# Use its smaller max_completion_tokens bound, not the model-page context size.
+# OpenAI direct, standard tier (no service_tier is sent). Each row reads its
+# model page: the price, the context window (output included, so the input
+# bound is conservative), the maximum output and the dated snapshot the alias
+# names, which OpenAI's replies report. Both hashes name the saved raw page.
+# No cache-write price is listed: a call that wrote the cache stays unknown.
+# Every OpenAI direct row also names the Responses endpoint, where a request
+# with function tools rides (the current models refuse them on Chat
+# Completions, measured 2026-10-16): the same model at the same price.
+[[tariffs]]
+provider = "openai"
+billing_provider = "openai"
+currency = "USD"
+output_token_param = "max_completion_tokens"
+model = "gpt-5.2"
+endpoints = ["https://api.openai.com/v1/chat/completions", "https://api.openai.com/v1/responses"]
+source = "https://developers.openai.com/api/docs/models/gpt-5.2"
+limits_source = "https://developers.openai.com/api/docs/models/gpt-5.2"
+route_source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+as_of = "2026-10-12"
+source_sha256 = "423a11e34e61d04fc8458a21513a9eeb6a847fb588ba5e849d0e631b91b80688"
+limits_sha256 = "423a11e34e61d04fc8458a21513a9eeb6a847fb588ba5e849d0e631b91b80688"
+context_tokens = 400000
+max_output_tokens = 128000
+served_models = ["gpt-5.2-2025-12-11"]
+input_nano_per_token = 1750
+output_nano_per_token = 14000
+cached_nano_per_token = 175
+
+[[tariffs]]
+provider = "openai"
+billing_provider = "openai"
+currency = "USD"
+output_token_param = "max_completion_tokens"
+model = "gpt-5-mini"
+endpoints = ["https://api.openai.com/v1/chat/completions", "https://api.openai.com/v1/responses"]
+source = "https://developers.openai.com/api/docs/models/gpt-5-mini"
+limits_source = "https://developers.openai.com/api/docs/models/gpt-5-mini"
+route_source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+as_of = "2026-10-12"
+source_sha256 = "c03f608f1a63dbf267c26975771d1fcb5767dd92e8e95e20b182a8af87efc5f3"
+limits_sha256 = "c03f608f1a63dbf267c26975771d1fcb5767dd92e8e95e20b182a8af87efc5f3"
+context_tokens = 400000
+max_output_tokens = 128000
+served_models = ["gpt-5-mini-2025-08-07"]
+input_nano_per_token = 250
+output_nano_per_token = 2000
+cached_nano_per_token = 25
+
+[[tariffs]]
+provider = "openai"
+billing_provider = "openai"
+currency = "USD"
+output_token_param = "max_completion_tokens"
+model = "gpt-4o-mini"
+endpoints = ["https://api.openai.com/v1/chat/completions", "https://api.openai.com/v1/responses"]
+source = "https://developers.openai.com/api/docs/models/gpt-4o-mini"
+limits_source = "https://developers.openai.com/api/docs/models/gpt-4o-mini"
+route_source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+as_of = "2026-10-12"
+source_sha256 = "4fee6ca68a49f09d2c8a20a8ea05378b12bbb83564c43cde5b525c23b0da38aa"
+limits_sha256 = "4fee6ca68a49f09d2c8a20a8ea05378b12bbb83564c43cde5b525c23b0da38aa"
+context_tokens = 128000
+max_output_tokens = 16384
+served_models = ["gpt-4o-mini-2024-07-18"]
+input_nano_per_token = 150
+output_nano_per_token = 600
+cached_nano_per_token = 75
+
+# OpenAI direct, newer models, standard tier: each row reads the markdown form
+# of its model page (`<page>.md`, byte-stable across two fetches on
+# 2026-10-16, whose bytes both hashes name): price, 1,050,000-token window and
+# 128,000 output cap. A prompt above 272K bills the whole request at a higher
+# rate, so each row admits at most 272,000 input tokens at the lower one.
+# `max_completion_tokens` bounds reasoning with the visible output (measured
+# live: a bound of 40 ends at 40 completion tokens, all reasoning, on gpt-5.5
+# and gpt-6-sol). The GPT-6 family bills input written to the prompt cache
+# apart (« Cache writes »); GPT-5.5 and GPT-5.6 list no write rate, so a call
+# that wrote the cache stays unknown there. Each reply names the model itself,
+# except GPT-5.5, which reports its documented default snapshot. The bare
+# `gpt-5.6` alias answers as `gpt-5.6-sol` and is not admitted apart.
+[[tariffs]]
+provider = "openai"
+billing_provider = "openai"
+currency = "USD"
+output_token_param = "max_completion_tokens"
+model = "gpt-5.5"
+endpoints = ["https://api.openai.com/v1/chat/completions", "https://api.openai.com/v1/responses"]
+source = "https://developers.openai.com/api/docs/models/gpt-5.5.md"
+limits_source = "https://developers.openai.com/api/docs/models/gpt-5.5.md"
+route_source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+as_of = "2026-10-16"
+source_sha256 = "ef66bb7639b9d768fabcf9a030404d3890c035fb020d6140d9a87c978b86ea42"
+limits_sha256 = "ef66bb7639b9d768fabcf9a030404d3890c035fb020d6140d9a87c978b86ea42"
+context_tokens = 272000
+max_output_tokens = 128000
+served_models = ["gpt-5.5-2026-04-23"]
+input_nano_per_token = 5000
+output_nano_per_token = 30000
+cached_nano_per_token = 500
+
+[[tariffs]]
+provider = "openai"
+billing_provider = "openai"
+currency = "USD"
+output_token_param = "max_completion_tokens"
+model = "gpt-5.6-sol"
+endpoints = ["https://api.openai.com/v1/chat/completions", "https://api.openai.com/v1/responses"]
+source = "https://developers.openai.com/api/docs/models/gpt-5.6-sol.md"
+limits_source = "https://developers.openai.com/api/docs/models/gpt-5.6-sol.md"
+route_source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+as_of = "2026-10-16"
+source_sha256 = "5afb8d587e02be517ecf973aeb941cddc8c90cf834037ddc23fb9f74f95296e8"
+limits_sha256 = "5afb8d587e02be517ecf973aeb941cddc8c90cf834037ddc23fb9f74f95296e8"
+context_tokens = 272000
+max_output_tokens = 128000
+input_nano_per_token = 4000
+output_nano_per_token = 20000
+cached_nano_per_token = 400
+
+[[tariffs]]
+provider = "openai"
+billing_provider = "openai"
+currency = "USD"
+output_token_param = "max_completion_tokens"
+model = "gpt-6-astra"
+endpoints = ["https://api.openai.com/v1/chat/completions", "https://api.openai.com/v1/responses"]
+source = "https://developers.openai.com/api/docs/models/gpt-6-astra.md"
+limits_source = "https://developers.openai.com/api/docs/models/gpt-6-astra.md"
+route_source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+as_of = "2026-10-16"
+source_sha256 = "b7c19b3bb89e87a392a0f3f8b732c5e7c9f0bf558cbe3022c491575a947fcef8"
+limits_sha256 = "b7c19b3bb89e87a392a0f3f8b732c5e7c9f0bf558cbe3022c491575a947fcef8"
+context_tokens = 272000
+max_output_tokens = 128000
+input_nano_per_token = 10000
+output_nano_per_token = 50000
+cached_nano_per_token = 1000
+cache_write_nano_per_token = 12500
+
+[[tariffs]]
+provider = "openai"
+billing_provider = "openai"
+currency = "USD"
+output_token_param = "max_completion_tokens"
+model = "gpt-6-sol"
+endpoints = ["https://api.openai.com/v1/chat/completions", "https://api.openai.com/v1/responses"]
+source = "https://developers.openai.com/api/docs/models/gpt-6-sol.md"
+limits_source = "https://developers.openai.com/api/docs/models/gpt-6-sol.md"
+route_source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+as_of = "2026-10-16"
+source_sha256 = "3dcb62c16386c40e52438e7fa7fb46b979d13cbfc324d0807246e24ce43345bb"
+limits_sha256 = "3dcb62c16386c40e52438e7fa7fb46b979d13cbfc324d0807246e24ce43345bb"
+context_tokens = 272000
+max_output_tokens = 128000
+input_nano_per_token = 2000
+output_nano_per_token = 10000
+cached_nano_per_token = 200
+cache_write_nano_per_token = 2500
+
+[[tariffs]]
+provider = "openai"
+billing_provider = "openai"
+currency = "USD"
+output_token_param = "max_completion_tokens"
+model = "gpt-6.1-sol"
+endpoints = ["https://api.openai.com/v1/chat/completions", "https://api.openai.com/v1/responses"]
+source = "https://developers.openai.com/api/docs/models/gpt-6.1-sol.md"
+limits_source = "https://developers.openai.com/api/docs/models/gpt-6.1-sol.md"
+route_source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+as_of = "2026-10-16"
+source_sha256 = "acfe91d19882aaf7bb52877898684614035a947de02f2955c9de905a7efb1362"
+limits_sha256 = "acfe91d19882aaf7bb52877898684614035a947de02f2955c9de905a7efb1362"
+context_tokens = 272000
+max_output_tokens = 128000
+input_nano_per_token = 2000
+output_nano_per_token = 10000
+cached_nano_per_token = 100
+cache_write_nano_per_token = 2500
+
+[[tariffs]]
+provider = "openai"
+billing_provider = "openai"
+currency = "USD"
+output_token_param = "max_completion_tokens"
+model = "gpt-6-luna"
+endpoints = ["https://api.openai.com/v1/chat/completions", "https://api.openai.com/v1/responses"]
+source = "https://developers.openai.com/api/docs/models/gpt-6-luna.md"
+limits_source = "https://developers.openai.com/api/docs/models/gpt-6-luna.md"
+route_source = "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create"
+as_of = "2026-10-16"
+source_sha256 = "2e4861582095740f5ea84b14bb18fa476a49c426b397b779b964bc144397b451"
+limits_sha256 = "2e4861582095740f5ea84b14bb18fa476a49c426b397b779b964bc144397b451"
+context_tokens = 272000
+max_output_tokens = 128000
+input_nano_per_token = 100
+output_nano_per_token = 500
+cached_nano_per_token = 10
+cache_write_nano_per_token = 125
+
+# Anthropic direct (Claude API), standard tier, global inference: no
+# `inference_geo` is sent, and a US-only reply (billed 1.1x) stays unknown.
+# Each row reads the official pricing page (base input, output, cache hits and
+# the 5-minute cache write, the only lifetime Nika asks for) and the models
+# overview (1M context, read conservatively as 1,048,576; 128K output, thinking
+# included), both in their markdown form, byte-stable on 2026-10-15, whose
+# saved bytes the hashes name. Claude Haiku 5.5 bills a prompt over 100,000
+# tokens at higher rates: its row admits at most 100,000 input tokens at the
+# lower ones. Each reply reports the model id itself, a pinned snapshot.
+[[tariffs]]
+provider = "anthropic"
+billing_provider = "anthropic"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "claude-sonnet-5-5"
+endpoints = ["https://api.anthropic.com/v1/messages"]
+source = "https://platform.claude.com/docs/en/about-claude/pricing.md"
+limits_source = "https://platform.claude.com/docs/en/about-claude/models/overview.md"
+route_source = "https://platform.claude.com/docs/en/api/messages"
+as_of = "2026-10-15"
+source_sha256 = "a62e85bd0420e44f326f7b6c6c6d9fdb879dbf0e513b93b9f671b72caae5c83b"
+limits_sha256 = "02faed97309963e7c90d18a80ff0f6ba7cf6099d46a7cc1b2ac600ceaebac578"
+context_tokens = 1048576
+max_output_tokens = 128000
+input_nano_per_token = 2000
+output_nano_per_token = 10000
+cached_nano_per_token = 100
+cache_write_nano_per_token = 2500
+
+[[tariffs]]
+provider = "anthropic"
+billing_provider = "anthropic"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "claude-opus-5-5"
+endpoints = ["https://api.anthropic.com/v1/messages"]
+source = "https://platform.claude.com/docs/en/about-claude/pricing.md"
+limits_source = "https://platform.claude.com/docs/en/about-claude/models/overview.md"
+route_source = "https://platform.claude.com/docs/en/api/messages"
+as_of = "2026-10-15"
+source_sha256 = "a62e85bd0420e44f326f7b6c6c6d9fdb879dbf0e513b93b9f671b72caae5c83b"
+limits_sha256 = "02faed97309963e7c90d18a80ff0f6ba7cf6099d46a7cc1b2ac600ceaebac578"
+context_tokens = 1048576
+max_output_tokens = 128000
+input_nano_per_token = 4000
+output_nano_per_token = 20000
+cached_nano_per_token = 200
+cache_write_nano_per_token = 5000
+
+[[tariffs]]
+provider = "anthropic"
+billing_provider = "anthropic"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "claude-haiku-5-5"
+endpoints = ["https://api.anthropic.com/v1/messages"]
+source = "https://platform.claude.com/docs/en/about-claude/pricing.md"
+limits_source = "https://platform.claude.com/docs/en/about-claude/models/overview.md"
+route_source = "https://platform.claude.com/docs/en/api/messages"
+as_of = "2026-10-15"
+source_sha256 = "a62e85bd0420e44f326f7b6c6c6d9fdb879dbf0e513b93b9f671b72caae5c83b"
+limits_sha256 = "02faed97309963e7c90d18a80ff0f6ba7cf6099d46a7cc1b2ac600ceaebac578"
+context_tokens = 100000
+max_output_tokens = 128000
+input_nano_per_token = 100
+output_nano_per_token = 500
+cached_nano_per_token = 10
+cache_write_nano_per_token = 125
+
+[[tariffs]]
+provider = "anthropic"
+billing_provider = "anthropic"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "claude-fable-5-1"
+endpoints = ["https://api.anthropic.com/v1/messages"]
+source = "https://platform.claude.com/docs/en/about-claude/pricing.md"
+limits_source = "https://platform.claude.com/docs/en/about-claude/models/overview.md"
+route_source = "https://platform.claude.com/docs/en/api/messages"
+as_of = "2026-10-15"
+source_sha256 = "a62e85bd0420e44f326f7b6c6c6d9fdb879dbf0e513b93b9f671b72caae5c83b"
+limits_sha256 = "02faed97309963e7c90d18a80ff0f6ba7cf6099d46a7cc1b2ac600ceaebac578"
+context_tokens = 1048576
+max_output_tokens = 128000
+input_nano_per_token = 10000
+output_nano_per_token = 50000
+cached_nano_per_token = 250
+cache_write_nano_per_token = 12500
+
+# The two legacy models the catalogue still names: the pricing page as fetched
+# on 2026-10-16 (Claude Sonnet 4.6 bills its whole 1M window at standard
+# rates; Claude Haiku 4.5 has a 200K window), the limits from each model's own
+# page in its markdown form, whose saved bytes the hashes name.
+[[tariffs]]
+provider = "anthropic"
+billing_provider = "anthropic"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "claude-sonnet-4-6"
+endpoints = ["https://api.anthropic.com/v1/messages"]
+source = "https://platform.claude.com/docs/en/about-claude/pricing.md"
+limits_source = "https://platform.claude.com/docs/en/models/sonnet-4-6/overview.md"
+route_source = "https://platform.claude.com/docs/en/api/messages"
+as_of = "2026-10-16"
+source_sha256 = "d0dc6009ff1bae0023eec432d7c21d4a3b71a71e542ac350dbfd13dc85a8b862"
+limits_sha256 = "6289990a037450f8f9675682d3b115b5d82e4adce3711995f39ba041f9cf4730"
+context_tokens = 1048576
+max_output_tokens = 128000
+input_nano_per_token = 3000
+output_nano_per_token = 15000
+cached_nano_per_token = 300
+cache_write_nano_per_token = 3750
+
+[[tariffs]]
+provider = "anthropic"
+billing_provider = "anthropic"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "claude-haiku-4-5-20251001"
+endpoints = ["https://api.anthropic.com/v1/messages"]
+source = "https://platform.claude.com/docs/en/about-claude/pricing.md"
+limits_source = "https://platform.claude.com/docs/en/models/haiku-4-5/overview.md"
+route_source = "https://platform.claude.com/docs/en/api/messages"
+as_of = "2026-10-16"
+source_sha256 = "d0dc6009ff1bae0023eec432d7c21d4a3b71a71e542ac350dbfd13dc85a8b862"
+limits_sha256 = "bec0ed34119af773736e4ee5897e25cf43b1261a5e63b77b0639fb36814f32e7"
+context_tokens = 200000
+max_output_tokens = 64000
+input_nano_per_token = 1000
+output_nano_per_token = 5000
+cached_nano_per_token = 100
+cache_write_nano_per_token = 1250
+
+# xAI direct, standard tier, global endpoint (the US regional one bills
+# 1.1x). Each row reads the markdown form of its model page (byte-stable
+# across two fetches on 2026-10-16, whose bytes both hashes name): price and
+# context window. A prompt reaching 200k tokens bills the whole request at
+# the higher rate, so each row admits at most 199,999 input tokens at the
+# lower one. xAI documents that `max_completion_tokens` bounds only the
+# visible output, never reasoning (measured: grok-4.7 reasoned 1,973 tokens
+# under a bound of 40), and publishes no output cap: the window bounds every
+# generation, so the reservation covers it. Each reply reports its own charge
+# (`usage.cost_in_usd_ticks`, 10^10 ticks per dollar), which settles the call;
+# these rows reserve and admit the exact route. Each reply names the model.
+[[tariffs]]
+provider = "xai"
+billing_provider = "xai"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "grok-4.7"
+endpoints = ["https://api.x.ai/v1/chat/completions"]
+source = "https://docs.x.ai/developers/models/grok-4.7.md"
+limits_source = "https://docs.x.ai/developers/models/grok-4.7.md"
+route_source = "https://docs.x.ai/developers/rest-api-reference/inference/chat-completions.md"
+as_of = "2026-10-16"
+source_sha256 = "e205dc35969df31ea1bd3e6942098a7d72e56256239b0ff86017b63bfd467fb2"
+limits_sha256 = "e205dc35969df31ea1bd3e6942098a7d72e56256239b0ff86017b63bfd467fb2"
+context_tokens = 199999
+max_output_tokens = 500000
+generation_tokens = 500000
+input_nano_per_token = 2000
+output_nano_per_token = 6000
+cached_nano_per_token = 500
+
+[[tariffs]]
+provider = "xai"
+billing_provider = "xai"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "grok-4.3"
+endpoints = ["https://api.x.ai/v1/chat/completions"]
+source = "https://docs.x.ai/developers/models/grok-4.3.md"
+limits_source = "https://docs.x.ai/developers/models/grok-4.3.md"
+route_source = "https://docs.x.ai/developers/rest-api-reference/inference/chat-completions.md"
+as_of = "2026-10-16"
+source_sha256 = "9bcd456b37a6fa5bb1b1fed6acd53a2d8128e8f1b60d3eea76f44e3badc4ebc2"
+limits_sha256 = "9bcd456b37a6fa5bb1b1fed6acd53a2d8128e8f1b60d3eea76f44e3badc4ebc2"
+context_tokens = 199999
+max_output_tokens = 1000000
+generation_tokens = 1000000
+input_nano_per_token = 1250
+output_nano_per_token = 2500
+cached_nano_per_token = 200
+
+# Google Gemini API direct, Standard paid tier: the pricing page (its
+# markdown bytes, byte-stable across two fetches on 2026-10-16, whose bytes
+# the source hash names) gives the text input, the output with thinking
+# tokens and the implicit-cache read; each model page (its markdown bytes,
+# which the limits hash names) gives the 1,048,576-token input limit and
+# the 65,536-token output limit. Peak rates: where a price rises on a dated
+# step (Gemini 4 Argon on 2026-12-01, Gemini 3.8 and 3.6 Flash on
+# 2027-01-01), the row prices the higher one. Gemini 3.1 Pro Preview and
+# 2.5 Pro bill a prompt above 200k tokens at higher rates: their rows admit
+# at most 200,000 input tokens at the lower ones. A free-tier key is billed
+# nothing, which these paid rows never assume. `maxOutputTokens` bounds the
+# thinking with the answer (measured: a bound of 60 ended at 57 thinking
+# tokens on gemini-3.1-pro-preview). Every qualification names the API stem
+# (the provider's base URL); the transport answers from the model's
+# `:generateContent` URL. Each reply names the model in `modelVersion`.
+[[tariffs]]
+provider = "gemini"
+billing_provider = "gemini"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "gemini-4-argon"
+endpoints = ["https://generativelanguage.googleapis.com/v1beta", "https://generativelanguage.googleapis.com/v1beta/models/gemini-4-argon:generateContent"]
+source = "https://ai.google.dev/gemini-api/docs/pricing.md.txt"
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-4-argon.md.txt"
+route_source = "https://ai.google.dev/api/generate-content.md.txt"
+as_of = "2026-10-16"
+source_sha256 = "bdebb05e0adf0069d19ab0bc1a070eb8728b37a57e5a99f27bcdc7efed6e5ed5"
+limits_sha256 = "1639e03ea13cfa843d3ffb2cd0a3a9c54575d6d495450f57f8d104f1a93ce04c"
+context_tokens = 1048576
+max_output_tokens = 65536
+input_nano_per_token = 4000
+output_nano_per_token = 20000
+cached_nano_per_token = 200
+
+[[tariffs]]
+provider = "gemini"
+billing_provider = "gemini"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "gemini-3.8-flash"
+endpoints = ["https://generativelanguage.googleapis.com/v1beta", "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"]
+source = "https://ai.google.dev/gemini-api/docs/pricing.md.txt"
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash.md.txt"
+route_source = "https://ai.google.dev/api/generate-content.md.txt"
+as_of = "2026-10-16"
+source_sha256 = "bdebb05e0adf0069d19ab0bc1a070eb8728b37a57e5a99f27bcdc7efed6e5ed5"
+limits_sha256 = "decb6897b2969ba139c2673cc4198da9e6e71d97c47809c3eca1c85857443c0f"
+context_tokens = 1048576
+max_output_tokens = 65536
+input_nano_per_token = 1500
+output_nano_per_token = 7500
+cached_nano_per_token = 150
+
+[[tariffs]]
+provider = "gemini"
+billing_provider = "gemini"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "gemini-3.6-flash"
+endpoints = ["https://generativelanguage.googleapis.com/v1beta", "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent"]
+source = "https://ai.google.dev/gemini-api/docs/pricing.md.txt"
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash.md.txt"
+route_source = "https://ai.google.dev/api/generate-content.md.txt"
+as_of = "2026-10-16"
+source_sha256 = "bdebb05e0adf0069d19ab0bc1a070eb8728b37a57e5a99f27bcdc7efed6e5ed5"
+limits_sha256 = "1b918542d3447c55b3206ffb481b6765e1374686b43664398e06360a9e12969a"
+context_tokens = 1048576
+max_output_tokens = 65536
+input_nano_per_token = 1500
+output_nano_per_token = 7500
+cached_nano_per_token = 150
+
+[[tariffs]]
+provider = "gemini"
+billing_provider = "gemini"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "gemini-3.5-flash-lite"
+endpoints = ["https://generativelanguage.googleapis.com/v1beta", "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent"]
+source = "https://ai.google.dev/gemini-api/docs/pricing.md.txt"
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite.md.txt"
+route_source = "https://ai.google.dev/api/generate-content.md.txt"
+as_of = "2026-10-16"
+source_sha256 = "bdebb05e0adf0069d19ab0bc1a070eb8728b37a57e5a99f27bcdc7efed6e5ed5"
+limits_sha256 = "454cc26448323b441d17be32f06349d544face12595f73837c822435f63f46ce"
+context_tokens = 1048576
+max_output_tokens = 65536
+input_nano_per_token = 300
+output_nano_per_token = 2500
+cached_nano_per_token = 30
+
+[[tariffs]]
+provider = "gemini"
+billing_provider = "gemini"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "gemini-3.1-pro-preview"
+endpoints = ["https://generativelanguage.googleapis.com/v1beta", "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent"]
+source = "https://ai.google.dev/gemini-api/docs/pricing.md.txt"
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview.md.txt"
+route_source = "https://ai.google.dev/api/generate-content.md.txt"
+as_of = "2026-10-16"
+source_sha256 = "bdebb05e0adf0069d19ab0bc1a070eb8728b37a57e5a99f27bcdc7efed6e5ed5"
+limits_sha256 = "c142f1e5da2377b52c9ce78d31bae71e59e3a4be445719736154f739599b4da5"
+context_tokens = 200000
+max_output_tokens = 65536
+input_nano_per_token = 2000
+output_nano_per_token = 12000
+cached_nano_per_token = 200
+
+[[tariffs]]
+provider = "gemini"
+billing_provider = "gemini"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "gemini-3.1-flash-lite"
+endpoints = ["https://generativelanguage.googleapis.com/v1beta", "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"]
+source = "https://ai.google.dev/gemini-api/docs/pricing.md.txt"
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite.md.txt"
+route_source = "https://ai.google.dev/api/generate-content.md.txt"
+as_of = "2026-10-16"
+source_sha256 = "bdebb05e0adf0069d19ab0bc1a070eb8728b37a57e5a99f27bcdc7efed6e5ed5"
+limits_sha256 = "c18070124d50adc830ec5e7825219607a72720f3b008c4a46c21017fb87a0ed3"
+context_tokens = 1048576
+max_output_tokens = 65536
+input_nano_per_token = 250
+output_nano_per_token = 1500
+cached_nano_per_token = 25
+
+[[tariffs]]
+provider = "gemini"
+billing_provider = "gemini"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "gemini-3-flash-preview"
+endpoints = ["https://generativelanguage.googleapis.com/v1beta", "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"]
+source = "https://ai.google.dev/gemini-api/docs/pricing.md.txt"
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-3-flash-preview.md.txt"
+route_source = "https://ai.google.dev/api/generate-content.md.txt"
+as_of = "2026-10-16"
+source_sha256 = "bdebb05e0adf0069d19ab0bc1a070eb8728b37a57e5a99f27bcdc7efed6e5ed5"
+limits_sha256 = "4b3ecc61028b150707c10956f6ddf5f59e0f9268ec6aa13a55c9482f61bad584"
+context_tokens = 1048576
+max_output_tokens = 65536
+input_nano_per_token = 500
+output_nano_per_token = 3000
+cached_nano_per_token = 50
+
+[[tariffs]]
+provider = "gemini"
+billing_provider = "gemini"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "gemini-2.5-pro"
+endpoints = ["https://generativelanguage.googleapis.com/v1beta", "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent"]
+source = "https://ai.google.dev/gemini-api/docs/pricing.md.txt"
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-2.5-pro.md.txt"
+route_source = "https://ai.google.dev/api/generate-content.md.txt"
+as_of = "2026-10-16"
+source_sha256 = "bdebb05e0adf0069d19ab0bc1a070eb8728b37a57e5a99f27bcdc7efed6e5ed5"
+limits_sha256 = "65b5b4e6f18388e334f14f792cea8d52c1f094b303c7736b2611c21485c9fc2a"
+context_tokens = 200000
+max_output_tokens = 65536
+input_nano_per_token = 1250
+output_nano_per_token = 10000
+cached_nano_per_token = 125
+
+[[tariffs]]
+provider = "gemini"
+billing_provider = "gemini"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "gemini-2.5-flash"
+endpoints = ["https://generativelanguage.googleapis.com/v1beta", "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"]
+source = "https://ai.google.dev/gemini-api/docs/pricing.md.txt"
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash.md.txt"
+route_source = "https://ai.google.dev/api/generate-content.md.txt"
+as_of = "2026-10-16"
+source_sha256 = "bdebb05e0adf0069d19ab0bc1a070eb8728b37a57e5a99f27bcdc7efed6e5ed5"
+limits_sha256 = "fb2610e7efd10a6f01db63a489f72a44eac5ce814ea0dd645e59c46ab750cd49"
+context_tokens = 1048576
+max_output_tokens = 65536
+input_nano_per_token = 300
+output_nano_per_token = 2500
+cached_nano_per_token = 30
+
+[[tariffs]]
+provider = "gemini"
+billing_provider = "gemini"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "gemini-2.5-flash-lite"
+endpoints = ["https://generativelanguage.googleapis.com/v1beta", "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"]
+source = "https://ai.google.dev/gemini-api/docs/pricing.md.txt"
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash-lite.md.txt"
+route_source = "https://ai.google.dev/api/generate-content.md.txt"
+as_of = "2026-10-16"
+source_sha256 = "bdebb05e0adf0069d19ab0bc1a070eb8728b37a57e5a99f27bcdc7efed6e5ed5"
+limits_sha256 = "af7125c2dbfa1316463995264dfacf06d2dd27cb78b635db429d5b9067d330eb"
+context_tokens = 1048576
+max_output_tokens = 65536
+input_nano_per_token = 100
+output_nano_per_token = 400
+cached_nano_per_token = 10
+
+# BEGIN generated by scripts/refresh-admission.sh from scripts/admission/sources.toml
+# OpenRouter routes. A paid OpenRouter reply settles at its own reported
+# `usage.cost` (non-BYOK, complete meters); these rows only reserve and admit
+# the exact route. Each row is read from the saved
+# GET /api/v1/models/<slug>/endpoints body that both hashes name: rates are the
+# peak per field over every endpoint and every applicable override, the input
+# rate also covering a cache write; limits are the smallest context and
+# max_completion_tokens over the endpoints. The model is the public id from
+# GET /api/v1/models, which the reply echoes, never the dated canonical slug.
+# An endpoint `discount` is not assumed: the peak is the undiscounted price.
+# A route free at every axis of every endpoint is declared free, for bounded
+# text requests to that exact variant only: never inferred from a `:free`
+# suffix, an absent price or a 0/0 snapshot row.
+
+# z-ai/glm-5.3-flash: 32 endpoints.
 [[tariffs]]
 provider = "openrouter"
 billing_provider = "openrouter"
 currency = "USD"
 output_token_param = "max_tokens"
-model = "qwen/qwen3.8-27b:free"
+model = "z-ai/glm-5.3-flash"
 endpoints = ["https://openrouter.ai/api/v1/chat/completions"]
-source = "https://openrouter.ai/api/v1/models"
-limits_source = "https://openrouter.ai/api/v1/models"
+source = "https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash-20260826/endpoints"
+limits_source = "https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash-20260826/endpoints"
 route_source = "https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request"
-as_of = "2026-09-27"
-source_sha256 = "0ca04895657af0cb2ad9ff33f4a43898711d21730f410822e097b4dd45ef94ec"
-limits_sha256 = "0ca04895657af0cb2ad9ff33f4a43898711d21730f410822e097b4dd45ef94ec"
+as_of = "2026-10-12"
+source_sha256 = "56f3ff10298a56380f043300b374370ddc0cd22a461b2ff981f1ba8fe11e9955"
+limits_sha256 = "56f3ff10298a56380f043300b374370ddc0cd22a461b2ff981f1ba8fe11e9955"
+context_tokens = 262144
+max_output_tokens = 128000
+input_nano_per_token = 225
+output_nano_per_token = 1600
+cached_nano_per_token = 99
+
+# xiaomi/mimo-v2.6-flash: 8 endpoints.
+[[tariffs]]
+provider = "openrouter"
+billing_provider = "openrouter"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "xiaomi/mimo-v2.6-flash"
+endpoints = ["https://openrouter.ai/api/v1/chat/completions"]
+source = "https://openrouter.ai/api/v1/models/xiaomi/mimo-v2.6-flash-20260921/endpoints"
+limits_source = "https://openrouter.ai/api/v1/models/xiaomi/mimo-v2.6-flash-20260921/endpoints"
+route_source = "https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request"
+as_of = "2026-10-12"
+source_sha256 = "a92bb94eafd3d8622b503ff6f8f9dc629339a7e3bd46ea276b6f7a86dd6898db"
+limits_sha256 = "a92bb94eafd3d8622b503ff6f8f9dc629339a7e3bd46ea276b6f7a86dd6898db"
+context_tokens = 1000000
+max_output_tokens = 131072
+input_nano_per_token = 190
+output_nano_per_token = 350
+cached_nano_per_token = 50
+
+# stepfun/step-5-preview: 1 endpoint.
+[[tariffs]]
+provider = "openrouter"
+billing_provider = "openrouter"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "stepfun/step-5-preview"
+endpoints = ["https://openrouter.ai/api/v1/chat/completions"]
+source = "https://openrouter.ai/api/v1/models/stepfun/step-5-preview-20261008/endpoints"
+limits_source = "https://openrouter.ai/api/v1/models/stepfun/step-5-preview-20261008/endpoints"
+route_source = "https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request"
+as_of = "2026-10-12"
+source_sha256 = "fd8bc6a817954db80c1f2c0e33b0b2b8cf8146916ed5eb99e50b7cb872bb6994"
+limits_sha256 = "fd8bc6a817954db80c1f2c0e33b0b2b8cf8146916ed5eb99e50b7cb872bb6994"
+context_tokens = 1000000
+max_output_tokens = 64000
+input_nano_per_token = 1000
+output_nano_per_token = 2700
+cached_nano_per_token = 50
+
+# tencent/hy4-preview: 4 endpoints; time windows in the peak.
+[[tariffs]]
+provider = "openrouter"
+billing_provider = "openrouter"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "tencent/hy4-preview"
+endpoints = ["https://openrouter.ai/api/v1/chat/completions"]
+source = "https://openrouter.ai/api/v1/models/tencent/hy4-preview-20260827/endpoints"
+limits_source = "https://openrouter.ai/api/v1/models/tencent/hy4-preview-20260827/endpoints"
+route_source = "https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request"
+as_of = "2026-10-12"
+source_sha256 = "e59aa51a8ae4844f8526bd4087c9025102cbb8862d242c9ae92ee0f5f0f873c0"
+limits_sha256 = "e59aa51a8ae4844f8526bd4087c9025102cbb8862d242c9ae92ee0f5f0f873c0"
+context_tokens = 1000000
+max_output_tokens = 64000
+input_nano_per_token = 834
+output_nano_per_token = 2501
+cached_nano_per_token = 42
+
+# openai/gpt-6-luna: 7 endpoints; web_search not admitted; long-prompt override from 272000 excluded; input rate is the cache-write peak.
+[[tariffs]]
+provider = "openrouter"
+billing_provider = "openrouter"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "openai/gpt-6-luna"
+endpoints = ["https://openrouter.ai/api/v1/chat/completions"]
+source = "https://openrouter.ai/api/v1/models/openai/gpt-6-luna-20260922/endpoints"
+limits_source = "https://openrouter.ai/api/v1/models/openai/gpt-6-luna-20260922/endpoints"
+route_source = "https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request"
+as_of = "2026-10-12"
+source_sha256 = "025ce853fb5f03a723248233aada355034d7068bb630aebcd6e6d52958f220ab"
+limits_sha256 = "025ce853fb5f03a723248233aada355034d7068bb630aebcd6e6d52958f220ab"
+context_tokens = 271999
+max_output_tokens = 128000
+input_nano_per_token = 250
+output_nano_per_token = 1000
+cached_nano_per_token = 20
+
+# nvidia/nemotron-3-super-120b-a12b:free: 1 endpoint.
+[[tariffs]]
+provider = "openrouter"
+billing_provider = "openrouter"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "nvidia/nemotron-3-super-120b-a12b:free"
+endpoints = ["https://openrouter.ai/api/v1/chat/completions"]
+source = "https://openrouter.ai/api/v1/models/nvidia/nemotron-3-super-120b-a12b:free/endpoints"
+limits_source = "https://openrouter.ai/api/v1/models/nvidia/nemotron-3-super-120b-a12b:free/endpoints"
+route_source = "https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request"
+as_of = "2026-10-12"
+source_sha256 = "91b97c1c41e298b65becaa39a920544968ad2d88efa73c74d69c0cb7fa123f3e"
+limits_sha256 = "91b97c1c41e298b65becaa39a920544968ad2d88efa73c74d69c0cb7fa123f3e"
 context_tokens = 262144
 max_output_tokens = 235929
 declared_free = true
 input_nano_per_token = 0
 output_nano_per_token = 0
 cached_nano_per_token = 0
+# END generated

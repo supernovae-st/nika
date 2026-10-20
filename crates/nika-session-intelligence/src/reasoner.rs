@@ -455,6 +455,16 @@ impl SessionReasoner for ProviderReasoner {
     }
 }
 
+/// The temperature a ceilinged call asks of `model` (`provider/name`, a nickname included): zero,
+/// except on a model whose provider refuses any temperature but its default
+/// ([`nika_catalog::refuses_sampling`]: the Claude 5 models), which gets none and its own default.
+fn label_temperature(model: &str) -> Option<f32> {
+    let refused = model
+        .split_once('/')
+        .is_some_and(|(provider, name)| nika_catalog::refuses_sampling(provider, name));
+    (!refused).then_some(0.0)
+}
+
 /// The historical output ceiling of a call made under an explicit Session allowance; none in
 /// continuous preparation, where every call asks its route's real capacity (a fixed label
 /// ceiling cut a reasoning model's answer before it said one word). A ceiling a caller passes
@@ -465,7 +475,8 @@ fn allowance_ceiling(historical: u32) -> Option<u32> {
 
 impl ProviderReasoner {
     /// The one-shot infer verb over the provider registry; a label call
-    /// carries its ceiling and a zero temperature, and any call the explicit effort it asks.
+    /// carries its ceiling and a zero temperature where its model takes one
+    /// ([`label_temperature`]), and any call the explicit effort it asks.
     fn infer(
         &self,
         prompt: &str,
@@ -493,9 +504,7 @@ impl ProviderReasoner {
         let verb = nika_verb_infer::InferVerb::new(registry, self.model.clone());
         let mut input = nika_verb_infer::InferInput::new(prompt);
         input.max_tokens = ceiling.or_else(|| admission.and_then(|_| allowance_ceiling(8192)));
-        if ceiling.is_some() {
-            input.temperature = Some(0.0);
-        }
+        input.temperature = ceiling.and_then(|_| label_temperature(&self.model));
         input.reasoning_effort = reasoning_effort;
         if PreparationCosts::active() {
             let limits = completion_bounds(&self.model, false, provider_config());
@@ -524,7 +533,7 @@ impl ProviderReasoner {
                     (spend.inference_calls.last()).is_some_and(|call| call.usage.is_some());
                 (partial_output, true, reported)
             }
-            Err(e) => return Err(ReasonError::Provider(e.to_string())),
+            Err(e) => return Err(ReasonError::Provider(provider_failure(&e))),
         };
         if cut {
             if purpose == ReplyPurpose::Label {
@@ -538,6 +547,24 @@ impl ProviderReasoner {
             text,
             usage_observed,
         })
+    }
+}
+
+/// What a conversation shows of a failed provider call: a missing or refused key in its own words
+/// (which variable to set), without the command-line teaching a CLI error appends
+/// (`--model mock/echo`, a task `timeout:`); every other failure as the verb words it.
+fn provider_failure(error: &nika_verb_infer::VerbInferError) -> String {
+    use nika_verb_infer::VerbInferError;
+    let source = match error {
+        VerbInferError::ProviderCall { source, .. }
+        | VerbInferError::ModelResolution { source, .. } => source.unobserved(),
+        _ => return error.to_string(),
+    };
+    match source {
+        nika_kernel::ai::provider::ProviderError::AuthFailed { reason } => {
+            format!("authentication failed: {reason}")
+        }
+        _ => error.to_string(),
     }
 }
 
@@ -567,6 +594,32 @@ pub(crate) fn provider_http() -> Result<ProviderHttp, String> {
     #[cfg(any(test, feature = "test-support"))]
     let http = test_transport::Client::new(http);
     Ok(Wire::new(http, Arc::new(Envelope::uncapped(""))))
+}
+
+/// The deadline of one key check: a listing answers in seconds or the route is unreachable.
+const KEY_CHECK_DEADLINE: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Check `provider`'s API key, only when a person asks (« Test the key »): one free GET of a
+/// listing that authenticates the key, on the endpoint a run would use ([`nika_providers::check_key`],
+/// `NIKA_<ID>_BASE_URL` honored), through the provider plane's client with no retry and no
+/// redirect; no model runs, so no token is spent, and the key is never logged or returned.
+///
+/// # Errors
+///
+/// The HTTP client would not start, or the operator stopped the check ([`ReasonError`]).
+pub fn check_api_key(provider: &str) -> Result<nika_providers::KeyCheck, ReasonError> {
+    let mut config = nika_http::HttpConfig::default();
+    config.ssrf = nika_http::SsrfMode::Disabled;
+    config.retry_protocol_nacks = false;
+    config.timeout = KEY_CHECK_DEADLINE;
+    let http = nika_http::ReqwestHttp::with_config(config)
+        .map_err(|e| ReasonError::Provider(e.to_string()))?;
+    block_on(nika_providers::check_key(
+        &http,
+        provider_config(),
+        provider,
+        KEY_CHECK_DEADLINE,
+    ))
 }
 
 /// The providers configuration every reasoner and the provider authoring seat read: the

@@ -19,7 +19,7 @@ use nika_verb_invoke::InvokeVerb;
 
 use super::*;
 
-const FREE: &str = "openrouter/qwen/qwen3.8-27b:free";
+const FREE: &str = "openrouter/nvidia/nemotron-3-super-120b-a12b:free";
 const OPENROUTER: &str = "https://openrouter.ai/api/v1/chat/completions";
 const DEEPSEEK: &str = "https://api.deepseek.com/v1/chat/completions";
 
@@ -449,7 +449,10 @@ async fn a_run_time_free_route_is_observed_and_settles_closed_usage() {
     assert_eq!(observed["unknown_calls"], 0, "{observed}");
     let attempts = observed["attempts"].as_array().expect("attempts");
     assert_eq!(attempts.len(), 1, "{observed}");
-    assert_eq!(attempts[0]["model"], "qwen/qwen3.8-27b:free");
+    assert_eq!(
+        attempts[0]["model"],
+        "nvidia/nemotron-3-super-120b-a12b:free"
+    );
     assert_eq!(attempts[0]["estimated_nano_usd"], "0");
     let done = frame(&events, EventKind::TaskCompleted);
     assert_eq!(field(done, "cost_usd"), Some(&FieldValue::Float(0.0)));

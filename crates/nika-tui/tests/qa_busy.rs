@@ -45,6 +45,16 @@ fn leave(term: &mut Term) {
     assert_restored(term);
 }
 
+/// Once a stop settled, its press is still armed: the idle row says the next
+/// press leaves, and one press leaves with 130.
+fn leave_stopped(term: &mut Term) {
+    term.wait_text("any key stays");
+    term.send("\x03");
+    let status = term.finish();
+    assert_eq!(exit_code(status), Some(130), "{status:?}\n{}", term.dump());
+    assert_restored(term);
+}
+
 /// Start the held turn and wait until its busy row shows.
 fn busy(mode: &str, release: &Release) -> Term {
     let mut term = child::spawn(mode, Some(release.path()), 100, 32);
@@ -71,7 +81,9 @@ fn reduced_motion_keeps_elapsed_stop_and_draft_facts_without_an_idle_tick() {
     let mark = term.mark();
     term.send("draft retained");
     for seconds in [2, 3] {
-        let measured = format!("{BUSY} · {seconds}s");
+        // The live line: what Nika does, its measured time, what Ctrl+C does
+        // now, then the turn's own words.
+        let measured = format!("Preparing · {seconds}s · Ctrl+C stop");
         term.wait_text(&measured);
         let row = term
             .screen
@@ -79,7 +91,7 @@ fn reduced_motion_keeps_elapsed_stop_and_draft_facts_without_an_idle_tick() {
             .into_iter()
             .find(|line| line.contains(&measured))
             .expect("the current busy row");
-        assert!(row.contains(&format!("● {measured}")), "{row}");
+        assert!(row.contains(&format!("● {measured} · {BUSY}")), "{row}");
         assert!(term.screen.contains("draft retained"), "{}", term.dump());
     }
     term.send("\x03");
@@ -110,7 +122,7 @@ fn reduced_motion_keeps_elapsed_stop_and_draft_facts_without_an_idle_tick() {
     let idle = term.mark();
     term.settle(Duration::from_millis(1200));
     assert!(term.bytes_since(idle).is_empty(), "idle drew a timer frame");
-    leave(&mut term);
+    leave_stopped(&mut term);
 }
 
 #[test]
@@ -157,6 +169,101 @@ fn a_ctrl_c_heard_while_the_turn_runs_still_leaves_once_it_ends() {
         term.dump()
     );
     assert_restored(&term);
+}
+
+/// A first `Ctrl+C` asks the held preparation to stop and says a second
+/// press leaves. The stopped turn settling before that press takes nothing
+/// back: the idle row still says the next press leaves, and it leaves with
+/// 130.
+#[test]
+fn a_stop_keeps_its_second_press_once_the_stopped_turn_settles() {
+    let release = Release::new("stop-armed");
+    let mut term = busy("slow-stop", &release);
+    term.send("\x03");
+    term.wait_text("stopping the preparation");
+    release.open();
+    term.wait_until(
+        "the stopped turn settled, its press still armed",
+        |screen| screen.seen(child::STOPPED) && screen.contains("any key stays"),
+    );
+    term.send("\x03");
+    let status = term.finish();
+    assert_eq!(exit_code(status), Some(130), "{status:?}\n{}", term.dump());
+    assert!(
+        !term.screen.seen(SECOND),
+        "a second turn ran\n{}",
+        term.dump()
+    );
+    assert_restored(&term);
+}
+
+/// Keys that arrive once a turn has asked a new question but before that
+/// question's first frame answer nothing: the second question shows, the
+/// queued `Down`, `Enter` and `x` never reach it (the letter waits in the box,
+/// the typeahead law's notice says so), and a choice made once it shows
+/// answers it exactly once.
+#[test]
+fn keys_queued_before_a_new_question_shows_answer_nothing() {
+    let release = Release::new("unseen-question");
+    let questions = child::Questions::at(release.path());
+    let mut term = child::spawn("questions", Some(release.path()), 100, 32);
+    term.wait_prompt(FREE);
+    term.send("ask me\r");
+    term.wait_text(child::FIRST_QUESTION.1);
+    term.settle(SETTLE);
+    // The first question opens on its first row: `Enter` alone takes it.
+    term.send("\r");
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !questions.holding() {
+        assert!(
+            Instant::now() < deadline,
+            "the second question was never asked\n{}",
+            term.dump()
+        );
+        term.pump();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    // Asked, not yet drawn: the shell holds before its first frame while one
+    // write reaches its reader, the letter last. Its channel keeps their order,
+    // so a letter read before the frame says `Down` and `Enter` were too.
+    term.send("\x1b[B\rx");
+    term.settle(SETTLE);
+    release.open();
+    term.wait_workspace_frame(
+        "the second question's first frame, or its answer",
+        |screen| screen.contains(child::SECOND_QUESTION.1) || screen.seen(child::SECOND_ANSWERED),
+    );
+    term.settle(SETTLE);
+    assert_eq!(
+        questions.bound(),
+        "qa-q1 red\n",
+        "the unseen question took a queued key\n{}",
+        term.dump()
+    );
+    assert!(
+        term.screen.contains(child::SECOND_QUESTION.1),
+        "{}",
+        term.dump()
+    );
+    assert!(
+        term.screen
+            .seen("your draft « x » · it is in the box, not sent"),
+        "the queued keys were read before the frame, by the typeahead law\n{}",
+        term.dump()
+    );
+    // A fresh choice once it shows, on its first row: `Down` takes the second
+    // offer (a second `Down` stays on the last), answered once.
+    term.send("\x1b[B\x1b[B\r");
+    term.wait_workspace_frame("the fresh choice answered", |screen| {
+        screen.seen(child::SECOND_ANSWERED)
+    });
+    assert_eq!(
+        questions.bound(),
+        "qa-q1 red\nqa-q2 large\n",
+        "{}",
+        term.dump()
+    );
+    leave(&mut term);
 }
 
 #[test]
@@ -421,9 +528,10 @@ fn a_fresh_question_keeps_palette_aside_words_only_in_the_transcript() {
         screen.lines().iter().any(|row| row == ANSWER)
     });
     assert!(!term.screen.contains("set aside:"), "{}", term.dump());
+    let visible = term.screen.lines().join(" ");
     assert!(
-        term.screen.seen("you typed « yes /status »")
-            && term.screen.seen("kept in this conversation, whole:"),
+        visible.contains("your draft « yes /status »")
+            && visible.contains("kept in this conversation, whole:"),
         "{}",
         term.dump()
     );

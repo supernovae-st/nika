@@ -97,6 +97,7 @@ impl Reading {
                     .iter()
                     .any(|c| c == clause || c.contains(clause.as_str()))
                 || self.unresolved.contains(clause)
+                || self.session_commands.contains(clause)
                 || self.ambiguous.iter().any(|a| a.clause == *clause)
                 || self
                     .plan

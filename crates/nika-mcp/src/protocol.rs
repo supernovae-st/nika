@@ -14,33 +14,26 @@ use serde_json::{Value, json};
 use crate::prompts;
 use crate::tools;
 
-/// The MCP protocol revision this server prefers (its own latest).
+/// The MCP revision `initialize` answers when the client asks for one this
+/// server does not speak: its latest HANDSHAKE revision.
 ///
-/// 2026-07-28 (FINAL of the RC locked 2026-05-21) is a STATELESS-core
-/// revision: over HTTP the handshake + `Mcp-Session-Id` disappear in favor
-/// of per-request `Mcp-Method`/`Mcp-Name` headers — over STDIO (this
-/// server's only transport) nothing structural changes: a 2026-07-28
-/// client may simply START with `tools/list` (no `initialize` first), which
-/// this dispatcher has always accepted (every method is handled statelessly ·
-/// no session object exists to require). Tool inputSchemas are full JSON
-/// Schema 2020-12 (`oneOf`/`$ref` allowed — ours already conform as plain
-/// object schemas). The 2025-era `-32002` code is not emitted here (unknown
-/// method = `-32601` · malformed = `-32600` · both unchanged).
-pub(crate) const PROTOCOL_VERSION: &str = "2026-07-28";
-/// The revisions this server interoperates with — `initialize` ECHOES the
-/// client's requested version when it is one of these (spec lifecycle · version
-/// negotiation MUST · « respond with the same version »), else answers with our
-/// latest and the client decides. All four drive the identical tools/list +
-/// tools/call surface; batching (a 2024-11-05 / 2025-03-26 feature) is handled
-/// by [`dispatch`]; statelessness (2026-07-28) is the dispatcher's native
-/// shape. SUPPORTED stays additive — no client ever breaks (no flag-day).
-pub(crate) const SUPPORTED: [&str; 5] = [
-    "2026-07-28",
-    "2025-11-25",
-    "2025-06-18",
-    "2025-03-26",
-    "2024-11-05",
-];
+/// 2026-07-28 is never named here. That revision has no handshake at all
+/// (`server/discover`, a per-request `_meta.protocolVersion`, `resultType` and
+/// cache hints replace it), and this server implements none of its MUSTs, so
+/// answering an `initialize` with it would claim a protocol it does not
+/// speak. A client of that revision may still open with `tools/list`: this
+/// dispatcher has always been stateless and answers it as every earlier
+/// revision does. The 2025-era `-32002` code is not emitted here (unknown
+/// method = `-32601` · malformed = `-32600`).
+pub(crate) const PROTOCOL_VERSION: &str = "2025-11-25";
+/// The handshake revisions this server interoperates with — `initialize`
+/// ECHOES the client's requested version when it is one of these (spec
+/// lifecycle · version negotiation MUST · « respond with the same version »),
+/// else answers [`PROTOCOL_VERSION`] and the client decides. All four drive
+/// the identical tools/list + tools/call surface; batching (a 2024-11-05 /
+/// 2025-03-26 feature) is handled by [`dispatch`]. SUPPORTED stays additive
+/// for handshake revisions — no client ever breaks (no flag-day).
+pub(crate) const SUPPORTED: [&str; 4] = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 /// The advertised server name (`serverInfo.name`).
 pub(crate) const SERVER_NAME: &str = "nika";
 /// Portable authoring guidance delivered by the server to every MCP client.
@@ -366,14 +359,21 @@ mod tests {
         }
     }
 
+    /// `initialize` never names a revision that has no handshake.
+    /// 2026-07-28 replaced `initialize` with `server/discover` and this server
+    /// implements none of that revision's MUSTs, so a client asking for it,
+    /// like one asking for a revision that does not exist, is answered with
+    /// the latest handshake revision, 2025-11-25.
     #[test]
-    fn negotiates_2026_07_28_by_echo() {
-        // The FINAL rev (RC locked 2026-05-21) is in SUPPORTED — a client
-        // requesting it gets it echoed back (spec lifecycle MUST).
-        let resp = handle(&json!({ "jsonrpc": "2.0", "id": 9, "method": "initialize",
-            "params": { "protocolVersion": "2026-07-28" } }))
-        .expect("reply");
-        assert_eq!(resp["result"]["protocolVersion"], "2026-07-28");
+    fn initialize_never_names_a_no_handshake_revision() {
+        for asked in ["2026-07-28", "1900-01-01"] {
+            let resp = handle(&json!({ "jsonrpc": "2.0", "id": 9, "method": "initialize",
+                "params": { "protocolVersion": asked } }))
+            .expect("reply");
+            assert_eq!(resp["result"]["protocolVersion"], "2025-11-25", "{asked}");
+        }
+        assert!(!SUPPORTED.contains(&"2026-07-28"));
+        assert_eq!(PROTOCOL_VERSION, "2025-11-25");
     }
 
     #[test]

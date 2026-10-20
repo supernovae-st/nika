@@ -190,8 +190,14 @@ pub(super) fn cost(out: &mut String, report: &CheckReport, t: Theme, layers: &Ve
                 crate::vocab::usd(report.cost.bounded_total_usd)
             ),
             // W3-F4 · a seat-served model is billed to its subscription: the
-            // dollar figure is its API counterfactual, said in words.
-            if layers.seat_served.is_empty() {
+            // dollar figure is its API counterfactual, said in words. A route that reasons beyond
+            // `max_tokens` bounds its visible output only (live gauntlet r04 B7).
+            if let Some(beyond) = reasoning_beyond(report) {
+                t.paint(
+                    Role::Warn,
+                    &format!("visible-output ceiling · reasoning of {beyond} billed beyond it"),
+                )
+            } else if layers.seat_served.is_empty() {
                 "worst-case output ceiling".to_owned()
             } else {
                 format!(
@@ -228,6 +234,15 @@ pub(super) fn cost(out: &mut String, report: &CheckReport, t: Theme, layers: &Ve
         ),
     );
     cost_task_rows(out, report, t);
+}
+
+/// The tasks whose route bills reasoning beyond `max_tokens`, named, when there are any.
+fn reasoning_beyond(report: &nika_check::CheckReport) -> Option<String> {
+    let named: Vec<String> = (report.cost.tasks.iter())
+        .filter(|task| task.reasoning_beyond)
+        .map(|task| format!("`{}`", task.task))
+        .collect();
+    (!named.is_empty()).then(|| named.join(", "))
 }
 
 #[cfg(test)]

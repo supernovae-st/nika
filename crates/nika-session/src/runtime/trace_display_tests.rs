@@ -110,12 +110,12 @@ fn every_host_text_names_the_trace_as_the_project_holds_it() {
         values: None,
         withheld: None,
     };
-    let aside = aside::explain_gate(&gate(absolute.clone()), root.path());
+    let aside = aside::explain_gate(&gate(absolute.clone()), root.path(), Lang::En);
     assert!(
         aside.contains("the trace `.nika/traces/gone.ndjson` holds what ran before it"),
         "{aside}"
     );
-    let aside = aside::explain_gate(&gate(elsewhere.to_path_buf()), root.path());
+    let aside = aside::explain_gate(&gate(elsewhere.to_path_buf()), root.path(), Lang::En);
     assert!(aside.contains("the trace `<journal>` holds"), "{aside}");
 }
 
@@ -141,5 +141,94 @@ fn a_restored_pause_names_its_trace_as_the_project_holds_it() {
     assert!(
         !notice.contains(&root.path().display().to_string()),
         "{notice}"
+    );
+}
+
+/// A native run's work names the verifier's seal facts for its local journal, read when the
+/// Session observes the run and held beside the kept value, which stays the one an earlier engine
+/// reads: a journal that is not a verified chain is neither seal-verified nor signed. A run told
+/// no journal names no seal fact, and a served run keeps the facts its own door attested.
+#[test]
+fn a_native_runs_journal_is_judged_by_the_verifier_when_observed() {
+    let root = tempfile::tempdir().expect("root");
+    let journal = root.path().join(".nika/traces/t.ndjson");
+    std::fs::create_dir_all(root.path().join(".nika/traces")).expect("traces");
+    std::fs::write(&journal, "{\"kind\":\"not a journal\"}\n").expect("journal");
+    let mut s = session(root.path());
+    let _ = s.observe_run(0, Some(&journal));
+    let run = s.work().run.expect("a run");
+    assert_eq!(
+        (run.seal_verified, run.signed),
+        (Some(false), Some(false)),
+        "the local journal was read and judged"
+    );
+    let kept = s.kept_run().expect("kept").expect("readable");
+    assert_eq!(
+        kept.seal_verified, None,
+        "the kept value of a native run is unchanged"
+    );
+    let _ = s.observe_run(0, None);
+    let run = s.work().run.expect("a run");
+    assert_eq!(
+        (run.seal_verified, run.signed),
+        (None, None),
+        "no journal, no seal fact"
+    );
+    let served = crate::run_view::KeptRun::new().served("job-1", None, None);
+    let _ = s.observe_run_leg(0, Some(&journal), served);
+    let run = s.work().run.expect("a run");
+    assert_eq!(run.job.as_deref(), Some("job-1"));
+    assert_eq!(run.seal_verified, None, "its own door attests a served run");
+}
+
+/// An interrupted run whose receipt named its chain head stopped at a wave boundary: `sealed`
+/// reads that fact, whatever a verifier says of its journal. An unsigned journal is judged
+/// neither seal-verified nor signed, and its run still reads sealed: no verifier's judgment
+/// turns a Stop into a cut, and no `sealed` fact reads as a signature.
+#[test]
+fn an_unsigned_complete_chain_reads_sealed_and_never_signed() {
+    let root = tempfile::tempdir().expect("root");
+    let journal = root.path().join(".nika/traces/t.ndjson");
+    std::fs::create_dir_all(root.path().join(".nika/traces")).expect("traces");
+    std::fs::write(&journal, "{\"kind\":\"not a journal\"}\n").expect("journal");
+    let mut s = session(root.path());
+    let mut leg = crate::run_view::KeptRun::new();
+    leg.chain_head = Some("cd".to_owned());
+    let _ = s.observe_run_leg(130, Some(&journal), leg);
+    let run = s.work().run.expect("a run");
+    assert!(run.sealed, "its receipt named the chain head");
+    assert_eq!(
+        (run.seal_verified, run.signed),
+        (Some(false), Some(false)),
+        "the verifier judged the journal unsigned"
+    );
+}
+
+/// An opaque trace identity (a resident's, kept from served history that predates `job`) is never
+/// read as a local journal, whatever this root holds under that name: its seal facts stay
+/// unknown, never a judged `false`, and `sealed` keeps its own meaning (the receipt named the
+/// chain head).
+#[test]
+fn an_opaque_trace_is_never_read_as_a_local_journal() {
+    let root = tempfile::tempdir().expect("root");
+    let opaque = "01a11bc6d9d775e3b6f53a184c031914";
+    std::fs::write(root.path().join(opaque), "{\"kind\":\"not a journal\"}\n")
+        .expect("a file under that name");
+    let mut s = session(root.path());
+    let mut leg = crate::run_view::KeptRun::new();
+    leg.trace = Some(opaque.to_owned());
+    leg.trace_opaque = true;
+    leg.chain_head = Some("cd".to_owned());
+    let _ = s.observe_run_leg(0, None, leg);
+    let run = s.work().run.expect("a run");
+    assert_eq!(run.trace.as_deref(), Some(opaque));
+    assert_eq!(
+        (run.seal_verified, run.signed),
+        (None, None),
+        "an opaque identity is never read here"
+    );
+    assert!(
+        run.sealed,
+        "its receipt named the chain head: `sealed` keeps that meaning"
     );
 }

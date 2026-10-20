@@ -52,6 +52,20 @@ pub(crate) fn size_words(n: usize) -> String {
     size_words_u64(wide(n))
 }
 
+/// [`size_words`] in `canvas`'s language: its unit said there, the number as
+/// it is.
+#[allow(clippy::cast_precision_loss)] // a display magnitude with one decimal
+pub(crate) fn size_words_in(n: usize, canvas: Canvas) -> String {
+    let (form, value) = match wide(n) {
+        1 => return canvas.say("1 byte").to_owned(),
+        n if n < 1_000 => ("{n} bytes", n.to_string()),
+        n if n < 1_000_000 => ("{n} KB", format!("{:.1}", n as f64 / 1e3)),
+        n if n < 1_000_000_000 => ("{n} MB", format!("{:.1}", n as f64 / 1e6)),
+        n => ("{n} GB", format!("{:.1}", n as f64 / 1e9)),
+    };
+    canvas.say(form).replace("{n}", &value)
+}
+
 /// [`size_words`] for a declared 64-bit size.
 #[allow(clippy::cast_precision_loss)] // a display magnitude with one decimal
 pub(crate) fn size_words_u64(n: u64) -> String {
@@ -216,6 +230,11 @@ pub(crate) fn count(n: usize, noun: &str) -> String {
     } else {
         format!("{n} {noun}s")
     }
+}
+
+/// [`count`] in `canvas`'s language and glyph column.
+pub(crate) fn count_in(n: usize, noun: &str, canvas: Canvas) -> String {
+    crate::workspace::lang::count(canvas.lang, canvas.ascii, n, noun)
 }
 
 /// A span in a role's style.
@@ -695,7 +714,7 @@ pub(crate) fn head(facts: &[String], notes: &[Note], canvas: Canvas) -> Vec<Line
         } else {
             ("~ ", Role::Dim)
         };
-        let text = paint(words(&note.text(canvas.ascii)), tone, canvas.color);
+        let text = paint(words(&note.said(canvas)), tone, canvas.color);
         let (rows, _) = wrap(&[text], width.saturating_sub(2), 3);
         for (index, row) in rows.into_iter().enumerate() {
             let lead = if index == 0 {

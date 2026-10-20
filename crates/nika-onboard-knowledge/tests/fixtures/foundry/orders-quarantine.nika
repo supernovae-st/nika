@@ -35,8 +35,8 @@ tasks:
     invoke:
       tool: "nika:jq"
       args:
-        input: "${{ with.split }}"
-        expression: "[.valid[] | .${{ const.amount_field }} | tonumber] | add // 0"
+        input: { split: "${{ with.split }}", field: "${{ const.amount_field }}" }
+        expression: ".field as $f | [.split.valid[] | .[$f] | tonumber] | add // 0"
   quarantine_text:
     with: { split: "${{ tasks.split.output }}" }
     invoke: { tool: "nika:jq", args: { input: "${{ with.split }}", expression: ".invalid | tojson" } }

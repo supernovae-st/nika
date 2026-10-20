@@ -15,7 +15,10 @@
 use std::path::{Path, PathBuf};
 
 use nika_check::analyze;
-use nika_schema::{FileId, ParseMode, SchemaError, SpecCategory, SpecCode, parse};
+use nika_schema::{
+    FileId, PROJECT_FILE_CAP, ParseMode, ProjectFileRead, SchemaError, SpecCategory, SpecCode,
+    parse,
+};
 
 /// Resolve the nika-spec checkout (env override · sibling default).
 pub(crate) fn spec_dir() -> PathBuf {
@@ -90,6 +93,52 @@ impl Expected {
     }
 }
 
+/// Parse + compose the fixture's project files (the production compose, over the fixture's
+/// own directory) + analyze · every emitted error, as the composed workflow meets them.
+pub(crate) fn run_engine_in(yaml: &str, mode: ParseMode, dir: &Path) -> Vec<SchemaError> {
+    match parse(yaml, FileId::new(0), mode) {
+        Ok(wf) => {
+            let root = fixture_root(dir);
+            let composed =
+                nika_schema::compose_project_files(&wf, ".", &mut |p| fixture_file(&root, p));
+            analyze(&composed.workflow).err().unwrap_or_default()
+        }
+        Err(e) => vec![e],
+    }
+}
+
+/// A fixture's context is its OWN directory (runner-protocol: the fixture's files, never the
+/// caller's), resolved once to an absolute root, never the process cwd.
+pub(crate) fn fixture_root(dir: &Path) -> PathBuf {
+    dir.canonicalize()
+        .unwrap_or_else(|e| panic!("fixture root {} does not resolve: {e}", dir.display()))
+}
+
+/// One project file of a fixture (spec 02 §Project files): a project-relative path under the
+/// fixture root, no symbolic link at any component, a regular file, at most the cap plus one byte.
+pub(crate) fn fixture_file(root: &Path, relative: &str) -> Result<Vec<u8>, ProjectFileRead> {
+    let mut path = root.to_path_buf();
+    for segment in relative.split('/') {
+        path.push(segment);
+        match std::fs::symlink_metadata(&path) {
+            Ok(meta) if meta.file_type().is_symlink() => return Err(ProjectFileRead::Linked),
+            Ok(_) => {}
+            Err(_) => return Err(ProjectFileRead::Missing),
+        }
+    }
+    if !path.is_file() {
+        return Err(ProjectFileRead::NotRegular);
+    }
+    let file = std::fs::File::open(&path).map_err(|_| ProjectFileRead::Missing)?;
+    let mut bytes = Vec::new();
+    std::io::Read::read_to_end(
+        &mut std::io::Read::take(file, (PROJECT_FILE_CAP + 1) as u64),
+        &mut bytes,
+    )
+    .map_err(|_| ProjectFileRead::Missing)?;
+    Ok(bytes)
+}
+
 /// Run parse + analyze · collect every emitted error.
 pub(crate) fn run_engine(yaml: &str, mode: ParseMode) -> Vec<SchemaError> {
     match parse(yaml, FileId::new(0), mode) {
@@ -136,21 +185,20 @@ pub(crate) fn matches_code(spec: SpecCode, expected: &ExpectedError) -> bool {
 pub(crate) fn check_extra(yaml: &str, mode: ParseMode, dir: &Path) -> Vec<SpecCode> {
     match parse(yaml, FileId::new(0), mode) {
         Ok(wf) => {
-            // A fixture's context is its OWN directory (runner-protocol: the
-            // fixture's files, never the caller's): resolved once to an
-            // absolute root, never the process cwd. The composed lane's
-            // `workflow:` targets arrive already absolute and `join` keeps
-            // them; a relative request — `.nika/mcp_servers.json`, a sibling
-            // file — reads from this root. An absent or malformed file stays
-            // the checker's own refusal. Not an OS confinement boundary.
-            let root = dir
-                .canonicalize()
-                .unwrap_or_else(|e| panic!("fixture root {} does not resolve: {e}", dir.display()));
+            // The composed lane's `workflow:` targets arrive already absolute
+            // and `join` keeps them; a relative request — `.nika/mcp_servers.json`,
+            // a sibling file — reads from the fixture root. The project files
+            // compose through the production door. An absent or malformed file
+            // stays the checker's own refusal. Not an OS confinement boundary.
+            let root = fixture_root(dir);
             let entry = root.join("input.yaml").to_string_lossy().into_owned();
-            let mut codes = nika_check::check_composed(&wf, &entry, &mut |p| {
-                std::fs::read_to_string(root.join(p)).map_err(|e| e.to_string())
-            })
-            .extra_conformance_codes();
+            let (_, report) = nika_check::check_project(
+                &wf,
+                &entry,
+                &mut |p| std::fs::read_to_string(root.join(p)).map_err(|e| e.to_string()),
+                &mut |p| fixture_file(&root, p),
+            );
+            let mut codes = report.extra_conformance_codes();
             codes.extend(skills_codes(&wf, &root));
             codes
         }
@@ -198,7 +246,7 @@ pub(crate) fn fixture_verdict(dir: &Path, _deep: bool) -> Option<String> {
     // `analyze()` (rich SchemaErrors) plus every check-only invalidating
     // surface (builtin args · capability escapes · policy · authority ·
     // composition · skills) — advisory findings never enter.
-    let emitted = run_engine(&yaml, mode);
+    let emitted = run_engine_in(&yaml, mode, dir);
     let extra = check_extra(&yaml, mode, dir);
 
     if expected.valid {

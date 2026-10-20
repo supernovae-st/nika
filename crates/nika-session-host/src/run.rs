@@ -8,7 +8,8 @@
 //! trace and no assurance are invented for a run that did not happen.
 //!
 //! A door that can stop its runs lends the host a [`RunStop`] for each one: the run's own first
-//! signal, the one a first Ctrl-C sends, so in-flight work completes and no new wave starts.
+//! signal, the one a first Ctrl-C sends, so in-flight work completes (except an MCP call under
+//! way, which is stopped and named in the settlement's `stopped_calls`) and no new wave starts.
 //! A Stop taken before the run started its work is applied when it starts: one taken before the
 //! door spawns its child starts nothing, one taken after reaches the child as its run starts.
 
@@ -18,6 +19,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use nika_cli_host::display::run_story::{EventKind, ExecutionId, RunFrame, RunIdentity};
 use nika_cli_host::lane::{self, ChildSlot, PendingRun, RunProgress};
 use nika_session::KeptRun;
+use serde_json::{Map, Value};
 
 /// What a door's run port receives and tells: the Session's run request and the run's story.
 pub use nika_cli_host::lane::RunSink;
@@ -462,6 +464,42 @@ pub struct JobEnd {
     pub trace: Option<String>,
     /// The journal's chain head, as the receipt names it.
     pub chain_head: Option<String>,
+    /// A failed job's own words, as its resident's record names them.
+    pub error: Option<JobError>,
+    /// The resident refused the job before any task ran (an unpriced route, a refused
+    /// admission): it failed, wrote no journal and lost none. `error` says why.
+    pub refused: bool,
+    /// The receipt the resident's job route serves for the job, when its observation ended
+    /// with one.
+    pub receipt: Option<Map<String, Value>>,
+    /// The declared outputs the resident's job route serves for the job (an empty object when
+    /// the workflow declared none), when it serves them: absent is not carried, never « no
+    /// outputs ».
+    pub outputs: Option<Map<String, Value>>,
+    /// The verdict `nika trace verify` gives the job's journal, as the resident's own verify
+    /// door projects it, when a journal exists.
+    pub verdict: Option<Value>,
+}
+
+/// A failed job's error, as its resident's record names it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct JobError {
+    /// Its code, as the record names it (`NIKA-1709`, `admission_refused`, …).
+    pub code: String,
+    /// The resident's message for it.
+    pub message: String,
+}
+
+impl JobError {
+    /// An error from its code and message.
+    #[must_use]
+    pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+        }
+    }
 }
 
 impl JobEnd {
@@ -489,6 +527,40 @@ impl JobEnd {
         self
     }
 
+    /// The same end with the error its resident's record names, when it names one, and whether
+    /// the resident refused the job before any task ran.
+    #[must_use]
+    pub fn with_error(mut self, error: Option<JobError>, refused: bool) -> Self {
+        self.error = error;
+        self.refused = refused;
+        self
+    }
+
+    /// The same end with what the resident's job route serves for the job (its receipt and its
+    /// declared outputs) and the verdict its verify door gives the job's journal.
+    #[must_use]
+    pub fn with_served(
+        mut self,
+        receipt: Option<Map<String, Value>>,
+        outputs: Option<Map<String, Value>>,
+        verdict: Option<Value>,
+    ) -> Self {
+        self.receipt = receipt;
+        self.outputs = outputs;
+        self.verdict = verdict;
+        self
+    }
+
+    /// Why the job never ran, in its resident's words, when the resident refused it before any
+    /// task did. A job that ran is read from its journal instead.
+    fn refused_before_running(&self) -> Option<String> {
+        if !self.refused {
+            return None;
+        }
+        let error = self.error.as_ref()?;
+        Some(format!("{} ({}) · nothing ran", error.message, error.code))
+    }
+
     /// What the end names of the run, as the Session keeps it: the receipt's identities (its
     /// trace marked opaque, never a path to read), and the source hash the job's own journal
     /// started with when that journal is this very execution's.
@@ -507,6 +579,22 @@ impl JobEnd {
         leg.trace_opaque = leg.trace.is_some();
         leg.chain_head.clone_from(&self.chain_head);
         Some(leg)
+    }
+
+    /// The end as the Session keeps a served run: what its receipt identifies ([`Self::leg`]),
+    /// the job its resident ran it as, the receipt and declared outputs that resident serves for
+    /// the job, and the seal facts its verify door attests for the job's journal, never the
+    /// receipt's chain head read as a seal.
+    fn served_leg(&self, job: &str) -> KeptRun {
+        let leg = (self.leg().unwrap_or_default()).served(
+            job,
+            self.receipt.clone(),
+            self.outputs.clone(),
+        );
+        match &self.verdict {
+            Some(verdict) => leg.verified(verdict),
+            None => leg,
+        }
     }
 }
 
@@ -698,12 +786,24 @@ impl JobDoor {
         sink.said(format!("run admitted as job {job}"));
         match self.handle.block_on(self.jobs.settled(job)) {
             Ok(end) => {
+                // A job refused before any task ran is a run that did not start, in its
+                // resident's words: never an observed workflow failure with nothing to read.
+                if let Some(why) = end.refused_before_running() {
+                    sink.said(format!("job {job} was refused before any task ran"));
+                    return RunStep::NotStarted { why };
+                }
                 sink.said(format!("job {job} ended with exit {}", end.exit));
-                let leg = end.leg();
+                if let Some(error) = &end.error {
+                    sink.said(format!(
+                        "job {job} failed: {} · {}",
+                        error.code, error.message
+                    ));
+                }
+                let leg = end.served_leg(job);
                 RunStep::Observed {
                     exit: end.exit,
                     trace: end.journal,
-                    leg,
+                    leg: Some(leg),
                 }
             }
             Err(why) => RunStep::Unobserved {

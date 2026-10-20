@@ -1,0 +1,9 @@
+nika: egress-001-negative
+tasks:
+  brief:
+    infer:
+      prompt: |
+        Check this certificate:
+        -----BEGIN CERTIFICATE-----
+        not-a-cert
+        -----END CERTIFICATE-----

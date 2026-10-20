@@ -61,7 +61,8 @@ async fn a_revoked_free_observer_never_rewrites_paid_thinking_into_text_only_com
         ProvidersConfig::new().with_key("anthropic", Secret::new("fixture")),
     )
     .with_inference_admission(account.clone());
-    let model = "anthropic/sonnet";
+    // A Claude model that takes a thinking budget (the Claude 5 models think adaptively).
+    let model = "anthropic/claude-sonnet-4-6";
     let mut request = InferRequest::new(model, vec![Message::text(Role::User, "hello")]);
     request.max_tokens = Some(4096);
     request.thinking_budget = Some(2048);
@@ -91,7 +92,10 @@ async fn mixed_routes_keep_separate_http_retry_contracts() {
             .with_key("openrouter", Secret::new("fixture")),
     )
     .with_inference_admission_http(account.clone(), bounded.clone());
-    for model in ["openrouter/qwen/qwen3.8-27b:free", "anthropic/sonnet"] {
+    for model in [
+        "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+        "anthropic/claude-sonnet-4-6",
+    ] {
         let mut request = InferRequest::new(model, vec![Message::text(Role::User, "hello")]);
         request.max_tokens = Some(4096);
         if model.starts_with("anthropic/") {
@@ -141,7 +145,7 @@ async fn a_run_observer_judges_the_rendered_route_with_the_review_predicate() {
     )
     .with_inference_admission_http(account.clone(), http.clone());
     for (model, observed) in [
-        ("openrouter/qwen/qwen3.8-27b:free", true),
+        ("openrouter/nvidia/nemotron-3-super-120b-a12b:free", true),
         ("deepseek/deepseek-v4-pro", false),
         ("anthropic/claude-sonnet-4-5-20250929", false),
         ("ollama/llama3.2", false),
@@ -180,14 +184,14 @@ async fn a_run_observer_judges_the_rendered_route_with_the_review_predicate() {
     );
     // The observed free route still refuses an unqualified shape before any byte.
     let free = registry
-        .resolve("openrouter/qwen/qwen3.8-27b:free")
+        .resolve("openrouter/nvidia/nemotron-3-super-120b-a12b:free")
         .expect("free");
     let image = nika_kernel::ai::provider::ContentBlock::Image {
         source: "https://example.invalid/a.png".into(),
         detail: None,
     };
     let mut request = InferRequest::new(
-        "openrouter/qwen/qwen3.8-27b:free",
+        "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
         vec![Message::new(Role::User, vec![image])],
     );
     request.max_tokens = Some(512);

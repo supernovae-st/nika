@@ -181,6 +181,8 @@ fn groups(cases: &[(String, String)]) -> Vec<(String, usize, String)> {
 }
 
 /// `(group, cases, sha256)` captured from the pre-move code; never recomputed by the code under test.
+/// A `*/json` case is hashed once the two keys the doctor's JSON gained since are removed
+/// ([`ADDED`]), so every other byte is still compared with the pre-move one.
 const EXPECTED: &[(&str, usize, &str)] = &[
     (
         "empty/human",
@@ -234,9 +236,38 @@ const EXPECTED: &[(&str, usize, &str)] = &[
     ),
 ];
 
+/// The two keys the doctor's JSON gained after the pre-move capture, as the exact bytes it writes
+/// them (`scope.mode`, and `summary.unknown` at zero in every case above); [`MIXED_JSON`] pins
+/// them in place.
+const ADDED: [&str; 2] = [
+    "  \"scope\": {\n    \"mode\": \"audit-wide\"\n  },\n",
+    "    \"unknown\": 0,\n",
+];
+
+/// A JSON case as the pre-move code wrote it: each [`ADDED`] fragment found exactly once and
+/// removed, nothing parsed or written again, so any other drift still changes the digest.
+fn without_the_added_keys(name: &str, text: &str) -> String {
+    let mut text = text.to_owned();
+    for fragment in ADDED {
+        assert_eq!(text.matches(fragment).count(), 1, "{name}: {fragment:?}");
+        text = text.replacen(fragment, "", 1);
+    }
+    text
+}
+
 #[test]
 fn doctor_renders_the_pre_move_bytes() {
-    let cases = cases();
+    let cases: Vec<(String, String)> = cases()
+        .into_iter()
+        .map(|(name, text)| {
+            let text = if name.split('/').nth(1) == Some("json") {
+                without_the_added_keys(&name, &text)
+            } else {
+                text
+            };
+            (name, text)
+        })
+        .collect();
     let want: Vec<(String, usize, String)> = EXPECTED
         .iter()
         .map(|(g, n, s)| ((*g).to_owned(), *n, (*s).to_owned()))
@@ -260,4 +291,4 @@ fn the_mixed_report_keeps_its_exact_pre_move_text() {
 
 const MIXED_HUMAN: &str = "✖ 3 ok · 2 warn · 1 fail\n✔ binary     v0.0.0-tëst ✨\n✖ runtime    broken\nsecond line\ttab\n  fix: nika doctor\n✔ a-label-wider-than-the-column \n⚠ café       équipe · 日本語\n  fix: \n✔ binary     v0.96.0 again\n  fix: nika welcome\n· advisory   a healthy machine's notes — config defaults · nika doctor --verbose unfolds each\n";
 
-const MIXED_JSON: &str = "{\n  \"access\": {\n    \"best\": \"mistral\",\n    \"paths\": [\n      {\n        \"class\": \"api\",\n        \"configured\": true,\n        \"custody\": \"MISTRAL_API_KEY\",\n        \"fix\": null,\n        \"id\": \"mistral\"\n      },\n      {\n        \"class\": \"api\",\n        \"configured\": false,\n        \"custody\": \"DEEPSEEK_API_KEY\",\n        \"fix\": \"export DEEPSEEK_API_KEY=…\",\n        \"id\": \"deepseek\"\n      },\n      {\n        \"class\": \"local\",\n        \"configured\": true,\n        \"custody\": null,\n        \"fix\": null,\n        \"id\": \"ollama\"\n      }\n    ],\n    \"seats_ready\": [\n      \"mistral\"\n    ]\n  },\n  \"adoption_state\": \"key_present\",\n  \"findings\": [\n    {\n      \"detail\": \"v0.0.0-tëst ✨\",\n      \"fix\": null,\n      \"label\": \"binary\",\n      \"level\": \"ok\"\n    },\n    {\n      \"detail\": \"a \\\"quoted\\\" \\\\ detail\",\n      \"fix\": \"nika wire claude\",\n      \"label\": \"config\",\n      \"level\": \"warn\"\n    },\n    {\n      \"detail\": \"broken\\nsecond line\\ttab\",\n      \"fix\": \"nika doctor\",\n      \"label\": \"runtime\",\n      \"level\": \"fail\"\n    },\n    {\n      \"detail\": \"\",\n      \"fix\": null,\n      \"label\": \"a-label-wider-than-the-column\",\n      \"level\": \"ok\"\n    },\n    {\n      \"detail\": \"équipe · 日本語\",\n      \"fix\": \"\",\n      \"label\": \"café\",\n      \"level\": \"warn\"\n    },\n    {\n      \"detail\": \"v0.96.0 again\",\n      \"fix\": \"nika welcome\",\n      \"label\": \"binary\",\n      \"level\": \"ok\"\n    }\n  ],\n  \"receipts\": [],\n  \"summary\": {\n    \"fail\": 1,\n    \"ok\": 3,\n    \"warn\": 2\n  }\n}";
+const MIXED_JSON: &str = "{\n  \"access\": {\n    \"best\": \"mistral\",\n    \"paths\": [\n      {\n        \"class\": \"api\",\n        \"configured\": true,\n        \"custody\": \"MISTRAL_API_KEY\",\n        \"fix\": null,\n        \"id\": \"mistral\"\n      },\n      {\n        \"class\": \"api\",\n        \"configured\": false,\n        \"custody\": \"DEEPSEEK_API_KEY\",\n        \"fix\": \"export DEEPSEEK_API_KEY=…\",\n        \"id\": \"deepseek\"\n      },\n      {\n        \"class\": \"local\",\n        \"configured\": true,\n        \"custody\": null,\n        \"fix\": null,\n        \"id\": \"ollama\"\n      }\n    ],\n    \"seats_ready\": [\n      \"mistral\"\n    ]\n  },\n  \"adoption_state\": \"key_present\",\n  \"findings\": [\n    {\n      \"detail\": \"v0.0.0-tëst ✨\",\n      \"fix\": null,\n      \"label\": \"binary\",\n      \"level\": \"ok\"\n    },\n    {\n      \"detail\": \"a \\\"quoted\\\" \\\\ detail\",\n      \"fix\": \"nika wire claude\",\n      \"label\": \"config\",\n      \"level\": \"warn\"\n    },\n    {\n      \"detail\": \"broken\\nsecond line\\ttab\",\n      \"fix\": \"nika doctor\",\n      \"label\": \"runtime\",\n      \"level\": \"fail\"\n    },\n    {\n      \"detail\": \"\",\n      \"fix\": null,\n      \"label\": \"a-label-wider-than-the-column\",\n      \"level\": \"ok\"\n    },\n    {\n      \"detail\": \"équipe · 日本語\",\n      \"fix\": \"\",\n      \"label\": \"café\",\n      \"level\": \"warn\"\n    },\n    {\n      \"detail\": \"v0.96.0 again\",\n      \"fix\": \"nika welcome\",\n      \"label\": \"binary\",\n      \"level\": \"ok\"\n    }\n  ],\n  \"receipts\": [],\n  \"scope\": {\n    \"mode\": \"audit-wide\"\n  },\n  \"summary\": {\n    \"fail\": 1,\n    \"ok\": 3,\n    \"unknown\": 0,\n    \"warn\": 2\n  }\n}";

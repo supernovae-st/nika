@@ -15,7 +15,7 @@
 mod billing;
 #[cfg(test)]
 mod billing_tests;
-pub(crate) use billing::record;
+pub(crate) use billing::{cache_writes, official, record};
 
 use std::time::Duration;
 
@@ -75,7 +75,8 @@ impl BillingRoute {
             "input_rate": tariff.and_then(|t| t.price_native(1, 0, 0)),
             "output_rate": tariff.and_then(|t| t.price_native(0, 1, 0)),
             "cached_rate": tariff.and_then(|t| t.price_native(1, 0, 1)),
-            "table_schema": "nika/inference-admission@1.1",
+            "cache_write_rate": tariff.and_then(|t| t.price_native_written(1, 0, 0, 1)),
+            "table_schema": "nika/inference-admission@1.3",
             "usd_conversion": null,
             "kind": if tariff.is_some() { "catalog_estimate_not_invoice" } else { "unknown" },
         })

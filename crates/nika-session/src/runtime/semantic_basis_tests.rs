@@ -17,7 +17,8 @@ const MODEL: &str = "deepseek/deepseek-v4-pro";
 const WORK: &str = "Read inventory.json, keep the items whose stock is under 8, sort them by sku and write that JSON array to ./reorder.json.";
 const ROWS: &str =
     r#"[{"sku": "B2", "stock": 3}, {"sku": "A1", "stock": 9}, {"sku": "C3", "stock": 5}]"#;
-const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
+/// It answers the whole request's `model_parts` too: no part a model must write.
+const JUDGE_APPROVES: &str = r#"{"choice":"faithful","model_parts":[]}"#;
 
 /// The seat's graph: read the inventory, keep and sort it, write the array.
 fn graph() -> String {
@@ -480,7 +481,8 @@ fn a_pending_edit_receives_its_exact_record_and_keeps_the_original_when_compile_
     p.nothing_ran();
 }
 
-/// Historical execution does not become a current check or result on reopen.
+/// Historical execution does not become a current result on reopen; the check is run again on
+/// the bytes on disk, a current check.
 #[test]
 fn saved_semantic_work_reopens_without_claiming_it_never_ran_or_is_still_checked() {
     let peer = Peer::start(vec![
@@ -510,7 +512,11 @@ fn saved_semantic_work_reopens_without_claiming_it_never_ran_or_is_still_checked
         later.status_line(),
         "Saved · no current Run result · `reorder.nika`"
     );
-    assert_eq!(later.last_check_clean, None);
+    assert_eq!(
+        later.last_check_clean,
+        Some(true),
+        "checked again on the bytes on disk"
+    );
     assert_eq!(later.last_run, None);
     assert_eq!(peer.bodies().len(), 3, "reopening calls nobody");
     assert!(!dir.path().join("reorder.json").exists());

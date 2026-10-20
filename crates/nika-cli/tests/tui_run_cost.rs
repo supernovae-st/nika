@@ -29,6 +29,9 @@ use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[path = "support/finite_action.rs"]
+mod finite_action;
+
 const MODEL: &str = "deepseek/s85-unpriced-fixture";
 const SOURCE: &str = "nika: fresh-run\nmodel: deepseek/s85-unpriced-fixture\ntasks:\n  answer:\n    infer: { prompt: Say OK, max_tokens: 32 }\noutputs:\n  result: ${{ tasks.answer.output }}\n";
 fn fixture_stdout(value: impl std::fmt::Display) {
@@ -260,7 +263,21 @@ fn ask(p: &mut LoggedPty) {
     p.expect("decision").unwrap();
     p.expect("Continue").unwrap();
     p.expect("once?").unwrap();
-    p.expect("reply ›").unwrap();
+    // A finite action: keys answer it only once its prompt is painted.
+    p.expect(finite_action::PAINTED).unwrap();
+}
+/// The decision's last offer, « Read the full cost evidence » (`Up` selects it first), opens
+/// the reader on the evidence and answers nothing; `F2` closes it on the same live decision.
+fn details(p: &mut LoggedPty) {
+    let last = [finite_action::UP, finite_action::ENTER].concat();
+    p.send(last).unwrap();
+    p.expect("Source").unwrap();
+    p.expect("SHA-256").unwrap();
+    // The evidence is committed before the fresh-input boundary discards typeahead: a key
+    // is sent only once the reader, painted after that boundary, shows its title.
+    p.expect("Full").unwrap();
+    p.send(finite_action::F2).unwrap();
+    p.expect(finite_action::PAINTED).unwrap();
 }
 fn leave(p: &mut LoggedPty) {
     p.send("\x03\x03").unwrap();
@@ -273,12 +290,9 @@ fn real_tui_yes_dispatches_once_and_observation_survives_without_authority() {
     let mut p = spawn(root.path());
     ask(&mut p);
     assert_eq!(calls(root.path()), 0);
-    p.send("details\r").unwrap();
-    p.expect("Source").unwrap();
-    p.expect("SHA-256").unwrap();
-    p.expect("reply ›").unwrap();
+    details(&mut p);
     assert_eq!(calls(root.path()), 0);
-    p.send("yes\r").unwrap();
+    p.send(finite_action::choose(0)).unwrap();
     p.expect("fixture").unwrap();
     p.expect("observed").unwrap();
     p.expect("nika ›").unwrap();
@@ -298,20 +312,30 @@ fn real_tui_yes_dispatches_once_and_observation_survives_without_authority() {
     assert_eq!(calls(root.path()), 1);
     ask(&mut p);
     assert_eq!(calls(root.path()), 1);
-    p.send("no\r").unwrap();
+    p.send(finite_action::choose(1)).unwrap();
     p.expect("nothing").unwrap();
     p.expect("sent").unwrap();
+    p.expect("declined").unwrap();
     leave(&mut p);
 }
 #[test]
 fn no_cancel_revision_changed_source_and_restart_send_nothing() {
-    for response in ["no", "cancel"] {
+    // The « Cancel this run » offer declines the Run. Esc never answers the decision: it says
+    // so, sends nothing, and the same offer chosen after it declines the Run.
+    for esc_first in [false, true] {
         let root = new_root();
         let mut p = spawn(root.path());
         ask(&mut p);
-        p.send(format!("{response}\r")).unwrap();
+        if esc_first {
+            p.send(finite_action::ESC).unwrap();
+            p.expect("never").unwrap();
+            p.expect("answers").unwrap();
+            assert_eq!(calls(root.path()), 0);
+        }
+        p.send(finite_action::choose(1)).unwrap();
         p.expect("nothing").unwrap();
         p.expect("sent").unwrap();
+        p.expect("declined").unwrap();
         p.send("yes\r").unwrap();
         p.expect("waits").unwrap();
         assert_eq!(calls(root.path()), 0);
@@ -325,7 +349,7 @@ fn no_cancel_revision_changed_source_and_restart_send_nothing() {
         SOURCE.replace("Say OK", "changed"),
     )
     .unwrap();
-    p.send("yes\r").unwrap();
+    p.send(finite_action::choose(0)).unwrap();
     p.expect("changed").unwrap();
     p.expect("review").unwrap();
     assert_eq!(calls(root.path()), 0);
@@ -336,6 +360,7 @@ fn no_cancel_revision_changed_source_and_restart_send_nothing() {
     p.send("\x03").unwrap();
     p.expect("nothing").unwrap();
     p.expect("sent").unwrap();
+    p.expect("declined").unwrap();
     p.send("yes\r").unwrap();
     p.expect("waits").unwrap();
     assert_eq!(calls(root.path()), 0);
@@ -351,23 +376,20 @@ fn an_unknown_cost_answer_keeps_the_review_pending_until_explicitly_declined() {
     let root = new_root();
     let mut p = spawn(root.path());
     ask(&mut p);
+    // The decision takes only its offers: typed words never reach the Session, and the
+    // bare Enter after them says that nothing was sent and how a choice is made.
     p.send("change input to revised\r").unwrap();
-    p.expect("not").unwrap();
     p.expect("nothing").unwrap();
     p.expect("sent").unwrap();
-    p.expect("still").unwrap();
-    p.expect("waits").unwrap();
-    p.expect("reply ›").unwrap();
+    p.expect("choose,").unwrap();
     assert_eq!(calls(root.path()), 0);
     // An unknown answer is neither a decline nor consent. Inspect the still-live
     // review, then explicitly decline it before testing a stale approval.
-    // Sending yes here could approve the live review; matching its buffered
-    // "waits" text would not prove that the approval was rejected.
-    p.send("details\r").unwrap();
-    p.expect("SHA-256").unwrap();
-    p.expect("reply ›").unwrap();
+    // Choosing « Run once » here could approve the live review; matching a
+    // buffered "waits" text would not prove that the approval was rejected.
+    details(&mut p);
     assert_eq!(calls(root.path()), 0);
-    p.send("no\r").unwrap();
+    p.send(finite_action::choose(1)).unwrap();
     p.expect("cancelled").unwrap();
     p.expect("declined").unwrap();
     p.expect("nika ›").unwrap();
@@ -382,7 +404,7 @@ fn uncertain_dispatch_blocks_a_new_run_without_automatic_retry() {
     std::fs::write(root.path().join("uncertain"), "503").unwrap();
     let mut p = spawn(root.path());
     ask(&mut p);
-    p.send("yes\r").unwrap();
+    p.send(finite_action::choose(0)).unwrap();
     p.expect("fixture").unwrap();
     p.expect("observed").unwrap();
     p.expect("nika ›").unwrap();
@@ -456,19 +478,19 @@ fn negotiated_deterministic_child_keeps_real_cli_settlement_and_no_question() {
 fn typeahead_and_bracketed_paste_cannot_answer_a_not_yet_shown_question() {
     let root = new_root();
     let mut p = spawn(root.path());
+    // Typed while Nika works, before the decision is painted: never its answer.
     p.send("run one.nika\ryes\r").unwrap();
     p.expect("Fresh").unwrap();
     p.expect("decision").unwrap();
-    p.expect("reply ›").unwrap();
-    p.send("details\r").unwrap();
-    p.expect("Source").unwrap();
-    p.expect("SHA-256").unwrap();
-    p.expect("reply ›").unwrap();
+    p.expect(finite_action::PAINTED).unwrap();
+    details(&mut p);
     assert_eq!(calls(root.path()), 0);
+    // A paste is data, never one of the offers; Ctrl+C then declines the live review.
     p.send("\x1b[200~yes\x1b[201~").unwrap();
     p.send("\x03").unwrap();
     p.expect("nothing").unwrap();
     p.expect("sent").unwrap();
+    p.expect("declined").unwrap();
     assert_eq!(calls(root.path()), 0);
     leave(&mut p);
 }

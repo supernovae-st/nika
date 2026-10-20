@@ -55,7 +55,7 @@ pub fn refusals(path: &str, rows: &[[&str; 3]]) -> String {
 pub fn governs(ceiling: Option<f64>, traces: bool, registry: bool, beats: usize) -> String {
     let mut parts: Vec<String> = Vec::new();
     if let Some(c) = ceiling {
-        parts.push(format!("ceiling ${c:.2}"));
+        parts.push(format!("ceiling ${}", crate::vocab::stated_usd(c)));
     }
     if traces {
         parts.push("trace retention".to_owned());

@@ -53,6 +53,7 @@
 pub mod app;
 pub mod composer;
 pub mod events;
+use nika_tui_view::lang;
 pub mod model;
 pub mod render;
 mod scroll;

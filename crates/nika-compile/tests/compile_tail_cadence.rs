@@ -84,6 +84,20 @@ fn a_sentence_final_cadence_is_the_requested_trigger_never_a_silent_one_shot() {
             "hourly",
             None,
         ),
+        // A numbered day of the month: its « de » is the day's, never a grouping (live
+        // gauntlet, 2026-10-16).
+        (
+            "Résume ./notes.md dans ./out/resume.md le 1er de chaque mois à 8h",
+            "Résume ./notes.md dans ./out/resume.md",
+            "monthly",
+            Some("08:00"),
+        ),
+        (
+            "Summarize ./notes.md into ./out/summary.md on the 15th of every month at 9:30",
+            "Summarize ./notes.md into ./out/summary.md",
+            "monthly",
+            Some("09:30"),
+        ),
     ] {
         let out = with_model(intent);
         assert_eq!(out.status, CompileStatus::Ready, "{intent}: {out:#?}");
@@ -347,4 +361,33 @@ async fn a_record_trigger_that_is_not_the_requests_own_words_refuses_its_replay(
         assert!(!said.contains("zz-trigger-sentinel"), "{case}: {said}");
         assert!(out.provenance.authoring.is_none(), "{case}: zero calls");
     }
+}
+
+/// « tout les », as people often type « tous les », states the same schedule at the head and at
+/// the tail: the requested trigger with its cron, and the bytes of the request without it.
+#[test]
+fn tout_les_states_the_same_schedule_at_the_head_and_the_tail() {
+    let plain = with_model("Résume ./notes.md dans ./out/resume.md");
+    let intents = [
+        "Tout les matins à 9h, résume ./notes.md dans ./out/resume.md",
+        "Résume ./notes.md dans ./out/resume.md tout les matins à 9h",
+    ];
+    let outcomes = intents.map(|intent| (intent, with_model(intent)));
+    let read: Vec<_> = (outcomes.iter())
+        .map(|(intent, out)| {
+            let trigger = out.requested_trigger.as_ref();
+            let fields = trigger.map(|t| (t.kind, t.cadence.as_deref(), t.cron.as_deref()));
+            (
+                *intent,
+                out.status,
+                fields,
+                out.candidate == plain.candidate,
+            )
+        })
+        .collect();
+    let schedule = Some((TriggerKind::Schedule, Some("daily"), Some("0 9 * * *")));
+    let expected: Vec<_> = (intents.iter())
+        .map(|intent| (*intent, CompileStatus::Ready, schedule, true))
+        .collect();
+    assert_eq!(read, expected);
 }

@@ -232,6 +232,46 @@ fn workflows(root: &Path) -> Vec<String> {
         .collect()
 }
 
+/// A reply that leaves the value to Nika (« choisis toi-même, carte blanche » — the live
+/// gauntlet of 2026-10-15) is never refused with « say the value alone »: the reading says
+/// DELEGATED, nothing is bound, the question closes, and the request carries the person's own
+/// words under the question's label for the author to choose within and cite.
+#[test]
+fn a_delegated_reply_hands_the_choice_to_the_author_instead_of_refusing_it() {
+    let root = world();
+    let (mut s, prompts) = reading(root.path(), vec![Ok("DELEGATED")]);
+    at_the_destination(&mut s);
+    let asked = s.pending_question_id().expect("the destination waits");
+    let line = "choisis toi-même, carte blanche";
+    let outcome = s.turn(line);
+    let said = format!("{outcome:?}");
+    assert!(
+        !said.contains("say the value alone") && !said.contains("did not find one value"),
+        "a delegation is never refused as a missing value: {said}"
+    );
+    let delegated = AnswerAct::Delegated {
+        key: "const.destination_path".to_owned(),
+    };
+    assert_eq!(s.work().answered, Some(Answered::new(asked, delegated)));
+    assert!(
+        s.recent.iter().any(
+            |(said, noted)| said == line && noted == "(left « Destination file path » to Nika)"
+        ),
+        "{:?}",
+        s.recent
+    );
+    // The reading asked the one bounded question, and offered DELEGATED as an answer.
+    let sent: Vec<String> = prompts.try_iter().collect();
+    assert_eq!(sent.len(), 1, "{sent:?}");
+    assert!(sent[0].contains("answer DELEGATED"), "{}", sent[0]);
+    // The request now carries the person's words, verbatim, under the question's label: this
+    // stand-in authors deterministically, so the next round shows them as its open clause.
+    assert!(
+        said.contains("« Destination file path » : choisis toi-même, carte blanche"),
+        "{said}"
+    );
+}
+
 /// The original DIALOG-01 reply, before and after: the old binding typed the whole sentence
 /// as the path; the reading binds the value the human named, says so beside the proposal,
 /// and writes nothing before consent.
@@ -295,7 +335,9 @@ fn the_original_reply_binds_the_destination_it_names_not_the_sentence() {
     // Nothing lands before consent, and consent is never a run.
     assert!(workflows(root.path()).is_empty());
     assert!(!root.path().join("sortie.txt").exists());
-    assert!(matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("applied")));
+    assert!(
+        matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("appliqué · écrit"))
+    );
     let saved = workflows(root.path());
     assert_eq!(saved.len(), 1, "{saved:?}");
     let bytes = std::fs::read_to_string(root.path().join(&saved[0])).expect("saved");

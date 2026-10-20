@@ -146,8 +146,16 @@ impl Lifecycle {
     /// The rail line: « Draft ✓ · Saved ✓ · Checked ✓ · Active ○ · Run ○ ».
     #[must_use]
     pub fn rail(&self) -> String {
+        self.rail_named(["Draft", "Saved", "Checked", "Active", "Run"])
+    }
+
+    /// The rail line with its five fields named `names`, in the rail's order (draft, saved,
+    /// checked, active, run): the same stages said in another language.
+    #[must_use]
+    pub fn rail_named(&self, names: [&str; 5]) -> String {
+        let [draft, saved, checked, active, run] = names;
         format!(
-            "Draft {} · Saved {} · Checked {} · Active {} · Run {}",
+            "{draft} {} · {saved} {} · {checked} {} · {active} {} · {run} {}",
             self.draft.glyph(),
             self.saved.glyph(),
             self.checked.glyph(),

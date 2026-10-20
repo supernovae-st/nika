@@ -1,0 +1,15 @@
+nika: p44-fetch-modes
+permits:
+  tools: ["nika:fetch"]
+  net: { http: ["example.com"] }
+tasks:
+  article: { invoke: { tool: "nika:fetch", args: { url: "https://example.com/post", mode: article } } }
+  links: { invoke: { tool: "nika:fetch", args: { url: "https://example.com/", mode: links } } }
+  meta: { invoke: { tool: "nika:fetch", args: { url: "https://example.com/", mode: metadata } } }
+  feed: { invoke: { tool: "nika:fetch", args: { url: "https://example.com/feed.xml", mode: feed } } }
+  sitemap: { invoke: { tool: "nika:fetch", args: { url: "https://example.com/sitemap.xml", mode: sitemap } } }
+  pick: { invoke: { tool: "nika:fetch", args: { url: "https://example.com/", mode: selector, selector: "h1" } } }
+  text: { invoke: { tool: "nika:fetch", args: { url: "https://example.com/", mode: text } } }
+  md: { invoke: { tool: "nika:fetch", args: { url: "https://example.com/", mode: markdown } } }
+outputs:
+  links: ${{ tasks.links.output }}

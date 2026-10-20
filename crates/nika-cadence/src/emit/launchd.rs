@@ -13,7 +13,10 @@
 
 use std::fmt::Write as _;
 
-use super::{EmitCtx, EmitRefusal, MAX_INTERVALS, Target, Unit, header, sh_quote, xml_escape};
+use super::{
+    EmitCtx, EmitRefusal, MAX_INTERVALS, Target, Unit, beat_unit, header, serve_unit, sh_quote,
+    xml_escape,
+};
 use crate::cron::{CronSpec, Field};
 
 /// One interval dict: a component is present only when its field is
@@ -81,8 +84,14 @@ fn intervals(spec: &CronSpec) -> Vec<Interval> {
     out
 }
 
-/// A beat's plist — one unit, the interval budget enforced.
-pub(crate) fn per_beat(ctx: &EmitCtx, label: &str, spec: &CronSpec) -> Result<Unit, EmitRefusal> {
+/// A beat's plist — one unit, the interval budget enforced. It names its
+/// schedule revision in its header and hands it to the firer.
+pub(crate) fn per_beat(
+    ctx: &EmitCtx,
+    label: &str,
+    spec: &CronSpec,
+    rev: &str,
+) -> Result<Unit, EmitRefusal> {
     let count = dict_count(spec);
     if count > MAX_INTERVALS {
         return Err(EmitRefusal::TooManyIntervals {
@@ -90,15 +99,15 @@ pub(crate) fn per_beat(ctx: &EmitCtx, label: &str, spec: &CronSpec) -> Result<Un
             n: count,
         });
     }
-    let unit_label = format!("nika.arm.{label}");
-    let words = ["arm", "fire", label];
+    let unit_label = beat_unit(&ctx.project_key, label);
+    let words = ["arm", "fire", label, "--unit-rev", rev];
     let intervals = intervals(spec);
     Ok(Unit {
         file_name: format!("{unit_label}.plist"),
         body: plist(
             ctx,
             &unit_label,
-            &format!("beat {label}"),
+            &format!("beat {label} rev {rev}"),
             &words,
             Some(&intervals),
             false,
@@ -107,14 +116,93 @@ pub(crate) fn per_beat(ctx: &EmitCtx, label: &str, spec: &CronSpec) -> Result<Un
     })
 }
 
+/// The plist of a beat whose cadence names another zone than the machine's (D10): one interval
+/// per machine hour and minute one of its slots can fall on, each slot moved by every one of
+/// `deltas` (the minutes the machine's clock runs ahead), with no day, month or weekday. The
+/// firer reads each wake against the cadence in its own zone and fires only a due slot; a wake
+/// that is not one is said not due and journals nothing.
+pub(crate) fn per_beat_shifted(
+    ctx: &EmitCtx,
+    label: &str,
+    spec: &CronSpec,
+    deltas: &[i32],
+    rev: &str,
+) -> Result<Unit, EmitRefusal> {
+    let hours = values(*spec.hours());
+    let minutes = values(*spec.minutes());
+    let count = hours
+        .len()
+        .saturating_mul(minutes.len())
+        .saturating_mul(deltas.len());
+    if count > MAX_INTERVALS {
+        return Err(EmitRefusal::TooManyIntervals {
+            beat: label.to_owned(),
+            n: count,
+        });
+    }
+    let mut wakes: std::collections::BTreeSet<(Option<u8>, Option<u8>)> =
+        std::collections::BTreeSet::new();
+    for &hour in &hours {
+        for &minute in &minutes {
+            for &delta in deltas {
+                wakes.insert(shifted(hour, minute, delta));
+            }
+        }
+    }
+    // Every minute wakes once: one empty dict says it.
+    if wakes.contains(&(None, None)) {
+        wakes.retain(|wake| *wake == (None, None));
+    }
+    let intervals: Vec<Interval> = (wakes.into_iter())
+        .map(|(hour, minute)| Interval {
+            minute,
+            hour,
+            day: None,
+            month: None,
+            weekday: None,
+        })
+        .collect();
+    let unit_label = beat_unit(&ctx.project_key, label);
+    let words = ["arm", "fire", label, "--unit-rev", rev];
+    Ok(Unit {
+        file_name: format!("{unit_label}.plist"),
+        body: plist(
+            ctx,
+            &unit_label,
+            &format!("beat {label} rev {rev}"),
+            &words,
+            Some(&intervals),
+            false,
+            label,
+        ),
+    })
+}
+
+/// A cadence hour and minute on the machine's clock, `delta` minutes ahead: an hour wildcard
+/// moves the minute alone, a minute wildcard stays every minute.
+fn shifted(hour: Option<u8>, minute: Option<u8>, delta: i32) -> (Option<u8>, Option<u8>) {
+    let Some(minute) = minute else {
+        return (None, None);
+    };
+    let wrap = |value: i32, modulus: i32| u8::try_from(value.rem_euclid(modulus)).ok();
+    match hour {
+        None => (None, wrap(i32::from(minute) + delta, 60)),
+        Some(hour) => {
+            let at = (i32::from(hour) * 60 + i32::from(minute) + delta).rem_euclid(1440);
+            (wrap(at / 60, 24), wrap(at % 60, 60))
+        }
+    }
+}
+
 /// The `nika.serve` plist — the daemon lands in W5, the unit is
 /// emitted by name today (`KeepAlive`: launchd re-launches it).
 pub(crate) fn serve(ctx: &EmitCtx) -> Unit {
+    let unit_label = serve_unit(&ctx.project_key);
     Unit {
-        file_name: "nika.serve.plist".to_owned(),
+        file_name: format!("{unit_label}.plist"),
         body: plist(
             ctx,
-            "nika.serve",
+            &unit_label,
             "serve",
             &["serve"],
             None,
@@ -201,8 +289,10 @@ fn program_args(ctx: &EmitCtx, words: &[&str]) -> Vec<String> {
             vec![
                 "/bin/sh".to_owned(),
                 "-c".to_owned(),
+                // `set -a` exports every variable the file assigns: a dotenv's plain
+                // `KEY=value` lines reach the exec'd firer, not only `export` ones.
                 format!(
-                    ". {} && exec {} {}",
+                    "set -a && . {} && set +a && exec {} {}",
                     sh_quote(&env.display().to_string()),
                     sh_quote(&bin),
                     quoted.join(" ")

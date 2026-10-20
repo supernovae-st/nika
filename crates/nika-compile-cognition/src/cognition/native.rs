@@ -26,6 +26,7 @@ use serde_json::{Value, json};
 use super::QuestionType;
 
 mod answer;
+pub(super) mod capacity;
 mod decode;
 mod journal;
 #[cfg(test)]
@@ -257,6 +258,9 @@ fn string_leaves(doc: &Value) -> Vec<String> {
 /// the revision when the request is an edit, the opening message, the literals the laws allow.
 pub(super) struct Prelude<'a> {
     pub(super) references: Vec<Reference>,
+    /// Where the knowledge pack's references begin among them, after the embedded recall: the
+    /// part an opening past the request capacity fits ([`capacity::fit`]).
+    pub(super) pack_from: usize,
     pub(super) callables: Vec<Reference>,
     pub(super) sent: Vec<Value>,
     pub(super) revision: Option<(&'a str, &'a str)>,
@@ -275,6 +279,7 @@ pub(super) fn prelude<'a>(
     } else {
         knowledge::references(intent, 2)
     };
+    let pack_from = references.len();
     if let Some(pack) = &request.authoring_knowledge {
         references.extend(pack.references.iter().map(|r| Reference {
             id: r.id.clone(),
@@ -331,6 +336,7 @@ pub(super) fn prelude<'a>(
     }
     Prelude {
         references,
+        pack_from,
         callables,
         sent,
         revision,
@@ -812,7 +818,27 @@ pub fn judge_document(
     ),
     observed: Option<&Value>,
 ) -> Vec<String> {
-    (document_refusals(stated, candidate, (authored, host), observed).into_iter())
+    let none = std::collections::BTreeMap::new();
+    judge_document_answered(stated, candidate, (authored, host), &none, observed)
+}
+
+/// [`judge_document`] with the person's answers (`answers`, by question key, as a compile round or
+/// a Session states them): the laws read a question's answer the Session describes within its
+/// scope and any other answer as the typed value it is ([`fidelity::laws_answered`]), so an open
+/// name whose reading the person answered is owed as that reading, on the agent route as in a
+/// compile round.
+#[must_use]
+pub fn judge_document_answered(
+    stated: &str,
+    candidate: &str,
+    selections: (
+        &[fidelity::resolution::Resolution],
+        &[fidelity::resolution::Resolution],
+    ),
+    answers: &std::collections::BTreeMap<String, String>,
+    observed: Option<&Value>,
+) -> Vec<String> {
+    (document_refusals(stated, candidate, selections, answers, observed).into_iter())
         .map(|d| d.message)
         .collect()
 }
@@ -825,6 +851,7 @@ pub(super) fn document_refusals(
         &[fidelity::resolution::Resolution],
         &[fidelity::resolution::Resolution],
     ),
+    answers: &std::collections::BTreeMap<String, String>,
     observed: Option<&Value>,
 ) -> Vec<Diagnostic> {
     let mut out = Vec::new();
@@ -832,8 +859,8 @@ pub(super) fn document_refusals(
         let selected = (authored, host);
         let covered = fidelity::resolution::admitted(stated, &doc, selected, observed, &mut out);
         let plan = crate::lexicon::read(stated).plan;
-        let words = (&[][..], &covered[..]);
-        fidelity::laws_resolved(stated, &plan, &doc, words, &[], &[], observed, &mut out);
+        let words = (answers, &covered[..]);
+        fidelity::laws_answered(stated, &plan, &doc, words, observed, &mut out);
         fidelity::resolution::selection_remedies(&mut out);
         let facts = |model: &str| {
             let caps = nika_compile::surface::output_caps(model)?;

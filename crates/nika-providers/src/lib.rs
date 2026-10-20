@@ -39,12 +39,18 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+/// The model a rehearsal stands in for a model step's answer: the in-process mock, answering a
+/// declared shape with every property it names (zero network · zero key · never a provider).
+pub const STAND_IN_MODEL: &str = "mock/stand-in";
+
 pub mod admission;
 pub use admission::{AdmissionState, AttemptReceipt, InferenceAdmission, InferenceReceipt};
 pub mod authoring;
 pub mod census;
 pub mod dispatch_journal;
+pub mod key_check;
 pub mod model_choice;
+mod overflow;
 #[cfg(test)]
 mod parity_tests;
 pub mod plan;
@@ -70,6 +76,7 @@ mod test_support;
 pub mod wire;
 
 pub use census::{AccessCensus, AccessPath, SeatFact};
+pub use key_check::{KeyCheck, check_key};
 pub use model_choice::{Delegation, ModelAsk, ModelChoice, ModelInventory, ModelOffer, ModelRole};
 pub use plan::{
     ExecutionAccessPlan, LaneVerdict, ModelNeed, ResolvedLane, resolve_execution_plan,
@@ -78,7 +85,7 @@ pub use plan::{
 pub use probe::{KeyAuth, classify_http_status, classify_key_value};
 pub use profile::{
     CANONICAL_IDS, PREFIX_REFUSAL_CODE, Profile, ResolveRefusal, WireFormat, canonical_provider,
-    catalog_warning, resolve_refusal, resolve_refusal_at, resolve_refusal_for_plan,
+    catalog_warning, lifecycle_note, resolve_refusal, resolve_refusal_at, resolve_refusal_for_plan,
     resolve_refusal_over, seed, server_backed_local, wired_facet, wired_facet_of_this_build,
 };
 pub use registry::{NoHttp, ProviderRegistry, ProvidersConfig, ResolvedProvider};

@@ -132,8 +132,9 @@ fn verdict(root: &Path, snapshot: &ProjectSnapshot, rel: &str) -> String {
             }
             if audit.report.findings.len() > 6 {
                 lines.push(format!(
-                    "  · … {} more (`nika check {rel}`)",
-                    audit.report.findings.len() - 6
+                    "  · … {} more (`{} check {rel}`)",
+                    audit.report.findings.len() - 6,
+                    crate::runtime::program()
                 ));
             }
             let _ = snapshot;
@@ -278,6 +279,12 @@ mod tests {
             "is the alpha workflow valid?",
             "check alpha stp",
             "can you check alpha for errors?",
+            "est-ce que alpha.nika est valide ?",
+            "le fichier alpha.nika est-il valide ?",
+            "alpha est toujours valide ?",
+            "vérifie le workflow alpha stp",
+            "peux-tu vérifier alpha ?",
+            "tu peux valider alpha.nika ?",
         ] {
             let reply =
                 answer(query, &snap, root).unwrap_or_else(|| panic!("{query}: no verdict fact"));
@@ -308,6 +315,11 @@ mod tests {
             "can you explain NIKA-AUTH-006 to me?",
             "Explain `NIKA-AUTH-006`.",
             "explain this error: NIKA-AUTH-006",
+            "explique NIKA-AUTH-006",
+            "explique-moi le code NIKA-AUTH-006 stp",
+            "explique l'erreur NIKA-AUTH-006",
+            "que veut dire NIKA-AUTH-006 ?",
+            "c'est quoi NIKA-AUTH-006 ?",
         ] {
             let reply =
                 answer(query, &snap, root).unwrap_or_else(|| panic!("{query}: no code fact"));

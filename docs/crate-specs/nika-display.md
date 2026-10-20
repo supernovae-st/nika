@@ -52,6 +52,11 @@ is deterministic (golden tests pin exact frames via the `demo` streams),
 and the crate performs **no I/O** — sinks and terminals live in the
 parent `nika-cli`.
 
+The turn activity card preserves a tool's typed `Started`, `Finished` or
+`Failed` state in `activity_card::Update::Tool`. A failed tool keeps its failure
+mark (`✗`, ASCII `x`) even if the turn later recovers and completes. A returned
+model call still means returned, never an inferred success.
+
 ## 2. Why a crate (and why now)
 
 `nika-cli` sat at **14,999/15,000 prod LOC** — a +1 budget, measured

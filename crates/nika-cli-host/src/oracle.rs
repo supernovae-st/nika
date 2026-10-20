@@ -24,7 +24,7 @@ use nika_check::{CheckReport, RiskGrade};
 use nika_display::check_render::{ModelFinding, ModelsAudit, VerdictLayers};
 use nika_providers::ExecutionAccessPlan;
 use nika_schema::raw::RawWorkflow;
-use nika_schema::{ParseMode, ResolvedSkills};
+use nika_schema::{ParseMode, ProjectFileRead, ResolvedSkills};
 use serde_json::{Map, Value};
 
 use crate::models_rung::{
@@ -233,6 +233,8 @@ pub struct Judged {
     pub composition: bool,
     /// `skills:` files were read and judged.
     pub skills: bool,
+    /// `{ file }` prompts, systems and schemas were read and judged (spec 02 §Project files).
+    pub project_files: bool,
 }
 
 impl Judged {
@@ -240,6 +242,7 @@ impl Judged {
     pub const FULL: Self = Self {
         composition: true,
         skills: true,
+        project_files: true,
     };
 
     /// The two halves, explicit.
@@ -248,7 +251,15 @@ impl Judged {
         Self {
             composition,
             skills,
+            project_files: false,
         }
+    }
+
+    /// Whether the project files were read and judged.
+    #[must_use]
+    pub fn with_project_files(mut self, read: bool) -> Self {
+        self.project_files = read;
+        self
     }
 }
 
@@ -422,6 +433,9 @@ pub fn judge(
     if let Some(blocker) = crate::run_cost::readiness(wf, &plan) {
         layers.blockers.push(blocker);
     }
+    if let Some(blocker) = project_files_blocker(wf, judged) {
+        layers.blockers.push(blocker);
+    }
     let grade = nika_check::risk_grade(report);
     let drift = nika_dap::drift::scan(wf);
     let children = child_references(wf);
@@ -435,6 +449,41 @@ pub fn judge(
         drift,
         judged,
         children,
+    }
+}
+
+/// A workflow naming project files is not run-ready yet (spec 02 §Project files): a run does
+/// not carry them, and a door that did not read them says so.
+fn project_files_blocker(wf: &RawWorkflow, judged: Judged) -> Option<String> {
+    if nika_schema::project_file_refs(wf).is_empty() {
+        return None;
+    }
+    Some(if judged.project_files {
+        "project files: checked here, but a run does not carry them yet and refuses this workflow before any task".to_owned()
+    } else {
+        "project files: not read on this door (their path, boundary, read and content laws are unjudged), and a run does not carry them yet".to_owned()
+    })
+}
+
+/// One past the project-file cap: a reader handing over more says the file is over it.
+const PROJECT_FILE_LIMIT: u64 = nika_schema::PROJECT_FILE_CAP as u64 + 1;
+
+/// The project-file reader of a workflow whose folder is `base` (spec 02 §Project files): a
+/// project-relative path read under the folder's real path through held descriptors, no
+/// symbolic link at any component below it, at most one byte past the cap.
+pub fn project_file_reader(
+    base: &Path,
+) -> impl FnMut(&str) -> Result<Vec<u8>, ProjectFileRead> + use<> {
+    let mut read = nika_fs::contained_reader(base, PROJECT_FILE_LIMIT);
+    move |relative: &str| read(relative).map_err(project_file_read)
+}
+
+/// The compose step's name for a refused read.
+fn project_file_read(refusal: nika_fs::ContainedRead) -> ProjectFileRead {
+    match refusal {
+        nika_fs::ContainedRead::Linked => ProjectFileRead::Linked,
+        nika_fs::ContainedRead::NotRegular => ProjectFileRead::NotRegular,
+        _ => ProjectFileRead::Missing,
     }
 }
 
@@ -490,9 +539,23 @@ pub fn audit_source(
         Some(model) => nika_check::with_model_override(&wf, model),
         None => wf,
     };
-    let (mut report, composition) = match read {
-        Some(read) => (nika_check::check_composed(&wf, logical_path, read), true),
-        None => (nika_check::check(&wf), false),
+    // Project files compose where the audit holds both the workflow's folder and a reader
+    // (spec 02 §Project files); elsewhere they stay unread and the verdict says so.
+    let (wf, mut report, composition, files) = match (read, skills_base) {
+        (Some(read), Some(base)) => {
+            let mut read_file = project_file_reader(base);
+            let (composed, report) =
+                nika_check::check_project(&wf, logical_path, read, &mut read_file);
+            (composed, report, true, true)
+        }
+        (Some(read), None) => {
+            let report = nika_check::check_composed(&wf, logical_path, read);
+            (wf, report, true, false)
+        }
+        (None, _) => {
+            let report = nika_check::check(&wf);
+            (wf, report, false, false)
+        }
     };
     report.workflow_semantic =
         nika_runtime::proof::ir::semantic_ir_hash(&wf).map(|h| h.as_hex().to_owned());
@@ -509,7 +572,7 @@ pub fn audit_source(
         &wf,
         &report,
         &skills,
-        Judged::new(composition, skills_judged),
+        Judged::new(composition, skills_judged).with_project_files(files),
         opts.access_pin,
     );
     Ok(Audit {
@@ -560,10 +623,12 @@ fn extend_model_audit(object: &mut Map<String, Value>, audit: &ModelsAudit) {
     }
 }
 
-/// Drift + one-obvious-way rows on the machine `hints[]`. Native-first
-/// already rides `CheckReport.hints`; one-obvious-way lives in
-/// `nika-lints` and cannot join the report without a nika-check →
-/// nika-lints cycle, so this edge is the public door (#763).
+/// Drift + one-obvious-way + egress rows on the machine `hints[]`.
+/// Native-first already rides `CheckReport.hints`; one-obvious-way and
+/// egress live in `nika-lints` and cannot join the report without a
+/// nika-check → nika-lints cycle, so this edge is the public door (#763).
+/// Egress judges the workflow this door audited: a project file it read
+/// is judged as text, one it did not read holds none.
 fn push_advisory_hints(hints: &mut Vec<Value>, drift: &[String], wf: &RawWorkflow) {
     for advice in drift {
         hints.push(serde_json::json!({
@@ -576,6 +641,14 @@ fn push_advisory_hints(hints: &mut Vec<Value>, drift: &[String], wf: &RawWorkflo
     for lint in nika_lints::one_obvious_way(wf) {
         hints.push(serde_json::json!({
             "kind": "one-obvious-way",
+            "code": lint.rule,
+            "task": lint.task_id,
+            "advice": format!("{} · {}", lint.rule, lint.message),
+        }));
+    }
+    for lint in nika_lints::egress(wf) {
+        hints.push(serde_json::json!({
+            "kind": "egress",
             "code": lint.rule,
             "task": lint.task_id,
             "advice": format!("{} · {}", lint.rule, lint.message),
@@ -661,6 +734,20 @@ pub fn audit_json(
             "children": verdict.children,
         }),
     );
+    let files = nika_schema::project_file_refs(wf);
+    if !files.is_empty()
+        && let Some(judged) = obj.get_mut("judged").and_then(Value::as_object_mut)
+    {
+        let paths = (files.iter()).map(|(_, _, file)| Value::String(file.path.value.clone()));
+        judged.insert(
+            "project_files".to_owned(),
+            Value::Bool(verdict.judged.project_files),
+        );
+        judged.insert(
+            "project_file_paths".to_owned(),
+            Value::Array(paths.collect()),
+        );
+    }
     skills.extend_check_json(&mut obj);
     obj.insert(
         "pricing".to_owned(),
@@ -1104,6 +1191,31 @@ mod tests {
             obj["findings"].as_array().is_some_and(Vec::is_empty),
             "a clean object carries no lane row: {obj:?}"
         );
+    }
+
+    /// Spec 02 §Project files · `egress/001`: a private key in a prompt is an advisory hint
+    /// row, never a refusal; a certificate is silent.
+    #[test]
+    fn a_private_key_in_a_prompt_is_an_egress_hint() {
+        for (label, rows) in [("PRIVATE KEY", 1), ("CERTIFICATE", 0)] {
+            let audit = audit(&format!(
+                "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer:\n      max_tokens: 10\n      prompt: |\n        Use this:\n        -----BEGIN {label}-----\n        not-a-key\n        -----END {label}-----\n"
+            ));
+            assert!(audit.verdict.clean, "the egress rule is advisory");
+            let obj = audit_json(
+                &audit.wf,
+                &audit.report,
+                &audit.skills,
+                &audit.verdict,
+                Lanes::default(),
+            )
+            .expect("serializes");
+            let egress = (obj["hints"].as_array()).map_or(0, |hints| {
+                hints.iter().filter(|row| row["kind"] == "egress").count()
+            });
+            assert_eq!(egress, rows, "{label}");
+            assert_eq!(obj["clean"], Value::Bool(true), "{label}");
+        }
     }
 
     /// A reader makes the composition judged; the CLI's posture.

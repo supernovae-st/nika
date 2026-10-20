@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! An open name through the document door, then its answer round: the stock words leave the first
-//! word of `un payload out/notification.json` open (a noun before a path, or a spaced folder), and
-//! Law 1 owes it exactly. SCRIPTED seats over the real compile entry establish the door's
+//! An open name through the document door, then its answer round. The stock words settle the
+//! payload themselves (`Écris out/report.json` names the folder `out`), so its document writes
+//! `out/notification.json` and nothing is asked. With the report sent to `reports/`, no folder
+//! the words name holds a reading: the first word of `un payload out/notification.json` stays
+//! open (a noun before a path, or a spaced folder), and Law 1 owes it exactly. SCRIPTED seats
+//! over the real compile entry establish the door's
 //! mechanics, never a model's behaviour. A document writing the shorter file is refused, the
 //! finding naming the name and how the human settles it; the repair asks it, naming it in its
 //! label, and is accepted with no candidate while the closed choice of its readings is asked. The
@@ -20,6 +23,12 @@ const STOCK: &str = "Lis world/source.json. Écris out/report.json avec les aler
 
 /// The open name, owed exactly unless the human settles it.
 const PAYLOAD: &str = "payload out/notification.json";
+
+/// The stock words with the report sent to `reports/`: no folder they name holds a reading of the
+/// payload, so its first word stays open.
+fn open_stock() -> String {
+    STOCK.replace("Écris out/report.json", "Écris reports/report.json")
+}
 
 /// The author's document: the source read and parsed, the alert ids computed, the report and the
 /// payload written (`@PATH@`, with `@CONST@` and the write side `@WRITE@`), the POST sent.
@@ -39,7 +48,7 @@ tasks:
     invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: "fromjson | [.items[] | select(.stock < .threshold) | .id]" } }
   write_report:
     with: { ids: "${{ tasks.alerts.output }}" }
-    invoke: { tool: "nika:write", args: { path: "out/report.json", content: "${{ with.ids }}" } }
+    invoke: { tool: "nika:write", args: { path: "reports/report.json", content: "${{ with.ids }}" } }
   write_payload:
     with: { ids: "${{ tasks.alerts.output }}" }
     invoke: { tool: "nika:write", args: { path: "@PATH@", content: "${{ with.ids }}" } }
@@ -52,7 +61,10 @@ tasks:
 /// The document writing the shorter file itself, as an author reading the words would.
 fn shorter() -> String {
     (DOCUMENT.replace("@CONST@", ""))
-        .replace("@WRITE@", r#"["out/report.json", "out/notification.json"]"#)
+        .replace(
+            "@WRITE@",
+            r#"["reports/report.json", "out/notification.json"]"#,
+        )
         .replace("@PATH@", "out/notification.json")
 }
 
@@ -60,7 +72,7 @@ fn shorter() -> String {
 /// task's path, one empty write entry beside the report's grant.
 fn asking() -> String {
     (DOCUMENT.replace("@CONST@", "const:\n  payload_path: \"\"\n"))
-        .replace("@WRITE@", r#"["out/report.json", ""]"#)
+        .replace("@WRITE@", r#"["reports/report.json", ""]"#)
         .replace("@PATH@", "${{ const.payload_path }}")
 }
 
@@ -90,7 +102,8 @@ fn authored(out: &crate::CompileOutcome) -> Vec<String> {
 async fn an_open_name_is_asked_then_answered_on_the_same_recorded_document() {
     let label = format!("Quel fichier désigne « {PAYLOAD} » ?");
     let author = Scripted::new(vec![door(&shorter(), &[]), asked(&asking(), &label)]);
-    let request = crate::CompileRequest::create(STOCK).with_authoring_policy(policy());
+    let open = open_stock();
+    let request = crate::CompileRequest::create(open.as_str()).with_authoring_policy(policy());
     let out = compiled_with(&request, &author, None, None).await;
     assert_eq!(authored(&out), ["document", "document-repair"], "{out:#?}");
     let refused = found(&out, 0);
@@ -126,8 +139,8 @@ async fn an_open_name_is_asked_then_answered_on_the_same_recorded_document() {
         "  payload_path: \"out/notification.json\"\n",
     ))
     .replace(
-        "    write: [\"out/report.json\", \"\"]\n",
-        "    write: [\"out/report.json\",\"out/notification.json\"]\n",
+        "    write: [\"reports/report.json\", \"\"]\n",
+        "    write: [\"reports/report.json\",\"out/notification.json\"]\n",
     );
     assert_eq!(
         done.candidate.as_deref(),
@@ -151,7 +164,8 @@ async fn an_open_name_is_asked_then_answered_on_the_same_recorded_document() {
 async fn a_question_naming_no_open_name_leaves_it_owed() {
     let unnamed = asked(&asking(), "Où écrire le payload ?");
     let author = Scripted::new(vec![unnamed.clone(), unnamed]);
-    let request = crate::CompileRequest::create(STOCK).with_authoring_policy(policy());
+    let open = open_stock();
+    let request = crate::CompileRequest::create(open.as_str()).with_authoring_policy(policy());
     let out = compiled_with(&request, &author, None, None).await;
     let owed = format!("UNREALIZED PATH: the request names `{PAYLOAD}`");
     for round in 0..2 {
@@ -169,8 +183,27 @@ async fn a_question_naming_no_open_name_leaves_it_owed() {
     );
 }
 
-/// A request with two open names: a source and a payload.
-const TWO: &str = "Lis un journal in/a.json. Écris out/report.json, puis prépare exactement un payload out/c.json.";
+/// The stock words settle the payload themselves: `Écris out/report.json` names the folder `out`,
+/// so the document writing `out/notification.json` passes the laws at once, nothing is asked, and
+/// the round's judge makes it READY.
+#[tokio::test]
+async fn a_settled_open_name_is_written_and_never_asked() {
+    let document = shorter().replace("reports/report.json", "out/report.json");
+    let author = Scripted::new(vec![door(&document, &[])]);
+    let request = crate::CompileRequest::create(STOCK).with_authoring_policy(policy());
+    let out = compiled_with(&request, &author, None, None).await;
+    assert_eq!(authored(&out), ["document"], "{out:#?}");
+    assert_eq!(found(&out, 0), "[]", "the settled path is written");
+    assert!(
+        !(out.questions.iter()).any(|q| q.key == "const.payload_path"),
+        "{out:#?}"
+    );
+    assert_eq!(out.status, crate::CompileStatus::Ready, "{out:#?}");
+}
+
+/// A request with two open names: a source and a payload. The report goes to `reports/`, so no
+/// folder the words name settles either.
+const TWO: &str = "Lis un journal in/a.json. Écris reports/report.json, puis prépare exactement un payload out/c.json.";
 
 /// One constant read and written whole, asked under one key twice, each question naming the
 /// other open name.
@@ -180,14 +213,14 @@ const:
 permits:
   fs:
     read: [""]
-    write: ["out/report.json", ""]
+    write: ["reports/report.json", ""]
   tools: ["nika:read", "nika:write"]
 tasks:
   load:
     invoke: { tool: "nika:read", args: { path: "${{ const.location_path }}" } }
   write_report:
     with: { text: "${{ tasks.load.output }}" }
-    invoke: { tool: "nika:write", args: { path: "out/report.json", content: "${{ with.text }}" } }
+    invoke: { tool: "nika:write", args: { path: "reports/report.json", content: "${{ with.text }}" } }
   write_payload:
     with: { text: "${{ tasks.load.output }}" }
     invoke: { tool: "nika:write", args: { path: "${{ const.location_path }}", content: "${{ with.text }}" } }

@@ -195,6 +195,30 @@ ignore = [
   # Review: 2026-08-10 · drop when xcb/xcap cross 0.41. Mirror: .cargo/audit.toml.
   "RUSTSEC-2026-0194",
   "RUSTSEC-2026-0195",
+  #
+  # RUSTSEC-2026-0367 + RUSTSEC-2026-0368 + RUSTSEC-2026-0369 · zip 7.2.0 extraction
+  # (SUID/SGID bits kept, symlink targets outside the destination, permissions applied
+  # through symlinks · fix >=9.0.0). Every one is in `ZipArchive::extract` or
+  # `ZipStreamReader::extract`. zip 7.2 is pulled only by candle-core 0.10.2 →
+  # nika-infer-local (ADR-091), which reads `.npz` / `.pth` archives entry by entry
+  # (`ZipArchive::new` + `by_name`) and writes `.npz` with `ZipWriter`: it never extracts
+  # an archive to a directory, so the vulnerable paths are not reached. No patched candle
+  # exists: candle-core 0.11.0 still requires zip ^8.6. Review: when candle-core accepts
+  # zip >=9.0. Upstream: github.com/huggingface/candle. Mirror: .cargo/audit.toml.
+  "RUSTSEC-2026-0367",
+  "RUSTSEC-2026-0368",
+  "RUSTSEC-2026-0369",
+  #
+  # RUSTSEC-2026-0370 + RUSTSEC-2026-0371 + RUSTSEC-2026-0372 · `zvariant`, `zbus_names` and
+  # `zvariant_derive` are unmaintained as standalone crates: zbus 6.0.0 merged them as its
+  # own modules (informational, no vulnerability, no patched version). They ride zbus 5.19,
+  # the Linux D-Bus stack of atspi 0.30 (nika-a11y, the accessibility bus) and of
+  # secret-service 5.1 (keyring 4.2, the Linux Secret Service store). Neither atspi nor
+  # secret-service has a zbus 6 release yet. Review: when both move to zbus 6.
+  # Upstream: github.com/z-galaxy/zbus/issues/2043. Mirror: .cargo/audit.toml.
+  "RUSTSEC-2026-0370",
+  "RUSTSEC-2026-0371",
+  "RUSTSEC-2026-0372",
 ]
 
 [sources]

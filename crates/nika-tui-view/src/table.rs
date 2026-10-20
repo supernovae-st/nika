@@ -265,11 +265,13 @@ pub(crate) fn show(sheet: &mut Sheet, text: &str, tabs: bool, protected: bool) {
 
 /// The facts and notes of the records read: their size, a delimiter other
 /// than the comma, ragged rows, and the rows and columns left undrawn
-/// (`drawn`: the columns the width holds).
+/// (`drawn`: the columns the width holds). The first row is drawn as the
+/// header: the rows counted are the records under it.
 fn facts(sheet: &mut Sheet, read: &Records, delim: char, drawn: usize) {
     let ascii = sheet.body.canvas().ascii;
     let by = if ascii { "x" } else { "×" };
-    let rows = cells::count(read.total, "row");
+    let records = read.total.saturating_sub(1);
+    let rows = cells::count(records, "row");
     let columns = cells::count(read.most, "column");
     sheet.facts.push(format!("{rows} {by} {columns}"));
     if delim != ',' {
@@ -289,8 +291,8 @@ fn facts(sheet: &mut Sheet, read: &Records, delim: char, drawn: usize) {
     }
     if read.rows.len() < read.total {
         sheet.notes.push(Note::RowsCut {
-            shown: read.rows.len(),
-            total: read.total,
+            shown: read.rows.len().saturating_sub(1),
+            total: records,
         });
     }
     if drawn < read.most {
@@ -335,7 +337,7 @@ mod tests {
     fn a_table_aligns_numbers_and_draws_a_header_rule() {
         let mut sheet = Sheet::new(Canvas::new(40, true, false), Format::Csv);
         show(&mut sheet, "name,count\nalpha,3\nbe,12\n", false, false);
-        assert_eq!(sheet.facts, ["3 rows x 2 columns"]);
+        assert_eq!(sheet.facts, ["2 rows x 2 columns"], "the header aside");
         assert_eq!(
             texts(sheet),
             [
@@ -377,7 +379,7 @@ mod tests {
             true,
         );
         assert!(
-            sheet.notes.contains(&Note::RowsCut { shown: 3, total: 5 }),
+            sheet.notes.contains(&Note::RowsCut { shown: 2, total: 4 }),
             "{:?}",
             sheet.notes
         );

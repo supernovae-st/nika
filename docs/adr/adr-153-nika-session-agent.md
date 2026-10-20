@@ -176,3 +176,51 @@ saved « activate » declares it in `nika.yaml`. Saving declares nothing.
 **Consequences.** A recurring request reaches the same declaration on both routes, and the
 workflow's bytes stay free of any trigger. The witnesses are the schedule journeys of
 `tests/open_ux_journeys/schedule_journeys.rs` (nika-session).
+
+## Amendment 2026-10-14 — a new workflow is saved under the file its request names
+
+**Context.** A request that asked to create and save `comptage.nika` was saved as
+`count-lines.nika`: the agent route's landing derived a new workflow's file from its `nika:`
+(`review::destination`), and nothing carried the file the person named. Spec 01 calls the `nika:`
+value the file's name, so the author's identity decided the Save path; the judge's framing judged
+a requested name against `nika:`, which could only be met by renaming the workflow.
+
+**Decision.** The desk lands a new workflow at the file the request names
+(`nika_compile_fidelity::fidelity::requested_workflow`), whatever its `nika:`, and the author is
+never asked to rename it; a known workflow still revises in place first, and without a named file
+the `nika:` still decides. The proposal's change set witnesses that file as any destination, so
+the ordinary overwrite consent and its refusals apply unchanged, and the verifier's landing reads
+the same words, so the preview, the proposal's identity and the Save name one file. The filename
+contract is reconciled explicitly: `nika:` stays the workflow's name in journals, traces and
+messages (Spec 01 §nika), and the file a person names for a new workflow is where it is saved;
+Spec 01's file naming already admits a program stem that is no id (`support.v2.nika`). The
+judge's framing says the same (`nika-compile-seats`).
+
+**Consequences.** The person's file name survives into the saved workflow without a rename, and a
+file already there is replaced only on the consent its preview asks. The witnesses are
+`a_new_workflow_lands_at_the_file_the_request_names` (nika-session) and the journeys of
+`tests/open_ux_journeys/requested_file_journeys.rs` (nika-session).
+
+## Amendment 2026-10-16 — a question a proposal's choice covers is that choice
+
+**Context.** An author asked depth and topics together; once depth was answered it proposed with
+topics shown on the card, its default `all`. Consent was held (« Nika asked `topics`, which this
+proposal does not show ») although the card showed it, and the asked question could not be
+answered while the proposal waited: a host answers only the card's choices then. The amendment of
+2026-10-11 already said a question blocks consent only when it is not one the proposal shows.
+
+**Decision.** When a proposal is admitted, an open asked question that one of its choices covers
+(the same key, the same part its answer plays, the same single or multiple pick, the same options
+by key, and the person's own words when the question took them) is that choice: it is answered
+under the choice's identity and no longer waits as a question. A choice that only reuses a key
+covers nothing. A question the proposal does not cover waits first, before the consent, and is
+answered by its own identity: that line is the question's reply, recorded under the `ask` that
+asked it, never the person's request naming the workflow's file, and the proposal's call closes as
+no longer waiting as it is. A proposal shown before that answer is not saved as it is: the author
+proposes again. A bare consent still binds only the defaults the proposal shows.
+
+**Consequences.** One authoritative choice answers the live shape, and no open question is left
+without a door. The witnesses are the choice tests of `conversation/choices/tests.rs`
+(nika-session-agent), the machine-door tests of `tests/session_feedback_machine.rs` (nika-cli),
+and the journey `a_reply_after_a_declined_proposal_never_names_the_saved_workflow` (nika-session):
+a reply given while a draft waits never names the workflow's file.

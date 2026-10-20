@@ -1,0 +1,16 @@
+# C03 · arithmetic is OUT of cel-subset/0.1 (no + - * / % productions).
+# Spec: 04-variables §forward-compat "Expression language (no arithmetic in
+# templates)"; 03-dag §grammar lists NO arithmetic operators; reserved per line 124.
+# Expected: NIKA-VAR-005 (static expression violation) at CHECK time.
+nika: c03-arithmetic-rejected
+
+const:
+  a: 2
+  b: 3
+
+tasks:
+  gate:
+    when: "${{ const.a + const.b > 4 }}"           # `+` is not in the grammar → parse reject
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/cel/c03-ran.json", content: { ran: true }, create_dirs: true }

@@ -206,18 +206,20 @@ fn the_qualified_blocks_claim_their_outcome_proof() {
 /// Held-out French requests, each with the family it belongs to: those of the set whose family rank
 /// the light French stem moves on this release, up or down, frozen at the rank the door now gives
 /// it (`None`: not recalled). Without the stem these 8 requests ranked their family first 0 times,
-/// in the top three 5 times and recalled it 5 times; with it 1, 6 and 8 times. The rest of the set
-/// stays held out.
+/// in the top three 5 times and recalled it 5 times; with it 1, 6 and 8 times. On r3.5, whose
+/// families gained the French words of seven recurring jobs, 2, 6 and 8 times: the digest and the
+/// enrichment requests rise, and the row validation request falls from 6 to 8 behind families whose
+/// words now include rows of a table. The rest of the set stays held out.
 const HELD_OUT: [(&str, &str, Option<usize>); 8] = [
     (
         "Le vendredi, rassemble ce qui a paru dans la semaine sur nos blogs suivis et envoie-le par mail.",
         "family:scheduled-digest",
-        Some(3),
+        Some(1),
     ),
     (
         "Quand un ticket est créé, enrichis-le avec l'historique du client puis pousse-le dans l'outil support.",
         "family:event-driven-enrichment",
-        Some(3),
+        Some(2),
     ),
     (
         "Regarde chaque jour si le document en ligne a été modifié et signale-moi les différences.",
@@ -242,7 +244,7 @@ const HELD_OUT: [(&str, &str, Option<usize>); 8] = [
     (
         "Contrôle les données importées et sépare les lignes incomplètes des lignes correctes.",
         "family:validate-and-quarantine",
-        Some(6),
+        Some(8),
     ),
     (
         "Mets à jour les stocks dans l'ERP à partir du fichier, sans réappliquer ce qui a déjà été envoyé.",

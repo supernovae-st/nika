@@ -147,7 +147,13 @@ fn a_run_is_one_admission_by_name_then_its_observed_end() {
     };
     assert_eq!(exit, 4, "the resident's end, as the exit nika run gives");
     assert_eq!(trace, Some(PathBuf::from(".nika/traces/job-1.ndjson")));
-    assert_eq!(leg, None, "a receipt naming nothing names no identity");
+    let leg = leg.expect("a served run keeps the job it ran as");
+    assert_eq!(leg.job.as_deref(), Some("job-1"));
+    assert_eq!(
+        (leg.execution, leg.receipt, leg.outputs, leg.seal_verified),
+        (None, None, None, None),
+        "a receipt naming nothing names no identity, an unverified journal no seal"
+    );
     let admitted = jobs.admitted.lock().expect("admitted").clone();
     assert_eq!(
         admitted,
@@ -323,6 +329,71 @@ fn a_job_end_names_its_receipt_and_its_own_journals_one_start() {
     let missing = missing.leg().expect("the receipt's identity");
     assert_eq!((missing.workflow_sha256, missing.trace), (None, None));
     assert!(!missing.trace_opaque);
+}
+
+/// A served run keeps the job its resident ran it as, the receipt and declared outputs that
+/// resident serves, and the seal facts its verify door attests for the journal: the receipt's
+/// chain head stays an identity, never a seal. An end whose journal no door verified names no
+/// seal fact at all.
+#[test]
+fn a_served_run_keeps_its_job_receipt_outputs_and_verified_seal() {
+    let receipt = serde_json::json!({
+        "job_id": "job-1",
+        "execution_id": format!("exe-{EXEC}"),
+        "trace_id": "trace-of-job-1",
+        "snapshot_digest": "aa",
+        "chain_head": "cd",
+    });
+    let outputs = serde_json::json!({"summary": "three lines"});
+    let unsigned = serde_json::json!({
+        "verdict": "ok", "reason": "unsealed", "trace_id": "trace-of-job-1",
+        "tier": "ok", "chain": {"headline": "intact"}, "seal": {"tier": "unsealed"},
+    });
+    let end = JobEnd::new(0, None).with_receipt(
+        Some(format!("exe-{EXEC}")),
+        Some("trace-of-job-1".to_owned()),
+        Some("cd".to_owned()),
+    );
+    let leg = (end.clone())
+        .with_served(
+            receipt.as_object().cloned(),
+            outputs.as_object().cloned(),
+            Some(unsigned),
+        )
+        .served_leg("job-1");
+    assert_eq!(leg.job.as_deref(), Some("job-1"));
+    assert_eq!(
+        leg.execution.as_deref(),
+        Some(EXEC),
+        "the receipt's identity"
+    );
+    assert_eq!(leg.chain_head.as_deref(), Some("cd"));
+    assert_eq!(
+        (leg.seal_verified, leg.signed),
+        (Some(false), Some(false)),
+        "a chain head is no seal: the unsigned journal is neither"
+    );
+    let kept = |part: Option<&Map<String, Value>>, key: &str| part.map(|p| p[key].clone());
+    assert_eq!(
+        kept(leg.receipt.as_deref(), "chain_head"),
+        Some("cd".into())
+    );
+    assert_eq!(
+        kept(leg.outputs.as_ref(), "summary"),
+        Some("three lines".into())
+    );
+    let signed = serde_json::json!({
+        "tier": "sealed", "chain": {"headline": "intact"},
+        "seal": {"tier": "sealed", "key_id": "k", "source": "s"},
+    });
+    let leg = (end.with_served(None, None, Some(signed))).served_leg("job-1");
+    assert_eq!((leg.seal_verified, leg.signed), (Some(true), Some(true)));
+    let unverified = JobEnd::new(0, None).served_leg("job-2");
+    assert_eq!(
+        (unverified.seal_verified, unverified.signed),
+        (None, None),
+        "no journal verified: no seal fact"
+    );
 }
 
 /// A resumed leg is its own execution: without a start of its own it names no source hash,

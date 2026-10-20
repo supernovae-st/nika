@@ -27,6 +27,7 @@ workspace = true
 nika-kernel    = { path = "../nika-kernel", version = "0.123.0-preview.1" }  # StopReason — preserve the provider's incomplete-response signal
 nika-cli-host  = { path = "../nika-cli-host", version = "0.123.0-preview.1", default-features = false }  # the ONE probe the census reads · the observed project, the authoring backend, the authoring settings and the TypeSafe decision seat (lateral L4→L4 · never back)
 nika-providers = { path = "../nika-providers", version = "0.123.0-preview.1", default-features = false }  # ProviderRegistry · the authoring policy and preparation costs (the API/local reasoner and the provider seat)
+nika-catalog   = { path = "../nika-catalog", version = "0.123.0-preview.1", features = ["providers", "pricing", "capabilities"] }  # the sampling a model refuses (the label temperature) · the tariff a label test quotes
 nika-verb-infer = { path = "../nika-verb-infer", version = "0.123.0-preview.1", default-features = false }  # ONE inference call, no workflow (the API/local reasoner)
 nika-http      = { path = "../nika-http", version = "0.123.0-preview.1" }    # ReqwestHttp — the provider plane's wire
 nika-runtime   = { path = "../nika-runtime", version = "0.123.0-preview.1" } # compose::config_from_env — the ONE env boundary
@@ -57,7 +58,6 @@ access-harness = ["dep:nika-harness", "dep:nika-mcp", "nika-cli-host/access-harn
 test-support = []
 
 [dev-dependencies]
-nika-catalog = { path = "../nika-catalog", version = "0.123.0-preview.1", features = ["providers", "pricing"] }  # the tariff a label test quotes
 nika-error   = { path = "../nika-error", version = "0.123.0-preview.1" }  # cost::Cost — the label tests' account
 nika-event   = { path = "../nika-event", version = "0.123.0-preview.1" }  # source_id::sha256_hex — the digests the authoring tests compare
 tempfile     = { workspace = true }

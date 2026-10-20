@@ -35,8 +35,8 @@ pub struct ModelOffer {
     pub model: String,
     /// The route (`run.access.via` names its `access`): class, readiness and fix.
     pub route: AccessCandidate,
-    /// The catalogue's output list price (USD per million tokens) on a metered route; `None`
-    /// is unknown or unmetered, never free.
+    /// The output price (USD per million tokens) this exact route's admission uses: its
+    /// qualified tariff ([`admitted_output_price`]). `None` is unknown or unmetered, never free.
     pub output_usd_per_million: Option<f64>,
 }
 
@@ -136,9 +136,9 @@ impl ModelInventory {
                     continue;
                 }
                 for name in route_models(probe, provider) {
-                    let price = nika_catalog::find_pricing_scoped(provider, &name)
+                    let price = probe
                         .filter(|_| route.billing.is_usd_metered())
-                        .map(|row| row.output_per_million);
+                        .and_then(|p| admitted_output_price(provider, &name, &p.endpoint));
                     let model = format!("{provider}/{name}");
                     offers.push(ModelOffer::new(model, route.clone(), price));
                 }
@@ -237,6 +237,20 @@ fn unsupported(
         alternatives = ready.cloned().collect();
     }
     ModelChoice::Unsupported { why, alternatives }
+}
+
+/// The output price (USD per million tokens) an offer shows for `provider/model` at `endpoint`:
+/// the qualified admission tariff of that exact route, the one a Session or a Run admits it
+/// with. `None` when the admission cannot qualify the route: a model the snapshot
+/// prices but no tariff admits, a configured gateway, a non-USD tariff. Never a `contains()`
+/// match, never a price the admission does not use.
+#[must_use]
+pub fn admitted_output_price(provider: &str, model: &str, endpoint: &str) -> Option<f64> {
+    let tariff = crate::InferenceAdmission::qualify(provider, model, endpoint).ok()?;
+    // Qualified rates are integers below 2^53: exact in an f64.
+    #[allow(clippy::cast_precision_loss)]
+    let nano = tariff.price_native(0, 1, 0)? as f64;
+    Some(nano / 1000.0)
 }
 
 /// The model names a route offers for `provider`: its observed listing; else the catalogue's

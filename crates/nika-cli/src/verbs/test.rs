@@ -67,6 +67,7 @@ fn capture_answered_outputs(
     skills: std::collections::BTreeMap<String, String>,
     answer: &[String],
     inputs: super::run::inputs::ValidatedInputs,
+    facts: nika_runtime::RunFacts,
     theme: Theme,
 ) -> Result<(u8, std::collections::BTreeMap<String, Value>), u8> {
     let answers = nika_dap::resume::parse_answers(answer, wf).map_err(|message| {
@@ -89,7 +90,7 @@ fn capture_answered_outputs(
             return Err(exit::ENV);
         }
     }
-    super::run::capture_mock_outputs_with_answers(wf, report, skills, answers, inputs, theme)
+    super::run::capture_mock_outputs_with_answers(wf, report, skills, answers, inputs, facts, theme)
         .map_err(|message| {
             eprintln!("nika test: environment: {message}");
             exit::ENV
@@ -103,6 +104,18 @@ fn capture_answered_outputs(
 #[must_use]
 pub fn run_with_answers(file: &str, update: bool, answer: &[String], theme: Theme) -> u8 {
     run_case(file, update, answer, (&[], None), theme)
+}
+
+/// `--at <INSTANT>` as the run is told it: an RFC 3339 instant, bare UTC or
+/// zoned (the `arm fire --now` reading).
+fn parse_at(text: &str) -> Result<nika_types::timestamp::Timestamp, String> {
+    let instant = text
+        .parse::<jiff::Timestamp>()
+        .or_else(|_| text.parse::<jiff::Zoned>().map(|zoned| zoned.timestamp()))
+        .map_err(|_| format!("--at `{text}` is not an RFC 3339 instant — 2026-10-16T09:00:00Z"))?;
+    i64::try_from(instant.as_nanosecond())
+        .map(nika_types::timestamp::Timestamp::from_unix_ns)
+        .map_err(|_| format!("--at `{text}` is outside the run clock's range"))
 }
 
 /// A case name is a file-name fragment: letters, digits, `_` and `-`.
@@ -170,12 +183,34 @@ pub fn run_case(
     (vars, case): (&[String], Option<&str>),
     theme: Theme,
 ) -> u8 {
+    run_case_at(file, update, answer, (vars, case), None, theme)
+}
+
+/// [`run_case`] with the run placed at an instant (`--at`, RFC 3339):
+/// `${{ run.scheduled_for }}` reads it (spec 04 §`run`), as in a run fired for
+/// that slot. Without it the run reads its own start.
+#[must_use]
+pub fn run_case_at(
+    file: &str,
+    update: bool,
+    answer: &[String],
+    (vars, case): (&[String], Option<&str>),
+    at: Option<&str>,
+    theme: Theme,
+) -> u8 {
     if file == "-" {
         return refuse_stdin();
     }
     if let Some(code) = refuse_malformed_case(file, vars, case) {
         return code;
     }
+    let facts = match at.map(parse_at).transpose() {
+        Ok(at) => at.map_or_else(nika_runtime::RunFacts::default, nika_runtime::RunFacts::at),
+        Err(why) => {
+            eprintln!("nika test: {why}");
+            return exit::ENV;
+        }
+    };
     // ── Audit BEFORE run — the same gate `nika run` holds ───────────
     let (wf, report) = match crate::verbs::load_checked(file) {
         Ok(pair) => pair,
@@ -194,16 +229,22 @@ pub fn run_case(
         return out.code;
     }
 
+    // Spec 02 §Project files: no run carries project files yet, the mock run included.
+    if let Some(code) = refuse_project_files(file, &wf) {
+        return code;
+    }
+
     // ── The mock run (simulated plane · offline · deterministic) ──────
     let inputs = match bind_inputs(&wf, vars) {
         Ok(inputs) => inputs,
         Err(code) => return code,
     };
-    let (code, outputs) =
-        match capture_answered_outputs(&wf, &report, resolved.texts, answer, inputs, theme) {
-            Ok(pair) => pair,
-            Err(code) => return code,
-        };
+    let captured =
+        capture_answered_outputs(&wf, &report, resolved.texts, answer, inputs, facts, theme);
+    let (code, outputs) = match captured {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
     if code != exit::OK {
         eprintln!(
             "nika test: the mock run failed (exit {code}) — a golden pins a \
@@ -234,6 +275,18 @@ pub fn run_case(
 
 /// The sibling golden path: the workflow file + `.golden.json` (no
 /// extension surgery — the mapping stays unambiguous for any input name).
+/// A run does not carry project files yet (spec 02 §Project files): the mock run of a workflow
+/// that names one is refused before any task, as `nika run` refuses it.
+fn refuse_project_files(file: &str, wf: &nika_schema::raw::RawWorkflow) -> Option<u8> {
+    let files = nika_schema::project_file_refs(wf);
+    let (task, field, first) = files.first()?;
+    eprintln!(
+        "nika test: `{file}` task `{task}` names the project file {field} `{}`: a run does not carry project files yet, so the mock run is refused before any task",
+        first.path.value
+    );
+    Some(exit::FILE)
+}
+
 /// Bind the case's inputs through the `run --var` door: the parse, then
 /// the required-inputs refusal — both spoken in this verb's voice.
 fn bind_inputs(
@@ -543,6 +596,50 @@ mod tests {
             run_case(&file, true, &[], (&[], Some("bad/name")), plain_theme()),
             exit::ENV,
             "a case is a file-name fragment"
+        );
+    }
+
+    /// `--at` places the golden run at an instant: `${{ run.scheduled_for }}`
+    /// reads it (spec 04 §`run`), so a golden that pins the instant stays
+    /// stable, and a text that is no instant is refused before any run.
+    #[test]
+    fn at_places_the_golden_run_at_its_instant() {
+        let dir = std::env::temp_dir().join("nika-cli-test-verb-at");
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let path = dir.join("scheduled.nika");
+        std::fs::write(
+            &path,
+            "nika: scheduled\nmodel: mock/echo\ntasks:\n  gen:\n    infer: { prompt: \"say hi\" }\noutputs:\n  day: ${{ run.scheduled_for }}\n",
+        )
+        .expect("fixture written");
+        let file = path.to_string_lossy().to_string();
+        std::fs::remove_file(golden_path_of(&file)).ok();
+        let at = Some("2026-10-16T09:00:00Z");
+        assert_eq!(
+            run_case_at(&file, true, &[], (&[], None), at, plain_theme()),
+            exit::OK
+        );
+        let golden: Value = serde_json::from_str(
+            &std::fs::read_to_string(golden_path_of(&file)).expect("golden written"),
+        )
+        .expect("golden json");
+        assert_eq!(golden["day"], "2026-10-16T09:00:00.000Z");
+        assert_eq!(
+            run_case_at(&file, false, &[], (&[], None), at, plain_theme()),
+            exit::OK,
+            "the same instant matches its golden"
+        );
+        assert_eq!(
+            run_case_at(
+                &file,
+                false,
+                &[],
+                (&[], None),
+                Some("tomorrow"),
+                plain_theme()
+            ),
+            exit::ENV,
+            "a text that is no instant is refused"
         );
     }
 

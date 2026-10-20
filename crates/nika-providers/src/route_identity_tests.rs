@@ -663,6 +663,16 @@ fn answered(model: &str, cached: Option<u64>) -> nika_kernel::ai::provider::Infe
     response
 }
 
+/// One call whose provider reported its own account charge, recorded by the
+/// transport's billing owner.
+fn charged(route: &BillingRoute, nano: i128) -> InferenceCall {
+    let mut response = answered(&route.model, None);
+    response.cost = Some(Cost::new(nano));
+    let mut slot = None;
+    crate::retry::record(&mut slot, Some(route), Some(&response), None);
+    slot.expect("a recorded call")
+}
+
 /// One call recorded by the transport's own billing owner.
 fn recorded(
     route: &BillingRoute,
@@ -748,12 +758,18 @@ fn assert_projected_as_recorded(name: &str, call: &InferenceCall, kind: &str, pr
     assert_clean(&durable.to_string(), S);
 }
 
-/// O-L8 and the O-L10 drift guard: each of the four kinds, written by its real
+/// O-L8 and the O-L10 drift guard: each of the five kinds, written by its real
 /// producer, projects to exactly its frozen keys with nothing withheld, and every
 /// number and state the record carries survives unchanged.
 #[test]
 fn every_real_producer_projects_to_its_frozen_keys_with_nothing_withheld() {
     let scaleway = format!("https://api.scaleway.ai/{S}/v1/chat/completions");
+    let openrouter = BillingRoute::new(
+        "openrouter".into(),
+        "z-ai/glm-5.3-flash".into(),
+        "https://openrouter.ai/api/v1/chat/completions".into(),
+    )
+    .expect("route");
     let deepseek = BillingRoute::new("deepseek".into(), "deepseek-v4-pro".into(), DEEPSEEK.into())
         .expect("route");
     let gateway = BillingRoute::new(
@@ -778,9 +794,9 @@ fn every_real_producer_projects_to_its_frozen_keys_with_nothing_withheld() {
             "catalog tariff",
             recorded(&deepseek, Some(80), None),
             "catalog_estimate_not_invoice",
-            16,
+            17,
         ),
-        ("unknown", recorded(&gateway, None, None), "unknown", 16),
+        ("unknown", recorded(&gateway, None, None), "unknown", 17),
         (
             "snapshot",
             recorded(&mistral, None, None),
@@ -799,10 +815,21 @@ fn every_real_producer_projects_to_its_frozen_keys_with_nothing_withheld() {
             "user_declared_estimate_not_invoice",
             10,
         ),
+        (
+            "reported charge",
+            charged(&openrouter, 1_200_000),
+            "provider_reported_charge",
+            7,
+        ),
     ];
     for (name, call, kind, pricing_keys) in cases {
         assert_projected_as_recorded(name, &call, kind, pricing_keys);
     }
+    assert_eq!(
+        charged(&openrouter, 1_200_000).known_estimate(),
+        Some(Cost::new(1_200_000)),
+        "the reported charge is the call's known amount"
+    );
     let snapshot = recorded(&mistral, None, None);
     assert!(
         snapshot.known_estimate().is_some(),

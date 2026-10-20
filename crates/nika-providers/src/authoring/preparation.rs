@@ -11,6 +11,20 @@ const SCHEMA: &str = "nika/preparation-cost-observation@1";
 thread_local! {
     static ACTIVE: RefCell<Option<PreparationCosts>> = const { RefCell::new(None) };
 }
+/// What the returned requests of one preparation scope settled so far. Both counts only grow:
+/// a host reads what one call settled as the difference between two readings of one scope.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct SettledCalls {
+    /// The scope the reading belongs to.
+    pub scope: String,
+    /// The sum of the returned requests' known estimates, in nano-USD at list price: never an
+    /// invoice.
+    pub known_nano_usd: i128,
+    /// The returned requests with no known estimate.
+    pub unpriced: usize,
+}
+
 /// Live, observational costs for one interactive Session. Not an admission handle.
 #[derive(Clone, Debug)]
 pub struct PreparationCosts {
@@ -103,6 +117,21 @@ impl PreparationCosts {
             ACTIVE.with(|slot| slot.replace(Some(self.clone()))),
             PhantomData,
         )
+    }
+    /// What the returned requests of the scope active on this thread settled so far
+    /// ([`SettledCalls`]); `None` outside a scope. Requests still in flight count in neither.
+    #[must_use]
+    pub fn active_settled() -> Option<SettledCalls> {
+        ACTIVE.with(|slot| {
+            let costs = slot.borrow();
+            let costs = costs.as_ref()?;
+            let (known_nano_usd, unpriced) = costs.journal.settled();
+            Some(SettledCalls {
+                scope: costs.id.clone(),
+                known_nano_usd,
+                unpriced,
+            })
+        })
     }
     /// Whether the current driver is preparing continuously, rather than enforcing a Run cap.
     #[must_use]

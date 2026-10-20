@@ -1,0 +1,10 @@
+{"data": {"id": "vendor/peak", "endpoints": [
+ {"tag": "vendor-a", "context_length": 400000, "max_completion_tokens": 100000,
+  "pricing": {"prompt": "0.000001", "completion": "0.000004", "input_cache_read": "0.0000001",
+   "input_cache_write": "0.00000125", "discount": 0,
+   "overrides": [{"min_prompt_tokens": 200000, "prompt": "0.000002", "completion": "0.000006",
+    "input_cache_read": "0.0000002", "input_cache_write": "0.0000025"}]}},
+ {"tag": "vendor-b", "context_length": 300000, "max_completion_tokens": 120000,
+  "pricing": {"prompt": "0.0000012", "completion": "0.0000035", "input_cache_read": "0.00000012",
+   "discount": 0.2}}
+]}}

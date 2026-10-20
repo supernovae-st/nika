@@ -1,0 +1,88 @@
+# Armed by the project's nika.yaml, never by saving this file:
+#   nika: release-watch
+#   arm:
+#     - workflow: watch-api-state-notify.nika
+#       cadence: "TZ=Europe/Paris 0 7 * * *"
+#       plafond: 0.05
+#       manqué: sauter
+# A fetched value kept beside a state file and posted out is the Rule of Two: the gate asks only on the first run and
+# on a change, and every effect takes the value from the person's answer. Unattended, such a run pauses (exit 4).
+nika: p69-watch-api-state-notify
+const:
+  api_url: "https://api.example.com/v1/releases/latest.json"
+  state_path: ./state/latest.txt
+  journal_path: ./journal.md
+  webhook: "https://hooks.example.com/releases"
+  tz: Europe/Paris
+permits:
+  tools: ["nika:fetch", "nika:read", "nika:jq", "nika:date", "nika:prompt", "nika:write"]
+  net: { http: ["api.example.com", "hooks.example.com"] }
+  fs: { read: ["./state/latest.txt", "./journal.md"], write: ["./state/latest.txt", "./journal.md"] }
+tasks:
+  current:
+    invoke: { tool: "nika:fetch", args: { url: "${{ const.api_url }}", mode: jq, jq: ".version | tostring" } }
+    timeout: "30s"
+  previous_text:
+    invoke: { tool: "nika:read", args: { path: "${{ const.state_path }}" } }
+    on_error: { recover: "", on_codes: ["NIKA-BUILTIN-READ-001"] }
+  status:
+    with: { current: "${{ tasks.current.output }}", previous: "${{ tasks.previous_text.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { current: "${{ with.current }}", previous: "${{ with.previous }}" }
+        expression: >-
+          (.previous | rtrimstr("\n")) as $was
+          | {current: .current, ask: (.previous == "" or $was != .current),
+             question: (if .previous == "" then "First run: keep " + .current + " as the reference value? Choose it to record it, or no."
+                        else $was + " -> " + .current + ": choose the new value to add a dated line to the journal and post it, or no." end)}
+  review:
+    with: { status: "${{ tasks.status.output }}" }
+    when: "${{ with.status.ask == true }}"
+    invoke: { tool: "nika:prompt", args: { mode: choice, message: "${{ with.status.question }}", choices: ["${{ with.status.current }}", "no"] } }
+  state_again:
+    after: { review: success }
+    invoke: { tool: "nika:read", args: { path: "${{ const.state_path }}" } }
+    on_error: { recover: "", on_codes: ["NIKA-BUILTIN-READ-001"] }
+  journal_again:
+    after: { review: success }
+    invoke: { tool: "nika:read", args: { path: "${{ const.journal_path }}" } }
+    on_error: { recover: "", on_codes: ["NIKA-BUILTIN-READ-001"] }
+  clock:
+    after: { review: success }
+    invoke: { tool: "nika:date", args: { op: now, tz: "${{ const.tz }}" } }
+  plan:
+    with: { answer: "${{ tasks.review.output }}", previous: "${{ tasks.state_again.output }}", journal: "${{ tasks.journal_again.output }}", now: "${{ tasks.clock.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { answer: "${{ with.answer }}", previous: "${{ with.previous }}", journal: "${{ with.journal }}", now: "${{ with.now }}" }
+        expression: >-
+          (.previous | rtrimstr("\n")) as $was
+          | (.now[0:16] | sub("T"; " ")) as $at
+          | (.answer != null and .answer != "no") as $accepted
+          | {accepted: $accepted, changed: ($accepted and .previous != "" and $was != .answer),
+             payload: {previous: $was, current: .answer, at: .now},
+             journal: ((if .journal == "" or (.journal | endswith("\n")) then .journal else .journal + "\n" end)
+                       + "- " + $at + " · " + $was + " -> " + (.answer | tostring) + "\n"),
+             state: ((.answer | tostring) + "\n")}
+  notify:
+    with: { plan: "${{ tasks.plan.output }}" }
+    when: "${{ with.plan.changed == true }}"
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "${{ const.webhook }}", method: POST, headers: { content-type: application/json }, body: "${{ with.plan.payload }}" }
+    timeout: "30s"
+  append_journal:
+    after: { notify: terminal }
+    with: { plan: "${{ tasks.plan.output }}", sent: "${{ tasks.notify.status }}" }
+    when: "${{ with.plan.changed == true && with.sent == 'success' }}"
+    invoke: { tool: "nika:write", args: { path: "${{ const.journal_path }}", content: "${{ with.plan.journal }}" } }
+  save_state:
+    after: { notify: terminal }
+    with: { plan: "${{ tasks.plan.output }}", sent: "${{ tasks.notify.status }}" }
+    when: "${{ with.plan.accepted == true && with.sent != 'failure' }}"
+    invoke: { tool: "nika:write", args: { path: "${{ const.state_path }}", content: "${{ with.plan.state }}", create_dirs: true } }
+outputs:
+  current: ${{ tasks.status.output.current }}
+  asked: ${{ tasks.status.output.ask }}

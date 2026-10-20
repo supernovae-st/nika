@@ -52,22 +52,26 @@ fn beside_any_answer(line: &str) -> bool {
 }
 
 impl SessionRuntime {
-    /// What the next line answers, by the one precedence every host shares: a requested run's
-    /// cost review, the one-time cost decision, the choice of intelligence, the knowledge choice
-    /// a held line waits for, a proposal's consent, a run's gate, then the value an authoring
-    /// question, a run input or an activation asks; else a new turn.
+    /// What the next line answers, by the one precedence every host shares: an explicitly opened
+    /// intelligence choice, a requested run's cost review, the one-time cost decision, the knowledge choice
+    /// a held line waits for, a proposal's consent (after a question the conversation asked that
+    /// the proposal does not cover), a run's gate, then the value an authoring question, a run's
+    /// ceiling, a run input or an activation asks; else a new turn.
     #[must_use]
     pub fn waiting(&self) -> Waiting {
-        if let Some(review) = self.waiting_review() {
+        if self.pending_choice {
+            Waiting::IntelligenceChoice
+        } else if let Some(review) = self.waiting_review() {
             Waiting::RunReview { review }
         } else if self.waiting_cost_choice() {
             Waiting::CostChoice
-        } else if self.pending_choice {
-            Waiting::IntelligenceChoice
         } else if let Some(line) = &self.knowledge.held {
             Waiting::KnowledgeChoice { line: line.clone() }
         } else if let Some(proposal) = self.pending_proposal() {
-            Waiting::Consent { proposal }
+            // No consent saves the proposal while a question asked is not one it shows (ADR-153):
+            // that question waits first, under its own identity.
+            self.agent_waiting()
+                .unwrap_or(Waiting::Consent { proposal })
         } else if let Some(gate) = self.waiting_gate() {
             Waiting::Gate { gate }
         } else if let Some(asked) = self.agent_waiting() {
@@ -78,6 +82,10 @@ impl SessionRuntime {
             Waiting::Question {
                 key: question.key.clone(),
                 id,
+            }
+        } else if let Some(workflow) = self.pending_run_ceiling() {
+            Waiting::RunCeiling {
+                workflow: workflow.to_path_buf(),
             }
         } else if let Some(name) = self.pending_input() {
             Waiting::Input {
@@ -102,17 +110,23 @@ impl SessionRuntime {
     /// refused. A gate answer names the gate shown ([`Self::answer_gate_for`]); a gate the host
     /// did not show takes no answer from the line. An authoring question takes the line only
     /// under the identity it was shown with ([`Self::answer_question_for`]): an answer typed
-    /// before a restore, a revision or another question is refused as stale. A run input or an
-    /// activation value takes the line only when the host showed that very value. A run's cost
-    /// review takes the line only under the identity it was shown with: one yes runs the child
-    /// once, a decline sends nothing ([`Self::run_review_asked`]). Leaving and the session's
-    /// read-only commands go through whatever waits; what waits keeps waiting after a refusal.
+    /// before a restore, a revision or another question is refused as stale. A run's ceiling, a
+    /// run input or an activation value takes the line only when the host showed that very value.
+    /// A run's cost review takes the line only under the identity it was shown with: one yes runs
+    /// the child once, a decline sends nothing ([`Self::run_review_asked`]). Leaving and the
+    /// session's read-only commands go through whatever waits; what waits keeps waiting after a
+    /// refusal.
     /// With nothing waiting, a line typed at a free prompt is a new turn; one typed for what
     /// the host showed goes to that state's identity door, which refuses it as answered,
     /// decided or stale, and a value or a choice no longer asked takes nothing: an answer is
     /// never read as a new request.
     pub fn submit(&mut self, line: &str, shown: &Waiting) -> TurnOutcome {
         self.last_answer = None;
+        // Configuration suspends the displayed decision; it never answers that decision or
+        // starts a new work turn. The choice door records it and keeps the underlying identity.
+        if line.trim() == "/intelligence" || line.trim().starts_with("/intelligence ") {
+            return self.choose(line);
+        }
         match self.waiting() {
             Waiting::RunReview { review } => match shown {
                 Waiting::RunReview { review: seen } => self.answer_run_review(seen, line),
@@ -163,7 +177,9 @@ impl SessionRuntime {
                     TurnOutcome::Refusal(Refusal::new(RefusalClass::StaleRevision, VALUE_NOT_SHOWN))
                 }
             },
-            waiting @ (Waiting::Input { .. } | Waiting::Activation { .. }) => {
+            waiting @ (Waiting::RunCeiling { .. }
+            | Waiting::Input { .. }
+            | Waiting::Activation { .. }) => {
                 if *shown == waiting || beside_any_answer(line) {
                     self.turn(line)
                 } else {
@@ -202,7 +218,9 @@ impl SessionRuntime {
     pub fn work(&self) -> Work {
         let candidate = self.candidate().map(|c| {
             let revision = self.document_revision(c.set);
-            Candidate::of(c.id, c.set, c.aside, c.rehearsed.is_some()).with_revision(revision)
+            Candidate::of(c.id, c.set, c.aside, c.rehearsed.is_some())
+                .with_revision(revision)
+                .with_schedule(self.declared_words(c.set))
         });
         let saved = self.last_workflow.clone().map(|workflow| {
             // The reach belongs to the bytes the last consent saved, not to a workflow only run.
@@ -211,17 +229,15 @@ impl SessionRuntime {
                 .map(|(_, world)| world.clone());
             Saved::new(workflow, self.last_check_clean, world)
         });
-        let run = self.kept_run().and_then(Result::ok).map(|kept| {
-            Run::new(
-                self.last_run.is_some(),
-                kept.workflow,
-                kept.exit,
-                kept.trace,
-                kept.execution,
-                kept.workflow_sha256,
-                kept.chain_head,
-                kept.chain_len,
-            )
+        let run = (self.kept_run().and_then(Result::ok)).map(|kept| {
+            let mut run = Run::kept(self.last_run.is_some(), kept);
+            // A native run's seal facts are held beside its kept value (`journal_seal`); `sealed`
+            // keeps its own fact, the receipt naming the chain head.
+            if let Some((seal_verified, signed)) = self.run_seal {
+                run.seal_verified = Some(seal_verified);
+                run.signed = Some(signed);
+            }
+            run
         });
         let work = Work::new(
             self.snapshot.root.clone(),
@@ -237,12 +253,62 @@ impl SessionRuntime {
             run,
             (&self.lifecycle()).into(),
         )
-        .with_authoring(self.last_outcome.as_ref().map(Authoring::of))
+        .with_authoring(self.authoring_shown())
         .with_intelligence(Some(self.intelligence_work()))
         .with_knowledge(Some(self.knowledge_work()))
         .with_question(self.pending_question())
-        .with_answered(self.last_answer.clone());
+        .with_answered(self.last_answer.clone())
+        .with_feedback(self.feedback.projected());
         self.with_agent(work)
+    }
+
+    /// The compiler's last word, its draft kept only while one of its own questions waits: a
+    /// question the conversation's author asks, or none, shows no compile draft (supernovae-1c,
+    /// live gauntlet r07 B4: a discarded draft showed while another question waited).
+    fn authoring_shown(&self) -> Option<Authoring> {
+        let mut shown = self.last_outcome.as_ref().map(Authoring::of)?;
+        let asks = (self.authoring.as_ref())
+            .and_then(|round| round.current())
+            .is_some_and(|question| shown.questions.contains(&question.key));
+        if !asks {
+            shown.draft = None;
+        }
+        Some(shown)
+    }
+
+    /// The schedule the declaration `set` lands says, in the person's words, when `set` is the
+    /// declaration this conversation proposed (it lands `nika.yaml`).
+    fn declared_words(
+        &self,
+        set: &crate::change::ProjectChangeSet,
+    ) -> Option<crate::work::ScheduleWords> {
+        let offer = self.declared.as_ref()?;
+        let lands =
+            (set.changes.iter()).any(|change| change.path() == std::path::Path::new("nika.yaml"));
+        if !lands {
+            return None;
+        }
+        let lang = offer.lang;
+        let cadence = super::schedule::cadence_words(&offer.cadence, lang);
+        let missed = super::schedule::missed_words(&offer.missed, lang);
+        let amount = (offer.ceiling.parse::<f64>())
+            .map_or_else(|_| offer.ceiling.clone(), nika_display::vocab::stated_usd);
+        let (missed, ceiling) = match lang {
+            super::Lang::Fr => (
+                format!("si le Mac est éteint : {missed}"),
+                format!("plafond {} $ par run", amount.replace('.', ",")),
+            ),
+            _ => (
+                format!("if the Mac is off: {missed}"),
+                format!("ceiling ${amount} per run"),
+            ),
+        };
+        Some(crate::work::ScheduleWords::new(
+            offer.workflow.display().to_string(),
+            cadence,
+            missed,
+            ceiling,
+        ))
     }
 
     /// Who prepares with this session, as selected and resolved here: the configured facts a
@@ -295,7 +361,12 @@ impl SessionRuntime {
             None => selected,
         };
         let selected = self.intelligence_chosen().then_some(selected);
-        Intelligence::new(selected, author, decision, effort)
+        let mut intelligence = Intelligence::new(selected, author, decision, effort);
+        if self.pending_choice {
+            intelligence.options = self.intelligence_options();
+            intelligence.recommended = self.recommended(&intelligence.options);
+        }
+        intelligence
     }
 }
 

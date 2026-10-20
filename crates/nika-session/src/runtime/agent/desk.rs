@@ -23,11 +23,13 @@ use nika_onboard::knowledge::Snapshot;
 use nika_onboard::knowledge::pin::KnowledgePin;
 use nika_providers::InferenceAdmission;
 use nika_providers::probe::ProviderProbe;
+use nika_session_agent::conversation::{Citations, Conversation};
 use serde_json::{Value, json};
 
 use crate::authoring::{AuthoringContext, AuthoringSeat};
 use crate::trial::{Observed, Observer, Trial};
 
+use super::proof::Judged;
 use super::tools::Desk;
 use crate::change::{ProjectChangeSet, Witness};
 
@@ -44,6 +46,8 @@ const PLAIN: Theme = Theme::new(false, false, false);
 /// knowledge release and the conversation's verifier.
 pub(crate) struct SessionDesk {
     pub(crate) root: PathBuf,
+    /// Exact workflow last saved by this conversation, reused only while its witness matches.
+    pub(crate) saved: Option<(String, String)>,
     pub(crate) probes: Vec<ProviderProbe>,
     pub(crate) knowledge: Option<KnowledgePin>,
     pub(crate) verifier: Verifier,
@@ -52,6 +56,219 @@ pub(crate) struct SessionDesk {
     /// Where the bytes each verification judged are kept (the history directory); none without
     /// history.
     pub(crate) judged: Option<OwnedDir>,
+    /// The Run ceiling a proposal of this turn binds beside its bytes, when the person stated
+    /// it: the verifier carries there what only the words stating it ask.
+    pub(crate) ceiling: Ceiling,
+}
+
+/// The Run ceiling a proposal of this turn binds beside its bytes when the person stated it:
+/// the amount the work's own words admitted, wherever the candidate lands, and the one saved
+/// with the workflow this conversation saved, which a revision landing there keeps.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct Ceiling {
+    /// The amount the work's own words admitted.
+    pub(crate) stated: Option<f64>,
+    /// The workflow this conversation saved, and the amount saved with it.
+    pub(crate) saved: Option<(String, f64)>,
+}
+
+impl Ceiling {
+    /// The ceiling a proposal landing at `at` binds, when the person stated it.
+    pub(crate) fn at(&self, at: &str) -> Option<f64> {
+        let kept = (self.saved.as_ref()).filter(|(path, _)| path == at);
+        self.stated.or_else(|| kept.map(|(_, usd)| *usd))
+    }
+}
+
+/// The schedule `nika.yaml` declares for the workflow at `at`, as the verifier reads one beside
+/// a candidate (`{"message", "excerpt", "zone"}`): the person's own words that state it, quoted
+/// as typed, the zone its cadence follows, and the file that declares it. None when nothing
+/// declares one, or the person's words state none.
+pub(crate) fn declared_beside(root: &std::path::Path, at: &str, stated: &str) -> Option<Value> {
+    let entry = crate::runtime::schedule::declared_arm_entry(root, std::path::Path::new(at))?;
+    let zone = (entry.cadence.strip_prefix("TZ="))
+        .and_then(|rest| rest.split_whitespace().next())?
+        .to_owned();
+    let excerpt = (stated.split('\n')).find_map(|line| {
+        let words = crate::runtime::schedule::stated_cadence(line)?;
+        verbatim(line, &words)
+    })?;
+    Some(json!({"message": "nika.yaml", "excerpt": excerpt, "zone": zone}))
+}
+
+/// The person's own bytes in `line` for `words` (lowered, as the Session's schedule reader gives
+/// them): the run of the line's words that read as them, quoted as typed, so the verifier
+/// anchors exactly the schedule's words and nothing else of the line.
+fn verbatim<'a>(line: &'a str, words: &str) -> Option<&'a str> {
+    let wanted: Vec<&str> = words.split_whitespace().collect();
+    let separator = |c: char| c.is_whitespace() || matches!(c, '!' | ',' | '?' | ';');
+    let mut tokens: Vec<(usize, usize, String)> = Vec::new();
+    let mut start = None;
+    for (at, c) in line.char_indices().chain([(line.len(), ' ')]) {
+        match (separator(c), start) {
+            (false, None) => start = Some(at),
+            (true, Some(from)) => {
+                let trimmed = line[from..at].trim_end_matches('.');
+                let folded = trimmed.replace('\u{2019}', "'").to_lowercase();
+                if !folded.is_empty() {
+                    tokens.push((from, from + trimmed.len(), folded));
+                }
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    (0..tokens.len()).find_map(|first| {
+        let run = tokens.get(first..first + wanted.len())?;
+        let same = (run.iter().zip(&wanted)).all(|(token, word)| token.2 == *word);
+        same.then(|| line.get(run.first()?.0..run.last()?.1))
+            .flatten()
+    })
+}
+
+/// The person's words that state `usd` as the work's ceiling, beside that amount
+/// (`{"excerpt", "usd"}`): each of their lines read as the Session reads it, the directives of
+/// the lines stating exactly `usd`, those side by side quoted together (QA gauntlet q09: « …
+/// chaque exécution doit coûter au maximum 0,10 $ (budget max 0,10 $ par run) »), and those of
+/// the earlier lines stating another ceiling, which the last line stating `usd` supersedes (live
+/// gauntlet r09, 2026-10-17: with « plafond 0,001 $ » bound, the 0,10 $ of the first request was
+/// asked of the plan). None when no line states `usd`; a ceiling stated after it is not beside.
+pub(crate) fn ceiling_words(stated: &str, usd: f64) -> Option<Value> {
+    let lines: Vec<(&str, Option<f64>)> = (stated.split('\n'))
+        .map(|line| {
+            let amount = (nika_onboard::compile::money::directives(line).ok())
+                .and_then(|found| found.money.amount);
+            (line, amount)
+        })
+        .collect();
+    let last =
+        (lines.iter()).rposition(|(_, amount)| amount.map(f64::to_bits) == Some(usd.to_bits()))?;
+    let mut said: Vec<&str> = Vec::new();
+    for (line, amount) in &lines[..=last] {
+        if amount.is_none() {
+            continue;
+        }
+        let Ok(found) = nika_onboard::compile::money::directives(line) else {
+            continue;
+        };
+        let mut spans = found.found.iter().map(|directive| directive.span.clone());
+        let Some(mut run) = spans.next() else {
+            continue;
+        };
+        for span in spans {
+            let between = line.get(run.end..span.start).unwrap_or("·");
+            if between
+                .chars()
+                .all(|c| c.is_whitespace() || c.is_ascii_punctuation())
+            {
+                run.end = span.end;
+            } else {
+                said.extend(quoted(line, run));
+                run = span;
+            }
+        }
+        said.extend(quoted(line, run));
+    }
+    let excerpt = said.join(" · ");
+    (!excerpt.trim().is_empty()).then(|| json!({"excerpt": excerpt, "usd": usd}))
+}
+
+/// The words of `line` in `span`, with the bracket that closes an aside they open, or both
+/// brackets of an aside they fill.
+fn quoted(line: &str, span: std::ops::Range<usize>) -> Option<&str> {
+    let (mut start, mut end) = (span.start, span.end);
+    let words = line.get(start..end)?;
+    let open = words.matches('(').count() > words.matches(')').count();
+    let closed = line.get(end..).is_some_and(|after| after.starts_with(')'));
+    if open && closed {
+        end += 1;
+    } else if !open && closed && line.get(..start).is_some_and(|b| b.ends_with('(')) {
+        start -= 1;
+        end += 1;
+    }
+    line.get(start..end)
+}
+
+/// The workflow file the person's request names for a new workflow, read against `source` from
+/// their words since the request began without the lines they wrote in reply to Nika's questions
+/// (`Conversation::replies_in`), bound or not: one reading for the verifier and the proposal.
+pub(super) fn requested(
+    conversation: &Conversation,
+    citations: &Citations,
+    source: &str,
+) -> Option<String> {
+    let stated = citations.stated(conversation.since());
+    let replies = conversation.replies_in(citations);
+    nika_compile_fidelity::fidelity::requested_workflow_answered(&stated, source, &replies)
+}
+
+/// Reuse a known workflow's destination only when its on-disk bytes are still observed.
+/// A revision updates that workflow instead of creating a numbered duplicate. A new workflow lands
+/// at the file the person's request names for it (`requested`), whatever its `nika:`, else where
+/// its `nika:` puts it.
+pub(super) fn landing(
+    root: &std::path::Path,
+    source: &str,
+    (saved, read): (Option<&(String, String)>, &BTreeMap<String, Witness>),
+    requested: Option<&str>,
+) -> Result<String, String> {
+    let id = crate::review::workflow_id(source);
+    let mut known: BTreeMap<String, Vec<&str>> = BTreeMap::new();
+    if let Some((path, witness)) = saved {
+        known.entry(path.clone()).or_default().push(witness);
+    }
+    for (path, witness) in read {
+        if std::path::Path::new(path)
+            .extension()
+            .is_some_and(|extension| extension == "nika")
+        {
+            known
+                .entry(path.trim_start_matches("./").to_owned())
+                .or_default()
+                .push(&witness.0);
+        }
+    }
+    let project = OwnedDir::open(root).map_err(|e| e.to_string())?;
+    // The workflow actually saved by this conversation takes precedence over a
+    // reference or copy read later, even when that file sorts before it.
+    let mut ordered: Vec<_> = known.into_iter().collect();
+    ordered.sort_by_key(|(path, _)| saved.is_none_or(|(saved, _)| saved != path));
+    let mut observed_match = None;
+    for (path, seen) in ordered {
+        let parts: Vec<&str> = path.split('/').collect();
+        let Some((name, dirs)) = parts.split_last() else {
+            continue;
+        };
+        let Ok(Some(text)) = project.read_capped_below(dirs, name, READ_CAP, "too large to revise")
+        else {
+            continue;
+        };
+        if crate::review::workflow_id(&text) != id {
+            continue;
+        }
+        if !seen.contains(&Witness::of(text.as_bytes()).0.as_str()) {
+            return Err(format!(
+                "`{path}` changed since this conversation saved or read it: read it again and preserve those changes before proposing"
+            ));
+        }
+        if saved.is_some_and(|(saved, _)| saved == &path) {
+            return Ok(path);
+        }
+        if observed_match.replace(path).is_some() {
+            return Err("several observed workflows have this name; identify the workflow to revise before proposing".to_owned());
+        }
+    }
+    if let Some(path) = observed_match {
+        return Ok(path);
+    }
+    // The change set witnesses it as any destination: absent, a create; present, an update the
+    // person's consent covers.
+    if let Some(path) = requested {
+        return Ok(path.to_owned());
+    }
+    crate::review::destination(root, source)
+        .map(|path| path.display().to_string())
+        .ok_or_else(|| "the candidate has no representable destination in the project".to_owned())
 }
 
 /// The most of one judged candidate the Session keeps.
@@ -94,7 +311,7 @@ pub(crate) struct Verifier {
 pub(crate) struct Verified {
     verdicts: Vec<Value>,
     /// The key of the last ready verdict, its scope and the doubt it stated.
-    ready: Option<(String, String, Option<String>)>,
+    ready: Option<(String, Judged, Option<String>)>,
     /// The doubt the verifier stated over the last ready document, for its proposal to state.
     doubt: Option<String>,
     /// The project files the author read through the desk, by the path a workflow names, each
@@ -126,14 +343,30 @@ impl Verified {
         self.tried.take()
     }
 
-    /// Keep every verdict `out` recorded that declined its bytes, once.
+    /// Keep every verdict `out` recorded that declined its bytes, once, and the latest reading
+    /// of the request its verification audited as covered: the next verification of the same
+    /// words, answers, model and prompts reuses that reading with no call, rather than reading
+    /// and auditing them again (live gauntlet wave 6 r04, 2026-10-18: the same reading, asked
+    /// again at every verification, held most of the session's reasoning). It is kept in this
+    /// process's memory only, never on disk: a reopened conversation reads and audits anew. A
+    /// reading kept here is never a verdict: no rejection or repair reads it, and the judge
+    /// still judges every candidate.
     fn keep(&mut self, out: &CompileOutcome) {
-        let attempts = (out.provenance.decision.as_ref())
-            .and_then(|decision| decision["semantic_verification"].as_array());
+        let decision = out.provenance.decision.as_ref();
+        let attempts = decision.and_then(|decision| decision["semantic_verification"].as_array());
         for attempt in attempts.into_iter().flatten() {
             if attempt["declined"] == true && !self.verdicts.contains(attempt) {
                 self.verdicts.push(attempt.clone());
             }
+        }
+        let reading = (decision.map(|decision| &decision["request_interpretation"]))
+            .filter(|record| record["audit"]["status"] == "covered" && record["valid"] == true);
+        if let Some(record) = reading {
+            let read = |kept: &Value| kept["declined"] == false && kept["reading_only"] == true;
+            self.verdicts.retain(|kept| !read(kept));
+            self.verdicts
+                .push(json!({"declined": false, "reading_only": true,
+                "request_interpretation": record}));
         }
     }
 }
@@ -153,6 +386,17 @@ pub(super) fn model_caps(model: &str) -> Option<Value> {
     nika_compile::surface::output_caps(model)
 }
 
+/// Why bytes the engine's own check refuses are not shown: the check's findings, each one, and
+/// what the author does about them.
+fn failing(audit: &crate::change::WorkflowAudit) -> String {
+    let mut lines = vec![format!(
+        "the check of these bytes fails (`{}`): the proposal is not shown, so nothing can be saved or run; repair each finding in the candidate, then propose again",
+        audit.path.display()
+    )];
+    lines.extend(audit.findings.iter().map(|finding| format!("- {finding}")));
+    lines.join("\n")
+}
+
 fn findings(out: &CompileOutcome) -> String {
     let mut lines: Vec<String> = (out.diagnostics.iter())
         .map(|d| format!("{}: {}", d.target, d.message))
@@ -165,6 +409,24 @@ fn findings(out: &CompileOutcome) -> String {
 }
 
 impl SessionDesk {
+    /// What a verdict covers beside the bytes: the Run ceiling the proposal binds rides with
+    /// them, as a schedule does, with the person's words that state it; and a schedule
+    /// `nika.yaml` already declares for the workflow it lands on rides beside a revision, as one
+    /// proposed with a new workflow does (live gauntlet r02 B16, 2026-10-17: a repair was judged
+    /// to miss « every morning at 7h »).
+    fn presented(&self, presentation: &Value, at: &str, stated: &str) -> Value {
+        let mut presentation = presentation.clone();
+        if let Some(money) = (self.ceiling.at(at)).and_then(|usd| ceiling_words(stated, usd)) {
+            presentation["money"] = money;
+        }
+        if presentation.get("schedule").is_none()
+            && let Some(schedule) = declared_beside(&self.root, at, stated)
+        {
+            presentation["schedule"] = schedule;
+        }
+        presentation
+    }
+
     /// The pinned release, admitted once for this turn.
     fn release(&mut self) -> Result<&Snapshot, String> {
         if self.admitted.is_none() {
@@ -206,6 +468,24 @@ fn named(node: &Value, query: &str, at: &str, out: &mut Vec<Value>) {
     }
 }
 
+/// The visible names a project folder holds, sorted, a folder's with its `/`, at most 100.
+fn visible_entries(folder: &OwnedDir) -> Vec<String> {
+    let directories = folder.directory_names().unwrap_or_default();
+    let mut names: Vec<String> = (folder.names().unwrap_or_default().into_iter())
+        .filter(|name| !name.starts_with('.'))
+        .map(|name| {
+            if directories.contains(&name) {
+                format!("{name}/")
+            } else {
+                name
+            }
+        })
+        .collect();
+    names.sort();
+    names.truncate(100);
+    names
+}
+
 impl Desk for SessionDesk {
     fn read(
         &mut self,
@@ -217,6 +497,12 @@ impl Desk for SessionDesk {
             .filter(|c| !c.is_empty() && *c != ".")
             .collect();
         let hidden = parts.iter().any(|c| c.starts_with('.') || *c == "..");
+        // The project root itself is listed (« . », « ./ »).
+        if parts.is_empty() && !path.trim().starts_with('/') {
+            let root = OwnedDir::open(&self.root).map_err(|e| e.to_string())?;
+            let entries = visible_entries(&root);
+            return Ok(json!({"path": path, "directory": true, "entries": entries}).to_string());
+        }
         let Some((name, dirs)) = parts
             .split_last()
             .filter(|_| !path.starts_with('/') && !hidden)
@@ -231,9 +517,29 @@ impl Desk for SessionDesk {
              whole file is read before they apply: author from a smaller file, or let the \
              workflow read and filter this one when it runs"
         );
+        // A folder is listed, never refused as a file that is not regular, and a file that is not
+        // there names what its folder holds (live gauntlet r01, 2026-10-16: DeepSeek guessed
+        // fifteen names in `releves/` before it found the two exports).
+        if let Ok(folder) = root.open_below(&parts) {
+            let entries = visible_entries(&folder);
+            return Ok(json!({"path": path, "directory": true, "entries": entries}).to_string());
+        }
         let text = (root.read_capped_below(dirs, name, READ_CAP, &over))
             .map_err(|e| format!("`{path}` cannot be read: {e}"))?
-            .ok_or_else(|| format!("`{path}` does not exist in the project"))?;
+            .ok_or_else(|| {
+                let folder = format!("./{}", dirs.join("/"));
+                let held = root.open_below(dirs).map(|dir| visible_entries(&dir));
+                match held {
+                    Ok(entries) if entries.is_empty() => {
+                        format!("`{path}` does not exist in the project; `{folder}` is empty")
+                    }
+                    Ok(entries) => format!(
+                        "`{path}` does not exist in the project; `{folder}` holds: {}",
+                        entries.join(", ")
+                    ),
+                    Err(_) => format!("`{path}` does not exist in the project"),
+                }
+            })?;
         // The bytes read, kept for the basis of a proposal that reads this file.
         let named = format!("./{}", parts.join("/"));
         kept(&self.verifier)?
@@ -411,24 +717,47 @@ impl Desk for SessionDesk {
         source: &str,
         (stated, answers, original): (&str, &BTreeMap<String, String>, Option<&str>),
         selections: (&[Resolution], &[Resolution]),
-    ) -> Result<String, String> {
-        // The same bytes against the same words, answers and selections: the verdict stands.
+        presentation: &Value,
+        requested: Option<&str>,
+    ) -> Result<Judged, String> {
+        // A verdict stands only for the same bytes, words, selections and full presentation.
         let rows = |s: &[Resolution]| s.iter().map(Resolution::to_json).collect::<Vec<_>>();
         let (authored, host) = (rows(selections.0), rows(selections.1));
-        let said = json!([source, stated, authored, host, answers, original]);
+        let read = kept(&self.verifier)?.read.clone();
+        let at = landing(&self.root, source, (self.saved.as_ref(), &read), requested)?;
+        let presentation = &self.presented(presentation, &at, stated);
+        let said = json!([
+            source,
+            stated,
+            authored,
+            host,
+            answers,
+            original,
+            at,
+            presentation
+        ]);
         let key = blake3::hash(said.to_string().as_bytes())
             .to_hex()
             .to_string();
         let declined = {
             let mut kept = kept(&self.verifier)?;
-            if let Some((done, scope, doubt)) = kept.ready.clone()
+            if let Some((done, judged, doubt)) = kept.ready.clone()
                 && done == key
             {
                 kept.doubt = doubt;
-                return Ok(scope);
+                return Ok(judged.cached());
             }
             kept.verdicts.clone()
         };
+        // The engine's own check of these exact bytes comes before any judge: bytes it refuses
+        // are never shown to the person (no Save, no Run is offered for them). A verdict is kept
+        // only for bytes that passed it.
+        let set = ProjectChangeSet::workflow_at(&self.root, "verify", &at, source.to_owned())
+            .map_err(|e| e.to_string())?;
+        let audit = set.audits.first().ok_or("the candidate was not audited")?;
+        if !audit.clean {
+            return Err(failing(audit));
+        }
         // Tried where nothing leaves: the pages its public GET sources answer, observed once for
         // the conversation, lent to the observed room as a replay trial of these bytes.
         let verifier = &self.verifier;
@@ -441,11 +770,11 @@ impl Desk for SessionDesk {
         // The same verification a compile round of the request faces: the files its words name
         // observed, the laws, the trial, then the whole-request verdict; ready only on that
         // verdict, and never on a failed trial.
-        let out = crate::authoring::verify_in(
+        let out = crate::authoring::verify_presented_in(
             &verifier.seat,
             &verifier.context,
             (stated, answers, original),
-            (source, selections),
+            (source, selections, presentation),
             declined,
             verifier.account.as_ref(),
             Some(&scoped),
@@ -460,27 +789,22 @@ impl Desk for SessionDesk {
             return Err(findings(&out));
         }
         kept(verifier)?.tried = tried.ok().flatten().map(|tried| (tried, words));
-        let path = (crate::review::destination(&self.root, source))
-            .ok_or("the candidate has no representable destination in the project")?;
-        let at = path.display().to_string();
-        let set = ProjectChangeSet::workflow_at(&self.root, "verify", &at, source.to_owned())
-            .map_err(|e| e.to_string())?;
-        let audit = set.audits.first().ok_or("the candidate was not audited")?;
         let reach = json!({"effects": audit.effects, "world": audit.world});
         let scope = blake3::hash(reach.to_string().as_bytes())
             .to_hex()
             .to_string();
         let doubt = stated_doubt(&out);
         let mut kept = kept(&self.verifier)?;
-        kept.ready = Some((key, scope.clone(), doubt.clone()));
+        let judged = Judged::ready(scope, source, &out);
+        kept.ready = Some((key, judged.clone(), doubt.clone()));
         kept.doubt = doubt;
-        Ok(scope)
+        Ok(judged)
     }
 
     fn judged_now(
         &mut self,
         source: &str,
-        stated: &str,
+        (stated, answers): (&str, &BTreeMap<String, String>),
         selections: (&[Resolution], &[Resolution]),
     ) -> Vec<String> {
         let options = AuditOptions::new(None, None);
@@ -493,8 +817,13 @@ impl Desk for SessionDesk {
             Err(e) => vec![format!("the candidate does not parse: {e}")],
         };
         let observed = nika_cli_host::compile::observe::world(&self.root, stated);
-        let laws =
-            nika_compile_cognition::judge_document(stated, source, selections, observed.as_ref());
+        let laws = nika_compile_cognition::judge_document_answered(
+            stated,
+            source,
+            selections,
+            answers,
+            observed.as_ref(),
+        );
         found.extend(laws);
         found
     }
@@ -503,3 +832,6 @@ impl Desk for SessionDesk {
         nika_session_intelligence::reasoner::agent_model::model_facts(&self.probes, model)
     }
 }
+
+#[cfg(test)]
+mod tests;

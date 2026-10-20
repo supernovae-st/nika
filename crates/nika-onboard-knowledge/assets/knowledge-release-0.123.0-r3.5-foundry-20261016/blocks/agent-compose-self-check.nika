@@ -1,0 +1,12 @@
+nika: p43-agent-compose-self-check
+model: mock/echo
+permits:
+  tools: ["nika:compose", "nika:done"]
+tasks:
+  drafter:
+    agent:
+      prompt: "Draft a one-task nika workflow that logs hello, check it with compose, then call done with it."
+      tools: ["nika:done", "nika:compose"]
+      max_turns: 3
+outputs:
+  draft: ${{ tasks.drafter.output }}

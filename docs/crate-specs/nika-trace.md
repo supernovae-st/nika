@@ -74,6 +74,10 @@ Two reasons, one mechanism (the same two as every descent):
   owned fact beside `pause`, which the result and proof views keep reading as
   the last pause. `nika-session`'s `PendingGate::from_trace` reads it instead of
   parsing the journal a second time.
+- **Finite pause choices.** `RunFacts::pause_choices()` projects the first pause's
+  first `choices` field only when it is a JSON array of strings. It preserves order
+  and exact values; malformed or absent data never falls back to later fields or
+  prose. This projection makes no trace-trust or approval claim.
 - **What a resume runs again (C10 · Q8).** `run_view::resumed_live(trace)` names
   the completed tasks a resume of a paused journal is sure to run again, live:
   each completion the resume plan does not carry (no resume identity, or an
@@ -227,3 +231,13 @@ a sticky display flag cannot override a newer failure or running state.
 Messages preserve recorded text, including Unicode and newlines; no code
 or cause is inferred from prose. These are projections of recorded facts,
 not trace-integrity verification or a claim of fresh execution.
+
+The gate view distinguishes a `choice` answer from confirmation: the chosen string
+resumes the run, including strings such as `yes` or `no`. Confirmation retains its
+approve/refuse explanation. The list of subsequent tasks still comes from the
+workflow's exact bytes; this wording grants no execution authority.
+
+`RunFacts::pause_approval_expired(now_ms)` projects a single paused ticket's expiry
+using the runtime's exact TTL law. First fields own the ticket; missing or malformed
+timing and multiple pauses remain unknown. The result is display evidence only,
+not trace verification or permission to resume.

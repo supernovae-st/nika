@@ -495,18 +495,20 @@ fn a_zone_the_schedule_grammar_refuses_is_refused_when_answered() {
         "/Europe/Paris",
         "Mars/Olympus_Mons",
         "Europe/Pariss",
-        "Paris",
+        "Pariss",
         "Europe/ Paris",
     ] {
         let out = s.turn(line);
         assert!(
-            matches!(&out, TurnOutcome::Refusal(r) if r.text.contains("Area/City")),
+            matches!(&out, TurnOutcome::Refusal(r) if r.text.contains("is not a time zone the schedule knows")
+                || r.text.contains("n'est pas un fuseau que je connais")),
             "{line}: {out:?}"
         );
         assert_eq!(s.pending_activation(), Some("project.timezone"), "{line}");
         assert_eq!(semantic(&s), state, "{line}");
     }
-    for zone in ["Europe/Paris", "UTC"] {
+    // A city the zone database names answers as its zone (live gauntlet r05: « Heure de Paris »).
+    for zone in ["Europe/Paris", "UTC", "Paris", "heure de Paris"] {
         let dir = tree();
         let mut s = super::super::tests::saved_daily_copy(dir.path());
         let _ = s.turn("activate");
@@ -547,7 +549,7 @@ fn why_beside_an_activation_explains_it() {
     for line in ["/why", "why", "why?", "pourquoi"] {
         let out = s.turn(line);
         assert!(
-            matches!(&out, TurnOutcome::Aside(t) if t.contains("Declared is not active")),
+            matches!(&out, TurnOutcome::Aside(t) if t.contains("Déclaré n'est pas actif")),
             "{line}: {out:?}"
         );
         assert_eq!(s.pending_activation(), Some("project.timezone"), "{line}");

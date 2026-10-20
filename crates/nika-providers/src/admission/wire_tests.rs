@@ -446,7 +446,8 @@ async fn unsupported_inputs_and_effects_refuse_before_post() {
         .insert("thinking".into(), json!({"type":"enabled"}));
     requests.push(r);
     let mut r = request();
-    r.messages = vec![Message::text(Role::System, "x".repeat(1_048_576))];
+    let bound = crate::admission::BOUNDED_REQUEST_BYTES;
+    r.messages = vec![Message::text(Role::System, "x".repeat(bound))];
     requests.push(r);
     for r in requests {
         assert!(provider.infer(r).await.is_err());
@@ -586,4 +587,176 @@ async fn duplicate_response_fields_hold_the_reservation_without_a_retry() {
         assert_eq!(snapshot.attempts[0].estimated, None);
         assert_eq!(snapshot.billed, None);
     }
+}
+
+/// Answers each Anthropic post with a Messages reply carrying `usage`, echoing the model.
+struct ClaudeHttp(AtomicUsize, Value);
+impl HttpPostDyn for ClaudeHttp {
+    fn supports_single_attempt(&self) -> bool {
+        true
+    }
+    async fn post(&self, req: HttpRequest) -> Result<HttpResponse, HttpError> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        assert_eq!(req.url, "https://api.anthropic.com/v1/messages");
+        assert!(!req.follow_redirects);
+        let body: Value = serde_json::from_slice(req.body.as_ref().expect("body")).expect("json");
+        assert_eq!(body["max_tokens"], 512, "the row's output parameter");
+        assert!(body.get("temperature").is_none());
+        let reply = json!({
+            "id": "msg_fixture", "type": "message", "role": "assistant", "model": body["model"],
+            "content": [{"type": "text", "text": "ok"}], "stop_reason": "end_turn",
+            "usage": self.1,
+        });
+        Ok(HttpResponse::new(
+            200,
+            std::collections::BTreeMap::new(),
+            reply.to_string().into(),
+            &req.url,
+        ))
+    }
+    async fn send_streaming(&self, _: HttpRequest) -> Result<HttpStreamResponse, HttpError> {
+        panic!("bounded inference must not stream");
+    }
+}
+
+/// What one bounded Claude call returned, its account and the posts its transport saw.
+type ClaudeCall = (
+    Result<nika_kernel::ai::provider::InferResponse, nika_kernel::ai::provider::ProviderError>,
+    InferenceAdmission,
+    usize,
+);
+
+/// One Claude Sonnet 5.5 call under a ten-dollar allowance, its reply carrying `usage`.
+async fn claude_call(usage: Value) -> ClaudeCall {
+    claude_call_on("anthropic/claude-sonnet-5-5", "hello", usage).await
+}
+
+/// One `model` call asking `prompt` under a ten-dollar allowance, its reply carrying `usage`.
+async fn claude_call_on(model: &str, prompt: &str, usage: Value) -> ClaudeCall {
+    let transport = Arc::new(ClaudeHttp(AtomicUsize::new(0), usage));
+    let account = InferenceAdmission::new(Cost::new(10_000_000_000)).expect("ten dollars");
+    let registry = ProviderRegistry::new(
+        Arc::clone(&transport),
+        ProvidersConfig::new().with_key("anthropic", Secret::new("fixture")),
+    )
+    .with_inference_admission(account.clone());
+    let mut request = InferRequest::new(model, vec![Message::text(Role::User, prompt)]);
+    request.max_tokens = Some(512);
+    let result = registry
+        .resolve(model)
+        .expect("resolve")
+        .infer(request)
+        .await;
+    (result, account, transport.0.load(Ordering::SeqCst))
+}
+
+/// NIK-152: a Claude call under a Session allowance is reserved at its admission tariff, sent once
+/// in the Messages shape and settled from its complete usage: 60 uncached input tokens at 2,000,
+/// 40 read from the cache at 100 and 20 output tokens at 10,000 nano-USD each. A reply whose usage
+/// is missing or carries an unpriced axis leaves the charge unknown and the account uncertain.
+#[tokio::test]
+async fn a_claude_call_under_an_allowance_settles_at_its_tariff() {
+    // The allowance qualifies the route a call resolves: an alias and a nickname alike.
+    for model in [
+        "anthropic/claude-sonnet-5-5",
+        "anthropic/sonnet",
+        "claude/claude-sonnet-5-5",
+        "claude/haiku",
+    ] {
+        assert_eq!(
+            InferenceAdmission::qualify_selected(model, ProvidersConfig::new()),
+            Ok(()),
+            "{model}"
+        );
+    }
+    assert!(
+        InferenceAdmission::qualify_selected(
+            "anthropic/claude-opus-4-5-20251101",
+            ProvidersConfig::new()
+        )
+        .is_err(),
+        "no tariff"
+    );
+    let usage = json!({
+        "input_tokens": 60, "cache_read_input_tokens": 40, "cache_creation_input_tokens": 0,
+        "output_tokens": 20, "service_tier": "standard", "inference_geo": "global",
+        "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 0},
+        "server_tool_use": null, "output_tokens_details": {"thinking_tokens": 12}
+    });
+    let (result, account, posts) = claude_call(usage).await;
+    let response = result.expect("settled");
+    assert_eq!(posts, 1);
+    let priced = Cost::new(60 * 2_000 + 40 * 100 + 20 * 10_000);
+    let receipt = account.snapshot().expect("receipt");
+    assert_eq!(receipt.state, AdmissionState::Open);
+    assert_eq!(receipt.attempts.len(), 1);
+    assert_eq!(receipt.attempts[0].tariff.model, "claude-sonnet-5-5");
+    assert_eq!(receipt.attempts[0].estimated, Some(priced));
+    assert_eq!(receipt.estimated, priced);
+    let call = response.inference_calls.last().expect("observed");
+    assert!(call.usage_complete);
+    assert_eq!(call.known_estimate(), Some(priced));
+
+    for unpriced in [
+        Value::Null,
+        json!({"input_tokens": 60, "output_tokens": 20, "server_tool_use": {"web_search_requests": 1}}),
+        json!({"input_tokens": 60, "output_tokens": 20, "inference_geo": "us"}),
+    ] {
+        let (result, account, posts) = claude_call(unpriced.clone()).await;
+        assert!(result.is_err(), "{unpriced}");
+        assert_eq!(posts, 1, "{unpriced}");
+        let receipt = account.snapshot().expect("receipt");
+        assert_eq!(receipt.state, AdmissionState::Uncertain, "{unpriced}");
+        assert_eq!(receipt.estimated, Cost::zero(), "{unpriced}");
+        assert_eq!(receipt.attempts[0].estimated, None, "{unpriced}");
+    }
+}
+
+/// A cache write settles at the row's 5-minute write rate: 60 uncached input tokens at 2,000, 40
+/// read at 100, 50 written at 2,500 and 20 output at 10,000 nano-USD.
+#[tokio::test]
+async fn a_claude_cache_write_settles_at_the_write_rate() {
+    let usage = json!({
+        "input_tokens": 60, "cache_read_input_tokens": 40, "cache_creation_input_tokens": 50,
+        "cache_creation": {"ephemeral_5m_input_tokens": 50, "ephemeral_1h_input_tokens": 0},
+        "output_tokens": 20
+    });
+    let (result, account, posts) = claude_call(usage).await;
+    assert!(result.is_ok(), "{result:?}");
+    assert_eq!(posts, 1);
+    let priced = Cost::new(60 * 2_000 + 40 * 100 + 50 * 2_500 + 20 * 10_000);
+    assert_eq!(account.snapshot().expect("receipt").estimated, priced);
+}
+
+/// Claude Haiku 5.5's tariff admits its 100,000-token tier only: a request whose bytes could
+/// exceed it is refused before any byte, the account still open; a request within it settles at
+/// the tier's rates. A route whose tariff covers its model's window is not bounded so.
+#[tokio::test]
+async fn a_request_beyond_a_tier_bound_is_refused_before_any_byte() {
+    let usage = json!({"input_tokens": 100, "output_tokens": 20});
+    let long = "x".repeat(100_001);
+    let (result, account, posts) =
+        claude_call_on("anthropic/claude-haiku-5-5", &long, usage.clone()).await;
+    let refused = result.expect_err("beyond the tier");
+    assert!(
+        refused
+            .to_string()
+            .contains("100000 input tokens its tariff admits"),
+        "{refused}"
+    );
+    assert_eq!(posts, 0, "nothing was sent");
+    let receipt = account.snapshot().expect("receipt");
+    assert!(receipt.attempts.is_empty());
+    assert_eq!(receipt.state, AdmissionState::Open);
+    let (result, account, posts) =
+        claude_call_on("anthropic/claude-haiku-5-5", "hello", usage.clone()).await;
+    assert!(result.is_ok(), "{result:?}");
+    assert_eq!(posts, 1);
+    assert_eq!(
+        account.snapshot().expect("receipt").estimated,
+        Cost::new(100 * 100 + 20 * 500)
+    );
+    let (result, _, posts) = claude_call_on("anthropic/claude-sonnet-5-5", &long, usage).await;
+    assert!(result.is_ok(), "{result:?}");
+    assert_eq!(posts, 1, "Sonnet 5.5's tariff covers its window");
 }

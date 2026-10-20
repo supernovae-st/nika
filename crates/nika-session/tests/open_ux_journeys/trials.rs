@@ -35,9 +35,9 @@ pub(super) const RFC_822_FIXED: &str =
     "[.items[] | select(.published | startswith(\"2026-10-10\"))]";
 /// What the author says once its repaired candidate is shown.
 pub(crate) const TRIED: &str = "Voici le workflow corrigé : il garde les stories du jour.";
-/// The words a proposal's trial opens with.
+/// The words a proposal's trial opens with, in the person's French.
 pub(crate) const TRIED_ON: &str =
-    "tried on the pages observed at 08:00 UTC: https://feed.example/stories";
+    "essayé sur les pages observées à 08:00 UTC : https://feed.example/stories";
 
 /// The pages a scenario's trials observe, by address: every other page is none of the journey's.
 pub(crate) fn feeds(name: &str) -> Vec<(&'static str, &'static str)> {

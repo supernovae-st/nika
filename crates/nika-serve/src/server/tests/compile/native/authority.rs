@@ -505,6 +505,20 @@ fn user_texts(body: &Value) -> Vec<String> {
         .collect()
 }
 
+/// How many admitted blocks the release this build embeds lends a default round: the
+/// contextual remedies a judge may point to.
+fn embedded_blocks() -> usize {
+    use nika_onboard::knowledge::ComponentCatalog as _;
+    use nika_onboard::knowledge::pin::KnowledgePin;
+    let pin = KnowledgePin::embedded(None).expect("the embedded release");
+    let snapshot = pin.reopen().expect("it reopens");
+    let blocks = (snapshot.entries().into_iter())
+        .filter(|row| (row["id"].as_str()).is_some_and(|id| id.starts_with("block:")))
+        .count();
+    assert!(blocks > 0, "the embedded release lends admitted blocks");
+    blocks
+}
+
 /// The question after the write judged missing: why, among every task of the candidate in
 /// document order, an operation no task performs, or no task failing it; answered with the
 /// task that writes `./b.md`.
@@ -513,14 +527,14 @@ fn assert_pointed(point: &Value) {
     assert_eq!(point["role"], "judge_point");
     assert_eq!(point["choice"], format!("task-{WRITE_TASK}"));
     // Every task, the omitted operation, then the contextual remedies the default round's lent
-    // release offers: each of the bundled release's 41 admitted blocks (`component-<k>`, in
+    // release offers: each admitted block of the release this build embeds (`component-<k>`, in
     // catalogue order, none held by these bytes) closed by `no_fit`; then no task, and none.
     let mut options: Vec<String> = ["task-read_source", "task-transform", "task-write_result"]
         .into_iter()
         .chain(["omitted"])
         .map(str::to_owned)
         .collect();
-    options.extend((0..41).map(|k| format!("component-{k}")));
+    options.extend((0..embedded_blocks()).map(|k| format!("component-{k}")));
     options.extend(["no_fit", "no_task", "none"].map(str::to_owned));
     assert_eq!(point["options"], json!(options));
     assert_eq!(

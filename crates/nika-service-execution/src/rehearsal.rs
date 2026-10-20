@@ -6,6 +6,10 @@
 //! anything reads this machine when the caller asks for a pin, when the
 //! candidate names a model lane, or when it holds any `infer:` or `agent:`
 //! task (a model-less one yields no lane, yet would run on the default model).
+//! The file's own route (`run.access`) concerns its model steps: judged over no
+//! probe rows it would refuse every launch, so neither trial plan carries that
+//! refusal; the plan keeps the requirement as written, and a real run judges it
+//! on its own plan.
 //! A zero cost ceiling elsewhere is defense in depth, never this denial.
 //! The run itself, over a room, is the `room` child's. A replay trial
 //! ([`replay`]) keeps a model step out of the run instead: its plan refuses
@@ -22,6 +26,8 @@ pub mod replay;
 mod room;
 #[cfg(test)]
 mod room_tests;
+mod shape_pass;
+mod skipped_path;
 
 pub use isolated_jq::{IsolatedJq, JqBound, JqHelper};
 pub use room::{ADMITTED_TOOLS, DeniedEffects, DeniedTally};
@@ -70,7 +76,7 @@ impl ServiceExecutionDriver {
         if pin.is_some() {
             return Err(RehearsalPlanRefusal::Pin);
         }
-        let plan = self.resolve_access_plan_over(None, None, &[]);
+        let mut plan = self.resolve_access_plan_over(None, None, &[]);
         if !plan.lanes.is_empty() {
             return Err(RehearsalPlanRefusal::ModelLane);
         }
@@ -78,14 +84,17 @@ impl ServiceExecutionDriver {
         if verbs.infer || verbs.agent {
             return Err(RehearsalPlanRefusal::ModelVerb);
         }
+        // No model step remains, so the file's own route concerns nothing this rehearsal runs.
+        plan.pin_refusal = None;
         Ok(plan)
     }
 
     /// A replay trial's access plan: the pure resolver's, over no model override, no pin and
-    /// no probe rows. A model lane or an `infer:`/`agent:` task is kept out of the trial rather
-    /// than refused: the trial's runtime has no provider transport and holds no key, and its
-    /// agent seat refuses every turn, so a model step fails where it stands and the trial's
-    /// screen names it not exercised ([`replay::screen`]).
+    /// no probe rows. A model lane, an `infer:`/`agent:` task or the file's own access
+    /// requirement (`run.access`) is kept out of the trial rather than refused: the trial's
+    /// runtime has no provider transport and holds no key, and its agent seat refuses every
+    /// turn, so a model step fails where it stands and the trial's screen names it not exercised
+    /// ([`replay::screen`]).
     ///
     /// # Errors
     /// [`RehearsalPlanRefusal::Pin`] when the caller asked for one.
@@ -99,6 +108,9 @@ impl ServiceExecutionDriver {
         let mut plan = self.resolve_access_plan_over(None, None, &[]);
         // No launch refusal for a model lane: its step fails where it stands.
         plan.lanes.clear();
+        // Nor for the file's own route: the caller's pin is refused above, so only the authored
+        // requirement rides here, and it concerns the model steps this trial keeps out.
+        plan.pin_refusal = None;
         Ok(plan)
     }
 }

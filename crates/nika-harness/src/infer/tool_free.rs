@@ -21,8 +21,14 @@
 use super::{InferGradeError, refused};
 
 /// The codex-cli `(major, minor)` lines on which this exact profile was
-/// measured (2026-10-07, codex-cli 0.160.1, subscription sign-in, `gpt-6-astra`).
-pub(super) const MEASURED: &[(u32, u32)] = &[(0, 160)];
+/// measured (2026-10-07, codex-cli 0.160.1, subscription sign-in, `gpt-6-astra`;
+/// 2026-10-15, codex-cli 0.162.1, subscription sign-in, the CLI's default model:
+/// every feature below listed `false` under the profile, a prompt asking to read
+/// a scratch canary, run `uname -a`, search the web and list the directory
+/// produced no tool item, only the code-mode fail-closed notice and the
+/// router's « code-mode host is disabled », and the canary never reached the
+/// answer; `--output-schema` answered in one turn).
+pub(super) const MEASURED: &[(u32, u32)] = &[(0, 160), (0, 162)];
 
 /// Every tool-bearing or tool-adjacent feature this version knows, forced
 /// off before execution. `--disable` of a name the CLI does not know is a
@@ -177,7 +183,8 @@ mod tests {
     #[test]
     fn only_a_measured_minor_is_admitted() {
         assert!(admit_version((0, 160)).is_ok());
-        for unmeasured in [(0, 159), (0, 161), (1, 160)] {
+        assert!(admit_version((0, 162)).is_ok());
+        for unmeasured in [(0, 159), (0, 161), (0, 163), (1, 160)] {
             let witness = admit_version(unmeasured).unwrap_err().to_string();
             assert!(witness.contains("no measured pre-execution"), "{witness}");
             assert!(witness.contains("0.160"), "{witness}");

@@ -37,7 +37,8 @@ pub fn parts(intent: &str) -> Vec<String> {
             && (!nika_compile_reader::structure::only_function_words(phrase) || restricts(phrase));
         let alone = worded && judged_alone(phrase);
         let label = matches!(mark, Some(':' | '：'))
-            || (matches!(mark, Some(',' | '，' | '、' | ';' | '；')) && conditional(phrase));
+            || (matches!(mark, Some(',' | '，' | '、' | ';' | '；'))
+                && (conditional(phrase) || circumstantial(phrase)));
         if let Some(open) = waiting.as_mut() {
             open.1 = end;
             if alone && !label {
@@ -86,6 +87,30 @@ const CONDITIONS: &[&str] = &[
     "if", "when", "whenever", "unless", "once", "si", "quand", "lorsque", "lorsqu", "cuando",
     "wenn", "falls", "sobald", "se", "quando", "caso",
 ];
+
+/// The prepositions that open a circumstance in the six languages the reader reads: a
+/// circumstance cut from its clause by a comma (« Dans rapport.md, pour les doublons, mets
+/// l'email … ») says where or for what the clause applies, and is judged with it (live gauntlet
+/// r06, 2026-10-16: « Dans rapport.md » and « pour les doublons » were judged missing alone).
+const CIRCUMSTANCES: &[&str] = &[
+    "dans", "pour", "en", "sur", "avec", "sans", "chez", "par", "pendant", "après", "avant", "au",
+    "aux", "vers", "in", "for", "on", "with", "without", "at", "by", "from", "during", "after",
+    "before", "inside", "within", "para", "con", "sin", "durante", "después", "antes", "nach",
+    "für", "mit", "ohne", "bei", "im", "während", "per", "senza", "dopo", "prima", "nel", "nella",
+    "sem", "depois",
+];
+
+/// Whether a phrase is a circumstance: a short phrase (five words at most) that opens with one
+/// of [`CIRCUMSTANCES`]. It may name what an operation acts on (« pour les doublons »), never a
+/// clause of its own: a clause states its verb past those few words.
+fn circumstantial(phrase: &str) -> bool {
+    let first = phrase
+        .split(|c: char| !c.is_alphanumeric())
+        .find(|word| !word.is_empty())
+        .map(str::to_lowercase);
+    first.is_some_and(|word| CIRCUMSTANCES.contains(&word.as_str()))
+        && phrase.split_whitespace().count() <= 5
+}
 
 /// Whether a phrase opens with a condition word.
 fn conditional(phrase: &str) -> bool {

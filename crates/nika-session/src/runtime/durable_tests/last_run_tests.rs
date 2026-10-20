@@ -2,7 +2,8 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The last observed run kept in HOME history: found again after a reopen as
-//! evidence (no workflow authority, no run), an unreadable value kept byte for
+//! evidence (no workflow authority, no run), an unreadable value (another
+//! version, or `version` 1 with a key this engine does not know) kept byte for
 //! byte, a record without it unchanged, and a present `null` refused with the
 //! journal left as it was.
 
@@ -68,6 +69,48 @@ fn an_unreadable_last_run_rides_on_byte_for_byte_and_old_records_have_none() {
     later.enable_history(home.path()).expect("resume");
     assert!(matches!(later.kept_run(), Some(Err(why)) if why.contains("version 2")));
     assert_eq!(later.kept_run.as_ref(), Some(&newer), "never normalized");
+}
+
+/// `version` 1 stays closed: a kept run carrying a key this engine does not know (as a later
+/// engine may write one) is refused with its reason, never read in part, and rides on byte for
+/// byte through a reopen and the turns after it.
+#[test]
+fn a_version_1_run_with_an_unknown_key_is_refused_and_rides_on_byte_for_byte() {
+    let root = project();
+    let home = tempfile::tempdir().expect("home");
+    let (mut first, _) = open(root.path(), &[ANSWER]);
+    first.enable_history(home.path()).expect("fresh history");
+    let later_key = serde_json::json!({
+        "version": 1,
+        "workflow": "two.nika",
+        "exit": 0,
+        "chain_head": "cd",
+        "later_part": {"kind": "a part a later engine names"},
+    });
+    first.kept_run = Some(later_key.clone());
+    assert!(matches!(first.turn(GOAL), TurnOutcome::Reply(_)));
+    drop(first);
+    let (mut later, _) = open(root.path(), &[ANSWER]);
+    later.enable_history(home.path()).expect("resume");
+    assert!(
+        matches!(later.kept_run(), Some(Err(why)) if why.contains("unknown key `later_part`")),
+        "refused with its reason"
+    );
+    assert_eq!(
+        later.kept_run.as_ref(),
+        Some(&later_key),
+        "never normalized"
+    );
+    assert!(later.work().run.is_none(), "never read in part");
+    assert!(matches!(later.turn(GOAL), TurnOutcome::Reply(_)));
+    drop(later);
+    let (mut again, _) = open(root.path(), &[]);
+    again.enable_history(home.path()).expect("resume again");
+    assert_eq!(
+        again.kept_run.as_ref(),
+        Some(&later_key),
+        "a later turn writes it back unchanged"
+    );
 }
 
 #[test]

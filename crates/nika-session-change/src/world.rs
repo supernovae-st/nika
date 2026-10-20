@@ -70,6 +70,25 @@ impl PlaceKind {
             Self::UndeterminedModel => "model undetermined",
         }
     }
+
+    /// [`Self::words`] in French, for a person who writes French.
+    #[must_use]
+    pub fn words_fr(self) -> &'static str {
+        match self {
+            Self::FileRead => "lit le fichier",
+            Self::FileWrite => "écrit le fichier",
+            Self::LocalService => "service local",
+            Self::ConnectedService => "service connecté",
+            Self::Placeholder => "hôte d'exemple",
+            Self::Refused => "hôte refusé",
+            Self::ToolServer => "outil MCP",
+            Self::Program => "programme",
+            Self::Unclassified => "non classé",
+            Self::RemoteModel => "modèle distant",
+            Self::LocalModel => "modèle local",
+            Self::UndeterminedModel => "modèle indéterminé",
+        }
+    }
 }
 
 /// One place the bytes reach, with the tasks that touch it.
@@ -89,9 +108,19 @@ impl Place {
     /// (a model id alone does not say whether the prompt leaves this machine).
     #[must_use]
     pub fn label(&self) -> String {
+        self.label_in(false)
+    }
+
+    /// [`Self::label`], its kind in French when `french`.
+    fn label_in(&self, french: bool) -> String {
+        let kind = if french {
+            self.kind.words_fr()
+        } else {
+            self.kind.words()
+        };
         match self.kind {
             PlaceKind::RemoteModel | PlaceKind::LocalModel | PlaceKind::UndeterminedModel => {
-                format!("{} ({})", self.target, self.kind.words())
+                format!("{} ({kind})", self.target)
             }
             _ => self.target.clone(),
         }
@@ -194,42 +223,74 @@ impl World {
     /// One line a host may show: the reach, then the places that decide it.
     #[must_use]
     pub fn summary(&self) -> String {
+        self.said(false)
+    }
+
+    /// [`Self::summary`] in French, for a person who writes French: the same reach and places,
+    /// each target as written (live gauntlet wave 6 r12 B1, 2026-10-18: « atteint, comme déclaré
+    /// · connected: anthropic/claude-sonnet-5-5 (remote model) » on a French card).
+    #[must_use]
+    pub fn summary_fr(&self) -> String {
+        self.said(true)
+    }
+
+    /// The summary, in French when `french`.
+    fn said(&self, french: bool) -> String {
+        let pick = |english: &'static str, said: &'static str| if french { said } else { english };
         if self.basis == Basis::NotAudited {
-            return "reach unknown · the bytes were not audited".to_owned();
+            return pick(
+                "reach unknown · the bytes were not audited",
+                "atteinte inconnue · les octets n'ont pas été audités",
+            )
+            .to_owned();
         }
         let named = |kinds: &[PlaceKind]| {
             (self.places.iter())
                 .filter(|p| kinds.contains(&p.kind))
-                .map(Place::label)
+                .map(|p| p.label_in(french))
                 .collect::<Vec<_>>()
                 .join(", ")
         };
         let mut line = match self.reach {
-            Reach::Local if self.places.is_empty() => {
-                "local only · nothing outside the process".to_owned()
-            }
+            Reach::Local if self.places.is_empty() => pick(
+                "local only · nothing outside the process",
+                "local seulement · rien hors du processus",
+            )
+            .to_owned(),
             Reach::Local => match named(&[PlaceKind::LocalModel]) {
-                models if models.is_empty() => "local only · files, no service reached".to_owned(),
+                models if models.is_empty() => pick(
+                    "local only · files, no service reached",
+                    "local seulement · des fichiers, aucun service atteint",
+                )
+                .to_owned(),
+                models if french => {
+                    format!("local seulement · {models} · rien ne quitte cette machine")
+                }
                 models => format!("local only · {models} · nothing leaves this machine"),
             },
-            Reach::LocalServices => format!(
-                "local services only: {} · no connected service",
-                named(&[PlaceKind::LocalService, PlaceKind::LocalModel])
-            ),
-            Reach::Connected => format!(
-                "connected: {}",
-                named(&[PlaceKind::ConnectedService, PlaceKind::RemoteModel])
-            ),
+            Reach::LocalServices => {
+                let services = named(&[PlaceKind::LocalService, PlaceKind::LocalModel]);
+                if french {
+                    format!("services locaux seulement : {services} · aucun service connecté")
+                } else {
+                    format!("local services only: {services} · no connected service")
+                }
+            }
+            Reach::Connected => {
+                let places = named(&[PlaceKind::ConnectedService, PlaceKind::RemoteModel]);
+                format!("{}{places}", pick("connected: ", "connecté : "))
+            }
             Reach::Undetermined => {
                 let unknown: Vec<String> = (self.places.iter())
                     .filter(|p| undetermined(p.kind))
-                    .map(Place::label)
+                    .map(|p| p.label_in(french))
                     .collect();
-                format!("reach undetermined: {}", unknown.join(", "))
+                let lead = pick("reach undetermined: ", "atteinte indéterminée : ");
+                format!("{lead}{}", unknown.join(", "))
             }
         };
         if !self.credentials.is_empty() {
-            line.push_str(" · credentials: ");
+            line.push_str(pick(" · credentials: ", " · identifiants : "));
             line.push_str(&self.credentials.join(", "));
         }
         line

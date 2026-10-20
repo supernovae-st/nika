@@ -43,6 +43,25 @@ pub(crate) fn push_child_field(
     }
 }
 
+/// The call the run stopped waiting for (a task `timeout:`, the operator's
+/// Stop), from the error the record keeps (a failure's, a skip's, or the one
+/// a recovery repaired), as ONE compact JSON text: `stopped_call` =
+/// `{tool, call_id, outcome}`. Absent when the error names none.
+pub(crate) fn push_stopped_call_field(
+    fields: &mut Vec<(&'static str, FieldValue)>,
+    record: &TaskRecord,
+) {
+    let stopped = record
+        .error
+        .as_ref()
+        .or(record.recovered_from.as_ref())
+        .and_then(|error| error.details.as_ref())
+        .and_then(|details| details.get("stopped_call"));
+    if let Some(stopped) = stopped {
+        fields.push(("stopped_call", s(&stopped.to_string())));
+    }
+}
+
 /// `task_recovered` — the ONE emission site (INV#24 · engine#301 · the
 /// D-2026-07-08-N4 sequence lock): INSERTS before the terminal, so
 /// `task_completed` stays the one success terminal and audit surfaces read
@@ -152,6 +171,7 @@ pub(crate) fn emit_completed(
     fields.push(("outcome", s(&outcome)));
     // F-O1 · the additive integrity label (present only when untrusted).
     push_integrity_fields(&mut fields, record);
+    push_stopped_call_field(&mut fields, record);
     emit(stamper, sink, EventKind::TaskCompleted, &fields)
 }
 

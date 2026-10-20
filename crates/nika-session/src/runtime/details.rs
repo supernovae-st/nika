@@ -45,9 +45,15 @@ impl SessionRuntime {
             }
         }
         let Some(out) = &self.last_outcome else {
-            text.push_str(
-                "\n  no workflow was read in this session yet · describe work to build and come back",
-            );
+            // A conversation builds with no compile round: what it built, saved and ran is said,
+            // never « no workflow was read » (QA gauntlet q09: after two Saves and three runs).
+            match self.conversation_details() {
+                Some(built) => text.push_str(&built),
+                None => text.push_str(
+                    "\n  no workflow was read in this session yet · describe work to build and come back",
+                ),
+            }
+            self.last_run_line(&mut text);
             return text;
         };
         let prov = &out.provenance;
@@ -72,6 +78,12 @@ impl SessionRuntime {
             prov.compiler_version,
             prov.spec_pin.chars().take(12).collect::<String>()
         );
+        self.last_run_line(&mut text);
+        text
+    }
+
+    /// The last run's trace, when one ran, and what judges it; then what none of this proves.
+    fn last_run_line(&self, text: &mut String) {
         if let Some(trace) = &self.last_trace {
             let _ = write!(
                 text,
@@ -82,6 +94,5 @@ impl SessionRuntime {
         text.push_str(
             "\n  none of this is a proof: `/proof` judges a run's trace · `/meaning` shows what was kept of your request",
         );
-        text
     }
 }

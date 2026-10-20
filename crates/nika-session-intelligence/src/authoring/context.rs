@@ -161,6 +161,18 @@ impl AuthoringContext {
         self
     }
 
+    /// This decision seat (or none) in place of the one named before: a refusal that earlier
+    /// seat caused is cleared first, so choosing the author alone never stays blocked by a seat
+    /// it no longer consults; the new seat's own refusal, if any, is then said as
+    /// [`Self::with_decision`] says it. Other refusals stand.
+    #[must_use]
+    pub fn with_decision_replaced(mut self, decision: Option<DecisionSetup>) -> Self {
+        if matches!(self.refusal, Some(AuthoringContextError::Decision { .. })) {
+            self.refusal = None;
+        }
+        self.with_decision(decision)
+    }
+
     /// The operator-selected decision seat, when one is named.
     #[must_use]
     pub fn decision(&self) -> Option<&DecisionSetup> {

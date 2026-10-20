@@ -16,8 +16,18 @@
 #     {no, yes, opt-out, split, passthrough} · zdr ∈ {yes, enterprise-only,
 #     no, local} · retention + source non-empty. An ABSENT table means no
 #     sourced policy vendored — never an implicit "does not train".
+#   * limits_source + as_of (@1.2 · optional) arrive together: where and
+#     when the two token limits were read. Rows added from @1.2 on carry
+#     them. An absent source means curated limits with no recorded
+#     source, never unknown limits.
+#   * lifecycle (@1.2 · optional) = { retires_not_before, successor,
+#     source, as_of }: a published retirement FLOOR and the successor wire
+#     (another model of the same provider). Advice at check time, never a
+#     switch: a nickname keeps its model until it is moved here.
+#   * two nicknames may name one wire only as aliases of one model, with
+#     identical token limits (and facts).
 
-schema = "nika/llm-providers@1.1"
+schema = "nika/llm-providers@1.2"
 
 [[providers]]
 id = "anthropic"
@@ -25,8 +35,12 @@ name = "Anthropic Claude"
 aliases = ["claude"]
 env_var = "ANTHROPIC_API_KEY"
 key_prefixes = ["sk-ant-"]
-default_model = "claude-sonnet-4-6"
-cheap_model = "claude-haiku-4-5-20251001"
+# The default is the current Sonnet, Claude Sonnet 5.5 (listed below with its
+# sourced limits). The `sonnet`, `haiku` and `opus` nicknames and the cheap
+# model follow the latest served model of their line: moved by maintainer
+# decision on 2026-10-15 to Claude Sonnet 5.5, Haiku 5.5 and Opus 5.5.
+default_model = "claude-sonnet-5-5"
+cheap_model = "claude-haiku-5-5"
 requires_key = true
 description = "Claude models (Opus, Sonnet, Haiku)."
 api_dialect = "anthropic"
@@ -34,17 +48,85 @@ tags = ["extended-thinking", "frontier", "function-calling", "long-context", "pr
 # No-train · 30d abuse window (flagged: up to 2y) · ZDR per-org, approval-gated.
 data_policy = { trains = "no", retention = "30", zdr = "yes", source = "https://platform.claude.com/docs/en/manage-claude/api-and-data-retention + https://privacy.claude.com/en/articles/7996866 · 2026-07-29" }
 
+# The rows run in the order the model picker lists them. Each nickname aliases
+# the row of the model it names, with the same limits and facts (decision of
+# 2026-10-15); moving a nickname again is a decision recorded here, never a
+# silent substitution.
 [[providers.models]]
 id = "sonnet"
-model = "claude-sonnet-4-6"
-context_window_tokens = 200000
-max_output_tokens = 8192
+model = "claude-sonnet-5-5"
+context_window_tokens = 1000000
+max_output_tokens = 128000
+limits_source = "https://platform.claude.com/docs/en/about-claude/models/overview"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "opus"
+model = "claude-opus-5-5"
+context_window_tokens = 1000000
+max_output_tokens = 128000
+limits_source = "https://platform.claude.com/docs/en/about-claude/models/overview"
+as_of = "2026-10-12"
 
 [[providers.models]]
 id = "haiku"
+model = "claude-haiku-5-5"
+context_window_tokens = 1000000
+max_output_tokens = 128000
+limits_source = "https://platform.claude.com/docs/en/about-claude/models/overview"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "claude-fable-5-1"
+model = "claude-fable-5-1"
+context_window_tokens = 1000000
+max_output_tokens = 128000
+limits_source = "https://platform.claude.com/docs/en/about-claude/models/overview"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "claude-sonnet-5-5"
+model = "claude-sonnet-5-5"
+context_window_tokens = 1000000
+max_output_tokens = 128000
+limits_source = "https://platform.claude.com/docs/en/about-claude/models/overview"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "claude-opus-5-5"
+model = "claude-opus-5-5"
+context_window_tokens = 1000000
+max_output_tokens = 128000
+limits_source = "https://platform.claude.com/docs/en/about-claude/models/overview"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "claude-haiku-5-5"
+model = "claude-haiku-5-5"
+context_window_tokens = 1000000
+max_output_tokens = 128000
+limits_source = "https://platform.claude.com/docs/en/about-claude/models/overview"
+as_of = "2026-10-12"
+
+# The models the nicknames named before 2026-10-15 stay explicit wires: Claude
+# Sonnet 4.6 with its curated limits, Claude Haiku 4.5 with its sourced limits
+# and its retirement floor, advice at check time.
+[[providers.models]]
+id = "claude-sonnet-4-6"
+model = "claude-sonnet-4-6"
+context_window_tokens = 1000000
+max_output_tokens = 128000
+limits_source = "https://platform.claude.com/docs/en/models/sonnet-4-6/overview"
+as_of = "2026-10-16"
+
+[[providers.models]]
+id = "claude-haiku-4-5-20251001"
 model = "claude-haiku-4-5-20251001"
 context_window_tokens = 200000
-max_output_tokens = 8192
+max_output_tokens = 64000
+limits_source = "https://platform.claude.com/docs/en/models/haiku-4-5/overview"
+as_of = "2026-10-12"
+lifecycle = { retires_not_before = "2026-10-15", successor = "claude-haiku-5-5", source = "https://platform.claude.com/docs/en/about-claude/model-deprecations", as_of = "2026-10-12" }
 
 [[providers]]
 id = "openai"
@@ -55,8 +137,8 @@ env_var = "OPENAI_API_KEY"
 # classic user keys (sk-). Order matters — sk-proj- is checked first since
 # it is more specific.
 key_prefixes = ["sk-proj-", "sk-"]
-default_model = "gpt-5.2"
-cheap_model = "gpt-5-mini"
+default_model = "gpt-6.1-sol"
+cheap_model = "gpt-6-luna"
 requires_key = true
 description = "GPT-5.x, the o-series, and other OpenAI models."
 api_dialect = "openai-chat"
@@ -84,6 +166,58 @@ id = "gpt-4o-mini"
 model = "gpt-4o-mini"
 context_window_tokens = 128000
 max_output_tokens = 16384
+
+# GPT-6: 1,050,000-token window and 128,000 output on each model page;
+# prompts above 272K bill the whole request at the long-context rate.
+[[providers.models]]
+id = "gpt-6-astra"
+model = "gpt-6-astra"
+context_window_tokens = 1050000
+max_output_tokens = 128000
+limits_source = "https://developers.openai.com/api/docs/models/gpt-6-astra"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "gpt-6.1-sol"
+model = "gpt-6.1-sol"
+context_window_tokens = 1050000
+max_output_tokens = 128000
+limits_source = "https://developers.openai.com/api/docs/models/gpt-6.1-sol"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "gpt-6-luna"
+model = "gpt-6-luna"
+context_window_tokens = 1050000
+max_output_tokens = 128000
+limits_source = "https://developers.openai.com/api/docs/models/gpt-6-luna"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "gpt-6-sol"
+model = "gpt-6-sol"
+context_window_tokens = 1050000
+max_output_tokens = 128000
+limits_source = "https://developers.openai.com/api/docs/models/gpt-6-sol.md"
+as_of = "2026-10-16"
+
+# GPT-5.5 and GPT-5.6 Sol: the same window and output cap on their model
+# pages, and the same 272K long-prompt rate.
+[[providers.models]]
+id = "gpt-5.6-sol"
+model = "gpt-5.6-sol"
+context_window_tokens = 1050000
+max_output_tokens = 128000
+limits_source = "https://developers.openai.com/api/docs/models/gpt-5.6-sol.md"
+as_of = "2026-10-16"
+
+[[providers.models]]
+id = "gpt-5.5"
+model = "gpt-5.5"
+context_window_tokens = 1050000
+max_output_tokens = 128000
+limits_source = "https://developers.openai.com/api/docs/models/gpt-5.5.md"
+as_of = "2026-10-16"
 
 [[providers]]
 id = "scaleway"
@@ -139,8 +273,8 @@ name = "Groq"
 aliases = []
 env_var = "GROQ_API_KEY"
 key_prefixes = ["gsk_"]
-default_model = "llama-3.3-70b-versatile"
-cheap_model = "llama-3.1-8b-instant"
+default_model = "openai/gpt-oss-120b"
+cheap_model = "openai/gpt-oss-20b"
 requires_key = true
 description = "Fast inference with Llama, Mixtral models."
 api_dialect = "openai-chat"
@@ -159,6 +293,25 @@ id = "llama-8b"
 model = "llama-3.1-8b-instant"
 context_window_tokens = 128000
 max_output_tokens = 8192
+
+# Groq's self-serve open-weight models (the Llama rows read Enterprise /
+# contact sales on the same page). An open-weight id has no single owner:
+# listing it here never refuses it on another host.
+[[providers.models]]
+id = "gpt-oss-120b"
+model = "openai/gpt-oss-120b"
+context_window_tokens = 131072
+max_output_tokens = 65536
+limits_source = "https://console.groq.com/docs/models"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "gpt-oss-20b"
+model = "openai/gpt-oss-20b"
+context_window_tokens = 131072
+max_output_tokens = 65536
+limits_source = "https://console.groq.com/docs/models"
+as_of = "2026-10-12"
 
 [[providers]]
 id = "deepseek"
@@ -180,14 +333,26 @@ id = "flash"
 model = "deepseek-flash"
 context_window_tokens = 1000000
 max_output_tokens = 384000
+limits_source = "https://api-docs.deepseek.com/quick_start/pricing/"
+as_of = "2026-10-12"
 
-# Legacy name, discontinued upstream 2026-07-24 (DeepSeek API change log, 2026-04-24): kept for
-# recorded runs; its price row is deprecated, so it is never offered.
+# `chat` follows DeepSeek's replacement for its retired deepseek-chat alias.
+# The explicit deepseek/deepseek-chat wire still passes through as typed.
 [[providers.models]]
 id = "chat"
-model = "deepseek-chat"
-context_window_tokens = 64000
-max_output_tokens = 8192
+model = "deepseek-flash"
+context_window_tokens = 1000000
+max_output_tokens = 384000
+limits_source = "https://api-docs.deepseek.com/quick_start/pricing/"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "deepseek-v4-pro"
+model = "deepseek-v4-pro"
+context_window_tokens = 1000000
+max_output_tokens = 384000
+limits_source = "https://api-docs.deepseek.com/quick_start/pricing/"
+as_of = "2026-10-12"
 
 [[providers]]
 id = "gemini"
@@ -203,11 +368,15 @@ tags = ["code-execution", "frontier", "function-calling", "long-context", "multi
 # THE split: paid tier no-train · unpaid/free tier TRAINS, with human review.
 data_policy = { trains = "split", retention = "paid: limited (unquantified) · grounding: 30 · unpaid: unspecified", zdr = "no", source = "https://ai.google.dev/gemini-api/terms · 2026-07-29" }
 
+# Each model page (markdown, 2026-10-16): a 1,048,576-token input limit and
+# a 65,536-token output limit.
 [[providers.models]]
 id = "flash-25"
 model = "gemini-2.5-flash"
 context_window_tokens = 1048576
-max_output_tokens = 8192
+max_output_tokens = 65536
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash.md.txt"
+as_of = "2026-10-16"
 
 [[providers.models]]
 id = "flash-lite-31"
@@ -215,18 +384,79 @@ model = "gemini-3.1-flash-lite"
 context_window_tokens = 1048576
 max_output_tokens = 65536
 
+[[providers.models]]
+id = "gemini-4-argon"
+model = "gemini-4-argon"
+context_window_tokens = 1048576
+max_output_tokens = 65536
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-4-argon.md.txt"
+as_of = "2026-10-16"
+
+[[providers.models]]
+id = "gemini-3.8-flash"
+model = "gemini-3.8-flash"
+context_window_tokens = 1048576
+max_output_tokens = 65536
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash.md.txt"
+as_of = "2026-10-16"
+
+[[providers.models]]
+id = "gemini-3.6-flash"
+model = "gemini-3.6-flash"
+context_window_tokens = 1048576
+max_output_tokens = 65536
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash.md.txt"
+as_of = "2026-10-16"
+
+[[providers.models]]
+id = "gemini-3.5-flash-lite"
+model = "gemini-3.5-flash-lite"
+context_window_tokens = 1048576
+max_output_tokens = 65536
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite.md.txt"
+as_of = "2026-10-16"
+
+[[providers.models]]
+id = "gemini-3.1-pro-preview"
+model = "gemini-3.1-pro-preview"
+context_window_tokens = 1048576
+max_output_tokens = 65536
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview.md.txt"
+as_of = "2026-10-16"
+
+[[providers.models]]
+id = "gemini-3-flash-preview"
+model = "gemini-3-flash-preview"
+context_window_tokens = 1048576
+max_output_tokens = 65536
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-3-flash-preview.md.txt"
+as_of = "2026-10-16"
+
+[[providers.models]]
+id = "gemini-2.5-pro"
+model = "gemini-2.5-pro"
+context_window_tokens = 1048576
+max_output_tokens = 65536
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-2.5-pro.md.txt"
+as_of = "2026-10-16"
+
+[[providers.models]]
+id = "gemini-2.5-flash-lite"
+model = "gemini-2.5-flash-lite"
+context_window_tokens = 1048576
+max_output_tokens = 65536
+limits_source = "https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash-lite.md.txt"
+as_of = "2026-10-16"
+
 [[providers]]
 id = "xai"
 name = "xAI Grok"
 aliases = ["grok"]
 env_var = "XAI_API_KEY"
-default_model = "grok-3"
-cheap_model = "grok-3-mini-fast"
+default_model = "grok-4.7"
+cheap_model = "grok-4.3"
 requires_key = true
-# #1579 · the prose and the tags describe the LISTED models: grok-3 and
-# grok-3-mini-fast are text-only (xAI docs · model-capabilities.toml), so
-# no `vision` tag and no Grok-4 promise until a listed model carries them.
-description = "Grok models (grok-3, grok-3-mini-fast)."
+description = "Grok models (grok-4.7, grok-4.3; grok-3 and grok-3-mini-fast are retired)."
 api_dialect = "openai-chat"
 tags = ["frontier", "function-calling", "reasoning", "streaming", "structured-output", "web-search"]
 # No-train (enterprise ToS · de-identified-data caveat) · ZDR on team/enterprise.
@@ -243,6 +473,26 @@ id = "mini"
 model = "grok-3-mini-fast"
 context_window_tokens = 131072
 max_output_tokens = 8192
+
+# xAI publishes the context (500K, 1M) but no maximum output; OpenRouter's
+# x-ai listing (xAI's own endpoint) gives 450,000 / 900,000, 90% of the
+# context, which reads generic. `mini` keeps its retired model until xAI
+# publishes a cap: it fails visibly rather than silently becoming another.
+[[providers.models]]
+id = "grok-4.7"
+model = "grok-4.7"
+context_window_tokens = 500000
+max_output_tokens = 450000
+limits_source = "https://openrouter.ai/api/v1/models"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "grok-4.3"
+model = "grok-4.3"
+context_window_tokens = 1000000
+max_output_tokens = 900000
+limits_source = "https://openrouter.ai/api/v1/models"
+as_of = "2026-10-12"
 
 [[providers]]
 id = "huggingface"
@@ -277,8 +527,8 @@ name = "OpenRouter"
 aliases = ["or"]
 env_var = "OPENROUTER_API_KEY"
 key_prefixes = ["sk-or-"]
-default_model = "anthropic/claude-sonnet-4-6"
-cheap_model = "anthropic/claude-haiku-4-5-20251001"
+default_model = "anthropic/claude-sonnet-4.6"
+cheap_model = "anthropic/claude-haiku-4.5"
 requires_key = true
 description = "200+ models via unified gateway."
 api_dialect = "openai-chat"
@@ -286,17 +536,64 @@ tags = ["function-calling", "streaming"]
 # Aggregator: the OR layer no-train · downstream depends on routing · the ZDR filter constrains it.
 data_policy = { trains = "passthrough", retention = "prompts none by default (logging opt-in · 1% discount) · metadata always", zdr = "yes", source = "https://openrouter.ai/privacy + https://openrouter.ai/docs/guides/privacy/data-collection · 2026-07-29" }
 
+# OpenRouter lists these models under its own dotted ids.
 [[providers.models]]
 id = "default"
-model = "anthropic/claude-sonnet-4-6"
-context_window_tokens = 128000
-max_output_tokens = 4096
+model = "anthropic/claude-sonnet-4.6"
+context_window_tokens = 1000000
+max_output_tokens = 128000
+limits_source = "https://openrouter.ai/api/v1/models"
+as_of = "2026-10-12"
 
 [[providers.models]]
 id = "cheap"
-model = "anthropic/claude-haiku-4-5-20251001"
-context_window_tokens = 128000
-max_output_tokens = 4096
+model = "anthropic/claude-haiku-4.5"
+context_window_tokens = 200000
+max_output_tokens = 64000
+limits_source = "https://openrouter.ai/api/v1/models"
+as_of = "2026-10-12"
+
+# The admitted routes: the smallest context and output over their
+# endpoints (the admission tariffs bound GPT-6 Luna below its 272K surcharge).
+[[providers.models]]
+id = "z-ai/glm-5.3-flash"
+model = "z-ai/glm-5.3-flash"
+context_window_tokens = 262144
+max_output_tokens = 128000
+limits_source = "https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash-20260826/endpoints"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "xiaomi/mimo-v2.6-flash"
+model = "xiaomi/mimo-v2.6-flash"
+context_window_tokens = 1000000
+max_output_tokens = 131072
+limits_source = "https://openrouter.ai/api/v1/models/xiaomi/mimo-v2.6-flash-20260921/endpoints"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "stepfun/step-5-preview"
+model = "stepfun/step-5-preview"
+context_window_tokens = 1000000
+max_output_tokens = 64000
+limits_source = "https://openrouter.ai/api/v1/models/stepfun/step-5-preview-20261008/endpoints"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "tencent/hy4-preview"
+model = "tencent/hy4-preview"
+context_window_tokens = 1000000
+max_output_tokens = 64000
+limits_source = "https://openrouter.ai/api/v1/models/tencent/hy4-preview-20260827/endpoints"
+as_of = "2026-10-12"
+
+[[providers.models]]
+id = "openai/gpt-6-luna"
+model = "openai/gpt-6-luna"
+context_window_tokens = 1050000
+max_output_tokens = 128000
+limits_source = "https://openrouter.ai/api/v1/models/openai/gpt-6-luna-20260922/endpoints"
+as_of = "2026-10-12"
 
 [[providers]]
 id = "together"

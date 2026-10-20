@@ -9,9 +9,10 @@
 //! Bare `nika` on a terminal opens the workspace over the real project: no
 //! `Ctrl+T`, no fixture. Two ordinary workflows sit on disk, a four-task
 //! diamond and a single task; the human selects one in the aside, and its
-//! source, plan, graph and check are drawn from ONE read of its bytes, named
-//! by their witness. Changed or invalid bytes need a new look (`r`) and never
-//! borrow the old check. The workspace follows every size, gives way to the
+//! source, plan, graph and check are drawn from ONE read of its bytes, each
+//! face saying it shows the file as last read, never the hex of their
+//! witness. Changed or invalid bytes need a new look (`r`) and never borrow
+//! the old check. The workspace follows every size, gives way to the
 //! focus view below its minimum and comes back whole; ASCII, `NO_COLOR` and
 //! reduced motion keep every face readable; the keys follow the focus and a
 //! typed-ahead draft is never sent; an interruption or `SIGTERM` gives the
@@ -19,9 +20,15 @@
 //! pipe stay as they are, opening a viewer sends nothing to a model and
 //! grants nothing, and Save is never Run.
 //!
-//! Keyless: the kept choice is « no AI in this conversation », the PATH holds
-//! no harness executable, the keychain is off. The screen is read through the
-//! VT model of the TUI reception suites (`nika-tui/tests/qa_support/vt.rs`),
+//! Keyless: the workspace needs an intelligence (it never opts into the
+//! offline choice), so the kept choice is a local engine (`vllm`) whose base
+//! URL is this proof's loopback model (`support/loopback_model.rs`): nothing
+//! leaves 127.0.0.1 and every request it receives is kept, so a proof that
+//! claims no model call reads that log. The round driver these proofs were
+//! written for is kept (`NIKA_SESSION_DRIVER=rounds`), the PATH holds no
+//! harness executable, the keychain is off. A decision the Session waits for
+//! holds the line as a finite action (`action ›`). The screen is read through
+//! the VT model of the TUI reception suites (`nika-tui/tests/qa_support/vt.rs`),
 //! which answers the renderer's terminal queries itself. With
 //! `NIKA_TUI01_EVIDENCE=<dir>` every proof keeps its raw stream, its labelled
 //! screens and the SHA-256 of the binary it drove there.
@@ -32,6 +39,24 @@
     reason = "the workspace suite reads part of the shared VT screen"
 )]
 mod vt;
+
+#[path = "support/loopback_model.rs"]
+mod loopback_model;
+
+#[path = "support/scripted_author.rs"]
+mod scripted_author;
+
+#[path = "workspace_pty/choice.rs"]
+mod choice;
+
+#[path = "workspace_pty/picker.rs"]
+mod picker;
+
+#[path = "workspace_pty/inspect.rs"]
+mod inspect;
+
+#[path = "workspace_pty/language.rs"]
+mod language;
 
 #[path = "workspace_pty/run.rs"]
 mod run;
@@ -49,6 +74,7 @@ use std::time::{Duration, Instant};
 
 use expectrl::process::unix::{Signal, WaitStatus};
 use expectrl::session::OsSession;
+use loopback_model::{Asked, Model};
 use sha2::{Digest as _, Sha256};
 
 /// The longest any single wait may take before the proof fails with a dump.
@@ -66,6 +92,14 @@ const UP: &str = "\x1b[A";
 const RIGHT: &str = "\x1b[C";
 const LEFT: &str = "\x1b[D";
 const ESC: &str = "\x1b";
+const F2: &str = "\x1bOQ";
+const PAGE_DOWN: &str = "\x1b[6~";
+
+/// The row each face of a file reads above it: the file as last read, never its witness's hex.
+const AS_READ: &str = "as last read";
+
+/// The graph face's own form of that row.
+const GRAPH_READ: &str = "This file as last read";
 
 /// A four-task diamond: one root, two branches, one join.
 const DIAMOND: &str = r#"nika: diamond
@@ -101,15 +135,27 @@ fn short_witness(bytes: &[u8]) -> String {
     blake3::hash(bytes).to_hex().chars().take(12).collect()
 }
 
-/// A project with the two workflows and a home whose kept choice is « no AI
-/// in this conversation ».
+/// A project with the two workflows and a home whose kept choice is a local
+/// engine served by `model`, which lives as long as the rig.
 struct Rig {
     project: tempfile::TempDir,
     home: tempfile::TempDir,
+    /// The kept intelligence, on 127.0.0.1: every request it received.
+    model: Model,
 }
 
 impl Rig {
     fn new(tag: &str) -> Self {
+        Self::with_model(tag, Model::start())
+    }
+
+    /// The same rig, its kept intelligence scripted ([`Model::scripted`]): each line the Session
+    /// routes to it receives the next of `labels`.
+    fn scripted(tag: &str, labels: &[&str]) -> Self {
+        Self::with_model(tag, Model::scripted(labels))
+    }
+
+    fn with_model(tag: &str, model: Model) -> Self {
         let project = tempfile::Builder::new()
             .prefix(&format!("nika-ws-{tag}-"))
             .tempdir()
@@ -118,15 +164,53 @@ impl Rig {
             .prefix(&format!("nika-ws-home-{tag}-"))
             .tempdir()
             .expect("home dir");
-        std::fs::create_dir_all(home.path().join(".nika")).expect("home .nika");
-        std::fs::write(
-            home.path().join(".nika").join("session-intelligence.json"),
-            "{\"kind\":{\"kind\":\"none\"},\"model\":null,\"chosen_at\":\"2026-09-20T00:00:00Z\"}",
-        )
-        .expect("kept choice");
+        // « No AI » no longer opens the workspace: the host opens the
+        // required intelligence chooser over it. A ready local engine does.
+        Model::chosen_in(home.path());
         std::fs::write(project.path().join("diamond.nika"), DIAMOND).expect("diamond");
         std::fs::write(project.path().join("single.nika"), SINGLE).expect("single");
-        Self { project, home }
+        Self {
+            project,
+            home,
+            model,
+        }
+    }
+
+    /// `what` reached no model: the kept intelligence received no request.
+    fn no_model_call(&self, what: &str) {
+        let bodies = self.model.bodies();
+        assert!(
+            bodies.is_empty(),
+            "{what}: {} request(s) reached the model\n{bodies:#?}",
+            bodies.len()
+        );
+    }
+
+    /// `what` asked the kept intelligence to route exactly `lines`, in order (each typed reply
+    /// the Session reads is one authoring call), and asked it nothing else than those routes
+    /// and the judge's closed choices.
+    fn routed(&self, lines: &[&str], what: &str) {
+        let asked = self.model.asked();
+        let routes: Vec<&str> = (asked.iter())
+            .filter_map(|asked| match asked {
+                Asked::Route(line) => Some(line.as_str()),
+                Asked::Choice(_) | Asked::Other => None,
+            })
+            .collect();
+        assert_eq!(routes, lines, "{what}: the routed lines\n{asked:#?}");
+        assert!(
+            (asked.iter()).all(|asked| matches!(asked, Asked::Route(_) | Asked::Choice(_))),
+            "{what}: only routes and the judge's choices reached the model\n{asked:#?}"
+        );
+    }
+
+    /// `what` ran nothing: the project holds no Run journal (counted apart from the model's
+    /// authoring calls).
+    fn no_run(&self, what: &str) {
+        assert!(
+            !self.path(".nika/traces").exists(),
+            "{what}: a Run journal exists"
+        );
     }
 
     fn path(&self, rel: &str) -> PathBuf {
@@ -150,7 +234,11 @@ impl Rig {
             .env("TERM", "xterm-256color")
             .env("LANG", "en_US.UTF-8")
             .env("HOME", self.home.path())
-            .env("NIKA_KEYCHAIN", "off");
+            .env("NIKA_KEYCHAIN", "off")
+            .env("NIKA_VLLM_BASE_URL", self.model.base())
+            // The round driver, read once when the Session opens: with no
+            // intelligence the Session kept it, and these proofs read it.
+            .env("NIKA_SESSION_DRIVER", "rounds");
         for (key, value) in env {
             command.env(key, value);
         }
@@ -444,9 +532,16 @@ impl Term {
         );
     }
 
-    /// Two `Ctrl+C` while idle leave with 130 and the terminal restored.
+    /// Two `Ctrl+C` while idle leave with 130 and the terminal restored: the
+    /// second goes once the screen acknowledges the first at the idle prompt
+    /// (« Ctrl+C again leaves · any key stays », in French where the person
+    /// writes French), never after a fixed wait.
     fn leave(&mut self) {
-        self.keys("\x03");
+        self.send("\x03");
+        self.wait_workspace_frame("the first Ctrl+C acknowledged at the idle prompt", |s| {
+            (s.contains("Ctrl+C again leaves") && s.contains("any key stays"))
+                || (s.contains("Ctrl+C encore quitte") && s.contains("autre touche reste"))
+        });
         self.send("\x03");
         let status = self.finish();
         assert_eq!(exit_code(status), Some(130), "{status:?}\n{}", self.dump());
@@ -512,6 +607,33 @@ fn wait_workspace(term: &mut Term) {
     });
 }
 
+/// A row of `screen` carries the finite action's prompt, `action ›` (its
+/// ASCII twin `action >`), as a word of its own: the composer's prompt while
+/// an action holds the line, or the echo of a line sent at one. The window
+/// title's « action required » is no screen row and has no prompt mark.
+fn action_prompt_shown(screen: &vt::Screen) -> bool {
+    screen.lines().iter().any(|row| {
+        ["action ›", "action >"].into_iter().any(|prompt| {
+            row.match_indices(prompt).any(|(at, _)| {
+                !row[..at]
+                    .chars()
+                    .next_back()
+                    .is_some_and(|c| c.is_alphanumeric() || c == '_')
+            })
+        })
+    })
+}
+
+/// A finite Session action holds the line now: its prompt is painted and the
+/// hint names its keys (`Enter acts`, in every form a narrow row takes; `Entrée
+/// valide` where the person writes French). Its band covers the conversation
+/// down to the composer, so the echo of an earlier answer is out of view
+/// whenever this holds.
+fn action_holds(screen: &vt::Screen) -> bool {
+    action_prompt_shown(screen)
+        && (screen.contains("Enter acts") || screen.contains("Entrée valide"))
+}
+
 /// Open the aside entry `downs` rows below this conversation (wide layout).
 fn open_entry(term: &mut Term, downs: usize) {
     term.keys(SHIFT_F6);
@@ -570,11 +692,13 @@ fn bare_nika_opens_the_workspace_on_the_real_project() {
     assert!(shown.contains("this conversation"), "{shown}");
     assert!(!shown.contains("nika-tui-proto"), "{shown}");
     term.leave();
+    rig.no_model_call("opening the workspace");
 }
 
 /// 2 · The selected workflow shows its source, plan, graph and check, every
-/// face from the one read of its bytes (their witness on every face); the
-/// second workflow shows its own bytes.
+/// face from the one read of its bytes (each says it shows the file as last
+/// read, and none the hex of their witness); the second workflow shows its
+/// own bytes.
 #[test]
 fn every_face_of_the_selected_workflow_reads_the_same_bytes() {
     let rig = Rig::new("faces");
@@ -585,13 +709,14 @@ fn every_face_of_the_selected_workflow_reads_the_same_bytes() {
     term.wait_until("the diamond's source", |s| {
         s.contains("[source]") && s.contains("message: join")
     });
-    assert!(term.text().contains(&diamond), "{}", term.text());
+    let read = |text: &str| text.contains(AS_READ) && !text.contains(&diamond);
+    assert!(read(&term.text()), "{}", term.text());
     to_object(&mut term);
     term.keys(RIGHT);
     term.wait_until("the diamond's plan", |s| {
         s.contains("[plan]") && s.contains("wave 2 · 2 side by side")
     });
-    assert!(term.text().contains(&diamond));
+    assert!(read(&term.text()), "{}", term.text());
     term.keys(RIGHT);
     term.wait_until("the diamond's graph", |s| {
         s.contains("[graph]") && s.contains("4 edges")
@@ -624,7 +749,10 @@ fn every_face_of_the_selected_workflow_reads_the_same_bytes() {
         "the parallel tasks share a row\n{graph}"
     );
     assert!(!graph.contains("left → right"), "{graph}");
-    assert!(graph.contains(&diamond));
+    assert!(
+        graph.contains(GRAPH_READ) && !graph.contains(&diamond),
+        "{graph}"
+    );
     term.keys(RIGHT);
     term.wait_until("the diamond's check", |s| {
         s.contains("[check]") && s.contains("IMPORTS")
@@ -633,7 +761,7 @@ fn every_face_of_the_selected_workflow_reads_the_same_bytes() {
     assert!(check.contains("VALID"), "{check}");
     assert!(check.contains("RUN READY    unknown"), "{check}");
     assert!(!check.contains("nothing known blocks a run"), "{check}");
-    assert!(check.contains(&diamond));
+    assert!(read(&check), "{check}");
     // The second workflow: F6 from the object to the aside, one row down.
     term.keys(F6);
     term.keys(DOWN);
@@ -643,12 +771,13 @@ fn every_face_of_the_selected_workflow_reads_the_same_bytes() {
         s.contains("single · [source] plan graph check") && s.contains("message: only")
     });
     let shown = term.text();
-    assert!(shown.contains(&single), "{shown}");
     assert!(
-        !shown.contains(&diamond) && !shown.contains("message: join"),
+        shown.contains(AS_READ) && !shown.contains(&single),
         "{shown}"
     );
+    assert!(!shown.contains("message: join"), "{shown}");
     term.leave();
+    rig.no_model_call("reading every face");
 }
 
 /// The exact unsent fixture draft occupies only its composer row.
@@ -705,10 +834,9 @@ fn the_selected_object_expands_without_leaving_the_real_conversation() {
     to_object(&mut term);
     term.keys(RIGHT);
     term.keys(RIGHT);
-    let witness = short_witness(DIAMOND.as_bytes());
     term.wait_workspace_frame("selected graph before expansion", |screen| {
         screen.contains("[graph]")
-            && screen.contains(&witness)
+            && screen.contains(GRAPH_READ)
             && screen.contains("[+] Expand · F4")
     });
     term.keys(ESC);
@@ -733,7 +861,7 @@ fn the_selected_object_expands_without_leaving_the_real_conversation() {
             |screen| {
                 action_at_width(screen, "[-] Restore · F4", cols)
                     && screen.contains("[graph]")
-                    && screen.contains(&witness)
+                    && screen.contains(GRAPH_READ)
                     && contextual_draft(screen)
                     && if cols < 100 {
                         screen.row_of("── ◌ this conversation") > restored_rule
@@ -782,6 +910,7 @@ fn the_selected_object_expands_without_leaving_the_real_conversation() {
     for mode in [1000, 1002, 1003, 1006] {
         assert_eq!(term.screen.mode(mode), Some(false), "mouse mode {mode}");
     }
+    rig.no_model_call("contextual expansion calls no provider");
 }
 
 /// Native colored output is recorded as bytes, with frame and resize offsets.
@@ -802,9 +931,8 @@ fn the_native_workflow_uses_the_approved_palette_without_changing_source() {
     to_object(&mut term);
     term.keys(RIGHT);
     term.keys(RIGHT);
-    let witness = short_witness(DIAMOND.as_bytes());
     term.wait_workspace_frame("colored workflow at 180x48", |screen| {
-        screen.contains("[graph]") && screen.contains(&witness) && screen.contains("join")
+        screen.contains("[graph]") && screen.contains(GRAPH_READ) && screen.contains("join")
     });
     assert!(
         term.screen.hues().contains("38;2;76;163;255"),
@@ -834,7 +962,7 @@ fn the_native_workflow_uses_the_approved_palette_without_changing_source() {
                         .iter()
                         .all(|row| screen.lines().iter().any(|line| line.trim() == *row))
                         && screen.contains("Structure checked · this file only")
-                        && screen.contains(&witness)))
+                        && screen.contains(GRAPH_READ)))
         });
     }
     term.keys(ESC);
@@ -846,7 +974,7 @@ fn the_native_workflow_uses_the_approved_palette_without_changing_source() {
     term.wait_workspace_frame("same unsent draft with Object focus", |screen| {
         screen.contains("Make the brief more concise")
             && screen.contains("[graph]")
-            && screen.contains(&witness)
+            && screen.contains(GRAPH_READ)
     });
     assert_eq!(
         rig.tree(),
@@ -854,11 +982,13 @@ fn the_native_workflow_uses_the_approved_palette_without_changing_source() {
         "viewing the graph changed project files"
     );
     term.leave();
+    rig.no_model_call("viewing the graph with an unsent draft");
 }
 
-/// 3 · Changed bytes need a new look: until `r` the object names the bytes it
+/// 3 · Changed bytes need a new look: until `r` the object shows the bytes it
 /// read; after it, the new bytes and their own check, never the old one. An
-/// invalid source stays visible beside its refusal.
+/// invalid source stays visible beside its refusal. No face names bytes by
+/// the hex of their witness.
 #[test]
 fn changed_and_invalid_bytes_need_a_new_look() {
     let rig = Rig::new("stale");
@@ -870,21 +1000,21 @@ fn changed_and_invalid_bytes_need_a_new_look() {
     std::fs::write(rig.path("single.nika"), &changed).expect("change the bytes");
     to_object(&mut term);
     term.settle();
+    let until = term.text();
     assert!(
-        term.text().contains(&short_witness(SINGLE.as_bytes())),
-        "until r, the read bytes"
+        until.contains("message: only") && !until.contains("message: changed"),
+        "until r, the read bytes\n{until}"
     );
     term.keys("r");
     term.wait_until("the new bytes", |s| s.contains("message: changed"));
     let shown = term.text();
     assert!(
-        shown.contains(&short_witness(changed.as_bytes())),
+        shown.contains(AS_READ) && !shown.contains("message: only"),
         "{shown}"
     );
-    assert!(
-        !shown.contains(&short_witness(SINGLE.as_bytes())),
-        "{shown}"
-    );
+    for bytes in [SINGLE, changed.as_str()] {
+        assert!(!shown.contains(&short_witness(bytes.as_bytes())), "{shown}");
+    }
     let invalid = "nika: single\nbogus: 1\ntasks: {}\n";
     std::fs::write(rig.path("single.nika"), invalid).expect("invalid bytes");
     term.keys("r");
@@ -897,7 +1027,7 @@ fn changed_and_invalid_bytes_need_a_new_look() {
     });
     let check = term.text();
     assert!(
-        check.contains(&short_witness(invalid.as_bytes())),
+        check.contains(AS_READ) && !check.contains(&short_witness(invalid.as_bytes())),
         "{check}"
     );
     assert!(
@@ -906,6 +1036,7 @@ fn changed_and_invalid_bytes_need_a_new_look() {
     );
     term.keys(UP);
     term.leave();
+    rig.no_model_call("a new look at changed and invalid bytes");
 }
 
 /// 4 · The workspace follows 120x36, 80x24 and 60x18 (the folded aside is
@@ -986,6 +1117,7 @@ fn the_workspace_follows_every_size_and_comes_back() {
     });
     term.keys(ESC);
     term.leave();
+    rig.no_model_call("following every size");
 }
 
 /// 5 · ASCII, `NO_COLOR` and reduced motion keep every face readable: the
@@ -1012,14 +1144,13 @@ fn ascii_no_color_and_reduced_motion_keep_every_face_readable() {
     assert_renderer_ascii(&term.text());
     term.resize(80, 24);
     term.keys(LEFT);
-    let witness = short_witness(DIAMOND.as_bytes());
     term.wait_workspace_frame("the compact ASCII graph", |screen| {
         screen.size() == (80, 24)
             && screen.contains("Compact graph")
             && screen.contains("[graph]")
             && screen.contains("[Object]")
             && screen.contains("Structure checked - this file only")
-            && screen.contains(&witness)
+            && screen.contains(GRAPH_READ)
             && [
                 "fetch - invoke",
                 "left <- fetch - invoke",
@@ -1035,6 +1166,7 @@ fn ascii_no_color_and_reduced_motion_keep_every_face_readable() {
         assert!(!raw.contains(hue), "a colour under NO_COLOR: {hue:?}");
     }
     term.leave();
+    rig.no_model_call("reading the ASCII faces");
 }
 
 /// The renderer's own glyphs take their ASCII twins (the session's words,
@@ -1112,8 +1244,9 @@ fn review_rows(screen: &vt::Screen) -> Vec<String> {
 }
 
 /// 6 · Words typed before the first frame land in the draft and are never
-/// sent; a region holding the keys reads them instead of the composer; `Esc`
-/// gives the keys back; `Ctrl+L` repaints with the draft intact.
+/// sent. While the aside holds the keys the hint row names it; `Esc` gives
+/// the keys back, and so does a letter typed there: the composer takes it, so
+/// no typed word is lost. `Ctrl+L` repaints with the draft intact.
 #[test]
 fn typed_ahead_words_stay_in_the_draft_and_the_keys_follow_the_focus() {
     let rig = Rig::new("keys");
@@ -1126,13 +1259,20 @@ fn typed_ahead_words_stay_in_the_draft_and_the_keys_follow_the_focus() {
             .any(|l| l.contains("nika ›") && l.contains("hello"))
     });
     term.keys(SHIFT_F6);
-    term.keys("xyz");
+    term.wait_text("keys: the project list");
     term.keys(ESC);
+    term.wait_until("Esc gave the keys back", |s| {
+        !s.contains("keys: the project list")
+    });
+    term.keys(SHIFT_F6);
+    term.wait_text("keys: the project list");
+    term.keys("xyz");
     term.keys("\x0c");
-    term.wait_until("the draft after the aside held the keys", |s| {
-        s.lines()
-            .iter()
-            .any(|l| l.contains("nika ›") && l.contains("hello") && !l.contains("xyz"))
+    term.wait_until("the letters typed in the aside, in the draft", |s| {
+        !s.contains("keys: the project list")
+            && s.lines()
+                .iter()
+                .any(|l| l.contains("nika ›") && l.contains("helloxyz"))
     });
     let shown = term.text();
     assert_eq!(
@@ -1141,6 +1281,7 @@ fn typed_ahead_words_stay_in_the_draft_and_the_keys_follow_the_focus() {
         "the draft is in the box only, never echoed as sent\n{shown}"
     );
     term.leave();
+    rig.no_model_call("a typed-ahead draft is never sent");
 }
 
 /// 7 · `SIGTERM` leaves at once with 143 and the terminal handed back.
@@ -1155,6 +1296,7 @@ fn terminate_restores_the_terminal() {
     let status = term.finish();
     assert_eq!(exit_code(status), Some(143), "{status:?}\n{}", term.dump());
     term.assert_restored();
+    rig.no_model_call("opening a source before SIGTERM");
 }
 
 /// 8 · Inline stays an explicit door: `NIKA_TUI=inline` opens it on the main
@@ -1169,6 +1311,7 @@ fn inline_stays_an_explicit_door() {
     term.keys(ESC);
     term.wait_until("back inline", |s| !s.on_alt() && s.contains("nika ›"));
     term.leave();
+    rig.no_model_call("switching presentations");
 }
 
 /// 9 · Plain stays plain (`NIKA_TUI=0`: no alternate screen) and a pipe keeps
@@ -1222,6 +1365,11 @@ fn opening_a_viewer_sends_nothing_and_grants_nothing() {
     for said in ["proposes", "saved", "Save?", "run it", "observed"] {
         assert!(!shown.contains(said), "{said}\n{shown}");
     }
+    // A decision's prompt is `action ›` now (`Save?` was): none is painted.
+    assert!(
+        !action_prompt_shown(&term.screen),
+        "no decision holds the line\n{shown}"
+    );
     // The workspace hides a rail whose five stages are all pending. Inspect
     // the same retained state inline without sending a Session line.
     term.keys("\x14");
@@ -1236,6 +1384,7 @@ fn opening_a_viewer_sends_nothing_and_grants_nothing() {
     );
     term.leave();
     assert_eq!(rig.tree(), before, "the project is untouched");
+    rig.no_model_call("opening a viewer sends nothing");
 }
 
 /// 11 · Save is never Run in the workspace: a sentence becomes a proposal,
@@ -1249,7 +1398,8 @@ fn save_is_never_run_in_the_workspace() {
     let mut term = rig.spawn("11-save", 120, 36);
     wait_workspace(&mut term);
     term.send("Lis ./notes/brief.md et écris-le dans ./out/copie.md\r");
-    term.wait_until("the proposal", |s| s.contains("Save?"));
+    // The consent holds the line as an action; it still reads typed words.
+    term.wait_until("the proposal's decision", action_holds);
     term.send("oui\r");
     let landed = rig.path("compiled-workflow.nika");
     term.wait_until("the exact bytes saved", |s| {
@@ -1273,38 +1423,129 @@ fn save_is_never_run_in_the_workspace() {
         !rig.path("out/copie.md").exists(),
         "nothing ran before the door closed"
     );
+    rig.no_model_call("a deterministic copy proposed and saved");
 }
 
-/// The exact candidate identity on the review card's bottom border
-/// (`proposal <12 hex> · F2…`), independent of the material facts above it.
-fn shown_identity(screen: &str) -> Option<String> {
-    let head = "proposal ";
-    screen.lines().find_map(|line| {
-        let at = line.find(head)? + head.len();
-        let id = line.get(at..)?.split_whitespace().next()?;
-        (id.len() == 12 && id.chars().all(|c| c.is_ascii_hexdigit())).then(|| id.to_owned())
+/// The identity a `yes` answers, as the Session's words name it (`identity <12 hex> · …`),
+/// when `text` holds them: read word by word, across the reader's wrapped rows and edges.
+fn said_identity(text: &str) -> Option<String> {
+    let words: Vec<&str> = text
+        .split(|c: char| c.is_whitespace() || c == '│')
+        .filter(|word| !word.is_empty())
+        .collect();
+    words.windows(2).find_map(|pair| {
+        let id = pair[1];
+        (pair[0] == "identity" && id.len() == 12 && id.chars().all(|c| c.is_ascii_hexdigit()))
+            .then(|| id.to_owned())
     })
 }
 
-/// The witness of the candidate's pending bytes the object region shows
-/// (`these bytes <12 hex>, the proposal's own`), when it shows one.
-fn shown_bytes(screen: &str) -> Option<String> {
-    let head = "these bytes ";
-    screen.lines().find_map(|line| {
-        let at = line.find(head)? + head.len();
-        let rest = line.get(at..)?;
-        let witness = rest.get(..12)?;
-        let own = rest.get(12..)?.starts_with(", the proposal");
-        (own && witness.chars().all(|c| c.is_ascii_hexdigit())).then(|| witness.to_owned())
-    })
+/// The current proposal's whole words, read where a person reads them (`F2`), page by page
+/// to their end, then `Esc` back to the decision. The card names the proposal by where it
+/// lands; its identity stays in those words.
+fn read_proposal(term: &mut Term) -> String {
+    term.send(F2);
+    term.wait_workspace_frame("the proposal's whole words", |s| {
+        s.lines()[0].contains("Full proposal")
+    });
+    let mut read = term.text();
+    let mut last = read.clone();
+    for _ in 0..12 {
+        term.keys(PAGE_DOWN);
+        let page = term.text();
+        if page == last {
+            break;
+        }
+        read.push('\n');
+        read.push_str(&page);
+        last = page;
+    }
+    term.send(ESC);
+    term.wait_workspace_frame("the decision again", |s| {
+        !s.lines()[0].contains("Full proposal") && action_holds(s)
+    });
+    read
+}
+
+/// The whole words of the proposal a revision brought, once they say `marker`: the decision
+/// may still hold the earlier proposal while the Session revises it.
+fn revised_proposal(term: &mut Term, marker: &str) -> String {
+    let deadline = Instant::now() + WAIT;
+    loop {
+        term.wait_workspace_frame("a decision", action_holds);
+        let words = read_proposal(term);
+        if words.contains(marker) {
+            return words;
+        }
+        assert!(
+            Instant::now() <= deadline,
+            "the revision never said {marker}\n{}",
+            term.dump()
+        );
+        term.settle();
+    }
+}
+
+/// The source rows the object shows (`<n> <line>`, a verb's line marked `◆`, a long one cut
+/// on `…`), each by its number and its words.
+fn source_rows(screen: &vt::Screen) -> Vec<(usize, String)> {
+    (right_preview(screen).iter())
+        .filter_map(|row| {
+            let (number, rest) = row.trim().split_once(' ')?;
+            let number: usize = number.parse().ok()?;
+            let words = rest.trim_start().trim_start_matches('◆').trim();
+            Some((number, words.to_owned()))
+        })
+        .collect()
+}
+
+/// Whether every source row a face showed (at least `least` of them) is the line of `saved`
+/// at that number, a cut row its start: the bytes a person read before the yes are the ones
+/// saved.
+fn shows_source(shown: &[(usize, String)], saved: &str, least: usize) -> bool {
+    let lines: Vec<&str> = saved.lines().collect();
+    shown.len() >= least
+        && shown.iter().all(|(number, words)| {
+            let line = number.checked_sub(1).and_then(|at| lines.get(at));
+            line.is_some_and(|line| match words.strip_suffix('…') {
+                Some(start) => line.trim().starts_with(start.trim_end()),
+                None => line.trim() == words,
+            })
+        })
+}
+
+/// The observed graph opens first: read the source, then every other face (none of these
+/// navigation keys is a consent), and give the keys back to the conversation. The source
+/// face's rows, by number.
+fn walk_faces(term: &mut Term) -> Vec<(usize, String)> {
+    term.keys(F6);
+    term.keys(LEFT);
+    term.keys(LEFT);
+    term.wait_text("[source]");
+    let source = source_rows(&term.screen);
+    for face in ["[plan]", "[graph]", "[check]"] {
+        term.keys(RIGHT);
+        term.wait_text(face);
+    }
+    term.wait_text("IMPORTS");
+    assert!(
+        !term.text().contains("nothing known blocks a run"),
+        "{}",
+        term.dump()
+    );
+    // From the object, `Esc` gives the keys back to the conversation (never
+    // to the decision, which `Esc` never answers).
+    term.keys(ESC);
+    source
 }
 
 /// 12 · A sentence becomes a candidate the workspace shows before any Save:
-/// the identity a yes answers, what it creates, what it reaches, the witness
-/// of its exact pending bytes, and its four faces, while nothing is written. A
-/// revision of its ceiling is a new identity over the same bytes and the old
-/// one leaves the object; `yes` lands exactly those bytes (the saved file then
-/// shows the same witness) and nothing runs until a separate line asks.
+/// the proposal a yes answers by where it lands, what it creates, what it
+/// reaches, whose pending bytes the object shows, and its four faces, while
+/// nothing is written. A revision of its ceiling is a new identity over the
+/// same bytes (read in the Session's whole words, `F2`) and the old one leaves
+/// the object; `yes` lands exactly the bytes its source face showed and
+/// nothing runs until a separate line asks.
 #[test]
 fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
     let rig = Rig::new("candidate");
@@ -1314,15 +1555,23 @@ fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
     let mut term = rig.spawn("12-candidate", 120, 36);
     wait_workspace(&mut term);
     term.send("Read ./notes/brief.md and write it to ./out/copy.md\r");
+    // The consent's decision holds the line; the proposal a yes answers must
+    // stay in view beside it (its card's border in the conversation), by name.
+    let named = "compiled-workflow.nika · F2";
     term.wait_workspace_frame("the candidate in view", |s| {
-        s.contains("Save?") && review_text(s).contains("F2: whole words")
+        action_holds(s) && review_text(s).contains(named)
     });
-    let a = shown_identity(&review_text(&term.screen)).expect("an identity is shown");
     let preview = preview_text(&term.screen);
     let review = review_text(&term.screen);
     assert!(
-        review.contains(&format!("proposal {a} · F2: whole words")),
-        "the identity beside its reader key on the card's border\n{}",
+        review.contains("compiled-workflow.nika · F2: whole words"),
+        "the proposal's name beside its reader key on the card's border\n{}",
+        term.dump()
+    );
+    let a = said_identity(&read_proposal(&mut term)).expect("the identity a yes answers");
+    assert!(
+        !term.text().contains(&a),
+        "the identity stays in the Session's words\n{}",
         term.dump()
     );
     for said in [
@@ -1342,9 +1591,9 @@ fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
             term.dump()
         );
     }
-    // The object's header is the one home of the pending bytes.
+    // The object's header is the one home of whose pending bytes these are.
     assert!(
-        shown_bytes(&preview).is_some() && !review.contains("these bytes"),
+        preview.contains("these bytes, the proposal's own") && !review.contains("these bytes"),
         "the pending bytes once, in the object\n{}",
         term.dump()
     );
@@ -1354,47 +1603,32 @@ fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
         term.dump()
     );
     assert_eq!(rig.tree(), before, "a proposal writes nothing");
-    // The observed graph opens first. Read Source, then all the other faces;
-    // none of these navigation keys is a consent.
-    term.keys(F6);
-    term.keys(LEFT);
-    term.keys(LEFT);
-    term.wait_text("[source]");
-    for face in ["[plan]", "[graph]", "[check]"] {
-        term.keys(RIGHT);
-        term.wait_text(face);
-    }
-    term.wait_text("IMPORTS");
-    assert!(
-        !term.text().contains("nothing known blocks a run"),
-        "{}",
-        term.dump()
-    );
-    term.keys(ESC);
-    // A revision of the proposal's money: a new identity, A gone from the object.
+    let source = walk_faces(&mut term);
+    // A revision of the proposal's money, typed at the decision (it reads
+    // words): a new identity, A gone from the object.
     term.send("budget 0.10 USD\r");
-    term.wait_workspace_frame("the revised candidate", |s| {
-        shown_identity(&review_text(s)).is_some_and(|id| id != a)
-    });
-    let b = shown_identity(&review_text(&term.screen)).expect("B");
-    let witness_row = shown_bytes(&term.text()).expect("the pending bytes' witness");
+    let revised = revised_proposal(&mut term, "money: $0.10 USD");
+    assert!(
+        !revised.contains(&a),
+        "a revision is another proposal\n{revised}"
+    );
     assert_eq!(rig.tree(), before, "a revision writes nothing");
+    // The typed consent answers the decision painted now: B's.
     term.send("yes\r");
     let landed = rig.path("compiled-workflow.nika");
     term.wait_workspace_frame("the exact bytes saved", |s| {
         landed.exists() && s.contains("as last read")
     });
-    let saved = short_witness(&std::fs::read(&landed).expect("landed"));
+    let saved = std::fs::read_to_string(&landed).expect("landed");
     assert!(
-        witness_row == saved,
-        "the saved bytes are the ones shown before the yes: {witness_row} vs {saved}\n{}",
+        shows_source(&source, &saved, 20),
+        "the saved bytes are the ones shown before the yes:\n{saved}\nshown: {source:#?}\n{}",
         term.dump()
     );
-    assert!(term.text().contains(&saved), "{}", term.dump());
-    assert_ne!(
-        shown_identity(&review_text(&term.screen)),
-        Some(b),
-        "a saved candidate is no longer one"
+    assert!(
+        !review_text(&term.screen).contains(named),
+        "a saved candidate is no longer one\n{}",
+        term.dump()
     );
     for _ in 0..4 {
         term.settle();
@@ -1405,4 +1639,5 @@ fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
         !rig.path("out/copy.md").exists(),
         "nothing ran before the door closed"
     );
+    rig.no_model_call("a candidate proposed, revised and saved");
 }

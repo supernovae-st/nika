@@ -334,7 +334,11 @@ fn the_copy_lands_on_a_named_consent_that_is_never_a_run() {
     assert_landed_beside_evidence(
         &world,
         before,
-        &[".nika/consents.ndjson", ".nika/session-state.json"],
+        &[
+            ".nika/consents.ndjson",
+            ".nika/saved-money.ndjson",
+            ".nika/session-state.json",
+        ],
     );
     assert_consent_evidence(&world, &id);
     let state = crate::state::SessionState::load(world.root())
@@ -574,7 +578,7 @@ fn a_file_the_human_did_not_name_is_never_witnessed_nor_replaced() {
         panic!("applied");
     };
     assert!(
-        report.contains("applied · wrote `compiled-workflow.nika`"),
+        report.contains("appliqué · écrit `compiled-workflow.nika`"),
         "{report}"
     );
     assert_eq!(world.read(DEST), candidate(ASK_FR));
@@ -977,7 +981,7 @@ fn a_symlinked_destination_is_never_witnessed_nor_written_through() {
         panic!("the fourth name lands");
     };
     assert!(
-        report.contains("applied · wrote `compiled-workflow-4.nika`"),
+        report.contains("appliqué · écrit `compiled-workflow-4.nika`"),
         "{report}"
     );
     assert!(!gone.exists(), "nothing was written through the link");

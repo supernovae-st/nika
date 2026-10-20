@@ -104,10 +104,15 @@ impl<'a> Rehearsals<'a> {
     }
 
     /// The host's composition check of `out`'s candidate, which lifts the source-only hold on
-    /// its child workflows only for a clean closure of these bytes (R5); no host checks none.
+    /// its child workflows only for a clean closure of these bytes (R5), then the host's pins,
+    /// which lift it on an `mcp:` step whose server, approval, tool and literal arguments they
+    /// settle; no host checks none. A host that lends only pins checks no composition.
     pub(super) fn composed(&self, out: &mut CompileOutcome) {
         if let Some(host) = self.host {
-            crate::rehearse::composed(host, out);
+            if host.offers_rehearsal() {
+                crate::rehearse::composed(host, out);
+            }
+            crate::rehearse::judged_tools(host, out);
         }
     }
 
@@ -122,8 +127,9 @@ impl<'a> Rehearsals<'a> {
         self.serves.as_ref()
     }
 
+    /// Whether a host rehearses for this compile: a host that lends only pins does not.
     pub(super) fn offered(&self) -> bool {
-        self.host.is_some()
+        self.host.is_some_and(Rehearse::offers_rehearsal)
     }
 
     /// The request and its admitted answers supply paths; candidate reads cannot add inputs.
@@ -387,20 +393,44 @@ fn effective_paths(
     }
     // A path the request names that the candidate writes and never reads (« Save ./out/x.json
     // as … ») is its output, never an input the room must find; one it reads and never writes
-    // (« look in ./x.json ») is material the room copies, never an output it reads back.
+    // (« look in ./x.json ») is material the room copies, never an output it reads back. Each
+    // path is compared in the room's spelling: `out/x.json` is the candidate's `./out/x.json`.
     let fs = (nika_compile::parse(out.candidate.as_deref().unwrap_or_default()).ok())
         .and_then(|workflow| nika_check::infer_permits(&workflow).permits.fs);
     if let Some(fs) = fs {
-        let output = |path: &String| fs.write.contains(path) && !fs.read.contains(path);
+        let held = |paths: &[String], path: &str| paths.iter().any(|p| same_file(p, path));
+        let output = |path: &String| held(&fs.write, path) && !held(&fs.read, path);
         let outputs: Vec<String> = inputs.iter().filter(|path| output(path)).cloned().collect();
         inputs.retain(|path| !output(path));
-        let input = |path: &String| fs.read.contains(path) && !fs.write.contains(path);
+        let input = |path: &String| held(&fs.read, path) && !held(&fs.write, path);
         let sources: Vec<String> = targets.iter().filter(|path| input(path)).cloned().collect();
         targets.retain(|path| !input(path));
         extend_paths(&mut targets, &outputs);
         extend_paths(&mut inputs, &sources);
+        // A folder the request names in words (« les fichiers .txt du dossier inbox ») is
+        // material the room copies where the candidate reads under it; one no read falls under
+        // is no source (« le dossier client » is a case file). Live gauntlet wave 6 r05,
+        // 2026-10-18: nothing was held, so nothing was rehearsed, and the first run on the empty
+        // inbox failed.
+        let folders: Vec<String> = (nika_compile_reader::hot::named_folders(&intent).into_iter())
+            .filter(|folder| fs.read.iter().any(|read| under(read, folder)))
+            .collect();
+        extend_paths(&mut inputs, &folders);
     }
     Ok((inputs, targets))
+}
+
+/// Whether `path` is `folder` or lies under it in the room's spelling (`inbox/*.txt` is under
+/// `./inbox/`): lexical, nothing read from a file system.
+fn under(path: &str, folder: &str) -> bool {
+    let (Some(path), Some(folder)) = (
+        crate::rehearse::room_spelling(path),
+        crate::rehearse::room_spelling(folder),
+    ) else {
+        return false;
+    };
+    path.strip_prefix(folder.as_str())
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('/'))
 }
 
 /// The answers a COLD plan's candidate uses as file paths, by role (reads, writes). The
@@ -471,10 +501,18 @@ fn cold_answered_paths(
 
 fn extend_paths(paths: &mut Vec<String>, added: &[String]) {
     for path in added {
-        if !paths.contains(path) {
+        if !paths.iter().any(|known| same_file(known, path)) {
             paths.push(path.clone());
         }
     }
+}
+
+/// Whether `a` and `b` name one file in the room's spelling (`./out/x.json` is `out/x.json`):
+/// a lexical comparison, nothing read from a file system. A path the room refuses (absolute,
+/// climbing, empty) is only itself.
+fn same_file(a: &str, b: &str) -> bool {
+    let at = crate::rehearse::room_spelling(a);
+    a == b || (at.is_some() && at == crate::rehearse::room_spelling(b))
 }
 
 fn intent_of(request: &CompileRequest) -> String {

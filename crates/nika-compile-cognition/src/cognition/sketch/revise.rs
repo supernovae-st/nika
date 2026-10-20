@@ -29,8 +29,8 @@
 
 use super::{
     Answer, Question, SKETCH, SketchAnswer, Talk, cold, conclude, fill, floor_refuses, graph,
-    judge_defects, native, next_round, prelude, reopen, repair, semantic_record, system_message,
-    withhold_record, within,
+    judge_defects, native, next_round, prelude, reopen, repair, semantic_record, withhold_record,
+    within,
 };
 use crate::cognition::rehearsal::Rehearsals;
 use crate::cognition::verify;
@@ -370,9 +370,10 @@ fn opened<'a>(
     ledgers: (&Value, &Value),
 ) -> (Talk, Vec<Value>, Option<(&'a str, &'a str)>) {
     let native::Prelude {
-        references,
+        mut references,
+        pack_from,
         callables,
-        sent,
+        mut sent,
         revision: shown,
         mut opening,
         allowed,
@@ -381,13 +382,16 @@ fn opened<'a>(
     opening["base_fills"] = base["fills"].clone();
     opening["original_clauses"] = json!(revision::clauses(ledgers.0));
     opening["change_clauses"] = json!(revision::clauses(ledgers.1));
-    let mut system = system_message(&references, &callables);
-    for part in ["\n\n", SKETCH, "\n\n", REVISE] {
-        system.push_str(part);
-    }
     // The opening is the machine-readable facts alone (hosts read it); what to answer is the
-    // system's to say.
+    // system's to say. One past what a request carries is fitted, beside the links and the fills
+    // its conversation answers.
     let first = opening.to_string();
+    let system = native::capacity::system(
+        (&mut references, &mut sent, pack_from),
+        &callables,
+        (&format!("\n\n{SKETCH}\n\n{REVISE}"), &first),
+        &[revision::links_schema(), super::schema(super::FILLS_SCHEMA)],
+    );
     let mut talk = Talk::open(system, first, vec![ROUTE.to_owned()], allowed, revising);
     talk.presented = json!(sent);
     (talk, sent, shown)
@@ -927,9 +931,10 @@ fn source_opened<'a>(
     (destinations, catalog): (bool, Option<&dyn ComponentCatalog>),
 ) -> (Talk, Vec<Value>, Option<(&'a str, &'a str)>) {
     let native::Prelude {
-        references,
+        mut references,
+        pack_from,
         callables,
-        sent,
+        mut sent,
         revision: shown,
         mut opening,
         allowed,
@@ -950,18 +955,21 @@ fn source_opened<'a>(
                 "bindings": receipt["bindings"]}))
             .collect::<Vec<_>>()
     );
-    let mut system = system_message(&references, &callables);
-    system.push_str("\n\n");
-    system.push_str(if destinations {
+    let revise = if destinations {
         REVISE_SOURCE
     } else {
         REVISE_DOCUMENT
-    });
-    system.push_str("\n\n");
-    system.push_str(document::OPERATIONS);
+    };
     // The opening is the machine-readable facts alone (hosts read it); what to answer is the
-    // system's to say.
+    // system's to say. One past what a request carries is fitted, beside the answer its
+    // conversation asks (the links with their operations, or the whole document).
     let first = opening.to_string();
+    let system = native::capacity::system(
+        (&mut references, &mut sent, pack_from),
+        &callables,
+        (&format!("\n\n{revise}\n\n{}", document::OPERATIONS), &first),
+        &[revision_schema(), document_route::document_schema()],
+    );
     let mut talk = Talk::open(
         system,
         first,

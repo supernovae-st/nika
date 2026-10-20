@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The candidate's faces say whose bytes they are: the identity a yes answers, what it
-//! creates or replaces, what it reaches, its rehearsal, the witness of the pending bytes, in
-//! every face, at every width, in both glyph columns. A set aside one is never offered. Its
+//! The candidate's faces say whose bytes they are: the proposal a yes answers by where it
+//! lands, what it creates or replaces, what it reaches, its rehearsal, whose pending bytes
+//! these are, in every face, at every width, in both glyph columns, never an identity's hex. A set aside one is never offered. Its
 //! review keeps only what changes the decision, each continuation hung under its fact.
 
 use super::*;
 use crate::visual::role;
-use crate::workspace::cards::review::OR;
 use crate::workspace::inspect::Inspected;
-use crate::workspace::text::twins;
 use nika_display::theme::Role;
 use nika_session::ProposalId;
 use nika_session::change::Witness;
 use nika_session::work::DocumentRevision;
 use nika_tui_view::Face;
+use nika_tui_view::workspace::candidate::OR;
+use nika_tui_view::workspace::text::twins;
 use ratatui::text::Line;
 use unicode_width::UnicodeWidthStr;
 
@@ -40,8 +40,11 @@ fn rows(lines: &[Line<'static>]) -> Vec<String> {
     lines.iter().map(ToString::to_string).collect()
 }
 
+/// Every face names the proposal by where it lands and says whose bytes these are, never by
+/// the hex of their identity or witness (live gauntlet 4: « proposition b5973f37d7a7 », « ces
+/// octets 7594d366fc7c »): the Session's whole words (F2) keep them.
 #[test]
-fn every_face_names_the_identity_the_changes_the_reach_and_the_bytes() {
+fn every_face_names_the_proposal_the_changes_the_reach_and_the_bytes() {
     let candidate = fold("preview A", false, None);
     let id = ProposalId::of("preview A").to_string();
     let short: String = Witness::of(SOURCE.as_bytes()).0.chars().take(12).collect();
@@ -54,16 +57,19 @@ fn every_face_names_the_identity_the_changes_the_reach_and_the_bytes() {
         assert!(title.contains(&format!("[{}]", face.label())), "{title}");
         let body = rows(&body);
         let text = body.join("\n");
-        assert!(body[0].starts_with(&format!("proposal {id} · ")), "{text}");
+        assert!(body[0].starts_with("proposal copy-brief.nika · "), "{text}");
         for needle in [
-            format!("proposal {id} · what a yes answers · not saved"),
-            "creates copy-brief.nika".to_owned(),
-            "when it runs · reads ./notes/brief.md".to_owned(),
-            "when it runs · writes ./out/copy.md".to_owned(),
-            "rehearsal · none bound to this identity".to_owned(),
-            format!("these bytes {short}, the proposal's own"),
+            "proposal copy-brief.nika · what a yes answers · not saved",
+            "creates copy-brief.nika",
+            "when it runs · reads ./notes/brief.md",
+            "when it runs · writes ./out/copy.md",
+            "rehearsal · none bound to this identity",
+            "these bytes, the proposal's own",
         ] {
-            assert!(text.contains(&needle), "{face:?}: {needle}\n{text}");
+            assert!(text.contains(needle), "{face:?}: {needle}\n{text}");
+        }
+        for hex in [&id[..12], short.as_str()] {
+            assert!(!text.contains(hex), "{face:?}: {hex}\n{text}");
         }
         assert!(
             !text.contains("r reads it again"),
@@ -82,9 +88,10 @@ fn every_face_names_the_identity_the_changes_the_reach_and_the_bytes() {
 /// The review holds only what changes the decision: every change and the
 /// changes no face shows, one `when it runs` heading with each further effect
 /// two cells in, the rehearsal. The standing (the status row's) and the
-/// identity (the card's foot) take no row of their own; the foot names the
-/// exact identity a consent names and the key of the Session's whole words,
-/// whole or in a shorter whole form. Every fact once, each with its role; a
+/// proposal's name (the card's foot) take no row of their own; the foot names
+/// the proposal a consent answers by where it lands and the key of the
+/// Session's whole words, whole or in a shorter whole form, never its
+/// identity's hex. Every fact once, each with its role; a
 /// draft or set aside candidate has no review.
 #[test]
 fn the_review_holds_only_what_changes_the_decision() {
@@ -111,19 +118,22 @@ fn the_review_holds_only_what_changes_the_decision() {
     ] {
         assert_eq!(styled[at].style, role::style(tone, true), "row {at}");
     }
-    let whole = format!("proposal {id} · F2: whole words");
+    let whole = "proposal copy-brief.nika · F2: whole words";
     assert_eq!(review.foot(usize::MAX, false), whole);
     assert_eq!(review.foot(whole.width(), false), whole);
-    let short = format!("proposal {id} · F2");
-    assert_eq!(review.foot(whole.width() - 1, false), short);
-    assert_eq!(review.foot(short.width() - 1, false), format!("{id} · F2"));
-    assert_eq!(review.foot(0, true), format!("{id} - F2"));
+    // A shorter form gives up « proposal » before what F2 reads.
+    let cued = "copy-brief.nika · F2: whole words";
+    assert_eq!(review.foot(whole.width() - 1, false), cued);
+    assert_eq!(review.foot(cued.width() - 1, false), "copy-brief.nika · F2");
+    assert_eq!(review.foot(0, true), "copy-brief.nika - F2");
     let twin = candidate.review(true).expect("a review");
     let ascii = rows(&twin.lines(false, true, 100));
     assert!(ascii.iter().all(|row| row.is_ascii()), "{ascii:#?}");
     assert_eq!(ascii[2], "when it runs - reads ./notes/brief.md");
-    let twinned = format!("proposal {id} - F2: whole words");
-    assert_eq!(twin.foot(80, true), twinned);
+    assert_eq!(
+        twin.foot(80, true),
+        "proposal copy-brief.nika - F2: whole words"
+    );
     for review in [&review, &twin] {
         let text = rows(&review.lines(false, false, 100)).join("\n");
         let gone = ["what a yes answers", "not saved", "Full proposal", "F2"];
@@ -192,24 +202,31 @@ fn every_review_row_hangs_its_continuations_within_the_card() {
 }
 
 /// While the conversation reviews it, the object's header is the one home of
-/// its identity: the title names the workflow, the first row says whose exact
-/// bytes these are (the key that turns the face where it fits whole, never
-/// cut), and no second witness row follows, in every face; the face the
-/// review does not cover keeps its facts and its own witness row.
+/// whose bytes these are: the title names the workflow, the first rows say
+/// whose exact bytes these are and the key that turns the face, whole: where
+/// the row is short they wrap rather than lose the key (the face cue was cut
+/// at about 120 columns), and no second such row follows, in every face; the
+/// face the review does not cover keeps its facts and its own row.
 #[test]
 fn the_reviewed_face_leads_with_its_own_bytes_once() {
     let candidate = fold("preview A", false, None);
-    let short: String = Witness::of(SOURCE.as_bytes()).0.chars().take(12).collect();
-    let own = format!("these bytes {short}, the proposal's own");
+    let own = "these bytes, the proposal's own".to_owned();
     for face in Face::ALL {
-        for (width, first) in [(100, format!("{own} · {FACES}")), (50, own.clone())] {
+        for (width, first) in [
+            (100, vec![format!("{own} · {FACES}")]),
+            (
+                50,
+                vec![format!("{own} · Left/Right"), "change the face".to_owned()],
+            ),
+        ] {
             let (title, body) = candidate.reviewed_face_lines(face, width, false, false, false);
             let (title, body) = (title.to_string(), rows(&body));
             let at = format!("{face:?} {width}");
             assert!(title.starts_with("copy-brief"), "{at}: {title}");
-            assert_eq!(body[0], first, "{at}");
-            let bytes = format!("these bytes {short}");
-            let witnesses = body.iter().filter(|row| row.contains(&bytes)).count();
+            assert_eq!(body[..first.len()], first[..], "{at}");
+            let witnesses = (body.iter())
+                .filter(|row| row.contains("these bytes"))
+                .count();
             assert_eq!(witnesses, 1, "{at}: {body:#?}");
             assert!(!body.join("\n").contains("what a yes answers"), "{at}");
         }
@@ -351,9 +368,9 @@ fn the_first_preview_uses_only_an_observed_graph_and_keeps_the_faces_visible() {
 #[test]
 fn a_document_revision_is_stated_with_each_component_and_its_witness() {
     let candidate = fold("preview R", false, None).revising(vec![
-        ("revised in place · const.max_age_hours".to_owned(), false),
+        ("revised in place · value max_age_hours".to_owned(), false),
         (
-            "component · block:stale-filter-report r1 · revised · const.max_age_hours = 72"
+            "component · stale-filter-report · reused, then changed · max_age_hours = 72"
                 .to_owned(),
             true,
         ),
@@ -362,11 +379,11 @@ fn a_document_revision_is_stated_with_each_component_and_its_witness() {
         let (_, body) = candidate.face_lines(face, 120, false, false);
         let text = rows(&body).join("\n");
         assert!(
-            text.contains("revised in place · const.max_age_hours"),
+            text.contains("revised in place · value max_age_hours"),
             "{text}"
         );
         assert!(
-            text.contains("component · block:stale-filter-report r1 · revised"),
+            text.contains("component · stale-filter-report · reused, then changed"),
             "{text}"
         );
     }
@@ -374,7 +391,7 @@ fn a_document_revision_is_stated_with_each_component_and_its_witness() {
     assert!(
         rows(&ascii)
             .join("\n")
-            .contains("revised in place - const.max_age_hours"),
+            .contains("revised in place - value max_age_hours"),
         "the ASCII column twins the separator"
     );
 }
@@ -562,4 +579,107 @@ fn a_release_name_too_long_for_the_card_leaves_its_row_whole() {
     let (_, body) = candidate.face_lines(Face::Source, 120, false, false);
     let head = rows(&body).join("\n");
     assert!(head.contains(long) && !head.contains(OR), "{head}");
+}
+
+/// A proposal's faces and an opened file's say their own words in the person's
+/// language: the faces' names on the title row, the facts above each face, the
+/// plan's waves, the graph's summary, the check's reasons and what the look did
+/// not capture (with the child it names), the compile record's details, and the
+/// rows around the faces. The engine's words, the record's values, names and
+/// digests keep theirs; under ASCII the French loses its accents; English keeps
+/// every word it had.
+#[test]
+fn the_workflow_faces_and_the_compile_record_speak_french() {
+    use crate::lang::Lang;
+    // Rows joined as one text, each run of spaces one space: wrapping aside.
+    let squeezed = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let raw = serde_json::json!({"mode": "composed", "base_sha256": "b".repeat(64),
+        "candidate_sha256": "c".repeat(64), "changed": ["tasks.read_source"],
+        "components": [{"component": {"id": "block:x", "release": {"version": "1"}}}]});
+    let record = DocumentRevision::of(&raw, &["expanded".to_owned()]);
+    let faces = |lang: Lang, ascii: bool, face: Face| {
+        let candidate = (fold("preview F", false, None).recording(record.clone())).speaking(lang);
+        let (title, body) = candidate.face_lines(face, 72, ascii, false);
+        (title.to_string(), squeezed(&rows(&body).join(" ")))
+    };
+    let (title, graph) = faces(Lang::En, false, Face::Graph);
+    assert_eq!(title, "copy-brief · source plan [graph] check");
+    assert!(graph.contains("Definition · 2 tasks · 1 edge Structure checked · this file only"));
+    let (_, check) = faces(Lang::En, false, Face::Check);
+    for english in [
+        "Nika workflow · check · 385 bytes",
+        "not captured (UNKNOWN): child workflows, skills, registry references; judged: this file alone",
+        "VALID the definition is legal",
+        "a static check · nothing ran, and a green check grants no run",
+        "compile record · composed · binds these bytes, sha256 cccccccccccc",
+        "over the base, sha256 bbbbbbbbbbbb changed · tasks.read_source block:x · expanded",
+    ] {
+        assert!(check.contains(&squeezed(english)), "{english}\n{check}");
+    }
+    let (title, graph) = faces(Lang::Fr, false, Face::Graph);
+    assert_eq!(title, "copy-brief · source plan [graphe] vérification");
+    assert!(graph.contains("Définition · 2 tâches · 1 arête Structure vérifiée · ce fichier seul"));
+    let (_, plan) = faces(Lang::Fr, false, Face::Plan);
+    for french in [
+        "workflow Nika · plan · 385 octets",
+        "2 tâches · 2 vagues · 0 validation humaine · ordre d'exécution donné par la vérification",
+        "vague 1 1. ◆ read_source · reads a file",
+    ] {
+        assert!(plan.contains(&squeezed(french)), "{french}\n{plan}");
+    }
+    let (_, check) = faces(Lang::Fr, false, Face::Check);
+    for french in [
+        "workflow Nika · vérification · 385 octets",
+        "0 constat · risque supervised",
+        "non capturé (UNKNOWN) : workflows enfants, skills, références de registre ; jugé : ce fichier seul",
+        "VALID la définition est conforme",
+        "CAPACITY FIT les sièges peuvent satisfaire les déclarations",
+        "RUN READY inconnu : ce que ce fichier importe n'a pas été capturé",
+        "une vérification statique · rien n'a tourné, et une vérification verte n'accorde aucun run",
+        "relevé de compilation · composed · lie ces octets, sha256 cccccccccccc",
+        "sur la base, sha256 bbbbbbbbbbbb modifié · tasks.read_source block:x · expanded",
+    ] {
+        assert!(check.contains(&squeezed(french)), "{french}\n{check}");
+    }
+    assert!(
+        !check.contains("plus large"),
+        "the French reminder wraps, never cut"
+    );
+    let (title, check) = faces(Lang::Fr, true, Face::Check);
+    assert_eq!(title, "copy-brief - source plan graphe [verification]");
+    assert!(
+        check.contains("releve de compilation - composed - lie ces octets"),
+        "{check}"
+    );
+    assert!(check.is_ascii(), "{check}");
+    // An opened file's rows around its faces, and the tab its pointer reads.
+    let look = fold("preview F", false, None)
+        .look()
+        .clone()
+        .speaking(Lang::Fr);
+    let (_, body) = look.face_lines(Face::Source, 120, false, false);
+    let shown = rows(&body);
+    assert!(
+        shown.iter().any(|row| row
+            == "les octets de ce fichier, tels que lus en dernier · r le relit · Gauche/Droite changent la face"),
+        "{shown:#?}"
+    );
+    assert_eq!(Face::Check.label_in(Lang::Fr, false), "vérification");
+    assert_eq!(Face::Check.label_in(Lang::En, false), "check");
+    // What the look did not capture names the child the file invokes, in either language.
+    let parent =
+        "nika: parent\npermits: {}\ntasks:\n  call:\n    invoke: { workflow: \"./child.nika\" }\n";
+    let witness = Witness::of(parent.as_bytes()).0;
+    let look = crate::session::judge_for_tests("parent.nika", witness, parent);
+    let imports = |lang: Lang| {
+        let (_, body) = look
+            .clone()
+            .speaking(lang)
+            .face_lines(Face::Check, 200, false, false);
+        let shown = rows(&body);
+        let row = shown.iter().find(|row| row.contains("IMPORTS")).cloned();
+        row.expect("the IMPORTS row")
+    };
+    assert!(imports(Lang::En).ends_with("; judged: this file alone; it names ./child.nika"));
+    assert!(imports(Lang::Fr).ends_with(" ; jugé : ce fichier seul ; il nomme ./child.nika"));
 }

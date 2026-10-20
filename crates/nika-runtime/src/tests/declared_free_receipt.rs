@@ -20,7 +20,7 @@ use nika_verb_invoke::InvokeVerb;
 
 use super::*;
 
-const FREE: &str = "openrouter/qwen/qwen3.8-27b:free";
+const FREE: &str = "openrouter/nvidia/nemotron-3-super-120b-a12b:free";
 
 /// An `OpenRouter` wire that answers every post as `served`; `single` is the
 /// client's single-attempt promise (compose's bounded client makes it).
@@ -138,7 +138,7 @@ async fn a_declared_free_text_run_stamps_its_scoped_receipt_on_the_terminal_fram
     );
     let (normal, bounded) = (
         Wire::new(false, "unused"),
-        Wire::new(true, "qwen/qwen3.8-27b:free"),
+        Wire::new(true, "nvidia/nemotron-3-super-120b-a12b:free"),
     );
     let account = InferenceAdmission::observe_declared_free();
     let (outcome, events) = run_free(
@@ -166,14 +166,17 @@ async fn a_declared_free_text_run_stamps_its_scoped_receipt_on_the_terminal_fram
     assert_eq!(attempts.len(), 1, "{observed}");
     assert_eq!(attempts[0]["sent"], true);
     assert_eq!(attempts[0]["estimated_nano_usd"], "0");
-    assert_eq!(attempts[0]["model"], "qwen/qwen3.8-27b:free");
+    assert_eq!(
+        attempts[0]["model"],
+        "nvidia/nemotron-3-super-120b-a12b:free"
+    );
     let stamped = events
         .iter()
         .filter(|e| e.field("inference_admission").is_some());
     assert_eq!(stamped.count(), 1, "only the terminal frame");
 
     let (plain, unobserved) = (
-        Wire::new(false, "qwen/qwen3.8-27b:free"),
+        Wire::new(false, "nvidia/nemotron-3-super-120b-a12b:free"),
         Wire::new(true, "x"),
     );
     let (outcome, events) = run_free(
@@ -199,7 +202,7 @@ async fn a_mismatched_identity_stays_unknown_and_closes_the_next_call_but_not_ef
     );
     let (normal, bounded) = (
         Wire::new(false, "unused"),
-        Wire::new(true, "qwen/qwen3.8-27b"),
+        Wire::new(true, "nvidia/nemotron-3-super-120b-a12b"),
     );
     let tools = MockToolExecutor::new().enqueue_ok(ToolResult::success("tc1", "written"));
     let account = InferenceAdmission::observe_declared_free();

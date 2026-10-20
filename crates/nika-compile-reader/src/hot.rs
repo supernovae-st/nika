@@ -281,6 +281,27 @@ pub fn stated_sources(intent: &str) -> Vec<String> {
         .collect()
 }
 
+/// The folders the request names by a noun and a bare name (« le dossier inbox », « the folder
+/// drafts »), each `./<name>/`, in occurrence order, a protected one excepted. Never a stated
+/// source by itself: « dossier » also names a case file (« le dossier client »), so a consumer
+/// holds one only where a workflow reads under it.
+#[must_use]
+pub fn named_folders(intent: &str) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    for sentence in lexicon::split_sentences(intent) {
+        for (shape, start, end) in super::paths::named_folders(sentence) {
+            let super::paths::PathShape::Directory(path) = shape else {
+                continue;
+            };
+            let protected = super::objects::protected_path_at(sentence, start, end);
+            if !protected && !found.contains(&path) {
+                found.push(path);
+            }
+        }
+    }
+    found
+}
+
 /// The paths the request states only as places to write: every non-protection occurrence
 /// follows a destination connector. A protection alone never requests a write.
 #[must_use]
@@ -289,6 +310,31 @@ pub fn stated_destinations(intent: &str) -> Vec<String> {
         .into_iter()
         .filter_map(|(path, source)| (!source).then_some(path))
         .collect()
+}
+
+/// The workflow files the request names: the exact files of Nika's own format it states
+/// (`bilan.nika`: the lowercase `.nika` suffix after a name), in order, each once, a protection
+/// clause aside. Which of them is the requested workflow's own file is the fidelity crate's to
+/// say (`fidelity::requested_workflow`).
+#[must_use]
+pub fn stated_workflows(intent: &str) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    for sentence in lexicon::split_sentences(intent) {
+        for (shape, start, end) in super::paths::located(sentence) {
+            let super::paths::PathShape::File(path) = shape else {
+                continue;
+            };
+            let workflow = path.rsplit_once('.').is_some_and(|(_, ext)| ext == "nika")
+                && super::paths::extension(&path).is_some_and(|ext| ext == "nika");
+            if workflow
+                && !super::objects::protected_path_at(sentence, start, end)
+                && !found.contains(&path)
+            {
+                found.push(path);
+            }
+        }
+    }
+    found
 }
 
 /// Extensions a bare file name (no `./`) is read as a source under: the data and text
@@ -318,6 +364,7 @@ fn cue_coverage(lower: &str, reading: &Reading, why: &mut Vec<String>) {
         .iter()
         .chain(reading.ambiguous.iter().map(|a| &a.clause))
         .chain(reading.soft_constraints.iter())
+        .chain(reading.session_commands.iter())
         .map(|clause| clause.to_lowercase())
         .chain(reading.plan.rules.iter().map(|r| r.text().to_lowercase()))
         .collect();
@@ -638,6 +685,23 @@ fn write_without_producer(plan: &Plan, why: &mut Vec<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The workflow files a request names, each once: the one it asks to create, save and run,
+    /// a folder kept; a request naming none states none, and a file it protects is not stated.
+    #[test]
+    fn a_request_states_the_workflow_files_it_names() {
+        let named = "À partir de commandes.csv, prépare un bilan des ventes. Après mon choix, crée, \
+                     sauvegarde et lance bilan.nika, avec le total dans out/bilan.md.";
+        assert_eq!(stated_workflows(named), ["bilan.nika"]);
+        let nested = "Crée workflows/bilan.nika qui lit commandes.csv, puis lance bilan.nika.";
+        assert_eq!(
+            stated_workflows(nested),
+            ["workflows/bilan.nika", "bilan.nika"]
+        );
+        assert!(stated_workflows("Lis world/source.json et écris out/report.json.").is_empty());
+        let kept = "Crée bilan.nika. Ne modifie pas ancien.nika.";
+        assert_eq!(stated_workflows(kept), ["bilan.nika"]);
+    }
 
     #[test]
     fn a_stated_destination_nothing_writes_is_written_by_the_floor() {
@@ -1411,5 +1475,15 @@ mod tests {
                 "{intent}"
             );
         }
+    }
+
+    /// A folder named in words is listed once across sentences and is never a stated source by
+    /// itself: « dossier » also names a case file.
+    #[test]
+    fn a_folder_named_in_words_is_listed_never_stated() {
+        let words = "Lis les fichiers .txt du dossier inbox. Puis vide le dossier inbox.";
+        assert_eq!(named_folders(words), ["./inbox/"]);
+        assert!(!stated_sources(words).contains(&"./inbox/".to_owned()));
+        assert!(named_folders("Prépare le dossier du client.").is_empty());
     }
 }

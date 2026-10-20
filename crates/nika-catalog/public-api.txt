@@ -13,6 +13,7 @@ pub nika_catalog::admission::InferenceTariff::model: &'static str
 pub nika_catalog::admission::InferenceTariff::output_token_param: &'static str
 pub nika_catalog::admission::InferenceTariff::provider: &'static str
 pub nika_catalog::admission::InferenceTariff::route_source: &'static str
+pub nika_catalog::admission::InferenceTariff::served_models: &'static [&'static str]
 pub nika_catalog::admission::InferenceTariff::source: &'static str
 pub nika_catalog::admission::InferenceTariff::source_sha256: &'static str
 impl nika_catalog::admission::InferenceTariff
@@ -21,7 +22,12 @@ pub fn nika_catalog::admission::InferenceTariff::is_declared_free(self) -> bool
 pub fn nika_catalog::admission::InferenceTariff::new(provider: &str, model: &str, endpoint: &str) -> core::option::Option<Self>
 pub fn nika_catalog::admission::InferenceTariff::price(self, input: u64, output: u64, cached: u64) -> core::option::Option<nika_types::cost::Cost>
 pub fn nika_catalog::admission::InferenceTariff::price_native(self, input: u64, output: u64, cached: u64) -> core::option::Option<i128>
+pub fn nika_catalog::admission::InferenceTariff::price_native_written(self, input: u64, output: u64, cached: u64, written: u64) -> core::option::Option<i128>
+pub fn nika_catalog::admission::InferenceTariff::price_written(self, input: u64, output: u64, cached: u64, written: u64) -> core::option::Option<nika_types::cost::Cost>
+pub fn nika_catalog::admission::InferenceTariff::reasons_beyond_bound(self) -> bool
 pub fn nika_catalog::admission::InferenceTariff::reserve(self, output: u32) -> core::option::Option<nika_types::cost::Cost>
+pub fn nika_catalog::admission::InferenceTariff::reserved_output(self, requested: u32) -> core::option::Option<u64>
+pub fn nika_catalog::admission::InferenceTariff::serves(self, model: &str) -> bool
 impl core::clone::Clone for nika_catalog::admission::InferenceTariff
 pub fn nika_catalog::admission::InferenceTariff::clone(&self) -> nika_catalog::admission::InferenceTariff
 impl core::cmp::Eq for nika_catalog::admission::InferenceTariff
@@ -56,6 +62,7 @@ impl<T> core::convert::From<T> for nika_catalog::admission::InferenceTariff
 pub fn nika_catalog::admission::InferenceTariff::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::admission::InferenceTariff where T: 'static
 pub fn nika_catalog::admission::InferenceTariff::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_catalog::admission::reasons_beyond_bound(model: &str) -> bool
 pub fn nika_catalog::admission::tariffs() -> impl core::iter::traits::iterator::Iterator<Item = &'static nika_catalog::admission::InferenceTariff>
 pub mod nika_catalog::builtin
 #[non_exhaustive] pub enum nika_catalog::builtin::BuiltinCategory
@@ -1297,6 +1304,7 @@ pub fn nika_catalog::lookup::is_known_builtin(name: &str) -> bool
 pub fn nika_catalog::lookup::is_known_mcp_server(name: &str) -> bool
 pub fn nika_catalog::lookup::is_known_transform(name: &str) -> bool
 pub fn nika_catalog::lookup::model_capabilities(provider: &str, model: &str) -> nika_catalog::model::ModelCapabilities
+pub fn nika_catalog::lookup::model_facts(provider: &str, model: &str) -> core::option::Option<&'static nika_catalog::provider::ModelFacts>
 pub fn nika_catalog::lookup::resolve_mcp_name(name: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_catalog::lookup::validate_key_format(provider: &nika_catalog::provider::Provider, key: &str) -> bool
 pub mod nika_catalog::mcp_server
@@ -2111,6 +2119,93 @@ impl<T> core::convert::From<T> for nika_catalog::provider::DataPolicy
 pub fn nika_catalog::provider::DataPolicy::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::provider::DataPolicy where T: 'static
 pub fn nika_catalog::provider::DataPolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::provider::ModelFacts
+pub nika_catalog::provider::ModelFacts::lifecycle: core::option::Option<nika_catalog::provider::ModelLifecycle>
+pub nika_catalog::provider::ModelFacts::limits_as_of: core::option::Option<&'static str>
+pub nika_catalog::provider::ModelFacts::limits_source: core::option::Option<&'static str>
+pub nika_catalog::provider::ModelFacts::model: &'static str
+pub nika_catalog::provider::ModelFacts::provider: &'static str
+impl nika_catalog::provider::ModelFacts
+pub const fn nika_catalog::provider::ModelFacts::new(provider: &'static str, model: &'static str, limits_source: core::option::Option<&'static str>, limits_as_of: core::option::Option<&'static str>, lifecycle: core::option::Option<nika_catalog::provider::ModelLifecycle>) -> Self
+impl core::clone::Clone for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::clone(&self) -> nika_catalog::provider::ModelFacts
+impl core::cmp::Eq for nika_catalog::provider::ModelFacts
+impl core::cmp::PartialEq for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::eq(&self, other: &nika_catalog::provider::ModelFacts) -> bool
+impl core::fmt::Debug for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::provider::ModelFacts
+impl core::marker::StructuralPartialEq for nika_catalog::provider::ModelFacts
+impl serde_core::ser::Serialize for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::provider::ModelFacts
+impl<T, U> core::convert::Into<U> for nika_catalog::provider::ModelFacts where U: core::convert::From<T>
+pub fn nika_catalog::provider::ModelFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::provider::ModelFacts where U: core::convert::Into<T>
+pub type nika_catalog::provider::ModelFacts::Error = core::convert::Infallible
+pub fn nika_catalog::provider::ModelFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::provider::ModelFacts where U: core::convert::TryFrom<T>
+pub type nika_catalog::provider::ModelFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::provider::ModelFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::provider::ModelFacts where T: core::clone::Clone
+pub type nika_catalog::provider::ModelFacts::Owned = T
+pub fn nika_catalog::provider::ModelFacts::clone_into(&self, target: &mut T)
+pub fn nika_catalog::provider::ModelFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::provider::ModelFacts where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::provider::ModelFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::provider::ModelFacts where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::provider::ModelFacts where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::provider::ModelFacts where T: core::clone::Clone
+pub unsafe fn nika_catalog::provider::ModelFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::provider::ModelFacts where T: 'static
+pub fn nika_catalog::provider::ModelFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::provider::ModelLifecycle
+pub nika_catalog::provider::ModelLifecycle::as_of: &'static str
+pub nika_catalog::provider::ModelLifecycle::retires_not_before: &'static str
+pub nika_catalog::provider::ModelLifecycle::source: &'static str
+pub nika_catalog::provider::ModelLifecycle::successor: &'static str
+impl nika_catalog::provider::ModelLifecycle
+pub const fn nika_catalog::provider::ModelLifecycle::new(retires_not_before: &'static str, successor: &'static str, source: &'static str, as_of: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::clone(&self) -> nika_catalog::provider::ModelLifecycle
+impl core::cmp::Eq for nika_catalog::provider::ModelLifecycle
+impl core::cmp::PartialEq for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::eq(&self, other: &nika_catalog::provider::ModelLifecycle) -> bool
+impl core::fmt::Debug for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::provider::ModelLifecycle
+impl core::marker::StructuralPartialEq for nika_catalog::provider::ModelLifecycle
+impl serde_core::ser::Serialize for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::provider::ModelLifecycle
+impl<T, U> core::convert::Into<U> for nika_catalog::provider::ModelLifecycle where U: core::convert::From<T>
+pub fn nika_catalog::provider::ModelLifecycle::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::provider::ModelLifecycle where U: core::convert::Into<T>
+pub type nika_catalog::provider::ModelLifecycle::Error = core::convert::Infallible
+pub fn nika_catalog::provider::ModelLifecycle::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::provider::ModelLifecycle where U: core::convert::TryFrom<T>
+pub type nika_catalog::provider::ModelLifecycle::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::provider::ModelLifecycle::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::provider::ModelLifecycle where T: core::clone::Clone
+pub type nika_catalog::provider::ModelLifecycle::Owned = T
+pub fn nika_catalog::provider::ModelLifecycle::clone_into(&self, target: &mut T)
+pub fn nika_catalog::provider::ModelLifecycle::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::provider::ModelLifecycle where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::provider::ModelLifecycle::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::provider::ModelLifecycle where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelLifecycle::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::provider::ModelLifecycle where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelLifecycle::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::provider::ModelLifecycle where T: core::clone::Clone
+pub unsafe fn nika_catalog::provider::ModelLifecycle::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::provider::ModelLifecycle where T: 'static
+pub fn nika_catalog::provider::ModelLifecycle::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::provider::Provider
 pub nika_catalog::provider::Provider::aliases: &'static [&'static str]
 pub nika_catalog::provider::Provider::api_dialect: core::option::Option<&'static str>
@@ -4617,6 +4712,93 @@ impl<T> core::convert::From<T> for nika_catalog::provider::DataPolicy
 pub fn nika_catalog::provider::DataPolicy::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::provider::DataPolicy where T: 'static
 pub fn nika_catalog::provider::DataPolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::types::provider::ModelFacts
+pub nika_catalog::types::provider::ModelFacts::lifecycle: core::option::Option<nika_catalog::provider::ModelLifecycle>
+pub nika_catalog::types::provider::ModelFacts::limits_as_of: core::option::Option<&'static str>
+pub nika_catalog::types::provider::ModelFacts::limits_source: core::option::Option<&'static str>
+pub nika_catalog::types::provider::ModelFacts::model: &'static str
+pub nika_catalog::types::provider::ModelFacts::provider: &'static str
+impl nika_catalog::provider::ModelFacts
+pub const fn nika_catalog::provider::ModelFacts::new(provider: &'static str, model: &'static str, limits_source: core::option::Option<&'static str>, limits_as_of: core::option::Option<&'static str>, lifecycle: core::option::Option<nika_catalog::provider::ModelLifecycle>) -> Self
+impl core::clone::Clone for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::clone(&self) -> nika_catalog::provider::ModelFacts
+impl core::cmp::Eq for nika_catalog::provider::ModelFacts
+impl core::cmp::PartialEq for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::eq(&self, other: &nika_catalog::provider::ModelFacts) -> bool
+impl core::fmt::Debug for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::provider::ModelFacts
+impl core::marker::StructuralPartialEq for nika_catalog::provider::ModelFacts
+impl serde_core::ser::Serialize for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::provider::ModelFacts
+impl<T, U> core::convert::Into<U> for nika_catalog::provider::ModelFacts where U: core::convert::From<T>
+pub fn nika_catalog::provider::ModelFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::provider::ModelFacts where U: core::convert::Into<T>
+pub type nika_catalog::provider::ModelFacts::Error = core::convert::Infallible
+pub fn nika_catalog::provider::ModelFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::provider::ModelFacts where U: core::convert::TryFrom<T>
+pub type nika_catalog::provider::ModelFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::provider::ModelFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::provider::ModelFacts where T: core::clone::Clone
+pub type nika_catalog::provider::ModelFacts::Owned = T
+pub fn nika_catalog::provider::ModelFacts::clone_into(&self, target: &mut T)
+pub fn nika_catalog::provider::ModelFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::provider::ModelFacts where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::provider::ModelFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::provider::ModelFacts where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::provider::ModelFacts where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::provider::ModelFacts where T: core::clone::Clone
+pub unsafe fn nika_catalog::provider::ModelFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::provider::ModelFacts where T: 'static
+pub fn nika_catalog::provider::ModelFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::types::provider::ModelLifecycle
+pub nika_catalog::types::provider::ModelLifecycle::as_of: &'static str
+pub nika_catalog::types::provider::ModelLifecycle::retires_not_before: &'static str
+pub nika_catalog::types::provider::ModelLifecycle::source: &'static str
+pub nika_catalog::types::provider::ModelLifecycle::successor: &'static str
+impl nika_catalog::provider::ModelLifecycle
+pub const fn nika_catalog::provider::ModelLifecycle::new(retires_not_before: &'static str, successor: &'static str, source: &'static str, as_of: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::clone(&self) -> nika_catalog::provider::ModelLifecycle
+impl core::cmp::Eq for nika_catalog::provider::ModelLifecycle
+impl core::cmp::PartialEq for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::eq(&self, other: &nika_catalog::provider::ModelLifecycle) -> bool
+impl core::fmt::Debug for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::provider::ModelLifecycle
+impl core::marker::StructuralPartialEq for nika_catalog::provider::ModelLifecycle
+impl serde_core::ser::Serialize for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::provider::ModelLifecycle
+impl<T, U> core::convert::Into<U> for nika_catalog::provider::ModelLifecycle where U: core::convert::From<T>
+pub fn nika_catalog::provider::ModelLifecycle::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::provider::ModelLifecycle where U: core::convert::Into<T>
+pub type nika_catalog::provider::ModelLifecycle::Error = core::convert::Infallible
+pub fn nika_catalog::provider::ModelLifecycle::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::provider::ModelLifecycle where U: core::convert::TryFrom<T>
+pub type nika_catalog::provider::ModelLifecycle::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::provider::ModelLifecycle::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::provider::ModelLifecycle where T: core::clone::Clone
+pub type nika_catalog::provider::ModelLifecycle::Owned = T
+pub fn nika_catalog::provider::ModelLifecycle::clone_into(&self, target: &mut T)
+pub fn nika_catalog::provider::ModelLifecycle::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::provider::ModelLifecycle where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::provider::ModelLifecycle::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::provider::ModelLifecycle where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelLifecycle::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::provider::ModelLifecycle where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelLifecycle::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::provider::ModelLifecycle where T: core::clone::Clone
+pub unsafe fn nika_catalog::provider::ModelLifecycle::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::provider::ModelLifecycle where T: 'static
+pub fn nika_catalog::provider::ModelLifecycle::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::types::provider::Provider
 pub nika_catalog::types::provider::Provider::aliases: &'static [&'static str]
 pub nika_catalog::types::provider::Provider::api_dialect: core::option::Option<&'static str>
@@ -6822,6 +7004,93 @@ impl<T> core::convert::From<T> for nika_catalog::model::ModelEnergy
 pub fn nika_catalog::model::ModelEnergy::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::model::ModelEnergy where T: 'static
 pub fn nika_catalog::model::ModelEnergy::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::types::ModelFacts
+pub nika_catalog::types::ModelFacts::lifecycle: core::option::Option<nika_catalog::provider::ModelLifecycle>
+pub nika_catalog::types::ModelFacts::limits_as_of: core::option::Option<&'static str>
+pub nika_catalog::types::ModelFacts::limits_source: core::option::Option<&'static str>
+pub nika_catalog::types::ModelFacts::model: &'static str
+pub nika_catalog::types::ModelFacts::provider: &'static str
+impl nika_catalog::provider::ModelFacts
+pub const fn nika_catalog::provider::ModelFacts::new(provider: &'static str, model: &'static str, limits_source: core::option::Option<&'static str>, limits_as_of: core::option::Option<&'static str>, lifecycle: core::option::Option<nika_catalog::provider::ModelLifecycle>) -> Self
+impl core::clone::Clone for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::clone(&self) -> nika_catalog::provider::ModelFacts
+impl core::cmp::Eq for nika_catalog::provider::ModelFacts
+impl core::cmp::PartialEq for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::eq(&self, other: &nika_catalog::provider::ModelFacts) -> bool
+impl core::fmt::Debug for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::provider::ModelFacts
+impl core::marker::StructuralPartialEq for nika_catalog::provider::ModelFacts
+impl serde_core::ser::Serialize for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::provider::ModelFacts
+impl<T, U> core::convert::Into<U> for nika_catalog::provider::ModelFacts where U: core::convert::From<T>
+pub fn nika_catalog::provider::ModelFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::provider::ModelFacts where U: core::convert::Into<T>
+pub type nika_catalog::provider::ModelFacts::Error = core::convert::Infallible
+pub fn nika_catalog::provider::ModelFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::provider::ModelFacts where U: core::convert::TryFrom<T>
+pub type nika_catalog::provider::ModelFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::provider::ModelFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::provider::ModelFacts where T: core::clone::Clone
+pub type nika_catalog::provider::ModelFacts::Owned = T
+pub fn nika_catalog::provider::ModelFacts::clone_into(&self, target: &mut T)
+pub fn nika_catalog::provider::ModelFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::provider::ModelFacts where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::provider::ModelFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::provider::ModelFacts where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::provider::ModelFacts where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::provider::ModelFacts where T: core::clone::Clone
+pub unsafe fn nika_catalog::provider::ModelFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::provider::ModelFacts where T: 'static
+pub fn nika_catalog::provider::ModelFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::types::ModelLifecycle
+pub nika_catalog::types::ModelLifecycle::as_of: &'static str
+pub nika_catalog::types::ModelLifecycle::retires_not_before: &'static str
+pub nika_catalog::types::ModelLifecycle::source: &'static str
+pub nika_catalog::types::ModelLifecycle::successor: &'static str
+impl nika_catalog::provider::ModelLifecycle
+pub const fn nika_catalog::provider::ModelLifecycle::new(retires_not_before: &'static str, successor: &'static str, source: &'static str, as_of: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::clone(&self) -> nika_catalog::provider::ModelLifecycle
+impl core::cmp::Eq for nika_catalog::provider::ModelLifecycle
+impl core::cmp::PartialEq for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::eq(&self, other: &nika_catalog::provider::ModelLifecycle) -> bool
+impl core::fmt::Debug for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::provider::ModelLifecycle
+impl core::marker::StructuralPartialEq for nika_catalog::provider::ModelLifecycle
+impl serde_core::ser::Serialize for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::provider::ModelLifecycle
+impl<T, U> core::convert::Into<U> for nika_catalog::provider::ModelLifecycle where U: core::convert::From<T>
+pub fn nika_catalog::provider::ModelLifecycle::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::provider::ModelLifecycle where U: core::convert::Into<T>
+pub type nika_catalog::provider::ModelLifecycle::Error = core::convert::Infallible
+pub fn nika_catalog::provider::ModelLifecycle::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::provider::ModelLifecycle where U: core::convert::TryFrom<T>
+pub type nika_catalog::provider::ModelLifecycle::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::provider::ModelLifecycle::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::provider::ModelLifecycle where T: core::clone::Clone
+pub type nika_catalog::provider::ModelLifecycle::Owned = T
+pub fn nika_catalog::provider::ModelLifecycle::clone_into(&self, target: &mut T)
+pub fn nika_catalog::provider::ModelLifecycle::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::provider::ModelLifecycle where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::provider::ModelLifecycle::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::provider::ModelLifecycle where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelLifecycle::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::provider::ModelLifecycle where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelLifecycle::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::provider::ModelLifecycle where T: core::clone::Clone
+pub unsafe fn nika_catalog::provider::ModelLifecycle::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::provider::ModelLifecycle where T: 'static
+pub fn nika_catalog::provider::ModelLifecycle::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::types::ModelPricing
 pub nika_catalog::types::ModelPricing::cache_read_per_million: core::option::Option<f64>
 pub nika_catalog::types::ModelPricing::cache_write_per_million: core::option::Option<f64>
@@ -9083,6 +9352,93 @@ impl<T> core::convert::From<T> for nika_catalog::model::ModelEnergy
 pub fn nika_catalog::model::ModelEnergy::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::model::ModelEnergy where T: 'static
 pub fn nika_catalog::model::ModelEnergy::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::ModelFacts
+pub nika_catalog::ModelFacts::lifecycle: core::option::Option<nika_catalog::provider::ModelLifecycle>
+pub nika_catalog::ModelFacts::limits_as_of: core::option::Option<&'static str>
+pub nika_catalog::ModelFacts::limits_source: core::option::Option<&'static str>
+pub nika_catalog::ModelFacts::model: &'static str
+pub nika_catalog::ModelFacts::provider: &'static str
+impl nika_catalog::provider::ModelFacts
+pub const fn nika_catalog::provider::ModelFacts::new(provider: &'static str, model: &'static str, limits_source: core::option::Option<&'static str>, limits_as_of: core::option::Option<&'static str>, lifecycle: core::option::Option<nika_catalog::provider::ModelLifecycle>) -> Self
+impl core::clone::Clone for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::clone(&self) -> nika_catalog::provider::ModelFacts
+impl core::cmp::Eq for nika_catalog::provider::ModelFacts
+impl core::cmp::PartialEq for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::eq(&self, other: &nika_catalog::provider::ModelFacts) -> bool
+impl core::fmt::Debug for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::provider::ModelFacts
+impl core::marker::StructuralPartialEq for nika_catalog::provider::ModelFacts
+impl serde_core::ser::Serialize for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::provider::ModelFacts
+impl<T, U> core::convert::Into<U> for nika_catalog::provider::ModelFacts where U: core::convert::From<T>
+pub fn nika_catalog::provider::ModelFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::provider::ModelFacts where U: core::convert::Into<T>
+pub type nika_catalog::provider::ModelFacts::Error = core::convert::Infallible
+pub fn nika_catalog::provider::ModelFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::provider::ModelFacts where U: core::convert::TryFrom<T>
+pub type nika_catalog::provider::ModelFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::provider::ModelFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::provider::ModelFacts where T: core::clone::Clone
+pub type nika_catalog::provider::ModelFacts::Owned = T
+pub fn nika_catalog::provider::ModelFacts::clone_into(&self, target: &mut T)
+pub fn nika_catalog::provider::ModelFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::provider::ModelFacts where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::provider::ModelFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::provider::ModelFacts where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::provider::ModelFacts where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::provider::ModelFacts where T: core::clone::Clone
+pub unsafe fn nika_catalog::provider::ModelFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::provider::ModelFacts
+pub fn nika_catalog::provider::ModelFacts::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::provider::ModelFacts where T: 'static
+pub fn nika_catalog::provider::ModelFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::ModelLifecycle
+pub nika_catalog::ModelLifecycle::as_of: &'static str
+pub nika_catalog::ModelLifecycle::retires_not_before: &'static str
+pub nika_catalog::ModelLifecycle::source: &'static str
+pub nika_catalog::ModelLifecycle::successor: &'static str
+impl nika_catalog::provider::ModelLifecycle
+pub const fn nika_catalog::provider::ModelLifecycle::new(retires_not_before: &'static str, successor: &'static str, source: &'static str, as_of: &'static str) -> Self
+impl core::clone::Clone for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::clone(&self) -> nika_catalog::provider::ModelLifecycle
+impl core::cmp::Eq for nika_catalog::provider::ModelLifecycle
+impl core::cmp::PartialEq for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::eq(&self, other: &nika_catalog::provider::ModelLifecycle) -> bool
+impl core::fmt::Debug for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::provider::ModelLifecycle
+impl core::marker::StructuralPartialEq for nika_catalog::provider::ModelLifecycle
+impl serde_core::ser::Serialize for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_catalog::provider::ModelLifecycle
+impl<T, U> core::convert::Into<U> for nika_catalog::provider::ModelLifecycle where U: core::convert::From<T>
+pub fn nika_catalog::provider::ModelLifecycle::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::provider::ModelLifecycle where U: core::convert::Into<T>
+pub type nika_catalog::provider::ModelLifecycle::Error = core::convert::Infallible
+pub fn nika_catalog::provider::ModelLifecycle::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::provider::ModelLifecycle where U: core::convert::TryFrom<T>
+pub type nika_catalog::provider::ModelLifecycle::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::provider::ModelLifecycle::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::provider::ModelLifecycle where T: core::clone::Clone
+pub type nika_catalog::provider::ModelLifecycle::Owned = T
+pub fn nika_catalog::provider::ModelLifecycle::clone_into(&self, target: &mut T)
+pub fn nika_catalog::provider::ModelLifecycle::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::provider::ModelLifecycle where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::provider::ModelLifecycle::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::provider::ModelLifecycle where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelLifecycle::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::provider::ModelLifecycle where T: ?core::marker::Sized
+pub fn nika_catalog::provider::ModelLifecycle::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::provider::ModelLifecycle where T: core::clone::Clone
+pub unsafe fn nika_catalog::provider::ModelLifecycle::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::provider::ModelLifecycle
+pub fn nika_catalog::provider::ModelLifecycle::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::provider::ModelLifecycle where T: 'static
+pub fn nika_catalog::provider::ModelLifecycle::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::ModelPricing
 pub nika_catalog::ModelPricing::cache_read_per_million: core::option::Option<f64>
 pub nika_catalog::ModelPricing::cache_write_per_million: core::option::Option<f64>
@@ -9700,10 +10056,14 @@ pub fn nika_catalog::is_known_builtin(name: &str) -> bool
 pub fn nika_catalog::is_known_mcp_server(name: &str) -> bool
 pub fn nika_catalog::is_known_transform(name: &str) -> bool
 pub fn nika_catalog::model_capabilities(provider: &str, model: &str) -> nika_catalog::model::ModelCapabilities
+pub fn nika_catalog::model_facts(provider: &str, model: &str) -> core::option::Option<&'static nika_catalog::provider::ModelFacts>
 pub fn nika_catalog::model_output_limit(provider: &str, name: &str) -> core::option::Option<(u32, alloc::string::String)>
+pub fn nika_catalog::nickname_wire(provider: &str, name: &str) -> core::option::Option<&'static str>
 pub fn nika_catalog::output_caps(provider: &str, name: &str, room: u32) -> serde_json::value::Value
 pub fn nika_catalog::pasteable_for(bare: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_catalog::pricing_snapshot() -> &'static nika_catalog::model::PricingSnapshot
+pub fn nika_catalog::refuses_sampling(provider: &str, name: &str) -> bool
+pub fn nika_catalog::refuses_thinking_budget(provider: &str, name: &str) -> bool
 pub fn nika_catalog::resolve_mcp_name(name: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_catalog::suggest(query: &str) -> alloc::vec::Vec<nika_catalog::suggest::Suggestion>
 pub fn nika_catalog::suggest_in(query: &str, namespace: nika_catalog::suggest::Namespace) -> alloc::vec::Vec<nika_catalog::suggest::Suggestion>

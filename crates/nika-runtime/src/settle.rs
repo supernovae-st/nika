@@ -473,6 +473,9 @@ fn settle_ran_terminal(
             stamper,
             sink,
         ),
+        task::RunResult::OperatorCancelled(ref stopped) => {
+            settle_operator_cancelled(id, duration, stopped, &run, record, ok, stamper, sink);
+        }
         // Backstop: a pending recovery parks BEFORE settle (the
         // `recover::settle_or_park` spine) — one reaching this site
         // settles its classification-time failure (total · no panic).
@@ -699,8 +702,65 @@ fn settle_failed_terminal(
     }
     fields.push(("outcome", s(&record::outcome_json(record))));
     emit_task::push_integrity_fields(&mut fields, record);
+    emit_task::push_stopped_call_field(&mut fields, record);
     let ended = emit(stamper, sink, EventKind::TaskFailed, &fields);
     record.ended_at = Some(ended);
+    *ok = false;
+}
+
+/// A dispatched call genuinely interrupted by the operator. Control never
+/// becomes an authored fallback or a success checkpoint; incurred spend,
+/// access/commit evidence and stopped-call identity remain observable.
+#[allow(clippy::too_many_arguments)] // the terminal evidence and settle pens
+fn settle_operator_cancelled(
+    id: &str,
+    duration: i64,
+    stopped: &task::FailedOutcome,
+    run: &task::RanTask,
+    record: &mut TaskRecord,
+    ok: &mut bool,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    let (evidence, items, usage) = (
+        run.evidence.as_ref(),
+        run.items.as_ref(),
+        run.usage.as_deref(),
+    );
+    record.status = TaskStatus::Cancelled;
+    record.cause = TerminalCause::Operator;
+    // Spec 13's cancelled payload contains reason, never an error or value.
+    let mut fields = vec![
+        ("task", s(id)),
+        ("note", s("cancelled by the operator")),
+        ("detail", s(&stopped.record.message)),
+        ("duration_ms", i(duration)),
+    ];
+    push_spend_fields(&mut fields, stopped.cost_usd, stopped.cost_unpriced);
+    crate::usage::push_usage_fields(&mut fields, usage);
+    emit_task::push_access_fields(
+        &mut fields,
+        None,
+        stopped.access.as_deref(),
+        stopped.cost_unpriced,
+    );
+    emit_task::push_child_field(&mut fields, stopped.child.as_deref());
+    push_commit_fields(&mut fields, evidence);
+    if let Some(fan) = items {
+        crate::emit_items::push(&mut fields, id, &fan.json, stamper, sink);
+    }
+    // This diagnostic is independent of the cancelled outcome's payload.
+    if let Some(call) = stopped
+        .record
+        .details
+        .as_ref()
+        .and_then(|details| details.get("stopped_call"))
+    {
+        fields.push(("stopped_call", s(&call.to_string())));
+    }
+    fields.push(("outcome", s(&record::outcome_json(record))));
+    emit_task::push_integrity_fields(&mut fields, record);
+    record.ended_at = Some(emit(stamper, sink, EventKind::TaskCancelled, &fields));
     *ok = false;
 }
 
@@ -732,6 +792,7 @@ fn settle_skip_with_error(
     push_commit_fields(&mut fields, evidence);
     fields.push(("outcome", s(&record::outcome_json(record))));
     emit_task::push_integrity_fields(&mut fields, record);
+    emit_task::push_stopped_call_field(&mut fields, record);
     let ended = emit(stamper, sink, EventKind::TaskSkipped, &fields);
     record.ended_at = Some(ended);
 }

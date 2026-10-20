@@ -357,6 +357,7 @@ fn child_call() -> ChildCall {
         remaining_budget_usd: None,
         deadline: None,
         parent_permits: None,
+        run_facts: nika_runtime::RunFacts::default(),
     }
 }
 
@@ -1078,7 +1079,7 @@ fn no_model_plan_has_no_monetary_blocker() {
 #[test]
 fn a_declared_free_route_is_ready_for_text_and_names_an_unsupported_shape() {
     use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
-    let free = "openrouter/qwen/qwen3.8-27b:free";
+    let free = "openrouter/nvidia/nemotron-3-super-120b-a12b:free";
     let plan = nika_providers::resolve_execution_plan(
         &[nika_providers::ModelNeed::new(free, true, false)],
         &[ProviderProbe::new(

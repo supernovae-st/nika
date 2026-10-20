@@ -5,8 +5,9 @@
 //!
 //! A `nika run` always listens (#1438). The first SIGINT (Ctrl-C) or, on
 //! unix, SIGTERM flips the [`CancelCtx`] the runtime reads at every wave
-//! boundary: in-flight work completes and is counted, the unstarted tasks
-//! settle as cancelled by the operator, the run ends with ONE
+//! boundary: in-flight work settles and is counted (an MCP call in flight is
+//! told to cancel and fails `NIKA-CANCEL-001`, other work completes), the
+//! unstarted tasks settle as cancelled by the operator, the run ends with ONE
 //! `workflow_cancelled` terminal and the trace seals. A second signal ends
 //! the exec process groups the run still owns, then the process itself:
 //! the trace stays incomplete · the operator's choice, said on stderr.
@@ -79,8 +80,8 @@ fn listen(runtime: &tokio::runtime::Runtime, cancel: CancelCtx) -> Option<Listen
         operator_signal().await;
         cancel.cancel();
         eprintln!(
-            "nika run: cancelling · in-flight work completes and is counted · \
-             unstarted tasks are cancelled · Ctrl-C again to abort"
+            "nika run: cancelling · in-flight work settles and is counted (an MCP call in \
+             flight is told to cancel) · unstarted tasks are cancelled · Ctrl-C again to abort"
         );
         #[cfg(unix)]
         receiver.recv().await;

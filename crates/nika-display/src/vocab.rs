@@ -151,11 +151,61 @@ pub fn usd(amount: f64) -> String {
     }
 }
 
+/// A USD amount as a person sets it, for a ceiling: its significant digits kept (`0.001`,
+/// `0.0015`, `1.234`), at least cents where it has a fraction (`0.10`, `2.50`), a whole
+/// amount bare (`2`, `0`), never rounded to zero. No `$`, as [`usd`]. One rule for every
+/// surface that names a ceiling (live gauntlet r09 B12: « ceiling $0.1 » in the Session's
+/// words two lines from « ceiling $0.10 » in the host's, which wrote a $0.001 ceiling as
+/// « $0.00 »).
+#[must_use]
+pub fn stated_usd(amount: f64) -> String {
+    // An amount under a millionth (or no number at all) keeps the shortest digits that are its
+    // own: never zero, never rounded to a neighbour.
+    if !amount.is_finite() || (amount != 0.0 && amount.abs() < 0.000_001) {
+        return format!("{amount}");
+    }
+    // Nine decimals hold any amount a person sets and drop the noise of a computed one.
+    let mut text = format!("{amount:.9}");
+    while text.ends_with('0') {
+        text.pop();
+    }
+    if text.ends_with('.') {
+        text.pop();
+    }
+    let decimals = text
+        .split_once('.')
+        .map_or(0, |(_, fraction)| fraction.len());
+    if decimals == 1 {
+        text.push('0');
+    }
+    text
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     const PLAIN: Theme = Theme::new(false, false, false);
+
+    /// A ceiling reads as it was set: cents at least where it has a fraction, a whole amount
+    /// bare, every significant digit kept, never a zero for an amount that is not one.
+    #[test]
+    fn a_stated_amount_keeps_its_digits_and_never_rounds_to_zero() {
+        for (amount, said) in [
+            (0.1, "0.10"),
+            (0.25, "0.25"),
+            (0.001, "0.001"),
+            (0.0015, "0.0015"),
+            (2.0, "2"),
+            (2.5, "2.50"),
+            (1.234, "1.234"),
+            (0.0, "0"),
+            (0.1 + 0.2, "0.30"),
+            (0.000_000_000_5, "0.0000000005"),
+        ] {
+            assert_eq!(stated_usd(amount), said, "{amount}");
+        }
+    }
 
     /// Every vocabulary glyph carries its ASCII twin — the parity law.
     #[test]

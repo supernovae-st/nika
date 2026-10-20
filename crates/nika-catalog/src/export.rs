@@ -142,11 +142,13 @@ impl ProviderExport {
     /// (B18 / issue 1306).
     #[must_use]
     pub fn human_model_ids(&self) -> String {
-        self.models
-            .iter()
-            .map(|m| m.paste_id.as_str())
-            .collect::<Vec<_>>()
-            .join(" · ")
+        let mut ids: Vec<&str> = Vec::with_capacity(self.models.len());
+        for model in &self.models {
+            if !ids.contains(&model.paste_id.as_str()) {
+                ids.push(model.paste_id.as_str());
+            }
+        }
+        ids.join(" · ")
     }
 }
 
@@ -350,6 +352,28 @@ mod tests {
             openai.human_model_ids().contains("gpt-4o-mini"),
             "{}",
             openai.human_model_ids()
+        );
+        let deepseek = export
+            .providers
+            .iter()
+            .find(|provider| provider.id == "deepseek")
+            .expect("deepseek");
+        assert_eq!(
+            deepseek
+                .models
+                .iter()
+                .filter(|model| model.paste_id == "deepseek/deepseek-flash")
+                .count(),
+            2,
+            "both aliases remain in the machine listing"
+        );
+        assert_eq!(
+            deepseek
+                .human_model_ids()
+                .matches("deepseek/deepseek-flash")
+                .count(),
+            1,
+            "the human listing names the aliased wire once"
         );
     }
 

@@ -146,5 +146,35 @@ fn the_seat_fix_names_the_live_pin_never_teaches_the_wrapper_as_a_pin() {
     assert!(!detail.contains("not signed in"), "{detail}");
     assert!(detail.contains("--access claude-code"), "{detail}");
     assert_eq!(unknown.fix, None);
-    assert!(matches!(unknown.level, super::Level::Warn), "{detail}");
+    assert!(matches!(unknown.level, super::Level::Unknown), "{detail}");
+}
+
+/// A login check that did not answer in time is a typed unknown,
+/// never a warning and never a failure. The exit code stays 0, and the
+/// machine lane counts it apart in `summary.unknown`.
+#[cfg(feature = "access-harness")]
+#[test]
+fn timed_out_login_is_unknown_not_warn() {
+    let row = super::harness_finding_from_parts(
+        "claude-code",
+        Some((0, 23)),
+        None,
+        "@agentclientprotocol/claude-agent-acp",
+        true,
+        Some("the login check did not answer within 30 s"),
+    );
+    assert_eq!(row.level, super::Level::Unknown, "{}", row.detail);
+    let findings = vec![row];
+    assert_eq!(super::exit_code(&findings), crate::output::exit::OK);
+    let json: serde_json::Value = serde_json::from_str(&super::render_json(
+        &findings,
+        super::AdoptionState::Installed,
+        &[],
+        &nika_providers::census::AccessCensus::default(),
+    ))
+    .expect("valid JSON");
+    assert_eq!(json["summary"]["unknown"], 1);
+    assert_eq!(json["summary"]["warn"], 0);
+    assert_eq!(json["summary"]["fail"], 0);
+    assert_eq!(json["findings"][0]["level"], "unknown");
 }

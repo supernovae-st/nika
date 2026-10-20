@@ -168,7 +168,7 @@ fn each_unsettled_preparation_failure_is_unknown_in_the_durable_history() {
             .path();
         let log = std::fs::read_to_string(project.join("events.ndjson")).unwrap();
         let event: Value = serde_json::from_str(log.lines().last().unwrap()).unwrap();
-        assert_eq!(event["event"]["effect"], "unknown");
+        assert_eq!(event["event"]["effect"], "inference_charge_unknown");
         assert!(!session.waiting_cost_choice());
     }
 }

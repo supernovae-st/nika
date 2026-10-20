@@ -1,0 +1,39 @@
+# vendor/vanished: 1 endpoint.
+[[tariffs]]
+provider = "openrouter"
+billing_provider = "openrouter"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "vendor/vanished"
+endpoints = ["https://router.example/api/v1/chat/completions"]
+source = "https://openrouter.ai/api/v1/models/vendor/vanished-20250101/endpoints"
+limits_source = "https://openrouter.ai/api/v1/models/vendor/vanished-20250101/endpoints"
+route_source = "https://router.example/docs/chat"
+as_of = "2025-01-01"
+source_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+limits_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+context_tokens = 8192
+max_output_tokens = 4096
+input_nano_per_token = 10
+output_nano_per_token = 20
+cached_nano_per_token = 10
+
+# vendor/zero-unpriced: 2 endpoints.
+[[tariffs]]
+provider = "openrouter"
+billing_provider = "openrouter"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "vendor/zero-unpriced"
+endpoints = ["https://router.example/api/v1/chat/completions"]
+source = "https://openrouter.ai/api/v1/models/vendor/zero-unpriced-20250101/endpoints"
+limits_source = "https://openrouter.ai/api/v1/models/vendor/zero-unpriced-20250101/endpoints"
+route_source = "https://router.example/docs/chat"
+as_of = "2025-01-01"
+source_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+limits_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+context_tokens = 8192
+max_output_tokens = 4096
+input_nano_per_token = 30
+output_nano_per_token = 60
+cached_nano_per_token = 30

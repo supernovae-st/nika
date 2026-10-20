@@ -143,6 +143,12 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
             /opt/hostedtoolcache/CodeQL /usr/share/swift
           df -h / | tail -1
+      # The battery outgrew the disk those SDKs free (2026-10-19: 62 MB left and the runner
+      # stopped mid-build): the tests leg's debug build keeps line tables only, so every
+      # backtrace still names its file and line, and drops the rest of the debug info.
+      - name: Line tables only for the tests leg's debug build
+        if: matrix.job == 'tests'
+        run: echo "CARGO_PROFILE_DEV_DEBUG=line-tables-only" >> "$GITHUB_ENV"
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           shared-key: diamond
@@ -235,6 +241,15 @@ jobs:
             --binary target/debug/nika --out "$RUNNER_TEMP/authoring-gauntlet/project-schema.json"
           "$RUNNER_TEMP/authoring-python/bin/python" scripts/authoring-gauntlet.py \
             --binary target/debug/nika --out "$RUNNER_TEMP/authoring-gauntlet"
+      # The plugin's check-on-edit hook ships into users' editors; its test judges with the
+      # `nika` the step above built, so every PR runs it, not only the nightly hygiene run.
+      - name: Kit hook test judged by this build
+        if: matrix.job == 'tests'
+        timeout-minutes: 3
+        env:
+          NIKA_BIN: ${{ github.workspace }}/target/debug/nika
+          NIKA_KEYCHAIN: 'off'
+        run: bash .agents/plugins/nika/scripts/tests/check-on-edit.test.sh
       - name: Preserve authoring evidence
         if: always() && matrix.job == 'tests'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

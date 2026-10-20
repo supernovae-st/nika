@@ -368,21 +368,27 @@ impl RefusalEnv {
     }
 }
 
-/// The with-value IS exactly one bare `${{ tasks.<id>.<field> }}` island
-/// — the W2 observation idiom (output flavor and status flavor share the
-/// one shape).
-fn exact_carrier(value: &str, field: &str) -> Option<String> {
+/// The with-value IS exactly one bare `${{ … }}` island — the form a value
+/// edge hands through WHOLE (the referenced value itself, never a rendered
+/// string). The one shape every carrier reader shares: the consent lane's
+/// exact carriers and the skipped-read lane's ([`crate::skipped_reads`]).
+pub(crate) fn sole_island(value: &str) -> Option<Expr> {
     let t = value.trim();
     if !(t.starts_with("${{") && t.ends_with("}}")) {
         return None;
     }
-    let Ok(islands) = scan_templates(t) else {
+    let mut islands = scan_templates(t).ok()?;
+    if islands.len() != 1 {
         return None;
-    };
-    let [island] = islands.as_slice() else {
-        return None;
-    };
-    record_field(&island.expr, field)
+    }
+    islands.pop().map(|island| island.expr)
+}
+
+/// The with-value IS exactly one bare `${{ tasks.<id>.<field> }}` island
+/// — the W2 observation idiom (output flavor and status flavor share the
+/// one shape).
+fn exact_carrier(value: &str, field: &str) -> Option<String> {
+    record_field(&sole_island(value)?, field)
 }
 
 /// The expr IS exactly `tasks.<id>.<field>` (member or index form).

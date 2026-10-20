@@ -39,9 +39,10 @@ fn unpriced_call_reason(call: &InferenceCall) -> UnpricedReason {
     }
 }
 
-/// Whether the pricing provenance recorded at dispatch names a USD tariff for
-/// its route, catalog or operator-declared. An `unknown` kind or another
-/// currency does not. Read for the reason only, never to price.
+/// Whether the pricing provenance recorded at dispatch names a USD price for
+/// its route: a catalog or operator-declared tariff, or the provider's own
+/// reported charge. An `unknown` kind or another currency does not. Read for
+/// the reason only, never to price.
 fn names_usd_tariff(pricing: &str) -> bool {
     let Ok(provenance) = serde_json::from_str::<serde_json::Value>(pricing) else {
         return false;
@@ -49,7 +50,11 @@ fn names_usd_tariff(pricing: &str) -> bool {
     let text = |key: &str| provenance.get(key).and_then(serde_json::Value::as_str);
     matches!(
         text("kind"),
-        Some("catalog_estimate_not_invoice" | "user_declared_estimate_not_invoice")
+        Some(
+            "catalog_estimate_not_invoice"
+                | "user_declared_estimate_not_invoice"
+                | "provider_reported_charge"
+        )
     ) && text("currency") == Some("USD")
 }
 

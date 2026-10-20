@@ -413,6 +413,22 @@ mod builder {
                         "message": {"type": "string"},
                         "task": {"type": "string", "description": "The task that failed · absent for a run-level cause"}
                     }
+                },
+                "stopped_calls": {
+                    "type": "array",
+                    "minItems": 1,
+                    "description": "Every MCP call the run stopped waiting for, on every path (a task's timeout, an operator Stop, a task that continued or recovered after it): the task, the tool as the workflow names it, the call's id, and whether the call left. `unknown`: the call reached the server, which may have acted, so an effect's outcome is unknown; `not_sent`: it was stopped before it was sent. Absent when the run stopped no MCP call.",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["task", "tool", "call_id", "outcome"],
+                        "properties": {
+                            "task": {"type": "string"},
+                            "tool": {"type": "string", "description": "`mcp:<server>/<tool>`"},
+                            "call_id": {"type": "string"},
+                            "outcome": {"type": "string", "enum": ["unknown", "not_sent"]}
+                        }
+                    }
                 }
             }
         })
@@ -501,7 +517,21 @@ mod builder {
                         "decision": {"type": "string", "enum": ["scheduled", "catch_up"]},
                         "scheduled_for": {"type": "string", "format": "date-time"},
                         "fired_at": {"type": "string", "format": "date-time"},
-                        "arm_generation": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+                        "arm_generation": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                        "missed_first": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "First slot of the silence a catch-up-once run answers for, on a catch_up firing only; scheduled_for is its last slot"
+                        },
+                        "missed_count": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "description": "How many slots that silence holds"
+                        }
+                    },
+                    "dependentRequired": {
+                        "missed_first": ["missed_count"],
+                        "missed_count": ["missed_first"]
                     }
                 }
             ]
@@ -940,7 +970,13 @@ mod tests {
             "2026-08-31T01:00:01Z".parse().expect("fired timestamp"),
             &generation,
         )
-        .expect("scheduled origin");
+        .and_then(|origin| {
+            origin.with_missed(
+                "2026-08-31T00:00:00Z".parse().expect("first missed slot"),
+                2,
+            )
+        })
+        .expect("scheduled origin answering for a silence");
         let scheduled = JobReceipt::with_origin(
             job_id,
             "exec-scheduled",
@@ -967,6 +1003,21 @@ mod tests {
                 "^[0-9a-f]{64}$"
             );
         }
+        // The silence is the schedule variant's only optional pair.
+        let required = schedule_schema["required"].as_array().expect("required");
+        let mut optional: Vec<&str> = schedule_schema["properties"]
+            .as_object()
+            .expect("properties")
+            .keys()
+            .map(String::as_str)
+            .filter(|key| !required.iter().any(|field| field == key))
+            .collect();
+        optional.sort_unstable();
+        assert_eq!(optional, ["missed_count", "missed_first"]);
+        assert_eq!(
+            schedule_schema["dependentRequired"],
+            serde_json::json!({"missed_first": ["missed_count"], "missed_count": ["missed_first"]})
+        );
         assert_eq!(
             schedule_schema["properties"]["schedule_revision"]["pattern"],
             "^sha256:[0-9a-f]{64}$"
@@ -983,7 +1034,7 @@ mod tests {
         assert_eq!(schema["properties"]["kind"]["const"], kind);
         assert_eq!(origin["kind"], kind);
         assert_eq!(origin.len(), properties.len());
-        assert_eq!(required.len(), properties.len());
+        assert!(required.len() <= properties.len());
         for field in origin.keys() {
             assert!(
                 properties.contains_key(field),
@@ -999,6 +1050,10 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod published_sdk_tests;
 
 /// The document is COMMITTED beside the crate (`crates/nika-serve/openapi.json`)
 /// so the docs site can publish the real contract instead of a starter

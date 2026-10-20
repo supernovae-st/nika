@@ -55,12 +55,13 @@ fn initialize_names_the_nika_server_with_tools_only() {
     assert_eq!(reply["result"]["protocolVersion"], "2025-06-18");
     assert_eq!(reply["result"]["serverInfo"]["name"], "nika");
     assert_eq!(reply["result"]["capabilities"], json!({"tools": {}}));
-    let cold = request(2, "initialize", &json!({"protocolVersion": "1999-01-01"}));
-    let reply = dispatch(&tools, &cold).expect("answered");
-    assert_eq!(
-        reply["result"]["protocolVersion"],
-        crate::protocol::PROTOCOL_VERSION
-    );
+    // Neither an unknown revision nor 2026-07-28 (which has no
+    // handshake) is echoed; both get the latest handshake revision.
+    for asked in ["1999-01-01", "2026-07-28"] {
+        let cold = request(2, "initialize", &json!({"protocolVersion": asked}));
+        let reply = dispatch(&tools, &cold).expect("answered");
+        assert_eq!(reply["result"]["protocolVersion"], "2025-11-25", "{asked}");
+    }
 }
 
 #[test]

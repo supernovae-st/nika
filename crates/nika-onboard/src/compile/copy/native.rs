@@ -13,7 +13,7 @@ use std::time::Duration;
 use super::{Admission, Allowance, Budget, RunEnd, Usage, Witness, WorldBefore};
 use nika_compile::surface::literal_projection;
 use nika_compile_cognition::rehearse::{
-    Attempt, Composed, EffectCounts, Observation, Refusal, Rehearsal, RehearsalFuture,
+    Attempt, Composed, EffectCounts, Observation, PinnedTool, Refusal, Rehearsal, RehearsalFuture,
     RehearsalReport, Rehearse, judged_run,
 };
 use nika_compile_fidelity::fidelity::stated_routes;
@@ -289,6 +289,21 @@ impl Rehearse for Scoped {
     /// no location and spends no rehearsal on it.
     fn compose(&self, candidate: &str) -> Composed {
         self.host.compose(candidate)
+    }
+
+    /// The host's own pins: a scope adds none.
+    fn pinned(&self, server: &str, tool: &str) -> PinnedTool {
+        self.host.pinned(server, tool)
+    }
+
+    /// The host's own answer: a scope rehearses exactly when its host does.
+    fn offers_rehearsal(&self) -> bool {
+        self.host.offers_rehearsal()
+    }
+
+    /// The host's own runs: a scope adds no MCP call.
+    fn runs_mcp_steps(&self) -> bool {
+        self.host.runs_mcp_steps()
     }
 }
 

@@ -59,9 +59,10 @@ pub fn graph_cards(
 ) -> Rendered {
     let mut sheet = Sheet::new(canvas, Format::Workflow);
     if let Some(why) = unavailable(doc, waves, canvas) {
-        sheet
-            .body
-            .push(vec![paint(why, Role::Warn, canvas.color)], false);
+        sheet.body.push(
+            vec![paint(canvas.say(why), Role::Warn, canvas.color)],
+            false,
+        );
         return sheet.finish("graph".to_owned());
     }
     let rows = ranges(waves);
@@ -75,28 +76,25 @@ pub fn graph_cards(
     let outside = doc.nodes.get(scheduled..).unwrap_or_default();
     let cleanup = outside.iter().filter(|node| node.kind == "finally").count();
     let other = outside.len().saturating_sub(cleanup);
-    let mut counted = vec![cells::count(scheduled, "task")];
+    let mut counted = vec![cells::count_in(scheduled, "task", canvas)];
     if cleanup > 0 {
-        counted.push(cells::count(cleanup, "cleanup unit"));
+        counted.push(cells::count_in(cleanup, "cleanup unit", canvas));
     }
     if other > 0 {
-        counted.push(format!(
-            "{} outside task waves",
-            cells::count(other, "unit")
-        ));
+        let units = cells::count_in(other, "unit", canvas);
+        let outside = canvas.say("{units} outside task waves");
+        counted.push(outside.replace("{units}", &units));
     }
-    counted.push(cells::count(doc.edges.len(), "edge"));
-    counted.push(cells::count(rows.len(), "wave"));
+    counted.push(cells::count_in(doc.edges.len(), "edge", canvas));
+    counted.push(cells::count_in(rows.len(), "wave", canvas));
     sheet.facts.push(counted.join(sep));
     if wiring.is_none() {
-        sheet
-            .facts
-            .push("cards by wave; exact dependencies listed, no inferred wires".to_owned());
+        let listed = "cards by wave; exact dependencies listed, no inferred wires";
+        sheet.facts.push(canvas.say(listed).to_owned());
     }
     if !watched {
-        sheet
-            .facts
-            .push(format!("definition{sep}no task state observed"));
+        let defined = canvas.say("definition{sep}no task state observed");
+        sheet.facts.push(defined.replace("{sep}", sep));
     }
     let mut draw = Draw {
         doc,
@@ -603,10 +601,12 @@ impl Draw<'_> {
                 let count = row.len();
                 if per_row(count, width) < count {
                     let heading = format!(
-                        "wave {}{}{}",
-                        wave + 1,
+                        "{}{}{}",
+                        canvas
+                            .say("wave {k}")
+                            .replace("{k}", &(wave + 1).to_string()),
                         cells::sep(canvas.ascii),
-                        cells::count(count, "task")
+                        cells::count_in(count, "task", canvas)
                     );
                     block.push(vec![paint(heading, Role::Dim, canvas.color)]);
                 }
@@ -637,7 +637,8 @@ impl Draw<'_> {
             return;
         }
         self.whole(sheet, |draw| {
-            let mut block = vec![vec![paint("outside task waves", Role::Dim, canvas.color)]];
+            let outside = canvas.say("outside task waves");
+            let mut block = vec![vec![paint(outside, Role::Dim, canvas.color)]];
             for edge in &doc.edges {
                 let between = draw.inside.contains(edge.from.as_str())
                     && draw.inside.contains(edge.to.as_str());
@@ -684,7 +685,7 @@ impl Draw<'_> {
             "task" => {}
             "finally" => {
                 detail.push_str(sep);
-                detail.push_str("cleanup");
+                detail.push_str(canvas.say("cleanup"));
             }
             other => {
                 detail.push_str(sep);
@@ -695,7 +696,7 @@ impl Draw<'_> {
         let active = matches!(state, Some((_, Role::Accent)));
         let tail = match state {
             Some((words, tone)) => Some((self.labels.text(&words, canvas), tone)),
-            None if self.watched => Some(("definition".to_owned(), Role::Dim)),
+            None if self.watched => Some((canvas.say("definition").to_owned(), Role::Dim)),
             None => None,
         };
         Some(Card {

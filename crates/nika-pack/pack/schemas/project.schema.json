@@ -55,13 +55,31 @@
             "exclusiveMinimum": 0
           },
           "manqué": {
-            "type": "string",
-            "enum": [
-              "rattraper",
-              "rattraper-une-fois",
-              "sauter"
-            ],
-            "description": "Required, with no default: what a missed slot becomes when the firer comes back: `rattraper` (fire every missed slot), `rattraper-une-fois` (fire once for all of them), `sauter` (skip them)."
+            "description": "Required, with no default: what a missed slot becomes when the firer comes back. `rattraper` fires the latest missed slot once; `{ rattraper: N }` fires up to the N latest missed slots, one run each, oldest first, so the activation shows the worst cost as « jusqu'à N × plafond »; `rattraper-une-fois` fires once, that run answering for every missed slot; `sauter` skips them. Each run receives the slot it fires for.",
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "rattraper",
+                  "rattraper-une-fois",
+                  "sauter"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "rattraper"
+                ],
+                "properties": {
+                  "rattraper": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "How many of the latest missed slots to fire, one run each, oldest first: a whole number from 1."
+                  }
+                }
+              }
+            ]
           },
           "chevauchement": {
             "type": "string",

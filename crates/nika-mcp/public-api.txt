@@ -252,6 +252,7 @@ pub mod nika_mcp::dispatch
 pub struct nika_mcp::dispatch::McpToolPlane
 impl nika_mcp::dispatch::McpToolPlane
 pub fn nika_mcp::dispatch::McpToolPlane::call(&self, call: &nika_kernel_runtime::tool_executor::ToolCall) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
+pub fn nika_mcp::dispatch::McpToolPlane::call_until(&self, call: &nika_kernel_runtime::tool_executor::ToolCall, stop: &nika_types::cancel::CancelCtx) -> core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>
 pub fn nika_mcp::dispatch::McpToolPlane::lazy(project_dir: impl core::convert::Into<std::path::PathBuf>) -> Self
 pub fn nika_mcp::dispatch::McpToolPlane::tool_defs(&self) -> alloc::vec::Vec<nika_kernel_ai::provider::ToolDef>
 pub fn nika_mcp::dispatch::McpToolPlane::with_connector(project_dir: impl core::convert::Into<std::path::PathBuf>, connector: alloc::boxed::Box<dyn nika_mcp::session::McpConnectDyn>) -> Self
@@ -364,6 +365,62 @@ impl<T> tracing::instrument::Instrument for nika_mcp::pin::PinError
 impl<T> tracing::instrument::WithSubscriber for nika_mcp::pin::PinError
 impl<T> typenum::type_operators::Same for nika_mcp::pin::PinError
 pub type nika_mcp::pin::PinError::Output = T
+#[non_exhaustive] pub enum nika_mcp::pin::PinVerdict
+pub nika_mcp::pin::PinVerdict::NotPinned
+pub nika_mcp::pin::PinVerdict::NotPinned::pinned: alloc::vec::Vec<alloc::string::String>
+pub nika_mcp::pin::PinVerdict::Pinned
+pub nika_mcp::pin::PinVerdict::Pinned::approved_at: alloc::string::String
+pub nika_mcp::pin::PinVerdict::Pinned::input_schema: serde_json::value::Value
+pub nika_mcp::pin::PinVerdict::Repointed
+pub nika_mcp::pin::PinVerdict::Unapproved
+pub nika_mcp::pin::PinVerdict::Unreadable(alloc::string::String)
+pub nika_mcp::pin::PinVerdict::Unregistered
+impl core::clone::Clone for nika_mcp::pin::PinVerdict
+pub fn nika_mcp::pin::PinVerdict::clone(&self) -> nika_mcp::pin::PinVerdict
+impl core::cmp::Eq for nika_mcp::pin::PinVerdict
+impl core::cmp::PartialEq for nika_mcp::pin::PinVerdict
+pub fn nika_mcp::pin::PinVerdict::eq(&self, other: &nika_mcp::pin::PinVerdict) -> bool
+impl core::fmt::Debug for nika_mcp::pin::PinVerdict
+pub fn nika_mcp::pin::PinVerdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_mcp::pin::PinVerdict
+impl<D> owo_colors::OwoColorize for nika_mcp::pin::PinVerdict
+impl<Q, K> equivalent::Equivalent<K> for nika_mcp::pin::PinVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_mcp::pin::PinVerdict::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_mcp::pin::PinVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_mcp::pin::PinVerdict::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_mcp::pin::PinVerdict where U: core::convert::From<T>
+pub fn nika_mcp::pin::PinVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_mcp::pin::PinVerdict where U: core::convert::Into<T>
+pub type nika_mcp::pin::PinVerdict::Error = core::convert::Infallible
+pub fn nika_mcp::pin::PinVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_mcp::pin::PinVerdict where U: core::convert::TryFrom<T>
+pub type nika_mcp::pin::PinVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_mcp::pin::PinVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_mcp::pin::PinVerdict where T: core::clone::Clone
+pub type nika_mcp::pin::PinVerdict::Owned = T
+pub fn nika_mcp::pin::PinVerdict::clone_into(&self, target: &mut T)
+pub fn nika_mcp::pin::PinVerdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_mcp::pin::PinVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_mcp::pin::PinVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_mcp::pin::PinVerdict where T: ?core::marker::Sized
+pub fn nika_mcp::pin::PinVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_mcp::pin::PinVerdict where T: ?core::marker::Sized
+pub fn nika_mcp::pin::PinVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_mcp::pin::PinVerdict where T: core::clone::Clone
+pub unsafe fn nika_mcp::pin::PinVerdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_mcp::pin::PinVerdict
+pub fn nika_mcp::pin::PinVerdict::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_mcp::pin::PinVerdict where T: core::clone::Clone
+pub fn nika_mcp::pin::PinVerdict::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_mcp::pin::PinVerdict where T: 'static
+pub fn nika_mcp::pin::PinVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_mcp::pin::PinVerdict where T: ?core::marker::Sized
+pub fn nika_mcp::pin::PinVerdict::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_mcp::pin::PinVerdict::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_mcp::pin::PinVerdict
+impl<T> tracing::instrument::WithSubscriber for nika_mcp::pin::PinVerdict
+impl<T> typenum::type_operators::Same for nika_mcp::pin::PinVerdict
+pub type nika_mcp::pin::PinVerdict::Output = T
 #[non_exhaustive] pub struct nika_mcp::pin::McpToolDef
 pub nika_mcp::pin::McpToolDef::description: alloc::string::String
 pub nika_mcp::pin::McpToolDef::input_schema: serde_json::value::Value
@@ -522,16 +579,19 @@ impl<T> typenum::type_operators::Same for nika_mcp::pin::ToolDrift
 pub type nika_mcp::pin::ToolDrift::Output = T
 pub const nika_mcp::pin::PINS_FORMAT: u32
 pub const nika_mcp::pin::PINS_PATH: &str
+pub fn nika_mcp::pin::pinned_tool(project_dir: &std::path::Path, server: &str, tool: &str) -> nika_mcp::pin::PinVerdict
 pub mod nika_mcp::sandbox
 pub fn nika_mcp::sandbox::platform_sandbox() -> alloc::sync::Arc<dyn nika_kernel_core::io::command_sandbox::CommandSandbox>
 pub mod nika_mcp::session
 #[non_exhaustive] pub struct nika_mcp::session::CallOutcome
 pub nika_mcp::session::CallOutcome::content: alloc::string::String
 pub nika_mcp::session::CallOutcome::is_error: bool
+pub nika_mcp::session::CallOutcome::stopped: core::option::Option<nika_kernel_runtime::tool_executor::StopOutcome>
 pub nika_mcp::session::CallOutcome::structured: core::option::Option<serde_json::value::Value>
 impl nika_mcp::session::CallOutcome
 pub fn nika_mcp::session::CallOutcome::from_result(result: &serde_json::value::Value) -> Self
 pub fn nika_mcp::session::CallOutcome::new(content: impl core::convert::Into<alloc::string::String>, structured: core::option::Option<serde_json::value::Value>, is_error: bool) -> Self
+pub fn nika_mcp::session::CallOutcome::stopped(content: impl core::convert::Into<alloc::string::String>, outcome: nika_kernel_runtime::tool_executor::StopOutcome) -> Self
 impl core::clone::Clone for nika_mcp::session::CallOutcome
 pub fn nika_mcp::session::CallOutcome::clone(&self) -> nika_mcp::session::CallOutcome
 impl core::cmp::Eq for nika_mcp::session::CallOutcome
@@ -618,6 +678,7 @@ impl nika_mcp::session::StdioSession
 pub fn nika_mcp::session::StdioSession::open(config: &nika_mcp::client::McpServerConfig, sandbox: &alloc::sync::Arc<dyn nika_kernel_core::io::command_sandbox::CommandSandbox>, project_dir: &std::path::Path, timeout: core::time::Duration, call_timeout: core::time::Duration) -> core::result::Result<Self, nika_mcp::pin::PinError>
 impl nika_mcp::session::McpSessionDyn for nika_mcp::session::StdioSession
 pub fn nika_mcp::session::StdioSession::tools_call(&mut self, tool: &str, arguments: &serde_json::value::Value) -> core::result::Result<nika_mcp::session::CallOutcome, nika_mcp::pin::PinError>
+pub fn nika_mcp::session::StdioSession::tools_call_until(&mut self, tool: &str, arguments: &serde_json::value::Value, stop: &nika_types::cancel::CancelCtx) -> core::result::Result<nika_mcp::session::CallOutcome, nika_mcp::pin::PinError>
 pub fn nika_mcp::session::StdioSession::tools_list(&mut self) -> core::result::Result<alloc::vec::Vec<nika_mcp::pin::McpToolDef>, nika_mcp::pin::PinError>
 pub fn nika_mcp::session::StdioSession::unconfined_note(&self) -> core::option::Option<alloc::string::String>
 impl<D> owo_colors::OwoColorize for nika_mcp::session::StdioSession
@@ -654,10 +715,12 @@ impl nika_mcp::session::McpConnectDyn for nika_mcp::session::StdioConnector
 pub fn nika_mcp::session::StdioConnector::connect(&self, config: &nika_mcp::client::McpServerConfig) -> core::result::Result<alloc::boxed::Box<dyn nika_mcp::session::McpSessionDyn>, nika_mcp::pin::PinError>
 pub trait nika_mcp::session::McpSessionDyn: core::marker::Send
 pub fn nika_mcp::session::McpSessionDyn::tools_call(&mut self, tool: &str, arguments: &serde_json::value::Value) -> core::result::Result<nika_mcp::session::CallOutcome, nika_mcp::pin::PinError>
+pub fn nika_mcp::session::McpSessionDyn::tools_call_until(&mut self, tool: &str, arguments: &serde_json::value::Value, _stop: &nika_types::cancel::CancelCtx) -> core::result::Result<nika_mcp::session::CallOutcome, nika_mcp::pin::PinError>
 pub fn nika_mcp::session::McpSessionDyn::tools_list(&mut self) -> core::result::Result<alloc::vec::Vec<nika_mcp::pin::McpToolDef>, nika_mcp::pin::PinError>
 pub fn nika_mcp::session::McpSessionDyn::unconfined_note(&self) -> core::option::Option<alloc::string::String>
 impl nika_mcp::session::McpSessionDyn for nika_mcp::session::StdioSession
 pub fn nika_mcp::session::StdioSession::tools_call(&mut self, tool: &str, arguments: &serde_json::value::Value) -> core::result::Result<nika_mcp::session::CallOutcome, nika_mcp::pin::PinError>
+pub fn nika_mcp::session::StdioSession::tools_call_until(&mut self, tool: &str, arguments: &serde_json::value::Value, stop: &nika_types::cancel::CancelCtx) -> core::result::Result<nika_mcp::session::CallOutcome, nika_mcp::pin::PinError>
 pub fn nika_mcp::session::StdioSession::tools_list(&mut self) -> core::result::Result<alloc::vec::Vec<nika_mcp::pin::McpToolDef>, nika_mcp::pin::PinError>
 pub fn nika_mcp::session::StdioSession::unconfined_note(&self) -> core::option::Option<alloc::string::String>
 #[non_exhaustive] pub enum nika_mcp::McpError

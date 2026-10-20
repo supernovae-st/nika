@@ -195,6 +195,9 @@ pub(super) const TRIGGER_PREFIXES: &[&str] = &[
     "dès qu'",
     "tous les ",
     "toutes les ",
+    // As people often type « tous les » and « toutes les »; the singular is no prefix.
+    "tout les ",
+    "toute les ",
     "chaque fois ",
     "chaque ",
     "après ",

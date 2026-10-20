@@ -19,7 +19,7 @@ use nika_fs::OwnedDir;
 use nix::fcntl::{Flock, FlockArg};
 
 pub use nika_cadence::ledger::{
-    Claim, DecisionKind as FireKind, ExecutionLink, HistoryEntry, LastRecord, Receipt,
+    Claim, Decision, DecisionKind as FireKind, ExecutionLink, HistoryEntry, LastRecord, Receipt,
     RecordOutcome, Unsettled,
 };
 

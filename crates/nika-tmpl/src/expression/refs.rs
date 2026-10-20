@@ -198,6 +198,7 @@ fn classify_root(root: &str, path: &[String]) -> NamespaceRef {
             field: path.get(1).cloned(),
         },
         "group" => NamespaceRef::Group(first.unwrap_or_default()),
+        "run" => NamespaceRef::Run(first.unwrap_or_default()),
         "item" => NamespaceRef::Item,
         "index" => NamespaceRef::Index,
         other => NamespaceRef::Unknown(other.to_owned()),
@@ -211,6 +212,26 @@ mod tests {
 
     fn refs(src: &str) -> Vec<NamespaceRef> {
         expr_refs(&parse_expression(src).expect("parse"))
+    }
+
+    #[test]
+    fn classify_the_facts_of_the_run() {
+        assert_eq!(
+            refs("run.scheduled_for"),
+            vec![NamespaceRef::Run("scheduled_for".into())]
+        );
+        assert_eq!(
+            refs("run.missed.count"),
+            vec![NamespaceRef::Run("missed".into())]
+        );
+        assert_eq!(
+            refs("run.missed == null"),
+            vec![NamespaceRef::Run("missed".into())]
+        );
+        assert_eq!(
+            refs("run.started"),
+            vec![NamespaceRef::Run("started".into())]
+        );
     }
 
     #[test]

@@ -56,6 +56,62 @@ fn a_trial_says_what_it_ran_on_and_what_it_did_not_run() {
     assert_eq!(lines.len(), 2, "{lines:?}");
 }
 
+/// The steps that read one the trial does not run are named after it, in the workflow's order:
+/// they are not tried either (live gauntlet r04 B1, 2026-10-17).
+#[test]
+fn a_trial_names_the_steps_behind_one_it_does_not_run() {
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    let shaped = digest().replace(
+        "  post:\n",
+        "  shape:\n    with: { text: \"${{ tasks.summarize.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ with.text }}\", expression: \".\" } }\n  post:\n",
+    );
+    let shaped = shaped.replace(
+        "tools: [\"nika:fetch\"]",
+        "tools: [\"nika:fetch\", \"nika:jq\"]",
+    );
+    let (root, mut held) = (std::env::temp_dir(), Observed::new());
+    let trial = prepare(&shaped, "x", (root, None), &mut held, &serving(&asked));
+    let lines: Vec<&str> = trial.words.lines().collect();
+    assert_eq!(
+        lines.get(2),
+        Some(&"nor what reads them: shape"),
+        "{lines:?}"
+    );
+}
+
+/// A file a step behind one the trial does not run writes is named: what the trial reads back of
+/// it is never what a run writes (live gauntlet wave 6 r07 B2, 2026-10-18: « _Aucun article…_ »
+/// read back as the result, the model steps not run).
+#[test]
+fn a_trial_says_a_read_back_behind_an_unrun_step_is_no_result() {
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    let saved = digest().replace(
+        "  post:\n",
+        "  save:\n    with: { text: \"${{ tasks.summarize.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"./out/digest.md\", content: \"${{ with.text }}\" } }\n  post:\n",
+    );
+    let saved = saved.replace(
+        "tools: [\"nika:fetch\"]",
+        "tools: [\"nika:fetch\", \"nika:write\"]",
+    );
+    let (root, mut held) = (std::env::temp_dir(), Observed::new());
+    let trial = prepare(&saved, "x", (root, None), &mut held, &serving(&asked));
+    let said = "what it read back of `./out/digest.md` comes from steps it did not run: never what a run writes";
+    assert!(
+        trial.words.lines().any(|line| line == said),
+        "{}",
+        trial.words
+    );
+    // A trial with no write behind an unrun step says nothing of the kind.
+    let plain = prepare(
+        &digest(),
+        "x",
+        (std::env::temp_dir(), None),
+        &mut held,
+        &serving(&asked),
+    );
+    assert!(!plain.words.contains("read back of"), "{}", plain.words);
+}
+
 #[test]
 fn a_source_is_observed_once_per_conversation() {
     let asked = Arc::new(Mutex::new(Vec::new()));

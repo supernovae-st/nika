@@ -56,6 +56,18 @@ pub fn find_provider(name: &str) -> Option<&'static crate::types::Provider> {
     ALL_PROVIDERS.get(idx)
 }
 
+/// The sourced facts (schema `@1.2`) of `provider`'s wire `model`: where its
+/// limits were read and any published retirement floor. `provider` is an id
+/// or alias; `None` when the catalogue carries no fact for that wire.
+#[cfg(feature = "providers")]
+#[must_use]
+pub fn model_facts(provider: &str, model: &str) -> Option<&'static crate::types::ModelFacts> {
+    let canonical = find_provider(provider)?.id;
+    MODEL_FACTS
+        .iter()
+        .find(|facts| facts.provider == canonical && facts.model == model)
+}
+
 /// Case-insensitive embedding lookup by canonical id. Returns `None` when unknown.
 #[cfg(feature = "embeddings")]
 #[must_use]

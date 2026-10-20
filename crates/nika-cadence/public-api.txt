@@ -143,6 +143,7 @@ impl<T> typenum::type_operators::Same for nika_cadence::due::DueKind
 pub type nika_cadence::due::DueKind::Output = T
 #[non_exhaustive] pub struct nika_cadence::due::Due<'a>
 pub nika_cadence::due::Due::beat: &'a nika_cadence::registry::Beat
+pub nika_cadence::due::Due::first: core::option::Option<nika_cadence::next::Slot>
 pub nika_cadence::due::Due::index: usize
 pub nika_cadence::due::Due::kind: nika_cadence::due::DueKind
 pub nika_cadence::due::Due::slot: nika_cadence::next::Slot
@@ -337,9 +338,12 @@ pub nika_cadence::emit::EmitCtx::log_dir: std::path::PathBuf
 pub nika_cadence::emit::EmitCtx::machine_tz: alloc::string::String
 pub nika_cadence::emit::EmitCtx::nika_bin: std::path::PathBuf
 pub nika_cadence::emit::EmitCtx::project_file: std::path::PathBuf
+pub nika_cadence::emit::EmitCtx::project_key: alloc::string::String
 pub nika_cadence::emit::EmitCtx::project_root: std::path::PathBuf
+pub nika_cadence::emit::EmitCtx::rendered_at: core::option::Option<jiff::timestamp::Timestamp>
 impl nika_cadence::emit::EmitCtx
-pub fn nika_cadence::emit::EmitCtx::new(nika_bin: std::path::PathBuf, project_root: std::path::PathBuf, project_file: std::path::PathBuf, env_file: core::option::Option<std::path::PathBuf>, log_dir: std::path::PathBuf, machine_tz: alloc::string::String) -> Self
+pub fn nika_cadence::emit::EmitCtx::at(self, now: jiff::timestamp::Timestamp) -> Self
+pub fn nika_cadence::emit::EmitCtx::new(nika_bin: std::path::PathBuf, project_root: std::path::PathBuf, project_file: std::path::PathBuf, project_key: alloc::string::String, env_file: core::option::Option<std::path::PathBuf>, log_dir: std::path::PathBuf, machine_tz: alloc::string::String) -> Self
 impl core::clone::Clone for nika_cadence::emit::EmitCtx
 pub fn nika_cadence::emit::EmitCtx::clone(&self) -> nika_cadence::emit::EmitCtx
 impl core::fmt::Debug for nika_cadence::emit::EmitCtx
@@ -415,9 +419,20 @@ impl<T> typenum::type_operators::Same for nika_cadence::emit::Unit
 pub type nika_cadence::emit::Unit::Output = T
 pub const nika_cadence::emit::GENERATED_MARK: &str
 pub const nika_cadence::emit::MAX_INTERVALS: usize
+pub const nika_cadence::emit::PROJECT_KEY_LEN: usize
+pub const nika_cadence::emit::UNIT_REV_LEN: usize
+pub fn nika_cadence::emit::beat_unit(project_key: &str, label: &str) -> alloc::string::String
+pub fn nika_cadence::emit::beat_unit_files(target: nika_cadence::emit::Target, unit: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_cadence::emit::env_file_named_in_unit(body: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_cadence::emit::generated_source(body: &str) -> core::option::Option<&str>
 pub fn nika_cadence::emit::labels(reg: &nika_cadence::registry::ArmRegistry) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_cadence::emit::legacy_beat_unit(label: &str) -> alloc::string::String
+pub fn nika_cadence::emit::project_key(root_fingerprint: &str) -> alloc::string::String
 pub fn nika_cadence::emit::render(reg: &nika_cadence::registry::ArmRegistry, ctx: &nika_cadence::emit::EmitCtx, target: nika_cadence::emit::Target, mode: nika_cadence::emit::Mode) -> core::result::Result<alloc::vec::Vec<nika_cadence::emit::Unit>, nika_cadence::emit::EmitRefusal>
+pub fn nika_cadence::emit::render_beat(reg: &nika_cadence::registry::ArmRegistry, ctx: &nika_cadence::emit::EmitCtx, target: nika_cadence::emit::Target, label: &str) -> core::result::Result<alloc::vec::Vec<nika_cadence::emit::Unit>, nika_cadence::emit::EmitRefusal>
+pub fn nika_cadence::emit::revision_in_unit(body: &str) -> core::option::Option<&str>
+pub fn nika_cadence::emit::serve_unit(project_key: &str) -> alloc::string::String
+pub fn nika_cadence::emit::unit_revision(expression: &str, target: nika_cadence::emit::Target, machine_tz: &str) -> alloc::string::String
 pub mod nika_cadence::error
 #[non_exhaustive] pub enum nika_cadence::error::CadenceErrorKind
 pub nika_cadence::error::CadenceErrorKind::ApresSautMisplaced
@@ -1074,6 +1089,52 @@ impl<T> nika_error::traits::AsAny for nika_cadence::ledger::Claim where T: 'stat
 pub fn nika_cadence::ledger::Claim::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_cadence::ledger::Claim
 pub type nika_cadence::ledger::Claim::Output = T
+#[non_exhaustive] pub struct nika_cadence::ledger::Decision
+pub nika_cadence::ledger::Decision::decided_at: core::option::Option<jiff::timestamp::Timestamp>
+pub nika_cadence::ledger::Decision::kind: nika_cadence::ledger::DecisionKind
+pub nika_cadence::ledger::Decision::reason: core::option::Option<alloc::string::String>
+pub nika_cadence::ledger::Decision::slots: core::option::Option<u32>
+impl nika_cadence::ledger::Decision
+pub const fn nika_cadence::ledger::Decision::new(kind: nika_cadence::ledger::DecisionKind) -> Self
+impl core::clone::Clone for nika_cadence::ledger::Decision
+pub fn nika_cadence::ledger::Decision::clone(&self) -> nika_cadence::ledger::Decision
+impl core::cmp::Eq for nika_cadence::ledger::Decision
+impl core::cmp::PartialEq for nika_cadence::ledger::Decision
+pub fn nika_cadence::ledger::Decision::eq(&self, other: &nika_cadence::ledger::Decision) -> bool
+impl core::fmt::Debug for nika_cadence::ledger::Decision
+pub fn nika_cadence::ledger::Decision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::ledger::Decision
+impl<D> owo_colors::OwoColorize for nika_cadence::ledger::Decision
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::ledger::Decision where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::Decision::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::ledger::Decision where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::Decision::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::Decision where U: core::convert::From<T>
+pub fn nika_cadence::ledger::Decision::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::Decision where U: core::convert::Into<T>
+pub type nika_cadence::ledger::Decision::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::Decision::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::Decision where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::Decision::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::Decision::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::Decision where T: core::clone::Clone
+pub type nika_cadence::ledger::Decision::Owned = T
+pub fn nika_cadence::ledger::Decision::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::Decision::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::Decision where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::Decision::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::Decision where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::Decision::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::Decision where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::Decision::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::Decision where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::Decision::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::Decision
+pub fn nika_cadence::ledger::Decision::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cadence::ledger::Decision where T: 'static
+pub fn nika_cadence::ledger::Decision::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::Decision
+pub type nika_cadence::ledger::Decision::Output = T
 #[non_exhaustive] pub struct nika_cadence::ledger::ExecutionLink
 impl nika_cadence::ExecutionLink
 pub fn nika_cadence::ExecutionLink::execution_id(&self) -> &str
@@ -1346,6 +1407,7 @@ pub fn nika_cadence::ledger::chain_anchor_matches(text: &str, anchor: core::opti
 pub fn nika_cadence::ledger::claim_payload(claim: &nika_cadence::ledger::Claim, seq: u64) -> core::option::Option<alloc::string::String>
 pub fn nika_cadence::ledger::classify_journal(text: &str) -> core::option::Option<nika_cadence::ledger::JournalFormat>
 pub fn nika_cadence::ledger::decision_payload(entry: &nika_cadence::ledger::HistoryEntry) -> alloc::string::String
+pub fn nika_cadence::ledger::decisions<'a>(journals: impl core::iter::traits::collect::IntoIterator<Item = (&'a str, bool)>) -> core::option::Option<alloc::vec::Vec<nika_cadence::ledger::Decision>>
 pub fn nika_cadence::ledger::first_line_is_versioned(text: &str) -> bool
 pub fn nika_cadence::ledger::journal_snapshot_matches(anchor: core::option::Option<&str>, journals: &[(&str, &str, bool)]) -> bool
 pub fn nika_cadence::ledger::json_str(raw: &str) -> alloc::string::String
@@ -1609,8 +1671,12 @@ impl<T> typenum::type_operators::Same for nika_cadence::registry::Locus
 pub type nika_cadence::registry::Locus::Output = T
 #[non_exhaustive] pub enum nika_cadence::registry::MissPolicy
 pub nika_cadence::registry::MissPolicy::Rattraper
+pub nika_cadence::registry::MissPolicy::RattraperDerniers(core::num::nonzero::NonZeroU32)
 pub nika_cadence::registry::MissPolicy::RattraperUneFois
 pub nika_cadence::registry::MissPolicy::Sauter
+impl nika_cadence::registry::MissPolicy
+pub const fn nika_cadence::registry::MissPolicy::latest_owed(self) -> core::option::Option<core::num::nonzero::NonZeroU32>
+pub const fn nika_cadence::registry::MissPolicy::rattraper(latest: core::num::nonzero::NonZeroU32) -> Self
 impl core::clone::Clone for nika_cadence::registry::MissPolicy
 pub fn nika_cadence::registry::MissPolicy::clone(&self) -> nika_cadence::registry::MissPolicy
 impl core::cmp::Eq for nika_cadence::registry::MissPolicy
@@ -1621,7 +1687,7 @@ pub fn nika_cadence::registry::MissPolicy::fmt(&self, f: &mut core::fmt::Formatt
 impl core::marker::Copy for nika_cadence::registry::MissPolicy
 impl core::marker::StructuralPartialEq for nika_cadence::registry::MissPolicy
 impl<'de> serde_core::de::Deserialize<'de> for nika_cadence::registry::MissPolicy
-pub fn nika_cadence::registry::MissPolicy::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+pub fn nika_cadence::registry::MissPolicy::deserialize<D: serde_core::de::Deserializer<'de>>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error>
 impl<D> owo_colors::OwoColorize for nika_cadence::registry::MissPolicy
 impl<Q, K> equivalent::Equivalent<K> for nika_cadence::registry::MissPolicy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cadence::registry::MissPolicy::equivalent(&self, key: &K) -> bool
@@ -2443,6 +2509,7 @@ pub fn nika_cadence::schedule_plan::SchedulePlan::next_slots(&self) -> impl core
 pub const fn nika_cadence::schedule_plan::SchedulePlan::overlap(&self) -> nika_cadence::registry::Overlap
 pub const fn nika_cadence::schedule_plan::SchedulePlan::projection(&self) -> &nika_cadence::schedule_plan::ScheduleProjection
 pub const fn nika_cadence::schedule_plan::SchedulePlan::revision(&self) -> &nika_cadence::schedule::ScheduleRevision
+pub fn nika_cadence::schedule_plan::SchedulePlan::silence(&self) -> core::option::Option<(jiff::timestamp::Timestamp, u32)>
 impl core::clone::Clone for nika_cadence::schedule_plan::SchedulePlan
 pub fn nika_cadence::schedule_plan::SchedulePlan::clone(&self) -> nika_cadence::schedule_plan::SchedulePlan
 impl core::cmp::Eq for nika_cadence::schedule_plan::SchedulePlan
@@ -2627,6 +2694,7 @@ impl<T> typenum::type_operators::Same for nika_cadence::tick::ScheduleDecision
 pub type nika_cadence::tick::ScheduleDecision::Output = T
 #[non_exhaustive] pub enum nika_cadence::tick::TickDecision
 pub nika_cadence::tick::TickDecision::Fire
+pub nika_cadence::tick::TickDecision::Fire::first: core::option::Option<jiff::zoned::Zoned>
 pub nika_cadence::tick::TickDecision::Fire::slot: jiff::zoned::Zoned
 pub nika_cadence::tick::TickDecision::Fire::slots: core::option::Option<u32>
 pub nika_cadence::tick::TickDecision::Refuse
@@ -2671,6 +2739,7 @@ pub fn nika_cadence::tick::TickDecision::as_any(&self) -> &(dyn core::any::Any +
 impl<T> typenum::type_operators::Same for nika_cadence::tick::TickDecision
 pub type nika_cadence::tick::TickDecision::Output = T
 pub fn nika_cadence::tick::expiry_passed(beat: &nika_cadence::registry::Beat, now: &jiff::zoned::Zoned) -> core::option::Option<alloc::string::String>
+pub fn nika_cadence::tick::suspension_over(beat: &nika_cadence::registry::Beat, now: &jiff::zoned::Zoned) -> bool
 pub fn nika_cadence::tick::tick_decision(registry: &nika_cadence::registry::ArmRegistry, index: usize, label: &str, now: &jiff::zoned::Zoned, last: core::option::Option<&jiff::zoned::Zoned>) -> nika_cadence::tick::TickDecision
 pub fn nika_cadence::tick::v0_unsupported(beat: &nika_cadence::registry::Beat) -> core::option::Option<(&'static str, &'static str)>
 #[non_exhaustive] pub enum nika_cadence::AfterSkip
@@ -3148,8 +3217,12 @@ impl<T> typenum::type_operators::Same for nika_cadence::registry::Locus
 pub type nika_cadence::registry::Locus::Output = T
 #[non_exhaustive] pub enum nika_cadence::MissPolicy
 pub nika_cadence::MissPolicy::Rattraper
+pub nika_cadence::MissPolicy::RattraperDerniers(core::num::nonzero::NonZeroU32)
 pub nika_cadence::MissPolicy::RattraperUneFois
 pub nika_cadence::MissPolicy::Sauter
+impl nika_cadence::registry::MissPolicy
+pub const fn nika_cadence::registry::MissPolicy::latest_owed(self) -> core::option::Option<core::num::nonzero::NonZeroU32>
+pub const fn nika_cadence::registry::MissPolicy::rattraper(latest: core::num::nonzero::NonZeroU32) -> Self
 impl core::clone::Clone for nika_cadence::registry::MissPolicy
 pub fn nika_cadence::registry::MissPolicy::clone(&self) -> nika_cadence::registry::MissPolicy
 impl core::cmp::Eq for nika_cadence::registry::MissPolicy
@@ -3160,7 +3233,7 @@ pub fn nika_cadence::registry::MissPolicy::fmt(&self, f: &mut core::fmt::Formatt
 impl core::marker::Copy for nika_cadence::registry::MissPolicy
 impl core::marker::StructuralPartialEq for nika_cadence::registry::MissPolicy
 impl<'de> serde_core::de::Deserialize<'de> for nika_cadence::registry::MissPolicy
-pub fn nika_cadence::registry::MissPolicy::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+pub fn nika_cadence::registry::MissPolicy::deserialize<D: serde_core::de::Deserializer<'de>>(deserializer: D) -> core::result::Result<Self, <D as serde_core::de::Deserializer>::Error>
 impl<D> owo_colors::OwoColorize for nika_cadence::registry::MissPolicy
 impl<Q, K> equivalent::Equivalent<K> for nika_cadence::registry::MissPolicy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cadence::registry::MissPolicy::equivalent(&self, key: &K) -> bool
@@ -3746,6 +3819,7 @@ impl<T> typenum::type_operators::Same for nika_cadence::firing::SkipReason
 pub type nika_cadence::firing::SkipReason::Output = T
 #[non_exhaustive] pub enum nika_cadence::TickDecision
 pub nika_cadence::TickDecision::Fire
+pub nika_cadence::TickDecision::Fire::first: core::option::Option<jiff::zoned::Zoned>
 pub nika_cadence::TickDecision::Fire::slot: jiff::zoned::Zoned
 pub nika_cadence::TickDecision::Fire::slots: core::option::Option<u32>
 pub nika_cadence::TickDecision::Refuse
@@ -4059,6 +4133,7 @@ impl<T> typenum::type_operators::Same for nika_cadence::cron::CronSpec
 pub type nika_cadence::cron::CronSpec::Output = T
 #[non_exhaustive] pub struct nika_cadence::Due<'a>
 pub nika_cadence::Due::beat: &'a nika_cadence::registry::Beat
+pub nika_cadence::Due::first: core::option::Option<nika_cadence::next::Slot>
 pub nika_cadence::Due::index: usize
 pub nika_cadence::Due::kind: nika_cadence::due::DueKind
 pub nika_cadence::Due::slot: nika_cadence::next::Slot
@@ -4657,6 +4732,7 @@ pub fn nika_cadence::schedule_plan::SchedulePlan::next_slots(&self) -> impl core
 pub const fn nika_cadence::schedule_plan::SchedulePlan::overlap(&self) -> nika_cadence::registry::Overlap
 pub const fn nika_cadence::schedule_plan::SchedulePlan::projection(&self) -> &nika_cadence::schedule_plan::ScheduleProjection
 pub const fn nika_cadence::schedule_plan::SchedulePlan::revision(&self) -> &nika_cadence::schedule::ScheduleRevision
+pub fn nika_cadence::schedule_plan::SchedulePlan::silence(&self) -> core::option::Option<(jiff::timestamp::Timestamp, u32)>
 impl core::clone::Clone for nika_cadence::schedule_plan::SchedulePlan
 pub fn nika_cadence::schedule_plan::SchedulePlan::clone(&self) -> nika_cadence::schedule_plan::SchedulePlan
 impl core::cmp::Eq for nika_cadence::schedule_plan::SchedulePlan

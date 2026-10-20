@@ -26,16 +26,36 @@
 //! that drives the Session and writes a report; the parent holds the peer and judges the report
 //! against the requests the peer received.
 
+#[path = "open_ux_journeys/byte_change_journeys.rs"]
+mod byte_change_journeys;
 #[path = "open_ux_journeys/child.rs"]
 mod child;
+#[path = "open_ux_journeys/dropped_question_journeys.rs"]
+mod dropped_question_journeys;
+#[path = "open_ux_journeys/failing_check_journeys.rs"]
+mod failing_check_journeys;
+#[path = "open_ux_journeys/feedback_journeys.rs"]
+mod feedback_journeys;
 #[path = "open_ux_journeys/fragments.rs"]
 mod fragments;
+#[path = "open_ux_journeys/kept_default_journeys.rs"]
+mod kept_default_journeys;
 #[path = "open_ux_journeys/peer.rs"]
 mod peer;
+#[path = "open_ux_journeys/proposal_choices.rs"]
+mod proposal_choices;
+#[path = "open_ux_journeys/requested_file_journeys.rs"]
+mod requested_file_journeys;
+#[path = "open_ux_journeys/run_ceiling_journeys.rs"]
+mod run_ceiling_journeys;
 #[path = "open_ux_journeys/scenarios.rs"]
 mod scenarios;
 #[path = "open_ux_journeys/schedule_journeys.rs"]
 mod schedule_journeys;
+#[path = "open_ux_journeys/session_fact_journeys.rs"]
+mod session_fact_journeys;
+#[path = "open_ux_journeys/two_output_journeys.rs"]
+mod two_output_journeys;
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -44,10 +64,10 @@ use std::time::{Duration, Instant};
 
 use peer::{Kind, Peer, Seen};
 use scenarios::{
-    ACCEPT, ALGOLIA, ALREADY, CODE, CODE_REQUEST, DEFLECT, DELEGATION, DIGEST, EMPTY, FOLLOWED,
-    HACKER_NEWS, LE_MONDE, LE_MONDE_WORDS, OUTPUT_WORDS, RENAMED, REPAIRING, REQUEST, SAVE_AND_RUN,
-    STEER_B, STEERED, STILL_HERE, STILL_THERE, TEAM_HOOK, TECHCRUNCH, THEN_C, THEN_STOP, TRIED_ON,
-    UNRESOLVED, WHY, YC_BLOG, scenario,
+    ACCEPT, ALGOLIA, ALREADY, CODE, CODE_REQUEST, DEFLECT, DELEGATION, DIGEST, EMPTY,
+    FIX_AFTER_DISCARD, FOLLOWED, HACKER_NEWS, LE_MONDE, LE_MONDE_WORDS, OUTPUT_WORDS, RENAMED,
+    REPAIRING, REQUEST, SAVE_AND_RUN, STEER_B, STEERED, STILL_HERE, STILL_THERE, TEAM_HOOK,
+    TECHCRUNCH, THEN_C, THEN_STOP, TRIED_ON, UNRESOLVED, WHY, YC_BLOG, scenario,
 };
 use serde_json::{Value, json};
 
@@ -345,6 +365,107 @@ fn accepting_the_current_offer_binds_its_values_never_the_word_yes() {
         ),
         "{again:#}"
     );
+}
+
+/// `/meaning` beside a proposal an intelligence wrote reads what the Session kept of the
+/// request, in the person's French: their words, each value the candidate binds with its part
+/// and origin. It never shows the money card in its place (live gauntlet r08, 2026-10-16), asks
+/// no model and leaves the proposal waiting for its consent.
+#[test]
+fn meaning_beside_an_authored_proposal_reads_the_request_and_its_values() {
+    let journey = run("meaning_of_a_proposal");
+    let said = journey.step(2);
+    let text = said["outcome"]["text"].as_str().unwrap_or_default();
+    assert!(
+        text.contains("Ce que j'ai retenu de votre demande"),
+        "{said:#}"
+    );
+    assert!(
+        text.contains(REQUEST),
+        "the request in the person's words: {text}"
+    );
+    for value in [HACKER_NEWS, TECHCRUNCH, DIGEST] {
+        let row = (text.lines()).find(|line| line.contains(value));
+        let row = row.unwrap_or_else(|| panic!("{value} is listed: {text}"));
+        assert!(
+            row.contains("de la proposition que vous avez acceptée"),
+            "{value} comes from the accepted proposal: {row}"
+        );
+    }
+    assert!(!text.contains("money:"), "never the money card: {text}");
+    assert_eq!(
+        waiting(said),
+        "consent",
+        "the proposal still waits: {said:#}"
+    );
+    assert!(
+        !reached_the_author(&journey, "/meaning"),
+        "the Session answers from its own records"
+    );
+}
+
+/// A revision discarded over a saved workflow is gone: the author's next turn is told so, its
+/// candidate is the saved workflow as it stands, and no second workflow ever appears (live
+/// gauntlet r08, 2026-10-16: the discarded draft came back under another name).
+#[test]
+fn a_discarded_revision_leaves_the_saved_workflow_to_revise() {
+    let journey = run("discard_then_fix");
+    let saved = work(journey.step(2))["saved"]["workflow"]
+        .as_str()
+        .expect("the accepted digest was saved")
+        .to_owned();
+    let discarded = journey.step(4);
+    assert_eq!(outcome_kind(discarded), "facts", "{discarded:#}");
+    assert!(
+        step_text(discarded).contains("écarté · rien n'a été écrit"),
+        "said in French: {discarded:#}"
+    );
+    let fix = (journey.agent.iter().rev())
+        .find(|seen| seen.text().contains(FIX_AFTER_DISCARD))
+        .expect("the fix reached the author");
+    let text = fix.text();
+    assert!(
+        text.contains("The person discarded the proposal of revision"),
+        "the author learns of the discard: {text}"
+    );
+    assert!(
+        text.contains("the saved workflow, as it stands"),
+        "the candidate it reads is the saved workflow: {text}"
+    );
+    let files = journey.report["files"].as_array().unwrap();
+    let workflows: Vec<&str> = (files.iter())
+        .filter_map(Value::as_str)
+        .filter(|f| is_workflow(f))
+        .collect();
+    assert_eq!(
+        workflows,
+        [saved.as_str()],
+        "one workflow, the saved one: {files:?}"
+    );
+}
+
+/// A proposal of the saved workflow's very bytes leaves nothing to decide: the person reads that
+/// nothing changed and how to run it, no proposal waits, and nothing is written again (NIK-196:
+/// the saved workflow came back with Save, Save and run once, and Discard).
+#[test]
+fn a_proposal_of_the_saved_bytes_is_said_unchanged_never_decided() {
+    let journey = run("saved_bytes_again");
+    let saved = work(journey.step(2))["saved"]["workflow"]
+        .as_str()
+        .expect("the accepted digest was saved")
+        .to_owned();
+    let again = journey.step(3);
+    assert_eq!(outcome_kind(again), "facts", "{again:#}");
+    let text = step_text(again);
+    assert!(
+        text.contains(&format!(
+            "Rien n'a changé : `{saved}` est enregistré tel quel"
+        )),
+        "{text}"
+    );
+    assert!(text.contains("« lance-le »"), "the next gesture: {text}");
+    assert_ne!(waiting(again), "consent", "nothing to decide: {again:#}");
+    assert!(work(again)["candidate"].is_null(), "no proposal: {again:#}");
 }
 
 #[test]
@@ -946,7 +1067,7 @@ fn a_source_is_replaced_only_by_words_that_name_it_and_the_change_is_said() {
     let swapped = journey.step(3);
     assert_eq!(outcome_kind(swapped), "proposal", "{swapped:#}");
     let changed = format!(
-        "Changed from the proposal you saw: source `{HACKER_NEWS}` replaced by `{ALGOLIA}`"
+        "Changé depuis la proposition vue : source `{HACKER_NEWS}` replaced by `{ALGOLIA}`"
     );
     assert!(said(swapped).contains(&changed), "{}", said(swapped));
 }
@@ -958,13 +1079,15 @@ fn a_folder_line_at_a_proposal_is_never_money_input() {
     let journey = run("folder_line");
     let moved = journey.step(2);
     assert_eq!(outcome_kind(moved), "proposal", "{moved:#}");
-    assert!(!said(moved).contains("monetary input"), "{}", said(moved));
-    let request = format!("request: «{REQUEST}»");
+    // Said in the person's French (live gauntlet wave 6).
+    assert!(!said(moved).contains("montant indiqué"), "{}", said(moved));
+    let request = format!("demande : «{REQUEST}»");
     assert!(said(moved).contains(&request), "{}", said(moved));
 }
 
-/// A failed Run goes back to its author at once with the run's facts; the
-/// repaired revision never runs on the words that ran the failed one, and runs on new words.
+/// A failed Run goes back to its author at once with the run's facts, said in the person's
+/// language; the repaired revision never runs on the words that ran the failed one, and runs on
+/// new words.
 #[test]
 fn a_failed_run_is_repaired_and_runs_again_only_on_new_words() {
     let journey = run("failed_run_repaired");
@@ -973,7 +1096,7 @@ fn a_failed_run_is_repaired_and_runs_again_only_on_new_words() {
     assert_eq!(outcome_kind(repaired), "proposal", "{repaired:#}");
     let text = said(repaired);
     assert!(
-        text.starts_with("Failed · `") && text.contains("`summarize` failed"),
+        text.starts_with("Échoué · `") && text.contains("`summarize` a échoué"),
         "{text}"
     );
     assert!(text.contains("NIKA-INFER-001"), "{text}");
@@ -1009,7 +1132,7 @@ fn a_complaint_about_a_run_reaches_the_author_with_its_facts() {
         .expect("the complaint reached the author");
     let last = complaint.last();
     assert!(
-        last.contains("The last run the person asked for:") && last.contains("Done ·"),
+        last.contains("The last run the person asked for:") && last.contains("Terminé ·"),
         "{last}"
     );
     let again = journey.step(4);
@@ -1105,8 +1228,15 @@ fn a_trial_names_the_steps_it_did_not_run() {
     assert_eq!(step["outcome"]["kind"], "proposal", "{step}");
     let text = step["outcome"]["text"].as_str().unwrap();
     assert!(text.contains(TRIED_ON), "{text}");
-    let skipped = "not run: the model step (summarize) · a request other than GET (send) · any effect outside the room";
+    let skipped = "pas lancé : l'étape du modèle (summarize) · une requête autre que GET (send) · tout effet hors de la copie";
     assert!(text.contains(skipped), "{text}");
+    // The candidate a host draws says it in the same words (live gauntlet wave 6 r04 B6: the
+    // card read the proof's English lines beside a French preview).
+    let drawn = step["shown"]["rehearsed"].as_str().unwrap_or_default();
+    assert!(
+        drawn.contains(skipped) && !drawn.contains("not run:"),
+        "{drawn}"
+    );
 }
 
 /// An agent-led proposal that reads a project file is saved after the person's yes; its
@@ -1119,7 +1249,7 @@ fn an_agent_proposal_that_reads_a_project_file_is_saved_after_the_yes() {
     assert_ne!(yes["outcome"]["kind"], "refusal", "{yes}");
     let text = yes["outcome"]["text"].as_str().unwrap();
     assert!(
-        text.contains("the exact bytes it was shown over still hold for `./data/ventes.csv`"),
+        text.contains("les octets exacts montrés tiennent toujours pour `./data/ventes.csv`"),
         "{text}"
     );
     let files = journey.report["files"].as_array().unwrap();
@@ -1136,11 +1266,15 @@ fn a_file_changed_after_the_proposal_withdraws_it_at_the_yes() {
     let yes = journey.step(2);
     assert_eq!(yes["outcome"]["kind"], "refusal", "{yes}");
     let text = yes["outcome"]["text"].as_str().unwrap();
-    // The trial's proof judges first (the rehearsed world moved), else the read basis.
-    let moved = text.contains("the files this proposal was rehearsed on changed")
-        || text.contains("the files this proposal reads changed since it was shown");
+    // The trial's proof judges first (the rehearsed world moved), else the read basis, in the
+    // conversation's language.
+    let moved = text
+        .contains("les fichiers sur lesquels cette proposition a été répétée ont changé")
+        || text.contains(
+            "les fichiers que lit cette proposition ont changé depuis qu'elle a été montrée",
+        );
     assert!(
-        moved && text.contains("ventes.csv") && text.contains("withdrawn"),
+        moved && text.contains("ventes.csv") && text.contains("est retirée"),
         "{text}"
     );
     let files = journey.report["files"].as_array().unwrap();
@@ -1301,7 +1435,8 @@ fn judge_state(seen: &Seen) -> Option<Value> {
 
 /// The person's answer reaches the judge as theirs: a count over the customer code they typed is
 /// judged with that answer and their request as first stated, so the code is no invented literal
-/// and the candidate is proposed.
+/// and the candidate is proposed. The typed reply keeps its question: the judge reads the code they
+/// bound, the line as they typed it, where it stands in their words, and the question it answers.
 #[test]
 fn an_answered_literal_is_judged_as_the_persons_answer() {
     let journey = run("answered_literal");
@@ -1311,12 +1446,18 @@ fn an_answered_literal_is_judged_as_the_persons_answer() {
         .filter(|seen| seen.kind == Kind::Judge)
         .find_map(judge_state)
         .expect("the judge read a state");
-    let answer = state["answers"]["client_code"].as_str().unwrap_or_default();
+    let answer = &state["answers"]["client_code"];
     assert_eq!(
-        answer.trim_matches('"'),
-        CODE,
-        "the answer as the person gave it"
+        answer["bound_values"], CODE,
+        "the answer as the person gave it: {answer:#}"
     );
+    let binding = json!({"key": "client_code", "role": "value", "value": CODE,
+        "provenance": {"kind": "answered", "message": "u2", "excerpt": CODE}});
+    assert_eq!(answer["bindings"], json!([binding]), "{answer:#}");
+    let context = json!({"question_key": "client_code", "question": "Quel est ton code client ?",
+        "human_citation": "u2", "human_lines": [1, 2], "human_reply": CODE, "role": "value",
+        "selected_options": []});
+    assert_eq!(answer["choice_context"], context, "{answer:#}");
     assert_eq!(
         state["original_request"], CODE_REQUEST,
         "the request as first stated"
@@ -1432,6 +1573,49 @@ fn the_instructions_teach_the_language_forms() {
     let after = &tools["$defs"]["question"]["properties"]["after"];
     let said = after["description"].as_str().unwrap_or_default();
     assert!(said.contains("question keys"), "{after:#}");
+}
+
+/// Choices are shaped for picking: native options among known alternatives (two to seven,
+/// `multi_select` when several apply), a source labelled with its name then its address,
+/// and exactly one recommended default in `open`. The assumptions-first rules stay whole: a
+/// default is never asked, and `ask` recommends nothing.
+#[test]
+fn the_instructions_shape_choices_for_picking_and_keep_assumptions_first() {
+    let text = include_str!("../assets/author_system.md");
+    for taught in [
+        "two to seven native `options`",
+        "`multi_select: true` when several may apply",
+        "« TechCrunch · techcrunch.com/feed »",
+        "the choice goes in `open` with exactly one recommended option",
+        "a question asked with `ask` recommends none",
+        // The assumptions-first policy, unchanged.
+        "You can recommend a value for it, as for most choices",
+        "Ask, with `ask` and no recommended option, only what no default can stand for",
+        "Nika refuses a question that recommends an option",
+    ] {
+        assert!(text.contains(taught), "missing: {taught}");
+    }
+    let tools: Value = serde_json::from_str(include_str!("../assets/author_tools.json")).unwrap();
+    let ask = (tools["tools"].as_array().unwrap().iter())
+        .find(|tool| tool["name"] == "ask")
+        .unwrap();
+    let said = ask["description"].as_str().unwrap();
+    for taught in [
+        "A question carries no recommended option",
+        "two to seven native options",
+        "(TechCrunch · techcrunch.com/feed)",
+    ] {
+        assert!(said.contains(taught), "ask misses {taught}: {said}");
+    }
+    let label = &tools["$defs"]["question"]["properties"]["options"]["items"]["properties"]["label"]
+        ["description"];
+    assert!(
+        label
+            .as_str()
+            .unwrap_or_default()
+            .contains("domain or feed address"),
+        "{label}"
+    );
 }
 
 /// An edit after a refused write names that refusal and its reason and asks for the whole

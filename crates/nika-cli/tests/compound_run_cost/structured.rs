@@ -190,7 +190,7 @@ fn grounded_declined_or_stale_source_and_read_bytes_do_not_dispatch() {
                 ("input.txt", "changed source bytes".into())
             };
             std::fs::write(root.path().join(path), bytes).unwrap();
-            p.send("yes\r").unwrap();
+            p.send(RUN_ONCE).unwrap();
             p.expect("changed").unwrap();
             p.expect("nika ›").unwrap();
         }

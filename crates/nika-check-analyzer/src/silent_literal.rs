@@ -130,7 +130,7 @@ fn reference_shaped(inner: &str) -> bool {
     let (head, tail) = inner.split_once('.').unwrap_or((inner, ""));
     let head_ok = matches!(
         head,
-        "inputs" | "const" | "secrets" | "with" | "tasks" | "item" | "index" | "group"
+        "inputs" | "const" | "secrets" | "with" | "tasks" | "item" | "index" | "group" | "run"
     );
     head_ok
         && tail
@@ -173,5 +173,9 @@ mod tests {
         assert_eq!(shell_sigil("$100 budget"), None);
         assert_eq!(shell_sigil("${{ inputs.x }}"), None);
         assert_eq!(shell_sigil("plain"), None);
+        assert_eq!(
+            mustache_refs("for {{ run.scheduled_for }}"),
+            ["run.scheduled_for"]
+        );
     }
 }

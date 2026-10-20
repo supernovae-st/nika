@@ -15,6 +15,8 @@
 use nika_display::activity_card::{ActivityCard, Ending, Update};
 use nika_session::ProposalId;
 
+use crate::visual::role::Depth;
+
 /// Where the session is drawn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -104,11 +106,23 @@ pub struct Committed {
     /// that document ([`Committed::question`]); never on a cost, Run or
     /// prose question, so a presenter ties words to a question by identity.
     question: Option<String>,
-    /// On a run's story, the label and settled state word of the run the
-    /// shell observed typed and whole when the story was committed: the
-    /// workspace folds it to one row (`Desk::folded`). Set once, at commit,
-    /// and never recomputed: a later block never folds or unfolds it.
-    pub(crate) run: Option<(String, &'static str)>,
+    /// On a run's story, the label and hex of the run the shell observed
+    /// typed, whole and settled when the story was committed: the workspace
+    /// folds it to one row (`Desk::folded`). Set once, at commit, and never
+    /// recomputed: a later block never folds or unfolds it.
+    pub(crate) run: Option<Fold>,
+}
+
+/// A run's story folded at its commit ([`Committed::run`]): the run's name, as
+/// its one row says it, and its execution's hex, the detail its whole story
+/// (`F2`) names it by. How the run ended is the Session's to say, beside it:
+/// a settlement says `succeeded` even when the person refused a gate.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Fold {
+    /// The run's name, by when it began (`run 10-17 07:04:30`).
+    pub(crate) label: String,
+    /// Its execution's first twelve hex digits, as its trace names it.
+    pub(crate) hex: Option<String>,
 }
 
 impl Committed {
@@ -169,6 +183,43 @@ pub struct Offer {
     pub key: String,
     /// What choosing it means, in the compiler's words.
     pub label: String,
+    /// Further facts read beside the label, quieter (a model's prices,
+    /// context window and marks); empty for most offers. Never sent.
+    pub(crate) note: String,
+    /// How the row stands in a settings list: a choice always shown, one listed only while
+    /// the list's filter finds it (a model reachable from every connection by its name), or
+    /// a move within the list its title never counts among the choices.
+    pub(crate) listing: Listing,
+    /// The author recommends it ([`Offer::recommended`]): a question opens
+    /// with it selected (checked, in a multiple choice), and leaving the
+    /// choice to Nika takes it. Presentation only: nothing is sent until
+    /// `Enter`.
+    pub(crate) recommended: bool,
+    /// It stands alone in a multiple choice (« Nothing to change », « Later »): checking it
+    /// clears the others, and checking another clears it. Presentation only: the Session
+    /// refuses a set that mixes them all the same.
+    pub(crate) exclusive: bool,
+    /// The words of the provider and access it is reached through (`xai xAI API`), on a
+    /// settings list's model and connection rows: a filter finds rows by these words first and
+    /// keeps each provider's rows together. Presentation only.
+    pub(crate) group: Option<String>,
+    /// On a settings list, the value in use now ([`Offer::in_use`]): its radio is filled
+    /// wherever the cursor stands, and the cursor alone says where `Enter` goes. Presentation
+    /// only.
+    pub(crate) current: bool,
+}
+
+/// How a row stands in a settings list. Presentation only: its key is unchanged.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum Listing {
+    /// A choice, always shown.
+    #[default]
+    Choice,
+    /// A choice listed only while the list's filter finds it ([`Offer::found_only`]).
+    Found,
+    /// A move within the list (to older models, a key check, every connection), shown and
+    /// never counted among its choices ([`Offer::aside`]).
+    Aside,
 }
 
 impl Offer {
@@ -178,7 +229,81 @@ impl Offer {
         Self {
             key: key.into(),
             label: label.into(),
+            note: String::new(),
+            listing: Listing::Choice,
+            recommended: false,
+            exclusive: false,
+            group: None,
+            current: false,
         }
+    }
+
+    /// The same offer, a row that moves within the list rather than choosing: the
+    /// title's count of the list leaves it out, so the count is the choices'.
+    #[must_use]
+    pub(crate) fn aside(mut self) -> Self {
+        self.listing = Listing::Aside;
+        self
+    }
+
+    /// Whether the row moves within the list rather than choosing ([`Self::aside`]).
+    pub(crate) fn is_aside(&self) -> bool {
+        self.listing == Listing::Aside
+    }
+
+    /// Whether the row is listed only while the list's filter finds it ([`Self::found_only`]).
+    pub(crate) fn hidden(&self) -> bool {
+        self.listing == Listing::Found
+    }
+
+    /// The same offer, standing alone in a multiple choice.
+    #[must_use]
+    pub(crate) fn exclusive(mut self) -> Self {
+        self.exclusive = true;
+        self
+    }
+
+    /// The same offer, the value a settings list holds now: its radio stays filled while the
+    /// cursor moves (live gauntlet r02 B2, r06 B9: « › (●) GPT-6 Astra » while Claude was in
+    /// use).
+    #[must_use]
+    pub(crate) fn in_use(mut self) -> Self {
+        self.current = true;
+        self
+    }
+
+    /// Whether it is the value a settings list holds now ([`Offer::in_use`]).
+    pub(crate) fn is_in_use(&self) -> bool {
+        self.current
+    }
+
+    /// The same offer, reached through the provider and access `group` names.
+    #[must_use]
+    pub(crate) fn grouped(mut self, group: impl Into<String>) -> Self {
+        self.group = Some(group.into());
+        self
+    }
+
+    /// The same offer, as the one the author recommends.
+    #[must_use]
+    pub fn recommended(mut self) -> Self {
+        self.recommended = true;
+        self
+    }
+
+    /// The same offer, listed only while a settings list's filter finds it.
+    #[must_use]
+    pub(crate) fn found_only(mut self) -> Self {
+        self.listing = Listing::Found;
+        self
+    }
+
+    /// The same offer with `note` read beside its label (a model's prices,
+    /// context window and marks). Presentation only: the key is unchanged.
+    #[must_use]
+    pub fn noted(mut self, note: impl Into<String>) -> Self {
+        self.note = note.into();
+        self
     }
 }
 
@@ -189,6 +314,8 @@ pub enum Shape {
     /// One of these offers, in the compiler's order (a reply in the human's
     /// own words remains possible).
     Choice(Vec<Offer>),
+    /// Several offers, explicitly checked and sent together with Submit.
+    Multiple(Vec<Offer>),
     /// Words.
     Text,
     /// An exact value.
@@ -211,6 +338,8 @@ pub struct Asked {
     pub mandatory: bool,
     /// The shape an answer takes.
     pub shape: Shape,
+    /// Whether the Session accepts the human's own words beside the offers.
+    pub free_text: bool,
     /// The identity of this asking, as the conversation showed it: an answer
     /// names it, and a question asked again (another revision, another
     /// intelligence) has another one.
@@ -221,6 +350,19 @@ pub struct Asked {
     /// What the Session keeps of the request this question serves, when it
     /// keeps anything ([`Asked::retaining`]).
     pub retained: Option<Retained>,
+    /// On a settings list opened below another (a connection's models), the
+    /// exact line that reopens the list above it: what `Esc` sends there. A
+    /// decision or a question never has one, so `Esc` never answers them.
+    pub(crate) back: Option<String>,
+    /// On a settings list, the offer selected when it opens (the recommended
+    /// one, applied with one `Enter`); without one, the list opens on its
+    /// first row. A decision or a question never has one: a decision opens on
+    /// nothing, a question on the author's recommendation, else its first row.
+    pub(crate) preselect: Option<usize>,
+    /// On the intelligence list, the words that guide the list shown (« Choose a connection
+    /// below. No selection has changed. »): the band's head reads them while the list is
+    /// open, and the conversation never keeps them. A question or a decision never has any.
+    pub(crate) guide: Option<String>,
 }
 
 /// What the Session keeps of a request, read with the question it asks: the
@@ -230,7 +372,8 @@ pub struct Asked {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Retained {
-    /// The goal, as the Session keeps it.
+    /// The goal in the person's own words: the original request, and its
+    /// latest correction when one was said.
     pub goal: Option<String>,
     /// The questions still open, other than the one asked with it.
     pub open: Vec<String>,
@@ -260,9 +403,13 @@ impl Asked {
             why: why.into(),
             mandatory,
             shape,
+            free_text: true,
             witness: witness.into(),
             epoch,
             retained: None,
+            back: None,
+            preselect: None,
+            guide: None,
         }
     }
 
@@ -285,6 +432,22 @@ pub enum Waiting {
     Free,
     /// A choice on a numbered screen.
     Choosing,
+    /// A settings choice from the Session's current capability inventory.
+    /// Its offers go through the settings door; they answer no authoring question.
+    #[non_exhaustive]
+    Selection {
+        /// The current settings offers, with one selection applied on Enter.
+        asked: Asked,
+    },
+    /// A finite Session action, bound to the exact decision painted. Its keys use
+    /// the existing Session protocol; choosing a row alone grants nothing.
+    #[non_exhaustive]
+    Action {
+        /// The decision's presentation key, distinct from questions and settings.
+        key: String,
+        /// Exact offered acts and their presentation witness; never preselected.
+        asked: Asked,
+    },
     /// An authoring question by key, kept in prose (a cost decision, a run's
     /// input, a shape this shell does not name): a line sent while it waits
     /// is an ordinary line, and no identity rides with it. Consumers outside
@@ -303,6 +466,17 @@ pub enum Waiting {
         key: String,
         /// The compiler's document of the question, and the identity an
         /// answer to it names.
+        asked: Asked,
+    },
+    /// An open choice on the exact proposal shown. Answering this field revises the
+    /// proposal through its bound choice door; it is never a consent gesture.
+    #[non_exhaustive]
+    ProposalChoice {
+        /// The full identity of the proposal this choice belongs to.
+        proposal: String,
+        /// The question's semantic key.
+        key: String,
+        /// The choice and the composite proposal/question witness it answers.
         asked: Asked,
     },
     /// A line the Session holds, sent nowhere, because the knowledge the
@@ -341,15 +515,50 @@ impl Waiting {
         Self::Knowledge { asked }
     }
 
+    /// A finite decision under `key` (Save, Discard, a missed run's handling),
+    /// painted as `asked` ([`Waiting::Action`]): it opens on nothing selected,
+    /// and only `Enter` on a row acts.
+    #[must_use]
+    pub fn action(key: impl Into<String>, asked: Asked) -> Self {
+        Self::Action {
+            key: key.into(),
+            asked,
+        }
+    }
+
+    /// A settings choice from the Session's current inventory, painted as
+    /// `asked`. Its activation uses the settings door, not a question answer.
+    #[must_use]
+    pub fn selection(asked: Asked) -> Self {
+        Self::Selection { asked }
+    }
+
+    /// A choice belonging to `proposal`, using the proposal's bound answer door.
+    #[must_use]
+    pub fn proposal_choice(
+        proposal: impl Into<String>,
+        key: impl Into<String>,
+        asked: Asked,
+    ) -> Self {
+        Self::ProposalChoice {
+            proposal: proposal.into(),
+            key: key.into(),
+            asked,
+        }
+    }
+
     /// The prompt naming the same waiting state as the plain loop.
     #[must_use]
     pub fn prompt(&self) -> &'static str {
         match self {
             Self::Free => "nika › ",
             Self::Choosing => "› ",
-            Self::Question { .. } | Self::QuestionDocument { .. } | Self::Knowledge { .. } => {
-                "reply › "
-            }
+            Self::Selection { .. } => "choice › ",
+            Self::Action { .. } => "action › ",
+            Self::Question { .. }
+            | Self::QuestionDocument { .. }
+            | Self::ProposalChoice { .. }
+            | Self::Knowledge { .. } => "reply › ",
             Self::Proposal => "Save? › ",
             Self::Gate => "answer › ",
         }
@@ -362,15 +571,47 @@ impl Waiting {
     pub fn hint(&self) -> &'static str {
         match self {
             Self::Free => "describe work · /help · Run: run <file>.nika",
-            Self::Choosing => "1 account · 2 API · 3 local · 4 no AI · cancel",
+            Self::Choosing => {
+                "connect an AI · /providers: connections · /intelligence: choose · /help"
+            }
+            Self::Selection { asked } if asked.back.is_some() => {
+                "↑↓ choose · Enter applies · type to filter · Esc back"
+            }
+            Self::Selection { asked } if asked.mandatory => {
+                "↑↓ choose · Enter applies · type to filter"
+            }
+            Self::Selection { .. } => {
+                "↑↓ choose · Enter applies · type to filter · Esc keeps current"
+            }
+            // `Esc` never answers a decision: its cancel is a row like any other.
+            Self::Action { key, asked }
+                if asked.free_text && !matches!(key.as_str(), "save" | "judgment") =>
+            {
+                "↑↓ choose · Enter answers · or type your answer"
+            }
+            Self::Action { asked, .. } if asked.free_text => {
+                "↑↓ choose · Enter acts · or describe a change"
+            }
+            Self::Action { key, .. } if key == "gate" => {
+                "↑↓ choose or type yes / no · Enter acts · F2: full context"
+            }
+            Self::Action { .. } => "↑↓ choose · Enter acts · F2: full context",
             Self::Question { key } | Self::QuestionDocument { key, .. }
                 if key == "unknown_cost" || key == "run_cost" =>
             {
                 "yes approves once · no or Ctrl+C cancels · details shows the full evidence"
             }
+            Self::QuestionDocument { asked, .. } | Self::ProposalChoice { asked, .. } if matches!(&asked.shape, Shape::Multiple(offers) if !offers.is_empty()) => {
+                "↑↓ move · Space toggles · Ctrl+A all · Enter validates all checked"
+            }
+            // A proposal's choice: `cancel` discards the proposal it belongs to.
+            Self::ProposalChoice { asked, .. } if matches!(&asked.shape, Shape::Choice(offers) if !offers.is_empty()) => {
+                "↑↓ choose · Enter answers · or type your reply · cancel discards the proposal"
+            }
             Self::QuestionDocument { asked, .. } if matches!(&asked.shape, Shape::Choice(offers) if !offers.is_empty()) => {
                 "↑↓ choose · Enter answers · or type your reply · cancel drops it"
             }
+            Self::ProposalChoice { .. } => "Enter answers · cancel discards the proposal",
             // The typed question's card stands right above the line: keys
             // only, `cancel` in the Session's own verb.
             Self::QuestionDocument { .. } => "Enter answers · cancel drops it",
@@ -443,6 +684,10 @@ pub struct UiState {
     pub completion: Option<String>,
     /// Colour allowed (the theme's decision, never the renderer's).
     pub color: bool,
+    /// How many hues the terminal shows ([`Depth::of`], from the caller's
+    /// readings): the brand's tones follow it, while the workspace palette
+    /// assumes 24-bit colour wherever colour is allowed.
+    pub depth: Depth,
     /// The ASCII glyph column (the theme's decision: `--ascii`, CI logs, a
     /// legacy console): the renderer's own glyphs take their twins.
     pub ascii: bool,
@@ -453,6 +698,24 @@ pub struct UiState {
     /// The session asked to close.
     pub quit: bool,
     activity: Option<Activity>,
+    /// What this session spent so far, as known (the Session's preparation
+    /// estimate and the runs' metered spend), as a person reads the amount
+    /// (`$0.91`): read beside the stage line, never billed; absent while
+    /// nothing is known.
+    pub(crate) spent: Option<String>,
+    /// Where the keys are when the workspace gives them to another region
+    /// than the conversation (`the project list`, `the object in view`), as
+    /// its hint row says it; `None` while the composer holds them.
+    pub(crate) keys_on: Option<&'static str>,
+    /// The language the person writes, as the Session reads it from their
+    /// lines: the TUI's own words follow it ([`crate::lang`]), English until a
+    /// Session reads another.
+    pub(crate) lang: crate::lang::Lang,
+    /// The person stepped behind the card that covers the conversation to read it
+    /// ([`crate::render::surface::covers`]): the band withdraws while the page keys and the
+    /// arrows scroll the conversation, and any other key brings it back, answering nothing.
+    /// A question asked again ends it.
+    pub(crate) peek: bool,
 }
 
 impl UiState {
@@ -471,11 +734,25 @@ impl UiState {
             interrupt_armed: false,
             completion: None,
             color,
+            depth: Depth::of_palette(color),
             ascii: false,
             focus_scroll: 0,
             size,
             quit: false,
             activity: None,
+            spent: None,
+            keys_on: None,
+            lang: crate::lang::Lang::En,
+            peek: false,
+        }
+    }
+
+    /// The voice the TUI's own words take here: the person's language, in the
+    /// glyph column in use.
+    pub(crate) fn voice(&self) -> crate::lang::Voice {
+        crate::lang::Voice {
+            lang: self.lang,
+            ascii: self.ascii,
         }
     }
 
@@ -488,12 +765,13 @@ impl UiState {
                 // gives way (unless already in scrollback), so each step reads once, after
                 // the run's check and announcement. Any other block only settles the card.
                 if block.kind == Kind::Run {
+                    let voice = self.voice();
                     if let Some(mut card) = self.activity.take() {
                         if card.index >= self.committed_inline {
                             self.transcript.remove(card.index);
                         } else {
                             card.card.settle(Ending::Completed, None);
-                            card.paint(&mut self.transcript, self.ascii);
+                            card.paint(&mut self.transcript, voice);
                         }
                     }
                 } else if block.kind == Kind::Refusal {
@@ -501,13 +779,20 @@ impl UiState {
                 } else {
                     self.settle_card(Ending::Completed, None);
                 }
-                self.transcript.push(block);
+                // A block with no words paints no card: it says something, or there is none
+                // (live gauntlet 6, r02 B2: a question sent without its words painted a bordered
+                // « Question » card with nothing in it).
+                if !block.text.trim().is_empty() {
+                    self.transcript.push(block);
+                }
             }
             Beat::Wait(waiting) => {
                 self.settle_card(Ending::Completed, None);
                 self.activity = None;
                 self.busy = None;
                 self.waiting = waiting;
+                // A question asked (again) shows its card: no look behind outlives it.
+                self.peek = false;
             }
             Beat::Cancelled(note) => {
                 self.busy = None;
@@ -545,6 +830,7 @@ impl UiState {
         {
             self.activity = None;
         }
+        let voice = self.voice();
         let activity = self.activity.get_or_insert_with(|| {
             let index = self.transcript.len();
             self.transcript.push(Committed::new(Kind::Activity, ""));
@@ -554,7 +840,7 @@ impl UiState {
             }
         });
         if activity.card.observe(update) {
-            activity.paint(&mut self.transcript, self.ascii);
+            activity.paint(&mut self.transcript, voice);
         }
     }
 
@@ -567,10 +853,11 @@ impl UiState {
     }
 
     fn settle_card(&mut self, ending: Ending, took: Option<std::time::Duration>) {
+        let voice = self.voice();
         if let Some(card) = self.activity.as_mut()
             && card.card.settle(ending, took)
         {
-            card.paint(&mut self.transcript, self.ascii);
+            card.paint(&mut self.transcript, voice);
         }
     }
 
@@ -591,10 +878,12 @@ struct Activity {
 }
 
 impl Activity {
-    /// Write the card's words into its block.
-    fn paint(&self, transcript: &mut [Committed], ascii: bool) {
+    /// Write the card's words into its block, its own phrases in `voice`: the
+    /// Session's words, the counts, the times and the models as they are.
+    fn paint(&self, transcript: &mut [Committed], voice: crate::lang::Voice) {
         if let Some(block) = transcript.get_mut(self.index) {
-            block.text = self.card.lines(ascii).join("\n");
+            let said = |words: &str| voice.say(words).to_owned();
+            block.text = self.card.lines_in(voice.ascii, &said).join("\n");
         }
     }
 }
@@ -735,6 +1024,14 @@ pub struct Turn {
     pub handoff: Option<Handoff>,
 }
 
+impl Turn {
+    /// A turn of `beats`, asking for `handoff` after them (INV-019).
+    #[must_use]
+    pub fn new(beats: Vec<Beat>, handoff: Option<Handoff>) -> Self {
+        Self { beats, handoff }
+    }
+}
+
 /// What one stop request found ([`Conversation::stopper`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -826,6 +1123,31 @@ pub trait Conversation: Send {
             ],
             handoff: None,
         }
+    }
+    /// Leave the choice of the typed question painted as `witness` to Nika,
+    /// by the native control (« Let Nika choose »), never as words a label
+    /// could name. The default knows no such act and sends its words,
+    /// « I leave the choice to Nika. », through [`Conversation::answer_bound`].
+    fn delegate_bound(
+        &mut self,
+        witness: &str,
+        busy: &std::sync::mpsc::Sender<String>,
+        seen: &crate::session::feed::Seen,
+    ) -> Turn {
+        self.answer_bound(crate::composer::answer::DELEGATION, witness, busy, seen)
+    }
+    /// Answer the typed question painted as `witness` with the offered `keys` the native
+    /// control selected (a row, or the checked set as a JSON list): an act, never words that
+    /// read as a key. The default knows no such act and sends the keys through
+    /// [`Conversation::answer_bound`].
+    fn pick_bound(
+        &mut self,
+        keys: &str,
+        witness: &str,
+        busy: &std::sync::mpsc::Sender<String>,
+        seen: &crate::session::feed::Seen,
+    ) -> Turn {
+        self.answer_bound(keys, witness, busy, seen)
     }
     /// Perform the handed-off work with the terminal handed back; the beats
     /// that follow it (the observation, the next prompt).
@@ -931,6 +1253,43 @@ pub trait Conversation: Send {
     fn kept_run(&self) -> Option<Result<nika_session::KeptRun, String>> {
         None
     }
+    /// What this conversation's preparation has spent since it opened, in
+    /// USD, as its Session estimates it from known prices (an unpriced call
+    /// adds nothing): read after a turn, never while drawing, and shown, never
+    /// billed. `None` when nothing is known; the default knows nothing.
+    fn spend(&self) -> Option<f64> {
+        None
+    }
+    /// The language the person writes, as this conversation's Session reads
+    /// it from their lines: the TUI says its own words in it, never the
+    /// Session's or the person's. Read after a turn, never while drawing.
+    /// `None` where no Session reads one (the default): the TUI's words stay
+    /// English.
+    fn language(&self) -> Option<nika_session::Lang> {
+        None
+    }
+    /// The glyph column the shell draws in, told once before the opening:
+    /// the words this conversation builds for the screen (a decision's acts, a
+    /// candidate's facts) take it, in the person's language. The default keeps
+    /// none.
+    fn glyphs(&mut self, ascii: bool) {
+        let _ = ascii;
+    }
+    /// The zone whose clock the conversation's own words read instants on: the machine's,
+    /// where the person reads them, said once by the shell before the conversation opens (a
+    /// schedule's slot keeps its own declared zone). The default reads none.
+    fn clock(&mut self, zone: &jiff::tz::TimeZone) {
+        let _ = zone;
+    }
+    /// What changed while the shell sat idle, read without a turn: a schedule's
+    /// trigger that fired while the door stood open. The shell asks about once
+    /// a minute ([`crate::app::Options::idle_every`]) while it holds the
+    /// conversation and no work is busy, never while it draws, and says what
+    /// it answers as it says a turn's beats. A read only: it starts nothing.
+    /// The default has nothing to say.
+    fn idle(&mut self) -> Vec<Beat> {
+        Vec::new()
+    }
 }
 
 /// The project the demo conversation ([`Script::demo`]) stands in: a fixture
@@ -992,6 +1351,31 @@ mod tests {
     fn typed(key: &str, shape: Shape, witness: &str, epoch: u64) -> Waiting {
         let asked = Asked::new("Which currency?", "", true, shape, witness, epoch);
         Waiting::asked(key, asked)
+    }
+
+    /// A block with no words paints no card (live gauntlet 6, r02 B2: after « Paris stp » a
+    /// « Question » card showed its border and nothing in it): a question, a reply, a notice, a
+    /// gate or a refusal said without words leaves the transcript as it was; one with its words
+    /// lands.
+    #[test]
+    fn a_block_with_no_words_paints_no_card() {
+        let mut state = UiState::new(Presentation::Workspace, false, (120, 30));
+        let kinds = [
+            Kind::Question,
+            Kind::Reply,
+            Kind::Notice,
+            Kind::Gate,
+            Kind::Refusal,
+        ];
+        for kind in kinds {
+            for blank in ["", " \n  "] {
+                state.apply(Beat::Say(Committed::new(kind, blank)));
+            }
+        }
+        assert!(state.transcript.is_empty(), "{:?}", state.transcript);
+        let asked = Committed::new(Kind::Question, "Quel fuseau horaire ?");
+        state.apply(Beat::Say(asked.clone()));
+        assert_eq!(state.transcript, [asked]);
     }
 
     /// The legacy question keeps its construction, prompt and hint beside the
@@ -1090,6 +1474,23 @@ mod tests {
         }
         let kept = prose("const.notes").hint();
         assert_eq!(kept, "answer the question above · cancel to stop");
+    }
+
+    /// A proposal's choice says what its cancel does: it discards the proposal the choice
+    /// belongs to, the words the person types beside it still read as a reply (live gauntlet
+    /// r08 B4).
+    #[test]
+    fn a_proposal_choice_says_cancel_discards_the_proposal() {
+        let choice = Shape::Choice(vec![Offer::new("json", "./out/totaux.json")]);
+        let asked = Asked::new("Où écrire les totaux ?", "", true, choice, "w1", 1);
+        let waiting = Waiting::proposal_choice("p1", "output", asked);
+        assert_eq!(
+            waiting.hint(),
+            "↑↓ choose · Enter answers · or type your reply · cancel discards the proposal"
+        );
+        let asked = Asked::new("Quel titre ?", "", true, Shape::Text, "w2", 1);
+        let words = Waiting::proposal_choice("p1", "title", asked);
+        assert_eq!(words.hint(), "Enter answers · cancel discards the proposal");
     }
 
     /// A conversation that records every door a line could leave by.

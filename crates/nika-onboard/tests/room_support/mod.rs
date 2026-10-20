@@ -12,9 +12,9 @@
 //! admission door refuses, makes every test that uses it harness-invalid, never a semantic RED:
 //! each suite runs [`assert_catalog_is_well_formed`] first, through the same door the room
 //! admits candidates with, in its own exact invocation; its failure is `HARNESS_INVALID`. The
-//! first positive's two programs are made by the real compiler, never written here; jq, convert
-//! and `extract:` stay outside what a rehearsal runs, so every fixture holding one is screened
-//! before any room.
+//! first positive's two programs are made by the real compiler, never written here; a jq step
+//! with no bounded evaluator and `extract:` stay outside what a rehearsal runs, so every fixture
+//! holding one is screened before any room. A convert step runs over the room's copy.
 //!
 //! Every real host call goes through [`rehearsed`], which leaves one evidence line before the
 //! call (the call is engaged, which proves no run) and one after it, before any assertion:
@@ -423,6 +423,14 @@ pub(crate) fn copy_file(world: &World, from: &str, to: &str) -> String {
     )
 }
 
+/// The world's sales file parsed from CSV and written as JSON: a read, a convert, a write.
+pub(crate) fn csv_to_json(world: &World) -> String {
+    let (from, to) = (world.path("data/sales.csv"), world.path("out/sales.json"));
+    format!(
+        "nika: sales-json\npermits:\n  tools: [\"nika:read\", \"nika:convert\", \"nika:write\"]\n  fs:\n    read: [\"{from}\"]\n    write: [\"{to}\"]\ntasks:\n  read_it:\n    invoke: {{ tool: \"nika:read\", args: {{ path: \"{from}\" }} }}\n  parse_it:\n    with: {{ document: \"${{{{ tasks.read_it.output }}}}\" }}\n    invoke: {{ tool: \"nika:convert\", args: {{ input: \"${{{{ with.document }}}}\", from: csv, to: json }} }}\n  write_it:\n    with: {{ records: \"${{{{ tasks.parse_it.output }}}}\" }}\n    invoke: {{ tool: \"nika:write\", args: {{ path: \"{to}\", content: \"${{{{ with.records }}}}\", create_dirs: true, overwrite: true }} }}\n"
+    )
+}
+
 /// A copy of `data/big.txt` whose write builds its content from five copies of what it read:
 /// one value five times the input's size, built where the write renders it.
 pub(crate) fn amplified(world: &World) -> String {
@@ -730,6 +738,7 @@ fn other_fixtures(world: &World, url: &str) -> Vec<Fixture> {
             Runs,
         ),
         fixture("writes the logical name", writes_the_logical_name(), Runs),
+        fixture("csv to json", csv_to_json(world), Runs),
         fixture("mentions mcp", mentions_mcp(world), Runs),
         fixture(
             "jq outside the subset",

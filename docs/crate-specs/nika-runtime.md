@@ -145,6 +145,14 @@ in `nika-cli`: it speaks the journal's concrete `TraceFileSink` +
 `TRACE_DIR`, and the journal's home is L4 (`nika-dap`) — an L3 crate
 cannot reach up for it.
 
+**Amended 2026-10-14 (project files · spec 02 §Project files)** · no run
+carries project files yet. The launch gates refuse a workflow naming a
+project file no compose step read (`ReportMismatch`, before the prologue:
+zero events, zero spend), and the `infer:`/`agent:` dispatch refuses an
+unread `{ file }` field with `NIKA-FILE-002` before any render or send.
+The digest binding, the trace record of each file and the consent preview
+belong to the run side, which has not landed.
+
 ## 3 · Execution model (v0.1 · spec 03 §DAG execution model)
 
 ### 3.1 Waves + bounded concurrency + ordered settlement
@@ -217,6 +225,25 @@ DATA, never re-scanned. `when:` v0 subset: `<ref> == '<lit>'` ·
 `<ref> != '<lit>'` · bare `<ref>` truthy (null/false/0/empty/
 `"no"`/`"false"` → false · CEL replaces truthiness with bool-typing
 at the 03-dag milestone, deliberately).
+
+The facts of the run (spec 04 §`run`): `${{ run.scheduled_for }}` and
+`${{ run.missed }}` read one object that every scope of the run binds.
+`Runtime::with_run_facts` tells the run the instant it serves
+(`RunFacts::slot` for a firer, `RunFacts::at` for `nika test --at`, a calling
+run's own facts for a child); a run told nothing serves its own start, as the
+run clock gives it. The facts are fixed at the opening stamp, and the opening
+frame journals them (spec 17 §the prologue): `scheduled_for` and
+`scheduled_for_source` (`slot` · `at` · `start`) on every run, `missed`
+(compact JSON `{ count, first, last }`) only when the run covers a silence. A
+task that reads them renders them into its resume input identity, and an
+approval gate renders its question over them.
+A CLI resume or answered TTY continuation folds these facts from the continued
+trace after the existing trust, project, source and access judgments; both paths
+carry the original instant, source and silence into the fresh leg. The leg still
+gets its own opening identity, clock and admission. Legacy traces with no recorded
+facts keep the caller/default behavior; partial or malformed facts refuse rather
+than silently changing the question or input identity. Approval content and resume
+hash comparisons remain unchanged.
 
 ### 3.4 Retry (spec 05 §retry · schema `RetryConfig`)
 
@@ -324,6 +351,17 @@ silent).
   request it sent, once: unanswered ones unpriced (never a known zero),
   answered ones by their own evidence. The drop itself is unchanged
   (spec 03 aborts the remaining iterations immediately).
+- Its tool receipts follow the same law (2026-10-14). Each dispatch on
+  the attempt loop records the finite reported `cost_usd` of every tool
+  success it receives under its own child of the attempt's stopped-call
+  slot, whether the result was read or a ready `mcp:` reply was dropped
+  unread. A dispatch that returns carries that spend in its outcome, and
+  the leaf debits it as before. One dropped first debits the receipts'
+  total once (`ledger::UnreturnedSpend`), under the tool id for a direct
+  invoke and unattributed for an agent, whose returned tool spend rides
+  its resolved model. The task keeps its failed or cancelled state with no
+  output, row or checkpoint; as for the requests above, its own frame
+  carries no cost.
 - Item rows tell `cancelled` from `never_started` (B8 · 2026-09-28 ·
   spec 03/17, a closed-vocabulary extension for the next MINOR after
   0.121). `run_fan_out` wraps each iteration future in
@@ -676,3 +714,24 @@ response-attested meaning (`gen_ai.response.model`); a harness's session model
 rides the terminal as `model_reported` plus `model_reported_source`
 (`session_config` · `confirmed_selection` · `accepted_request` · `unspecified`).
 It is never served, never a pricing key, and a subscription seat stays unpriced.
+
+## Operator Stop and stopped-call provenance
+
+A genuine caller cancellation and a typed stopped dispatch settle a started task as
+`cancelled/operator`, before retry or `on_error:`. Its outcome has a reason, no error
+or recovered value, and no successful checkpoint trio. Already incurred spend,
+usage, access and binding evidence remain recorded. A mere error code or sentence
+never supplies operator control. An ordinary tool failure or authored task timeout
+continues through the existing recovery policy; a valid recovered success remains
+resume-eligible. Genuinely completed in-flight work keeps its credit.
+
+The run owns one typed stopped-call collection outside task/iteration/agent futures.
+Every attempt receives a local child slot; returned and dropped MCP calls forward
+their actual call identity and `unknown` or `not_sent` outcome into that parent.
+Settlement includes every collected call once and keeps the legacy error-detail
+projection when no physical witness was collected. A task timeout and fail-fast
+keep their existing drop semantics, including never-started queued items. A started
+operator-cancelled task is cancelled, not counted as never-started.
+
+This does not propagate a new cancellation policy to a started child workflow,
+force-kill processes, change authored deadlines or grant any execution authority.

@@ -39,6 +39,17 @@
    violation reaching the verb) → `NIKA-450` (spec NIKA-INVOKE-001), and the
    dispatcher's own NotFound → the same. A tool that runs but returns
    `is_error: true` → `NIKA-451`.
+5. **The MCP plane and its stop (2026-10-12).** An `mcp:` name rides the
+   installed `McpPlane` on a worker thread (`offload`). Each call carries a
+   `CancelCtx`: a child of the run's stop when the runtime installed one
+   (`install_run_stop`, from `Runtime::with_cancel`), so the operator's Stop
+   reaches a call in flight, and cancelled alone when its awaiting future is
+   dropped (a task `timeout:`). Dropped, the call names itself and what
+   became of it (`unknown` once the plane began it, `not_sent` otherwise)
+   in the `StoppedCallSlot` its `InvokeInput::stopped` carried. A plane
+   built with `McpPlane::new` cannot stop a call in flight but never starts
+   one already stopped; a stopped call is `ToolResult::stopped`, so the
+   verb fails with the tool's `NIKA-CANCEL-001`, never transient.
 
 ```text
    future L3 nika-engine ── schedules ──┐
@@ -143,4 +154,29 @@ proptest · tokio (test rt)  # + an inline mock ToolExecute
 2026-06-11  v0.1 — Gate 1 SPEC authored (night arc · s11 · post-s10 template) ·
               seam verified (kernel runtime::ToolExecuteDyn · spec §invoke
               closed nika:/mcp: namespace · brouillon read-only reference).
+2026-10-12  the stop seam — `install_run_stop`, `McpPlane::stoppable`,
+              `InvokeInput::stopped` (`StoppedCallSlot`): the operator's Stop
+              and a task `timeout:` stop an `mcp:` call (§0 item 5).
 ```
+
+## Stopped-call collection
+
+`StoppedCallSlot::child` creates an attempt-local slot which forwards every typed
+witness to the caller's longer-lived parent. `snapshot` returns all retained
+witnesses without consuming them; the existing `take` remains a one-shot local
+read. A returned stopped MCP result is recorded only when its typed tool/call ID
+match the physical call. Poll and drop take a ready result under the worker's
+handoff lock, preserving its exact Stop metadata or finite non-negative success
+`cost_usd` even without a final poll. Only an unresolved drop cancels the token
+and records `unknown` if begun, `not_sent` otherwise. One physical completion
+has one receipt owner; later drop cannot record or charge it twice. Reusing a
+textual call ID on a distinct physical turn does not suppress that later cost.
+
+`reported_cost_usd` exposes only the retained numeric success-cost subtotal;
+ordinary errors, foreign Stop metadata and arbitrary result text add no Stop
+control or success-cost report. Inline executor completions record the same
+cost fact exactly once at their own return seam. Parent propagation and witness
+reads preserve it. These minimal receipts never copy tool arguments or content,
+and do not grant task/iteration success, cache admission or rollback. A result
+arriving after an unresolved drop does not revise the already-recorded unknown.
+Neither free-form text nor a renderer manufactures these facts.

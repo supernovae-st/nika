@@ -685,7 +685,7 @@ fn canonical_beat(beat: &Beat) -> String {
         ("cadence", quoted(&beat.cadence)),
         ("où", null(beat.ou.map(|l| quoted(locus_word(l))))),
         ("plafond", null(beat.plafond.map(|p| format!("{p:?}")))),
-        ("manqué", null(beat.manque.map(|m| quoted(miss_word(m))))),
+        ("manqué", null(beat.manque.map(miss_canonical))),
         (
             "chevauchement",
             null(beat.chevauchement.map(|o| quoted(overlap_word(o)))),
@@ -727,9 +727,18 @@ fn locus_word(locus: Locus) -> &'static str {
 /// The wire words of `manqué:`.
 fn miss_word(policy: MissPolicy) -> &'static str {
     match policy {
-        MissPolicy::Rattraper => "rattraper",
+        MissPolicy::Rattraper | MissPolicy::RattraperDerniers(_) => "rattraper",
         MissPolicy::RattraperUneFois => "rattraper-une-fois",
         MissPolicy::Sauter => "sauter",
+    }
+}
+
+/// The canonical `manqué:` value: a closed spelling quoted (its generation
+/// unchanged), the bounded catch-up as `{rattraper=N}`.
+fn miss_canonical(policy: MissPolicy) -> String {
+    match policy {
+        MissPolicy::RattraperDerniers(latest) => format!("{{rattraper={latest}}}"),
+        closed => quoted(miss_word(closed)),
     }
 }
 

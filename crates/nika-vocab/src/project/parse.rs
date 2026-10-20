@@ -17,9 +17,10 @@ use marked_yaml::{LoadError, LoaderOptions, Node, Span as YamlSpan, parse_yaml_w
 
 use super::{
     ArmEntry, ArmLocus, MissPolicy, Project, ProjectError, ProjectErrorKind, ProvenanceFloor,
-    RegistryPolicy, TOP_LEVEL_KEYS, TracesPolicy, is_kebab_id,
+    RegistryPolicy, TOP_LEVEL_KEYS, TracesPolicy, is_kebab_id, is_retired_version_tag,
 };
 use std::collections::BTreeMap;
+use std::num::NonZeroU32;
 use std::time::Duration;
 
 /// The closed `traces:` key set.
@@ -133,10 +134,7 @@ fn parse_name(value: &Node) -> Result<String, ProjectError> {
     // retired marker refuses here — a reserved word must refuse, never
     // glide. `vault` · `v2ray` · `v1-migration` are ordinary names: the
     // rule is the WHOLE marker, never a prefix.
-    if name
-        .strip_prefix('v')
-        .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit()))
-    {
+    if is_retired_version_tag(name) {
         return Err(ProjectError::at(
             ProjectErrorKind::Identity,
             format!("`nika: {name}` — that is the retired schema tag, not a project name"),
@@ -405,17 +403,49 @@ fn locus(value: &Node) -> Result<ArmLocus, ProjectError> {
     })
 }
 
-/// `manqué:` — the closed missed-run set.
+/// `manqué:` — the closed missed-run set, or the bounded catch-up
+/// `{ rattraper: N }`.
 fn miss_policy(value: &Node) -> Result<MissPolicy, ProjectError> {
+    if let Some(bounded) = value.as_mapping() {
+        return bounded_catch_up(bounded, value);
+    }
     let raw = scalar(value, "manqué")?.as_str();
     MissPolicy::parse(raw).ok_or_else(|| {
         ProjectError::at(
             ProjectErrorKind::BadValue,
             format!("`manqué: {raw}` — unknown missed-run policy"),
-            "manqué: rattraper · rattraper-une-fois · sauter",
+            "manqué: rattraper · rattraper-une-fois · sauter · { rattraper: 3 }",
             line_of(value.span()),
         )
     })
+}
+
+/// `manqué: { rattraper: N }` — the one key `rattraper`, N an unquoted whole
+/// number from 1 (`{ rattraper: 1 }` IS `rattraper`). Anything else is
+/// refused by name on the value's line, never read as another policy.
+fn bounded_catch_up(mapping: &MarkedMappingNode, value: &Node) -> Result<MissPolicy, ProjectError> {
+    let refuse = || {
+        ProjectError::at(
+            ProjectErrorKind::BadValue,
+            "`manqué:` as a mapping is the bounded catch-up `{ rattraper: N }`, N a whole number from 1",
+            "manqué: { rattraper: 3 } — the 3 latest missed slots run, one run each, oldest first",
+            line_of(value.span()),
+        )
+    };
+    let mut entries = mapping.iter();
+    let (Some((key, count)), None) = (entries.next(), entries.next()) else {
+        return Err(refuse());
+    };
+    if key.as_str() != "rattraper" {
+        return Err(refuse());
+    }
+    let latest = count
+        .as_scalar()
+        .filter(|count| count.as_f64().is_some())
+        .and_then(|count| count.as_str().trim().parse::<u32>().ok())
+        .and_then(NonZeroU32::new)
+        .ok_or_else(refuse)?;
+    Ok(MissPolicy::rattraper(latest))
 }
 
 /// One of the cadence arc's own keys — a scalar, stored VERBATIM. The

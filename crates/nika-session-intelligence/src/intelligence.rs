@@ -52,7 +52,15 @@ pub struct UserIntelligencePreference {
     pub model: Option<String>,
     /// When the choice was made (RFC 3339, the wall clock).
     pub chosen_at: String,
+    /// The decision seat new conversations consult, when this default says: [`AUTHOR_ALONE`]
+    /// or the seat's name (`typesafe/jev-1.13.0`). A name only, never a key; absent in a choice
+    /// saved before it, which leaves the host's own configuration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decision: Option<String>,
 }
+
+/// The saved decision word for a conversation whose author decides alone.
+pub const AUTHOR_ALONE: &str = "author";
 
 impl UserIntelligencePreference {
     /// A fresh choice, stamped now.
@@ -62,7 +70,16 @@ impl UserIntelligencePreference {
             kind,
             model,
             chosen_at: now_rfc3339(),
+            decision: None,
         }
+    }
+
+    /// The same choice, saying which decision seat new conversations consult: [`AUTHOR_ALONE`]
+    /// or a seat's name.
+    #[must_use]
+    pub fn deciding(mut self, decision: impl Into<String>) -> Self {
+        self.decision = Some(decision.into());
+        self
     }
 
     /// The preference file under a home directory.
@@ -80,18 +97,31 @@ impl UserIntelligencePreference {
         serde_json::from_str(&text).ok()
     }
 
-    /// Persist the choice under `home` (creates `~/.nika/`).
+    /// Persist the choice under `home` (creates `~/.nika/`), atomically: the whole file is
+    /// written beside it then renamed over it, so a reader meets the previous choice or this
+    /// one, never part of either.
     ///
     /// # Errors
     ///
-    /// The filesystem's refusal.
+    /// The filesystem's refusal; the previous file, if any, is then left as it was.
     pub fn save(&self, home: &Path) -> std::io::Result<()> {
         let path = Self::path_under(home);
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
+        let dir = path
+            .parent()
+            .ok_or_else(|| std::io::Error::other("the preference path has no directory"))?;
+        std::fs::create_dir_all(dir)?;
         let text = serde_json::to_string_pretty(self).map_err(std::io::Error::other)?;
-        std::fs::write(path, text)
+        let staged = dir.join(format!(
+            ".session-intelligence.json.{}.tmp",
+            std::process::id()
+        ));
+        if let Err(error) =
+            std::fs::write(&staged, text).and_then(|()| std::fs::rename(&staged, &path))
+        {
+            let _ = std::fs::remove_file(&staged);
+            return Err(error);
+        }
+        Ok(())
     }
 }
 
@@ -288,7 +318,7 @@ impl IntelligenceCensus {
             ));
         }
         if ways.is_empty() {
-            "`/intelligence` then 2 with a key (`export <PROVIDER>_API_KEY=…` · `nika doctor` names the variable) or 3 with a local engine".to_owned()
+            "`/intelligence` then 2 with a key (`export NIKA_<PROVIDER>_API_KEY=…` · `nika doctor` names the variable) or 3 with a local engine".to_owned()
         } else {
             format!("`/intelligence` then {}", ways.join(" or "))
         }
@@ -379,14 +409,15 @@ impl IntelligenceCensus {
             "1" => self.choose_app(name.as_deref()),
             "2" => {
                 let (provider, model) = match name {
-                    Some(n) => split_seat(&n),
+                    Some(n) => canonical_api(split_seat(&n)),
                     None => (
                         self.api_keys.first().cloned().ok_or_else(|| {
-                            "no API key in the environment — `export <PROVIDER>_API_KEY=…` (`nika doctor` names the variable) or pick 1, 3 or 4".to_owned()
+                            "no API key in the environment — `export NIKA_<PROVIDER>_API_KEY=…` (`nika doctor` names the variable) or pick 1, 3 or 4".to_owned()
                         })?,
                         None,
                     ),
                 };
+                api_profile(&provider, model.as_deref())?;
                 Ok(UserIntelligencePreference::new(
                     IntelligenceKind::Api { provider },
                     model,
@@ -483,6 +514,44 @@ impl IntelligenceCensus {
             "`{other}` is not a choice — answer 1, 2, 3 or 4; a model follows its number: `{pick} {other}`"
         )
     }
+}
+
+/// API categories and example placeholders never become provider/model selections.
+fn api_profile(
+    provider: &str,
+    model: Option<&str>,
+) -> Result<nika_providers::profile::Profile, String> {
+    let profile = nika_providers::profile::seed().into_iter()
+        .find(|profile| profile.id == provider && profile.access_class() == nika_types::access::AccessClass::Api)
+        .ok_or_else(|| format!("unknown API provider `{provider}` — choose a named API connection from `/intelligence`; API is a connection type, not a provider"))?;
+    if let Some(model) = model {
+        let valid = model.split_once('/').is_some_and(|(prefix, name)| {
+            prefix == provider
+                && !name.is_empty()
+                && name != "default"
+                && !name.contains(['<', '>'])
+        });
+        if !valid {
+            return Err(format!(
+                "`{model}` is not a concrete API model — choose a listed model, or `2 {provider}` for the provider's catalog default"
+            ));
+        }
+    }
+    Ok(profile)
+}
+
+/// An API pick in the catalogue's canonical words: an alias names its provider (`claude` →
+/// `anthropic`) and a model it prefixes is that provider's (`claude/claude-sonnet-5-5` →
+/// `anthropic/claude-sonnet-5-5`): one provider, one key. Any other name stays as typed.
+fn canonical_api((provider, model): (String, Option<String>)) -> (String, Option<String>) {
+    let canonical = nika_providers::canonical_provider(&provider).to_owned();
+    let model = model.map(|model| match model.split_once('/') {
+        Some((prefix, name)) if nika_providers::canonical_provider(prefix) == canonical => {
+            format!("{canonical}/{name}")
+        }
+        _ => model,
+    });
+    (canonical, model)
 }
 
 /// A choice's name as typed: `openai` names a provider, `claude-code` an app;
@@ -611,17 +680,20 @@ impl ResolvedSessionIntelligence {
                 )
             }
             IntelligenceKind::Api { provider } => {
-                if census.api_keys.iter().any(|k| k == provider) {
-                    (metered_or_gateway(provider), true, None)
-                } else {
-                    (
-                        metered_or_gateway(provider),
-                        false,
-                        Some(format!(
-                            "no key for `{provider}` in the environment — `export <VAR>=…` (`nika doctor` names the variable), or `/intelligence` to choose another path"
-                        )),
-                    )
-                }
+                let why = match api_profile(provider, pref.model.as_deref()) {
+                    Err(why) => Some(why),
+                    Ok(_) if census.api_keys.iter().any(|key| key == provider) => None,
+                    Ok(profile) => Some(format!(
+                        "no key for `{provider}` in the environment — configure {} (`nika doctor` checks the connection), or `/intelligence` to choose another path",
+                        profile
+                            .env_candidates()
+                            .iter()
+                            .map(|name| format!("`{name}`"))
+                            .collect::<Vec<_>>()
+                            .join(" or ")
+                    )),
+                };
+                (metered_or_gateway(provider), why.is_none(), why)
             }
             IntelligenceKind::Local { provider } => {
                 if census.locals.iter().any(|l| l == provider) {
@@ -824,6 +896,67 @@ mod tests {
         }
     }
 
+    #[test]
+    fn api_choices_refuse_categories_unknown_providers_and_placeholder_models() {
+        let mut c = census();
+        c.api_keys = vec!["deepseek".into()];
+        for answer in [
+            "2 API",
+            "2 API/default",
+            "2 nika-does-not-exist/no-model",
+            "2 <provider>/<model>",
+            "2 deepseek/<model>",
+            "2 deepseek/default",
+            "2 deepseek/",
+            "2 ollama/llama3.3",
+        ] {
+            assert!(c.choose(answer).is_err(), "{answer}");
+        }
+        let chosen = c.choose("2 deepseek").expect("known provider default");
+        assert_eq!(
+            chosen.kind,
+            IntelligenceKind::Api {
+                provider: "deepseek".into()
+            }
+        );
+        assert_eq!(chosen.model, None);
+        assert!(ResolvedSessionIntelligence::resolve(&chosen, &c).ready);
+        let named = c
+            .choose("2 deepseek/provider-future-model")
+            .expect("provider owns its model namespace");
+        assert_eq!(
+            named.model.as_deref(),
+            Some("deepseek/provider-future-model")
+        );
+        let broken = UserIntelligencePreference::new(
+            IntelligenceKind::Api {
+                provider: "API".into(),
+            },
+            Some("API/default".into()),
+        );
+        let resolved = ResolvedSessionIntelligence::resolve(&broken, &c);
+        assert!(!resolved.ready);
+        let why = resolved.why.expect("reason");
+        assert!(why.contains("unknown API provider"), "{why}");
+        assert!(!why.contains("<VAR>"), "{why}");
+    }
+
+    #[test]
+    fn an_unconfigured_known_api_names_its_real_key_variables() {
+        let c = census();
+        let chosen = c
+            .choose("2 deepseek")
+            .expect("explicit known provider retained");
+        let resolved = ResolvedSessionIntelligence::resolve(&chosen, &c);
+        assert!(!resolved.ready);
+        let why = resolved.why.expect("reason");
+        assert!(
+            why.contains("NIKA_DEEPSEEK_API_KEY") && why.contains("DEEPSEEK_API_KEY"),
+            "{why}"
+        );
+        assert!(!why.contains("<VAR>"), "{why}");
+    }
+
     /// Presence never chooses between accounts, even when only one has sign-in evidence.
     #[test]
     fn multiple_apps_require_a_named_choice_in_either_order() {
@@ -957,7 +1090,7 @@ mod tests {
         // No key and no local engine: the ways on name how to bring one.
         c.api_keys.clear();
         assert!(
-            c.ways_on().contains("`export <PROVIDER>_API_KEY=…`"),
+            c.ways_on().contains("`export NIKA_<PROVIDER>_API_KEY=…`"),
             "{}",
             c.ways_on()
         );
@@ -996,6 +1129,51 @@ mod tests {
             UserIntelligencePreference::load(home.path()).is_none(),
             "a corrupt file is « never chosen »"
         );
+    }
+
+    /// The saved decision seat reads back by name, a file saved before it reads back with none,
+    /// and a save replaces the whole file at once, leaving no staged copy and no key.
+    #[test]
+    fn a_saved_default_keeps_its_decision_by_name_and_replaces_the_file_whole() {
+        let home = tempfile::tempdir().expect("home");
+        let api = IntelligenceKind::Api {
+            provider: "anthropic".to_owned(),
+        };
+        let first = UserIntelligencePreference::new(api.clone(), None);
+        first.save(home.path()).expect("saved");
+        let model = Some("anthropic/claude-sonnet-5-5".to_owned());
+        let pref = UserIntelligencePreference::new(api, model).deciding(AUTHOR_ALONE);
+        pref.save(home.path()).expect("saved over");
+        let back = UserIntelligencePreference::load(home.path()).expect("loaded");
+        assert_eq!(back, pref);
+        assert_eq!(back.decision.as_deref(), Some("author"));
+        let written = std::fs::read_to_string(UserIntelligencePreference::path_under(home.path()))
+            .expect("the file");
+        let json: serde_json::Value = serde_json::from_str(&written).expect("json");
+        let mut keys: Vec<&str> = json
+            .as_object()
+            .expect("an object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            ["chosen_at", "decision", "kind", "model"],
+            "{written}"
+        );
+        let names: Vec<String> = std::fs::read_dir(home.path().join(".nika"))
+            .expect("the directory")
+            .filter_map(Result::ok)
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, ["session-intelligence.json"], "no staged copy left");
+        let earlier =
+            r#"{"kind": {"kind": "none"}, "model": null, "chosen_at": "2026-10-01T00:00:00Z"}"#;
+        std::fs::write(UserIntelligencePreference::path_under(home.path()), earlier)
+            .expect("an earlier file");
+        let earlier = UserIntelligencePreference::load(home.path()).expect("loaded");
+        assert_eq!(earlier.decision, None);
     }
 
     /// An explicit choice this machine cannot serve is refused with its
@@ -1402,5 +1580,27 @@ mod acp_choice_tests {
                 ..
             }
         ));
+    }
+
+    /// NIK-153: the catalogue alias `claude` names Anthropic in an API pick, its model too
+    /// (one provider, one key), whatever the case; an unknown provider is still refused.
+    #[test]
+    fn the_claude_alias_picks_anthropic() {
+        let c = IntelligenceCensus::new(vec![], vec!["anthropic".into()], vec![]);
+        let anthropic = IntelligenceKind::Api {
+            provider: "anthropic".into(),
+        };
+        let picked = c
+            .choose("2 claude/claude-sonnet-5-5")
+            .expect("the alias is anthropic");
+        assert_eq!(picked.kind, anthropic);
+        assert_eq!(picked.model.as_deref(), Some("anthropic/claude-sonnet-5-5"));
+        for answer in ["2 claude", "2 Claude"] {
+            let bare = c.choose(answer).expect("the alias alone");
+            assert_eq!(bare.kind, anthropic, "{answer}");
+            assert_eq!(bare.model, None, "{answer}");
+        }
+        let why = c.choose("2 claude-nope/x").expect_err("unknown provider");
+        assert!(why.contains("unknown API provider"), "{why}");
     }
 }

@@ -75,6 +75,7 @@ fn started_fields_full(
         None,
         &book,
         opening_stamp,
+        None,
         &mut stamper,
         &mut sink,
     );
@@ -358,11 +359,13 @@ fn prologue_pins_the_pricing_table_identity() {
     let overlay: serde_json::Value =
         serde_json::from_str(get(&fields, "admission_pricing").expect("additive provenance"))
             .expect("json");
-    assert_eq!(overlay["schema"], "nika/inference-admission@1.1");
+    assert_eq!(overlay["schema"], "nika/inference-admission@1.3");
     let rows = overlay["tariffs"].as_array().expect("tariffs");
     assert!(rows.iter().any(|t| t["model"] == "deepseek-v4-pro"
         && t["currency"] == "USD"
-        && t["input_nano_per_token"] == 1320));
+        && t["input_nano_per_token"] == 1320
+        && t["cache_write_nano_per_token"].is_null()
+        && t["served_models"] == serde_json::json!([])));
     assert!(
         rows.iter()
             .any(|t| t["billing_provider"] == "scaleway" && t["currency"] == "EUR")
@@ -491,6 +494,7 @@ fn prologue_names_the_trace_a_leg_resumed() {
         None,
         &book,
         opening_stamp,
+        None,
         &mut stamper,
         &mut sink,
     );

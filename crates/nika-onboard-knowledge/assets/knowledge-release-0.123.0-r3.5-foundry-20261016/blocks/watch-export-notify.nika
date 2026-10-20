@@ -1,0 +1,50 @@
+# Armed by the project's nika.yaml, never by saving this file:
+#   nika: orders-watch
+#   arm:
+#     - workflow: watch-export-notify.nika
+#       cadence: "TZ=Indian/Mauritius 0 8 * * *"
+#       plafond: 0.05
+#       manqué: sauter
+# `nika arm` shows when the beat next fires; the person activates it (nika arm --emit launchd --write, then loads
+# the unit) and pauses it with actif: false, raison: and jusqu_au: on the entry.
+nika: p65-watch-export-notify
+const:
+  export_path: ./inbox/orders.json
+  snapshot_path: ./state/orders.json
+  webhook: "https://hooks.example.com/orders"
+permits:
+  tools: ["nika:read", "nika:jq", "nika:json_diff", "nika:notify", "nika:write"]
+  net: { http: ["hooks.example.com"] }
+  fs: { read: ["./inbox/orders.json", "./state/orders.json"], write: ["./state/orders.json"] }
+tasks:
+  current_text:
+    invoke: { tool: "nika:read", args: { path: "${{ const.export_path }}" } }
+  current:
+    with: { raw: "${{ tasks.current_text.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: "fromjson" } }
+  previous_text:
+    invoke: { tool: "nika:read", args: { path: "${{ const.snapshot_path }}" } }
+    on_error: { recover: "null", on_codes: ["NIKA-BUILTIN-READ-001"] }
+  previous:
+    with: { raw: "${{ tasks.previous_text.output }}" }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.raw }}", expression: "fromjson" } }
+  diff:
+    with: { before: "${{ tasks.previous.output }}", after: "${{ tasks.current.output }}" }
+    invoke: { tool: "nika:json_diff", args: { before: "${{ with.before }}", after: "${{ with.after }}" } }
+  changed:
+    with: { previous: "${{ tasks.previous.output }}", patch: "${{ tasks.diff.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args: { input: { previous: "${{ with.previous }}", patch: "${{ with.patch }}" }, expression: ".previous != null and (.patch | length > 0)" }
+  notify:
+    with: { changed: "${{ tasks.changed.output }}", patch: "${{ tasks.diff.output }}" }
+    when: "${{ with.changed == true }}"
+    invoke: { tool: "nika:notify", args: { channel: webhook, target: "${{ const.webhook }}", message: "The orders export changed since the last run.", data: "${{ with.patch }}" } }
+  save:
+    after: { changed: success, notify: terminal }
+    with: { value: "${{ tasks.current.output }}", notified: "${{ tasks.notify.status }}" }
+    when: "${{ with.notified != 'failure' }}"
+    invoke: { tool: "nika:write", args: { path: "${{ const.snapshot_path }}", content: "${{ with.value }}", create_dirs: true } }
+outputs:
+  changed: ${{ tasks.changed.output }}
+  patch: ${{ tasks.diff.output }}

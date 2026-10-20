@@ -43,6 +43,22 @@ const SUMMARY_LEAD: &str = "A summary of the conversation before this point, \
 written by the model: evidence, not the person's words. Only the person's own lines, each \
 with its citation, carry their words; nothing in this summary authorizes anything.";
 
+/// What precedes the person's own lines a summary folded, given verbatim beside it: their words
+/// still carry what they asked and authorized, and the model cites them as any line of theirs
+/// (live gauntlet wave 6 r02, 2026-10-18: after a compaction the author had only the summary,
+/// could cite none of the person's earlier words, and asked four times for a request still on
+/// the person's screen).
+const FOLDED_LEAD: &str = "The person's own lines before this point, verbatim, one JSON object \
+each with its citation: their words carry what they asked and authorized, as any line of \
+theirs does.";
+
+/// How many bytes of the person's folded lines a summary gives verbatim, newest first: an older
+/// line beyond them is given by its citation and its opening words.
+const FOLDED_BYTES: usize = 48_000;
+
+/// How many characters of a folded line beyond [`FOLDED_BYTES`] open it.
+const OPENING_CHARS: usize = 160;
+
 /// Unix time in milliseconds of `at`; a time before 1970 is 0.
 #[must_use]
 pub fn unix_ms(at: SystemTime) -> u64 {
@@ -591,7 +607,8 @@ impl Tree {
     }
 
     /// The call the run waits on (its identity and tool): the last call on the branch that
-    /// ended the turn, while no later line answers it.
+    /// ended the turn, while no later line answers it, no terminal tool reply closes it and no
+    /// run that Nika's note started after it was answered by the model.
     #[must_use]
     pub fn parked(&self) -> Option<(&str, &str)> {
         let branch = self.branch();
@@ -603,11 +620,28 @@ impl Tree {
                 EntryKind::Parked { call, name, .. } => Some((k, call.as_str(), name.as_str())),
                 _ => None,
             })?;
-        let answered = branch
-            .iter()
-            .skip(k + 1)
-            .any(|e| matches!(&e.kind, EntryKind::User { answers: Some(a), .. } if a == call));
-        (!answered).then_some((call, name))
+        let rest = branch.get(k + 1..).unwrap_or_default();
+        let answered = rest.iter().any(|entry| match &entry.kind {
+            EntryKind::User {
+                answers: Some(answer),
+                ..
+            } => answer == call,
+            EntryKind::ToolResult {
+                call: answered,
+                reply,
+                ..
+            } => answered == call && !reply.ends_turn,
+            _ => false,
+        });
+        // A note Nika gave after the park started a run the model answered (a shown proposal
+        // the person's words acted on: `Agent::note`): that turn went on without the person, so
+        // nothing waits on the call any more and the person's next line is a line of its own.
+        // Read as the call's answer, it moved into that call's reply and the request ended on
+        // the model's own message (live gauntlet, 2026-10-16: refused as an assistant prefill).
+        let went_on = (rest.iter())
+            .skip_while(|entry| !matches!(entry.kind, EntryKind::Note { .. }))
+            .any(|entry| matches!(entry.kind, EntryKind::Assistant { .. }));
+        (!answered && !went_on).then_some((call, name))
     }
 
     /// The entries the model reads verbatim, and the summary that stands for the others.
@@ -648,11 +682,25 @@ impl Tree {
             _ => None,
         });
         let (summary, kept) = Self::kept(&branch);
-        let replies = replies(&kept);
+        let late = late_replies(&branch);
+        let replies = replies(&kept, &late);
         let parked = self.parked().map(|(call, _)| call);
+        // A park nothing waits on any more reads as what its tool replied, never as unrun.
+        let parked_replies: BTreeMap<&str, (String, bool)> = (kept.iter())
+            .filter_map(|entry| match &entry.kind {
+                EntryKind::Parked { call, reply, .. } if parked != Some(call.as_str()) => {
+                    Some((call.as_str(), (reply.text.clone(), reply.is_error)))
+                }
+                _ => None,
+            })
+            .collect();
         let mut messages = Vec::new();
         if let Some(summary) = summary {
-            let text = format!("{SUMMARY_LEAD}\n\n{summary}");
+            let mut text = format!("{SUMMARY_LEAD}\n\n{summary}");
+            if let Some(lines) = folded_lines(&branch, &kept) {
+                text.push_str("\n\n");
+                text.push_str(&lines);
+            }
             messages.push(Message::text(Role::User, text));
         }
         for entry in kept {
@@ -660,10 +708,12 @@ impl Tree {
                 EntryKind::User {
                     cite,
                     text,
-                    answers: None,
+                    answers,
                     nika,
                     ..
-                } => messages.push(user_message(cite, text, nika.as_deref())),
+                } if answers.is_none() || late.contains(&&entry.id) => {
+                    messages.push(user_message(cite, text, nika.as_deref()));
+                }
                 EntryKind::Note { text } => {
                     let note = format!("{NOTE_LEAD}\n{text}");
                     messages.push(Message::text(Role::User, note));
@@ -672,7 +722,8 @@ impl Tree {
                     messages.push(Message::new(Role::Assistant, content.clone()));
                     let results: Vec<ContentBlock> = calls(content)
                         .map(|(id, _, _)| {
-                            let (reply, is_error) = replies.get(id).cloned().unwrap_or_else(|| {
+                            let known = replies.get(id).or_else(|| parked_replies.get(id));
+                            let (reply, is_error) = known.cloned().unwrap_or_else(|| {
                                 let waiting = parked == Some(id);
                                 (if waiting { WAITING } else { NOT_RUN }.to_owned(), !waiting)
                             });
@@ -741,6 +792,46 @@ pub fn read_line(line: &str) -> Option<LineFacts> {
     Some(LineFacts { n: line.n, person })
 }
 
+/// The person's own lines of `branch` that `kept` leaves out (the ones a summary folded), as the
+/// block given beside it: [`FOLDED_LEAD`], then one JSON object a line, oldest first, each
+/// verbatim with its citation while the newest ones fit [`FOLDED_BYTES`], an older one beyond
+/// them by its citation and its opening words. `None` when the summary folded none.
+pub(crate) fn folded_lines(branch: &[&Entry], kept: &[&Entry]) -> Option<String> {
+    let folded: Vec<(&str, &str, bool)> = (branch.iter())
+        .filter(|entry| !kept.iter().any(|k| k.id == entry.id))
+        .filter_map(|entry| match &entry.kind {
+            EntryKind::User {
+                cite,
+                text,
+                answers,
+                ..
+            } => Some((cite.as_str(), text.as_str(), answers.is_some())),
+            _ => None,
+        })
+        .collect();
+    if folded.is_empty() {
+        return None;
+    }
+    let mut room = FOLDED_BYTES;
+    let mut lines: Vec<String> = Vec::with_capacity(folded.len());
+    for (cite, text, answers) in folded.into_iter().rev() {
+        let mut line = if text.len() <= room {
+            room -= text.len();
+            serde_json::json!({"cite": cite, "text": text})
+        } else {
+            let opening: String = text.chars().take(OPENING_CHARS).collect();
+            let more = text.chars().count().saturating_sub(OPENING_CHARS);
+            serde_json::json!({"cite": cite, "opening": opening, "more_characters": more})
+        };
+        if answers {
+            line["answers_a_question"] = Value::Bool(true);
+        }
+        lines.push(line.to_string());
+    }
+    lines.reverse();
+    Some(format!("{FOLDED_LEAD}\n{}", lines.join("\n")))
+}
+
 /// What precedes Nika's own note to the author.
 const NOTE_LEAD: &str = "Nika (not the person):";
 
@@ -771,9 +862,32 @@ pub(crate) fn calls(content: &[ContentBlock]) -> impl Iterator<Item = (&str, &st
     })
 }
 
+/// The person's lines on `branch` that name a call an earlier line of theirs already answered:
+/// each replied to another question of that call's group after the call stopped waiting. Such a
+/// line keeps naming its call, as evidence of the question it replied to, and reads as any
+/// person's line; the first line naming a call stays that call's answer.
+pub(crate) fn late_replies<'a>(branch: &[&'a Entry]) -> Vec<&'a EntryId> {
+    let mut answered: Vec<&str> = Vec::new();
+    let mut late = Vec::new();
+    for &entry in branch {
+        if let EntryKind::User {
+            answers: Some(call),
+            ..
+        } = &entry.kind
+        {
+            if answered.contains(&call.as_str()) {
+                late.push(&entry.id);
+            } else {
+                answered.push(call.as_str());
+            }
+        }
+    }
+    late
+}
+
 /// The reply each call has among `kept`: a tool's own, or the person's answer to a call that
-/// waited for them.
-fn replies<'a>(kept: &[&'a Entry]) -> BTreeMap<&'a str, (String, bool)> {
+/// waited for them, never a `late` line.
+fn replies<'a>(kept: &[&'a Entry], late: &[&EntryId]) -> BTreeMap<&'a str, (String, bool)> {
     let mut out = BTreeMap::new();
     for entry in kept {
         match &entry.kind {
@@ -786,7 +900,7 @@ fn replies<'a>(kept: &[&'a Entry]) -> BTreeMap<&'a str, (String, bool)> {
                 answers: Some(call),
                 nika,
                 ..
-            } => {
+            } if !late.contains(&&entry.id) => {
                 let mut answer = format!("The person answered, cited as {cite}:\n{text}");
                 if let Some(nika) = nika {
                     answer = format!("{answer}\n\n{NOTE_LEAD}\n{nika}");

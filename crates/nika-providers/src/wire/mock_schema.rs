@@ -34,10 +34,18 @@ const MAX_ITEMS: usize = 64;
 
 /// Synthesize a minimal, deterministic instance of `schema`.
 pub(crate) fn synthesize(schema: &Value) -> Value {
-    instance(schema, 0)
+    instance(schema, 0, false)
 }
 
-fn instance(schema: &Value, depth: u8) -> Value {
+/// Synthesize a deterministic example of `schema` that names every property it declares, the
+/// optional ones included: what the `stand-in` model answers, so the steps after a model step a
+/// rehearsal stands it in for read each field the shape offers (a minimal instance would omit
+/// the optional ones, and every read of them would fail on the stand-in alone).
+pub(crate) fn example(schema: &Value) -> Value {
+    instance(schema, 0, true)
+}
+
+fn instance(schema: &Value, depth: u8, full: bool) -> Value {
     if depth >= MAX_DEPTH {
         return Value::Null;
     }
@@ -68,7 +76,7 @@ fn instance(schema: &Value, depth: u8) -> Value {
             .and_then(Value::as_array)
             .and_then(|a| a.first())
         {
-            return instance(branch, depth + 1);
+            return instance(branch, depth + 1, full);
         }
     }
     match type_of(obj) {
@@ -76,8 +84,8 @@ fn instance(schema: &Value, depth: u8) -> Value {
         Some("integer") => integer_within(obj),
         Some("number") => number_within(obj),
         Some("boolean") => Value::Bool(false),
-        Some("array") => array_within(obj, depth),
-        Some("object") => object_within(obj, depth),
+        Some("array") => array_within(obj, depth, full),
+        Some("object") => object_within(obj, depth, full),
         // "null" · unknown/future types · no type and no structural
         // hint → null (validates against an unconstrained schema).
         _ => Value::Null,
@@ -160,7 +168,7 @@ fn number_within(obj: &Map<String, Value>) -> Value {
 
 /// One representative item (per the F3 contract) unless `minItems`
 /// demands more, capped at [`MAX_ITEMS`] and clamped to `maxItems`.
-fn array_within(obj: &Map<String, Value>, depth: u8) -> Value {
+fn array_within(obj: &Map<String, Value>, depth: u8, full: bool) -> Value {
     let min = obj.get("minItems").and_then(Value::as_u64).unwrap_or(0);
     let max = obj
         .get("maxItems")
@@ -171,14 +179,15 @@ fn array_within(obj: &Map<String, Value>, depth: u8) -> Value {
         .min(MAX_ITEMS);
     let item = obj
         .get("items")
-        .map_or(Value::Null, |items| instance(items, depth + 1));
+        .map_or(Value::Null, |items| instance(items, depth + 1, full));
     Value::Array(std::iter::repeat_with(|| item.clone()).take(n).collect())
 }
 
 /// Exactly the `required` keys, each synthesized from its `properties`
 /// schema (a required key WITHOUT a property schema is unconstrained →
-/// null). Optional properties are omitted — minimal instance.
-fn object_within(obj: &Map<String, Value>, depth: u8) -> Value {
+/// null). Optional properties are omitted — minimal instance — unless
+/// `full` asks every declared property, as an example names them.
+fn object_within(obj: &Map<String, Value>, depth: u8, full: bool) -> Value {
     let empty = Map::new();
     let props = obj
         .get("properties")
@@ -189,8 +198,15 @@ fn object_within(obj: &Map<String, Value>, depth: u8) -> Value {
         for key in required.iter().filter_map(Value::as_str) {
             let value = props
                 .get(key)
-                .map_or(Value::Null, |s| instance(s, depth + 1));
+                .map_or(Value::Null, |s| instance(s, depth + 1, full));
             out.insert(key.to_owned(), value);
+        }
+    }
+    if full {
+        for (key, schema) in props {
+            if !out.contains_key(key) {
+                out.insert(key.clone(), instance(schema, depth + 1, full));
+            }
         }
     }
     Value::Object(out)
@@ -213,6 +229,29 @@ mod tests {
             "synthesized instance must validate:\n  schema: {schema}\n  instance: {v}\n  errors: {errors:?}"
         );
         v
+    }
+
+    /// An example names every declared property, the optional ones included, and still
+    /// validates; a minimal instance names the required ones only.
+    #[test]
+    fn an_example_names_every_property_and_validates() {
+        let schema = json!({
+            "type": "object",
+            "required": ["title"],
+            "properties": {
+                "title": { "type": "string" },
+                "url": { "type": "string" },
+                "tags": { "type": "array", "items": { "type": "string" } }
+            }
+        });
+        let example = example(&schema);
+        let validator = jsonschema::validator_for(&schema).expect("test schema compiles");
+        assert!(validator.is_valid(&example), "{example}");
+        assert_eq!(
+            example,
+            json!({"title": "mock", "url": "mock", "tags": ["mock"]})
+        );
+        assert_eq!(synthesize(&schema), json!({"title": "mock"}));
     }
 
     #[test]

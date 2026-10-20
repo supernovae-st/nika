@@ -15,7 +15,11 @@ use nika_display::front_door::recovery;
 use nika_fs::OwnedDir;
 use serde::{Deserialize, Serialize};
 
+mod presentation;
+
 const LOG: &str = "events.ndjson";
+/// The conversation tree kept beside the journal (`agent::store::TREE_FILE`).
+const TREE: &str = "tree.jsonl";
 const GENESIS: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 /// How long a lease may look held before it is refused as foreign. A sibling
 /// thread spawning a child (a run, an exec) duplicates this process's
@@ -73,6 +77,11 @@ pub(super) struct Saved {
     /// none, whose bytes stay exactly as before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<serde_json::Value>,
+    /// The person's answers to the optional offers about a result, the bytes already offered
+    /// and the adjustment awaiting its amended run (`feedback.rs`): evidence, never an offer or
+    /// an authority; absent from records that had none, whose bytes stay exactly as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feedback: Option<serde_json::Value>,
 }
 
 fn present<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<serde_json::Value>, D::Error> {
@@ -114,6 +123,8 @@ pub(super) enum AuthorityState {
 #[serde(rename_all = "snake_case")]
 pub(super) enum EffectState {
     NoUncertaintyReported,
+    /// A model dispatch has unsettled usage or billing, with no unknown workflow effect.
+    InferenceChargeUnknown,
     Unknown,
 }
 
@@ -164,6 +175,7 @@ impl Record {
 #[derive(Default)]
 struct Notices {
     unreported_effect: bool,
+    unreported_inference_charge: bool,
     run_notified: bool,
 }
 
@@ -175,16 +187,23 @@ pub(super) struct History {
     previous: String,
     bytes: usize,
     started: Option<(Operation, String)>,
+    presentation: presentation::Presentation,
     pub state: Saved,
     pub run: RunState,
     pub authority: AuthorityState,
     pub uncertain: bool,
+    /// Kept separately so an unknown API charge is not described as an unknown Run effect.
+    pub effects: EffectState,
     notices: Notices,
     pub restored: bool,
     pub monetary_seen: bool,
 }
 
 impl History {
+    pub(super) fn is_human(&self, index: usize) -> bool {
+        self.presentation.is_human(index)
+    }
+
     pub(super) fn open(home: &Path, project: &Path) -> io::Result<Self> {
         // Storage identity only: aliases of the same project share its lease.
         // Execution continues to use the runtime's separately observed root.
@@ -217,10 +236,12 @@ impl History {
             previous: GENESIS.to_owned(),
             bytes: 0,
             started: None,
+            presentation: presentation::Presentation::default(),
             state: Saved::default(),
             run: RunState::Idle,
             authority: AuthorityState::None,
             uncertain: false,
+            effects: EffectState::NoUncertaintyReported,
             notices: Notices::default(),
             restored: false,
             monetary_seen: false,
@@ -241,6 +262,62 @@ impl History {
             history.append(Event::Recovered)?;
         }
         Ok(history)
+    }
+
+    /// Seal this conversation's journal and the tree beside it under dated names, never deleting
+    /// them, and begin the project's next conversation in a fresh journal under the same lease
+    /// (NIK-197). Its first operation records `carried`, the facts that stay the project's, with
+    /// the effect still unresolved, so a restart resumes the new conversation and keeps saying
+    /// it. Returns the sealed journal's name. An operation under way keeps the conversation.
+    pub(super) fn begin_anew(&mut self, carried: Saved, stamp: &str) -> io::Result<String> {
+        if self.started.is_some() {
+            return Err(invalid(
+                "an operation is under way; the conversation stays as it is",
+            ));
+        }
+        let mut sealed = format!("events-{stamp}.ndjson");
+        let mut n = 1_u32;
+        while self.dir.exists(&sealed)? {
+            n += 1;
+            sealed = format!("events-{stamp}-{n}.ndjson");
+        }
+        // Link, then unlink: a crash between them leaves both names, never neither.
+        self.dir.hard_link(LOG, &sealed)?;
+        if self.dir.exists(TREE)? {
+            let tree = sealed
+                .replace("events-", "tree-")
+                .replace(".ndjson", ".jsonl");
+            self.dir.hard_link(TREE, &tree)?;
+            self.dir.remove(TREE)?;
+        }
+        self.dir.remove(LOG)?;
+        self.dir.as_file().sync_all()?;
+        let effect = self.effects;
+        self.sequence = 0;
+        GENESIS.clone_into(&mut self.previous);
+        self.bytes = 0;
+        self.started = None;
+        self.presentation = presentation::Presentation::default();
+        self.state = Saved::default();
+        self.run = RunState::Idle;
+        self.authority = AuthorityState::None;
+        self.uncertain = false;
+        self.effects = EffectState::NoUncertaintyReported;
+        self.notices = Notices::default();
+        self.restored = false;
+        self.monetary_seen = false;
+        let line = self.encode(Event::Opened)?;
+        self.dir.write_once(LOG, &format!("{line}\n"))?;
+        self.accept_line(&line)?;
+        self.begin(Operation::Turn, "(a new conversation)")?;
+        self.complete(
+            carried,
+            RunState::Idle,
+            AuthorityState::None,
+            format!("new_conversation · the previous one is sealed as {sealed}"),
+            effect,
+        )?;
+        Ok(sealed)
     }
 
     /// The history's own directory, for the conversation tree kept beside its journal.
@@ -337,13 +414,25 @@ impl History {
                         "conversation projection exceeds its context window",
                     ));
                 }
+                self.presentation.completed(
+                    &self.state.recent,
+                    &state.recent,
+                    self.started.as_ref(),
+                );
                 self.state = *state;
                 self.notices.unreported_effect |= effect == EffectState::Unknown;
+                self.notices.unreported_inference_charge |=
+                    effect == EffectState::InferenceChargeUnknown;
+                if effect == EffectState::Unknown
+                    || self.effects == EffectState::NoUncertaintyReported
+                {
+                    self.effects = effect;
+                }
                 self.notices.run_notified &= run == self.run
                     && !matches!(outcome.as_str(), "run_requested" | "resume_requested");
                 self.run = run;
                 self.authority = authority;
-                self.uncertain |= effect == EffectState::Unknown;
+                self.uncertain |= effect != EffectState::NoUncertaintyReported;
                 self.started = None;
             }
             Event::Recovered if self.sequence > 0 => self.recover(),
@@ -362,20 +451,31 @@ impl History {
         let notify = self.notices.unreported_effect
             || self.started.is_some()
             || (self.run == RunState::AwaitingObservation && !self.notices.run_notified);
+        let inference_charge = self.notices.unreported_inference_charge;
+        self.notices.unreported_inference_charge = false;
         self.notices.unreported_effect = false;
         self.notices.run_notified = self.run == RunState::AwaitingObservation;
-        self.uncertain |= self.started.is_some() || self.run == RunState::AwaitingObservation;
-        if let Some((Operation::Turn | Operation::Run, input)) = self.started.take() {
-            self.recovery_line(input, recovery::INTERRUPTED_TURN);
+        if self.started.is_some() || self.run == RunState::AwaitingObservation {
+            self.effects = EffectState::Unknown;
         }
-        let note = recovery::conversation_note(notify, self.authority != AuthorityState::None);
+        self.uncertain |= self.effects == EffectState::Unknown;
+        if let Some((Operation::Turn | Operation::Run, input)) = self.started.take() {
+            self.recovery_line(input, recovery::INTERRUPTED_TURN, true);
+        }
+        let note = if inference_charge && !notify {
+            Some(
+                "[An earlier model request has unknown API usage or billing. This notice concerns inference, not an unobserved workflow effect. Your messages are kept; nothing was replayed.]",
+            )
+        } else {
+            recovery::conversation_note(notify, self.authority != AuthorityState::None)
+        };
         if let Some(note) = note {
-            self.recovery_line("(recovery)".to_owned(), note);
+            self.recovery_line("(recovery)".to_owned(), note, false);
         }
         self.authority = AuthorityState::None;
     }
 
-    fn recovery_line(&mut self, user: String, note: &str) {
+    fn recovery_line(&mut self, user: String, note: &str, human: bool) {
         if self
             .state
             .recent
@@ -383,6 +483,7 @@ impl History {
             .is_none_or(|(a, b)| a != &user || b != note)
         {
             self.state.recent.push((user, note.to_owned()));
+            self.presentation.push(human);
         }
         if self.state.recent.len() > super::RECENT_TURNS {
             self.state.recent.remove(0);

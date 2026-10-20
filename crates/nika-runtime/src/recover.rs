@@ -460,6 +460,7 @@ fn resolve_parked(
         with_ns,
     } = *pending;
     let FailedOutcome {
+        operator_cancelled: _,
         record,
         cost_usd,
         cost_unpriced,

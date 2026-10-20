@@ -100,11 +100,16 @@ fn drive_with<R: BufRead, W: Write>(
     }
     // This unmanaged interactive host has no configured hard-cap source.
     // Project discovery is re-read by Session on review and confirmation.
-    if std::io::IsTerminal::is_terminal(&std::io::stdin())
-        && std::io::IsTerminal::is_terminal(&std::io::stdout())
-    {
+    let interactive = std::io::IsTerminal::is_terminal(&std::io::stdin())
+        && std::io::IsTerminal::is_terminal(&std::io::stdout());
+    if interactive {
         session
             .set_cost_host_evidence(nika_session::CostHostEvidence::unmanaged_interactive_local());
+    }
+    // A person at their own terminal on a Mac may install the trigger a schedule they declared
+    // needs, on their yes (D1); any other door leaves it declared and says how to install it.
+    if interactive && cfg!(target_os = "macos") {
+        session.with_trigger_host(Box::new(nika_session::LaunchdHost));
     }
     // A truthful line while the compiler works under a seat — to the
     // terminal the human watches, never a percentage, never an ETA.
@@ -146,9 +151,10 @@ fn drive_with<R: BufRead, W: Write>(
             Waiting::IntelligenceChoice => "› ",
             Waiting::Consent { .. } => "apply? › ",
             Waiting::Gate { .. } => "answer › ",
-            Waiting::Question { .. } | Waiting::Input { .. } | Waiting::Activation { .. } => {
-                "reply › "
-            }
+            Waiting::Question { .. }
+            | Waiting::RunCeiling { .. }
+            | Waiting::Input { .. }
+            | Waiting::Activation { .. } => "reply › ",
             _ => "nika › ",
         };
         fresh_question(output, prompt)?;
@@ -208,12 +214,21 @@ fn handle_outcome<W: Write>(
         }
         TurnOutcome::RunRequested { report, run } => {
             writeln!(output, "{report}")?;
-            writeln!(
-                output,
-                "running `{}` once · ceiling ${:.2}",
-                run.workflow.display(),
-                run.max_cost_usd
-            )?;
+            if session.language() == nika_session::Lang::Fr {
+                writeln!(
+                    output,
+                    "lancement unique de `{}` · plafond {} $",
+                    run.workflow.display(),
+                    format!("{:.2}", run.max_cost_usd).replace('.', ",")
+                )?;
+            } else {
+                writeln!(
+                    output,
+                    "running `{}` once · ceiling ${:.2}",
+                    run.workflow.display(),
+                    run.max_cost_usd
+                )?;
+            }
             output.flush()?;
             let (code, trace) = run_once(&session.snapshot.root, &run, theme);
             observed(output, session.observe_run(code, trace.as_deref()))?;
@@ -356,6 +371,35 @@ fn term_name() -> Option<String> {
     std::env::var("TERM").ok()
 }
 
+/// The language this machine's locale names, which the TUI's own words take before the person
+/// writes: the locale variables as POSIX reads them ([`locale_lang`]). A display choice, not a
+/// secret (the same allow `term_name` carries).
+#[allow(clippy::disallowed_methods)]
+fn locale() -> nika_session::Lang {
+    locale_lang(|name| std::env::var(name).ok())
+}
+
+/// The language the locale `var` reads names: the first of `LC_ALL`, `LC_MESSAGES` and `LANG`
+/// that is set and not empty, in the order POSIX reads them, is French when its language part
+/// is (`fr`, `fr_FR.UTF-8`, `fr-CA`, `French_France.1252`), English otherwise (`C`, `POSIX`,
+/// `en_US.UTF-8`, any other language).
+fn locale_lang(var: impl Fn(&str) -> Option<String>) -> nika_session::Lang {
+    let named = (["LC_ALL", "LC_MESSAGES", "LANG"].into_iter())
+        .find_map(|name| var(name).filter(|value| !value.trim().is_empty()));
+    let language = named.as_deref().map(|value| {
+        let value = value.trim();
+        value
+            .split(['_', '-', '.', '@'])
+            .next()
+            .unwrap_or(value)
+            .to_ascii_lowercase()
+    });
+    match language.as_deref() {
+        Some("fr" | "french") => nika_session::Lang::Fr,
+        _ => nika_session::Lang::En,
+    }
+}
+
 /// The run inside the renderer's turn: this binary's own machine lane
 /// (`nika run --json`) as a child whose pipes never touch the terminal
 /// the viewport owns. Each frame the lane prints becomes one line of the
@@ -411,6 +455,8 @@ pub fn run_tui(theme: Theme, jq: Option<nika_onboard::compile::room::JqHelper>) 
     use nika_tui::session::{Live, Runners};
     let mut options = nika_tui::app::Options::new(presentation());
     options.color = theme.color;
+    // The brand's tones take 24-bit colour only where `COLORTERM` proves it.
+    options.truecolor = super::truecolor_env();
     options.ascii = theme.ascii;
     options.term = term_name();
     options.reduced_motion = reduced_motion();
@@ -447,9 +493,23 @@ pub fn run_tui(theme: Theme, jq: Option<nika_onboard::compile::room::JqHelper>) 
     };
     let tapped = std::sync::Arc::clone(&child);
     let mut live = Live::new(cwd, census, kept, home, Box::new(reasoner_for), runners)
-        .with_cost_host_evidence(nika_session::CostHostEvidence::unmanaged_interactive_local());
+        .with_cost_host_evidence(nika_session::CostHostEvidence::unmanaged_interactive_local())
+        // The first screen speaks this machine's language until the person's words say one.
+        .with_locale(locale())
+        // « Test the key »: one free model-list request, only when the person picks it.
+        .with_key_check(Box::new(|provider| {
+            nika_session::reasoner::check_api_key(provider).map_err(|error| error.to_string())
+        }));
     if let Some(helper) = jq {
         live = live.with_jq_helper(helper);
+    }
+    // A person at their own terminal on a Mac may install the trigger a schedule they declared
+    // needs, on their yes (D1), as `nika session` does; any other door leaves it declared and
+    // says how to install it.
+    let interactive = std::io::IsTerminal::is_terminal(&std::io::stdin())
+        && std::io::IsTerminal::is_terminal(&std::io::stdout());
+    if interactive && cfg!(target_os = "macos") {
+        live = live.with_trigger_host(Box::new(nika_session::LaunchdHost));
     }
     let live = live
         .with_run_tapped_observed(Box::new(move |root, work, busy| {
@@ -522,6 +582,42 @@ mod tests {
     use nika_session::intelligence::IntelligenceKind;
 
     use super::*;
+
+    /// The locale names the TUI's first language as POSIX orders its variables: `LC_ALL` over
+    /// `LC_MESSAGES` over `LANG`, an empty one skipped; French only when the language part says
+    /// French (live gauntlet 6, r04 and r10: the first screen spoke English on a French Mac).
+    #[test]
+    fn the_locale_names_the_first_language_in_posix_order() {
+        use nika_session::Lang;
+        let of = |set: &[(&str, &str)]| {
+            locale_lang(|name| {
+                (set.iter())
+                    .find(|(key, _)| *key == name)
+                    .map(|(_, value)| (*value).to_owned())
+            })
+        };
+        let cases: [(&[(&str, &str)], Lang); 9] = [
+            (&[("LANG", "fr_FR.UTF-8")], Lang::Fr),
+            (&[("LANG", "fr")], Lang::Fr),
+            (&[("LANG", "fr-CA")], Lang::Fr),
+            (&[("LANG", "French_France.1252")], Lang::Fr),
+            (&[("LANG", "en_US.UTF-8")], Lang::En),
+            (&[("LANG", "C")], Lang::En),
+            (
+                &[("LC_ALL", "en_US.UTF-8"), ("LANG", "fr_FR.UTF-8")],
+                Lang::En,
+            ),
+            (
+                &[("LC_MESSAGES", "fr_FR.UTF-8"), ("LANG", "en_GB")],
+                Lang::Fr,
+            ),
+            (&[("LC_ALL", " "), ("LANG", "fr_FR.UTF-8")], Lang::Fr),
+        ];
+        for (set, lang) in cases {
+            assert_eq!(of(set), lang, "{set:?}");
+        }
+        assert_eq!(of(&[]), Lang::En, "no locale");
+    }
 
     #[test]
     fn a_reopened_terminal_restores_history_and_refuses_corruption() {

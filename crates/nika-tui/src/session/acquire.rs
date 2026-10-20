@@ -44,7 +44,7 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use nika_display::run_story::{ChildOutcome, ChildRun, Event, ExecutionId, RunFrame};
-use nika_display::state::{RunView, TaskRow};
+use nika_display::state::RunView;
 use nika_session::change::Witness;
 use nika_trace::run_view::RunFacts;
 use nika_trace::trace_verify::{VerifyOptions, verify_captured};
@@ -57,58 +57,8 @@ pub const FILE_CAP: u64 = 1 << 20;
 /// refused here, `nika trace verify` judges it whole.
 pub const JOURNAL_CAP: u64 = 8 << 20;
 
-/// A file the run reported writing, as read now.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct Fetched {
-    path: String,
-    bytes: Option<Vec<u8>>,
-    witness: Option<String>,
-    missing: bool,
-    why: Option<String>,
-}
-
-impl Fetched {
-    pub(crate) fn refused(path: &str, why: impl Into<String>) -> Self {
-        Self {
-            path: path.to_owned(),
-            bytes: None,
-            witness: None,
-            missing: false,
-            why: Some(why.into()),
-        }
-    }
-
-    /// The path the run named.
-    #[must_use]
-    pub fn path(&self) -> &str {
-        &self.path
-    }
-
-    /// The bytes read now, when they could be read.
-    #[must_use]
-    pub fn bytes(&self) -> Option<&[u8]> {
-        self.bytes.as_deref()
-    }
-
-    /// Their witness (blake3, hex).
-    #[must_use]
-    pub fn witness(&self) -> Option<&str> {
-        self.witness.as_deref()
-    }
-
-    /// Nothing is at that path now.
-    #[must_use]
-    pub fn missing(&self) -> bool {
-        self.missing
-    }
-
-    /// Why the bytes were not read, when they were not.
-    #[must_use]
-    pub fn why(&self) -> Option<&str> {
-        self.why.as_deref()
-    }
-}
+/// What a run left, as the faces read it: the values live beside the live run in the view.
+pub use nika_tui_view::workspace::live::acquired::{ChildRead, Fetched, Proven};
 
 /// What the host observed of the run whose journal it captures.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -117,168 +67,6 @@ pub(crate) struct Expect {
     pub workflow_sha256: Option<String>,
     pub chain_head: Option<String>,
     pub chain_len: Option<u64>,
-}
-
-/// The Proof of one captured journal: the verifier's verdict over its bytes
-/// and whether that journal is the run's own.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct Proven {
-    trace: String,
-    witness: Option<String>,
-    doc: Option<Value>,
-    terminal: Option<String>,
-    unbound: Vec<String>,
-    why: Option<String>,
-    /// The run's events from these very bytes, when they are its verified
-    /// journal; else why nothing historical is shown.
-    events: Option<Arc<[Event]>>,
-    projection_why: Option<String>,
-}
-
-impl Proven {
-    pub(crate) fn refused(trace: &str, why: impl Into<String>) -> Self {
-        Self {
-            trace: trace.to_owned(),
-            witness: None,
-            doc: None,
-            terminal: None,
-            unbound: Vec::new(),
-            why: Some(why.into()),
-            events: None,
-            projection_why: None,
-        }
-    }
-
-    /// The run's events decoded from the captured bytes, only when they are
-    /// its verified journal (the fold and the ledger read these).
-    pub(crate) fn events(&self) -> Option<&[Event]> {
-        self.events.as_deref()
-    }
-
-    /// Why the captured journal lends no event, when it was read but lends none.
-    pub(crate) fn projection_why(&self) -> Option<&str> {
-        self.projection_why.as_deref()
-    }
-
-    /// This Proof lending nothing: its verdict, witness and reasons kept,
-    /// `why` said for its projection (a reading the host did not adopt).
-    pub(crate) fn without_lending(mut self, why: impl Into<String>) -> Self {
-        self.events = None;
-        self.projection_why = Some(why.into());
-        self
-    }
-
-    /// The trace the settlement named.
-    #[must_use]
-    pub fn trace(&self) -> &str {
-        &self.trace
-    }
-
-    /// The witness of the captured journal bytes (blake3, hex).
-    #[must_use]
-    pub fn witness(&self) -> Option<&str> {
-        self.witness.as_deref()
-    }
-
-    /// The verifier's versioned `--json` verdict over those bytes.
-    #[must_use]
-    pub fn verdict(&self) -> Option<&Value> {
-        self.doc.as_ref()
-    }
-
-    /// The attained tier the verdict names (`ok` · `sealed` · …, or a refusal class).
-    #[must_use]
-    pub fn tier(&self) -> Option<&str> {
-        self.doc.as_ref()?.get("tier")?.as_str()
-    }
-
-    /// The exit class the verdict names (0 = the reported tier holds).
-    #[must_use]
-    pub fn exit(&self) -> Option<u64> {
-        self.doc.as_ref()?.get("exit")?.as_u64()
-    }
-
-    /// The journal's terminal word, when it holds a terminal frame.
-    #[must_use]
-    pub fn terminal(&self) -> Option<&str> {
-        self.terminal.as_deref()
-    }
-
-    /// Why the verdict is not the run's own (empty: it is).
-    #[must_use]
-    pub fn unbound(&self) -> &[String] {
-        &self.unbound
-    }
-
-    /// Why nothing was judged, when nothing was.
-    #[must_use]
-    pub fn why(&self) -> Option<&str> {
-        self.why.as_deref()
-    }
-}
-
-/// A child journal captured from the relation its parent's settle named,
-/// judged, folded and compared with each engagement of that relation.
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub struct ChildRead {
-    proven: Proven,
-    compared: Vec<(bool, String)>,
-    rows: Vec<TaskRow>,
-}
-
-impl ChildRead {
-    pub(crate) fn refused(trace: &str, why: impl Into<String>) -> Self {
-        Self {
-            proven: Proven::refused(trace, why),
-            compared: Vec::new(),
-            rows: Vec::new(),
-        }
-    }
-
-    /// The verifier's verdict over the captured bytes, or why none was read;
-    /// its `unbound` lists every engagement that does not hold.
-    #[must_use]
-    pub fn proven(&self) -> &Proven {
-        &self.proven
-    }
-
-    /// Each engagement, compared: `true` only when it holds; otherwise the
-    /// words say whether it differs or was not compared.
-    #[must_use]
-    pub fn compared(&self) -> &[(bool, String)] {
-        &self.compared
-    }
-
-    /// The child's tasks, folded from the same captured bytes.
-    #[must_use]
-    pub fn rows(&self) -> &[TaskRow] {
-        &self.rows
-    }
-}
-
-#[cfg(test)]
-impl Proven {
-    /// This Proof lending `events`, as a verified journal of the run does.
-    pub(crate) fn lending(mut self, events: Vec<Event>) -> Self {
-        self.events = Some(events.into());
-        self
-    }
-
-    /// A Proof as the verifier judged it, for the faces' tests.
-    pub(crate) fn judged(trace: &str, doc: Value, unbound: Vec<String>) -> Self {
-        Self {
-            trace: trace.to_owned(),
-            witness: Some("ab".repeat(32)),
-            doc: Some(doc),
-            terminal: Some("succeeded".to_owned()),
-            unbound,
-            why: None,
-            events: None,
-            projection_why: None,
-        }
-    }
 }
 
 /// `path` as a relative path inside the root: `./` dropped, nothing absolute,
@@ -317,17 +105,11 @@ pub(crate) fn fetch(root: &Path, path: &str) -> Fetched {
         return Fetched::refused(path, "not a path inside the project");
     };
     match capture(root, &rel, FILE_CAP) {
-        Ok(Some(bytes)) => Fetched {
-            path: path.to_owned(),
-            witness: Some(Witness::of(&bytes).0),
-            bytes: Some(bytes),
-            missing: false,
-            why: None,
-        },
-        Ok(None) => Fetched {
-            missing: true,
-            ..Fetched::refused(path, "nothing is at this path now")
-        },
+        Ok(Some(bytes)) => {
+            let witness = Witness::of(&bytes).0;
+            Fetched::read(path, bytes, witness)
+        }
+        Ok(None) => Fetched::absent(path),
         Err(why) => Fetched::refused(path, why),
     }
 }
@@ -361,16 +143,8 @@ pub(crate) fn prove(root: &Path, trace: &str, expect: &Expect) -> Proven {
     let facts = RunFacts::of(&original, &raw);
     let unbound = binding(facts.as_ref(), doc.as_ref(), expect);
     let (events, projection_why) = project(&raw, doc.as_ref(), &unbound);
-    Proven {
-        trace: trace.to_owned(),
-        witness: Some(witness),
-        terminal: facts.as_ref().and_then(|f| f.terminal().map(str::to_owned)),
-        doc,
-        unbound,
-        why: None,
-        events,
-        projection_why,
-    }
+    let terminal = facts.as_ref().and_then(|f| f.terminal().map(str::to_owned));
+    Proven::verified(trace, witness, (doc, terminal), unbound).lent(events, projection_why)
 }
 
 /// The run's events from the captured bytes, when the verifier passed them
@@ -445,23 +219,13 @@ pub(crate) fn read_child(root: &Path, relation: &ChildRun) -> ChildRead {
             view.apply(&event);
         }
     }
-    ChildRead {
-        proven: Proven {
-            trace,
-            witness: Some(witness),
-            terminal: facts.as_ref().and_then(|f| f.terminal().map(str::to_owned)),
-            doc,
-            unbound: (compared.iter())
-                .filter(|(holds, _)| !holds)
-                .map(|(_, why)| why.clone())
-                .collect(),
-            why: None,
-            events: None,
-            projection_why: None,
-        },
-        compared,
-        rows: view.rows().to_vec(),
-    }
+    let terminal = facts.as_ref().and_then(|f| f.terminal().map(str::to_owned));
+    let unbound = (compared.iter())
+        .filter(|(holds, _)| !holds)
+        .map(|(_, why)| why.clone())
+        .collect();
+    let proven = Proven::verified(trace, witness, (doc, terminal), unbound);
+    ChildRead::new(proven, compared, view.rows().to_vec())
 }
 
 /// Each engagement of the parent's frame against the captured journal.

@@ -310,9 +310,22 @@ impl DecisionSeat for Reader {
     fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
         Box::pin(async move {
             self.asked.lock().unwrap().push(question.clone());
-            Ok(ChoiceAnswer::new(self.decide(question), SEAT))
+            Ok(weighs_rejection(
+                question,
+                ChoiceAnswer::new(self.decide(question), SEAT),
+            ))
         })
     }
+}
+
+/// A seat's rejection of the whole request, weighed at 0.9 (over the holding probability): a seat
+/// that weighs it holds what it cannot locate, where one taken at its word lets its parts decide.
+fn weighs_rejection(question: &ChoiceQuestion, mut answer: ChoiceAnswer) -> ChoiceAnswer {
+    if question.id == "verify-request" && answer.choice == "unfaithful" {
+        let weights = [("unfaithful".to_owned(), 0.9), ("none".to_owned(), 0.1)];
+        answer.probabilities.extend(weights);
+    }
+    answer
 }
 
 /// The whole verdict of the tickets request over `candidate`, its state showing `facts`, asked of
@@ -390,7 +403,26 @@ async fn every_question_judging_the_bytes_is_told_what_they_hold() {
         for unsaid in [ALTERNATIVES_SAID, HELD_SAID] {
             assert!(!question.instructions.contains(unsaid), "{id}: {unsaid}");
         }
-        assert_eq!(question.state["authoring"], facts(Some("expanded")), "{id}");
+        // The held offer whole, every other folded to its identity, title and status: no
+        // question that locates nothing among the offers is sent the whole catalogue.
+        let (told, whole) = (&question.state["authoring"], facts(Some("expanded")));
+        for field in ["catalogue", "composed"] {
+            assert_eq!(told[field], whole[field], "{id}: {field}");
+        }
+        let rows = told["offered"]["components"]
+            .as_array()
+            .expect("offered rows");
+        assert_eq!(
+            rows[1], whole["offered"]["components"][1],
+            "{id}: the held offer"
+        );
+        for k in [0, 2] {
+            let row = &rows[k];
+            assert!(
+                row.get("holes").is_none() && row["construction"]["held"].is_null(),
+                "{id}: {row}"
+            );
+        }
         assert_eq!(question.state["candidate_nika"], candidate.as_str(), "{id}");
     }
     let (reuse, clause) = part(REUSE);

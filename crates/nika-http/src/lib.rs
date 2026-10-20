@@ -173,6 +173,11 @@ pub struct HttpConfig {
     /// [`NetBoundary::Unbounded`] · the SSRF floor is then the only net
     /// guard). Re-checked on EVERY redirect hop.
     pub net: NetBoundary,
+    /// The idle-read guard: a connection that delivers nothing for this long
+    /// dies (`None` = [`HttpConfig::timeout`]). Wider than the default total
+    /// deadline on a client whose requests may state a longer one: a server
+    /// that computes before it answers delivers no byte meanwhile.
+    pub idle_read_timeout: Option<Duration>,
 }
 
 impl Default for HttpConfig {
@@ -184,6 +189,7 @@ impl Default for HttpConfig {
             max_response_bytes: DEFAULT_MAX_RESPONSE_BYTES,
             ssrf: SsrfMode::Enforce,
             net: NetBoundary::Unbounded,
+            idle_read_timeout: None,
         }
     }
 }
@@ -286,7 +292,7 @@ impl ReqwestHttp {
             // full timeout window dies — this (not a total deadline)
             // is what protects STREAMING responses, where wall-clock
             // legitimately exceeds any total budget (SSE generations).
-            .read_timeout(config.timeout)
+            .read_timeout(config.idle_read_timeout.unwrap_or(config.timeout))
             // Ambient HTTP(S)_PROXY env vars are ignored: a proxy
             // resolves names itself, which would bypass the guarded
             // resolver below. Proxy support is a future explicit

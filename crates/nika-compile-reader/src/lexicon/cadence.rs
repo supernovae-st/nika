@@ -44,8 +44,11 @@ fn cadence_bounds(body_lower: &str, prefix: &str) -> Option<(usize, usize)> {
             CADENCE_WORDS.lines().any(|c| c == word) || words::day_part_compound(word).is_some();
         let clock = end.is_some() && (clock_token(word) || CLOCK_SUFFIXES.contains(&word));
         let date = end.is_some() && anchored && iso_date(word);
-        let filler =
-            HEAD_FILLERS.contains(&word) || clock_token(word) || number_word(word).is_some();
+        // A numbered day of the month (« every month on the 15th at 9:30 ») keeps the head open.
+        let filler = HEAD_FILLERS.contains(&word)
+            || clock_token(word)
+            || number_word(word).is_some()
+            || words::day_of_month(word).is_some();
         if !word.is_empty() && !cadence && !clock && !date && !filler {
             break;
         }
@@ -68,6 +71,28 @@ fn cadence_bounds(body_lower: &str, prefix: &str) -> Option<(usize, usize)> {
     let rest = body_lower.get(end..).unwrap_or_default();
     let skipped = rest.len() - rest.trim_start_matches([' ', ',']).len();
     Some((end, end + skipped))
+}
+
+/// The words that open a day-of-month head before its period (« le 1er de chaque mois à 8h »,
+/// « on the 15th of every month at 9 », « le premier jour du mois à 8h »): the byte length of
+/// `[on] le|the <day> [jour|day] de|du|of`, when the text opens on them. The period must
+/// still follow as a cadence word (`cadence_bounds`): « le 1er de la liste » opens no head.
+fn month_day_opener(text: &str) -> Option<usize> {
+    let pieces: Vec<&str> = text.split_inclusive(' ').take(6).collect();
+    let word = |i: usize| pieces.get(i).map(|piece| hot::fold(piece.trim_end()));
+    let mut i = usize::from(word(0)? == "on");
+    if !matches!(word(i)?.as_str(), "le" | "the") {
+        return None;
+    }
+    words::day_of_month(&word(i + 1)?)?;
+    i += 2;
+    if matches!(word(i)?.as_str(), "jour" | "day") {
+        i += 1;
+    }
+    if !matches!(word(i)?.as_str(), "de" | "du" | "of") {
+        return None;
+    }
+    Some(pieces.get(..=i)?.iter().map(|piece| piece.len()).sum())
 }
 
 /// A civil date in the ISO form `YYYY-MM-DD` (whether the calendar has it is the compiler's
@@ -132,7 +157,11 @@ pub(super) fn cut_head<'a>(
     text: &str,
     reading: &mut Reading,
 ) -> (&'a str, String) {
-    if let Some(prefix) = CADENCE_HEAD_PREFIXES.iter().find(|p| text.starts_with(*p))
+    let opener = month_day_opener(text).and_then(|len| text.get(..len));
+    let cadence_prefix = (CADENCE_HEAD_PREFIXES.iter().copied())
+        .find(|p| text.starts_with(*p))
+        .or(opener);
+    if let Some(prefix) = cadence_prefix
         && let Some((head_end, rest_start)) = cadence_bounds(text, prefix)
     {
         if reading.plan.trigger.is_none() {
@@ -212,8 +241,16 @@ pub(super) fn record_recurrence(intent: &str, reading: &mut Reading) {
 
 /// The quantifiers that open a sentence-final cadence (FR · EN, lowercase): « … chaque
 /// lundi », « … tous les matins », « … toutes les deux heures », « … every Monday », « …
-/// each morning ».
-const TAIL_QUANTIFIERS: &[&str] = &["chaque ", "tous les ", "toutes les ", "every ", "each "];
+/// each morning », and « tout les » / « toute les » as people often type the French two.
+const TAIL_QUANTIFIERS: &[&str] = &[
+    "chaque ",
+    "tous les ",
+    "toutes les ",
+    "tout les ",
+    "toute les ",
+    "every ",
+    "each ",
+];
 
 /// The words after which a quantified period is the complement of what precedes it, never a
 /// schedule (folded): a grouping (« les ventes de chaque mois », « pour chaque mois », « sales
@@ -278,6 +315,15 @@ fn tail_bounds(body_lower: &str) -> Option<(usize, usize)> {
                     .is_some_and(|before| before.ends_with(' '))
         })
         .collect();
+    // A numbered day of the month opens the tail before its quantifier (« … le 1er de chaque
+    // mois à 8h »): the « de » before « chaque » is the day's, never a grouping.
+    let openers = (body_lower.match_indices(' ').map(|(at, _)| at + 1)).filter_map(|at| {
+        Some((
+            at,
+            body_lower.get(at..at + month_day_opener(body_lower.get(at..)?)?)?,
+        ))
+    });
+    starts.extend(openers);
     starts.sort_unstable();
     starts.into_iter().find_map(|(start, quantifier)| {
         let phrase = body_lower.get(start..)?;
@@ -459,6 +505,17 @@ mod head_tests {
                 "tous les jours à 18h",
                 "lis",
             ),
+            // « tout les », as people often type « tous les », opens the same head.
+            (
+                "tout les matins a 9h dis moi la meteo de Maurice en markdown",
+                "tout les matins a 9h",
+                "dis moi",
+            ),
+            (
+                "Toute les heures, lis ./tickets.json",
+                "toute les heures",
+                "lis",
+            ),
             ("Every 2 hours, fetch ./x.json", "every 2 hours", "fetch"),
         ] {
             let reading = read(intent);
@@ -505,6 +562,22 @@ mod head_tests {
                 "Le dernier jour de chaque mois à 18h, lis ./tickets.json",
                 "le dernier jour de chaque mois à 18h",
             ),
+            (
+                "Le 1er de chaque mois à 8h, lis ./tickets.json",
+                "le 1er de chaque mois à 8h",
+            ),
+            (
+                "On the 1st of every month at 08:00, read ./tickets.json",
+                "on the 1st of every month at 08:00",
+            ),
+            (
+                "Every month on the 15th at 9:30, read ./tickets.json",
+                "every month on the 15th at 9:30",
+            ),
+            (
+                "Tous les mois le 1er à 8h, lis ./tickets.json",
+                "tous les mois le 1er à 8h",
+            ),
         ] {
             let reading = read(intent);
             assert_eq!(reading.plan.trigger.as_deref(), Some(head), "{intent}");
@@ -522,6 +595,8 @@ mod head_tests {
         // are not a start date alone (a range, another clause) stay out of it.
         let sprint = "On the last day of the sprint, send ./summary.md to the team";
         assert_eq!(read(sprint).plan.trigger, None, "{sprint}");
+        let list = "Le 1er de la liste, envoie-le à ./out/premier.md";
+        assert_eq!(read(list).plan.trigger, None, "{list}");
         for intent in [
             "Every monday at 9, starting with the oldest ticket, summarize ./tickets.json",
             "Every monday at 9, from 2026-10-05 to 2026-12-31, summarize ./tickets.json",
@@ -553,6 +628,13 @@ mod head_tests {
             head_bounds("wenn ein ticket ankommt schreib", "wenn "),
             None
         );
+        // The singular « tout le matin » is all morning long: no head, at the start or the end.
+        for intent in [
+            "Tout le matin, lis ./tickets.json",
+            "Lis ./tickets.json tout le matin",
+        ] {
+            assert_eq!(read(intent).plan.trigger, None, "{intent}");
+        }
     }
 
     fn steps(intent: &str) -> Vec<(&'static str, String, String)> {
@@ -724,6 +806,11 @@ mod head_tests {
             (
                 "Résume ./notes.md dans ./out/resume.md toutes les deux heures",
                 "toutes les deux heures",
+                "Résume ./notes.md dans ./out/resume.md",
+            ),
+            (
+                "Résume ./notes.md dans ./out/resume.md tout les matins",
+                "tout les matins",
                 "Résume ./notes.md dans ./out/resume.md",
             ),
             (

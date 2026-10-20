@@ -386,3 +386,140 @@ fn continuous_scope_preserves_an_explicit_completion_ceiling_and_account() {
         receipt.attempts[0].tariff.reserve(64).unwrap()
     );
 }
+
+/// A label call on a Claude 5 model asks no temperature, which its provider would refuse with
+/// HTTP 400: the same ceilinged call, its body without the key; an earlier Claude model keeps the
+/// zero temperature. The ceilinged-call temperature is judged per model, never per provider.
+#[test]
+fn a_claude_5_label_call_asks_no_temperature() {
+    for (model, wire, temperature) in [
+        ("anthropic/claude-sonnet-5-5", "claude-sonnet-5-5", None),
+        ("anthropic/sonnet", "claude-sonnet-5-5", None),
+        (
+            "anthropic/claude-sonnet-4-6",
+            "claude-sonnet-4-6",
+            Some(0.0),
+        ),
+    ] {
+        let reply = json!({
+            "id": "msg_fixture", "model": wire,
+            "content": [{"type": "text", "text": "DISCUSS"}],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 10, "output_tokens": 2}
+        });
+        let peer = Peer::start(vec![(200, reply)]);
+        let _http = test_transport::install(&peer.url);
+        test_transport::set_config(nika_providers::ProvidersConfig::new().with_key(
+            "anthropic",
+            nika_kernel::secret::Secret::new("fixture-not-a-credential"),
+        ));
+        let text = reasoner(model)
+            .reason_label("explain the choice")
+            .unwrap()
+            .text;
+        assert_eq!(text, "DISCUSS", "{model}");
+        let bodies = peer.bodies();
+        assert_eq!(bodies.len(), 1, "{model}");
+        assert_eq!(bodies[0]["model"], wire, "{model}");
+        assert_eq!(bodies[0]["max_tokens"], label_ceiling(model), "{model}");
+        assert_eq!(
+            bodies[0]
+                .get("temperature")
+                .and_then(serde_json::Value::as_f64),
+            temperature,
+            "{model}: {}",
+            bodies[0]
+        );
+        assert_eq!(label_temperature(model).map(f64::from), temperature);
+    }
+    for model in [
+        "deepseek/deepseek-v4-pro",
+        "openai/gpt-4o-mini",
+        "mock/echo",
+        "bare",
+    ] {
+        assert_eq!(label_temperature(model), Some(0.0), "{model}");
+    }
+}
+
+/// NIK-152: a Session allowance with a Claude author qualifies, and each call settles at the
+/// model's admission tariff: the label is reserved, sent once without a temperature and priced
+/// from its complete usage (100 input tokens at 2,000 and 20 output at 10,000 nano-USD).
+#[test]
+fn a_claude_label_under_an_allowance_settles_at_its_tariff() {
+    const SONNET: &str = "anthropic/claude-sonnet-5-5";
+    let reply = json!({
+        "id": "msg_fixture", "model": "claude-sonnet-5-5",
+        "content": [{"type": "text", "text": "DISCUSS"}], "stop_reason": "end_turn",
+        "usage": {"input_tokens": 100, "output_tokens": 20}
+    });
+    let peer = Peer::start(vec![(200, reply)]);
+    let _http = test_transport::install(&peer.url);
+    test_transport::set_config(nika_providers::ProvidersConfig::new().with_key(
+        "anthropic",
+        nika_kernel::secret::Secret::new("fixture-not-a-credential"),
+    ));
+    assert_eq!(
+        InferenceAdmission::qualify_selected(SONNET, provider_config()),
+        Ok(())
+    );
+    let account = account();
+    let label = reasoner(SONNET)
+        .reason_label_with_admission("explain the choice", &account)
+        .unwrap();
+    assert_eq!(label.text, "DISCUSS");
+    let bodies = peer.bodies();
+    assert_eq!(bodies.len(), 1);
+    assert!(bodies[0].get("temperature").is_none(), "{}", bodies[0]);
+    let receipt = account.snapshot().unwrap();
+    assert_eq!(receipt.attempts.len(), 1);
+    let attempt = &receipt.attempts[0];
+    assert_eq!(
+        (attempt.tariff.provider, attempt.model.as_str()),
+        ("anthropic", "claude-sonnet-5-5")
+    );
+    assert!(attempt.sent);
+    assert_eq!(
+        attempt.estimated,
+        Some(Cost::new(100 * 2_000 + 20 * 10_000))
+    );
+    assert_eq!(receipt.estimated, Cost::new(100 * 2_000 + 20 * 10_000));
+}
+
+/// NIK-153: a missing key reaches the conversation as the variable to set, the Nika-scoped one
+/// first, without the command-line teaching a CLI error appends; nothing is sent.
+#[test]
+fn a_missing_key_is_said_without_the_command_line_teaching() {
+    let peer = Peer::start(vec![(200, response("unused"))]);
+    let _http = test_transport::install(&peer.url);
+    test_transport::set_config(nika_providers::ProvidersConfig::new());
+    let Err(ReasonError::Provider(said)) = reasoner("anthropic/claude-sonnet-5-5").reason("hello")
+    else {
+        panic!("a missing key refuses the turn");
+    };
+    assert_eq!(
+        said,
+        "authentication failed: no API key for 'anthropic' · set NIKA_ANTHROPIC_API_KEY, read \
+         by Nika alone; ANTHROPIC_API_KEY also works (e.g. `export NIKA_ANTHROPIC_API_KEY=…`)"
+    );
+    assert!(
+        !said.contains("--model") && !said.contains("timeout"),
+        "{said}"
+    );
+    assert!(peer.bodies().is_empty(), "nothing was sent");
+}
+
+/// The TUI's « Test the key » door reads the configuration a run reads: with no key configured
+/// it judges nothing and sends nothing (no automatic probe, no request without a key).
+#[test]
+fn a_key_check_without_a_key_sends_nothing() {
+    let peer = Peer::start(vec![(200, response("unused"))]);
+    let _http = test_transport::install(&peer.url);
+    test_transport::set_config(nika_providers::ProvidersConfig::new());
+    let checked = check_api_key("anthropic").unwrap();
+    assert!(
+        matches!(checked, nika_providers::KeyCheck::Unknown { ref why } if why.contains("no key")),
+        "{checked:?}"
+    );
+    assert!(peer.bodies().is_empty());
+}

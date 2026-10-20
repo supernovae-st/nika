@@ -77,10 +77,20 @@ impl DecisionSeat for Judge {
                 .pop_front()
                 .expect("unexpected judgment");
             choice
-                .map(|key| ChoiceAnswer::new(key, DECISION))
+                .map(|key| weighs_rejection(question, ChoiceAnswer::new(key, DECISION)))
                 .map_err(|e| DecisionError(e.into()))
         })
     }
+}
+
+/// A seat's rejection of the whole request, weighed at 0.9 (over the holding probability): a seat
+/// that weighs it holds what it cannot locate, where one taken at its word lets its parts decide.
+fn weighs_rejection(question: &ChoiceQuestion, mut answer: ChoiceAnswer) -> ChoiceAnswer {
+    if question.id == "verify-request" && answer.choice == "unfaithful" {
+        let weights = [("unfaithful".to_owned(), 0.9), ("none".to_owned(), 0.1)];
+        answer.probabilities.extend(weights);
+    }
+    answer
 }
 
 fn policy() -> AuthoringPolicy {

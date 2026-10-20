@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The Live host adapter over the actual Session runtime, no intelligence chosen: the
+//! The Live host adapter over the actual Session runtime, a configured fixture route: the
 //! deterministic compiler proposes, the fold carries the Session's identity and the exact
 //! pending bytes, a revision of the proposal's money is a new identity over the same bytes,
 //! a `yes` answers the identity on screen or none, and Save is never a Run. Hermetic: no
@@ -11,9 +11,6 @@ use std::path::{Path, PathBuf};
 
 use nika_session::ScriptedReasoner;
 use nika_session::change::{ProjectChange, ProjectChangeSet, RunRequest, Witness};
-use nika_session::intelligence::{
-    IntelligenceCensus, IntelligenceKind, UserIntelligencePreference,
-};
 use nika_tui_view::Face;
 
 use crate::model::{Beat, Conversation, Kind};
@@ -48,14 +45,14 @@ impl Drop for Room {
     }
 }
 
-/// A live conversation over `root` with the kept choice « none »: the facts and the
+/// A live conversation over `root` with an injected fixture route: the facts and the
 /// deterministic compiler answer, nothing reasons, nothing runs.
 fn live(root: &Path) -> Live {
-    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let (census, selected) = crate::session::intelligence::fixture();
     let mut live = Live::new(
         root.to_path_buf(),
-        IntelligenceCensus::empty(),
-        Some(none),
+        census,
+        Some(selected),
         None,
         Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
         Runners {
@@ -186,21 +183,39 @@ fn asked(workflow: &str, vars: &[&str], max: f64) -> RunRequest {
 #[test]
 fn a_save_and_run_is_folded_from_the_sessions_typed_method() {
     use crate::workspace::candidate::RunAfter;
-    let one = super::run_after(&set(&["one.nika"], None));
+    let english = crate::lang::Voice::default();
+    let one = super::run_after(&set(&["one.nika"], None), english);
     assert_eq!(one, Some(RunAfter::Saved));
-    assert_eq!(super::run_after(&set(&["a.nika", "b.nika"], None)), None);
-    assert_eq!(super::run_after(&set(&[], None)), None);
+    assert_eq!(
+        super::run_after(&set(&["a.nika", "b.nika"], None), english),
+        None
+    );
+    assert_eq!(super::run_after(&set(&[], None), english), None);
     // The names alone: no value, no `=`, and no entry that names no input.
     let carried = asked("report.nika", &["region=north", "limit=5", "unnamed"], 0.25);
     let words = "asked run · report.nika once · ceiling $0.25 · inputs region, limit";
-    let folded = super::run_after(&set(&["a.nika", "b.nika"], Some(carried)));
+    let folded = super::run_after(&set(&["a.nika", "b.nika"], Some(carried)), english);
     assert_eq!(folded, Some(RunAfter::Asked(words.to_owned())));
     let bare = asked("report.nika", &[], 0.0);
-    let words = "asked run · report.nika once · ceiling $0.00";
-    let folded = super::run_after(&set(&["report.nika"], Some(bare)));
+    let words = "asked run · report.nika once · ceiling $0";
+    let folded = super::run_after(&set(&["report.nika"], Some(bare)), english);
+    assert_eq!(folded, Some(RunAfter::Asked(words.to_owned())));
+    // A ceiling under a cent reads as it was set, never « $0.00 » (live gauntlet r09 B12).
+    let bare = asked("report.nika", &[], 0.001);
+    let words = "asked run · report.nika once · ceiling $0.001";
+    let folded = super::run_after(&set(&["report.nika"], Some(bare)), english);
+    assert_eq!(folded, Some(RunAfter::Asked(words.to_owned())));
+    // In French the words this host builds follow; the workflow, the amount and the names stay.
+    let french = crate::lang::Voice {
+        lang: crate::lang::Lang::Fr,
+        ascii: false,
+    };
+    let carried = asked("report.nika", &["region=north", "limit=5"], 0.25);
+    let folded = super::run_after(&set(&["report.nika"], Some(carried)), french);
+    let words = "run demandé · report.nika une fois · plafond $0.25 · entrées region, limit";
     assert_eq!(folded, Some(RunAfter::Asked(words.to_owned())));
     let nowhere = asked("report.nika", &[], f64::NAN);
-    let refused = super::run_after(&set(&["report.nika"], Some(nowhere)));
+    let refused = super::run_after(&set(&["report.nika"], Some(nowhere)), english);
     assert_eq!(refused, None, "a ceiling that is no amount");
 }
 
@@ -326,9 +341,12 @@ fn the_face_states_where_the_pending_bytes_reach_as_declared() {
     assert!(reach.contains("local only"), "{reach}");
 }
 
-/// What the compiler did to the document is said as it is: the changed paths, each component
-/// with its version, witness and bindings; a whole rewrite and a component no longer as bound
-/// are warnings.
+/// What the compiler did to the document is said in a person's words: the values, steps and
+/// components it changed by their names, each component by its name, what the bytes show of
+/// it and the values it was given, never its kind, its release or a node path (live gauntlet
+/// 4: « révisé sur place · tasks.clean.invoke.args.expression », « composant ·
+/// block:csv-clean-dedupe-report knowledge-0.123.0-r3.5-foundry-20261016 · expanded »); a
+/// whole rewrite and a component no longer as bound are warnings.
 #[test]
 fn a_revision_names_what_changed_and_warns_on_a_rewrite_or_a_moved_component() {
     use nika_session::work::DocumentRevision;
@@ -339,29 +357,27 @@ fn a_revision_names_what_changed_and_warns_on_a_rewrite_or_a_moved_component() {
             "bindings": [{"path": "const.max_age_hours", "bound": 72}]}]});
     let expanded = DocumentRevision::of(&record, &["expanded".to_owned()]).expect("revision");
     assert_eq!(
-        super::revised(&expanded),
+        super::revised(&expanded, crate::lang::Voice::default()),
         vec![
             (
-                "revised in place · const.max_age_hours, component block:stale-filter-report"
-                    .to_owned(),
+                "revised in place · value max_age_hours, component stale-filter-report".to_owned(),
                 false
             ),
             (
-                format!(
-                    "component · block:stale-filter-report r1 · expanded · const.max_age_hours = 72{}{}",
-                    super::OR,
-                    "component · block:stale-filter-report · expanded · const.max_age_hours = 72"
-                ),
+                "component · stale-filter-report · reused as bound · max_age_hours = 72".to_owned(),
                 false
             ),
         ]
     );
     let moved = DocumentRevision::of(&record, &["revised".to_owned()]).expect("revision");
-    assert!(super::revised(&moved)[1].1, "no longer as bound: a warning");
+    assert!(
+        super::revised(&moved, crate::lang::Voice::default())[1].1,
+        "no longer as bound: a warning"
+    );
     let whole = serde_json::json!({"mode": "replaced", "candidate_sha256": "c"});
     let whole = DocumentRevision::of(&whole, &[]).expect("revision");
     assert_eq!(
-        super::revised(&whole),
+        super::revised(&whole, crate::lang::Voice::default()),
         vec![(
             "rewritten whole · no preservation of the earlier bytes is claimed".to_owned(),
             true
@@ -369,28 +385,27 @@ fn a_revision_names_what_changed_and_warns_on_a_rewrite_or_a_moved_component() {
     );
 }
 
-/// `expanded` and `invoked` are two admitted states of held reuse, each named by its own word;
-/// only a witness that is neither (revised, absent, unreadable, unwitnessed) needs attention.
+/// `expanded` and `invoked` are two admitted states of held reuse, each named by its own words;
+/// only a witness that is neither (revised, absent, unreadable, unwitnessed) needs attention,
+/// each said in words too.
 #[test]
 fn an_invoked_component_is_admitted_like_an_expanded_one_and_named_apart() {
     use nika_session::work::DocumentRevision;
     let record = serde_json::json!({"mode": "composed", "candidate_sha256": "c",
         "components": [{"component": {"id": "block:json-filter-records",
             "release": {"version": "1.0.0"}}}]});
-    for (witness, attention) in [
-        ("expanded", false),
-        ("invoked", false),
-        ("revised", true),
-        ("absent", true),
-        ("unreadable", true),
-        ("unwitnessed", true),
+    for (witness, said, attention) in [
+        ("expanded", "reused as bound", false),
+        ("invoked", "called as bound", false),
+        ("revised", "reused, then changed", true),
+        ("absent", "no longer in these bytes", true),
+        ("unreadable", "unreadable in these bytes", true),
+        ("unwitnessed", "not checked in these bytes", true),
     ] {
         let revision = DocumentRevision::of(&record, &[witness.to_owned()]).expect("revision");
-        let id = "block:json-filter-records";
-        let or = super::OR;
-        let words = format!("component · {id} 1.0.0 · {witness}{or}component · {id} · {witness}");
+        let words = format!("component · json-filter-records · {said}");
         assert_eq!(
-            super::revised(&revision)[1],
+            super::revised(&revision, crate::lang::Voice::default())[1],
             (words, attention),
             "{witness}"
         );
@@ -398,9 +413,9 @@ fn an_invoked_component_is_admitted_like_an_expanded_one_and_named_apart() {
     // A component the Session did not witness is `unwitnessed`: attention, never admitted.
     let unseen = DocumentRevision::of(&record, &[]).expect("revision");
     assert!(
-        super::revised(&unseen)[1].1,
+        super::revised(&unseen, crate::lang::Voice::default())[1].1,
         "{:?}",
-        super::revised(&unseen)
+        super::revised(&unseen, crate::lang::Voice::default())
     );
 }
 
@@ -483,13 +498,60 @@ fn the_draft_shows_while_its_question_waits_and_answers_no_consent() {
     assert!(!room.0.join(DEST).exists(), "a draft writes nothing");
 }
 
+/// Only the draft of the round that asks the question waiting is shown: a snapshot whose draft
+/// belongs to questions that do not include the waiting key (a discarded or earlier round's,
+/// kept beside another question; live gauntlet 5, r07 B4) shows no draft, so the saved file, or
+/// nothing, stands in its place; the same draft under its own question still shows.
+#[test]
+fn a_draft_shows_only_under_a_question_its_round_asks() {
+    use nika_session::work::Waiting;
+    let room = Room::new("draft-stale");
+    let mut live = live(&room.0);
+    let _ = live.submit(ASKS);
+    let work = live.runtime.as_ref().expect("runtime").work();
+    let Waiting::Question { key, .. } = &work.waiting else {
+        panic!("a question waits: {:?}", work.waiting);
+    };
+    let asked = (work.authoring.as_ref()).expect("the round that asks");
+    assert!(
+        asked.questions.contains(key),
+        "{key} among {:?}",
+        asked.questions
+    );
+    let draft = asked.draft.clone().expect("the compiler drafted");
+    let shown = super::draft_of(&work, None).expect("its own question: the draft shows");
+    assert_eq!(
+        shown.witness(),
+        Some(Witness::of(draft.as_bytes()).0.as_str())
+    );
+    // The same draft, kept from a round whose questions do not ask the key that waits.
+    let mut stale = work.clone();
+    let other = stale.authoring.as_mut().expect("the round");
+    other.questions = vec!["const.earlier_round".to_owned()];
+    assert!(
+        super::draft_of(&stale, None).is_none(),
+        "a stale draft must not show"
+    );
+    stale.authoring = None;
+    assert!(
+        super::draft_of(&stale, None).is_none(),
+        "no round, no draft"
+    );
+}
+
 /// Typed creation records have no earlier bytes; an unknown record cannot
 /// inherit a replacement claim. These are projection fixtures, not a live CREATE.
 #[test]
 fn document_records_do_not_describe_a_creation_or_unknown_mode_as_replacement() {
     for (mode, base, changed, expected, attention) in [
-        ("written", None, vec![], "created · written", false),
-        ("composed", None, vec![], "created · composed", false),
+        ("written", None, vec![], "created · written whole", false),
+        (
+            "composed",
+            None,
+            vec![],
+            "created · composed from components",
+            false,
+        ),
         (
             "operations",
             Some("base"),
@@ -500,8 +562,12 @@ fn document_records_do_not_describe_a_creation_or_unknown_mode_as_replacement() 
         (
             "operations",
             Some("base"),
-            vec!["tasks.read"],
-            "revised in place · tasks.read",
+            vec![
+                "tasks.read.invoke.args.path",
+                "tasks.read.with.x",
+                "permits.fs",
+            ],
+            "revised in place · step read, the permissions",
             false,
         ),
         (
@@ -532,9 +598,40 @@ fn document_records_do_not_describe_a_creation_or_unknown_mode_as_replacement() 
         let revision =
             nika_session::work::DocumentRevision::of(&record, &[]).expect("the typed record");
         assert_eq!(
-            super::revised(&revision),
+            super::revised(&revision, crate::lang::Voice::default()),
             vec![(expected.to_owned(), attention)],
             "mode {mode}, base {base:?}"
         );
     }
+}
+
+/// A change reads in the person's language and the glyph column in use: what it
+/// creates and how long, the count bound to its unit (French writes the
+/// singular below two, English keeps its one unit); the path stays as written.
+#[test]
+fn a_change_reads_in_the_persons_language() {
+    use crate::lang::{Lang, Voice};
+    use nika_tui_view::workspace::text::KEEP;
+    let french = Voice {
+        lang: Lang::Fr,
+        ascii: false,
+    };
+    let plain = Voice {
+        ascii: true,
+        ..french
+    };
+    let one = set(&["one.nika"], None);
+    let created = &one.changes[0];
+    assert_eq!(
+        super::words(created, Voice::default()),
+        format!("creates one.nika (1{KEEP}lines)")
+    );
+    assert_eq!(
+        super::words(created, french),
+        format!("crée one.nika (1{KEEP}ligne)")
+    );
+    assert_eq!(
+        super::words(created, plain),
+        format!("cree one.nika (1{KEEP}ligne)")
+    );
 }

@@ -78,10 +78,12 @@ fn without_its_start_date_the_cadence_is_asked_and_an_answer_with_the_date_binds
 }
 
 #[test]
-fn a_month_end_or_a_start_date_read_at_the_door_is_bound_whole() {
+fn a_month_day_a_month_end_or_a_start_date_read_at_the_door_is_bound_whole() {
     for (trigger, cron) in [
         ("On the last day of every month at 18:00", "0 18 L * *"),
         ("Every month on the last day at 18:00", "0 18 L * *"),
+        ("On the 1st of every month at 08:00", "0 8 1 * *"),
+        ("Every month on the 15th at 9:30", "30 9 15 * *"),
         (
             "Every 2 weeks on Monday at 9:00, starting 2026-10-05",
             "every 2 weeks from 2026-10-05 09:00",
@@ -92,6 +94,10 @@ fn a_month_end_or_a_start_date_read_at_the_door_is_bound_whole() {
         ),
     ] {
         let out = compile(&request(trigger)).unwrap();
+        assert!(
+            out.requested_trigger.is_some(),
+            "{trigger}: no trigger read: {out:#?}"
+        );
         let bound = out.requested_trigger.as_ref().expect("a trigger");
         assert_eq!(bound.kind, TriggerKind::Schedule, "{trigger}");
         assert_eq!(bound.cron.as_deref(), Some(cron), "{trigger}: {out:#?}");
@@ -104,6 +110,7 @@ fn a_month_end_or_a_start_date_read_at_the_door_is_bound_whole() {
     // French heads reach the same forms (the clause itself is not judged here).
     for (trigger, cron) in [
         ("Le dernier jour de chaque mois à 18h", "0 18 L * *"),
+        ("Le 1er de chaque mois à 8h", "0 8 1 * *"),
         (
             "Toutes les deux semaines le lundi à 9h à partir du 2026-10-05",
             "every 2 weeks from 2026-10-05 09:00",

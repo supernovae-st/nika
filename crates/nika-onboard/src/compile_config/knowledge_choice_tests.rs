@@ -509,7 +509,7 @@ fn nothing_named_attaches_the_embedded_release_composed_for_the_intent() {
     let pack = request.authoring_knowledge.expect("attached");
     assert_eq!(
         pack.identity["snapshot_sha256"],
-        "8d52df01a5105fc4661851218e89ca172c5799bf3016aedbce1574ecac096075"
+        "b9406fa6606b4c9656f72e9fe5d5898dc3842b7cf13804ad9a9f053a2568b004"
     );
     assert_eq!(pack.identity["verification"]["policy"]["id"], "policy-r2");
     let direct = bundled::admit(Some(&bundled::identity().unwrap()))

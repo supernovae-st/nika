@@ -181,7 +181,7 @@ pub struct PricingEntry { /* pub fields, matches current build.rs */ }
 // ── Schema version constants (public, stable) ─────────────────────────
 
 pub const MCP_SERVERS_SCHEMA:  &str = "nika/mcp-servers@1.0";
-pub const LLM_PROVIDERS_SCHEMA:&str = "nika/llm-providers@1.0";
+pub const LLM_PROVIDERS_SCHEMA:&str = "nika/llm-providers@1.2";
 pub const EMBEDDINGS_SCHEMA:   &str = "nika/embeddings@1.0";
 pub const CAPABILITIES_SCHEMA: &str = "nika/model-capabilities@1.0";
 pub const PRICING_SCHEMA:      &str = "nika/model-pricing@1.0";

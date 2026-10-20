@@ -8,7 +8,9 @@
 //! other object is named by its kind's icon and its name with the lines it is
 //! given, cut at the edge, never wrapped into a shape the object does not
 //! have. With nothing open it welcomes with a compact butterfly above the
-//! Session's first words; the conversation keeps the prominent region.
+//! Session's first words; the conversation keeps the prominent region. The
+//! butterfly wears the brand's ice; while it is revealed, what a frame has
+//! just lit glows until the next one, and the last frame has settled to ice.
 
 use std::time::Duration;
 
@@ -21,8 +23,8 @@ use unicode_width::UnicodeWidthStr;
 
 use super::text::{fit_head, marks, wrap};
 use crate::visual::icon::Icon;
-use crate::visual::logomark::Size;
-use crate::visual::role;
+use crate::visual::logomark::{self, Glyphs, REVEAL_AT, Size, WORDMARK};
+use crate::visual::role::{self, Depth, Tone};
 
 /// What the preview shows, as the Session projects it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -86,7 +88,8 @@ pub fn lines(object: &Object, width: u16, height: u16, paint: Paint) -> Vec<Line
 }
 
 /// The lines of the region with an open object scrolled to its line `scroll`
-/// (the title row stays); the welcome never scrolls.
+/// (the title row stays); the welcome never scrolls. The brand's tones take
+/// the depth the palette assumes ([`Depth::of_palette`]).
 #[must_use]
 pub fn lines_from(
     object: &Object,
@@ -95,8 +98,25 @@ pub fn lines_from(
     paint: Paint,
     scroll: usize,
 ) -> Vec<Line<'static>> {
+    lines_at(
+        object,
+        (width, height),
+        paint,
+        scroll,
+        Depth::of_palette(paint.color),
+    )
+}
+
+/// [`lines_from`] with the brand's tones at `depth`.
+fn lines_at(
+    object: &Object,
+    (width, height): (u16, u16),
+    paint: Paint,
+    scroll: usize,
+    depth: Depth,
+) -> Vec<Line<'static>> {
     if let Object::Welcome { words } = object {
-        return welcome(words, width, height, paint);
+        return welcome(words, width, height, paint, depth);
     }
     let total = length(object);
     let rows = content_rows(total, height);
@@ -156,26 +176,33 @@ pub fn length(object: &Object) -> usize {
 }
 
 /// The welcome: the mark (when one fits) then the words, the block centred.
-fn welcome(words: &[String], width: u16, height: u16, paint: Paint) -> Vec<Line<'static>> {
+fn welcome(
+    words: &[String],
+    width: u16,
+    height: u16,
+    paint: Paint,
+    depth: Depth,
+) -> Vec<Line<'static>> {
     let (_, cut) = marks(paint.ascii);
+    let depth = if paint.color { depth } else { Depth::None };
     let words = welcome_words(words, width, height, cut);
     let mark = welcome_mark(width, height, words.len())
-        .map(|size| size.at(paint.elapsed, paint.reduced_motion))
+        .map(|size| mark_lines(size, paint, depth))
         .unwrap_or_default();
     let gap = usize::from(!mark.is_empty() && !words.is_empty());
     let used = mark.len() + gap + words.len();
     let top = usize::from(height).saturating_sub(used) / 2;
     let mut out = vec![Line::default(); top];
-    out.extend(
-        mark.into_iter()
-            .map(|row| Line::styled(row.to_owned(), role::style(Role::Accent, paint.color))),
-    );
+    out.extend(mark);
     out.extend(std::iter::repeat_n(Line::default(), gap));
     // The words are what the human reads: the default foreground, no role.
+    // The wordmark under the mark completes the lockup: the name strong,
+    // its dot in the exec hue.
     out.extend(words.iter().map(|word| {
-        let hue = if word == "N I K A" {
-            Role::Strong
-        } else if word.starts_with(['1', '2', '3']) {
+        if word == WORDMARK {
+            return logomark::wordmark(role::style(Role::Strong, paint.color), depth);
+        }
+        let hue = if word.starts_with(['1', '2', '3']) {
             Role::Accent
         } else if word.starts_with("Try:") {
             Role::VerbInvoke
@@ -189,6 +216,55 @@ fn welcome(words: &[String], width: u16, height: u16, paint: Paint) -> Vec<Line<
     }));
     out.truncate(usize::from(height));
     out
+}
+
+/// The butterfly's rows at its reveal's clock, in braille or, in the ASCII
+/// column, the density ramp; each cell in the mark's ice. Before the last
+/// frame, a cell its frame has just lit (or filled further) glows. The last
+/// frame, held from then on and drawn at once under reduced motion, has
+/// settled to ice. A blank cell keeps the run it falls in, so a row changes
+/// style only where a glyph does.
+fn mark_lines(size: Size, paint: Paint, depth: Depth) -> Vec<Line<'static>> {
+    let glyphs = Glyphs::of(paint.ascii);
+    let index = logomark::frame_at(paint.elapsed, paint.reduced_motion);
+    let rows = size.frame(glyphs, index);
+    let settled = index + 1 >= REVEAL_AT.len() || depth == Depth::None;
+    let before = if settled || index == 0 {
+        Vec::new()
+    } else {
+        size.frame(glyphs, index - 1)
+    };
+    let ice = role::tone(Tone::Ice, depth);
+    rows.iter()
+        .enumerate()
+        .map(|(y, row)| {
+            if settled {
+                return Line::from(Span::styled(*row, ice));
+            }
+            let mut was = before.get(y).map_or("", |was| *was).chars();
+            let mut spans: Vec<Span<'static>> = Vec::new();
+            let mut run = String::new();
+            let mut lit = false;
+            for glyph in row.chars() {
+                let prior = was.next().unwrap_or(' ');
+                let glows = glyph != prior;
+                if glyph != ' ' && glows != lit && !run.is_empty() {
+                    let tone = if lit { Tone::Glow } else { Tone::Ice };
+                    spans.push(Span::styled(
+                        std::mem::take(&mut run),
+                        role::tone(tone, depth),
+                    ));
+                }
+                if glyph != ' ' {
+                    lit = glows;
+                }
+                run.push(glyph);
+            }
+            let tone = if lit { Tone::Glow } else { Tone::Ice };
+            spans.push(Span::styled(run, role::tone(tone, depth)));
+            Line::from(spans)
+        })
+        .collect()
 }
 
 /// In a short viewport the launch guide keeps its actions ahead of decoration.
@@ -249,14 +325,27 @@ fn shown(
     out
 }
 
-/// Draw the region into `area`.
+/// Draw the region into `area`, the brand's tones at the palette's depth.
 pub fn render(object: &Object, area: Rect, buf: &mut Buffer, paint: Paint) {
-    render_from(object, area, buf, paint, 0);
+    render_from(
+        object,
+        area,
+        buf,
+        (paint, Depth::of_palette(paint.color)),
+        0,
+    );
 }
 
-/// Draw the region into `area`, an open object scrolled to its line `scroll`.
-pub fn render_from(object: &Object, area: Rect, buf: &mut Buffer, paint: Paint, scroll: usize) {
-    let text = lines_from(object, area.width, area.height, paint, scroll);
+/// Draw the region into `area`, an open object scrolled to its line `scroll`,
+/// the brand's tones at `depth` (the terminal's, as its caller read it).
+pub fn render_from(
+    object: &Object,
+    area: Rect,
+    buf: &mut Buffer,
+    (paint, depth): (Paint, Depth),
+    scroll: usize,
+) {
+    let text = lines_at(object, (area.width, area.height), paint, scroll, depth);
     let alignment = match object {
         Object::Welcome { .. } => Alignment::Center,
         Object::Shown { .. } | Object::Workflow { .. } => Alignment::Left,
@@ -302,7 +391,8 @@ mod tests {
         assert_eq!(welcome_mark(13, 9, 1), None);
         let rows = text(&lines(&hello(), 80, 11, paint(false)));
         assert_eq!(rows.len(), 10, "mark 8, gap 1, words 1: {rows:?}");
-        let mark = Size::Compact.lines();
+        // The Unicode column draws the braille rendition.
+        let mark = Size::Compact.lines(Glyphs::Braille);
         let first = rows.iter().position(|r| r == mark[0]).expect("mark drawn");
         assert_eq!(&rows[first..first + mark.len()], mark.as_slice());
         assert_eq!(rows[first + mark.len()], "");
@@ -328,6 +418,169 @@ mod tests {
         assert_ne!(start, end, "the first frame is not the final mark");
         assert_eq!(at(Duration::ZERO, true), end);
         assert_eq!(at(Duration::from_secs(60), false), end);
+    }
+
+    /// Each cell of `lines` with the style its span wears.
+    fn toned(lines: &[Line<'_>]) -> Vec<Vec<(char, ratatui::style::Style)>> {
+        lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .flat_map(|span| span.content.chars().map(move |glyph| (glyph, span.style)))
+                    .collect()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn what_a_frame_lights_glows_and_the_last_frame_settles_to_ice() {
+        for ascii in [true, false] {
+            lights_then_settles(ascii);
+        }
+    }
+
+    /// The reveal's tones in one glyph column.
+    fn lights_then_settles(ascii: bool) {
+        let size = Size::Launch;
+        let glyphs = Glyphs::of(ascii);
+        let ice = role::tone(Tone::Ice, Depth::Rgb);
+        let glow = role::tone(Tone::Glow, Depth::Rgb);
+        let colour = |elapsed, reduced_motion| Paint {
+            ascii,
+            color: true,
+            elapsed,
+            reduced_motion,
+        };
+        let mut lit = 0;
+        for (index, at) in REVEAL_AT.into_iter().enumerate() {
+            let cells = toned(&mark_lines(size, colour(at, false), Depth::Rgb));
+            let now = size.frame(glyphs, index);
+            let before = if index == 0 {
+                vec![""; now.len()]
+            } else {
+                size.frame(glyphs, index - 1)
+            };
+            let last = index + 1 == REVEAL_AT.len();
+            for ((row, was), cells) in now.iter().zip(&before).zip(&cells) {
+                assert_eq!(&cells.iter().map(|(g, _)| *g).collect::<String>(), row);
+                let mut prior = was.chars();
+                for (glyph, style) in cells {
+                    let old = prior.next().unwrap_or(' ');
+                    if *glyph == ' ' {
+                        continue;
+                    }
+                    let new = !last && *glyph != old;
+                    lit += usize::from(new);
+                    assert_eq!(
+                        *style,
+                        if new { glow } else { ice },
+                        "frame {index}: {row:?}"
+                    );
+                }
+            }
+        }
+        assert!(lit > 0, "the reveal lit nothing");
+        // Under reduced motion the settled mark is drawn at once.
+        let still = toned(&mark_lines(size, colour(Duration::ZERO, true), Depth::Rgb));
+        assert!(still.iter().flatten().all(|(_, style)| *style == ice));
+        // A smaller palette takes its nearest slots; without colour, no hue.
+        let first = toned(&mark_lines(
+            size,
+            colour(Duration::ZERO, false),
+            Depth::Ansi256,
+        ));
+        let glows = role::tone(Tone::Glow, Depth::Ansi256);
+        assert!(
+            first
+                .iter()
+                .flatten()
+                .all(|(glyph, style)| *glyph == ' ' || *style == glows)
+        );
+        let plain = Paint {
+            color: false,
+            ..colour(Duration::ZERO, false)
+        };
+        let rows = lines(&hello(), 62, 38, plain);
+        assert!(
+            toned(&rows)
+                .iter()
+                .flatten()
+                .all(|(_, style)| style.fg.is_none())
+        );
+    }
+
+    #[test]
+    fn the_welcome_mark_wears_the_terminal_depth_it_is_given() {
+        let settled = Paint {
+            ascii: true,
+            color: true,
+            elapsed: REVEAL_ENDS,
+            reduced_motion: false,
+        };
+        let mark = Size::Board.lines(Glyphs::Ramp);
+        let wears = |depth| {
+            let rows = lines_at(&hello(), (62, 38), settled, 0, depth);
+            let row = rows
+                .iter()
+                .find(|line| line.to_string() == mark[mark.len() / 2])
+                .expect("the mark is drawn");
+            row.spans
+                .iter()
+                .map(|span| span.style.fg)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(wears(Depth::Rgb), [role::tone(Tone::Ice, Depth::Rgb).fg]);
+        assert_eq!(
+            wears(Depth::Ansi16),
+            [Some(ratatui::style::Color::LightCyan)]
+        );
+        assert_eq!(wears(Depth::None), [None]);
+        // The palette's own depth is 24-bit wherever colour is allowed.
+        assert_eq!(
+            lines(&hello(), 62, 38, settled),
+            lines_at(&hello(), (62, 38), settled, 0, Depth::Rgb)
+        );
+    }
+
+    #[test]
+    fn the_wordmark_under_the_mark_completes_the_lockup() {
+        use ratatui::style::{Color, Modifier};
+        let object = Object::Welcome {
+            words: vec![
+                WORDMARK.to_owned(),
+                "Turn an intention into a workflow.".to_owned(),
+            ],
+        };
+        for (ascii, color, depth, dot) in [
+            (false, true, Depth::Rgb, Some(Color::Rgb(0xff, 0x7a, 0x3c))),
+            (false, true, Depth::Ansi256, Some(Color::Indexed(209))),
+            (true, true, Depth::Ansi16, Some(Color::LightYellow)),
+            (true, false, Depth::Rgb, None),
+        ] {
+            let paint = Paint {
+                ascii,
+                color,
+                elapsed: REVEAL_ENDS,
+                reduced_motion: false,
+            };
+            let rows = lines_at(&object, (62, 38), paint, 0, depth);
+            let at = rows
+                .iter()
+                .position(|line| line.to_string() == WORDMARK)
+                .expect("the wordmark");
+            let line = &rows[at];
+            assert_eq!(line.spans[0].content, "nika");
+            assert!(line.spans[0].style.add_modifier.contains(Modifier::BOLD));
+            assert_eq!(
+                (line.spans[1].content.as_ref(), line.spans[1].style.fg),
+                (".", dot)
+            );
+            // Under the mark, one blank row between them.
+            assert_eq!(rows[at - 1].to_string(), "");
+            let mark = Size::Board.lines(Glyphs::of(ascii));
+            assert_eq!(rows[at - 2].to_string(), mark[mark.len() - 1]);
+        }
     }
 
     #[test]

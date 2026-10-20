@@ -30,7 +30,12 @@ use nika_session::{
 /// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer scripted at
 /// the judge's position, after a candidate READY in its authoring round. The judge's call is a
 /// real call, counted like any other.
-const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
+/// It answers the whole request's `model_parts` too: no part a model must write.
+const JUDGE_APPROVES: &str = r#"{"choice":"faithful","model_parts":[]}"#;
+/// The same verifier's answer for the request's part judged again over the whole trial run of
+/// the copy (`entree.txt` an observed input, `sortie.txt` its target): the run's output shows it
+/// done as asked.
+const PART_CARRIED: &str = r#"{"choice":"carried"}"#;
 
 const INPUT: &str = "Prépare la copie de entree.txt dans sortie.txt.";
 const NATIVE_INPUT: &str =
@@ -161,10 +166,11 @@ fn amendment_protocol(input: &str, scenario: &str, native: bool) {
     std::fs::create_dir_all(&root).expect("root");
     std::fs::create_dir_all(&home).expect("home");
     std::fs::write(root.join("entree.txt"), "A\n").expect("input");
-    // On the default strategy, semantic CREATE: the document door's whole document (READY), then
-    // its judgment (native step 1).
+    // On the default strategy, semantic CREATE: the document door's whole document (READY), its
+    // judgment (native step 1), then, the copy's trial run whole, its part judged over that run.
     let mut script = semantic_copy();
     script.push(JUDGE_APPROVES.to_owned());
+    script.push(PART_CARRIED.to_owned());
     let seat = LoopbackSeat::start(script);
     child_run(&root, &home, &seat, scenario);
     seat.shutdown();
@@ -176,9 +182,46 @@ fn amendment_protocol(input: &str, scenario: &str, native: bool) {
         );
         assert_eq!(
             bodies.len(),
-            2,
-            "the document, its judgment; the monetary revision calls no one: {bodies:#?}"
+            3,
+            "the document, its judgment, its part over the trial run; the monetary revision calls no one: {bodies:#?}"
         );
+        // The third call asks the request's part again over the whole trial run: the bytes its
+        // judgment read, the request's own words, the run that copied the input whole, and a
+        // part's options, never the whole request's verdict.
+        let shown = |body: &serde_json::Value| -> (serde_json::Value, Vec<String>) {
+            let user = message(body, "user");
+            let (state, options) = (user.strip_prefix("STATE:\n"))
+                .and_then(|rest| rest.split_once("\n\nOPTIONS:\n"))
+                .expect("a closed choice's state and options");
+            let keys = (options.lines())
+                .filter_map(|line| Some(line.strip_prefix("- ")?.split_once(": ")?.0.to_owned()))
+                .collect();
+            (serde_json::from_str(state).expect("the state"), keys)
+        };
+        let (judged, _) = shown(&bodies[1]);
+        let (part, keys) = shown(&bodies[2]);
+        assert_eq!(keys, ["carried", "missing", "unexercised", "none"]);
+        assert_eq!(part["request"], input, "the request's own words");
+        assert_eq!(
+            part["candidate_nika"], judged["candidate_nika"],
+            "the judged bytes"
+        );
+        let clause = part["clause"]["text"].as_str().expect("the clause");
+        assert!(
+            input.contains(clause) && clause.contains("sortie.txt"),
+            "{clause}"
+        );
+        let candidate = part["candidate_nika"].as_str().expect("the candidate");
+        let run = &part["observation"];
+        assert_eq!(
+            run["candidate_sha256"],
+            common::sha256(candidate),
+            "{run:#}"
+        );
+        let output = &run["outputs"][0];
+        let path = output["path"].as_str().unwrap_or_default();
+        assert!(path.ends_with("sortie.txt"), "{run:#}");
+        assert_eq!(output["text"], "A\n", "the input copied whole: {run:#}");
         assert!(
             bodies
                 .iter()

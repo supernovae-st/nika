@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 
 use nika_tui::app::{self, Options};
 use nika_tui::model::{Beat, Presentation, Script, Waiting};
-use nika_tui::visual::logomark::Size;
+use nika_tui::visual::logomark::{Glyphs, Size};
 use nika_tui::workspace::geometry::Geometry;
 use qa_support::vt::Screen;
 use qa_support::{Term, assert_restored, exit_code, sized};
@@ -77,7 +77,7 @@ fn logo_is(screen: &Screen, index: usize) -> bool {
                 .collect()
         })
         .collect();
-    let mark = Size::Board.frame(index);
+    let mark = Size::Board.frame(Glyphs::Ramp, index);
     rows.windows(mark.len()).any(|rows| {
         rows.iter()
             .zip(&mark)
@@ -108,7 +108,7 @@ fn ends_a_frame(raw: &[u8]) -> bool {
 /// piece over as it comes, so the wordmark can be read before the rows
 /// after it; those rows belong to the first paint, not to a new one.
 fn first_frame_whole(term: &mut Term) {
-    term.wait_text("N I K A");
+    term.wait_text(nika_tui::visual::logomark::WORDMARK);
     let deadline = Instant::now() + qa_support::WAIT;
     while !ends_a_frame(term.bytes_since(0)) {
         assert!(

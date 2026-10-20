@@ -18,6 +18,57 @@ fn findings() -> Vec<Finding> {
     }]
 }
 
+/// The machine lane states what it covers: the whole machine. A
+/// question about one workflow goes to `nika check`, never to a second
+/// readiness judge here. `summary.unknown` is always present.
+#[test]
+fn doctor_json_states_its_scope() {
+    let json: serde_json::Value = serde_json::from_str(&render_json(
+        &findings(),
+        AdoptionState::Installed,
+        &[],
+        &AccessCensus::default(),
+    ))
+    .expect("valid JSON");
+    assert_eq!(json["scope"], serde_json::json!({"mode": "audit-wide"}));
+    assert_eq!(
+        json["summary"],
+        serde_json::json!({"ok": 1, "warn": 0, "unknown": 0, "fail": 0})
+    );
+}
+
+/// A harness seat whose login check did not answer, built from the parts the doctor reads: the
+/// row is `unknown` (never a warning about a sign-in nobody observed), counted as such, the exit
+/// code unchanged, and no sign-in taught.
+#[test]
+fn an_unanswered_login_check_is_an_unknown_row() {
+    let finding = super::harness_finding_from_parts(
+        "claude",
+        Some((2, 1)),
+        None,
+        "@agentclientprotocol/claude-agent-acp",
+        true,
+        Some("its login check did not answer within its deadline"),
+    );
+    let found = std::slice::from_ref(&finding);
+    let json: serde_json::Value = serde_json::from_str(&render_json(
+        found,
+        AdoptionState::Installed,
+        &[],
+        &AccessCensus::default(),
+    ))
+    .expect("valid JSON");
+    assert_eq!(json["findings"][0]["level"], "unknown", "{json}");
+    assert_eq!(json["summary"]["unknown"], 1, "{json}");
+    assert_eq!(json["summary"]["warn"], 0, "{json}");
+    assert_eq!(json["summary"]["fail"], 0, "{json}");
+    assert_eq!(super::exit_code(found), 0);
+    assert!(json["findings"][0]["fix"].is_null(), "{json}");
+    let detail = json["findings"][0]["detail"].as_str().unwrap_or_default();
+    assert!(detail.contains("sign-in unknown"), "{detail}");
+    assert!(!detail.contains("not signed in"), "{detail}");
+}
+
 /// P0-21 — the machine lane carries the adoption rung next to the
 /// findings: agents/CI branch on ONE state token, not on a parse of
 /// the flat finding rows. R4 added the seat rung.

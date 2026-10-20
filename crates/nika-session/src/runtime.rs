@@ -26,6 +26,7 @@ use crate::outcome::{GateId, ProposalId, Refusal, RefusalClass, ReviewId};
 use crate::reasoner::{ReasonError, SessionReasoner};
 use crate::snapshot::ProjectSnapshot;
 
+mod active;
 mod agent;
 mod answer;
 mod aside;
@@ -41,15 +42,32 @@ mod durable;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod durable_tests;
+mod feedback;
 mod fresh;
+mod gate_choices;
+mod help_fr;
 mod history;
 mod inference;
+mod initial_intelligence;
 mod knowledge;
 mod landed;
+mod model_answer;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod model_answer_tests;
 mod money_gate;
+mod natural_run;
+mod new_conversation;
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod status_tests;
 // The lexical money reader grants no authority; admission stays here.
 use nika_onboard::compile::money as money_parse;
+mod intelligence_options;
+mod intelligence_settings;
+pub use intelligence_settings::DecisionChoice;
 mod observed;
+mod priced;
 mod protocol;
 mod question;
 mod recovery;
@@ -60,15 +78,26 @@ mod round;
 mod route;
 mod run_admission;
 mod run_budget;
+mod understood;
 mod unjudged;
 mod unknown_cost;
 mod work;
 pub use work::{GATE_NOT_SHOWN, NOTHING_SHOWN, REVIEW_NOT_SHOWN, VALUE_NOT_SHOWN};
 
 pub use decision::{DecisionAnswer, decision_answer};
-use decision::{is_no, is_save_and_run, is_yes, local_command_of};
+use decision::{is_no, is_plain_yes, is_save_and_run, is_yes, local_command_of};
 use run_budget::ceiling_in;
+mod ceilings;
 mod schedule;
+mod schedule_change;
+mod schedule_ledger;
+pub use schedule_ledger::{LastDecision, ScheduleHistory};
+mod status_fr;
+mod trigger_install;
+pub use nika_session_change::Lang;
+pub(crate) use schedule::program;
+pub use schedule::{zone_place, zone_words};
+pub use trigger_install::{DeclaredOnly, LaunchdHost, TriggerHost};
 
 /// The durable half of the conversation — decisions, not chat.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -280,6 +309,8 @@ pub struct SessionRuntime {
     broker: ContextBroker,
     known: KnownWorld,
     recent: Vec<(String, String)>,
+    /// The language the person's own lines are written in: the Session's own sentences follow it.
+    language: Lang,
     history: history::HistoryMode,
     census: Option<IntelligenceCensus>,
     home: Option<PathBuf>,
@@ -303,6 +334,9 @@ pub struct SessionRuntime {
     decided: Option<ProposalId>,
     answered: Option<GateId>,
     last_run: Option<(u8, String)>,
+    /// What the observed run's stream told the person, kept for the observation that follows:
+    /// a run stopped before its first frame says why there alone.
+    run_told: Vec<String>,
     last_workflow: Option<PathBuf>,
     /// The check at the consent that saved the last workflow: clean, or
     /// findings (the rail's Checked field says which).
@@ -325,8 +359,17 @@ pub struct SessionRuntime {
     proposed_revision: Option<serde_json::Value>,
     /// The trace the last observed run left (`/proof` reads it).
     last_trace: Option<PathBuf>,
+    /// Whether the person refused a gate of the last observed run: it ended where their answer
+    /// stopped it, which `/status` and the observation say, never a plain success.
+    last_run_refused: bool,
+    /// What the last observed run spent, with the workflow and the sha256 of the bytes it ran: a
+    /// run of the same bytes under a lower ceiling is refused before it starts.
+    last_spend: Option<(PathBuf, String, f64)>,
     /// The last observed run HOME history keeps (`KeptRun`): evidence, never authority.
     kept_run: Option<serde_json::Value>,
+    /// The seal facts (`seal_verified`, `signed`) the verifier attests for the kept native run's
+    /// journal, held beside the kept value, never in it ([`Self::journal_seal`]).
+    run_seal: Option<(bool, bool)>,
     /// The authoring round whose question the next line answers.
     authoring: Option<AuthoringRound>,
     /// The proposal a revision's question set aside, with the reading it came from: it waits
@@ -357,6 +400,13 @@ pub struct SessionRuntime {
     /// This conversation's own explicit choice (named by its opener, chosen in it or kept by
     /// its history): it holds here only, never written as the operator's default.
     conversation: Option<ConversationChoice>,
+    /// The operator's saved default (`~/.nika/session-intelligence.json`) as read when the
+    /// session opened: what the picker recommends first while this machine serves it.
+    operator_default: Option<UserIntelligencePreference>,
+    /// The Jev decision seat the host named (its environment when the session opened, or a
+    /// context it handed since), kept while the conversation lets the author decide alone so
+    /// it can be chosen again; never another seat.
+    jev_seat: Option<crate::authoring::DecisionSetup>,
     /// This conversation's knowledge choice and the line it holds (`knowledge.rs`).
     knowledge: knowledge::State,
     /// The last recovery card (a turn that could not be finished), kept so
@@ -377,12 +427,24 @@ pub struct SessionRuntime {
     activation: Option<schedule::Activation>,
     /// Identifies the schedule declaration solely to discard it on revision, never to grant it.
     activation_proposal: Option<ProposalId>,
+    /// The schedule the declaration proposed last names, offered for its trigger once it lands.
+    declared: Option<trigger_install::InstallOffer>,
+    /// The workflow whose schedule the declaration proposed last removes, said once it lands.
+    unscheduled: Option<std::path::PathBuf>,
+    /// The install decision the next line answers, while it waits.
+    install_offer: Option<trigger_install::InstallOffer>,
+    /// The units this conversation installed: what « désactive-le » removes.
+    installed: Vec<std::path::PathBuf>,
+    /// What installs and removes a unit on this machine.
+    trigger_host: Box<dyn TriggerHost>,
     /// The bounded classifier of open language, when a door injects one
     /// (a decision seat, a scripted one in tests); otherwise the session's
     /// own intelligence answers the routing prompt, or the fallback.
     classifier: Option<Box<dyn crate::turn::TurnClassifier>>,
     /// Every non-trivial route decided in this session (`/details`).
     routes: Vec<crate::turn::RouteRecord>,
+    /// The optional offer about the last result and the person's answers to such offers.
+    feedback: feedback::Feedback,
 }
 
 /// A door's sink for progress lines (« Working through this workflow… »);
@@ -423,6 +485,7 @@ impl SessionRuntime {
         let snapshot = ProjectSnapshot::observe(cwd);
         let broker = ContextBroker::new(snapshot.root.clone());
         let known = KnownWorld::installed(&snapshot.root);
+        let jev_seat = authoring_context.decision().cloned();
         let mut session = Self {
             snapshot,
             intelligence,
@@ -431,6 +494,7 @@ impl SessionRuntime {
             broker,
             known,
             recent: Vec::new(),
+            language: Lang::default(),
             history: history::HistoryMode::Ephemeral,
             census: None,
             home: None,
@@ -448,6 +512,7 @@ impl SessionRuntime {
             decided: None,
             answered: None,
             last_run: None,
+            run_told: Vec::new(),
             last_workflow: None,
             last_check_clean: None,
             saved_reach: None,
@@ -458,7 +523,10 @@ impl SessionRuntime {
             reviews_asked: 0,
             proposed_revision: None,
             last_trace: None,
+            last_spend: None,
+            last_run_refused: false,
             kept_run: None,
+            run_seal: None,
             authoring: None,
             revising: None,
             questions: question::Identities::default(),
@@ -471,6 +539,8 @@ impl SessionRuntime {
             interrupted: None,
             pending_choice: false,
             conversation: None,
+            operator_default: None,
+            jev_seat,
             knowledge: knowledge::State::default(),
             last_recovery: None,
             classifier: None,
@@ -481,6 +551,12 @@ impl SessionRuntime {
             last_trigger: None,
             activation: None,
             activation_proposal: None,
+            declared: None,
+            unscheduled: None,
+            install_offer: None,
+            installed: Vec::new(),
+            trigger_host: Box::new(DeclaredOnly),
+            feedback: feedback::Feedback::default(),
         };
         session.refresh_seat();
         session
@@ -491,46 +567,101 @@ impl SessionRuntime {
     /// the machine's own facts, never a concatenation of flags.
     #[must_use]
     pub fn status_line(&self) -> String {
+        use nika_cli_host::display::front_door::status;
+        // The row in the person's language: the same facts, never another verdict.
+        let (lang, fr) = (self.language, self.language == Lang::Fr);
         if self.waiting_cost_choice() {
-            return "Waiting for a one-time unknown-cost decision · nothing sent".into();
+            return lang
+                .pick(
+                    "Waiting for a one-time unknown-cost decision · nothing sent",
+                    "Attend une décision unique sur un coût inconnu · rien n'est envoyé",
+                )
+                .into();
         }
         if self.pending_choice {
-            return "Needs your choice of intelligence · the request waits".to_owned();
+            return lang
+                .pick(
+                    "Needs your choice of intelligence · the request waits",
+                    "Attend votre choix d'intelligence · la demande attend",
+                )
+                .to_owned();
         }
         if let Some(status) = self.knowledge_status() {
             return status;
         }
         if let Some(gate) = &self.pending_gate {
-            return nika_cli_host::display::front_door::status::gate(&gate.workflow, &gate.task);
+            return if fr {
+                status_fr::gate(&gate.workflow, &gate.task)
+            } else {
+                status::gate(&gate.workflow, &gate.task)
+            };
         }
         if let Some(set) = &self.pending {
-            return nika_cli_host::display::front_door::status::proposal(
-                set.changes.iter().map(crate::change::ProjectChange::path),
-            );
+            let paths = set.changes.iter().map(crate::change::ProjectChange::path);
+            return if fr {
+                status_fr::proposal(paths)
+            } else {
+                status::proposal(paths)
+            };
         }
         if self.judgment_waits() {
-            return unjudged::STATUS.into();
+            return lang
+                .pick(
+                    unjudged::STATUS,
+                    "Pas prêt · candidat gardé · le juge doit réessayer",
+                )
+                .into();
         }
         if let Some(question) = self.pending_question() {
-            return format!("Needs one answer · {}", question.label);
+            let lead = lang.pick("Needs one answer", "Attend une réponse");
+            return format!("{lead} · {}", question.label);
         }
         if let Some(name) = self.pending_input() {
-            return format!("Needs one value before it runs · `{name}`");
+            let lead = lang.pick(
+                "Needs one value before it runs",
+                "Attend une valeur avant de tourner",
+            );
+            return format!("{lead} · `{name}`");
         }
         if let Some(key) = self.pending_activation() {
-            return format!("Needs one value to declare the schedule · `{key}`");
+            if key == trigger_install::INSTALL_KEY {
+                return lang
+                    .pick(
+                        "Needs your choice · install the trigger on this Mac?",
+                        "Attend votre choix · installer le déclencheur sur ce Mac ?",
+                    )
+                    .to_owned();
+            }
+            let lead = lang.pick(
+                "Needs one value to declare the schedule",
+                "Attend une valeur pour déclarer la planification",
+            );
+            return format!("{lead} · {}", schedule::key_words(key, lang));
         }
         if let Some((exit, _)) = &self.last_run {
-            return nika_cli_host::display::front_door::status::run(
-                *exit,
-                self.last_workflow.as_deref(),
-            );
+            let workflow = self.last_workflow.as_deref();
+            return if fr {
+                status_fr::run(*exit, workflow, self.last_run_refused)
+            } else if *exit == 0 && self.last_run_refused {
+                workflow.map_or_else(
+                    || "Last run · Done · stopped at your no".to_owned(),
+                    |w| format!("Last run · Done · stopped at your no · `{}`", w.display()),
+                )
+            } else {
+                status::run(*exit, workflow)
+            };
         }
         if let Some(w) = &self.last_workflow {
-            if let Some(declared) = schedule::declared_state(&self.snapshot.root, w) {
+            let root = &self.snapshot.root;
+            let installed = |label: &str| self.trigger_host.installed(root, label);
+            if let Some(declared) = schedule::declared_state(root, w, lang, &installed) {
                 return declared;
             }
-            return format!("Saved · no current Run result · `{}`", w.display());
+            let lead = lang.pick(
+                "Saved · no current Run result",
+                "Enregistré · pas de résultat de run actuel",
+            );
+            return format!("{lead} · `{}`", w.display());
         }
         String::new()
     }
@@ -574,6 +705,28 @@ impl SessionRuntime {
     /// `Held`, the consent still waits); beside a question or after an
     /// incomplete it is an aside; never a score, never invented.
     fn meaning_unrecorded(&mut self) -> TurnOutcome {
+        // A request an intelligence leads has no compiler reading: what the Session keeps of it
+        // is its own record of the person's words and values.
+        if let Some(view) = self
+            .last_outcome
+            .is_none()
+            .then(|| self.understood())
+            .flatten()
+        {
+            return match &self.pending {
+                Some(set) => TurnOutcome::Held {
+                    id: self.proposal_id(set),
+                    preview: format!(
+                        "{view}\n{}",
+                        self.language.pick(
+                            "(the proposal still waits · `yes` applies it · `no` discards it)",
+                            "(la proposition attend toujours · « oui » l'applique · « non » l'écarte)",
+                        )
+                    ),
+                },
+                None => TurnOutcome::Aside(view),
+            };
+        }
         let view = if let Some(out) = &self.last_outcome {
             let way = " — the review above and `/show` are what there is";
             crate::meaning::render(out)
@@ -608,7 +761,11 @@ impl SessionRuntime {
             Some(set) => TurnOutcome::Held {
                 id: self.proposal_id(set),
                 preview: format!(
-                    "{view}\n(the proposal still waits · `yes` applies it · `no` discards it)"
+                    "{view}\n{}",
+                    self.language.pick(
+                        "(the proposal still waits · `yes` applies it · `no` discards it)",
+                        "(la proposition attend toujours · « oui » l'applique · « non » l'écarte)",
+                    )
                 ),
             },
             None => TurnOutcome::Aside(view),
@@ -645,9 +802,19 @@ impl SessionRuntime {
     /// way: the next line answers it, on its own prompt.
     #[must_use]
     pub fn pending_activation(&self) -> Option<&'static str> {
-        self.activation
-            .as_ref()
+        (self.activation.as_ref())
             .and_then(schedule::Activation::current)
+            .or_else(|| {
+                self.install_offer
+                    .as_ref()
+                    .map(|_| trigger_install::INSTALL_KEY)
+            })
+    }
+
+    /// Install and remove schedule triggers through `host` instead of this Mac's launchd: a host
+    /// that is not a terminal, or a test that touches no system.
+    pub fn with_trigger_host(&mut self, host: Box<dyn TriggerHost>) {
+        self.trigger_host = host;
     }
 
     /// Whether an intelligence was chosen or kept for this session.
@@ -699,9 +866,12 @@ impl SessionRuntime {
     pub fn on_progress(&mut self, hook: ProgressHook) {
         self.progress.on_text(hook);
     }
-    /// Listen to the producer's typed phase without parsing presentation text.
+    /// Listen to the producer's typed phase without parsing presentation text. A finished call
+    /// carries what it settled when the preparation scope knows it ([`CallCost`]).
+    ///
+    /// [`CallCost`]: crate::activity::CallCost
     pub fn on_activity(&mut self, hook: ActivityHook) {
-        self.progress.on_activity(hook);
+        self.progress.on_activity(priced::calls(hook));
     }
 
     /// One typed activity to the door, when one listens: the door prints
@@ -726,9 +896,14 @@ impl SessionRuntime {
         // The host door's authoring configuration, read once, here: the
         // names `nika compile` reads, through the same parser.
         let context = crate::authoring::AuthoringContext::from_env();
+        let operator_default = home.and_then(UserIntelligencePreference::load);
+        let (context, named) =
+            intelligence_settings::saved_decision(context, operator_default.as_ref());
         let mut session = Self::open_under(cwd, intelligence, reasoner, context);
         session.census = Some(census);
         session.home = home.map(Path::to_path_buf);
+        session.operator_default = operator_default;
+        session.jev_seat = named;
         session.factory = Some(factory);
         session.agent = agent::Driver::from_env();
         session
@@ -759,6 +934,9 @@ impl SessionRuntime {
     /// <words>` at once): the choice is judged, held for this conversation only and the reasoner
     /// rebuilt; refused with its fix when this census cannot read it, the previous choice standing.
     fn choose_unrecorded(&mut self, answer: &str) -> TurnOutcome {
+        if answer.trim() == "/intelligence" {
+            return self.intelligence_screen();
+        }
         let answer = (answer.trim().strip_prefix("/intelligence ")).map_or(answer, str::trim);
         let (Some(census), Some(_)) = (&self.census, &self.factory) else {
             self.pending_choice = false;
@@ -768,6 +946,16 @@ impl SessionRuntime {
                 "this session cannot re-choose its intelligence — quit and open `nika` again",
             ));
         };
+        let mut words = answer.split_whitespace();
+        if answer.trim().eq_ignore_ascii_case("api")
+            || (words.next() == Some("2")
+                && words
+                    .next()
+                    .is_some_and(|word| word.eq_ignore_ascii_case("api"))
+                && words.next().is_none())
+        {
+            return self.api_intelligence_screen();
+        }
         // Leaving is always one line away: no choice is made, the waiting
         // line is dropped (never sent anywhere).
         if is_quit(answer) {
@@ -775,11 +963,16 @@ impl SessionRuntime {
             self.interrupted = None;
             return TurnOutcome::Quit;
         }
-        // A cancel keeps going without a choice: the waiting line is dropped
-        // (never sent anywhere), the previous choice stands.
+        // Cancelling configuration over an existing decision keeps both that decision and
+        // any interrupted request. An initial choice retains its existing cancel protocol.
         if crate::authoring::is_cancel(answer) {
             self.pending_choice = false;
-            let text = match self.interrupted.take() {
+            let interrupted = if self.intelligence_suspends_decision() {
+                None
+            } else {
+                self.interrupted.take()
+            };
+            let text = match interrupted {
                 Some(_) => {
                     "no intelligence chosen · your request was not sent anywhere · the facts still answer (workflows · builtins · providers · check · explain) and work Nika can read on its own compiles · `/intelligence` chooses later"
                 }
@@ -810,6 +1003,26 @@ impl SessionRuntime {
                 ));
             }
         };
+        // A known API without a key remains a configuration request. Keep both the
+        // previous intelligence and the interrupted line; no reasoner is built or called.
+        if matches!(pref.kind, IntelligenceKind::Api { .. }) {
+            let resolved = ResolvedSessionIntelligence::resolve(&pref, census);
+            if !resolved.ready {
+                self.pending_choice = true;
+                return TurnOutcome::Refusal(Refusal::new(
+                    RefusalClass::IntelligenceRefused,
+                    format!(
+                        "{} · the previous choice and any waiting request are kept",
+                        resolved.why.as_deref().unwrap_or("this API is not ready")
+                    ),
+                ));
+            }
+        }
+        self.finish_intelligence_choice(pref)
+    }
+
+    /// Hold an admitted choice and resume its waiting line only when no decision is suspended.
+    fn finish_intelligence_choice(&mut self, pref: UserIntelligencePreference) -> TurnOutcome {
         self.adopt(pref);
         self.pending_choice = false;
         let notice = format!(
@@ -818,6 +1031,11 @@ impl SessionRuntime {
             self.seat.line(),
             self.connection_money()
         );
+        // Selecting a model is not a response to a Save, gate or cost decision. In particular,
+        // an older interrupted request cannot run past that decision through configuration.
+        if self.intelligence_suspends_decision() {
+            return TurnOutcome::Facts(notice);
+        }
         // The line that waited resumes exactly as typed, under the choice.
         match self.interrupted.take() {
             Some(line) => {
@@ -829,6 +1047,13 @@ impl SessionRuntime {
             }
             None => TurnOutcome::Facts(notice),
         }
+    }
+
+    fn intelligence_suspends_decision(&self) -> bool {
+        self.pending.is_some()
+            || self.pending_gate.is_some()
+            || self.waiting_review().is_some()
+            || self.waiting_cost_choice()
     }
 
     /// The one line that names the path and where the context goes.
@@ -884,14 +1109,73 @@ impl SessionRuntime {
         } else {
             " (not chosen yet · asked when a turn needs one · `/intelligence` chooses now)"
         };
+        // Who prepares stays, the authoring context and its decision seat are `/details`' (live
+        // gauntlet wave 6 r02 B4: snapshot digests and seat ids on the card the first screen
+        // offers).
+        let more = self.language.pick(
+            "/details shows how Nika prepares and judges · /help for the card · /quit to close",
+            "/details montre comment Nika prépare et juge · /help pour la carte · /quit pour fermer",
+        );
         format!(
-            "session\n  root: {}\n  {}{chosen}{readiness}\n  {}\n  {}\n  {}{}\n  /help for the card · /quit to close",
+            "session\n{}  root: {}\n  {}{chosen}{readiness}\n  {}\n  {}{}\n  {more}",
+            self.workflow_status(),
             self.snapshot.root.display(),
             self.intelligence_line(),
             self.seat.line(),
-            self.authoring_context.line(),
             self.money_line(),
             self.kept_round_status()
+        )
+    }
+
+    /// The language the person's lines are written in, which the Session's own sentences follow:
+    /// a host says its own words in it too.
+    #[must_use]
+    pub const fn language(&self) -> Lang {
+        self.language
+    }
+
+    /// The language the Session speaks before the person's words decide one: a host's guess
+    /// from its locale (supernovae-1c, TUI round 9: the restored notice and `/status` stayed in
+    /// English under `fr_FR` until a line was typed). A line the person typed, or one a restored
+    /// conversation kept, decides over it.
+    pub fn with_initial_language(&mut self, language: Lang) {
+        let spoken = !self.recent.is_empty() || !self.person_lines_newest_first().is_empty();
+        if !spoken {
+            self.language = language;
+        }
+    }
+
+    /// The workflow this session saved, first in `/status`: whether a schedule is declared for
+    /// it and whether its firer is proven, and how its last run ended. Live gauntlet, 2026-10-15:
+    /// « is my Monday recap on? » met a wall of authoring and billing internals.
+    fn workflow_status(&self) -> String {
+        let Some(workflow) = self.last_workflow.as_deref() else {
+            return String::new();
+        };
+        let root = &self.snapshot.root;
+        let shown = workflow.strip_prefix(root).unwrap_or(workflow);
+        // `/status` reads as one English card: its schedule line with it.
+        let installed = |label: &str| self.trigger_host.installed(root, label);
+        let schedule = schedule::declared_state(root, shown, Lang::En, &installed).unwrap_or_else(|| {
+            "no schedule declared · it runs when you ask (« run it ») · « activate » declares one"
+                .to_owned()
+        });
+        // The other workflows' schedules are still declared (live gauntlet r08: after a cleanup
+        // workflow ran, « no schedule declared » hid the journal's evening schedule).
+        let others = schedule::declared_schedules(root);
+        let others = if schedule.starts_with("no schedule") && others != "no schedule" {
+            format!("\n    nika.yaml declares {others}")
+        } else {
+            String::new()
+        };
+        let schedule = format!("{schedule}{others}");
+        let run = self.last_run.as_ref().map_or_else(
+            || "not run in this session".to_owned(),
+            |(exit, _)| crate::work::RunEnd::of(*exit).meaning().to_owned(),
+        );
+        format!(
+            "  workflow: `{}`\n    schedule: {schedule}\n    last run: {run}\n",
+            shown.display()
         )
     }
 
@@ -903,7 +1187,13 @@ impl SessionRuntime {
         // is spent or changed — a read-only line never discards a proposal.
         // Then the intelligence that leads the conversation reads a free line;
         // a proposal it does not replace keeps waiting (`agent.rs`).
-        if let Some(outcome) = (self.read_only_turn(input)).or_else(|| self.agent_turn(original)) {
+        if let Some(outcome) = (self.read_only_turn(input))
+            .or_else(|| self.continue_pending(input))
+            .or_else(|| self.agent_turn(original))
+        {
+            return outcome;
+        }
+        if let Some(outcome) = self.ceiling_alone(input) {
             return outcome;
         }
         // A new turn discards a pending proposal: consent is the NEXT line
@@ -946,22 +1236,15 @@ impl SessionRuntime {
         if self.activation.is_some() {
             return self.answer_activation_unrecorded(input);
         }
-        if input.is_empty() {
-            return TurnOutcome::Facts(String::new());
+        // The trigger a landed declaration offers owns the next line too (D1).
+        if self.install_offer.is_some() {
+            return self.answer_install(input);
         }
-        // A consent word with nothing pending answers nothing: it is neither
-        // work to build nor a question, and it never reaches a model.
-        if is_yes(input) || is_no(input) || is_save_and_run(input) {
-            return TurnOutcome::Refusal(Refusal::new(
-                RefusalClass::WrongState,
-                "nothing waits for a yes or a no here — a proposal asks `apply? ›` first · describe the outcome you want, or `/help`",
-            ));
+        if self.deactivates(input) {
+            return self.deactivate_turn();
         }
-        if matches!(input, "1" | "2" | "3" | "4") {
-            return TurnOutcome::Facts(format!(
-                "{}\nthe intelligence is already chosen — `/intelligence` shows the first screen again and the next line picks",
-                self.intelligence_line()
-            ));
+        if let Some(outcome) = self.idle_protocol(input) {
+            return outcome;
         }
         if let Some(fact) = crate::facts::answer(input, &self.snapshot, &self.snapshot.root) {
             self.remember(input, &fact);
@@ -975,14 +1258,18 @@ impl SessionRuntime {
         if let Some(outcome) = self.run_turn(original) {
             return outcome;
         }
-        // « activate »: the schedule the last saved workflow asked for
-        // becomes a declaration to review — never by a `yes`, never by saving.
-        if schedule::is_activate(input) {
-            return self.activate_turn();
+        // A declared schedule moved to another zone, or removed, in the person's words.
+        if let Some(change) = self.schedule_change(input) {
+            return self.schedule_change_turn(&change);
+        }
+        if let Some(outcome) = self.activation_line(input) {
+            return outcome;
         }
         // Work to build reaches the ONE compiler; only a line that reads as
-        // no work at all goes to the conversation.
-        if let Some(outcome) = self.author_unrecorded(original) {
+        // no work at all goes to the conversation. A line asking for a demo by its
+        // name is that demo's exact skeleton.
+        let demo = agent::demo_named(original);
+        if let Some(outcome) = self.author_unrecorded(demo.as_deref().unwrap_or(original)) {
             return outcome;
         }
         // No intelligence chosen yet: this is the first turn that needs one.
@@ -992,6 +1279,26 @@ impl SessionRuntime {
         }
         self.hold_for_knowledge(original, self.routes_by_model())
             .unwrap_or_else(|| self.converse_unrecorded(input))
+    }
+
+    /// The lines that answer nothing while nothing waits: an empty line, a consent word (neither
+    /// work to build nor a question, it never reaches a model) and a first-screen digit.
+    fn idle_protocol(&self, input: &str) -> Option<TurnOutcome> {
+        if input.is_empty() {
+            return Some(TurnOutcome::Facts(String::new()));
+        }
+        if is_yes(input) || is_no(input) || is_save_and_run(input) {
+            return Some(TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::WrongState,
+                "nothing waits for a yes or a no here — a proposal asks `apply? ›` first · describe the outcome you want, or `/help`",
+            )));
+        }
+        matches!(input, "1" | "2" | "3" | "4").then(|| {
+            TurnOutcome::Facts(format!(
+                "{}\nthe intelligence is already chosen — `/intelligence` shows the first screen again and the next line picks",
+                self.intelligence_line()
+            ))
+        })
     }
 
     /// `/intelligence`: the first screen again when the census is known, the next line
@@ -1100,7 +1407,11 @@ impl SessionRuntime {
             return TurnOutcome::Held {
                 id,
                 preview: format!(
-                    "{preview}(the proposal still waits · `yes` applies it · `no` discards it)"
+                    "{preview}{}",
+                    self.language.pick(
+                        "(the proposal still waits · `yes` applies it · `no` discards it)",
+                        "(la proposition attend toujours · « oui » l'applique · « non » l'écarte)",
+                    )
                 ),
             };
         }
@@ -1108,7 +1419,17 @@ impl SessionRuntime {
         // not serve answer beside the proposal, its identity kept: never a
         // cost review, a route, a revision or a consent.
         let waits = "(the proposal still waits · `yes` applies it · `no` discards it)";
-        if let Some(outcome) = crate::authoring::is_why(answer)
+        // « On continue » at the door shows the proposal again as it stands, whoever prepares
+        // (live gauntlet wave 6 r07 B1, 2026-10-18).
+        if Self::is_continue(answer) {
+            self.pending = Some(set);
+            let shown = self.continue_pending(answer);
+            return shown.unwrap_or_else(|| TurnOutcome::Facts(waits.to_owned()));
+        }
+        // A bare « quoi ? » asks what the proposal does, as `why` does (live gauntlet wave 6
+        // r02 B3, 2026-10-18).
+        let asks_why = crate::authoring::is_why(answer) || protocol::is_confused(answer);
+        if let Some(outcome) = asks_why
             .then(|| TurnOutcome::Aside(format!("{}\n{waits}", set.effects_fact())))
             .or_else(|| self.beside(answer, waits))
         {
@@ -1116,14 +1437,11 @@ impl SessionRuntime {
             return outcome;
         }
         if is_no(answer) {
-            self.decided = Some(id);
-            return TurnOutcome::Facts(
-                "discarded · nothing was written · ask again for the change when ready".to_owned(),
-            );
+            return self.discard_pending(id);
         }
         // `save & run` saves as `yes` does, then asks its one run (`landed.rs`); `yes` saves only.
         let (mut set, and_run) = (set, is_save_and_run(answer));
-        if !and_run && !is_yes(answer) {
+        if !and_run && !is_yes(answer) && !is_plain_yes(answer) {
             // Not a protocol token: open language. Its act is a bounded
             // decision over the typed state and the RAW line (the door's
             // classifier, the session's intelligence, else UNKNOWN) —
@@ -1135,6 +1453,11 @@ impl SessionRuntime {
             line => line.and_then(Result::ok),
         };
         set.run = set.run.filter(|_| and_run);
+        // Bytes whose own check fails are never saved or run: no file is replaced by them.
+        if let Some(refused) = landed::failing_check(&set, self.language) {
+            self.pending = Some(set);
+            return refused;
+        }
         // The choices its card shows are bound to their defaults by this very line (`agent.rs`).
         if let Err(why) = self.agent_consents(&set, answer) {
             return self.hold_pending(set, id, &why);
@@ -1144,26 +1467,10 @@ impl SessionRuntime {
             Ok(note) => note,
             Err(withdrawn) => return withdrawn,
         };
-        let applied = match set.apply_attempt() {
-            Ok(applied) => applied,
-            // No write returned success; the failing target may have changed.
-            // The proposal is neither pending nor decided, so retry by identity
-            // reads `wrong_state`, never a false claim of a completed effect.
-            Err(attempt) if attempt.written.is_empty() => {
-                return TurnOutcome::Refusal(Refusal::from_change(&attempt.error));
-            }
-            // A later write failed after this call itself landed files.
-            // The account is the write loop's record, not a tree scan;
-            // the proposal stays undecided.
-            Err(attempt) => {
-                let evidence = self.evidence_partial(&set, &id, &attempt);
-                let text = format!("{}{evidence}", attempt.refusal_text(&set));
-                self.snapshot = ProjectSnapshot::observe(&self.snapshot.cwd);
-                let class = Refusal::from_change(&attempt.error).class;
-                return TurnOutcome::Refusal(Refusal::new(class, text));
-            }
-        };
-        self.report_landed(&set, &applied, &id, basis.as_deref(), run)
+        match self.apply_pending(&set, &id) {
+            Ok(applied) => self.report_landed(&set, &applied, &id, basis.as_deref(), run),
+            Err(refused) => refused,
+        }
     }
 
     /// The proposal waiting for a consent, when one is (its identity: the
@@ -1228,6 +1535,16 @@ impl SessionRuntime {
     pub fn waiting_gate(&self) -> Option<GateId> {
         self.pending_gate
             .as_ref()
+            .map(|gate| GateId::new(&gate.trace, &gate.task))
+    }
+
+    /// The waiting gate only when its declared mode is a finite confirmation.
+    /// This read-only projection grants no answer or resume authority.
+    #[must_use]
+    pub fn waiting_confirm_gate(&self) -> Option<GateId> {
+        self.pending_gate
+            .as_ref()
+            .filter(|gate| gate.mode == "confirm")
             .map(|gate| GateId::new(&gate.trace, &gate.task))
     }
 
@@ -1310,6 +1627,13 @@ mod authoring_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod choice_tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod feedback_tests;
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod intelligence_interruption_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod money_answer_tests;
@@ -1334,6 +1658,9 @@ mod semantic_basis_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod their_ceiling_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod trace_display_tests;

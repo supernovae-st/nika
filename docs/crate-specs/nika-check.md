@@ -25,6 +25,14 @@ depend on without pulling the CLI:
   `for_each` · non-Turing CEL · declared effects), this answers « what
   will this workflow do, cost, and touch? » with **zero API calls and
   zero tokens spent** (spec `07-conformance.md` §`nika check`).
+- **the project files lane** (`check_project`) — the root workflow's
+  `{ file }` fields compose under its folder through an injected byte reader
+  (spec 02 §Project files), and the composed workflow is the one every lane
+  judges. Each child the composition walk loads composes from its own folder;
+  its files meet the ordinary check one at a time, and a finding a file
+  brings is reported with the child, task, field and path
+  (`CheckReport::project_files`). A child's own read boundary stays its own
+  check's. A plain `check()` reads no files.
 - **the conformance harness** (`tests/common`) — the Core, Deep, lint, runtime
   and stdlib fixture levels from the checkout pinned by `SPEC_PIN`. Core and
   Deep verdicts now include the Agent Skill resolution lane through the same
@@ -32,7 +40,8 @@ depend on without pulling the CLI:
   `NIKA-AGENT-003`, invalid skill bytes to `NIKA-AGENT-004`, a path outside a
   declared fs boundary to `NIKA-SEC-004`, and absent permits to
   `NIKA-AUTH-006`. Unknown expected codes fail loudly instead of being silently
-  accepted by a generic validation bucket.
+  accepted by a generic validation bucket. Project files compose through
+  `check_project` from the fixture's own directory, links refused per segment.
 
 `nika-schema` keeps its blueprint shape (THE PARSER: AST + raw + error +
 keysets). The dependency points DOWNWARD-ONLY: `nika-check → nika-schema`,

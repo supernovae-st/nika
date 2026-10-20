@@ -41,7 +41,8 @@ pub enum Seen {
 pub struct Witness {
     candidate_sha256: String,
     world: Vec<(String, Seen)>,
-    /// The world paths the request writes and never reads: the only ones a run may advance.
+    /// The world paths the request writes, its own state among them (a path it writes and also
+    /// reads): the only ones a run's own completed write may advance.
     destinations: Vec<String>,
 }
 
@@ -55,12 +56,15 @@ impl Witness {
         }
     }
 
-    /// This witness with `targets` as its destinations: each a world path, never one the request
-    /// also reads (`sources`).
-    pub(super) fn writing(mut self, targets: &[String], sources: &[String]) -> Self {
+    /// This witness with `targets` as its destinations: each a world path. A target the request
+    /// also reads is its own state, a log it appends to or yesterday's figure it
+    /// compares with: its own completed write advances it like any destination, and a run that
+    /// keeps its state can run again (live gauntlet wave 7 r11, 2026-10-19: every rerun of a site
+    /// check was refused because « `statut.log` appeared »). A source it only reads is never a
+    /// destination: an edit of it is drift.
+    pub(super) fn writing(mut self, targets: &[String]) -> Self {
         self.destinations = targets
             .iter()
-            .filter(|target| !sources.iter().any(|source| same_path(source, target)))
             .filter(|target| self.world.iter().any(|(path, _)| same_path(path, target)))
             .cloned()
             .collect();
@@ -68,9 +72,10 @@ impl Witness {
     }
 
     /// This witness after a settled successful run of its own candidate whose completed writes
-    /// were `written`: each of those paths, which must all be destinations, is observed again and
-    /// bound to the file it holds now. Sources and every other path stay bound as they were, so a
-    /// source edit, a foreign write after this observation, or anything else is still drift.
+    /// were `written`: each of those paths, which must all be destinations (its own state
+    /// included), is observed again and bound to the file it holds now. Read-only sources and
+    /// every other path stay bound as they were, so a source edit, a foreign write after this
+    /// observation, or anything else is still drift.
     ///
     /// The observation follows the run's settlement: a write by another process between the
     /// run's end and this read is bound as if the run had made it. That window is the time the

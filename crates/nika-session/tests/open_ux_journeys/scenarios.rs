@@ -25,11 +25,53 @@ use self::trials::{
 mod open_choices;
 use self::open_choices::{default_not_asked, open_defaults, open_pick_other};
 
+#[path = "two_outputs.rs"]
+mod two_outputs;
+pub(crate) use self::two_outputs::{PAYLOAD_NAME, PAYLOAD_PATH, RELIRE, REPORT};
+
 #[path = "schedules.rs"]
 mod schedules;
-pub(crate) use self::schedules::{WHEN, ZONE};
+pub(crate) use self::schedules::{COMMENTED, DAILY, WHEN, ZONE};
 use self::schedules::{
-    schedule_activated, schedule_saved, schedule_without_hour, schedule_zone_unseen,
+    copy_request_claimed_as_consent, schedule_activated, schedule_cadence_picked,
+    schedule_declared_then_asked, schedule_saved, schedule_saved_then_revised,
+    schedule_without_hour, schedule_zone_picked, schedule_zone_revised, schedule_zone_unseen,
+};
+
+#[path = "requested_files.rs"]
+mod requested_files;
+pub(crate) use self::requested_files::BASE;
+
+#[path = "feedbacks.rs"]
+mod feedbacks;
+pub(crate) use self::feedbacks::{
+    BRACKETED, FIRST_REPORT, LATER_IN_WORDS, SECOND_REPORT, TOTAL, UNRELATED,
+};
+
+#[path = "byte_changes.rs"]
+mod byte_changes;
+pub(crate) use self::byte_changes::CLAIMED;
+
+#[path = "dropped_questions.rs"]
+mod dropped_questions;
+pub(crate) use self::dropped_questions::{DROP, SIMPLE};
+
+#[path = "failing_checks.rs"]
+mod failing_checks;
+pub(crate) use self::failing_checks::{CLAUDE, TEMPERATURE};
+
+#[path = "kept_defaults.rs"]
+mod kept_defaults;
+pub(crate) use self::kept_defaults::PARIS;
+
+#[path = "session_facts.rs"]
+mod session_facts;
+pub(crate) use self::session_facts::{DETAILS, HOW_MUCH};
+
+#[path = "run_ceilings.rs"]
+mod run_ceilings;
+pub(crate) use self::run_ceilings::{
+    CEILING_ALONE, LANCE, PICKED, RELANCE, RUN_COST, SAVE_AND_RUN_ONCE,
 };
 
 /// The Session's reading of the sentence that accepts the plan: its recommended option.
@@ -126,8 +168,18 @@ pub(crate) enum Act {
     Submit(&'static str),
     /// A line typed against what the Session showed after act `n` (a stale screen).
     SubmitAsShownAfter(usize, &'static str),
+    /// A consent typed at the proposal's own door, as a host's consent control sends it, whatever
+    /// else waits beside it: `consent(line)`.
+    Consent(&'static str),
     /// The question that waited after act `n`, answered by its identity.
     AnswerQuestionOf(usize, &'static str),
+    /// One choice from the proposal shown after act `n`, answered under both identities.
+    AnswerProposalChoiceOf(usize, usize, &'static str),
+    /// Those proposal and question identities presented to another Session.
+    AnswerProposalChoiceElsewhere(usize, usize, &'static str),
+    /// One choice from the proposal shown after act `n` left to Nika by the host's own
+    /// control (« Let Nika choose »), under both identities.
+    DelegateProposalChoiceOf(usize, usize),
     /// The question that waited after act `n`, answered by its identity in another Session of
     /// the same project.
     AnswerElsewhere(usize, &'static str),
@@ -143,6 +195,13 @@ pub(crate) enum Act {
     RunEnds(Ran),
     /// A project file written as a person edits it, between two lines.
     Edit(&'static str, &'static str),
+    /// The optional offer about the last result waiting now, answered by its identity with
+    /// the keys a host's native control sends.
+    AnswerFeedback(&'static str),
+    /// The offer shown after act `n`, answered by that identity (closed or not since).
+    AnswerFeedbackOf(usize, &'static str),
+    /// A host asks the review of a run, as its Run control does (`run_review_asked`).
+    ReviewRun,
 }
 
 /// How a run the child stands in for ended.
@@ -152,6 +211,8 @@ pub(crate) enum Ran {
     Succeeded,
     /// The task failed with the engine's detail (« CODE message »).
     Failed(&'static str, &'static str),
+    /// The workflow the Session requested completed writing this content at this path.
+    Wrote(&'static str, &'static str),
 }
 
 /// What the person does from the host's thread while the author's request is under way.
@@ -357,7 +418,12 @@ fn with_le_monde() -> Value {
 
 pub(crate) fn scenario(name: &str) -> Scenario {
     match name {
+        name if name.starts_with("proposal_choice_") => super::proposal_choices::scenario(name),
+        name if name.starts_with("feedback_") => feedbacks::scenario(name),
         "accept_offer" => accept_offer(),
+        "meaning_of_a_proposal" => meaning_of_a_proposal(),
+        "discard_then_fix" => discard_then_fix(),
+        "saved_bytes_again" => saved_bytes_again(),
         "delegated_sources" => delegated_sources(),
         "partial_correction" => partial_correction(),
         "already_given" => already_given(),
@@ -392,8 +458,16 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "own_filter" => own_filter(),
         "two_edits" => two_edits(),
         "reads_a_project_file" => reads_sales(false),
+        name if name.starts_with("requested_file_") || name.starts_with("component_read") => {
+            requested_files::scenario(name)
+        }
         "a_read_file_changes" => reads_sales(true),
         "write_carries_its_findings" => write_carries_its_findings(),
+        "two_outputs_answered" => two_outputs::two_outputs_answered(),
+        "two_outputs_typed" => two_outputs::two_outputs_typed(),
+        "two_outputs_typed_elsewhere" => two_outputs::two_outputs_typed_elsewhere(),
+        "two_outputs_typed_rebound" => two_outputs::two_outputs_typed_rebound(),
+        "two_outputs_typed_restated" => two_outputs::two_outputs_typed_restated(),
         "thought_only" => thought_only(),
         "open_defaults" => open_defaults(),
         "open_pick_other" => open_pick_other(),
@@ -402,9 +476,32 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "default_not_asked" => default_not_asked(),
         "answered_literal" => answered_literal(),
         "schedule_saved" => schedule_saved(),
+        "copy_request_claimed_as_consent" => copy_request_claimed_as_consent(),
         "schedule_activated" => schedule_activated(),
+        "schedule_declared_then_asked" => schedule_declared_then_asked(),
         "schedule_zone_unseen" => schedule_zone_unseen(),
         "schedule_without_hour" => schedule_without_hour(),
+        "schedule_cadence_picked" => schedule_cadence_picked(),
+        "schedule_zone_picked" => schedule_zone_picked(),
+        "schedule_zone_revised" => schedule_zone_revised(),
+        "schedule_saved_then_revised" => schedule_saved_then_revised(),
+        "ceiling_restored" => run_ceilings::ceiling_restored(),
+        "ceiling_reopened" => run_ceilings::ceiling_reopened(),
+        "ceiling_kept_by_revision" => run_ceilings::ceiling_kept_by_revision(),
+        "ceiling_kept_by_a_revision" => run_ceilings::ceiling_kept_by_a_revision(),
+        "ceiling_kept_by_a_revision_after_a_run" => {
+            run_ceilings::ceiling_kept_by_a_revision_after_a_run()
+        }
+        "ceiling_in_request" => run_ceilings::ceiling_in_request(),
+        "ceiling_for_the_pending" => run_ceilings::ceiling_for_the_pending(),
+        "same_bytes_again" => byte_changes::same_bytes_again(),
+        "question_dropped" => dropped_questions::question_dropped(),
+        "cancel_offered" => dropped_questions::cancel_offered(),
+        "details_after_a_run" => session_facts::details_after_a_run(),
+        "spend_asked" => session_facts::spend_asked(),
+        "failing_check" => failing_checks::failing_check(),
+        "kept_defaults" => kept_defaults::kept_defaults(),
+        "kept_defaults_other_zone" => kept_defaults::kept_defaults_other_zone(),
         other => panic!("unknown scenario {other}"),
     }
 }
@@ -450,6 +547,112 @@ fn accept_offer() -> Scenario {
             agent: accepted_steps(),
             replies: Vec::new(),
             picks: accepted_pick(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// `/meaning` typed beside the proposal the accepted offer built.
+fn meaning_of_a_proposal() -> Scenario {
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![
+            Act::Turn(REQUEST),
+            Act::Submit(ACCEPT),
+            Act::Submit("/meaning"),
+        ],
+        script: Script {
+            agent: accepted_steps(),
+            replies: Vec::new(),
+            picks: accepted_pick(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// The words that save the proposal, read by the author.
+pub(crate) const SAVE_IT: &str = "parfait, enregistre-le";
+/// A later fix asked after a revision was discarded.
+pub(crate) const FIX_AFTER_DISCARD: &str = "corrige juste la consigne du resume, sans rien ajouter";
+
+/// The accepted digest saved on the person's words, a revision adding Le Monde discarded with
+/// « non », then a fix: the author reads the candidate, which is the saved workflow again.
+fn discard_then_fix() -> Scenario {
+    let le_monde = json!({
+        "source": digest(&[("hacker_news", HACKER_NEWS), ("techcrunch", TECHCRUNCH),
+            ("le_monde", LE_MONDE)], DIGEST),
+        "resolutions": [
+            retained(HACKER_NEWS, "read_source", "u2"),
+            retained(TECHCRUNCH, "read_source", "u2"),
+            retained(DIGEST, "output_path", "u2"),
+            resolution(LE_MONDE, "named", "read_source", "u4", LE_MONDE_WORDS),
+        ],
+        "summary": "Le Monde international ajouté"
+    });
+    let mut agent = accepted_steps();
+    agent.extend([
+        call_saying(
+            "C'est enregistré.",
+            "propose",
+            json!({"acts": ["save"], "authorized_by": {"message": "u3", "excerpt": "enregistre-le"}}),
+        ),
+        call("candidate_write", le_monde),
+        call_saying("J'ai ajouté Le Monde international.", "propose", json!({})),
+        call("candidate_read", json!({})),
+        say("Je repars du workflow enregistré."),
+    ]);
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![
+            Act::Turn(REQUEST),
+            Act::Submit(ACCEPT),
+            Act::Submit(SAVE_IT),
+            Act::Turn(ALSO_LE_MONDE),
+            Act::Submit("non"),
+            Act::Turn(FIX_AFTER_DISCARD),
+        ],
+        script: Script {
+            agent,
+            replies: Vec::new(),
+            picks: [accepted_pick(), vec!["save".to_owned()]].concat(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
+/// A line after the save the author answers with the saved workflow's very bytes.
+pub(crate) const AFTER_SAVE: &str = "relis-le et dis-moi si tout est bon";
+
+/// The accepted digest saved on the person's words, then proposed again byte for byte.
+fn saved_bytes_again() -> Scenario {
+    let mut agent = accepted_steps();
+    agent.extend([
+        call_saying(
+            "C'est enregistré.",
+            "propose",
+            json!({"acts": ["save"], "authorized_by": {"message": "u3", "excerpt": "enregistre-le"}}),
+        ),
+        call("candidate_write", accepted_digest()),
+        call_saying("Tout est bon, voici le workflow.", "propose", json!({})),
+    ]);
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![
+            Act::Turn(REQUEST),
+            Act::Submit(ACCEPT),
+            Act::Submit(SAVE_IT),
+            Act::Turn(AFTER_SAVE),
+        ],
+        script: Script {
+            agent,
+            replies: Vec::new(),
+            picks: [accepted_pick(), vec!["save".to_owned()]].concat(),
             verdicts: Vec::new(),
         },
     }

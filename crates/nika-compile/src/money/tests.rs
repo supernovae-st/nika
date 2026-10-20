@@ -70,6 +70,30 @@ fn business_words_quotes_and_paths_are_data() {
     );
 }
 
+/// A ceiling named with no amount after it states none (live gauntlet r09, 2026-10-17: « Le
+/// plafond, je le donnerai au moment de lancer » was refused as an invalid amount).
+#[test]
+fn a_ceiling_named_without_an_amount_states_none() {
+    for line in [
+        "Change uniquement le modèle de l'étape IA. Rien d'autre. Le plafond, je le donnerai au moment de lancer.",
+        "le plafond ?",
+        "quel est le budget",
+        "what is the ceiling",
+        "affiche les prix en dollars",
+    ] {
+        let found = directives(line).unwrap_or_else(|e| panic!("{line}: {e}"));
+        assert_eq!(found.money.amount, None, "{line}");
+        assert!(found.found.is_empty(), "{line}");
+    }
+    for line in [
+        "Copy ./a.txt to ./b.txt, budget",
+        "Copy ./a.txt to ./b.txt, plafond -1",
+        "Copy ./a.txt to ./b.txt. Le plafond ? $abc",
+    ] {
+        assert!(directives(line).is_err(), "{line}");
+    }
+}
+
 #[test]
 fn malformed_and_conflicting_directives_refuse() {
     for suffix in [
@@ -473,4 +497,220 @@ const SKELETON_HEADS: [(&str, &str, Stated); 5] = [
 fn a_skeleton_name_heads_its_ceiling_and_is_never_an_amount() {
     let wrong = misread(&SKELETON_HEADS);
     assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
+/// A ceiling named for the run it bounds reads its amount past that name (live gauntlet,
+/// 2026-10-15: « Augmente le budget du run à 1 dollar et relance. » was refused, `du` read as
+/// the amount), and a name that is not the run keeps the old reading.
+#[test]
+fn a_ceiling_named_for_its_run_reads_the_amount_past_the_name() {
+    for line in [
+        "Augmente le budget du run à 1 dollar et relance.",
+        "augmente le budget du run a 1 dollar",
+        "relance avec un plafond pour ce workflow de 1 $",
+        "raise the budget of the run to 1 USD and rerun it",
+        "budget for this run: $1",
+    ] {
+        let parsed = super::parse(line).unwrap_or_else(|why| panic!("{line}: {why}"));
+        assert_eq!(parsed.amount, Some(1.0), "{line}");
+    }
+    assert!(super::parse("augmente le budget du projet à 1 dollar").is_err());
+}
+
+/// A number that counts or ranks something states no money; a bare number still does (live
+/// gauntlet, 2026-10-16: « J'ai déposé 3 messages dans inbox/, relance-le stp » and « relance-le
+/// une 2e fois stp » were refused as ceilings without a currency).
+#[test]
+fn a_counted_or_ranked_number_is_no_unbound_amount() {
+    for line in [
+        "Super, merci ! J'ai déposé 3 messages dans inbox/, relance-le stp.",
+        "relance-le une 2e fois stp",
+        "run it for the 3rd time",
+    ] {
+        let parsed = super::parse(line).unwrap_or_else(|why| panic!("{line}: {why}"));
+        assert!(!parsed.unbound_number, "{line}");
+        assert_eq!(parsed.amount, None, "{line}");
+    }
+    // A time or a repetition may say when or how often to run: still asked, never run once now.
+    for line in [
+        "relance-le avec 2",
+        "lance-le, max 3",
+        "Peux-tu relancer à 9 heures ?",
+        "lance-le 2 fois",
+        "relance-le le 2e jour",
+        "relance-le le 16",
+        "relance-le du 16 au 20",
+    ] {
+        let parsed = super::parse(line).unwrap_or_else(|why| panic!("{line}: {why}"));
+        assert!(parsed.unbound_number || parsed.amount.is_some(), "{line}");
+    }
+}
+
+/// A day a noun names states no money (live gauntlet wave 7 r10, 2026-10-19: « J'ai mis le
+/// fichier du 16 de côté. Relance-le. » was refused as a ceiling without a currency).
+#[test]
+fn a_day_a_noun_names_is_no_unbound_amount() {
+    for line in [
+        "J'ai mis le fichier du 16 de côté. Relance-le.",
+        "relance-le sur le rapport du 3",
+    ] {
+        let parsed = super::parse(line).unwrap_or_else(|why| panic!("{line}: {why}"));
+        assert!(!parsed.unbound_number, "{line}");
+        assert_eq!(parsed.amount, None, "{line}");
+    }
+    // A ceiling beside it is still read as one.
+    let parsed = super::parse("relance le fichier du 16, max 0,10 $").expect("money");
+    assert_eq!(parsed.amount, Some(0.1));
+}
+
+/// A ceiling stated for each run (QA gauntlet q09: « budget max 0,10 $ par run » in the first
+/// request) is the work's ceiling: « max » links the anchor to its amount, and the run it bounds
+/// closes the phrase, in a whole segment or trailing the work. A rate of the work's own data
+/// stays business data.
+#[test]
+fn a_ceiling_stated_for_each_run_is_the_works_ceiling() {
+    for (request, said) in [
+        ("budget max 0,10 $ par run", "budget max 0,10 $ par run"),
+        (
+            "Récupère les news de Hacker News, budget max 0,10 $ par run, et écris-les dans ./news.md",
+            "budget max 0,10 $ par run",
+        ),
+        (
+            "Résume ./notes.md avec un plafond de 0,10 $ par exécution",
+            "avec un plafond de 0,10 $ par exécution",
+        ),
+        (
+            "Summarize ./notes.md with a budget of $0.10 per run",
+            "with a budget of $0.10 per run",
+        ),
+        ("budget max 0,10 $", "budget max 0,10 $"),
+    ] {
+        let (texts, amount) = read(request);
+        assert_eq!(texts, [said], "{request}");
+        assert_eq!(amount, Some(0.1), "{request}");
+    }
+    for line in ["budget max 0,10 $ par run", "plafond maximum de 0,10 $"] {
+        assert_eq!(parse(line).unwrap().amount, Some(0.1), "{line}");
+    }
+    let business =
+        read("Lis ./ventes.csv et garde les ventes dont le prix est de 10 $ par article");
+    assert_eq!(
+        business,
+        (Vec::new(), None),
+        "a rate of the data is business data"
+    );
+}
+
+/// QA gauntlet q09, its first request as typed: the clause saying what each run may cost, then
+/// its aside restating it, both one ceiling.
+const Q09: &str = "Tout doit être écrit dans rapport-ventes.md. L'étape IA doit utiliser Claude Haiku (le moins cher) et chaque exécution doit coûter au maximum 0,10 $ (budget max 0,10 $ par run).";
+
+#[test]
+fn what_each_run_may_cost_and_its_aside_state_one_ceiling() {
+    assert_eq!(
+        read(Q09),
+        (
+            vec![
+                "chaque exécution doit coûter au maximum 0,10 $",
+                "budget max 0,10 $ par run"
+            ],
+            Some(0.1)
+        )
+    );
+    for (request, said, amount) in [
+        (
+            "Résume ./notes.md. Chaque exécution doit coûter au maximum 0,10 $.",
+            "Chaque exécution doit coûter au maximum 0,10 $",
+            0.1,
+        ),
+        (
+            "Résume ./notes.md et un run ne doit pas dépasser 2 dollars",
+            "un run ne doit pas dépasser 2 dollars",
+            2.0,
+        ),
+        (
+            "Summarize ./notes.md; each run must cost at most $0.10",
+            "each run must cost at most $0.10",
+            0.1,
+        ),
+        (
+            "Résume ./notes.md, chaque lancement coûte 0,50 $ max",
+            "chaque lancement coûte 0,50 $ max",
+            0.5,
+        ),
+        (
+            "Write ./out.csv (sorted) with a budget of $1",
+            "with a budget of $1",
+            1.0,
+        ),
+    ] {
+        assert_eq!(read(request), (vec![said], Some(amount)), "{request}");
+    }
+    let differ = Q09.replace("(budget max 0,10 $", "(budget max 0,20 $");
+    assert_eq!(directives(&differ), Err(super::CONFLICTING));
+}
+
+#[test]
+fn a_record_s_cost_a_price_or_an_aside_with_no_currency_is_business_data() {
+    for request in [
+        "Lis ./jobs.csv et garde les jobs dont chaque exécution coûte au plus 5 $",
+        "Keep the tasks whose run must cost at most 5 USD",
+        "Lis ./ventes.csv et chaque article doit coûter au maximum 10 $",
+        "Résume ./notes.md. Chaque exécution coûte 0,10 $.",
+        "Analyse ./rapport.csv (budget 2026)",
+        "keep the rows (open ones) with a budget of 1500 USD",
+    ] {
+        assert_eq!(read(request), (Vec::new(), None), "{request}");
+    }
+}
+
+/// A verb that sets the work's limit states its ceiling, a clause after it or not (live gauntlet
+/// r09, 2026-10-16: « Mets le plafond à 0,001 $ par run et relance » kept the earlier 0,10 $).
+#[test]
+fn a_verb_that_sets_the_limit_states_the_ceiling() {
+    for (request, amount, span) in [
+        (
+            "Mets le plafond à 0,001 $ par run et relance",
+            0.001,
+            "plafond à 0,001 $ par run",
+        ),
+        (
+            "Je veux être sûre que le plafond protège vraiment. Mets le plafond à 0,001 $ par run et relance : normalement ça doit bloquer.",
+            0.001,
+            "plafond à 0,001 $ par run",
+        ),
+        (
+            "Remets le plafond à 0,10 $ par run, corrige le message d'arrêt, et relance.",
+            0.10,
+            "plafond à 0,10 $ par run",
+        ),
+        (
+            "Mets un plafond de 0,10 $ par run",
+            0.10,
+            "plafond de 0,10 $ par run",
+        ),
+        ("Passe le plafond à 2 $", 2.0, "plafond à 2 $"),
+        ("Je veux un budget de 2 $", 2.0, "budget de 2 $"),
+        (
+            "Set the ceiling to $0.10 per run and run it again",
+            0.10,
+            "ceiling to $0.10 per run",
+        ),
+        ("Change the budget to $2", 2.0, "budget to $2"),
+    ] {
+        let found = directives(request).unwrap();
+        assert_eq!(found.money.amount, Some(amount), "{request}");
+        assert_eq!(found.found.len(), 1, "{request}");
+        assert_eq!(&request[found.found[0].span.clone()], span, "{request}");
+    }
+    // A record's budget stays data, whatever verb sets it.
+    for request in [
+        "Mets le budget du client à 500 $ dans ./clients.csv",
+        "Change the budget of each row to $5 in ./rows.csv",
+        "Keep the rows with a budget of 1500 USD and write them to ./b.csv",
+        "Mets le budget à 500 dans ./x.csv et relance",
+    ] {
+        let found = directives(request).unwrap();
+        assert_eq!(found.money.amount, None, "{request}");
+    }
 }

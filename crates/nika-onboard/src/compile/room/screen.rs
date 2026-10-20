@@ -3,9 +3,10 @@
 
 //! The screen a candidate passes before any room exists. Every task is read, whether or not it
 //! could run: a verb other than `invoke:`, a nested workflow, a tool a template names, a tool
-//! outside the surface a rehearsal runs, a convert step and any `extract:` (no data bound is
-//! established for them), a jq step unless the host evaluates jq in a bounded process of its
-//! own, and a `secrets:` block are refused, each in its own words. Every
+//! outside the surface a rehearsal runs, any `extract:` (no data bound is established for it), a
+//! jq step unless the host evaluates jq in a bounded process of its own, and a `secrets:` block
+//! are refused, each in its own words. A convert step runs over the room's copy, within its copy
+//! bound (live gauntlet wave 6 r01, 2026-10-18: every CSV workflow went unrehearsed). Every
 //! path a literal or a constant names must stay in the room, and a read must name an observed
 //! input or one of the candidate's own outputs. A path known only at run time passes: the room
 //! itself confines it. The values a run builds are bounded where they are built, in the room
@@ -113,7 +114,7 @@ pub(super) fn screen_with(
     });
     screened.write_only = write_only.map(|(_, at)| at.clone()).collect();
     for (path, at) in reads {
-        let observed = screened.inputs.iter().any(|(_, input)| *input == at);
+        let observed = (screened.inputs.iter()).any(|(_, input)| holds(input, &at));
         if !observed && !screened.outputs.iter().any(|output| output.at == at) {
             return Err(Refused::new(
                 Refusal::Confinement,
@@ -162,6 +163,28 @@ fn screen_task(
         RawInvokeTarget::Tool(tool) => tool.value.as_str(),
     };
     admitted(id, tool, jq)?;
+    let arg = |name: &str| {
+        (invoke.args.as_ref())
+            .and_then(|args| args.value.get(name))
+            .and_then(|value| known(workflow, value))
+    };
+    // A listing names what it reads by its pattern: held by an observed input, as a read is.
+    if tool == "nika:glob" {
+        return match arg("pattern") {
+            Some(pattern) => {
+                let at = room_path(&pattern, &format!("task {id} lists"))?;
+                Ok(Some((pattern, at)))
+            }
+            None => Ok(None),
+        };
+    }
+    // A removal acts on the room's own copy: its path stays in the room.
+    if tool == "nika:remove_file" {
+        if let Some(path) = arg("path") {
+            room_path(&path, &format!("task {id} removes"))?;
+        }
+        return Ok(None);
+    }
     if tool != "nika:read" && tool != "nika:write" {
         return Ok(None);
     }
@@ -200,7 +223,7 @@ fn admitted(id: &str, tool: &str, jq: bool) -> Result<(), Refused> {
     }
     match tool {
         "nika:jq" if jq => Ok(()),
-        "nika:jq" | "nika:convert" => Err(bounded(id, &format!("runs {tool}"))),
+        "nika:jq" => Err(bounded(id, &format!("runs {tool}"))),
         "nika:fetch" => Err(effect(id, "the network", "a rehearsal opens no socket")),
         "nika:notify" => Err(effect(
             id,
@@ -244,6 +267,15 @@ fn known(workflow: &RawWorkflow, path: &Value) -> Option<String> {
         VarDecl::Typed { default, .. } => default.as_ref(),
     }?;
     value.as_str().map(str::to_owned)
+}
+
+/// Whether the observed input `input` (as the room spells it) holds `at`: the same path or
+/// pattern, or one under a folder it names.
+fn holds(input: &str, at: &str) -> bool {
+    at == input
+        || at
+            .strip_prefix(input)
+            .is_some_and(|rest| rest.starts_with('/'))
 }
 
 /// The room's spelling of `path`, `.` and empty components dropped. An absolute path, a `..` or

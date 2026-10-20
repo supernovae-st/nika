@@ -373,6 +373,10 @@ fn calls(root: &Path) -> usize {
         .lines()
         .count()
 }
+/// The decision is a menu of finite offers with no free text: `Home` selects
+/// its first offer, Run once, and `Down` the next, Cancel this run; `Enter` acts.
+const RUN_ONCE: &str = "\x1b[H\r";
+const CANCEL: &str = "\x1b[H\x1b[B\r";
 fn ask(p: &mut LoggedPty, bound: u32) {
     p.send("run one.nika\r").unwrap();
     p.expect("Fresh").unwrap();
@@ -381,16 +385,23 @@ fn ask(p: &mut LoggedPty, bound: u32) {
     p.expect("most").unwrap();
     p.expect(bound.to_string()).unwrap();
     p.expect("requests").unwrap();
-    p.expect("reply ›").unwrap();
+    // Single words: cursor sequences may split a painted phrase.
+    p.expect("required").unwrap();
+    p.expect("once").unwrap();
+    p.expect("Cancel").unwrap();
+    p.expect("action").unwrap();
+    p.expect("offered").unwrap();
 }
 fn answer(p: &mut LoggedPty, yes: bool) {
-    p.send(if yes { "yes\r" } else { "no\r" }).unwrap();
+    p.send(if yes { RUN_ONCE } else { CANCEL }).unwrap();
     if yes {
         p.expect("tasks").unwrap();
         p.expect("ms").unwrap();
     } else {
         p.expect("nothing").unwrap();
         p.expect("sent").unwrap();
+        // The declined Run's own line, never the hint a bare Enter leaves.
+        p.expect("declined").unwrap();
     }
     p.expect("nika ›").unwrap();
 }
@@ -530,7 +541,7 @@ fn decline_and_changed_source_input_or_configuration_make_no_call_or_output() {
         if change == "no" {
             answer(&mut p, false);
         } else {
-            p.send("yes\r").unwrap();
+            p.send(RUN_ONCE).unwrap();
             p.expect("changed").unwrap();
             p.expect("nika ›").unwrap();
         }
@@ -570,6 +581,7 @@ fn cancelling_pending_compound_run_kills_the_child_without_effects() {
     p.send("\x03").unwrap();
     p.expect("nothing").unwrap();
     p.expect("sent").unwrap();
+    p.expect("declined").unwrap();
     assert_unspent(root.path());
     leave(&mut p);
 }

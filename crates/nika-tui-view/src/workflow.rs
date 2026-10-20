@@ -64,6 +64,13 @@ impl Face {
             Self::Check => "check",
         }
     }
+
+    /// [`Self::label`] in `lang`, in the glyph column in use: the name a
+    /// look speaking `lang` paints on its tab.
+    #[must_use]
+    pub fn label_in(self, lang: nika_session::Lang, ascii: bool) -> &'static str {
+        crate::workspace::lang::say(lang, ascii, self.label())
+    }
 }
 
 /// What the check said about the bytes in view, as its owner projected it.
@@ -150,7 +157,9 @@ pub struct Workflow<'a> {
     pub findings: &'a [Finding<'a>],
     /// The advisory hints, in the owner's order.
     pub hints: &'a [Finding<'a>],
-    /// The semantic identity the check stamped (`workflow_semantic`).
+    /// The semantic identity the check stamped (`workflow_semantic`), carried with the
+    /// bytes it stands for; never painted: the workflow's name says which one this is (live
+    /// gauntlet 4: « identity 7330c6ebe12e »).
     pub identity: Option<&'a str>,
     /// The risk grade's word (`RiskGrade::as_str`).
     pub risk: Option<&'a str>,
@@ -179,18 +188,14 @@ impl<'a> Workflow<'a> {
 pub fn workflow(face: Face, input: &Workflow<'_>, canvas: Canvas) -> Rendered {
     let mut sheet = Sheet::new(canvas, Format::Workflow);
     let dot = cells::sep(canvas.ascii);
+    let (format, shown) = (
+        canvas.say(Format::Workflow.label()),
+        canvas.say(face.label()),
+    );
+    sheet.facts.push(format!("{format}{dot}{shown}"));
     sheet
         .facts
-        .push(format!("{}{dot}{}", Format::Workflow.label(), face.label()));
-    sheet.facts.push(cells::size_words(input.source.len()));
-    if let Some(identity) = input.identity {
-        let short: String = cells::clean(identity, canvas.ascii)
-            .0
-            .chars()
-            .take(12)
-            .collect();
-        sheet.facts.push(format!("identity {short}"));
-    }
+        .push(cells::size_words_in(input.source.len(), canvas));
     match face {
         // The owner hands the bytes over as they are: a protected file is
         // shown through `artifact`, which masks it.
@@ -255,11 +260,13 @@ fn plan(sheet: &mut Sheet, input: &Workflow<'_>) {
             && let Some((k, size)) = starts.get(&n)
         {
             let beside = if *size > 1 {
-                format!("{dot}{size} side by side")
+                let words = canvas.say("{size} side by side");
+                format!("{dot}{}", words.replace("{size}", &size.to_string()))
             } else {
                 String::new()
             };
-            let header = paint(format!("wave {k}{beside}"), Role::Dim, canvas.color);
+            let wave = canvas.say("wave {k}").replace("{k}", &k.to_string());
+            let header = paint(format!("{wave}{beside}"), Role::Dim, canvas.color);
             if !sheet.body.push(vec![header], false) {
                 break;
             }
@@ -267,10 +274,12 @@ fn plan(sheet: &mut Sheet, input: &Workflow<'_>) {
         let styled = nodes.get(n).and_then(|(id, verb, kind)| {
             let mut spans = plan_line(line, n, id, verb, canvas)?;
             if gates.iter().any(|g| g == id) {
-                spans.push(paint(format!("{dot}human gate"), Role::Warn, canvas.color));
+                let gate = canvas.say("human gate");
+                spans.push(paint(format!("{dot}{gate}"), Role::Warn, canvas.color));
             }
             if *kind == "finally" {
-                spans.push(paint(format!("{dot}cleanup"), Role::Dim, canvas.color));
+                let cleanup = canvas.say("cleanup");
+                spans.push(paint(format!("{dot}{cleanup}"), Role::Dim, canvas.color));
             }
             Some(spans)
         });
@@ -291,12 +300,12 @@ fn plan(sheet: &mut Sheet, input: &Workflow<'_>) {
         (None, _) => "file order: no check ran",
     };
     let counted = [
-        cells::count(nodes.len().max(lines.len()), "task"),
-        cells::count(waves.len(), "wave"),
-        cells::count(gates.len(), "human gate"),
+        cells::count_in(nodes.len().max(lines.len()), "task", canvas),
+        cells::count_in(waves.len(), "wave", canvas),
+        cells::count_in(gates.len(), "human gate", canvas),
     ];
     sheet.facts.push(counted.join(dot));
-    sheet.facts.push(order.to_owned());
+    sheet.facts.push(canvas.say(order).to_owned());
 }
 
 /// The graph face: shared cards over the caller's checked projection,
@@ -304,7 +313,9 @@ fn plan(sheet: &mut Sheet, input: &Workflow<'_>) {
 fn graph(sheet: &mut Sheet, input: &Workflow<'_>) {
     let canvas = sheet.body.canvas();
     let quiet = |sheet: &mut Sheet, why: &str, role: Role| {
-        sheet.body.push(vec![paint(why, role, canvas.color)], false);
+        sheet
+            .body
+            .push(vec![paint(canvas.say(why), role, canvas.color)], false);
     };
     let (Some(doc), Some(waves)) = (input.graph, input.waves) else {
         let why = match input.verdict {
@@ -358,6 +369,9 @@ fn layer(
         paint(format!("{name:<13}"), Role::Strong, canvas.color),
     ];
     let hang = [plain(" ".repeat(16))];
+    // The reason is the view's own words, said in the canvas's language;
+    // a reason the view did not compose stays as its owner said it.
+    let reason = canvas.say(reason);
     sheet
         .body
         .wrap(&[paint(reason, tone, canvas.color)], &lead, &hang, false);
@@ -483,6 +497,7 @@ fn finding(sheet: &mut Sheet, row: &Finding<'_>, advisory: bool) -> bool {
 fn section(sheet: &mut Sheet, name: &str, count: usize, note: &str) {
     let canvas = sheet.body.canvas();
     let dot = cells::sep(canvas.ascii);
+    let (name, note) = (canvas.say(name), canvas.say(note));
     sheet.body.push(Vec::new(), false);
     sheet.body.push(
         vec![
@@ -570,14 +585,18 @@ fn check(sheet: &mut Sheet, input: &Workflow<'_>) {
     listed(sheet, input);
     sheet
         .facts
-        .push(cells::count(input.findings.len(), "finding"));
+        .push(cells::count_in(input.findings.len(), "finding", canvas));
     if let Some(risk) = input.risk {
         let risk = cells::clean(risk, canvas.ascii).0;
-        sheet.facts.push(format!("risk {risk}"));
+        sheet
+            .facts
+            .push(canvas.say("risk {risk}").replace("{risk}", &risk));
     }
     sheet.body.push(Vec::new(), false);
-    let footer = format!("a static check{dot}nothing ran, and a green check grants no run");
-    sheet
-        .body
-        .push(vec![paint(footer, Role::Dim, canvas.color)], false);
+    let footer = (canvas)
+        .say("a static check{sep}nothing ran, and a green check grants no run")
+        .replace("{sep}", dot);
+    // Wrapped, never cut: the reminder reads whole in every language.
+    let footer = [paint(footer, Role::Dim, canvas.color)];
+    sheet.body.wrap(&footer, &[], &[], false);
 }

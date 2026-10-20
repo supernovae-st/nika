@@ -135,6 +135,32 @@ impl ProviderInferDyn for Provider {
     }
 }
 
+/// A provider reports no distribution over the keys: its answers carry none, alone or in a
+/// batch, and their records show none; its choice is taken at its word.
+#[tokio::test]
+async fn a_provider_seat_reports_no_distribution() {
+    let questions = [part(0, "a"), part(1, "b")];
+    let batch = ChoiceBatch::of("verify-parts", &questions);
+    let provider = Provider {
+        text: json!({"verify-part-0": "carried", "verify-part-1": "carried"}).to_string(),
+        requests: Mutex::new(Vec::new()),
+    };
+    let seat = ProviderChoice::new(&provider, "test/model", Duration::from_secs(5), 512);
+    for answer in seat.choose_each(&batch).await {
+        let answer = answer.unwrap();
+        assert!(answer.probabilities.is_empty(), "{answer:?}");
+    }
+    let alone = Provider {
+        text: json!({"choice": "carried"}).to_string(),
+        requests: Mutex::new(Vec::new()),
+    };
+    let seat = ProviderChoice::new(&alone, "test/model", Duration::from_secs(5), 512);
+    let answer = seat.choose(&questions[0]).await.unwrap();
+    assert!(answer.probabilities.is_empty(), "{answer:?}");
+    let recorded = super::super::record(&questions[0], Ok(&answer));
+    assert_eq!(recorded["probabilities"], json!({}));
+}
+
 /// A provider seated for decisions settles a batch in ONE request: the shared reference once,
 /// an answer schema keyed by item id; each item's key is bound to it by id, an item left
 /// without one of its keys fails alone, and the request's usage rides the first answer only.

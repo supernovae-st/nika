@@ -244,3 +244,40 @@ fn s49_proposal_aside_keeps_exact_identity_and_requires_original_consent() {
     assert_eq!(std::fs::read(dir.path().join(COPY_DEST)).unwrap(), bytes);
     assert!(!dir.path().join("out/copy.md").exists(), "Save is not Run");
 }
+
+/// A request restated with corrections reads in the recovery card as the person said it: the
+/// original, then each correction in the order said, never the frame that joined them for the
+/// author.
+#[test]
+fn a_restated_request_reads_as_said_in_the_recovery_card() {
+    use crate::work::Request;
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = words(dir.path(), &[]);
+    let original = "Fais-moi une veille quotidienne sur la météo";
+    let first = Request::restated(original, "I leave the choice to Nika.");
+    s.intent.goal = Some(Request::restated(&first, "en markdown"));
+    let TurnOutcome::Facts(card) = s.recovery(None, "I couldn't finish", "the author failed")
+    else {
+        panic!("a recovery card")
+    };
+    assert!(
+        card.contains(&format!("your request: « {original} »")),
+        "{card}"
+    );
+    let leave = card.find("your correction: « I leave the choice to Nika. »");
+    let markdown = card.find("your correction: « en markdown »");
+    assert!(leave.zip(markdown).is_some_and(|(a, b)| a < b), "{card}");
+    for frame in ["Original request", "takes precedence"] {
+        assert!(!card.contains(frame), "{frame}: {card}");
+    }
+    s.intent.goal = Some(original.to_owned());
+    let TurnOutcome::Facts(card) = s.recovery(None, "I couldn't finish", "the author failed")
+    else {
+        panic!("a recovery card")
+    };
+    assert!(
+        card.contains(&format!("your request: « {original} »")),
+        "{card}"
+    );
+    assert!(!card.contains("your correction"), "{card}");
+}

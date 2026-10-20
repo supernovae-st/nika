@@ -47,6 +47,7 @@ pub(super) struct FanOutAccum {
     pub(super) agent_events: Vec<crate::agent_events::StampedAgentEvent>,
     pub(super) decisions: Vec<crate::witness::PermitDecision>,
     pub(super) first_error: Option<TaskErrorRecord>,
+    pub(super) operator_cancelled: Option<Box<super::FailedOutcome>>,
     pub(super) tokens_sum: Option<i64>,
     pub(super) cost_sum: Option<f64>,
     pub(super) unpriced: Option<nika_types::cost::UnpricedReason>,
@@ -71,7 +72,9 @@ where
     while let Some((index, ran)) = stream.next().await {
         let failed = matches!(
             ran.result,
-            RunResult::Failed { .. } | RunResult::PendingRecovery(_)
+            RunResult::Failed { .. }
+                | RunResult::OperatorCancelled(_)
+                | RunResult::PendingRecovery(_)
         );
         done.insert(index, ran);
         if fail_fast && failed {
@@ -84,6 +87,7 @@ where
         agent_events: Vec::new(),
         decisions: Vec::new(),
         first_error: None,
+        operator_cancelled: None,
         tokens_sum: None,
         cost_sum: None,
         unpriced: None,
@@ -152,6 +156,15 @@ fn consume_iteration(acc: &mut FanOutAccum, index: usize, iter_ran: RanTask) {
                 acc.first_error = Some(error);
             }
         }
+        RunResult::OperatorCancelled(stopped) => {
+            acc.items
+                .push(item_row(index, &identity, "cancelled", None));
+            acc.outputs.push(Value::Null);
+            fold_spend(acc, None, stopped.cost_usd, stopped.cost_unpriced);
+            if acc.operator_cancelled.is_none() {
+                acc.operator_cancelled = Some(stopped);
+            }
+        }
         RunResult::PendingRecovery(pending) => {
             acc.items.push(item_row(
                 index,
@@ -197,7 +210,11 @@ fn resolve_collection(
 ) -> Result<Vec<Value>, Box<SettleAs>> {
     let resolved = match collection {
         ForEachValue::List(value) => expr::render_json(value, scope),
-        ForEachValue::Expression(text) => expr::render_json(&Value::String(text.clone()), scope),
+        // A collection position, never a string one: the whitespace a block scalar leaves around
+        // the reference (`for_each: |`) is no text, the collection keeps its type.
+        ForEachValue::Expression(text) => {
+            expr::render_json(&Value::String(text.trim().to_owned()), scope)
+        }
         other => Err(nika_dataflow::DataflowError::WhenUnsupported {
             expr: format!("for_each form not wired in the runtime yet: {other:?}"),
         }),
@@ -327,6 +344,9 @@ pub(super) fn stamp_iteration(ran: &mut RanTask, index: usize, item: &Value) {
             if let Some(error) = recovered_from {
                 annotate_error_in_place(error, index, &identity);
             }
+        }
+        RunResult::OperatorCancelled(stopped) => {
+            annotate_error_in_place(&mut stopped.record, index, &identity);
         }
         RunResult::PendingRecovery(pending) => {
             annotate_error_in_place(&mut pending.render_error, index, &identity);
@@ -778,6 +798,7 @@ mod tests {
             }
             RunResult::Success { .. }
             | RunResult::SkippedWithError { .. }
+            | RunResult::OperatorCancelled(_)
             | RunResult::PendingRecovery(_) => {
                 panic!("expected Failed after stamping a failed iteration")
             }

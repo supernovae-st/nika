@@ -80,9 +80,54 @@ pub fn is_run_verb(first: &str) -> bool {
 #[must_use]
 pub fn run_line_is_plain(lower: &str) -> bool {
     const FILLERS: &[&str] = &[
-        "it", "again", "the", "workflow", "once", "now", "this", "that", "le", "la", "ça",
-        "encore", "please", "stp", "svp", "with", "a", "ceiling", "of", "cap", "max", "cost",
-        "usd", "dollar", "dollars", "budget", "plafond", "de", "un", "une", "avec", "at", "à", "$",
+        "it",
+        "again",
+        "the",
+        "workflow",
+        "once",
+        "now",
+        "this",
+        "that",
+        "le",
+        "la",
+        "ça",
+        "encore",
+        "please",
+        "stp",
+        "svp",
+        "with",
+        "a",
+        "ceiling",
+        "of",
+        "cap",
+        "max",
+        "cost",
+        "usd",
+        "dollar",
+        "dollars",
+        "budget",
+        "plafond",
+        "de",
+        "un",
+        "une",
+        "avec",
+        "at",
+        "à",
+        "$",
+        // Courtesy and the run's once (« lance copy.nika s'il te plaît », « lance-le une fois
+        // tout de suite », supernovae-1c's UX2 rig, 2026-10-17: the line reached the
+        // conversation).
+        "s'il",
+        "te",
+        "vous",
+        "plaît",
+        "plait",
+        "merci",
+        "fois",
+        "maintenant",
+        "tout",
+        "suite",
+        "go",
     ];
     lower
         .split(|c: char| c.is_whitespace() || c == ',' || c == ':')
@@ -141,6 +186,15 @@ mod tests {
         assert!(run_prefix("please summarize it").is_none());
         assert!(run_line_is_plain("run one.nika budget 2 usd name=Nika"));
         assert!(!run_line_is_plain("run it after deleting the source"));
+        for line in [
+            "lance copy.nika s'il te plaît",
+            "lance-le une fois",
+            "relance-le tout de suite stp",
+            "lance-le maintenant, merci",
+        ] {
+            assert!(run_line_is_plain(line), "{line}");
+        }
+        assert!(!run_line_is_plain("lance-le une fois par jour"));
         assert_eq!(
             inline_vars("run one.nika name=Nika; n=2, empty= =missing"),
             vec!["name=Nika", "n=2"]

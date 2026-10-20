@@ -229,7 +229,7 @@ fn the_session_budget_and_its_review_are_one_bound() {
 fn a_hot_copy_observes_the_source_without_claiming_model_presentation() {
     // The reader composes the copy; the selected author checks it as its judge before READY (R1):
     // every closed choice it is asked is answered with the approval it offers.
-    let approve = |choice: &str| (200, response(&json!({"choice": choice}).to_string()));
+    let approve = |choice: &str| (200, response(&judge_answer(choice)));
     let peer = Peer::start(vec![approve("faithful"), approve("only_requested")]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();

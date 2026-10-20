@@ -61,12 +61,13 @@ fn receipts(observation: &Value) -> Value {
     })
 }
 
-/// Every record carries the run's receipts exactly when its question was asked over the run.
+/// Every record carries the run's receipts exactly when its question was asked over the run:
+/// each question over it, and the whole question when the run is whole.
 fn witnessed(verdict: &Verdict, observation: &Value) {
     for asked in &verdict.records {
-        let over_the_run = asked["question"]
-            .as_str()
-            .is_some_and(|id| id.starts_with("verify-observed"));
+        let id = asked["question"].as_str().unwrap_or_default();
+        let over_the_run = id.starts_with("verify-observed")
+            || (id == "verify-request" && crate::rehearse::trial_whole(observation));
         let expected = over_the_run.then(|| receipts(observation));
         assert_eq!(asked.get("observation").cloned(), expected, "{asked}");
         let kept = asked["observation"].to_string();
@@ -85,7 +86,7 @@ fn shown_the_run(sent: &Sent, observation: &Value, clause: Option<&str>) {
         sent.state.get("clause").cloned().unwrap_or(Value::Null),
         asked
     );
-    if matches!(sent.kind, ObservedPart | Observed) {
+    if matches!(sent.kind, ObservedPart | Observed | Request) {
         assert!(sent.told.contains(RUN), "{}", sent.told);
     }
 }
@@ -180,8 +181,8 @@ async fn a_part_a_later_correction_supersedes_asks_nothing_of_the_candidate() {
 }
 
 /// A disagreement is decided by a whole run of these exact bytes: the judge is shown what the
-/// run read and wrote, in the state of one more question and in no earlier one, and asked again
-/// over it. Consistent outputs carry the request under the question that settled it. The record
+/// run read and wrote over the whole request, from its first ask, and in one more question, never
+/// in a part asked alone, and asked again over it. Consistent outputs carry the request under the question that settled it. The record
 /// keeps the digest of what the judge read and of each text, never the texts.
 #[tokio::test]
 async fn a_consistent_run_read_whole_carries_the_request() {
@@ -214,7 +215,8 @@ async fn a_consistent_run_read_whole_carries_the_request() {
     shown_the_run(shown, &observation, None);
     assert_eq!(shown.state["candidate_nika"], CANDIDATE);
     assert!(shown.told.contains(OBSERVED), "{}", shown.told);
-    let unshown = before
+    shown_the_run(&before[0], &observation, None);
+    let unshown = before[1..]
         .iter()
         .all(|sent| sent.state.get("observation").is_none());
     assert!(unshown);
@@ -707,8 +709,9 @@ async fn the_run_question_offers_every_part_and_an_unexercised_request_is_held()
     }
 }
 
-/// « faithful » is read on the program, never on what it produced (A1): over a whole run of these
-/// bytes each part is judged again over what the run read and wrote, every part asked, the
+/// « faithful » over a whole run of these bytes, which the whole question read from its first
+/// ask, stands only once each part holds over the run (A1): each part is judged again over what
+/// the run read and wrote, every part asked, the
 /// restriction told so, and the run's receipts on each record. Every part carried there, or
 /// never exercised by these inputs, leaves the verdict standing: the whole request is carried by
 /// `verify-request`.
@@ -741,7 +744,7 @@ async fn a_faithful_verdict_stands_once_each_part_holds_over_the_run() {
         assert_eq!(counts(&verdict), (4, 4, 4));
         witnessed(&verdict, &observation);
         let sent = judge.sent.lock().unwrap();
-        assert!(sent[0].state.get("observation").is_none());
+        shown_the_run(&sent[0], &observation, None);
         for (k, part) in ORDER_PARTS.iter().enumerate() {
             shown_the_run(&sent[k + 1], &observation, Some(part));
             assert_eq!(sent[k + 1].told.contains(RESTRICTING), k == 1);

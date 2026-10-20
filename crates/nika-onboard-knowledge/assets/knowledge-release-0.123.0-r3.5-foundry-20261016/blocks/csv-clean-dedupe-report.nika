@@ -1,0 +1,64 @@
+nika: p75-csv-clean-dedupe-report
+const:
+  source_path: ./contacts.csv
+  output_path: ./contacts-clean.csv
+  report_path: ./cleaning-report.md
+  key: email
+permits:
+  tools: ["nika:read", "nika:convert", "nika:jq", "nika:write"]
+  fs: { read: ["./contacts.csv"], write: ["./contacts-clean.csv", "./cleaning-report.md"] }
+tasks:
+  source:
+    invoke: { tool: "nika:read", args: { path: "${{ const.source_path }}" } }
+  rows:
+    with: { text: "${{ tasks.source.output }}" }
+    invoke: { tool: "nika:convert", args: { input: "${{ with.text }}", from: csv, to: json } }
+  clean:
+    with: { text: "${{ tasks.source.output }}", rows: "${{ tasks.rows.output }}" }
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: { text: "${{ with.text }}", rows: "${{ with.rows }}", key: "${{ const.key }}", source: "${{ const.source_path }}" }
+        expression: |
+          # the file line where each record starts, as nika:convert reads the file: blank lines skipped, a quoted
+          # field may span lines; the first start is the header's
+          def starts: split("\n") | reduce .[] as $raw ({n: 0, inside: false, at: []};
+              .n += 1 | ($raw | rtrimstr("\r")) as $line | ((($line | split("\"") | length) - 1) % 2) as $odd
+              | if .inside then .inside = ($odd == 0)
+                elif $line == "" then .
+                else .at += [.n] | .inside = ($odd == 1) end) | .at;
+          def cell: tostring | gsub("\\|"; "\\|") | gsub("\r?\n"; " ");
+          .key as $key | .source as $source
+          | (.text | starts) as $at
+          | (.text | split("\n") | map(rtrimstr("\r")) | map(select(. != "")) | .[0] | ltrimstr("\ufeff")
+             | split(",") | map(trim | if startswith("\"") and endswith("\"") and length > 1 then .[1:-1] | gsub("\"\""; "\"") else . end)) as $header
+          | [.rows | to_entries[] | {line: $at[.key + 1],
+              row: (.value | with_entries(.key |= trim | .value |= (tostring | trim)))}] as $records
+          | (reduce $records[] as $r ({kept: [], removed: [], seen: {}};
+              (($r.row[$key] // "") | ascii_downcase) as $k
+              | if $k == "" then .removed += [{line: $r.line, reason: ("no " + $key), row: $r.row}]
+                elif .seen[$k] != null then .removed += [{line: $r.line, reason: ("duplicate of line " + (.seen[$k] | tostring)), row: $r.row}]
+                else .seen[$k] = $r.line | .kept += [$r.row | .[$key] = $k] end)) as $done
+          | {read: ($records | length), kept: ($done.kept | length), removed: ($done.removed | length),
+             no_key: ([$done.removed[] | select(.reason | startswith("no "))] | length),
+             duplicates: ([$done.removed[] | select(.reason | startswith("duplicate"))] | length)} as $n
+          | {header: $header, kept: $done.kept, counts: $n,
+             removed: [$done.removed[] | {line, reason}],
+             report: ("# Cleaning of " + $source + "\n\n"
+               + "Rows read: \($n.read) · kept: \($n.kept) · removed: \($n.removed) (no \($key): \($n.no_key) · duplicates: \($n.duplicates))\n\n"
+               + (if $n.removed == 0 then "No row removed.\n"
+                  else "| Line | Reason | Row |\n| ---: | --- | --- |\n"
+                    + ($done.removed | map("| \(.line) | \(.reason) | " + ([$header[] as $h | (.row[$h] // "")] | join(", ") | cell) + " |\n") | join(""))
+                  end))}
+  csv:
+    with: { clean: "${{ tasks.clean.output }}" }
+    invoke: { tool: "nika:convert", args: { input: "${{ with.clean.kept }}", from: json, to: csv, columns: "${{ with.clean.header }}" } }
+  write_clean:
+    with: { csv: "${{ tasks.csv.output }}" }
+    invoke: { tool: "nika:write", args: { path: "${{ const.output_path }}", content: "${{ with.csv }}" } }
+  write_report:
+    with: { clean: "${{ tasks.clean.output }}" }
+    invoke: { tool: "nika:write", args: { path: "${{ const.report_path }}", content: "${{ with.clean.report }}" } }
+outputs:
+  counts: ${{ tasks.clean.output.counts }}
+  removed: ${{ tasks.clean.output.removed }}

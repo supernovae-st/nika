@@ -307,13 +307,42 @@ OpenAI-compatible in-band error protocol, which is separate from HTTP rejection.
 Tests inject the kernel HTTP effect; no provider credentials or network calls
 are required.
 
+## Context overflow and window-full finishes
+
+A request over the model's context window is `ProviderError::ContextOverflow { limit, details }`
+(code 330, never transient). The shared non-2xx boundary types it from an overflow code in the
+closed vocabulary; `infer_reported` types a 400 `invalid_request_error` as one only when the
+request's text estimate (UTF-8 bytes of text, thinking, tool calls, results and definitions, four
+bytes a token; images and opaque reasoning state count nothing) reaches the window the provider
+catalog lists for the exact wire model, and fills `limit` with that window. An unknown window
+classifies nothing, and 429, 503 and 529 stay transient rejections whatever code rides them.
+
+A finish that says the context window was full keeps the `MaxTokens` semantics (never a normal
+end, its calls never run) and sets `InferResponse.window_full`; a success that reports more input
+than the catalog window also sets it (a silent overflow), whatever its stop. The Session carries
+it as `Reply.window_full`.
+
+Each signal and its evidence (provider documentation checked 2026-10-12):
+
+| Signal | Where it is read | Evidence |
+|---|---|---|
+| `context_length_exceeded` | `error.code` | observed structured on OpenAI Chat Completions (Microsoft's Azure documentation quotes the body); documented by OpenAI for Agents and Responses turn errors |
+| `context_length_exceeded` | `error.metadata.error_type` | documented by OpenRouter |
+| 400 `invalid_request_error` with no overflow code | status and `error.type`, with the request estimate | documented by Anthropic (« prompt is too long », a message) and Mistral (a codeless 400); observed on DeepSeek |
+| `model_context_window_exceeded` | Anthropic `stop_reason` | documented by Anthropic (since 2025-09-29) |
+| `model_length` | Mistral `finish_reason` | name only: listed without a documented meaning |
+
+No message text classifies anything. Gemini, which documents an overflow as a 500 `INTERNAL`
+in prose and answers 400 `INVALID_ARGUMENT` in practice, is not classified yet.
+
 ## Catalog-backed inference admission
 
 `InferenceAdmission` is a cloneable, mutex-protected account of nano-USD
 reservations and catalog estimates, separate from invoices and Run consent.
 `ProviderRegistry::with_inference_admission` preserves unbounded defaults and
 threads the same account into resolved providers. Exact endpoint/model binding,
-text-only serialized body ≤1 MiB, explicit positive output bounds and a kernel
+text-only serialized body ≤1 MiB (`admission::BOUNDED_REQUEST_BYTES`, which an authoring
+door fits its opening under), explicit positive output bounds and a kernel
 HTTP single-attempt capability are required before dispatch. Streaming refuses.
 The bounded path disables redirects; the HTTP effect must disable protocol
 retries, as every provider client does. Complete validated usage settles once, releasing only
@@ -321,6 +350,62 @@ the unused reservation. Dropped sent futures, errors, missing/partial usage and
 contradictions retain exposure and freeze the account. Over-bound observations
 remain in receipts. `billed` is unknown; catalog math never becomes an invoice.
 Amending the total retains spend; defaults never infer an unpriced call is free.
+
+Complete usage is provider law (`wire::admission`). `OpenAI`'s documented detail
+meters (audio, cache write, accepted and rejected prediction) read only as exact
+zeros; a known detail or details object written `null` reads as absent; any other
+key is an unknown axis. DeepSeek keeps its own cache-split law. Anthropic's
+`usage` is complete only when `input_tokens` and `output_tokens` are unsigned
+integers; the cache read and cache write counts are unsigned integers, or
+absent or null, which read as zero (the wire folds both into the input and
+keeps them as its subsets); the three input counts sum to a non-zero total;
+`output_tokens_details`, unless absent or null, holds only `thinking_tokens`,
+null or within the output; the whole cache write is the 5-minute one; no server
+tool request is counted; the service tier and the inference region, unless
+absent or null, are `standard` and `global`; and no other key rides. Any other
+reply stays incomplete: its call is unpriced, never a zero. This law states no
+tariff.
+
+A biller that reports its own account charge settles at that charge;
+its admission tariff only reserves and admits the exact route. `OpenRouter` is
+that biller: a non-BYOK reply from its own seeded endpoint with complete meters
+and the closed key set reports `usage.cost`, converted exactly to nano-USD and
+rounded up. A zero charge keeps the zero proof (every documented axis and
+decomposition at zero); a paid charge may carry a cache write within the input
+and a nonnegative upstream decomposition. BYOK, a configured gateway's `cost`, a
+server tool, an unknown fee or key leave the charge unknown. The attempt keeps
+the catalog price of the same usage as `reported_estimate`. A charge above the
+attempt's reservation still settles known; that exact route then refuses its next
+admission ("the catalogue tariff is below the provider's charge; refresh it")
+while the account stays Open. Per-dispatch `InferenceCall`s carry the charge with
+the `provider_reported_charge` provenance (currency, source document, its SHA-256
+and date), an explicit unknown-cost choice records it as its known USD, and a
+checkpoint restores such a settlement without repricing it.
+
+An admission tariff (`nika/inference-admission@1.3`) may name `served_models`:
+the models its provider's own documentation names as served for the selected
+model (a dated snapshot its replies report). A reply naming the selected model
+or one of them answered the route, at settlement, in a restored checkpoint and
+in the per-dispatch `InferenceCall`, whose `InferenceRoute` carries the served
+set that `known_estimate` reads; any other name leaves the charge unknown. A
+tariff may also state `cache_write_nano_per_token`: a call that wrote the cache
+is then priced with its writes at that rate, and a write rate above input makes
+the reservation the whole context written. A tariff without it leaves a call
+that wrote the cache unknown, at settlement as in the per-dispatch record.
+A tariff may state `generation_tokens` (`@1.3`) when no request parameter
+bounds its route's reasoning (xAI documents that `max_completion_tokens` bounds
+only the visible output): the reservation then covers that whole generation at
+the output rate, and settlement holds the reply's output, reasoning included,
+within it instead of within the requested bound. Observations name
+`table_schema` `@1.3` and a `cache_write_rate`.
+
+xAI replies report their own charge, `usage.cost_in_usd_ticks` at 10^10 ticks
+per dollar (the chat completions reference). The receipt is complete when the
+prompt, completion and reasoning add up to `total_tokens` (reasoning rides
+beside the completion), the prompt is text with its cache read within it, no
+live source or server-side tool ran and every key is known; the charge then
+settles the call like `OpenRouter`'s, and the usage counts the reasoning in the
+output.
 
 `InferenceAdmission::unbudgeted()` observes qualified calls that an operator
 started without any monetary ceiling. It has no allowance: each full-context
@@ -512,11 +597,13 @@ splitting).
   fields are an allowlist: a new `InferenceCall` field stays out until this owner
   projects it.
 - `durable_pricing(pricing, calls)`: the durable object of one pricing
-  provenance text, or `null` when the text is not JSON or not one of the four
+  provenance text, or `null` when the text is not JSON or not one of the five
   kinds a producer writes. The kinds are read from `kind` and `table_schema`:
-  - a catalog tariff or `unknown` observation (`nika/inference-admission@1.1`);
+  - a catalog tariff or `unknown` observation (`nika/inference-admission@1.3`,
+    or `@1.2` and `@1.1` in older records);
   - a vendored snapshot estimate (`nika_catalog::PRICING_SCHEMA`);
-  - an operator-declared tariff.
+  - an operator-declared tariff;
+  - a provider-reported charge (`provider_reported_charge`, no table schema).
 
   Each keeps its own keys as written, names its `route` by origin and carries
   its own `withheld`.
@@ -724,12 +811,22 @@ lives in `retry/billing.rs`, which this change leaves untouched.
 
 An explicit `InferRequest.reasoning_effort` is admitted only when the model's
 catalog lists the requested level and the exact provider, model and endpoint
-match a catalogued direct route. The current qualified model is
-`deepseek/deepseek-v4-pro`; the adapter writes `thinking: {type: enabled}` and
-the requested `reasoning_effort` word. An unqualified endpoint override, alias
-or other model refuses before admission reservation and dispatch. Conflicting
-raw reasoning keys or a thinking-token budget refuse too. The Anthropic, Gemini
-and mock adapters refuse an explicit level rather than silently dropping it.
+match a catalogued direct route. Two routes qualify:
+- `deepseek/deepseek-v4-pro`: the adapter writes `thinking: {type: enabled}`
+  and the requested `reasoning_effort` word;
+- the Claude 5 models on Anthropic's own endpoint, never an operator-pointed
+  one: `claude-fable-5-1`, `claude-fable-5` and `claude-opus-5-5` (catalog rule
+  `claude-5-always-thinking-on-anthropic`), `claude-sonnet-5-5`,
+  `claude-haiku-5-5`, `claude-opus-5` and `claude-sonnet-5`
+  (`claude-5-adaptive-thinking-on-anthropic`). Their catalog lists `low`,
+  `high` and `max`; the adapter writes the word as `output_config.effort`,
+  beside a structured-output `format`.
+
+An unqualified endpoint override, alias or other model refuses before admission
+reservation and dispatch. Conflicting raw reasoning keys (`thinking`, with
+`reasoning_effort` on DeepSeek or `output_config` on Anthropic) or a
+thinking-token budget refuse too. The Gemini, Ollama and mock adapters refuse an
+explicit level rather than silently dropping it.
 
 Without an explicit level, existing route behavior remains: some short
 structured DeepSeek requests receive `low`. A larger output cap never means
@@ -737,6 +834,27 @@ MAX. Buffered responses carry `ReasoningWire` read from the actual serialized
 body immediately before HTTP dispatch; this says what was transmitted, never
 what internal effort the server served. Streaming shares the admission and
 serialization law but does not add a buffered-response evidence field.
+
+### Fixed controls on Anthropic routes
+
+`nika_catalog` answers, for a provider and a model name, whether the
+provider's API refuses a control with an error. `wire_model` first resolves a
+catalog nickname to its row's model (any other name stays as given).
+`refuses_sampling` covers an Anthropic Messages route whose model takes no
+temperature: a `temperature` other than the default 1, a `top_p` or a `top_k`.
+`refuses_thinking_budget` covers one whose model records its reasoning and
+lists no thinking-budget parameter: `thinking.budget_tokens`. Both are `false`
+wherever the catalog records no such refusal, an unrecorded model and a
+provider that does not speak the Messages API included. The Claude 5 models
+above refuse both.
+
+The Anthropic adapter judges the controls its body would carry: the typed
+value, else a provider extra of the same key, since the typed one is written
+first and an extra never overrides it. A refused control, typed or raw,
+refuses the request before any byte, naming the model, the value and the
+repair (remove it, then steer in the prompt or set `run.reasoning.effort`).
+Nothing is dropped silently. A raw `temperature` equal to the default, a raw
+`thinking` without a budget and the earlier Claude models are sent as declared.
 
 ### Closed numeric admission checkpoints
 

@@ -65,8 +65,8 @@
     "/v1/sessions/{session}/commands": {
       "parameters": [{"$ref": "#/components/parameters/SessionId"}],
       "post": {
-        "summary": "Submit a line against a snapshot, stop the turn under way, or queue a line for the conversation's run under way",
-        "description": "A submit reaches the Session only when it names the CURRENT snapshot; the Session receives that snapshot's retained `Waiting`, never one rebuilt from the request. A command identity already known answers first: the same bytes (op, snapshot, line) return the recorded result with `replayed: true` (an original still running is awaited, never run twice); other bytes answer 409 command_conflict. One turn at a time: a submit during a turn answers 409 busy with its line returned unconsumed. The answer to a submit comes once it settled; no request deadline applies, and a disconnected request never cancels the accepted turn. A stop answers at once with its receipt; the settlement is the target command's own result. `stop_requested`: the preparation under way stops, or the Run it executes had not started its work yet (it starts none, or takes the Stop as it starts). `run_stopping`: the Run took its first signal, as a first Ctrl-C sends it: in-flight work completes and is counted, no new wave starts, and its result carries `run_stopped` once its trace sealed as cancelled (`run_aborted` when it ended without sealing it). `nothing_to_stop`: no turn, the turn is settling, or its Run already ended. `run_underway`: this door cannot stop the Run. A replayed stop answers its recorded receipt, and a second stop while one is under way sends nothing more: a stop never escalates to an abort. A `steer` (the line enters after the calls under way) or a `follow_up` (it enters when the run would end) answers at once with its receipt: `queued` with the line's identity and state (`queued`), `not_reading` (a turn runs that no conversation's run reads: send the line once it settled), `nothing_to_steer` (no turn: submit the line), `blank`, `full` (the run took as many lines as it takes: send the line once it ended); what became of each queued line is in the snapshot's `busy.queued` while the run reads it, then in the work's `queued`.",
+        "summary": "Submit a line against a snapshot, answer one question it asks, stop the turn under way, or queue a line for the conversation's run under way",
+        "description": "A submit reaches the Session only when it names the CURRENT snapshot; the Session receives that snapshot's retained `Waiting`, never one rebuilt from the request. An `answer` (`question` and `line`) or a `delegate` (`question` alone) reaches the one question its identity names among those the CURRENT snapshot asks (`work.waiting.id`, each of `work.waiting.ids`, an open choice of `work.open_choices` while a proposal waits, or the optional offer about the last result, `work.feedback.offer.question.id`, while nothing else waits), through the Session's identity door, and the other questions keep waiting: nothing reads which question a line answers. A `delegate` leaves the choice to Nika, never as words: the question's recommended offer is bound as delegated, or, with none, the author chooses; a question the compiler asks takes no delegation (its result is a `wrong_state` refusal). An identity that snapshot does not ask answers 409 unknown_question before anything reaches the Session: one an earlier snapshot asked (answered, dropped or replaced since), or one this Session never asked. A command identity already known answers first: the same bytes (op, snapshot, question, line) return the recorded result with `replayed: true` (an original still running is awaited, never run twice); other bytes answer 409 command_conflict. One turn at a time: a submit during a turn answers 409 busy with its line returned unconsumed. The answer to a submit comes once it settled; no request deadline applies, and a disconnected request never cancels the accepted turn. A stop answers at once with its receipt; the settlement is the target command's own result. `stop_requested`: the preparation under way stops, or the Run it executes had not started its work yet (it starts none, or takes the Stop as it starts). `run_stopping`: the Run took its first signal, as a first Ctrl-C sends it: in-flight work completes and is counted, except an MCP call under way, which is stopped (its server is told to cancel it) and named in the settlement's `stopped_calls`, an effect's outcome unknown when the call had been sent; no new wave starts, and its result carries `run_stopped` once its trace sealed as cancelled (`run_aborted` when it ended without sealing it). `nothing_to_stop`: no turn, the turn is settling, or its Run already ended. `run_underway`: this door cannot stop the Run. A replayed stop answers its recorded receipt, and a second stop while one is under way sends nothing more: a stop never escalates to an abort. A `steer` (the line enters after the calls under way) or a `follow_up` (it enters when the run would end) answers at once with its receipt: `queued` with the line's identity and state (`queued`), `not_reading` (a turn runs that no conversation's run reads: send the line once it settled), `nothing_to_steer` (no turn: submit the line), `blank`, `full` (the run took as many lines as it takes: send the line once it ended); what became of each queued line is in the snapshot's `busy.queued` while the run reads it, then in the work's `queued`.",
         "requestBody": {
           "required": true,
           "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionCommand"}}}
@@ -76,7 +76,7 @@
           "400": {"description": "A `refused` frame: malformed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
           "401": {"description": "Missing or wrong bearer token", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
           "404": {"description": "A `refused` frame: session_not_found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
-          "409": {"description": "A `refused` frame: stale_snapshot, unknown_snapshot, busy or command_conflict", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
+          "409": {"description": "A `refused` frame: stale_snapshot, unknown_snapshot, unknown_question, busy or command_conflict", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionFrame"}}}},
           "413": {"description": "Body over the server's limit", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
           "415": {"description": "Not application/json", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
         }
@@ -103,17 +103,21 @@
     },
     "schemas": {
       "SessionCommand": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["contract", "op", "command"],
-        "properties": {
-          "contract": {"const": "nika/session-host@1"},
-          "op": {"enum": ["submit", "stop", "steer", "follow_up"]},
-          "command": {"type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$"},
-          "snapshot": {"type": "string", "description": "submit only: the handle of the snapshot the line was typed against"},
-          "line": {"type": "string", "description": "submit, steer and follow_up: the line, exactly as typed"}
-        }
+        "description": "One command of the contract: each op takes exactly its own fields, and a missing or any other field is refused malformed.",
+        "oneOf": [
+          {"type": "object", "additionalProperties": false, "required": ["contract", "op", "command", "snapshot", "line"], "properties": {"contract": {"$ref": "#/components/schemas/SessionContract"}, "op": {"const": "submit"}, "command": {"$ref": "#/components/schemas/SessionCommandIdentity"}, "snapshot": {"$ref": "#/components/schemas/SessionSnapshotHandle"}, "line": {"$ref": "#/components/schemas/SessionLine"}}},
+          {"type": "object", "additionalProperties": false, "required": ["contract", "op", "command", "snapshot", "question", "line"], "properties": {"contract": {"$ref": "#/components/schemas/SessionContract"}, "op": {"const": "answer"}, "command": {"$ref": "#/components/schemas/SessionCommandIdentity"}, "snapshot": {"$ref": "#/components/schemas/SessionSnapshotHandle"}, "question": {"$ref": "#/components/schemas/SessionQuestionIdentity"}, "line": {"$ref": "#/components/schemas/SessionLine"}}},
+          {"type": "object", "additionalProperties": false, "required": ["contract", "op", "command", "snapshot", "question"], "properties": {"contract": {"$ref": "#/components/schemas/SessionContract"}, "op": {"const": "delegate"}, "command": {"$ref": "#/components/schemas/SessionCommandIdentity"}, "snapshot": {"$ref": "#/components/schemas/SessionSnapshotHandle"}, "question": {"$ref": "#/components/schemas/SessionQuestionIdentity"}}},
+          {"type": "object", "additionalProperties": false, "required": ["contract", "op", "command"], "properties": {"contract": {"$ref": "#/components/schemas/SessionContract"}, "op": {"const": "stop"}, "command": {"$ref": "#/components/schemas/SessionCommandIdentity"}}},
+          {"type": "object", "additionalProperties": false, "required": ["contract", "op", "command", "line"], "properties": {"contract": {"$ref": "#/components/schemas/SessionContract"}, "op": {"const": "steer"}, "command": {"$ref": "#/components/schemas/SessionCommandIdentity"}, "line": {"$ref": "#/components/schemas/SessionLine"}}},
+          {"type": "object", "additionalProperties": false, "required": ["contract", "op", "command", "line"], "properties": {"contract": {"$ref": "#/components/schemas/SessionContract"}, "op": {"const": "follow_up"}, "command": {"$ref": "#/components/schemas/SessionCommandIdentity"}, "line": {"$ref": "#/components/schemas/SessionLine"}}}
+        ]
       },
+      "SessionContract": {"const": "nika/session-host@1"},
+      "SessionCommandIdentity": {"type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$", "description": "the caller's identity for this command"},
+      "SessionSnapshotHandle": {"type": "string", "description": "the handle of the snapshot the line was typed against, or the question read in"},
+      "SessionQuestionIdentity": {"type": "string", "pattern": "^[A-Za-z0-9]{1,128}$", "description": "the identity of one question that snapshot asks, as its work states it"},
+      "SessionLine": {"type": "string", "description": "the line, exactly as typed"},
       "SessionSnapshot": {
         "type": "object",
         "required": ["snapshot", "seq", "busy", "work"],
@@ -162,6 +166,31 @@
           "cite": {"type": "string"}
         }
       },
+      "SessionCall": {
+        "type": "object",
+        "required": ["ordinal", "role", "model", "state"],
+        "description": "One physical model call an activity frame reports: its rank, the compiler's or conversation's role, the REQUESTED model (never proof of the served one), `started`, `finished` or `cancelled`, when it left (`at_ms`, Unix milliseconds) and how long it took, the tokens the provider reported, and once it returned what it settled (`cost`). Each member is present only when its producer reported it.",
+        "properties": {
+          "ordinal": {"type": "integer", "minimum": 0},
+          "role": {"type": "string"},
+          "model": {"type": "string"},
+          "state": {"enum": ["started", "finished", "cancelled", "other"]},
+          "at_ms": {"type": "integer", "minimum": 0},
+          "elapsed_ms": {"type": "integer", "minimum": 0},
+          "input_tokens": {"type": "integer", "minimum": 0},
+          "output_tokens": {"type": "integer", "minimum": 0},
+          "cost": {"$ref": "#/components/schemas/SessionCallCost"}
+        }
+      },
+      "SessionCallCost": {
+        "type": "object",
+        "required": ["kind"],
+        "description": "What a finished call cost, as the Session settled the requests it returned: `priced` at the sum of their known estimates (`nano_usd`, a decimal string of nano-USD at the route's list price: an estimate, never an invoice), or `unpriced` when one returned with no price. Absent while the call runs, when nothing settled, and when its producer states nothing. A host sums the priced calls for a live preparation cost and counts the unpriced beside it.",
+        "oneOf": [
+          {"properties": {"kind": {"const": "priced"}, "nano_usd": {"type": "string", "pattern": "^[0-9]+$"}}, "required": ["kind", "nano_usd"]},
+          {"properties": {"kind": {"const": "unpriced"}}, "required": ["kind"]}
+        ]
+      },
       "SessionTool": {
         "type": "object",
         "required": ["call", "name", "state"],
@@ -171,7 +200,20 @@
           "name": {"type": "string"},
           "state": {"enum": ["started", "finished", "failed"]},
           "elapsed_ms": {"type": "integer", "minimum": 0},
+          "verification": {"$ref": "#/components/schemas/SessionVerification"},
           "reply": {"type": "string", "maxLength": 512, "description": "failed only: the tool's reply as a host may show it, its obvious secret shapes redacted first (API keys, private key blocks, password, token and secret values), on one line, at most 512 bytes and cut marked …"}
+        }
+      },
+      "SessionVerification": {
+        "type": "object",
+        "required": ["schema", "candidate_sha256", "candidate_revision", "reused", "records"],
+        "description": "Original compiler semantic_verification records retained by a ready proposal. A tool activity binds this receipt to its enclosing Session and command. No field grants admission or proves a Run. Request and context identities belong to each original record. candidate_revision is the local conversation revision, not a document base hash. reused means this proposal reuses a previous verification rather than invoking one. These original records may first become visible here; it does not mean their calls never happened. Do not add their call counts again when seen repeatedly.",
+        "properties": {
+          "schema": {"const": "nika/semantic-verification@1"},
+          "candidate_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "candidate_revision": {"type": "integer", "minimum": 1},
+          "reused": {"type": "boolean"},
+          "records": {"type": "array", "minItems": 1, "items": {"type": "object"}, "description": "The complete compiler attempt array, unchanged, including unsuccessful attempts and original consumed/read_back fields. Omitted with the receipt when the producer's secret-shape check would alter it."}
         }
       },
       "SessionOutcome": {
@@ -189,19 +231,20 @@
           "session": {"type": "string"},
           "event": {"type": "integer", "minimum": 1, "description": "present on frames of the log; a replayed result keeps its original event"},
           "command": {"type": "string"},
-          "op": {"enum": ["submit", "stop", "steer", "follow_up"]},
+          "op": {"enum": ["submit", "answer", "delegate", "stop", "steer", "follow_up"]},
           "replayed": {"type": "boolean"},
           "outcomes": {"type": "array", "items": {"$ref": "#/components/schemas/SessionOutcome"}},
           "receipt": {"enum": ["stop_requested", "run_stopping", "nothing_to_stop", "run_underway", "queued", "not_reading", "nothing_to_steer", "blank", "full"]},
           "queued": {"$ref": "#/components/schemas/SessionQueued"},
           "target": {"type": ["string", "null"]},
-          "error": {"enum": ["malformed", "session_not_found", "stale_snapshot", "unknown_snapshot", "busy", "command_conflict", "session_live", "session_unavailable"]},
+          "error": {"enum": ["malformed", "session_not_found", "stale_snapshot", "unknown_snapshot", "unknown_question", "busy", "command_conflict", "session_live", "session_unavailable"]},
           "message": {"type": "string"},
           "line": {"type": "string", "description": "the refused line, returned whole"},
           "notices": {"type": "array", "items": {"type": "string"}},
           "phase": {"type": "string"},
           "note": {"type": "string"},
           "done": {"type": "boolean"},
+          "call": {"$ref": "#/components/schemas/SessionCall"},
           "tool": {"$ref": "#/components/schemas/SessionTool"},
           "text": {"type": "string"},
           "snapshot": {"oneOf": [{"$ref": "#/components/schemas/SessionSnapshot"}, {"type": "string"}]}

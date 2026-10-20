@@ -115,6 +115,7 @@ mod embeddings;
 mod emit;
 mod error;
 mod mcp_servers;
+mod model_facts;
 mod pricing;
 mod providers;
 mod reasoning;
@@ -306,7 +307,7 @@ pub fn generate(
         let mut pricing = pricing::parse_pricing_bytes(&raw, &path)?;
         let admission_path = data_dir.join("inference-admission.toml");
         if admission_path.exists() {
-            admission::project_pricing(&read_file(&admission_path)?, &mut pricing)?;
+            admission::project_pricing(&read_file(&admission_path)?, &mut pricing, &providers)?;
         }
         let rust_src = pricing::generate_pricing_rs(&pricing.meta, &pricing.rules);
         let out_path = out_dir.join("model_pricing.rs");

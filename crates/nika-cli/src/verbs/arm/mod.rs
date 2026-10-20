@@ -49,6 +49,7 @@ use nika_vocab::project;
 use super::VerbOutput;
 
 pub mod args;
+pub mod disarm;
 pub mod emit;
 pub mod fire;
 pub mod migrate;
@@ -67,14 +68,14 @@ pub fn run(args: args::ArmArgs) -> VerbOutput {
     match args.sub {
         Some(ArmSub::Fire(f)) => fire::run(&f),
         Some(ArmSub::Migrate) => migrate::run(),
-        Some(ArmSub::Disarm { label, write }) => emit::disarm(&label, write),
+        Some(ArmSub::Disarm { label, write }) => disarm::disarm(&label, write),
         None => {
             if let Some(target) = args.emit {
                 return emit::run(&args, target);
             }
             if emits_requested(&args) {
                 return VerbOutput::file(
-                    "arm --write · --out · --mode · --env-file · --nika-bin vivent avec --emit — `nika arm --emit launchd` (ou systemd)"
+                    "arm --write · --out · --mode · --env-file · --nika-bin · --beat vivent avec --emit — `nika arm --emit launchd` (ou systemd)"
                         .to_owned(),
                 );
             }
@@ -164,6 +165,7 @@ fn emits_requested(args: &args::ArmArgs) -> bool {
         || args.mode.is_some()
         || args.env_file.is_some()
         || args.nika_bin.is_some()
+        || args.beat.is_some()
 }
 
 /// The shared door — every arming edge walks it (the report below ·
@@ -300,6 +302,17 @@ fn report(registry: &ArmRegistry, path: &std::path::Path) -> VerbOutput {
     for receipt in &receipts {
         let _ = writeln!(out, "\n{}", receipt.human_lines(SLOTS_SHOWN).join("\n"));
     }
+    // READY judges the file; an installed unit can still wake the old time.
+    let stale = emit::stale_unit_lines(registry, path);
+    if !stale.is_empty() {
+        let _ = writeln!(
+            out,
+            "\nunités périmées (elles ne réveillent pas l'horaire que nika.yaml donne):"
+        );
+        for line in stale {
+            let _ = writeln!(out, "{line}");
+        }
+    }
 
     let orphans = state::ArmState::at_project(&root).orphans(&fire::labels(registry));
     if !orphans.is_empty() {
@@ -428,6 +441,7 @@ mod tests {
             mode: None,
             env_file: None,
             nika_bin: None,
+            beat: None,
         };
         let out = run(base);
         assert_eq!(out.code, exit::FILE, "--write alone refuses: {}", out.text);
@@ -439,7 +453,7 @@ mod tests {
     /// `tests/arm_emit.rs` in a spawned process.
     #[test]
     fn disarm_teaches_the_n4_gesture() {
-        let teach = emit::disarm("doctor", false);
+        let teach = disarm::disarm("doctor", false);
         assert_eq!(teach.code, exit::OK, "{}", teach.text);
         assert!(teach.text.contains("actif: false"), "{}", teach.text);
         assert!(teach.text.contains("jusqu_au"), "{}", teach.text);

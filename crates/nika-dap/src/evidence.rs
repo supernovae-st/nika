@@ -226,9 +226,8 @@ pub fn candidate_pubkeys() -> Vec<(String, String)> {
             push_unique_pubkey(&mut out, &text);
         }
     }
-    if let Some(entry) = crate::seal::keyring_entry(crate::seal::KEYRING_USER_PUB)
-        && let Ok(text) = entry.get_password()
-    {
+    // The public item alone, read once per process: never the secret one.
+    if let Some(text) = crate::seal::keychain_public_item() {
         push_unique_pubkey(&mut out, &text);
     }
     #[allow(clippy::disallowed_methods)]
@@ -596,10 +595,28 @@ fn load_workflow(
         nika_schema::ParseMode::Strict,
     )
     .map_err(|e| PackError::Workflow(format!("PARSE ✗  [{}] {e}", e.spec_code())))?;
-    let report = nika_check::check_composed(&wf, path, &mut |p| {
-        // seam-bypass-ok: the composed lane's child-workflow reads (the check seam)
-        std::fs::read_to_string(p).map_err(|e| e.to_string())
-    });
+    // The project files compose like the CLI's (spec 02 §Project files): the identity the
+    // pack compares is the composed workflow's.
+    let base = std::path::Path::new(path)
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new(""));
+    let limit = nika_schema::PROJECT_FILE_CAP as u64 + 1;
+    let mut read_file = nika_fs::contained_reader(base, limit);
+    let (wf, report) = nika_check::check_project(
+        &wf,
+        path,
+        &mut |p| {
+            // seam-bypass-ok: the composed lane's child-workflow reads (the check seam)
+            std::fs::read_to_string(p).map_err(|e| e.to_string())
+        },
+        &mut |p| {
+            read_file(p).map_err(|refusal| match refusal {
+                nika_fs::ContainedRead::Linked => nika_schema::ProjectFileRead::Linked,
+                nika_fs::ContainedRead::NotRegular => nika_schema::ProjectFileRead::NotRegular,
+                _ => nika_schema::ProjectFileRead::Missing,
+            })
+        },
+    );
     Ok((source, wf, report))
 }
 

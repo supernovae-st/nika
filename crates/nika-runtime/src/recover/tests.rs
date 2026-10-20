@@ -343,6 +343,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
             inputs: &vars,
             consts: &BTreeMap::new(),
             secrets: &secrets,
+            run: None,
             bound: None,
         },
         resume_ctx: &resume_ctx,
@@ -353,6 +354,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
         |code: &str, message: &str| crate::record::TaskErrorRecord::new(code, message, false);
     let pending = crate::recover::PendingRecovery {
         failed: task::FailedOutcome {
+            operator_cancelled: false,
             usage: None,
             access_refused: None,
             record: error("NIKA-EXEC-001", "exit 1"),

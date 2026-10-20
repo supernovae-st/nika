@@ -240,6 +240,22 @@ pub fn body(model: &str, questions: &[&ChoiceQuestion], order: Order) -> Vec<u8>
     .unwrap_or_default()
 }
 
+/// The bytes of ONE request for `questions`, each question's criteria in its own
+/// [`ChoiceQuestion::order`]: what a decision service receives. A request whose questions all keep
+/// the default `Alphabetical` order writes exactly the bytes of serializing [`request`].
+#[must_use]
+pub fn request_bytes(model: &str, questions: &[&ChoiceQuestion]) -> Vec<u8> {
+    let value = request(model, questions);
+    let orders: BTreeMap<String, Vec<String>> = (questions.iter())
+        .map(|q| (q.id.clone(), sent_order_in(q, q.order)))
+        .collect();
+    serde_json::to_vec(&OrderedBody {
+        value: &value,
+        orders: &orders,
+    })
+    .unwrap_or_default()
+}
+
 /// [`request`]'s body with each question's criteria written in its own sequence.
 struct OrderedBody<'a> {
     value: &'a Value,
@@ -549,6 +565,9 @@ struct Listed {
 const ALONE: &str =
     "this question was asked alone, so no smaller request can carry it; not asked again";
 
+/// Why one item is not sent: a body at least its size was refused alone for capacity.
+const NOT_ALONE: &str = "not sent: this seat refused, for its context, a question asked alone with a smaller body than this one, so no request can carry it";
+
 /// Why nothing of a batch whose every id is repeated is sent.
 const ALL_REPEATED: &str = "every id of this batch is asked more than once; nothing sent";
 
@@ -669,6 +688,12 @@ pub struct Partition {
     /// The size of the smallest body of several items refused for capacity, in this batch or
     /// by its seat before it: a waiting body that large is split before it leaves.
     refused_bytes: Option<usize>,
+    /// The size of the smallest body of ONE item refused for capacity, in this batch or by its
+    /// seat before it: a single item whose body is larger is not sent, since no smaller request
+    /// can carry it (live gauntlet r06 and r07, 2026-10-16: every question of
+    /// a verification over a state the seat cannot hold was sent, refused, halved and sent
+    /// again, 1163 and 980 calls for nothing).
+    refused_alone: Option<usize>,
 }
 
 /// One request still to begin: its items, the attempt whose capacity refusal it asks again, and
@@ -713,6 +738,7 @@ impl Partition {
             below: None,
             declared: None,
             refused_bytes: None,
+            refused_alone: None,
         }
     }
 
@@ -731,12 +757,28 @@ impl Partition {
         !self.waiting.is_empty()
     }
 
-    /// Begin the next request: its attempt, in flight, and the body to send for `model`; `None`
-    /// when nothing waits. A request as large as one refused for capacity, in items or in body
-    /// size, or whose body is past the capacity its model documents, is first split in halves,
-    /// the first half begun and the second waiting next, until it is smaller or a single item.
-    pub fn begin(&mut self, batch: &ChoiceBatch, model: &str) -> Option<(usize, Value)> {
-        let mut part = self.waiting.pop_front()?;
+    /// Begin the next request: its attempt, in flight, and the bytes to send for `model`, each
+    /// question's options in its own order ([`request_bytes`]); `None` when nothing waits. A
+    /// request as large as one refused for capacity, in items or in body size, or whose body is
+    /// past the capacity its model documents, is first split in halves, the first half begun and
+    /// the second waiting next, until it is smaller or a single item.
+    pub fn begin(&mut self, batch: &ChoiceBatch, model: &str) -> Option<(usize, Vec<u8>)> {
+        loop {
+            let part = self.waiting.pop_front()?;
+            if let Some(begun) = self.begin_part(batch, model, part) {
+                return Some(begun);
+            }
+        }
+    }
+
+    /// Begin `part`, split as [`Self::begin`] says; `None` when it is one item no request can
+    /// carry, failed with why and recorded as not sent.
+    fn begin_part(
+        &mut self,
+        batch: &ChoiceBatch,
+        model: &str,
+        mut part: Part,
+    ) -> Option<(usize, Vec<u8>)> {
         while part.items.len() > 1 {
             let (below, bytes) = match self.below.filter(|b| part.items.len() >= *b) {
                 Some(bound) => (Some(bound), None),
@@ -755,17 +797,20 @@ impl Partition {
                 split_bytes: part.split_bytes,
             });
         }
-        let body = request(model, &carried(batch, &part.items));
-        let text = serde_json::to_string(&body).unwrap_or_default();
+        let body = request_bytes(model, &carried(batch, &part.items));
+        let hopeless = part.items.len() == 1
+            && self
+                .refused_alone
+                .is_some_and(|refused| body.len() > refused);
         self.attempts.push(Attempt {
             items: part.items,
             halves: part.halves,
             split_below: part.split_below,
             split_bytes: part.split_bytes,
             elapsed_ms: None,
-            bytes: text.len(),
-            sha256: sha256(&text),
-            sent: true,
+            bytes: body.len(),
+            sha256: sha256(&String::from_utf8_lossy(&body)),
+            sent: !hopeless,
             status: None,
             usage: Usage::default(),
             model: None,
@@ -774,7 +819,21 @@ impl Partition {
             refusal: None,
             halved: false,
         });
-        Some((self.attempts.len() - 1, body))
+        let at = self.attempts.len() - 1;
+        if hopeless {
+            let error = DecisionError(NOT_ALONE.to_owned());
+            if let Some(attempt) = self.attempts.get_mut(at) {
+                fail(
+                    (&mut self.answers, &mut self.outcomes),
+                    &attempt.items,
+                    "over_capacity",
+                    &error,
+                );
+                attempt.error = Some(error);
+            }
+            return None;
+        }
+        Some((at, body))
     }
 
     /// The size of the body `items` would send, when it may not leave whole: past the capacity
@@ -832,7 +891,11 @@ impl Partition {
                 (attempt.halved, attempt.error) = (true, Some(DecisionError(message)));
                 return;
             }
-            Some(Refusal::Capacity { .. }) => ("over_capacity", format!("{message}; {ALONE}")),
+            Some(Refusal::Capacity { .. }) => {
+                let bytes = attempt.bytes;
+                self.refused_alone = Some(self.refused_alone.map_or(bytes, |b| b.min(bytes)));
+                ("over_capacity", format!("{message}; {ALONE}"))
+            }
             _ => ("failed", message),
         };
         let error = DecisionError(error);
@@ -1017,7 +1080,7 @@ impl Partition {
         (at.iter().filter_map(each))
             .map(|(item, answer, outcome)| {
                 let mut record = json!({"question": item.question.id,
-                    "options": item.question.keys(), "options_sent": sent_order(&item.question),
+                    "options": item.question.keys(), "options_sent": sent_order_in(&item.question, item.question.order),
                     "outcome": word.unwrap_or(outcome)});
                 match (word, answer) {
                     (Some(_), _) => {}
@@ -1049,6 +1112,9 @@ pub struct Capacity {
     /// The size of the smallest body of several items refused for capacity, `usize::MAX` while
     /// none was.
     refused_bytes: AtomicUsize,
+    /// The size of the smallest body of one item refused for capacity, `usize::MAX` while none
+    /// was.
+    refused_alone: AtomicUsize,
     /// The capacity its model documents.
     declared: Option<Declared>,
 }
@@ -1058,6 +1124,7 @@ impl Default for Capacity {
         Self {
             below: AtomicUsize::new(usize::MAX),
             refused_bytes: AtomicUsize::new(usize::MAX),
+            refused_alone: AtomicUsize::new(usize::MAX),
             declared: None,
         }
     }
@@ -1089,6 +1156,8 @@ impl Capacity {
         partition.declared = self.declared;
         partition.refused_bytes =
             Some(self.refused_bytes.load(Ordering::Acquire)).filter(|b| *b < usize::MAX);
+        partition.refused_alone =
+            Some(self.refused_alone.load(Ordering::Acquire)).filter(|b| *b < usize::MAX);
         partition
     }
 
@@ -1099,6 +1168,9 @@ impl Capacity {
         }
         if let Some(bytes) = partition.refused_bytes {
             self.refused_bytes.fetch_min(bytes, Ordering::AcqRel);
+        }
+        if let Some(bytes) = partition.refused_alone {
+            self.refused_alone.fetch_min(bytes, Ordering::AcqRel);
         }
     }
 }

@@ -84,17 +84,26 @@ pub(crate) fn load_checked_run_source(
 /// The same load, its refusal still typed for a `--json` lane to render whole.
 pub(crate) fn parse_checked(source: &RunSource) -> Result<(RawWorkflow, CheckReport), SchemaError> {
     let wf = nika_schema::parse(source.source(), FileId::new(0), ParseMode::Strict)?;
-    let report = check_workflow(&wf, source.logical_path());
-    Ok((wf, report))
+    Ok(check_project_workflow(&wf, source.logical_path()))
 }
 
 /// Revalidate the effective workflow with its child and MCP registry context.
 pub(crate) fn check_workflow(wf: &RawWorkflow, path: &str) -> CheckReport {
-    let mut report = nika_check::check_composed(wf, path, &mut |p| {
-        std::fs::read_to_string(p).map_err(|e| e.to_string())
-    });
-    stamp_judged_semantic(wf, &mut report);
-    report
+    check_project_workflow(wf, path).1
+}
+
+/// The workflow with its project files composed (spec 02 §Project files) under the folder of
+/// the file the operator named, and its report over the composed bytes: what check, explain,
+/// graph and inspect judge and show. A run does not carry project files yet.
+pub(crate) fn check_project_workflow(wf: &RawWorkflow, path: &str) -> (RawWorkflow, CheckReport) {
+    let (wf, mut report) = nika_check::check_project(
+        wf,
+        path,
+        &mut |p| std::fs::read_to_string(p).map_err(|e| e.to_string()),
+        &mut nika_cli_host::oracle::project_file_reader(workflow_base(path)),
+    );
+    stamp_judged_semantic(&wf, &mut report);
+    (wf, report)
 }
 
 /// The single CLI sink for every schema-facing refusal, whether acquisition

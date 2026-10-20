@@ -9,7 +9,9 @@
 //! reply's field; `Enter` sends the own reply when it holds words, else the
 //! selected offer's key, bound to the question painted, and the offers stay
 //! inert until that answer's turn returns. With nothing to send, `Enter`
-//! says so and sends nothing. Every other key is taken and does nothing,
+//! says so and sends nothing. `Esc` steps back one level and never answers
+//! a decision (`crate::composer::answer`); when it has nothing left to undo
+//! there, the hint row says so. Every other key is taken and does nothing,
 //! except the shell's own (`Ctrl+C`, `Ctrl+O`, `Ctrl+T`, `Ctrl+L`, the
 //! function keys, `Shift+Tab`), so Stop, the commands, the reader, the layout
 //! and the focus routes to the project and the object stay reachable.
@@ -19,11 +21,12 @@ use std::time::{Duration, Instant};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::commands::Caught;
-use super::said::{Said, routed};
+use super::said::{Said, delegated};
 use super::{Broker, Shell, Step, Submitted};
-use crate::composer::answer::Offered;
-use crate::model::Conversation;
+use crate::composer::answer::{ESC_ANSWERS_NOTHING, Offered};
+use crate::model::{Conversation, Waiting};
 use crate::render::own;
+use crate::render::surface::covers;
 
 /// How long after a surface's activation returns a bare `Enter` still counts
 /// as its repeat (a double press), unless another key comes first.
@@ -42,6 +45,19 @@ pub(super) struct Guard {
 }
 
 impl Guard {
+    /// New words are a new human act, so their Enter is no longer the
+    /// repeated activation that started this turn.
+    pub(super) fn edited(&mut self) {
+        self.working = false;
+        self.until = None;
+    }
+
+    /// A turn no `Enter` started returned (`Esc` stepping back through a list): nothing it
+    /// sent can be repeated by the `Enter` pressed next.
+    fn stepped(&mut self) {
+        *self = Self::default();
+    }
+
     /// The activation's turn returned at `now`: a bare `Enter` within
     /// [`REPEAT`] is its repeat.
     fn returned(&mut self, now: Instant) {
@@ -63,6 +79,14 @@ impl Guard {
 
 /// The hint when `Enter` finds nothing to send under a typed choice.
 const NOTHING_CHOSEN: &str = "nothing sent · ↑↓ choose an answer, or type your own reply";
+
+/// The hint while the person reads the conversation behind a card ([`crate::model::UiState`]'s
+/// peek).
+const PEEKING: &str = "PgUp/PgDn scroll · any other key: back to the card";
+
+/// `Esc` with nothing left to undo on a card that covers the conversation: it never answers,
+/// and `PgUp` reads what the card covers.
+const ESC_ON_A_COVERING_CARD: &str = "nothing sent · Esc never answers · PgUp: history";
 
 /// The shell's own keys, which keep their place under a typed choice.
 fn shell_key(key: &KeyEvent) -> bool {
@@ -89,10 +113,33 @@ impl<C: Conversation + 'static> Shell<C> {
         // Any key keeps the session, as at the ordinary path.
         self.state.interrupt_armed = false;
         self.state.completion = None;
+        // Behind a covering card, `PgUp` reads the conversation; the card comes back on any
+        // key that does not scroll it.
+        let page_up = key.code == KeyCode::PageUp && key.modifiers.is_empty();
+        if self.state.peek || (page_up && covers(&self.state)) {
+            self.state.peek = true;
+            self.peek_key(key);
+            return Some(Caught::Read);
+        }
         match self.composer.offer_key(&self.state.waiting, key) {
             Offered::Moved => return Some(Caught::Read),
             Offered::Answer(text) => {
-                return Some(Caught::Sent(routed(&self.state.waiting, text)));
+                return Some(Caught::Sent(self.offered(text)));
+            }
+            Offered::Delegate => {
+                return Some(Caught::Sent(delegated(
+                    &self.state.waiting,
+                    self.state.voice(),
+                )));
+            }
+            Offered::Notice(words) => {
+                let words = if words == ESC_ANSWERS_NOTHING && covers(&self.state) {
+                    ESC_ON_A_COVERING_CARD
+                } else {
+                    words
+                };
+                self.state.completion = Some(own(words, self.state.ascii));
+                return Some(Caught::Read);
             }
             Offered::Pass => {}
         }
@@ -100,9 +147,49 @@ impl<C: Conversation + 'static> Shell<C> {
             && key.code == KeyCode::Enter
             && key.modifiers == KeyModifiers::NONE
         {
-            self.state.completion = Some(own(NOTHING_CHOSEN, self.state.ascii));
+            let approval =
+                matches!(&self.state.waiting, Waiting::Action { key, .. } if key == "gate");
+            let notice = if approval {
+                crate::composer::answer::YES_OR_NO
+            } else if crate::composer::answer::choice(&self.state.waiting)
+                .is_some_and(|(_, asked, _)| !asked.free_text)
+                && !matches!(
+                    self.state.waiting,
+                    Waiting::QuestionDocument { .. } | Waiting::ProposalChoice { .. }
+                )
+            {
+                "nothing sent · ↑↓ choose, then Enter"
+            } else if matches!(self.state.waiting, Waiting::Selection { .. }) {
+                "nothing sent · ↑↓ choose a row, or type to filter"
+            } else {
+                NOTHING_CHOSEN
+            };
+            self.state.completion = Some(own(notice, self.state.ascii));
         }
         Some(Caught::Read)
+    }
+
+    /// A key while the person reads the conversation behind a covering card: the page keys, the
+    /// arrows, `Home` and `End` scroll it; any other key brings the card back and does nothing
+    /// else, so no key pressed to return answers, selects or types.
+    fn peek_key(&mut self, key: KeyEvent) {
+        let bare = key.modifiers.is_empty();
+        let (state, desk, composer) = (&mut self.state, &self.desk, &self.composer);
+        match key.code {
+            KeyCode::PageUp if bare => crate::scroll::page(state, desk, composer, true),
+            KeyCode::PageDown if bare => crate::scroll::page(state, desk, composer, false),
+            KeyCode::Up if bare => crate::scroll::rows(state, desk, composer, true, 1),
+            KeyCode::Down if bare => crate::scroll::rows(state, desk, composer, false, 1),
+            KeyCode::Home if bare => crate::scroll::rows(state, desk, composer, true, usize::MAX),
+            KeyCode::End if bare => state.focus_scroll = 0,
+            _ => {
+                // The card again, over the conversation's latest rows; the key is spent.
+                state.peek = false;
+                state.focus_scroll = 0;
+                return;
+            }
+        }
+        state.completion = Some(PEEKING.to_owned());
     }
 
     /// `Enter` on a command the palette lists: it runs once, as its line, the
@@ -111,7 +198,7 @@ impl<C: Conversation + 'static> Shell<C> {
     pub(super) fn run_command(&mut self, words: String) -> Caught {
         if self.state.busy.is_some() {
             self.keep_reading(|_, composer| composer.insert_command(&words));
-            self.state.completion = Some(super::stop::command_waits(&words));
+            self.state.completion = Some(super::stop::command_waits(&words, self.state.voice()));
             return Caught::Read;
         }
         self.state.interrupt_armed = false;
@@ -129,6 +216,21 @@ impl<C: Conversation + 'static> Shell<C> {
         self.guard.working = true;
         let step = self.send(said, broker);
         self.guard.returned(Instant::now());
+        step
+    }
+
+    /// Send what `Esc` sent stepping back through a list, once, as [`Self::send_activated`]
+    /// does, with no repeat window after it: the `Enter` that follows is the person's next
+    /// act (once the list above was painted, a quick `Enter` on « Keep current » was taken as
+    /// the step back's repeat and nothing closed).
+    pub(super) fn send_stepped(
+        &mut self,
+        said: Said,
+        broker: &mut Broker,
+    ) -> std::io::Result<Step> {
+        self.guard.working = true;
+        let step = self.send(said, broker);
+        self.guard.stepped();
         step
     }
 
@@ -180,6 +282,47 @@ mod tests {
         guard.returned(now);
         assert!(!guard.repeats(&enter, now + REPEAT), "the window is past");
         assert!(!guard.working);
+    }
+
+    /// A step back through a list (`Esc`) leaves no window: the `Enter` pressed right after it
+    /// is the person's next act, never its repeat.
+    #[test]
+    fn a_step_back_leaves_no_repeat_window() {
+        let enter = key(KeyCode::Enter, KeyModifiers::NONE);
+        let now = Instant::now();
+        let mut guard = Guard {
+            working: true,
+            until: None,
+        };
+        guard.stepped();
+        assert!(!guard.working, "its turn returned");
+        assert!(
+            !guard.repeats(&enter, now + Duration::from_millis(50)),
+            "the next Enter is a new act"
+        );
+    }
+
+    #[test]
+    fn editing_after_activation_lets_the_next_enter_queue_new_input_once() {
+        let mut guard = Guard {
+            working: true,
+            until: None,
+        };
+        assert!(guard.working, "an immediate repeated Enter is held");
+        guard.edited();
+        assert!(!guard.working, "new words may queue on Enter");
+        let now = Instant::now();
+        guard.returned(now);
+        let enter = key(KeyCode::Enter, KeyModifiers::NONE);
+        assert!(
+            guard.repeats(&enter, now),
+            "the next turn's activation still sends once"
+        );
+        guard.edited();
+        assert!(
+            !guard.repeats(&enter, now),
+            "fresh words are never swallowed"
+        );
     }
 
     /// The shell's own keys keep their place under a typed choice: Stop, the

@@ -432,6 +432,69 @@ pub(crate) enum Verify {
     Drifted(ServerDrift),
 }
 
+/// What the project's registry and approved pins say about one `mcp:<server>/<tool>`, read
+/// from its files only: no server is spawned and nothing is written. The compile door judges an
+/// `mcp:` step on it, with the same files the run's dispatch gates on.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PinVerdict {
+    /// Registered and approved, and the approved pins hold the tool.
+    Pinned {
+        /// The tool's `inputSchema`, as approved.
+        input_schema: Value,
+        /// When the server's pin set was approved (the lockfile's own stamp).
+        approved_at: String,
+    },
+    /// The registry (`.nika/mcp_servers.json`) does not name the server.
+    Unregistered,
+    /// The server is registered, and no pin set was approved for it.
+    Unapproved,
+    /// The registry names the server with another command, arguments or URL than the one its
+    /// pins were approved for: the approval does not carry over (the run's verification reads
+    /// the same change as a full re-review).
+    Repointed,
+    /// The approved pins do not hold the tool; the tools they hold.
+    NotPinned {
+        /// The pinned tool names, in the lockfile's order.
+        pinned: Vec<String>,
+    },
+    /// The registry or the lockfile cannot be read as written: why.
+    Unreadable(String),
+}
+
+/// Resolve `mcp:<server>/<tool>` against the registry and the approved pins under
+/// `project_dir`, reading files only ([`PinVerdict`]). The approval holds only for the identity
+/// it was recorded under, as the run's own verification requires.
+#[must_use]
+pub fn pinned_tool(project_dir: &Path, server: &str, tool: &str) -> PinVerdict {
+    let servers = match crate::client::load_server_configs(project_dir) {
+        Ok(servers) => servers,
+        Err(err) => return PinVerdict::Unreadable(err.to_string()),
+    };
+    let Some(config) = servers.iter().find(|config| config.name == server) else {
+        return PinVerdict::Unregistered;
+    };
+    let store = match PinStore::load(project_dir) {
+        Ok(store) => store,
+        Err(err) => return PinVerdict::Unreadable(err.to_string()),
+    };
+    let Some(entry) = store.file.servers.get(server) else {
+        return PinVerdict::Unapproved;
+    };
+    if entry.identity != config.identity() {
+        return PinVerdict::Repointed;
+    }
+    match entry.tools.get(tool) {
+        Some(pin) => PinVerdict::Pinned {
+            input_schema: pin.input_schema.clone(),
+            approved_at: entry.pinned_at.clone(),
+        },
+        None => PinVerdict::NotPinned {
+            pinned: entry.tools.keys().cloned().collect(),
+        },
+    }
+}
+
 /// The pin lockfile handle — one `.nika/mcp_pins.json` under a project root.
 ///
 /// Construct via [`PinStore::load`]; mutate via [`PinStore::enroll`]. The

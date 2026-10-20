@@ -75,10 +75,7 @@ pub(super) const OVERLAP_OPTIONS: &[(&str, &str)] = &[
 pub(super) fn missed_options() -> Vec<super::types::ChoiceOffer> {
     use nika_vocab::project::MissPolicy;
     [
-        (
-            MissPolicy::Rattraper,
-            "fire every missed slot, oldest first",
-        ),
+        (MissPolicy::Rattraper, "fire the latest missed slot, once"),
         (
             MissPolicy::RattraperUneFois,
             "fire one catch-up for the whole silence",
@@ -163,7 +160,7 @@ fn bind_cadence(
                     DiagnosticKind::Missed,
                     KEY,
                     format!(
-                        "« {said} » is a period a schedule cannot bind as said: an interval of weeks needs its start date (« every other monday at 09:00 from 2026-10-05 »); otherwise answer a day, a weekday, a named weekday at a time, the last day of the month at a time, or an hour or minute interval, or \"manual\"."
+                        "« {said} » is a period a schedule cannot bind as said: an interval of weeks needs its start date (« every other monday at 09:00 from 2026-10-05 »); otherwise answer a day, a weekday, a named weekday at a time, a day of the month from 1 to 28 at a time, the last day of the month at a time, or an hour or minute interval, or \"manual\"."
                     ),
                 );
             } else if MANUAL.contains(&words.join(" ").as_str()) {
@@ -401,6 +398,22 @@ mod tests {
         let morning = crate::trigger_of("chaque matin").expect("a schedule");
         assert_eq!(morning.cron, None, "no hour is invented");
         assert_eq!(crate::trigger_of("  "), None);
+        // « tout les », as people type « tous les », states the same daily schedule.
+        for phrase in [
+            "tout les matins à 9h",
+            "tout les matins a 9h",
+            "tous les matins à 9h",
+            "tout les jours a 9h",
+        ] {
+            let daily = crate::trigger_of(phrase).expect("a schedule");
+            assert_eq!(daily.kind, TriggerKind::Schedule, "{phrase}");
+            assert_eq!(daily.cadence.as_deref(), Some("daily"), "{phrase}");
+            assert_eq!(daily.at.as_deref(), Some("09:00"), "{phrase}");
+            assert_eq!(daily.cron.as_deref(), Some("0 9 * * *"), "{phrase}");
+        }
+        // The singular says « all morning long »: no hour and no cron.
+        let all_morning = crate::trigger_of("tout le matin").expect("a phrase");
+        assert_eq!((all_morning.at, all_morning.cron), (None, None));
     }
 
     #[test]
@@ -418,6 +431,10 @@ mod tests {
             ("tous les jours à 18h", Some("daily"), Some("18:00")),
             ("chaque lundi à 8h30", Some("weekly"), Some("08:30")),
             ("tous les matins", Some("daily"), None),
+            ("tout les matins à 9h", Some("daily"), Some("09:00")),
+            ("tout les matins a 9h", Some("daily"), Some("09:00")),
+            ("tous les matins à 9h", Some("daily"), Some("09:00")),
+            ("tout les jours a 9h", Some("daily"), Some("09:00")),
             ("ogni mattina alle 7", Some("daily"), Some("07:00")),
             ("cada lunes a las 8", Some("weekly"), Some("08:00")),
             ("jeden morgen um 9 uhr", Some("daily"), Some("09:00")),

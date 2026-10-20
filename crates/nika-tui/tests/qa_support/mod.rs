@@ -101,7 +101,8 @@ pub(crate) const JOURNEY: [Step; 5] = [
 /// after the spawn races the program's first read of it); [`Term::spawn`]
 /// writes it once more over the pty crate's own default. The colour
 /// variables of the caller's shell are cleared (crossterm itself reads
-/// `NO_COLOR`); a proof that wants one sets it.
+/// `NO_COLOR`, and `COLORTERM` decides the brand's tones); a proof that
+/// wants one sets it.
 pub(crate) fn sized(program: &str, cols: u16, rows: u16) -> Command {
     let mut command = Command::new("/bin/sh");
     command
@@ -113,7 +114,8 @@ pub(crate) fn sized(program: &str, cols: u16, rows: u16) -> Command {
         .env("TERM", "xterm-256color")
         .env_remove("NO_COLOR")
         .env_remove("CLICOLOR")
-        .env_remove("CLICOLOR_FORCE");
+        .env_remove("CLICOLOR_FORCE")
+        .env_remove("COLORTERM");
     command
 }
 

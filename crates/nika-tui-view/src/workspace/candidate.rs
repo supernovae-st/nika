@@ -25,26 +25,31 @@
 
 use crate::Face;
 use nika_display::theme::Role;
-use nika_session::ProposalId;
-use nika_session::work::DocumentRevision;
+use nika_session::work::{DocumentRevision, ScheduleWords};
+use nika_session::{Lang, ProposalId};
 use ratatui::text::{Line, Span};
 use unicode_width::UnicodeWidthStr;
 
-use super::inspect::{Inspected, title_row};
-use super::text::{HANG, fit_head, hang, marks, own, twins, wrap};
+use super::inspect::{Inspected, title_row_in};
+use super::lang::say;
+use super::text::{HANG, hang, marks, own, twins, wrap};
 use crate::visual::role;
 
 /// The cells each effect after the first stands in under the review's one
 /// `when it runs` heading.
 const HUNG: usize = 2;
 
-/// How the faces' witness row says a key turns the face.
+/// How the faces' witness row says a key turns the face, while the object holds the keys.
 const FACES: &str = "Left/Right change the face";
 
+/// The same, while the box holds them: the key that brings them first.
+const FACES_AWAY: &str = "F6 then Left/Right change the face";
+
 /// What a yes answers while a proposal waits: nothing is saved yet and
-/// nothing has run.
-fn answers(sep: &str) -> String {
-    format!("what a yes answers{sep}not saved{sep}nothing has run on your files")
+/// nothing has run, in `lang`.
+fn answers(sep: &str, lang: Lang, ascii: bool) -> String {
+    let words = "what a yes answers{sep}not saved{sep}nothing has run on your files";
+    say(lang, ascii, words).replace("{sep}", sep)
 }
 
 /// Whether a component witness names admitted held reuse: `expanded` (its
@@ -106,9 +111,16 @@ pub struct Proposed {
     world: Vec<(String, bool)>,
     /// What a `save & run` of it runs, when the Session's typed method admits one.
     after: Option<RunAfter>,
+    /// The schedule the declaration it lands says, in the person's words as the Session gave
+    /// them ([`Self::scheduling`]).
+    schedule: Option<ScheduleWords>,
     rehearsed: Option<String>,
     unshown: usize,
     look: Inspected,
+    /// The language the person writes, which the view's own words follow.
+    lang: Lang,
+    /// The object holds the keys ([`Proposed::keys_here`]).
+    here: bool,
 }
 
 impl PartialEq for Proposed {
@@ -125,9 +137,11 @@ impl PartialEq for Proposed {
             && self.record == other.record
             && self.world == other.world
             && self.after == other.after
+            && self.schedule == other.schedule
             && self.rehearsed == other.rehearsed
             && self.unshown == other.unshown
             && self.look == other.look
+            && self.lang == other.lang
     }
 }
 
@@ -148,10 +162,40 @@ impl Proposed {
             record: None,
             world: Vec::new(),
             after: None,
+            schedule: None,
             rehearsed: None,
             unshown: 0,
             look,
+            lang: Lang::En,
+            here: true,
         }
+    }
+
+    /// With its faces' key cue said from where the keys are: `here` (the object
+    /// holds them) names `Left/Right`, else `F6 then Left/Right`, the key that
+    /// brings them from the box first; its look's cues follow. The object holds
+    /// them by default.
+    #[must_use]
+    pub fn keys_here(mut self, here: bool) -> Self {
+        self.here = here;
+        self.look = self.look.keys_here(here);
+        self
+    }
+
+    /// The faces' key cue, from where the keys are.
+    const fn faces(&self) -> &'static str {
+        if self.here { FACES } else { FACES_AWAY }
+    }
+
+    /// With the view's own words (its review's headings, its faces' first
+    /// rows, its identity on the review's border) said in `lang`: English by
+    /// default. The Session's facts and every value keep their words.
+    #[must_use]
+    pub fn speaking(mut self, lang: Lang) -> Self {
+        self.lang = lang;
+        // Its faces are the look's: they speak the same language.
+        self.look = self.look.speaking(lang);
+        self
     }
 
     /// The compiler's draft while its question waits, before any proposal: set aside, it names
@@ -217,6 +261,17 @@ impl Proposed {
         self
     }
 
+    /// The same candidate with the schedule the declaration it lands says (`nika.yaml`), in the
+    /// person's words as the Session gave them: the card says when it runs, what a missed run
+    /// does and the most each run may cost, never the cron; the file view keeps the bytes (live
+    /// gauntlet 5, r01 B6 and r08 B14: « cadence: "TZ=Indian/Mauritius 0 20 * * *" » was the
+    /// card's only word of it).
+    #[must_use]
+    pub fn scheduling(mut self, schedule: Option<ScheduleWords>) -> Self {
+        self.schedule = schedule;
+        self
+    }
+
     /// With the words of the rehearsal proof bound to its identity.
     #[must_use]
     pub fn rehearsed(mut self, words: Option<String>) -> Self {
@@ -275,14 +330,21 @@ impl Proposed {
     /// holds until a proposal says where, and says it is unsaved without one.
     #[must_use]
     pub fn label(&self) -> String {
+        self.label_in(false)
+    }
+
+    /// [`Self::label`] in its language ([`Self::speaking`]) and the glyph
+    /// column in use: its path and title as they are.
+    #[must_use]
+    pub fn label_in(&self, ascii: bool) -> String {
         if !self.draft {
-            return format!("proposal {}", self.path());
+            return say(self.lang, ascii, "proposal {path}").replace("{path}", self.path());
         }
         let title = self.look.title();
         if title == self.path() {
-            "draft (unsaved)".to_owned()
+            say(self.lang, ascii, "draft (unsaved)").to_owned()
         } else {
-            format!("draft {title}")
+            say(self.lang, ascii, "draft {title}").replace("{title}", title)
         }
     }
 
@@ -301,26 +363,34 @@ impl Proposed {
         }
         let (sep, _) = marks(ascii);
         let runs = self.after.is_some();
-        Some(Review::new(self.id.clone(), self.facts(sep, true), runs))
+        let mut review =
+            Review::new(self.id.clone(), self.facts(sep, true, ascii), runs).named(self.path());
+        review.lang = self.lang;
+        Some(review)
     }
 
     /// The facts above every face: the identity and what a yes answers, the
     /// changes, what the workflow reaches, the rehearsal; each with its role.
     fn head(&self, ascii: bool) -> Vec<(String, Role)> {
         let (sep, _) = marks(ascii);
+        let said = |en: &str| say(self.lang, ascii, en).replace("{sep}", sep);
         if self.draft {
             // Before any proposal: no identity, no audit, no rehearsal to state.
-            let first = format!("draft{sep}the compiler's question waits{sep}not a proposal yet");
+            let first = said("draft{sep}the compiler's question waits{sep}not a proposal yet");
             return vec![(first, Role::Strong)];
         }
-        let id = self.id.to_string();
         let standing = if self.aside {
-            format!("set aside while the revision's question waits{sep}not consentable now")
+            said("set aside while the revision's question waits{sep}not consentable now")
         } else {
-            answers(sep)
+            answers(sep, self.lang, ascii)
         };
-        let mut rows = vec![(format!("proposal {id}{sep}{standing}"), Role::Strong)];
-        let facts = self.facts(sep, false).into_iter();
+        // Named by where it lands, never by its identity's hex (live gauntlet 4: « proposition
+        // b5973f37d7a7 »): the Session's whole words (F2) keep the identity.
+        let first = (said("proposal {path}{sep}{standing}"))
+            .replace("{standing}", &standing)
+            .replace("{path}", self.path());
+        let mut rows = vec![(first, Role::Strong)];
+        let facts = self.facts(sep, false, ascii).into_iter();
         rows.extend(facts.map(|(words, role, _)| (words, role)));
         rows
     }
@@ -331,15 +401,18 @@ impl Proposed {
     /// request carried, what it reaches when it runs (`grouped`: each effect
     /// after the first hung under one `when it runs` heading), where it
     /// reaches as declared, and its rehearsal.
-    fn facts(&self, sep: &str, grouped: bool) -> Vec<(String, Role, usize)> {
+    fn facts(&self, sep: &str, grouped: bool, ascii: bool) -> Vec<(String, Role, usize)> {
+        let said = |en: &str| say(self.lang, ascii, en).replace("{sep}", sep);
+        // A heading of the view's, then the Session's own words after it.
+        let headed = |heading: &str, words: &str| format!("{}{sep}{words}", said(heading));
         let mut rows: Vec<(String, Role, usize)> = Vec::new();
         rows.extend(self.changes.iter().map(|c| (c.clone(), Role::Accent, 0)));
         if self.unshown > 0 {
+            let unshown = said(
+                "{n} more change(s) whose bytes these faces do not show{sep}`/show` prints every byte",
+            );
             rows.push((
-                format!(
-                    "{} more change(s) whose bytes these faces do not show{sep}`/show` prints every byte",
-                    self.unshown
-                ),
+                unshown.replace("{n}", &self.unshown.to_string()),
                 Role::Warn,
                 0,
             ));
@@ -353,14 +426,29 @@ impl Proposed {
         if let Some(RunAfter::Asked(asked)) = &self.after {
             rows.push((asked.clone(), Role::Accent, 0));
         }
+        if let Some(schedule) = &self.schedule {
+            // The Session's words, set in after the view's heading; a grouped card hangs the
+            // missed run and the ceiling under the cadence.
+            let when = format!("{}{sep}{}", schedule.workflow, schedule.cadence);
+            rows.push((headed("schedule", &when), Role::Accent, 0));
+            let hang = if grouped { HUNG } else { 0 };
+            rows.push((schedule.missed.clone(), Role::Dim, hang));
+            rows.push((schedule.ceiling.clone(), Role::Dim, hang));
+        }
+        let runs = "when it runs";
         match self.effects.as_deref() {
+            // A declaration runs nothing itself: its schedule says what runs, and when.
+            None if self.schedule.is_some() => {}
             None => rows.push((
-                format!("when it runs{sep}not a workflow the Session audited: it runs nothing"),
+                headed(
+                    runs,
+                    &said("not a workflow the Session audited: it runs nothing"),
+                ),
                 Role::Dim,
                 0,
             )),
             Some([]) => rows.push((
-                format!("when it runs{sep}nothing outside the process"),
+                headed(runs, &said("nothing outside the process")),
                 Role::Dim,
                 0,
             )),
@@ -369,7 +457,7 @@ impl Proposed {
                     let row = if grouped && at > 0 {
                         (effect.clone(), Role::Dim, HUNG)
                     } else {
-                        (format!("when it runs{sep}{effect}"), Role::Dim, 0)
+                        (headed(runs, effect), Role::Dim, 0)
                     };
                     rows.push(row);
                 }
@@ -377,17 +465,17 @@ impl Proposed {
         }
         rows.extend(self.world.iter().map(|(words, outside)| {
             let role = if *outside { Role::Warn } else { Role::Dim };
-            (format!("reaches, as declared{sep}{words}"), role, 0)
+            (headed("reaches, as declared", words), role, 0)
         }));
         match &self.rehearsed {
             Some(words) => rows.extend(
                 words
                     .lines()
                     .filter(|l| !l.trim().is_empty())
-                    .map(|l| (format!("rehearsal{sep}{}", l.trim()), Role::Dim, 0)),
+                    .map(|l| (headed("rehearsal", l.trim()), Role::Dim, 0)),
             ),
             None => rows.push((
-                format!("rehearsal{sep}none bound to this identity"),
+                headed("rehearsal", &said("none bound to this identity")),
                 Role::Dim,
                 0,
             )),
@@ -438,29 +526,34 @@ impl Proposed {
         compact: bool,
     ) -> (Line<'static>, Vec<Line<'static>>) {
         let (title, mut body) = self.face_with(Vec::new(), face, width, ascii, color, compact);
-        let (sep, cut) = marks(ascii);
-        let (own, cells) = (self.own_bytes(), usize::from(width));
-        let said = format!("{own}{sep}{FACES}");
-        let dim = role::style(Role::Dim, color);
-        // The face's own witness row, exactly as it is painted, gives way to the first row.
-        let witness = Line::from(Span::styled(fit_head(&said, cells, cut), dim));
-        if let Some(at) = body.iter().position(|line| *line == witness) {
-            body.remove(at);
+        let (sep, _) = marks(ascii);
+        let own = self.own_bytes(ascii);
+        let said = format!("{own}{sep}{}", say(self.lang, ascii, self.faces()));
+        // The face's own witness rows, exactly as they are painted, give way to the first rows:
+        // the same words, whole, the keys at their end kept.
+        let witness = super::inspect::witness_rows(&said, width, ascii, color);
+        let found = (!witness.is_empty())
+            .then(|| (body.windows(witness.len())).position(|rows| rows == witness.as_slice()))
+            .flatten();
+        if let Some(at) = found {
+            body.drain(at..at + witness.len());
         }
-        let first = [said, own.clone()]
-            .into_iter()
-            .find(|row| row.width() <= cells)
-            .unwrap_or_else(|| fit_head(&own, cells, cut));
-        body.insert(0, Line::from(Span::styled(first, dim)));
+        for (at, row) in witness.into_iter().enumerate() {
+            body.insert(at, row);
+        }
         (title, body)
     }
 
-    /// Whose exact pending bytes the faces show: their witness, the
-    /// candidate's own.
-    fn own_bytes(&self) -> String {
-        let kind = if self.draft { "draft" } else { "proposal" };
-        let short: String = self.witness().unwrap_or("").chars().take(12).collect();
-        format!("these bytes {short}, the {kind}'s own")
+    /// Whose exact pending bytes the faces show: the candidate's own, said
+    /// without their witness's hex (live gauntlet 4: « ces octets
+    /// 7594d366fc7c »), which names nothing a person acts on.
+    fn own_bytes(&self, ascii: bool) -> String {
+        let words = if self.draft {
+            "these bytes, the draft's own"
+        } else {
+            "these bytes, the proposal's own"
+        };
+        say(self.lang, ascii, words).to_owned()
     }
 
     /// The title row, `facts` (wrapped, never cut), the witness of the
@@ -478,18 +571,23 @@ impl Proposed {
     ) -> (Line<'static>, Vec<Line<'static>>) {
         let (sep, cut) = marks(ascii);
         let name = if self.draft {
-            format!("draft{sep}{}", self.look.title())
+            (say(self.lang, ascii, "draft{sep}{title}").replace("{sep}", sep))
+                .replace("{title}", self.look.title())
         } else {
             self.look.title().to_owned()
         };
-        let title = title_row(&name, face, width, ascii, color);
+        let title = title_row_in(&name, face, width, (ascii, color), self.lang);
         let mut body = Vec::new();
         for (row, tone) in facts {
             for part in wrap(&twins(&row, ascii), usize::from(width), cut) {
                 body.push(Line::from(Span::styled(part, role::style(tone, color))));
             }
         }
-        let said = format!("{}{sep}{FACES}", self.own_bytes());
+        let said = format!(
+            "{}{sep}{}",
+            self.own_bytes(ascii),
+            say(self.lang, ascii, self.faces())
+        );
         body.extend(
             self.look
                 .judged_lines_in(face, width, ascii, color, &said, compact),
@@ -510,26 +608,35 @@ impl Proposed {
             return Vec::new();
         };
         let short = |sha: &str| sha.chars().take(12).collect::<String>();
+        // Each phrase is the view's, said in its language; the record's own
+        // values (its mode, digests, parts and words) are set in after.
+        let said = |en: &'static str| -> &'static str { say(self.lang, ascii, en) };
         let (mode, these) = (&record.mode, short(&record.candidate_sha256));
         let mut making = Vec::new();
         if let Some(base) = &record.base_sha256 {
-            making.push(format!("over the base, sha256 {}", short(base)));
+            making.push(said("over the base, sha256 {base}").replace("{base}", &short(base)));
         }
         if !record.changed.is_empty() {
-            making.push(format!("changed · {}", record.changed.join(", ")));
+            let parts = record.changed.join(", ");
+            making.push(said("changed · {parts}").replace("{parts}", &parts));
         }
         if !record.preservation.is_empty() {
-            making.push(format!("preservation · {}", record.preservation));
+            let how = &record.preservation;
+            making.push(said("preservation · {how}").replace("{how}", how));
         }
-        let heading = format!("compile record · {mode} · binds these bytes, sha256 {these}");
+        let heading = said("compile record · {mode} · binds these bytes, sha256 {these}")
+            .replace("{these}", &these)
+            .replace("{mode}", mode);
         let mut sections = vec![(heading, tone(usual(record), Role::Strong), making)];
         for component in &record.components {
-            let version = component.version.as_deref().unwrap_or("unversioned");
+            let version = component.version.as_deref().unwrap_or(said("unversioned"));
             let (id, witness) = (&component.id, &component.witness);
             let (release, file) = (&component.release, &component.file_sha256);
-            let pairs = [("release", release), ("file", file)];
+            let pairs = [("release {sha}", release), ("file {sha}", file)];
             let digests: Vec<String> = (pairs.into_iter())
-                .filter_map(|(label, sha)| Some(format!("{label} {}", short(sha.as_ref()?))))
+                .filter_map(|(label, sha)| {
+                    Some(said(label).replace("{sha}", &short(sha.as_ref()?)))
+                })
                 .collect();
             // The version stands on its own row: a release name fits whole there.
             let mut facts = vec![version.to_owned()];
@@ -566,8 +673,12 @@ pub const OR: char = '\u{1f}';
 #[non_exhaustive]
 pub struct Review {
     id: ProposalId,
+    /// Where the proposal lands ([`Review::named`]): the name its border reads.
+    path: Option<String>,
     facts: Vec<(String, Role, usize)>,
     runs: bool,
+    /// The language its own words on the border follow ([`Proposed::speaking`]).
+    lang: Lang,
 }
 
 impl Review {
@@ -576,7 +687,21 @@ impl Review {
     /// method admits a `save & run` of it.
     #[must_use]
     pub fn new(id: ProposalId, facts: Vec<(String, Role, usize)>, runs: bool) -> Self {
-        Self { id, facts, runs }
+        Self {
+            id,
+            path: None,
+            facts,
+            runs,
+            lang: Lang::En,
+        }
+    }
+
+    /// The same review of the proposal landing at `path`: its border names it
+    /// by that path rather than by its identity's hex.
+    #[must_use]
+    pub fn named(mut self, path: &str) -> Self {
+        self.path = Some(path.to_owned());
+        self
     }
 
     /// The identity a consent names.
@@ -611,20 +736,26 @@ impl Review {
             .collect()
     }
 
-    /// The identity a consent names and the key that reads the Session's
-    /// whole words, in the longest whole form `room` cells hold, else the
-    /// shortest: a border carries it only where it fits whole, a row of its
-    /// own wraps it.
+    /// The proposal a consent answers, by where it lands, and the key that
+    /// reads the Session's whole words, in the longest whole form `room`
+    /// cells hold, else the shortest: a border carries it only where it fits
+    /// whole, a row of its own wraps it. A shorter form gives up the word
+    /// « proposal » (the card says what it reviews) before what `F2` reads.
+    /// Those whole words keep the identity a consent names; its hex names
+    /// nothing a person acts on here (live gauntlet 4: « proposition
+    /// 9e029c32b75d · F2 : tous les mots »). A review named by no path reads
+    /// its identity.
     #[must_use]
     pub fn foot(&self, room: usize, ascii: bool) -> String {
-        let id = &self.id;
-        let [whole, short, bare] = [
-            format!("proposal {id} · F2: whole words"),
-            format!("proposal {id} · F2"),
-            format!("{id} · F2"),
+        let path = self.path.clone().unwrap_or_else(|| self.id.to_string());
+        let said = |form: &str| say(self.lang, ascii, form).replace("{path}", &path);
+        let [whole, cued, bare] = [
+            said("proposal {path} · F2: whole words"),
+            said("{path} · F2: whole words"),
+            format!("{path} · F2"),
         ]
         .map(|form| own(&form, ascii));
-        [whole, short]
+        [whole, cued]
             .into_iter()
             .find(|form| form.width() <= room)
             .unwrap_or(bare)

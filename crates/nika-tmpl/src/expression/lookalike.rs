@@ -48,7 +48,7 @@ fn reference_head(body: &str) -> Option<&str> {
     let root_end = body.find(|c: char| !c.is_ascii_alphanumeric() && c != '_')?;
     if !matches!(
         &body[..root_end],
-        "inputs" | "const" | "secrets" | "with" | "tasks" | "group" | "item" | "index"
+        "inputs" | "const" | "secrets" | "with" | "tasks" | "group" | "item" | "index" | "run"
     ) {
         return None;
     }
@@ -79,6 +79,11 @@ mod tests {
         assert!(
             heads("$5 ${HOME} ${name:-default} ${items[0]} ${constants.seed} ${index}").is_empty()
         );
+    }
+
+    #[test]
+    fn a_fact_of_the_run_is_a_namespace_head() {
+        assert_eq!(heads("for ${ run.scheduled_for }"), ["run.scheduled_for"]);
     }
 
     #[test]

@@ -83,6 +83,7 @@ mod retry;
 mod retry_safety_tests;
 #[cfg(test)]
 mod run_clock_tests;
+mod run_facts;
 /// The ONE OS-sandbox selection (ADR-095 Layer 6 · #888) — `pub` because
 /// `nika-mcp`'s spawn confinement rides the same decision (L4→L3).
 mod settle;
@@ -146,6 +147,7 @@ pub use nika_builtin::{CreatedFile, WriteOrigin, WriteOrigins};
 pub use nika_verb_invoke::McpPlane;
 pub use origins::{InputOrigin, input_origins};
 pub use pause::WorkflowPause;
+pub use run_facts::{MissedSlots, RunFacts, ScheduledForSource};
 // Descended to `nika-dataflow` at the 15k wall — paths preserved. The three
 // modules keep their historical `crate::{expr,jq,record}` names so every
 // call site inside this crate reads exactly as it did before the move; the
@@ -356,6 +358,11 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// (`NIKA-SEC-003` · spec 14 §errors — the runtime backstop behind
     /// the static acyclicity proof).
     run_depth: u32,
+    /// What the caller told this run about the instant it serves (spec 04
+    /// §`run`): a firer's slot, the instant `nika test --at` names, a
+    /// calling run's own facts. The default tells nothing: the run serves
+    /// its own start.
+    run_facts: RunFacts,
     /// F-P4 · the approval book (NEP-0013): the per-run ticket state the
     /// `nika:prompt` gate mints/dedups/rate-limits against, plus the
     /// folded resume authority the composer injects. Per-runtime = per
@@ -426,6 +433,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             child_closures: BTreeMap::new(),
             child_runner: None,
             run_depth: 0,
+            run_facts: RunFacts::default(),
 
             resume_compat: None,
             resume_unverified: None,
@@ -557,10 +565,23 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
         self
     }
 
-    /// The operator's cancellation (#1353), read at every wave boundary.
+    /// The operator's cancellation (#1353), read at every wave boundary and
+    /// installed on the invoke seam: it also stops every `mcp:` call in
+    /// flight, which fails `NIKA-CANCEL-001`, while other in-flight work
+    /// completes and is counted.
     #[must_use]
     pub fn with_cancel(mut self, cancel: CancelCtx) -> Self {
+        let _installed = self.invoke.install_run_stop(cancel.clone());
         self.cancel = Some(cancel);
+        self
+    }
+
+    /// Tell the run the instant it serves (spec 04 §`run`): the slot a firer
+    /// fires, the instant `nika test --at` names, or a calling run's facts.
+    /// Without it the run serves its own start.
+    #[must_use]
+    pub fn with_run_facts(mut self, facts: RunFacts) -> Self {
+        self.run_facts = facts;
         self
     }
 
@@ -944,6 +965,7 @@ where
         wf: &RawWorkflow,
         workflow_name: &str,
         opening_stamp: (nika_types::id::EventId, nika_types::timestamp::Timestamp),
+        run_facts: Option<&run_facts::ResolvedRunFacts>,
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) {
@@ -966,6 +988,7 @@ where
             self.harness_seat_id.as_deref(),
             &self.approvals,
             opening_stamp,
+            run_facts,
             stamper,
             sink,
         );
@@ -1043,12 +1066,9 @@ where
         let permits = wf.permits.as_ref().map(|spanned| &spanned.value);
         // Type expressions are self-contained; the name environment is empty.
         let types = std::collections::BTreeMap::new();
-        // Mint one execution-bound stamp for evidence and every jq evaluator.
-        let opening_stamp = stamper.next();
-        let jq_clock = nika_cap::JqClock::at(opening_stamp.1);
-        let run_start = nika_kernel::tool_executor::ToolRunStart::new(opening_stamp.1.unix_ns);
-        self.emit_run_prologue(wf, &workflow_name, opening_stamp, stamper, sink);
-        self.seed_inspect(wf, report);
+        // The run opens: one stamp, the run's facts, the prologue, the inspect seed.
+        let (resume_ctx, jq_clock, run_start) =
+            self.open_run((wf, report, &workflow_name), resume_ctx, stamper, sink);
 
         let mut records: BTreeMap<String, DataflowTaskRecord> = BTreeMap::new();
         let mut ok = true;
@@ -1060,6 +1080,7 @@ where
             inputs: &inputs,
             consts: &consts,
             secrets: &secrets,
+            run: resume_ctx.run_value(),
             bound: self.value_bound.as_deref(),
         };
         let (mut parked, resolve_scope) = parked_scope(wf, bags, &resume_ctx, jq_clock, run_start);
@@ -1325,6 +1346,7 @@ where
                     bags.inputs,
                     bags.consts,
                     resume_ctx.markers(),
+                    bags.run,
                     &|text: &str| resume_ctx.leaks_secret(text),
                     &self.approvals,
                 )

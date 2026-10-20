@@ -25,7 +25,8 @@ use super::{
 };
 use crate::registry::ResolvedProvider;
 
-const ANTHROPIC_VERSION: &str = "2023-06-01";
+/// The Messages API version every request names (the key check names it too).
+pub(crate) const ANTHROPIC_VERSION: &str = "2023-06-01";
 /// The `wire` of the reasoning state this wire keeps and sends back.
 const WIRE: &str = "anthropic";
 const DEFAULT_MAX_TOKENS: u32 = 4096;
@@ -40,13 +41,62 @@ pub(crate) async fn infer_routed<H>(
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
+    let mut sent = false;
+    infer_tracked(rp, request, &mut sent, route, call).await
+}
+
+/// The same wire, with an exact dispatched/not-dispatched observation for the bounded
+/// registry: under an allowance a text request is reserved at its admission tariff, sent once
+/// without following a redirect, and settled from the reply's complete usage (the law the
+/// OpenAI-compatible wire's `infer_tracked` applies, in this wire's own request shape).
+pub(crate) async fn infer_tracked<H>(
+    rp: &ResolvedProvider<H>,
+    request: InferRequest,
+    sent: &mut bool,
+    route: &mut Option<crate::retry::BillingRoute>,
+    call: &mut Option<nika_types::cost::InferenceCall>,
+) -> Result<InferResponse, ProviderError>
+where
+    H: HttpPostDyn + Send + Sync + 'static,
+{
     // Anthropic's function-calling rejects tool names outside
     // `^[a-zA-Z0-9_-]{1,64}$` (NIKA-463) — Nika's `nika:read` / `mcp:git/diff`
     // ids must be sanitized on send and restored on parse (the verb only
     // ever sees the canonical colon form).
     let names = ToolNameMap::from_tools(&request.tools);
-    let http_req = build_request(rp, &request, false, &names)?;
+    let mut http_req = build_request(rp, &request, false, &names)?;
+    let bytes = http_req.body.as_ref().map_or(0, Bytes::len);
     let http = rp.http.as_ref().ok_or_else(wiring_bug)?;
+    if let Some(account) = &rp.admission
+        && !http.supports_single_attempt()
+    {
+        return Err(account.refuse("HTTP effect has no single-attempt guarantee"));
+    }
+    let declared = rp
+        .admission
+        .as_ref()
+        .map(crate::admission::InferenceAdmission::declared_tariff)
+        .transpose()?
+        .flatten();
+    let mut attempt = super::admission::reserve(rp, &request, bytes)?;
+    if attempt.is_some() {
+        http_req.follow_redirects = false;
+        if let Some(account) = &rp.admission
+            && let Some(bound) = account.request_timeout()?
+        {
+            http_req.timeout = Some(
+                http_req
+                    .timeout
+                    .map_or(bound, |requested| requested.min(bound)),
+            );
+        }
+    }
+    if let Some(a) = &mut attempt {
+        a.sent()?;
+    }
+    *sent = true;
+    // What the body carried, read back from the bytes this dispatch sends (R4 B16).
+    let wire = http_req.body.as_deref().map(reasoning_wire);
     let requested_endpoint = crate::retry::BillingRoute::new(
         rp.profile.id.into(),
         rp.wire_model.clone(),
@@ -64,8 +114,16 @@ where
         rp.wire_model.clone(),
         resp.final_url.clone(),
     );
-    crate::retry::record(call, route.as_ref(), None, None);
+    crate::retry::record(call, route.as_ref(), None, declared.as_ref());
+    if let Some(account) = &rp.admission
+        && resp.final_url != rp.base_url
+    {
+        return Err(account.refuse("transport endpoint changed; charge unknown"));
+    }
     if !(200..300).contains(&resp.status) {
+        if let Some(a) = &mut attempt {
+            a.answered(resp.status, &resp.final_url);
+        }
         return Err(status_error(
             resp.status,
             &resp.body,
@@ -73,8 +131,19 @@ where
             rp.key.as_ref(),
         ));
     }
-    let response = parse_response(rp, &resp.body, &names)?;
-    crate::retry::record(call, route.as_ref(), Some(&response), None);
+    let mut response = parse_response(rp, &resp.body, &names)?;
+    response.reasoning_wire = wire;
+    crate::retry::record(call, route.as_ref(), Some(&response), declared.as_ref());
+    if let Some(a) = &mut attempt
+        && let Err(refused) = a.settle(&response)
+    {
+        // The account now holds this charge as unknown: the dispatch keeps its usage
+        // evidence but never a price beside that uncertainty.
+        if let Some(c) = call {
+            c.estimated_usd = None;
+        }
+        return Err(refused);
+    }
     Ok(response)
 }
 
@@ -139,11 +208,15 @@ fn build_request(
     stream: bool,
     names: &ToolNameMap,
 ) -> Result<HttpRequest, ProviderError> {
-    super::reasoning::unsupported(req, rp.profile.id, &rp.wire_model)?;
+    let effort = effort_word(req, rp)?;
+    fixed_controls(req, rp.profile.id, &rp.wire_model)?;
     let key = rp.key.as_ref().ok_or_else(|| ProviderError::AuthFailed {
         reason: "anthropic requires an API key".to_owned(),
     })?;
-    let body = request_body(&rp.wire_model, req, stream, names)?;
+    let mut body = request_body(&rp.wire_model, req, stream, names)?;
+    if let Some(word) = effort {
+        with_effort(&mut body, word)?;
+    }
     let bytes = serde_json::to_vec(&body).map_err(|e| ProviderError::Other {
         reason: format!("request serialization failed: {e}"),
     })?;
@@ -160,6 +233,151 @@ fn build_request(
     // `wire::transport_deadline` for the buffered-vs-streaming split.
     http_req.timeout = super::transport_deadline(req, stream);
     Ok(http_req)
+}
+
+/// The level of a request's explicit reasoning effort (R4 B16), qualified for this route by two
+/// facts: the exact model documents it (`ModelCapabilities::reasoning_efforts`, the Claude 5
+/// models), and the request goes to the provider's own endpoint, never an operator-pointed one.
+/// Anthropic carries it as `output_config.effort`. A level beside a thinking budget or a raw
+/// `thinking`/`output_config` key, or one either fact does not qualify, refuses the request with
+/// nothing sent, naming both facts. A request naming no level keeps its bytes.
+fn effort_word(
+    req: &InferRequest,
+    rp: &ResolvedProvider<impl Sized>,
+) -> Result<Option<&'static str>, ProviderError> {
+    let Some(level) = req.reasoning_effort else {
+        return Ok(None);
+    };
+    let (word, model) = (level.word(), &rp.wire_model);
+    let refused = |reason: String| ProviderError::AdmissionDenied { reason };
+    if req.thinking_budget.is_some()
+        || ["thinking", "output_config"]
+            .into_iter()
+            .any(|key| req.extra.params.contains_key(key))
+    {
+        return Err(refused(format!(
+            "the explicit reasoning effort `{word}` cannot ride beside a thinking budget or a raw `thinking`/`output_config` key on anthropic/{model}; nothing was sent"
+        )));
+    }
+    let listed = nika_catalog::model_capabilities(rp.profile.id, model).reasoning_efforts;
+    let own = rp.base_url == rp.profile.base_url;
+    if listed.iter().any(|l| l.word() == word) && own {
+        return Ok(Some(word));
+    }
+    let levels = if listed.is_empty() {
+        "no effort level".to_owned()
+    } else {
+        let words: Vec<&str> = listed.iter().map(|l| l.word()).collect();
+        words.join(", ")
+    };
+    let route = if own {
+        "Anthropic's own endpoint"
+    } else {
+        "an operator-pointed endpoint, not Anthropic's own"
+    };
+    Err(refused(format!(
+        "the explicit reasoning effort `{word}` is not qualified for anthropic/{model}: the model catalog lists {levels} for it, and this route is {route}; name a listed level or drop the effort; nothing was sent"
+    )))
+}
+
+/// Write a qualified effort level as `output_config.effort`, beside a structured-output
+/// `format` the body already carries.
+fn with_effort(body: &mut Value, word: &str) -> Result<(), ProviderError> {
+    let config = body
+        .as_object_mut()
+        .map(|object| {
+            object
+                .entry("output_config")
+                .or_insert_with(|| json!({}))
+        })
+        .and_then(Value::as_object_mut)
+        .ok_or_else(|| ProviderError::AdmissionDenied {
+            reason: format!(
+                "the explicit reasoning effort `{word}` has no request object to ride in; nothing was sent"
+            ),
+        })?;
+    config.insert("effort".to_owned(), json!(word));
+    Ok(())
+}
+
+/// The reasoning keys a dispatched Anthropic body carried, read back from its bytes:
+/// `thinking.type` and `output_config.effort`.
+fn reasoning_wire(body: &[u8]) -> nika_kernel::ai::provider::ReasoningWire {
+    let body: Value = serde_json::from_slice(body).unwrap_or_default();
+    let word = |pointer: &str| {
+        body.pointer(pointer)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+    };
+    nika_kernel::ai::provider::ReasoningWire::new(
+        word("/thinking/type"),
+        word("/output_config/effort"),
+    )
+}
+
+/// The default temperature of a Claude model that fixes its sampling: the only one it accepts.
+const DEFAULT_TEMPERATURE: f32 = 1.0;
+
+/// A Claude model that fixes its sampling ([`nika_catalog::refuses_sampling`]) answers a
+/// temperature other than its default, a `top_p` or a `top_k` with HTTP 400, and one that thinks
+/// adaptively ([`nika_catalog::refuses_thinking_budget`]) answers a thinking budget the same way:
+/// such a request is refused here, naming the model rule and the repair, before any byte. The
+/// controls checked are the ones the body carries: a typed value, else a provider extra
+/// ([`request_body`] writes the typed one first). A declared value is never dropped.
+fn fixed_controls(req: &InferRequest, provider: &str, model: &str) -> Result<(), ProviderError> {
+    let refused = |reason: String| ProviderError::AdmissionDenied { reason };
+    let raw = |key: &str| req.extra.params.get(key);
+    if nika_catalog::refuses_sampling(provider, model) {
+        if let Some(t) = req
+            .temperature
+            .filter(|t| (t - DEFAULT_TEMPERATURE).abs() > f32::EPSILON)
+        {
+            return Err(refused(format!(
+                "`{model}` fixes its sampling: Anthropic refuses a temperature other than its \
+                 default (1) on it with HTTP 400, so `temperature: {t}` cannot be sent; remove \
+                 it and steer the answer in the prompt; nothing was sent"
+            )));
+        }
+        let default = f64::from(DEFAULT_TEMPERATURE);
+        if let Some(t) = raw("temperature").filter(|t| {
+            req.temperature.is_none()
+                && t.as_f64()
+                    .is_none_or(|t| (t - default).abs() > f64::EPSILON)
+        }) {
+            return Err(refused(format!(
+                "`{model}` fixes its sampling: Anthropic refuses a temperature other than its \
+                 default (1) on it with HTTP 400, so the provider extra `temperature: {t}` cannot \
+                 be sent; remove it and steer the answer in the prompt; nothing was sent"
+            )));
+        }
+        if let Some(key) = ["top_p", "top_k"]
+            .into_iter()
+            .find(|key| req.extra.params.contains_key(*key))
+        {
+            return Err(refused(format!(
+                "`{model}` fixes its sampling: Anthropic refuses `{key}` on it with HTTP 400; \
+                 remove it; nothing was sent"
+            )));
+        }
+    }
+    if nika_catalog::refuses_thinking_budget(provider, model) {
+        if let Some(budget) = req.thinking_budget {
+            return Err(refused(format!(
+                "`{model}` thinks adaptively: Anthropic refuses a thinking budget on it with HTTP \
+                 400, so `thinking.budget_tokens: {budget}` cannot be sent; remove it and set \
+                 `run.reasoning.effort` to steer how much it thinks; nothing was sent"
+            )));
+        }
+        if let Some(budget) = raw("thinking").and_then(|t| t.get("budget_tokens")) {
+            return Err(refused(format!(
+                "`{model}` thinks adaptively: Anthropic refuses a thinking budget on it with HTTP \
+                 400, so the provider extra `thinking.budget_tokens: {budget}` cannot be sent; \
+                 remove it and set `run.reasoning.effort` to steer how much it thinks; nothing \
+                 was sent"
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// The JSON body (pure — the unit-testable core).
@@ -548,11 +766,16 @@ fn parse_response(
         !u.is_null()
             && (u.pointer("/input_tokens").is_some() || u.pointer("/output_tokens").is_some())
     });
+    // Every billed meter accounted for: the call is priced, and an allowance settles it.
+    if super::admission::complete_usage(rp.profile.id, &v) {
+        resp.usage_completeness = nika_kernel::ai::provider::UsageCompleteness::Complete;
+    }
     resp.request_id = v
         .pointer("/id")
         .and_then(Value::as_str)
         .map(ToOwned::to_owned);
     resp.finish_reason_raw = raw_stop.map(ToOwned::to_owned);
+    resp.window_full = window_full(raw_stop);
     resp.cached_tokens = v
         .pointer("/usage/cache_read_input_tokens")
         .and_then(Value::as_u64)
@@ -564,6 +787,13 @@ fn parse_response(
         .and_then(Value::as_str)
         .map(ToOwned::to_owned);
     Ok(resp)
+}
+
+/// Whether the documented stop says the answer filled the model's context window (it maps to
+/// `MaxTokens`, and the response carries the window-full marker beside it). Evidence:
+/// documented by Anthropic's stop reasons (`model_context_window_exceeded`, since 2025-09-29).
+fn window_full(raw: Option<&str>) -> bool {
+    raw == Some("model_context_window_exceeded")
 }
 
 fn map_stop(raw: Option<&str>) -> StopReason {
@@ -752,6 +982,8 @@ impl EventMapper for AnthropicMapper {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use nika_kernel::ai::provider::{Message, ToolDef};
 
     use super::*;
@@ -858,6 +1090,256 @@ mod tests {
         assert_eq!(facts.thinking_off, Some(ThinkingOff::ByDefault));
         let plain = body_of(model, &req(vec![Message::text(Role::User, "x")]), false);
         assert!(plain.expect("body").get("thinking").is_none());
+    }
+
+    /// The Claude 5 models think by default on this wire (no `thinking` key is sent, yet they
+    /// think): the catalog records it, Opus 5.5 as never off, Sonnet 5.5 with an off switch this
+    /// wire does not send. A plain request carries neither `thinking` nor `temperature`.
+    #[test]
+    fn claude_5_reasoning_facts_match_this_wire() {
+        use nika_catalog::types::model::ThinkingOff;
+        for (model, off) in [
+            ("claude-opus-5-5", ThinkingOff::Never),
+            ("claude-fable-5-1", ThinkingOff::Never),
+            ("claude-sonnet-5-5", ThinkingOff::NotReached),
+            ("claude-haiku-5-5", ThinkingOff::NotReached),
+        ] {
+            let caps = nika_catalog::model_capabilities("anthropic", model);
+            assert!(!caps.supports_temperature, "{model}");
+            let facts = caps.reasoning_facts;
+            assert_eq!(facts.reasons_by_default, Some(true), "{model}");
+            assert_eq!(facts.counts_in_output_cap, Some(true), "{model}");
+            assert_eq!(facts.thinking_off, Some(off), "{model}");
+            let plain = body_of(model, &req(vec![Message::text(Role::User, "x")]), false);
+            let plain = plain.expect("body");
+            assert!(plain.get("thinking").is_none(), "{model}: {plain}");
+            assert!(plain.get("temperature").is_none(), "{model}: {plain}");
+        }
+    }
+
+    /// A Claude 5 request carrying a temperature other than the default, a `top_p`/`top_k`
+    /// extra or a thinking budget is refused before any byte, naming the rule and the repair;
+    /// the default temperature is sent as declared, and an earlier Claude model sends both.
+    #[tokio::test]
+    async fn a_claude_5_request_refuses_fixed_controls_before_any_byte() {
+        let refused = |r: InferRequest| async move {
+            let fake = FakeHttp::with_json(200, "{}");
+            let rp = resolved_with(&fake, "anthropic/claude-sonnet-5-5", "sk-ant-test");
+            let err = infer(&rp, r).await.expect_err("refused");
+            assert!(fake.captured().is_empty(), "nothing was sent");
+            err.to_string()
+        };
+        let mut warm = req(vec![Message::text(Role::User, "x")]);
+        warm.temperature = Some(0.2);
+        let why = refused(warm).await;
+        assert!(
+            why.contains("`claude-sonnet-5-5` fixes its sampling")
+                && why.contains("HTTP 400")
+                && why.contains("nothing was sent"),
+            "{why}"
+        );
+        let mut top = req(vec![Message::text(Role::User, "x")]);
+        top.extra.params.insert("top_p".into(), json!(0.5));
+        assert!(refused(top).await.contains("`top_p`"));
+        let mut budget = req(vec![Message::text(Role::User, "x")]);
+        budget.max_tokens = Some(16_000);
+        budget.thinking_budget = Some(4_000);
+        let why = refused(budget).await;
+        assert!(
+            why.contains("thinks adaptively") && why.contains("run.reasoning.effort"),
+            "{why}"
+        );
+
+        let mut default = req(vec![Message::text(Role::User, "x")]);
+        default.temperature = Some(1.0);
+        let body = body_of("claude-sonnet-5-5", &default, false).expect("body");
+        assert_eq!(body["temperature"], 1.0);
+        let fake = FakeHttp::with_json(
+            200,
+            r#"{"id":"msg_1","model":"claude-sonnet-5-5","content":[{"type":"text","text":"ok"}],
+                "stop_reason":"end_turn","usage":{"input_tokens":3,"output_tokens":1}}"#,
+        );
+        let rp = resolved_with(&fake, "anthropic/sonnet", "sk-ant-test");
+        assert!(infer(&rp, default).await.is_ok(), "the default is accepted");
+        assert_eq!(fake.captured().len(), 1);
+
+        let mut earlier = req(vec![Message::text(Role::User, "x")]);
+        earlier.temperature = Some(0.2);
+        earlier.max_tokens = Some(16_000);
+        earlier.thinking_budget = Some(4_000);
+        let body = body_of("claude-sonnet-4-6", &earlier, false).expect("body");
+        assert!((body["temperature"].as_f64().expect("sent") - 0.2).abs() < 1e-6);
+        assert_eq!(body["thinking"]["budget_tokens"], 4_000);
+        assert!(fixed_controls(&earlier, "anthropic", "claude-sonnet-4-6").is_ok());
+    }
+
+    /// A provider extra that would carry a temperature other than the default, or a thinking
+    /// budget, on a Claude 5 request is refused before any byte as the typed control is. A typed
+    /// temperature still wins over a raw one (first write wins), a raw default temperature and a
+    /// raw thinking with no budget are sent as declared, and an earlier Claude model sends both
+    /// raw values.
+    #[tokio::test]
+    async fn a_raw_temperature_or_thinking_budget_is_refused_as_the_typed_one() {
+        let refused = |r: InferRequest| async move {
+            let fake = FakeHttp::with_json(200, "{}");
+            let rp = resolved_with(&fake, "anthropic/claude-sonnet-5-5", "sk-ant-test");
+            let err = infer(&rp, r).await.expect_err("refused");
+            assert!(fake.captured().is_empty(), "nothing was sent");
+            err.to_string()
+        };
+        let with = |extras: &[(&str, Value)]| {
+            let mut r = req(vec![Message::text(Role::User, "x")]);
+            r.max_tokens = Some(16_000);
+            for (key, value) in extras {
+                r.extra.params.insert((*key).to_owned(), value.clone());
+            }
+            r
+        };
+        let why = refused(with(&[("temperature", json!(0.2))])).await;
+        assert!(
+            why.contains("`claude-sonnet-5-5` fixes its sampling")
+                && why.contains("provider extra `temperature: 0.2`")
+                && why.contains("nothing was sent"),
+            "{why}"
+        );
+        let budget = json!({"type": "enabled", "budget_tokens": 4_000});
+        let why = refused(with(&[("thinking", budget.clone())])).await;
+        assert!(
+            why.contains("thinks adaptively")
+                && why.contains("provider extra `thinking.budget_tokens: 4000`")
+                && why.contains("run.reasoning.effort"),
+            "{why}"
+        );
+
+        let mut typed = with(&[("temperature", json!(0.2))]);
+        typed.temperature = Some(1.0);
+        assert!(fixed_controls(&typed, "anthropic", "claude-sonnet-5-5").is_ok());
+        let body = body_of("claude-sonnet-5-5", &typed, false).expect("body");
+        assert_eq!(body["temperature"], 1.0);
+        for sent in [
+            with(&[("temperature", json!(1))]),
+            with(&[("thinking", json!({"type": "disabled"}))]),
+        ] {
+            assert!(fixed_controls(&sent, "anthropic", "claude-sonnet-5-5").is_ok());
+        }
+        let earlier = with(&[("temperature", json!(0.2)), ("thinking", budget)]);
+        assert!(fixed_controls(&earlier, "anthropic", "claude-sonnet-4-6").is_ok());
+        let body = body_of("claude-sonnet-4-6", &earlier, false).expect("body");
+        assert_eq!(body["thinking"]["budget_tokens"], 4_000);
+    }
+
+    /// NIK-152: a reply whose usage accounts for every billed meter is marked complete, so its
+    /// call is priced and an allowance settles it; a reply with an unpriced axis (a priority
+    /// tier) or without usage stays incomplete, never a zero.
+    #[tokio::test]
+    async fn usage_completeness_follows_the_reply_meters() {
+        use nika_kernel::ai::provider::UsageCompleteness;
+        for (usage, complete) in [
+            (
+                r#""usage":{"input_tokens":12,"output_tokens":5,"cache_read_input_tokens":3}"#,
+                true,
+            ),
+            (
+                r#""usage":{"input_tokens":12,"output_tokens":5,"service_tier":"priority"}"#,
+                false,
+            ),
+            // The live reply of 2026-10-15 (claude-haiku-5-5): every meter beside a standard
+            // speed is complete; a fast reply bills at another rate.
+            (
+                r#""usage":{"input_tokens":13,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":5,"output_tokens_details":{"thinking_tokens":0},"service_tier":"standard","inference_geo":"global","speed":"standard"}"#,
+                true,
+            ),
+            (
+                r#""usage":{"input_tokens":13,"output_tokens":5,"speed":"fast"}"#,
+                false,
+            ),
+            (r#""usage":null"#, false),
+        ] {
+            let fake = FakeHttp::with_json(
+                200,
+                &format!(
+                    r#"{{"id":"msg_1","model":"claude-sonnet-5-5","stop_reason":"end_turn",
+                        "content":[{{"type":"text","text":"ok"}}],{usage}}}"#
+                ),
+            );
+            let rp = resolved_with(&fake, "anthropic/claude-sonnet-5-5", "sk-ant-test");
+            let resp = infer(&rp, req(vec![Message::text(Role::User, "x")]))
+                .await
+                .expect("answered");
+            assert_eq!(
+                resp.usage_completeness == UsageCompleteness::Complete,
+                complete,
+                "{usage}"
+            );
+        }
+    }
+
+    /// NIK-157: an explicit effort a Claude 5 model documents rides `output_config.effort`, beside
+    /// a structured-output format, and the dispatch reads it back from the bytes it sent. An
+    /// earlier model, a thinking budget beside it and an operator-pointed endpoint refuse it before
+    /// any byte, each with an explicit reason.
+    #[tokio::test]
+    async fn an_explicit_effort_rides_output_config_on_claude_5() {
+        use nika_kernel::ai::provider::ReasoningEffort;
+        let answered = r#"{"id":"msg_1","model":"claude-sonnet-5-5","stop_reason":"end_turn",
+            "content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":3,"output_tokens":1}}"#;
+        for (level, word) in [
+            (ReasoningEffort::Low, "low"),
+            (ReasoningEffort::High, "high"),
+            (ReasoningEffort::Max, "max"),
+        ] {
+            let fake = FakeHttp::with_json(200, answered);
+            let rp = resolved_with(&fake, "anthropic/sonnet", "sk-ant-test");
+            let mut r = req(vec![Message::text(Role::User, "x")]);
+            r.reasoning_effort = Some(level);
+            r.response_format = ResponseFormat::JsonSchema(json!({"type": "object"}));
+            let resp = infer(&rp, r).await.expect("sent");
+            let sent = fake.captured();
+            let body: Value =
+                serde_json::from_slice(sent[0].body.as_ref().expect("body")).expect("json");
+            assert_eq!(body["output_config"]["effort"], word);
+            assert_eq!(body["output_config"]["format"]["type"], "json_schema");
+            assert!(body.get("thinking").is_none() && body.get("reasoning_effort").is_none());
+            let wire = resp.reasoning_wire.expect("read back");
+            assert_eq!((wire.thinking, wire.effort.as_deref()), (None, Some(word)));
+        }
+
+        let refused = |rp: ResolvedProvider<FakeHttp>, fake: Arc<FakeHttp>, r: InferRequest| async move {
+            let err = infer(&rp, r).await.expect_err("refused");
+            assert!(fake.captured().is_empty(), "nothing was sent");
+            err.to_string()
+        };
+        let mut high = req(vec![Message::text(Role::User, "x")]);
+        high.reasoning_effort = Some(ReasoningEffort::High);
+        let fake = FakeHttp::with_json(200, answered);
+        let earlier = resolved_with(&fake, "anthropic/claude-sonnet-4-6", "sk-ant-test");
+        let why = refused(earlier, fake, high.clone()).await;
+        assert!(
+            why.contains("`high` is not qualified for anthropic/claude-sonnet-4-6")
+                && why.contains("no effort level")
+                && why.contains("nothing was sent"),
+            "{why}"
+        );
+        let mut beside = high.clone();
+        beside.thinking_budget = Some(2048);
+        let fake = FakeHttp::with_json(200, answered);
+        let rp = resolved_with(&fake, "anthropic/claude-sonnet-5-5", "sk-ant-test");
+        assert!(
+            refused(rp, fake, beside)
+                .await
+                .contains("cannot ride beside")
+        );
+        let fake = FakeHttp::with_json(200, answered);
+        let gateway = crate::ProviderRegistry::new(
+            Arc::clone(&fake),
+            crate::ProvidersConfig::new()
+                .with_key("anthropic", Secret::new("sk-ant-test"))
+                .with_base_url("anthropic", "https://gateway.example/v1/messages"),
+        )
+        .resolve("anthropic/claude-sonnet-5-5")
+        .expect("resolves");
+        let why = refused(gateway, fake, high).await;
+        assert!(why.contains("operator-pointed endpoint"), "{why}");
     }
 
     /// A conversation or a request with tools carries the automatic marker and a breakpoint on its

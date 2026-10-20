@@ -68,11 +68,18 @@ const PROVIDERS: &str = "which|what llm|ai|model|local|cloud|_ providers|models 
     liste les providers|modèles";
 const EXPLAIN: &str = "explain|explique this|the|_ error|code|finding|_ <code> to|_ me|_; \
     can|could you explain <code> to|_ me|_; what is|does|_ <code> mean|means|_; what's <code>; \
-    why did|do i get|got|see <code>; <code>";
+    why did|do i get|got|see <code>; explique|explique-moi|expliquez|expliquez-moi le|ce|cette|_ \
+    code|erreur|_ <code>; explique|explique-moi|expliquez|expliquez-moi l'erreur <code>; que \
+    veut dire <code>; que signifie <code>; c'est quoi <code>; <code>";
 const VERDICT: &str = "check|validate|verify|audit|vérifie <flow> for|_ errors|problems|_; \
     can|could you check|validate|verify <flow> for|_ errors|problems|_; is|are the|_ <flow> \
     workflow|file|_ still|_ valid|clean|ok; check if|whether the|_ <flow> workflow|file|_ is|_ \
-    valid|clean|ok";
+    valid|clean|ok; est-ce que le|la|_ workflow|fichier|_ <flow> est toujours|_ \
+    valide|correct|bon|ok; le|la|_ workflow|fichier|_ <flow> est|est-il|est-elle toujours|_ \
+    valide|correct|bon|ok; vérifie|vérifiez|contrôle|contrôlez|valide|validez le|la|_ \
+    workflow|fichier|_ <flow>; peux-tu|pouvez-vous vérifier|valider|contrôler le|la|_ \
+    workflow|fichier|_ <flow>; tu|vous peux|pouvez vérifier|valider|contrôler le|la|_ \
+    workflow|fichier|_ <flow>";
 const LAST_RUN: &str = "what happened in|with|during|to the last|latest|previous run; how did \
     the|_ last|latest|previous run go; did it run|work; did the last|latest|previous run \
     fail|succeed|pass|work|finish; why did the last|latest|previous run fail; what went wrong \

@@ -76,10 +76,10 @@ pub enum SchemaError {
     /// do not write `nika: v1` · `nika: My_Workflow` · `nika: "1.0"`. »
     ///
     /// The code (`NIKA-PARSE-003`) SURVIVES the envelope nuke by
-    /// changing meaning: it judges an id now, no longer the literal.
-    #[error(
-        "invalid `nika:` id `{id}` — must match ^[a-z][a-z0-9-]*$ (kebab-case · the file's name)"
-    )]
+    /// changing meaning: it judges an id now, no longer the literal. The
+    /// retired schema tag itself (`v1`, `v2`, …) is kebab-shaped and still
+    /// refused, with its own teaching: one name law for both documents.
+    #[error("{}", bad_nika_id_text(.id))]
     BadNikaId {
         /// The rejected id.
         id: String,
@@ -231,6 +231,22 @@ pub enum SchemaError {
         /// Which shape disqualifies it (`carries a ${{ }} template` · `is a glob`).
         why: &'static str,
         /// Span of the entry.
+        span: Option<Span>,
+    },
+
+    /// A project file's path breaks the lexical law (spec 02 §Project files · `NIKA-FILE-001`).
+    /// Containment by the project root is judged when the files compose.
+    #[error(
+        "`{field}: {{ file: \"{path}\" }}` — the path {why}: a project file's path is static and relative, with no hidden or `.` segment (spec 02 §Project files)"
+    )]
+    ProjectFilePath {
+        /// `prompt` · `system` · `schema`.
+        field: &'static str,
+        /// The path as written.
+        path: String,
+        /// Which law it breaks.
+        why: &'static str,
+        /// Span of the path.
         span: Option<Span>,
     },
 
@@ -566,7 +582,9 @@ pub enum SchemaError {
         location: String,
         /// The nearest declared name in the SAME namespace, fully
         /// qualified (`vars.topic`), when one is close enough — the
-        /// deterministic repair (rustc's did-you-mean model).
+        /// deterministic repair (rustc's did-you-mean model). For a closed
+        /// namespace with no near name (`run`), the prose that names its
+        /// members: the message renders it, and no repair reads it.
         suggestion: Option<String>,
         /// Source span.
         span: Option<Span>,
@@ -758,6 +776,22 @@ pub enum SchemaError {
 // are message vocabulary, the vocabulary crate is their home · the
 // `keysets` precedent). This re-export keeps the `crate::error::DeadForm`
 // path byte-stable for every matcher (the CLI's fix verb included) ·
+/// The `NIKA-PARSE-003` text: the retired schema tag gets its own teaching
+/// (one name law across both documents · spec 01 rule 2); any other shape
+/// names the kebab-case grammar.
+fn bad_nika_id_text(id: &str) -> String {
+    if nika_vocab::project::is_retired_version_tag(id) {
+        format!(
+            "`nika: {id}` — `nika:` names the workflow; `{id}` is the retired schema tag: give \
+             the workflow a name (`nika: my-workflow`)"
+        )
+    } else {
+        format!(
+            "invalid `nika:` id `{id}` — must match ^[a-z][a-z0-9-]*$ (kebab-case · the file's name)"
+        )
+    }
+}
+
 // `foreign_namespace_teaching` rides `nika_vocab` directly since its only
 // caller descended to nika-check (2026-07-21).
 pub use nika_vocab::DeadForm;
@@ -798,11 +832,13 @@ impl SchemaError {
                 suggestion: Some(s),
                 ..
             } => Some((to.clone(), s.clone())),
+            // A suggestion with a space is prose the message renders
+            // (`suggestion_clause`), never a name to splice.
             Self::UnresolvedNamespaceRef {
                 reference,
                 suggestion: Some(s),
                 ..
-            } => Some((reference.clone(), s.clone())),
+            } if !s.contains(' ') => Some((reference.clone(), s.clone())),
             _ => None,
         }
     }
@@ -843,6 +879,7 @@ impl SchemaError {
             | Self::W2DependsOnField { span, .. }
             | Self::D1StringCommand { span, .. }
             | Self::SkillPathNotStatic { span, .. }
+            | Self::ProjectFilePath { span, .. }
             | Self::UnknownGroup { span, .. }
             | Self::UnwindInGroup { span, .. }
             | Self::UnknownAfterPredicate { span, .. }
@@ -988,7 +1025,8 @@ impl NikaErrorCode for SchemaError {
             // variant exists for the fix ladder's match, not the wire.
             Self::Validation { .. }
             | Self::D1StringCommand { .. }
-            | Self::SkillPathNotStatic { .. } => SCHEMA_299,
+            | Self::SkillPathNotStatic { .. }
+            | Self::ProjectFilePath { .. } => SCHEMA_299,
             Self::RunContradiction { .. } => SCHEMA_327,
             Self::WhenNotBoolean { .. } => SCHEMA_300,
             Self::RecoverAwaitDeadlock { .. } => SCHEMA_308,
@@ -1264,6 +1302,27 @@ mod tests {
         };
         assert!(err.to_string().contains("YAML parse error"));
         assert!(err.to_string().contains("unexpected token"));
+    }
+
+    #[test]
+    fn a_prose_suggestion_is_rendered_and_never_a_rename() {
+        let unresolved = |suggestion: &str| SchemaError::UnresolvedNamespaceRef {
+            reference: "run.started".into(),
+            location: "task `report`".into(),
+            suggestion: Some(suggestion.into()),
+            span: None,
+        };
+        assert_eq!(
+            unresolved("run.scheduled_for").rename_repair(),
+            Some(("run.started".to_owned(), "run.scheduled_for".to_owned()))
+        );
+        let prose = unresolved("the run's facts are `run.scheduled_for` · `run.missed`");
+        assert_eq!(prose.rename_repair(), None, "{prose}");
+        assert_eq!(
+            prose.to_string(),
+            "unresolved reference `run.started` in task `report` — the run's facts are \
+             `run.scheduled_for` · `run.missed`"
+        );
     }
 
     #[test]

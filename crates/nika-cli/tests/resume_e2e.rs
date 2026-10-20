@@ -449,6 +449,54 @@ fn paused_prompt_rearms_and_an_answer_completes_the_run() {
     assert_approval_replay_refused(&wf, &trace);
 }
 
+/// A run resumed without a ceiling of its own keeps the one its first leg was admitted under,
+/// less what it spent: its continuation journals that budget, never an unbounded run (live
+/// gauntlet r04 B8, 2026-10-17: « budget: none journaled (the run was unbounded) »).
+#[test]
+fn a_resumed_run_keeps_its_ceiling() {
+    let wf = fixture("gated-ceiling.nika", GATED);
+    let run = bin()
+        .args([
+            "run",
+            &wf.to_string_lossy(),
+            "--max-cost-usd",
+            "0.5",
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    assert_eq!(run.status.code(), Some(4), "paused at the gate");
+    let stream = String::from_utf8(run.stdout).expect("utf8");
+    let trace = write_trace("gated-ceiling.ndjson", &stream);
+    let answered = bin()
+        .args([
+            "run",
+            &wf.to_string_lossy(),
+            "--resume",
+            &trace.to_string_lossy(),
+            "--answer",
+            "approve=yes",
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    let stdout = String::from_utf8(answered.stdout).expect("utf8");
+    let stderr = String::from_utf8(answered.stderr).expect("utf8");
+    assert_eq!(answered.status.code(), Some(0), "stderr: {stderr}");
+    let started = stdout
+        .lines()
+        .find(|l| l.contains("\"kind\":\"workflow_started\""))
+        .expect("the continuation's opening frame");
+    assert!(
+        started.contains("max_cost_usd") && started.contains("0.5"),
+        "the continuation journals the run's ceiling: {started}"
+    );
+}
+
 // ─── the TEXT lane pauses too (the first-run gate · 2026-07-31) ─────────
 
 /// A headless TEXT run (no `--json`/`--output json` — a pipe · CI · an
@@ -1496,4 +1544,102 @@ fn a_json_capture_resumes_verified_and_its_forgery_is_refused() {
         stderr.contains("chain BROKEN at line"),
         "the finding: {stderr}"
     );
+}
+
+// The original run facts are input/content identity, not the resumed leg's clock or grants.
+const RUN_FACTS_PAUSE: &str = r#"
+nika: resume-run-facts
+permits: { exec: ["echo"], tools: ["nika:prompt"] }
+tasks:
+  day:
+    exec: { command: ["echo", "${{ run.scheduled_for }}"] }
+  ask:
+    after: { day: success }
+    invoke:
+      tool: "nika:prompt"
+      args: { mode: "confirm", message: "publish for ${{ run.scheduled_for }}?" }
+outputs:
+  served: ${{ run.scheduled_for }}
+"#;
+
+#[test]
+fn a_headless_answer_keeps_original_start_facts_and_checkpoint_hashes() {
+    let dir = tempfile::tempdir().expect("owned fixture room");
+    let wf = dir.path().join("facts.nika");
+    std::fs::write(&wf, RUN_FACTS_PAUSE).expect("current native workflow");
+    let first = bin()
+        .args(["run", "facts.nika", "--json", "--color", "never"])
+        .env("NIKA_KEYCHAIN", "off")
+        .current_dir(dir.path())
+        .output()
+        .expect("first leg");
+    let raw = String::from_utf8(first.stdout).expect("native frames");
+    assert_eq!(
+        first.status.code(),
+        Some(4),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let trace = dir.path().join("first.ndjson");
+    std::fs::write(&trace, &raw).expect("exact chained capture");
+    let second = bin()
+        .args([
+            "run",
+            "facts.nika",
+            "--resume",
+            "first.ndjson",
+            "--answer",
+            "ask=true",
+            "--json",
+            "--color",
+            "never",
+        ])
+        .env("NIKA_KEYCHAIN", "off")
+        .current_dir(dir.path())
+        .output()
+        .expect("resumed leg");
+    let resumed = String::from_utf8(second.stdout).expect("native frames");
+    assert_eq!(
+        second.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+    let opening = raw
+        .lines()
+        .find(|line| line.contains("\"kind\":\"workflow_started\""))
+        .expect("first opening");
+    let continued = resumed
+        .lines()
+        .find(|line| line.contains("\"kind\":\"workflow_started\""))
+        .expect("fresh opening");
+    assert_eq!(field_str(opening, "scheduled_for_source"), "start");
+    for key in ["scheduled_for", "scheduled_for_source"] {
+        assert_eq!(field_str(opening, key), field_str(continued, key));
+    }
+    let first_frame: serde_json::Value = serde_json::from_str(opening).expect("opening frame");
+    let next_frame: serde_json::Value = serde_json::from_str(continued).expect("fresh frame");
+    assert_ne!(first_frame["id"], next_frame["id"], "fresh leg identity");
+    assert_eq!(events_for(&resumed, "task_cache_hit", "day").len(), 1);
+    assert_eq!(events_for(&resumed, "task_started", "day").len(), 0);
+    let original = events_for(&raw, "task_completed", "day");
+    assert_eq!(original.len(), 1);
+    let reused = events_for(&resumed, "task_cache_hit", "day");
+    for key in ["def_hash", "input_hash", "output"] {
+        assert_eq!(field_str(original[0], key), field_str(reused[0], key));
+    }
+    let pause = raw
+        .lines()
+        .find(|line| line.contains("\"kind\":\"workflow_paused\""))
+        .expect("shown question");
+    let answer = resumed
+        .lines()
+        .find(|line| line.contains("\"kind\":\"approval_decided\""))
+        .expect("bound answer");
+    assert_eq!(
+        field_str(pause, "approval_shown_hash"),
+        field_str(answer, "shown_hash")
+    );
+    assert_eq!(field_str(answer, "decision"), "allow");
+    assert_eq!(field_str(answer, "source"), "resume");
 }

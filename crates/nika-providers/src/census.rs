@@ -261,15 +261,18 @@ pub fn collect_seats() -> Vec<SeatFact> {
     }
 }
 
-/// A provider probe row as a census path. Custody is the conventional
-/// env var NAME the row already carries (the fix surface's `fix_var`) —
+/// A provider probe row as a census path. Custody is the env var NAME
+/// that supplies the key (the first set one, `NIKA_<ID>_API_KEY` before
+/// the conventional variable), else the conventional one the fix names —
 /// derived, never a value read.
 fn path_from_probe(p: &ProviderProbe) -> AccessPath {
     AccessPath {
         class: p.readiness.access,
         id: p.id.clone(),
         configured: p.readiness.configured,
-        custody: p.requires_key.then(|| p.fix_var.clone()),
+        custody: p
+            .requires_key
+            .then(|| p.key_vars.first().unwrap_or(&p.fix_var).clone()),
         fix_line: (!p.readiness.configured && p.requires_key)
             .then(|| format!("export {}=…", p.fix_var)),
     }
@@ -402,6 +405,59 @@ mod tests {
         assert_eq!(ollama.custody, None);
         assert_eq!(ollama.fix_line, None);
         assert_eq!(census.best, None, "a keyless seed is not detection");
+    }
+
+    /// NIK-153: a configured key's custody is the variable that supplies it, the ladder's first
+    /// set one (`NIKA_ANTHROPIC_API_KEY` before `ANTHROPIC_API_KEY`), never the conventional
+    /// name by default; names only.
+    #[test]
+    fn custody_names_the_variable_that_supplies_the_key() {
+        let supplied = |vars: &[&str]| {
+            let row = api_row("anthropic", true, "ANTHROPIC_API_KEY")
+                .with_key_vars(vars.iter().map(|v| (*v).to_owned()).collect());
+            let census = AccessCensus::from_parts(&[row], vec![]);
+            census.paths[0].custody.clone()
+        };
+        assert_eq!(
+            supplied(&["NIKA_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY"]).as_deref(),
+            Some("NIKA_ANTHROPIC_API_KEY")
+        );
+        assert_eq!(
+            supplied(&["NIKA_ANTHROPIC_API_KEY"]).as_deref(),
+            Some("NIKA_ANTHROPIC_API_KEY")
+        );
+        assert_eq!(
+            supplied(&["ANTHROPIC_API_KEY"]).as_deref(),
+            Some("ANTHROPIC_API_KEY")
+        );
+    }
+
+    /// The probe names the set key variables in the ladder's order and flags a conflict the
+    /// composition root recorded, whatever this machine's environment holds.
+    #[test]
+    fn the_probe_names_set_key_variables_and_a_recorded_conflict() {
+        let config = ProvidersConfig::new().with_key_conflict("anthropic");
+        let registry = crate::ProviderRegistry::without_http(config);
+        let probes = crate::probe::collect_provider_probes(&registry);
+        let anthropic = probes.iter().find(|p| p.id == "anthropic").expect("row");
+        assert!(anthropic.key_conflict);
+        assert!(
+            probes
+                .iter()
+                .filter(|p| p.id != "anthropic")
+                .all(|p| !p.key_conflict)
+        );
+        let ladder = ["NIKA_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY"];
+        let mut order = ladder.iter();
+        assert!(
+            anthropic
+                .key_vars
+                .iter()
+                .all(|v| order.any(|candidate| candidate == v)),
+            "names, in the ladder's order: {:?}",
+            anthropic.key_vars
+        );
+        assert_eq!(anthropic.key_present, !anthropic.key_vars.is_empty());
     }
 
     /// The sovereign order inside `best`: a ready seat outranks the

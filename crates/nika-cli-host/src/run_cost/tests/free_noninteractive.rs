@@ -15,7 +15,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-const WIRE_MODEL: &str = "qwen/qwen3.8-27b:free";
+const WIRE_MODEL: &str = "nvidia/nemotron-3-super-120b-a12b:free";
 const ENDPOINT: &str = "https://openrouter.ai/api/v1/chat/completions";
 
 struct FreeHttp {
@@ -67,8 +67,18 @@ fn response(positive_charge: bool) -> Value {
     body
 }
 
+/// The settled charge: the provider-reported `usage.cost`, known even when it
+/// exceeds the declared-free tariff's zero reservation.
+fn charge(positive_charge: bool) -> Cost {
+    if positive_charge {
+        Cost::new(10_000_000)
+    } else {
+        Cost::zero()
+    }
+}
+
 fn assert_admission_observation(cost: &RunCost, positive_charge: bool) {
-    let expected = (!positive_charge).then_some(Cost::zero());
+    let expected = Some(charge(positive_charge));
     let receipt = cost.account.snapshot().expect("host observer receipt");
     assert_eq!(
         receipt,
@@ -83,14 +93,15 @@ fn assert_admission_observation(cost: &RunCost, positive_charge: bool) {
     assert_eq!(receipt.attempts.len(), 1);
     assert!(receipt.attempts[0].sent);
     assert_eq!(receipt.attempts[0].estimated, expected);
-    assert_eq!(receipt.unknown_calls, usize::from(positive_charge));
+    assert_eq!(receipt.unknown_calls, 0);
+    assert_eq!(receipt.state, AdmissionState::Open, "never Uncertain");
     assert_eq!(
-        receipt.state,
-        if positive_charge {
-            AdmissionState::Uncertain
-        } else {
-            AdmissionState::Open
-        }
+        receipt.attempts[0]
+            .note
+            .contains("the catalogue tariff is below the provider's charge; refresh it"),
+        positive_charge,
+        "{}",
+        receipt.attempts[0].note
     );
     assert_eq!(
         receipt.billed, None,
@@ -99,11 +110,7 @@ fn assert_admission_observation(cost: &RunCost, positive_charge: bool) {
     let observation = receipt.observation();
     assert_eq!(
         observation["attempts"][0]["estimated_nano_usd"],
-        if positive_charge {
-            Value::Null
-        } else {
-            json!("0")
-        }
+        json!(charge(positive_charge).nano_usd.to_string())
     );
     assert!(observation["billed_nano_usd"].is_null());
 }
@@ -154,12 +161,10 @@ async fn observe_without_review_channel(positive_charge: bool) {
     .expect("exact route with an injected transport");
     let mut request = InferRequest::new(FREE, vec![Message::text(Role::User, "text")]);
     request.max_tokens = Some(64);
-    let result = provider.infer_reported(request).await;
-    assert_eq!(result.is_err(), positive_charge);
-    let report = match result {
-        Ok((_, report)) => report,
-        Err((_, report)) => *report,
-    };
+    let (_, report) = provider
+        .infer_reported(request)
+        .await
+        .expect("the answer is delivered with its settled charge");
     assert_eq!(transport.calls.load(Ordering::SeqCst), 1);
     assert_eq!(report.attempts, 1);
     let [call] = report.inference_calls.as_slice() else {
@@ -170,7 +175,7 @@ async fn observe_without_review_channel(positive_charge: bool) {
         call.route.as_ref().map(|route| route.endpoint.as_str()),
         Some(ENDPOINT)
     );
-    let expected = (!positive_charge).then_some(Cost::zero());
+    let expected = Some(charge(positive_charge));
     assert_eq!(call.estimated_usd, expected);
     assert_eq!(call.known_estimate(), expected);
     assert_admission_observation(&cost, positive_charge);
@@ -191,6 +196,6 @@ async fn a_free_run_without_a_review_channel_observes_complete_zero_usage() {
 }
 
 #[tokio::test]
-async fn a_free_run_without_a_review_channel_keeps_a_positive_charge_unknown() {
+async fn a_free_run_without_a_review_channel_settles_a_positive_charge_known() {
     observe_without_review_channel(true).await;
 }

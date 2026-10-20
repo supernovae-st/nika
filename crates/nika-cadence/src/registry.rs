@@ -12,6 +12,7 @@
 //! public returns (FCI-014) — accessors hand out slices or iterators.
 
 use std::collections::BTreeMap;
+use std::num::NonZeroU32;
 
 use serde::Deserialize;
 use serde::de::{self, Deserializer, MapAccess, Visitor};
@@ -290,19 +291,94 @@ pub enum Locus {
     Cloud,
 }
 
-/// The missed-run policy — `manqué:` (OBLIGATORY, no default).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+/// The missed-run policy — `manqué:` (OBLIGATORY, no default): a closed
+/// spelling, or the bounded catch-up `{ rattraper: N }` (spec 01 §`manqué`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum MissPolicy {
-    /// Fire every missed slot, oldest first.
-    #[serde(rename = "rattraper")]
+    /// Fire the latest missed slot, once: `{ rattraper: 1 }`.
     Rattraper,
+    /// Fire up to the N latest missed slots, one run each, oldest first
+    /// (`{ rattraper: N }`, N from 2: `{ rattraper: 1 }` reads as
+    /// [`MissPolicy::Rattraper`]).
+    RattraperDerniers(NonZeroU32),
     /// Fire ONE catch-up for the whole silence.
-    #[serde(rename = "rattraper-une-fois")]
     RattraperUneFois,
     /// Never catch up — a skip is an EVENT, never an execution.
-    #[serde(rename = "sauter")]
     Sauter,
+}
+
+impl MissPolicy {
+    /// `{ rattraper: N }`: the N latest missed slots, `rattraper` when N is 1.
+    #[must_use]
+    pub const fn rattraper(latest: NonZeroU32) -> Self {
+        if latest.get() == 1 {
+            Self::Rattraper
+        } else {
+            Self::RattraperDerniers(latest)
+        }
+    }
+
+    /// How many of the latest missed slots the policy fires, one run each,
+    /// oldest first: 1 for `rattraper`, N for `{ rattraper: N }`. `None` for
+    /// `rattraper-une-fois` (one run answers for the whole silence) and
+    /// `sauter` (none fires).
+    #[must_use]
+    pub const fn latest_owed(self) -> Option<NonZeroU32> {
+        match self {
+            Self::Rattraper => Some(NonZeroU32::MIN),
+            Self::RattraperDerniers(latest) => Some(latest),
+            Self::RattraperUneFois | Self::Sauter => None,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for MissPolicy {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_any(MissPolicyVisitor)
+    }
+}
+
+/// `manqué:` as the registry reads it: a closed spelling, or
+/// `{ rattraper: N }` with N a whole number from 1.
+struct MissPolicyVisitor;
+
+impl<'de> Visitor<'de> for MissPolicyVisitor {
+    type Value = MissPolicy;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(
+            "manqué: rattraper · rattraper-une-fois · sauter · { rattraper: N } (N un entier dès 1)",
+        )
+    }
+
+    fn visit_str<E: de::Error>(self, raw: &str) -> Result<Self::Value, E> {
+        match raw {
+            "rattraper" => Ok(MissPolicy::Rattraper),
+            "rattraper-une-fois" => Ok(MissPolicy::RattraperUneFois),
+            "sauter" => Ok(MissPolicy::Sauter),
+            other => Err(de::Error::unknown_variant(
+                other,
+                &["rattraper", "rattraper-une-fois", "sauter"],
+            )),
+        }
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut access: A) -> Result<Self::Value, A::Error> {
+        let one_key = || de::Error::custom("manqué: { rattraper: N } — `rattraper` is its one key");
+        if access.next_key::<String>()?.as_deref() != Some("rattraper") {
+            return Err(one_key());
+        }
+        let latest = access.next_value::<u32>()?;
+        if access.next_key::<String>()?.is_some() {
+            return Err(one_key());
+        }
+        NonZeroU32::new(latest)
+            .map(MissPolicy::rattraper)
+            .ok_or_else(|| {
+                de::Error::custom("manqué: { rattraper: N } — N is a whole number from 1")
+            })
+    }
 }
 
 /// The overlap policy — `chevauchement:` (closed enum).

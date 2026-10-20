@@ -196,8 +196,8 @@ impl TypesafeSeat {
     #[must_use]
     pub fn exchange<'a>(&'a self, question: &'a ChoiceQuestion) -> ExchangeFuture<'a> {
         Box::pin(async move {
-            let body = system_one::request(&self.model, &[question]);
-            let response = self.post(&body).await?;
+            let body = system_one::request_bytes(&self.model, &[question]);
+            let response = self.post(body).await?;
             let status = response.status;
             let answered = |message: String, usage: Usage| ExchangeError {
                 error: DecisionError(message),
@@ -219,15 +219,15 @@ impl TypesafeSeat {
         })
     }
 
-    /// The ONE single-attempt POST of `body` to the seat's endpoint, the key in its header only:
-    /// the response whatever its status, or how far the request went.
-    async fn post(&self, body: &Value) -> Result<HttpResponse, ExchangeError> {
+    /// The ONE single-attempt POST of `bytes` (a request body, each question's options in its own
+    /// order) to the seat's endpoint, the key in its header only: the response whatever its
+    /// status, or how far the request went.
+    async fn post(&self, bytes: Vec<u8>) -> Result<HttpResponse, ExchangeError> {
         let unsent = |message: String| ExchangeError {
             error: DecisionError(message),
             delivery: Delivery::NotSent,
             usage: Usage::default(),
         };
-        let bytes = serde_json::to_vec(body).map_err(|e| unsent(e.to_string()))?;
         // Jev's context is token-based, not a JSON byte count. The selected service
         // validates its context; a local byte threshold must not impersonate that limit.
         let host = url::Url::parse(&self.base)
@@ -288,6 +288,10 @@ impl DecisionSeat for TypesafeSeat {
     /// The batch's requests ([`TypesafeSeat::exchange_each`]): each item bound by its id.
     fn choose_each<'a>(&'a self, batch: &'a ChoiceBatch) -> BatchFuture<'a> {
         Box::pin(async move { self.exchange_each(batch).await.answers })
+    }
+    /// Every answer reports a distribution over the offered keys.
+    fn weighs(&self) -> bool {
+        true
     }
 }
 

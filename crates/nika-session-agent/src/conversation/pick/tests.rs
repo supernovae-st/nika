@@ -109,3 +109,91 @@ fn a_reading_covers_a_revision_only_when_it_asks_for_a_change_first() {
     );
     assert!(!offer("neither").consents(shown) && !Pick::Unread.consents(revised));
 }
+
+/// A revision the person never saw is saved only on words that say save or run: a creation or
+/// copy request is proposed first, whatever a reading makes of it (NIK-199, live gauntlet r09,
+/// 2026-10-17).
+#[test]
+fn an_unseen_revision_needs_words_that_say_save_or_run() {
+    let id = QuestionId::new("witness-consent".to_owned(), &Arc::new(Incarnation));
+    let revised = Acts {
+        save: true,
+        run: false,
+        revised: true,
+    };
+    let misread = |_: &str| Some("change_then_save".to_owned());
+    for line in [
+        "Laisse tomber cette modification. Crée-moi un nouveau workflow rapport-ventes-haiku.nika, identique à rapport-ventes-2026.nika mais avec Haiku 5.5 pour l'étape IA.",
+        "Fais-moi le même avec Sonnet",
+        "Create a copy of report.nika that uses Haiku",
+    ] {
+        assert!(
+            !Pick::consented(line, revised, id.clone(), misread),
+            "{line}"
+        );
+    }
+    for line in [
+        "Crée-le puis enregistre-le.",
+        "Copie-le avec Haiku et lance-le une fois",
+        "make the copy, then save it",
+        "Prepare the support report; after my choices save the workflow and produce the report",
+    ] {
+        assert!(
+            Pick::consented(line, revised, id.clone(), misread),
+            "{line}"
+        );
+    }
+    // A proposal shown keeps its reading: its own consent words need no such verb.
+    let shown = Acts {
+        revised: false,
+        ..revised
+    };
+    assert!(Pick::consented("ça me va", shown, id, |_| Some(
+        "save".to_owned()
+    )));
+}
+
+#[test]
+fn native_multiple_keys_are_exact_unique_current_and_ordered() {
+    let mut q = source();
+    q.multi_select = true;
+    let selected = Pick::Offers(vec!["hackernews".into(), "yc_blog".into()]);
+    assert_eq!(
+        Pick::of_line(&q, r#" ["yc_blog", "hackernews"] "#),
+        Some(selected.clone())
+    );
+    assert_eq!(
+        Pick::read(r#"Answer: ["yc_blog", "hackernews"]"#, &q),
+        selected
+    );
+    for line in [
+        r#"["hackernews", "other"]"#,
+        r#"["hackernews", "hackernews"]"#,
+        "[]",
+        "[broken]",
+        r#"["HACKERNEWS"]"#,
+        "[1]",
+    ] {
+        assert_eq!(Pick::of_line(&q, line), Some(Pick::Unread), "{line}");
+        assert_eq!(Pick::read(line, &q), Pick::Unread, "{line}");
+    }
+    q.multi_select = false;
+    assert_eq!(Pick::of_line(&q, r#"["hackernews"]"#), Some(Pick::Unread));
+    assert_eq!(Pick::read(r#"["hackernews"]"#, &q), Pick::Unread);
+}
+
+#[test]
+fn several_choices_in_natural_language_get_one_bounded_multi_reading() {
+    let mut q = source();
+    q.multi_select = true;
+    let line = "Les deux sources, s'il te plaît.";
+    assert_eq!(Pick::of_line(&q, line), None);
+    let prompt = Pick::prompt(&q, line);
+    assert!(prompt.contains(line), "{prompt}");
+    assert!(prompt.contains("JSON array"), "{prompt}");
+    assert!(!prompt.contains("or chooses several"), "{prompt}");
+    assert_eq!(
+        Pick::read(r#"["hackernews","yc_blog"]"#, &q),
+        Pick::Offers(vec!["hackernews".into(), "yc_blog".into()])
+    );
+}

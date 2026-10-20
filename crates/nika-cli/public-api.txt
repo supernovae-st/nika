@@ -198,6 +198,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::arm::args::Emit
 impl<T> typenum::type_operators::Same for nika_cli::verbs::arm::args::EmitTarget
 pub type nika_cli::verbs::arm::args::EmitTarget::Output = T
 pub struct nika_cli::verbs::arm::args::ArmArgs
+pub nika_cli::verbs::arm::args::ArmArgs::beat: core::option::Option<alloc::string::String>
 pub nika_cli::verbs::arm::args::ArmArgs::emit: core::option::Option<nika_cli::verbs::arm::args::EmitTarget>
 pub nika_cli::verbs::arm::args::ArmArgs::env_file: core::option::Option<std::path::PathBuf>
 pub nika_cli::verbs::arm::args::ArmArgs::mode: core::option::Option<nika_cli::verbs::arm::args::EmitMode>
@@ -246,6 +247,7 @@ pub type nika_cli::verbs::arm::args::ArmArgs::Output = T
 pub struct nika_cli::verbs::arm::args::FireArgs
 pub nika_cli::verbs::arm::args::FireArgs::label: alloc::string::String
 pub nika_cli::verbs::arm::args::FireArgs::now: core::option::Option<alloc::string::String>
+pub nika_cli::verbs::arm::args::FireArgs::unit_rev: core::option::Option<alloc::string::String>
 impl clap_builder::derive::Args for nika_cli::verbs::arm::args::FireArgs
 pub fn nika_cli::verbs::arm::args::FireArgs::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
 pub fn nika_cli::verbs::arm::args::FireArgs::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
@@ -284,8 +286,9 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::arm::args::FireArgs
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::arm::args::FireArgs
 impl<T> typenum::type_operators::Same for nika_cli::verbs::arm::args::FireArgs
 pub type nika_cli::verbs::arm::args::FireArgs::Output = T
+pub mod nika_cli::verbs::arm::disarm
+pub fn nika_cli::verbs::arm::disarm::disarm(label: &str, write: bool) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::arm::emit
-pub fn nika_cli::verbs::arm::emit::disarm(label: &str, write: bool) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::arm::emit::run(args: &nika_cli::verbs::arm::args::ArmArgs, emit_target: nika_cli::verbs::arm::args::EmitTarget) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::arm::fire
 pub use nika_cli::verbs::arm::fire::CoordinatedRunSeam
@@ -647,6 +650,7 @@ pub mod nika_cli::verbs::inspect
 pub fn nika_cli::verbs::inspect::run(path: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::key
 pub enum nika_cli::verbs::key::KeyAction
+pub nika_cli::verbs::key::KeyAction::Align
 pub nika_cli::verbs::key::KeyAction::Init
 pub nika_cli::verbs::key::KeyAction::Init::force: bool
 pub nika_cli::verbs::key::KeyAction::Rotate
@@ -981,6 +985,7 @@ pub fn nika_cli::verbs::sign::run(args: &nika_cli::verbs::sign::SignArgs) -> nik
 pub mod nika_cli::verbs::test
 pub fn nika_cli::verbs::test::run(file: &str, update: bool, theme: nika_display::theme::Theme) -> u8
 pub fn nika_cli::verbs::test::run_case(file: &str, update: bool, answer: &[alloc::string::String], (vars, case): (&[alloc::string::String], core::option::Option<&str>), theme: nika_display::theme::Theme) -> u8
+pub fn nika_cli::verbs::test::run_case_at(file: &str, update: bool, answer: &[alloc::string::String], (vars, case): (&[alloc::string::String], core::option::Option<&str>), at: core::option::Option<&str>, theme: nika_display::theme::Theme) -> u8
 pub fn nika_cli::verbs::test::run_with_answers(file: &str, update: bool, answer: &[alloc::string::String], theme: nika_display::theme::Theme) -> u8
 pub mod nika_cli::verbs::tools
 pub fn nika_cli::verbs::tools::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput

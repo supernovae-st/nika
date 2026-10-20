@@ -381,3 +381,26 @@ fn many_periods_are_cut_in_linear_time() {
     assert_eq!(found, [&intent[..intent.len() - 1]]);
     assert!(spent < Duration::from_secs(2), "{spent:?}");
 }
+
+/// A circumstance cut from its clause by a comma joins it: where or for what a change applies
+/// is no requirement of its own (live gauntlet r06, 2026-10-16: « Change: Dans rapport.md » and
+/// « pour les doublons » were judged missing, and a one-line revision was refused).
+#[test]
+fn a_circumstance_joins_the_clause_it_frames() {
+    cut_as(&[
+        (
+            "Change: Dans rapport.md, pour les doublons, mets l'email et le numéro de ligne du fichier",
+            &[
+                "Change: Dans rapport.md, pour les doublons, mets l'email et le numéro de ligne du fichier",
+            ],
+        ),
+        (
+            "In the report, for duplicates, write the kept email and its line",
+            &["In the report, for duplicates, write the kept email and its line"],
+        ),
+        (
+            "Read ./a.csv, write the totals to ./b.csv",
+            &["Read ./a.csv", "write the totals to ./b.csv"],
+        ),
+    ]);
+}

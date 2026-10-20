@@ -784,6 +784,11 @@ pub nika_schema::error::SchemaError::OutputPathProvablyInvalid::path: alloc::str
 pub nika_schema::error::SchemaError::OutputPathProvablyInvalid::reason: alloc::string::String
 pub nika_schema::error::SchemaError::OutputPathProvablyInvalid::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::OutputPathProvablyInvalid::task: alloc::string::String
+pub nika_schema::error::SchemaError::ProjectFilePath
+pub nika_schema::error::SchemaError::ProjectFilePath::field: &'static str
+pub nika_schema::error::SchemaError::ProjectFilePath::path: alloc::string::String
+pub nika_schema::error::SchemaError::ProjectFilePath::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::error::SchemaError::ProjectFilePath::why: &'static str
 pub nika_schema::error::SchemaError::RecoverAwaitDeadlock
 pub nika_schema::error::SchemaError::RecoverAwaitDeadlock::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::RecoverAwaitDeadlock::target: alloc::string::String
@@ -1095,6 +1100,167 @@ impl<T> nika_error::traits::AsAny for nika_schema::parser::ParseMode where T: 's
 pub fn nika_schema::parser::ParseMode::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub const nika_schema::parser::TOP_LEVEL_KEYS: &[&str]
 pub fn nika_schema::parser::parse(yaml: &str, file_id: nika_source::span::FileId, mode: nika_schema::parser::ParseMode) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, nika_schema::error::SchemaError>
+pub mod nika_schema::project_file
+#[non_exhaustive] pub enum nika_schema::project_file::ProjectFileRead
+pub nika_schema::project_file::ProjectFileRead::Linked
+pub nika_schema::project_file::ProjectFileRead::Missing
+pub nika_schema::project_file::ProjectFileRead::NotRegular
+impl core::clone::Clone for nika_schema::project_file::ProjectFileRead
+pub fn nika_schema::project_file::ProjectFileRead::clone(&self) -> nika_schema::project_file::ProjectFileRead
+impl core::cmp::Eq for nika_schema::project_file::ProjectFileRead
+impl core::cmp::PartialEq for nika_schema::project_file::ProjectFileRead
+pub fn nika_schema::project_file::ProjectFileRead::eq(&self, other: &nika_schema::project_file::ProjectFileRead) -> bool
+impl core::fmt::Debug for nika_schema::project_file::ProjectFileRead
+pub fn nika_schema::project_file::ProjectFileRead::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_schema::project_file::ProjectFileRead
+impl core::marker::StructuralPartialEq for nika_schema::project_file::ProjectFileRead
+impl<D> owo_colors::OwoColorize for nika_schema::project_file::ProjectFileRead
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::project_file::ProjectFileRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileRead::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::project_file::ProjectFileRead where U: core::convert::From<T>
+pub fn nika_schema::project_file::ProjectFileRead::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::project_file::ProjectFileRead where U: core::convert::Into<T>
+pub type nika_schema::project_file::ProjectFileRead::Error = core::convert::Infallible
+pub fn nika_schema::project_file::ProjectFileRead::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::project_file::ProjectFileRead where U: core::convert::TryFrom<T>
+pub type nika_schema::project_file::ProjectFileRead::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::project_file::ProjectFileRead::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::project_file::ProjectFileRead where T: core::clone::Clone
+pub type nika_schema::project_file::ProjectFileRead::Owned = T
+pub fn nika_schema::project_file::ProjectFileRead::clone_into(&self, target: &mut T)
+pub fn nika_schema::project_file::ProjectFileRead::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::project_file::ProjectFileRead where T: 'static + ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileRead::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::project_file::ProjectFileRead where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileRead::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::project_file::ProjectFileRead where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileRead::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::project_file::ProjectFileRead where T: core::clone::Clone
+pub unsafe fn nika_schema::project_file::ProjectFileRead::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::project_file::ProjectFileRead
+pub fn nika_schema::project_file::ProjectFileRead::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::project_file::ProjectFileRead where T: 'static
+pub fn nika_schema::project_file::ProjectFileRead::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::project_file::ComposedProjectFiles
+pub nika_schema::project_file::ComposedProjectFiles::files: alloc::vec::Vec<nika_schema::project_file::ProjectFile>
+pub nika_schema::project_file::ComposedProjectFiles::findings: alloc::vec::Vec<nika_schema::project_file::ProjectFileFinding>
+pub nika_schema::project_file::ComposedProjectFiles::workflow: nika_schema::raw::workflow::RawWorkflow
+impl core::clone::Clone for nika_schema::project_file::ComposedProjectFiles
+pub fn nika_schema::project_file::ComposedProjectFiles::clone(&self) -> nika_schema::project_file::ComposedProjectFiles
+impl core::fmt::Debug for nika_schema::project_file::ComposedProjectFiles
+pub fn nika_schema::project_file::ComposedProjectFiles::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_schema::project_file::ComposedProjectFiles
+impl<T, U> core::convert::Into<U> for nika_schema::project_file::ComposedProjectFiles where U: core::convert::From<T>
+pub fn nika_schema::project_file::ComposedProjectFiles::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::project_file::ComposedProjectFiles where U: core::convert::Into<T>
+pub type nika_schema::project_file::ComposedProjectFiles::Error = core::convert::Infallible
+pub fn nika_schema::project_file::ComposedProjectFiles::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::project_file::ComposedProjectFiles where U: core::convert::TryFrom<T>
+pub type nika_schema::project_file::ComposedProjectFiles::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::project_file::ComposedProjectFiles::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::project_file::ComposedProjectFiles where T: core::clone::Clone
+pub type nika_schema::project_file::ComposedProjectFiles::Owned = T
+pub fn nika_schema::project_file::ComposedProjectFiles::clone_into(&self, target: &mut T)
+pub fn nika_schema::project_file::ComposedProjectFiles::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::project_file::ComposedProjectFiles where T: 'static + ?core::marker::Sized
+pub fn nika_schema::project_file::ComposedProjectFiles::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::project_file::ComposedProjectFiles where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ComposedProjectFiles::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::project_file::ComposedProjectFiles where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ComposedProjectFiles::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::project_file::ComposedProjectFiles where T: core::clone::Clone
+pub unsafe fn nika_schema::project_file::ComposedProjectFiles::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::project_file::ComposedProjectFiles
+pub fn nika_schema::project_file::ComposedProjectFiles::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::project_file::ComposedProjectFiles where T: 'static
+pub fn nika_schema::project_file::ComposedProjectFiles::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::project_file::ProjectFile
+pub nika_schema::project_file::ProjectFile::bytes: usize
+pub nika_schema::project_file::ProjectFile::field: &'static str
+pub nika_schema::project_file::ProjectFile::path: alloc::string::String
+pub nika_schema::project_file::ProjectFile::resolved: alloc::string::String
+pub nika_schema::project_file::ProjectFile::task: alloc::string::String
+impl core::clone::Clone for nika_schema::project_file::ProjectFile
+pub fn nika_schema::project_file::ProjectFile::clone(&self) -> nika_schema::project_file::ProjectFile
+impl core::cmp::Eq for nika_schema::project_file::ProjectFile
+impl core::cmp::PartialEq for nika_schema::project_file::ProjectFile
+pub fn nika_schema::project_file::ProjectFile::eq(&self, other: &nika_schema::project_file::ProjectFile) -> bool
+impl core::fmt::Debug for nika_schema::project_file::ProjectFile
+pub fn nika_schema::project_file::ProjectFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::project_file::ProjectFile
+impl<D> owo_colors::OwoColorize for nika_schema::project_file::ProjectFile
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::project_file::ProjectFile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFile::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::project_file::ProjectFile where U: core::convert::From<T>
+pub fn nika_schema::project_file::ProjectFile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::project_file::ProjectFile where U: core::convert::Into<T>
+pub type nika_schema::project_file::ProjectFile::Error = core::convert::Infallible
+pub fn nika_schema::project_file::ProjectFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::project_file::ProjectFile where U: core::convert::TryFrom<T>
+pub type nika_schema::project_file::ProjectFile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::project_file::ProjectFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::project_file::ProjectFile where T: core::clone::Clone
+pub type nika_schema::project_file::ProjectFile::Owned = T
+pub fn nika_schema::project_file::ProjectFile::clone_into(&self, target: &mut T)
+pub fn nika_schema::project_file::ProjectFile::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::project_file::ProjectFile where T: 'static + ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::project_file::ProjectFile where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::project_file::ProjectFile where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFile::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::project_file::ProjectFile where T: core::clone::Clone
+pub unsafe fn nika_schema::project_file::ProjectFile::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::project_file::ProjectFile
+pub fn nika_schema::project_file::ProjectFile::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::project_file::ProjectFile where T: 'static
+pub fn nika_schema::project_file::ProjectFile::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::project_file::ProjectFileFinding
+pub nika_schema::project_file::ProjectFileFinding::code: &'static str
+pub nika_schema::project_file::ProjectFileFinding::detail: alloc::string::String
+pub nika_schema::project_file::ProjectFileFinding::field: &'static str
+pub nika_schema::project_file::ProjectFileFinding::path: alloc::string::String
+pub nika_schema::project_file::ProjectFileFinding::task: alloc::string::String
+impl core::clone::Clone for nika_schema::project_file::ProjectFileFinding
+pub fn nika_schema::project_file::ProjectFileFinding::clone(&self) -> nika_schema::project_file::ProjectFileFinding
+impl core::cmp::Eq for nika_schema::project_file::ProjectFileFinding
+impl core::cmp::PartialEq for nika_schema::project_file::ProjectFileFinding
+pub fn nika_schema::project_file::ProjectFileFinding::eq(&self, other: &nika_schema::project_file::ProjectFileFinding) -> bool
+impl core::fmt::Debug for nika_schema::project_file::ProjectFileFinding
+pub fn nika_schema::project_file::ProjectFileFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::project_file::ProjectFileFinding
+impl<D> owo_colors::OwoColorize for nika_schema::project_file::ProjectFileFinding
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::project_file::ProjectFileFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::project_file::ProjectFileFinding where U: core::convert::From<T>
+pub fn nika_schema::project_file::ProjectFileFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::project_file::ProjectFileFinding where U: core::convert::Into<T>
+pub type nika_schema::project_file::ProjectFileFinding::Error = core::convert::Infallible
+pub fn nika_schema::project_file::ProjectFileFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::project_file::ProjectFileFinding where U: core::convert::TryFrom<T>
+pub type nika_schema::project_file::ProjectFileFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::project_file::ProjectFileFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::project_file::ProjectFileFinding where T: core::clone::Clone
+pub type nika_schema::project_file::ProjectFileFinding::Owned = T
+pub fn nika_schema::project_file::ProjectFileFinding::clone_into(&self, target: &mut T)
+pub fn nika_schema::project_file::ProjectFileFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::project_file::ProjectFileFinding where T: 'static + ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::project_file::ProjectFileFinding where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::project_file::ProjectFileFinding where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::project_file::ProjectFileFinding where T: core::clone::Clone
+pub unsafe fn nika_schema::project_file::ProjectFileFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::project_file::ProjectFileFinding
+pub fn nika_schema::project_file::ProjectFileFinding::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::project_file::ProjectFileFinding where T: 'static
+pub fn nika_schema::project_file::ProjectFileFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_schema::project_file::PROJECT_FILE_CAP: usize
+pub fn nika_schema::project_file::compose_project_files(wf: &nika_schema::raw::workflow::RawWorkflow, naming: &str, read: &mut (dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::vec::Vec<u8>, nika_schema::project_file::ProjectFileRead> + '_)) -> nika_schema::project_file::ComposedProjectFiles
+pub fn nika_schema::project_file::contained(naming: &str, raw: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_schema::project_file::path_law(raw: &str) -> core::option::Option<&'static str>
+pub fn nika_schema::project_file::project_file_refs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(&str, &'static str, &nika_schema::raw::action::ProjectFileRef)>
 pub mod nika_schema::raw
 pub mod nika_schema::raw::action
 #[non_exhaustive] pub enum nika_schema::raw::action::RawAction
@@ -1241,14 +1407,51 @@ impl<T> core::convert::From<T> for nika_schema::raw::action::VisionInput
 pub fn nika_schema::raw::action::VisionInput::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::VisionInput where T: 'static
 pub fn nika_schema::raw::action::VisionInput::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::raw::action::ProjectFileRef
+pub nika_schema::raw::action::ProjectFileRef::composed: bool
+pub nika_schema::raw::action::ProjectFileRef::path: nika_source::span::Spanned<alloc::string::String>
+impl nika_schema::raw::action::ProjectFileRef
+pub fn nika_schema::raw::action::ProjectFileRef::new(path: nika_source::span::Spanned<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_schema::raw::action::ProjectFileRef
+pub fn nika_schema::raw::action::ProjectFileRef::clone(&self) -> nika_schema::raw::action::ProjectFileRef
+impl core::fmt::Debug for nika_schema::raw::action::ProjectFileRef
+pub fn nika_schema::raw::action::ProjectFileRef::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_schema::raw::action::ProjectFileRef
+impl<T, U> core::convert::Into<U> for nika_schema::raw::action::ProjectFileRef where U: core::convert::From<T>
+pub fn nika_schema::raw::action::ProjectFileRef::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::raw::action::ProjectFileRef where U: core::convert::Into<T>
+pub type nika_schema::raw::action::ProjectFileRef::Error = core::convert::Infallible
+pub fn nika_schema::raw::action::ProjectFileRef::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::raw::action::ProjectFileRef where U: core::convert::TryFrom<T>
+pub type nika_schema::raw::action::ProjectFileRef::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::raw::action::ProjectFileRef::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::raw::action::ProjectFileRef where T: core::clone::Clone
+pub type nika_schema::raw::action::ProjectFileRef::Owned = T
+pub fn nika_schema::raw::action::ProjectFileRef::clone_into(&self, target: &mut T)
+pub fn nika_schema::raw::action::ProjectFileRef::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::raw::action::ProjectFileRef where T: 'static + ?core::marker::Sized
+pub fn nika_schema::raw::action::ProjectFileRef::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::raw::action::ProjectFileRef where T: ?core::marker::Sized
+pub fn nika_schema::raw::action::ProjectFileRef::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::raw::action::ProjectFileRef where T: ?core::marker::Sized
+pub fn nika_schema::raw::action::ProjectFileRef::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::raw::action::ProjectFileRef where T: core::clone::Clone
+pub unsafe fn nika_schema::raw::action::ProjectFileRef::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::raw::action::ProjectFileRef
+pub fn nika_schema::raw::action::ProjectFileRef::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::raw::action::ProjectFileRef where T: 'static
+pub fn nika_schema::raw::action::ProjectFileRef::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::action::RawAgentAction
 pub nika_schema::raw::action::RawAgentAction::max_tokens_total: core::option::Option<nika_source::span::Spanned<u64>>
 pub nika_schema::raw::action::RawAgentAction::max_turns: core::option::Option<nika_source::span::Spanned<u32>>
 pub nika_schema::raw::action::RawAgentAction::model: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
 pub nika_schema::raw::action::RawAgentAction::prompt: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::action::RawAgentAction::prompt_file: core::option::Option<nika_schema::raw::action::ProjectFileRef>
 pub nika_schema::raw::action::RawAgentAction::schema: core::option::Option<nika_source::span::Spanned<serde_json::value::Value>>
+pub nika_schema::raw::action::RawAgentAction::schema_file: core::option::Option<nika_schema::raw::action::ProjectFileRef>
 pub nika_schema::raw::action::RawAgentAction::skills: alloc::vec::Vec<nika_source::span::Spanned<alloc::string::String>>
 pub nika_schema::raw::action::RawAgentAction::system: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::action::RawAgentAction::system_file: core::option::Option<nika_schema::raw::action::ProjectFileRef>
 pub nika_schema::raw::action::RawAgentAction::temperature: core::option::Option<nika_source::span::Spanned<f64>>
 pub nika_schema::raw::action::RawAgentAction::tools: alloc::vec::Vec<nika_source::span::Spanned<alloc::string::String>>
 impl nika_schema::raw::action::RawAgentAction
@@ -1325,8 +1528,11 @@ pub fn nika_schema::raw::action::RawExecAction::as_any(&self) -> &(dyn core::any
 pub nika_schema::raw::action::RawInferAction::max_tokens: core::option::Option<nika_source::span::Spanned<u32>>
 pub nika_schema::raw::action::RawInferAction::model: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
 pub nika_schema::raw::action::RawInferAction::prompt: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::action::RawInferAction::prompt_file: core::option::Option<nika_schema::raw::action::ProjectFileRef>
 pub nika_schema::raw::action::RawInferAction::schema: core::option::Option<nika_source::span::Spanned<serde_json::value::Value>>
+pub nika_schema::raw::action::RawInferAction::schema_file: core::option::Option<nika_schema::raw::action::ProjectFileRef>
 pub nika_schema::raw::action::RawInferAction::system: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::action::RawInferAction::system_file: core::option::Option<nika_schema::raw::action::ProjectFileRef>
 pub nika_schema::raw::action::RawInferAction::temperature: core::option::Option<nika_source::span::Spanned<f64>>
 pub nika_schema::raw::action::RawInferAction::thinking: core::option::Option<nika_source::span::Spanned<nika_schema::raw::action::Thinking>>
 pub nika_schema::raw::action::RawInferAction::vision: alloc::vec::Vec<nika_source::span::Spanned<nika_schema::raw::action::VisionInput>>
@@ -1903,14 +2109,51 @@ impl<T> core::convert::From<T> for nika_schema::raw::task::LiftEntry
 pub fn nika_schema::raw::task::LiftEntry::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_schema::raw::task::LiftEntry where T: 'static
 pub fn nika_schema::raw::task::LiftEntry::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::raw::ProjectFileRef
+pub nika_schema::raw::ProjectFileRef::composed: bool
+pub nika_schema::raw::ProjectFileRef::path: nika_source::span::Spanned<alloc::string::String>
+impl nika_schema::raw::action::ProjectFileRef
+pub fn nika_schema::raw::action::ProjectFileRef::new(path: nika_source::span::Spanned<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_schema::raw::action::ProjectFileRef
+pub fn nika_schema::raw::action::ProjectFileRef::clone(&self) -> nika_schema::raw::action::ProjectFileRef
+impl core::fmt::Debug for nika_schema::raw::action::ProjectFileRef
+pub fn nika_schema::raw::action::ProjectFileRef::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_schema::raw::action::ProjectFileRef
+impl<T, U> core::convert::Into<U> for nika_schema::raw::action::ProjectFileRef where U: core::convert::From<T>
+pub fn nika_schema::raw::action::ProjectFileRef::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::raw::action::ProjectFileRef where U: core::convert::Into<T>
+pub type nika_schema::raw::action::ProjectFileRef::Error = core::convert::Infallible
+pub fn nika_schema::raw::action::ProjectFileRef::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::raw::action::ProjectFileRef where U: core::convert::TryFrom<T>
+pub type nika_schema::raw::action::ProjectFileRef::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::raw::action::ProjectFileRef::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::raw::action::ProjectFileRef where T: core::clone::Clone
+pub type nika_schema::raw::action::ProjectFileRef::Owned = T
+pub fn nika_schema::raw::action::ProjectFileRef::clone_into(&self, target: &mut T)
+pub fn nika_schema::raw::action::ProjectFileRef::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::raw::action::ProjectFileRef where T: 'static + ?core::marker::Sized
+pub fn nika_schema::raw::action::ProjectFileRef::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::raw::action::ProjectFileRef where T: ?core::marker::Sized
+pub fn nika_schema::raw::action::ProjectFileRef::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::raw::action::ProjectFileRef where T: ?core::marker::Sized
+pub fn nika_schema::raw::action::ProjectFileRef::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::raw::action::ProjectFileRef where T: core::clone::Clone
+pub unsafe fn nika_schema::raw::action::ProjectFileRef::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::raw::action::ProjectFileRef
+pub fn nika_schema::raw::action::ProjectFileRef::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::raw::action::ProjectFileRef where T: 'static
+pub fn nika_schema::raw::action::ProjectFileRef::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::RawAgentAction
 pub nika_schema::raw::RawAgentAction::max_tokens_total: core::option::Option<nika_source::span::Spanned<u64>>
 pub nika_schema::raw::RawAgentAction::max_turns: core::option::Option<nika_source::span::Spanned<u32>>
 pub nika_schema::raw::RawAgentAction::model: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
 pub nika_schema::raw::RawAgentAction::prompt: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::RawAgentAction::prompt_file: core::option::Option<nika_schema::raw::action::ProjectFileRef>
 pub nika_schema::raw::RawAgentAction::schema: core::option::Option<nika_source::span::Spanned<serde_json::value::Value>>
+pub nika_schema::raw::RawAgentAction::schema_file: core::option::Option<nika_schema::raw::action::ProjectFileRef>
 pub nika_schema::raw::RawAgentAction::skills: alloc::vec::Vec<nika_source::span::Spanned<alloc::string::String>>
 pub nika_schema::raw::RawAgentAction::system: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::RawAgentAction::system_file: core::option::Option<nika_schema::raw::action::ProjectFileRef>
 pub nika_schema::raw::RawAgentAction::temperature: core::option::Option<nika_source::span::Spanned<f64>>
 pub nika_schema::raw::RawAgentAction::tools: alloc::vec::Vec<nika_source::span::Spanned<alloc::string::String>>
 impl nika_schema::raw::action::RawAgentAction
@@ -1987,8 +2230,11 @@ pub fn nika_schema::raw::action::RawExecAction::as_any(&self) -> &(dyn core::any
 pub nika_schema::raw::RawInferAction::max_tokens: core::option::Option<nika_source::span::Spanned<u32>>
 pub nika_schema::raw::RawInferAction::model: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
 pub nika_schema::raw::RawInferAction::prompt: nika_source::span::Spanned<alloc::string::String>
+pub nika_schema::raw::RawInferAction::prompt_file: core::option::Option<nika_schema::raw::action::ProjectFileRef>
 pub nika_schema::raw::RawInferAction::schema: core::option::Option<nika_source::span::Spanned<serde_json::value::Value>>
+pub nika_schema::raw::RawInferAction::schema_file: core::option::Option<nika_schema::raw::action::ProjectFileRef>
 pub nika_schema::raw::RawInferAction::system: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+pub nika_schema::raw::RawInferAction::system_file: core::option::Option<nika_schema::raw::action::ProjectFileRef>
 pub nika_schema::raw::RawInferAction::temperature: core::option::Option<nika_source::span::Spanned<f64>>
 pub nika_schema::raw::RawInferAction::thinking: core::option::Option<nika_source::span::Spanned<nika_schema::raw::action::Thinking>>
 pub nika_schema::raw::RawInferAction::vision: alloc::vec::Vec<nika_source::span::Spanned<nika_schema::raw::action::VisionInput>>
@@ -2416,6 +2662,46 @@ impl<T> core::convert::From<T> for nika_schema::parser::ParseMode
 pub fn nika_schema::parser::ParseMode::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_schema::parser::ParseMode where T: 'static
 pub fn nika_schema::parser::ParseMode::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_schema::ProjectFileRead
+pub nika_schema::ProjectFileRead::Linked
+pub nika_schema::ProjectFileRead::Missing
+pub nika_schema::ProjectFileRead::NotRegular
+impl core::clone::Clone for nika_schema::project_file::ProjectFileRead
+pub fn nika_schema::project_file::ProjectFileRead::clone(&self) -> nika_schema::project_file::ProjectFileRead
+impl core::cmp::Eq for nika_schema::project_file::ProjectFileRead
+impl core::cmp::PartialEq for nika_schema::project_file::ProjectFileRead
+pub fn nika_schema::project_file::ProjectFileRead::eq(&self, other: &nika_schema::project_file::ProjectFileRead) -> bool
+impl core::fmt::Debug for nika_schema::project_file::ProjectFileRead
+pub fn nika_schema::project_file::ProjectFileRead::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_schema::project_file::ProjectFileRead
+impl core::marker::StructuralPartialEq for nika_schema::project_file::ProjectFileRead
+impl<D> owo_colors::OwoColorize for nika_schema::project_file::ProjectFileRead
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::project_file::ProjectFileRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileRead::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::project_file::ProjectFileRead where U: core::convert::From<T>
+pub fn nika_schema::project_file::ProjectFileRead::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::project_file::ProjectFileRead where U: core::convert::Into<T>
+pub type nika_schema::project_file::ProjectFileRead::Error = core::convert::Infallible
+pub fn nika_schema::project_file::ProjectFileRead::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::project_file::ProjectFileRead where U: core::convert::TryFrom<T>
+pub type nika_schema::project_file::ProjectFileRead::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::project_file::ProjectFileRead::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::project_file::ProjectFileRead where T: core::clone::Clone
+pub type nika_schema::project_file::ProjectFileRead::Owned = T
+pub fn nika_schema::project_file::ProjectFileRead::clone_into(&self, target: &mut T)
+pub fn nika_schema::project_file::ProjectFileRead::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::project_file::ProjectFileRead where T: 'static + ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileRead::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::project_file::ProjectFileRead where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileRead::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::project_file::ProjectFileRead where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileRead::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::project_file::ProjectFileRead where T: core::clone::Clone
+pub unsafe fn nika_schema::project_file::ProjectFileRead::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::project_file::ProjectFileRead
+pub fn nika_schema::project_file::ProjectFileRead::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::project_file::ProjectFileRead where T: 'static
+pub fn nika_schema::project_file::ProjectFileRead::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_schema::SchemaError
 pub nika_schema::SchemaError::BadBuiltinArgs
 pub nika_schema::SchemaError::BadBuiltinArgs::reason: alloc::string::String
@@ -2498,6 +2784,11 @@ pub nika_schema::SchemaError::OutputPathProvablyInvalid::path: alloc::string::St
 pub nika_schema::SchemaError::OutputPathProvablyInvalid::reason: alloc::string::String
 pub nika_schema::SchemaError::OutputPathProvablyInvalid::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::OutputPathProvablyInvalid::task: alloc::string::String
+pub nika_schema::SchemaError::ProjectFilePath
+pub nika_schema::SchemaError::ProjectFilePath::field: &'static str
+pub nika_schema::SchemaError::ProjectFilePath::path: alloc::string::String
+pub nika_schema::SchemaError::ProjectFilePath::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::SchemaError::ProjectFilePath::why: &'static str
 pub nika_schema::SchemaError::RecoverAwaitDeadlock
 pub nika_schema::SchemaError::RecoverAwaitDeadlock::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::RecoverAwaitDeadlock::target: alloc::string::String
@@ -2722,6 +3013,121 @@ impl<T> core::convert::From<T> for nika_schema::error::spec_code::SpecCategory
 pub fn nika_schema::error::spec_code::SpecCategory::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_schema::error::spec_code::SpecCategory where T: 'static
 pub fn nika_schema::error::spec_code::SpecCategory::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::ComposedProjectFiles
+pub nika_schema::ComposedProjectFiles::files: alloc::vec::Vec<nika_schema::project_file::ProjectFile>
+pub nika_schema::ComposedProjectFiles::findings: alloc::vec::Vec<nika_schema::project_file::ProjectFileFinding>
+pub nika_schema::ComposedProjectFiles::workflow: nika_schema::raw::workflow::RawWorkflow
+impl core::clone::Clone for nika_schema::project_file::ComposedProjectFiles
+pub fn nika_schema::project_file::ComposedProjectFiles::clone(&self) -> nika_schema::project_file::ComposedProjectFiles
+impl core::fmt::Debug for nika_schema::project_file::ComposedProjectFiles
+pub fn nika_schema::project_file::ComposedProjectFiles::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_schema::project_file::ComposedProjectFiles
+impl<T, U> core::convert::Into<U> for nika_schema::project_file::ComposedProjectFiles where U: core::convert::From<T>
+pub fn nika_schema::project_file::ComposedProjectFiles::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::project_file::ComposedProjectFiles where U: core::convert::Into<T>
+pub type nika_schema::project_file::ComposedProjectFiles::Error = core::convert::Infallible
+pub fn nika_schema::project_file::ComposedProjectFiles::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::project_file::ComposedProjectFiles where U: core::convert::TryFrom<T>
+pub type nika_schema::project_file::ComposedProjectFiles::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::project_file::ComposedProjectFiles::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::project_file::ComposedProjectFiles where T: core::clone::Clone
+pub type nika_schema::project_file::ComposedProjectFiles::Owned = T
+pub fn nika_schema::project_file::ComposedProjectFiles::clone_into(&self, target: &mut T)
+pub fn nika_schema::project_file::ComposedProjectFiles::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::project_file::ComposedProjectFiles where T: 'static + ?core::marker::Sized
+pub fn nika_schema::project_file::ComposedProjectFiles::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::project_file::ComposedProjectFiles where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ComposedProjectFiles::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::project_file::ComposedProjectFiles where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ComposedProjectFiles::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::project_file::ComposedProjectFiles where T: core::clone::Clone
+pub unsafe fn nika_schema::project_file::ComposedProjectFiles::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::project_file::ComposedProjectFiles
+pub fn nika_schema::project_file::ComposedProjectFiles::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::project_file::ComposedProjectFiles where T: 'static
+pub fn nika_schema::project_file::ComposedProjectFiles::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::ProjectFile
+pub nika_schema::ProjectFile::bytes: usize
+pub nika_schema::ProjectFile::field: &'static str
+pub nika_schema::ProjectFile::path: alloc::string::String
+pub nika_schema::ProjectFile::resolved: alloc::string::String
+pub nika_schema::ProjectFile::task: alloc::string::String
+impl core::clone::Clone for nika_schema::project_file::ProjectFile
+pub fn nika_schema::project_file::ProjectFile::clone(&self) -> nika_schema::project_file::ProjectFile
+impl core::cmp::Eq for nika_schema::project_file::ProjectFile
+impl core::cmp::PartialEq for nika_schema::project_file::ProjectFile
+pub fn nika_schema::project_file::ProjectFile::eq(&self, other: &nika_schema::project_file::ProjectFile) -> bool
+impl core::fmt::Debug for nika_schema::project_file::ProjectFile
+pub fn nika_schema::project_file::ProjectFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::project_file::ProjectFile
+impl<D> owo_colors::OwoColorize for nika_schema::project_file::ProjectFile
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::project_file::ProjectFile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFile::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::project_file::ProjectFile where U: core::convert::From<T>
+pub fn nika_schema::project_file::ProjectFile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::project_file::ProjectFile where U: core::convert::Into<T>
+pub type nika_schema::project_file::ProjectFile::Error = core::convert::Infallible
+pub fn nika_schema::project_file::ProjectFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::project_file::ProjectFile where U: core::convert::TryFrom<T>
+pub type nika_schema::project_file::ProjectFile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::project_file::ProjectFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::project_file::ProjectFile where T: core::clone::Clone
+pub type nika_schema::project_file::ProjectFile::Owned = T
+pub fn nika_schema::project_file::ProjectFile::clone_into(&self, target: &mut T)
+pub fn nika_schema::project_file::ProjectFile::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::project_file::ProjectFile where T: 'static + ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::project_file::ProjectFile where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::project_file::ProjectFile where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFile::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::project_file::ProjectFile where T: core::clone::Clone
+pub unsafe fn nika_schema::project_file::ProjectFile::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::project_file::ProjectFile
+pub fn nika_schema::project_file::ProjectFile::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::project_file::ProjectFile where T: 'static
+pub fn nika_schema::project_file::ProjectFile::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::ProjectFileFinding
+pub nika_schema::ProjectFileFinding::code: &'static str
+pub nika_schema::ProjectFileFinding::detail: alloc::string::String
+pub nika_schema::ProjectFileFinding::field: &'static str
+pub nika_schema::ProjectFileFinding::path: alloc::string::String
+pub nika_schema::ProjectFileFinding::task: alloc::string::String
+impl core::clone::Clone for nika_schema::project_file::ProjectFileFinding
+pub fn nika_schema::project_file::ProjectFileFinding::clone(&self) -> nika_schema::project_file::ProjectFileFinding
+impl core::cmp::Eq for nika_schema::project_file::ProjectFileFinding
+impl core::cmp::PartialEq for nika_schema::project_file::ProjectFileFinding
+pub fn nika_schema::project_file::ProjectFileFinding::eq(&self, other: &nika_schema::project_file::ProjectFileFinding) -> bool
+impl core::fmt::Debug for nika_schema::project_file::ProjectFileFinding
+pub fn nika_schema::project_file::ProjectFileFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::project_file::ProjectFileFinding
+impl<D> owo_colors::OwoColorize for nika_schema::project_file::ProjectFileFinding
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::project_file::ProjectFileFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::project_file::ProjectFileFinding where U: core::convert::From<T>
+pub fn nika_schema::project_file::ProjectFileFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::project_file::ProjectFileFinding where U: core::convert::Into<T>
+pub type nika_schema::project_file::ProjectFileFinding::Error = core::convert::Infallible
+pub fn nika_schema::project_file::ProjectFileFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::project_file::ProjectFileFinding where U: core::convert::TryFrom<T>
+pub type nika_schema::project_file::ProjectFileFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::project_file::ProjectFileFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::project_file::ProjectFileFinding where T: core::clone::Clone
+pub type nika_schema::project_file::ProjectFileFinding::Owned = T
+pub fn nika_schema::project_file::ProjectFileFinding::clone_into(&self, target: &mut T)
+pub fn nika_schema::project_file::ProjectFileFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::project_file::ProjectFileFinding where T: 'static + ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::project_file::ProjectFileFinding where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::project_file::ProjectFileFinding where T: ?core::marker::Sized
+pub fn nika_schema::project_file::ProjectFileFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::project_file::ProjectFileFinding where T: core::clone::Clone
+pub unsafe fn nika_schema::project_file::ProjectFileFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::project_file::ProjectFileFinding
+pub fn nika_schema::project_file::ProjectFileFinding::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::project_file::ProjectFileFinding where T: 'static
+pub fn nika_schema::project_file::ProjectFileFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::ResolvedSkills
 pub nika_schema::ResolvedSkills::findings: alloc::vec::Vec<nika_schema::skill::SkillFinding>
 pub nika_schema::ResolvedSkills::texts: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
@@ -2890,7 +3296,10 @@ impl<T> core::convert::From<T> for nika_schema::error::spec_code::SpecCode
 pub fn nika_schema::error::spec_code::SpecCode::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_schema::error::spec_code::SpecCode where T: 'static
 pub fn nika_schema::error::spec_code::SpecCode::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_schema::PROJECT_FILE_CAP: usize
+pub fn nika_schema::compose_project_files(wf: &nika_schema::raw::workflow::RawWorkflow, naming: &str, read: &mut (dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::vec::Vec<u8>, nika_schema::project_file::ProjectFileRead> + '_)) -> nika_schema::project_file::ComposedProjectFiles
 pub fn nika_schema::parse(yaml: &str, file_id: nika_source::span::FileId, mode: nika_schema::parser::ParseMode) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, nika_schema::error::SchemaError>
 pub fn nika_schema::parse_skill(text: &str) -> core::result::Result<nika_schema::skill::SkillDoc, nika_schema::skill::SkillDefect>
+pub fn nika_schema::project_file_refs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(&str, &'static str, &nika_schema::raw::action::ProjectFileRef)>
 pub fn nika_schema::resolve_skills(wf: &nika_schema::raw::workflow::RawWorkflow, read: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>) -> nika_schema::skill::ResolvedSkills
 pub fn nika_schema::skill_refs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(&str, &nika_source::span::Spanned<alloc::string::String>)>

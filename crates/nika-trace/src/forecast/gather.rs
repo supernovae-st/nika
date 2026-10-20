@@ -120,6 +120,9 @@ pub fn gather(dir: &Path, workflow_name: &str) -> Gathered {
     names.sort_unstable();
     names.reverse();
 
+    // Each sample's run identity, the run it continued, and what its leg spent (its pause's
+    // spend when it stopped at a gate): the links a gate's continuation folds along.
+    let mut legs: Vec<Leg> = Vec::new();
     for name in names {
         if out.window.files_examined >= SCAN_CAP || out.samples.len() >= WINDOW_RUNS {
             break;
@@ -143,9 +146,11 @@ pub fn gather(dir: &Path, workflow_name: &str) -> Gathered {
             continue;
         }
         if let Some(sample) = fold_sample(&recovered.events, state) {
+            legs.push(leg_of(&recovered.events));
             out.samples.push(sample);
         }
     }
+    out.samples = fold_continuations(&out.samples, &legs);
 
     // The 30-day cut, anchored on the newest MATCHING run (samples are
     // newest-first, so the anchor is the head).
@@ -154,6 +159,103 @@ pub fn gather(dir: &Path, workflow_name: &str) -> Gathered {
         out.samples.retain(|s| s.started_ms >= floor);
     }
     out
+}
+
+/// One sample's continuation facts: its run identity, the run it continued
+/// (`resumed_from`) and what its leg spent at its terminal or its pause.
+#[derive(Debug, Clone, Default)]
+struct Leg {
+    run: Option<String>,
+    resumed_from: Option<String>,
+    spent: Option<f64>,
+}
+
+/// The continuation facts of one recovered journal.
+fn leg_of(events: &[Event]) -> Leg {
+    let started = events
+        .iter()
+        .find(|event| event.kind == EventKind::WorkflowStarted);
+    let resumed_from = started
+        .and_then(|event| str_field(event, "resumed_from"))
+        .map(str::to_owned);
+    // The last spend a terminal or a pause recorded: what this leg cost.
+    let spent = (events.iter().rev())
+        .filter(|event| {
+            matches!(
+                event.kind,
+                EventKind::WorkflowCompleted
+                    | EventKind::WorkflowFailed
+                    | EventKind::WorkflowCancelled
+                    | EventKind::WorkflowPaused
+            )
+        })
+        .find_map(|event| float_field(event, "total_cost_usd"));
+    Leg {
+        run: nika_dap::resume::trace_run_id(events),
+        resumed_from,
+        spent,
+    }
+}
+
+/// A run a gate split is one run: each continuation (a journal that names the run it continued)
+/// takes in the legs before it found among the samples: their cost summed with its own, its
+/// state the final leg's, its start the first leg's, its time the legs' time, and each task's
+/// occurrence where it ran rather than its cache hit. A leg folded into its continuation is no
+/// run of its own; a leg whose continuation is not among them stays as it is.
+fn fold_continuations(samples: &[RunSample], legs: &[Leg]) -> Vec<RunSample> {
+    let continued: BTreeSet<&str> = (legs.iter())
+        .filter_map(|leg| leg.resumed_from.as_deref())
+        .collect();
+    let index = |run: &str| legs.iter().position(|leg| leg.run.as_deref() == Some(run));
+    let mut kept = Vec::with_capacity(samples.len());
+    for (at, sample) in samples.iter().enumerate() {
+        let leg = &legs[at];
+        // A leg some other journal continued is folded into that continuation.
+        if leg
+            .run
+            .as_deref()
+            .is_some_and(|run| continued.contains(run))
+            && (legs.iter()).any(|other| {
+                other.resumed_from.as_deref() == leg.run.as_deref() && other.run != leg.run
+            })
+        {
+            continue;
+        }
+        let mut folded = sample.clone();
+        let mut spent = leg.spent;
+        let mut seen = BTreeSet::new();
+        let mut back = leg.resumed_from.clone();
+        while let Some(run) = back.take() {
+            let Some(earlier) = index(&run).filter(|_| seen.insert(run.clone())) else {
+                break;
+            };
+            if seen.len() > crate::lineage::MAX_LINKS {
+                break;
+            }
+            let older = &samples[earlier];
+            spent = match (spent, legs[earlier].spent) {
+                (Some(a), Some(b)) => Some(a + b),
+                (a, b) => a.or(b),
+            };
+            folded.started_ms = folded.started_ms.min(older.started_ms);
+            folded.elapsed_ms = folded.elapsed_ms.saturating_add(older.elapsed_ms);
+            // Where a task ran in an earlier leg, that occurrence stands for its cache hit.
+            let ran: Vec<TaskSample> = (older.tasks.iter())
+                .filter(|task| !task.cached)
+                .cloned()
+                .collect();
+            folded
+                .tasks
+                .retain(|task| !(task.cached && ran.iter().any(|earlier| earlier.id == task.id)));
+            folded.tasks.splice(0..0, ran);
+            back.clone_from(&legs[earlier].resumed_from);
+        }
+        if leg.resumed_from.is_some() {
+            folded.total_cost_usd = spent.or(folded.total_cost_usd);
+        }
+        kept.push(folded);
+    }
+    kept
 }
 
 /// Reduce one recovered run to its sample: the shared `RunView` fold
@@ -557,6 +659,82 @@ pub(crate) mod tests {
         assert_eq!(
             g.window.retention_keep,
             RetentionConfig::default().keep_last
+        );
+    }
+
+    /// A run a gate split (live gauntlet 4, r04 B2, W16) is one run: the resumed leg takes in
+    /// the paused leg it continued, their cost summed ($0.0438), its state the final leg's
+    /// (succeeded), its start the first leg's, and the priced task where it ran rather than its
+    /// cache hit; the paused leg is no run of its own. A paused leg nobody continued stays.
+    #[test]
+    fn a_resumed_leg_folds_the_paused_leg_it_continued() {
+        let dir = temp_store("forecast-gather-resumed");
+        let paused = nika_types::id::ExecutionId::new(
+            Uuid::parse_str("01a1453e-d896-74a2-808f-b8f8ae95a870").expect("uuid"),
+        );
+        let resumed = nika_types::id::ExecutionId::new(
+            Uuid::parse_str("01a1454f-aaab-7077-bc12-87282886951b").expect("uuid"),
+        );
+        let first = [
+            ev(
+                EventKind::WorkflowStarted,
+                1_000,
+                &[("workflow", Value::string("wf"))],
+            ),
+            task_done("pick", 1_010, 900, Some(0.043_776), Some("xai/grok-4.7")),
+            ev(
+                EventKind::WorkflowPaused,
+                1_020,
+                &[("total_cost_usd", Value::Float(0.043_776))],
+            ),
+        ]
+        .map(|event| event.with_execution(paused));
+        let link = nika_types::id::TraceId::from(paused).to_string();
+        let second = [
+            ev(
+                EventKind::WorkflowStarted,
+                9_000,
+                &[
+                    ("workflow", Value::string("wf")),
+                    ("resumed_from", Value::string(link)),
+                ],
+            ),
+            ev(
+                EventKind::TaskCacheHit,
+                9_010,
+                &[("task", Value::string("pick"))],
+            ),
+            done(9_020, None),
+        ]
+        .map(|event| event.with_execution(resumed));
+        stage_trace(&dir, &name(1), &ndjson(&first), Duration::ZERO);
+        stage_trace(&dir, &name(2), &ndjson(&second), Duration::ZERO);
+        let lone = [
+            ev(
+                EventKind::WorkflowStarted,
+                500,
+                &[("workflow", Value::string("wf"))],
+            ),
+            ev(
+                EventKind::WorkflowPaused,
+                510,
+                &[("total_cost_usd", Value::Float(0.01))],
+            ),
+        ];
+        stage_trace(&dir, &name(0), &ndjson(&lone), Duration::ZERO);
+        let gathered = gather(&dir, "wf");
+        assert_eq!(gathered.samples.len(), 2, "{:#?}", gathered.samples);
+        let run = &gathered.samples[0];
+        assert_eq!(run.state, TraceState::Succeeded);
+        assert_eq!(run.total_cost_usd, Some(0.043_776));
+        assert_eq!(run.started_ms, 1_000);
+        let pick: Vec<&TaskSample> = run.tasks.iter().filter(|t| t.id == "pick").collect();
+        assert_eq!(pick.len(), 1, "{:#?}", run.tasks);
+        assert!(!pick[0].cached && pick[0].cost_usd == Some(0.043_776));
+        assert_eq!(
+            gathered.samples[1].state,
+            TraceState::Paused,
+            "the lone pause stays"
         );
     }
 

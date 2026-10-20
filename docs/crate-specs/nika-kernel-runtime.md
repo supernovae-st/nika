@@ -35,3 +35,7 @@ MUTATION inherited · BENCHMARKS/CANARY/PARITY N/A.
   declared. The type is closed: no free-form data or provider text crosses
   the seam, empty details stay absent, and `to_value()` projects only the
   facts present under the spec's names (the error object's `details`).
+  Since 2026-10-12 they may name a `stopped_call` (`StoppedCall`: `tool`,
+  `call_id`, `outcome` = `unknown` once sent · `not_sent`):
+  `ToolResult::stopped` is the one shape of a call the run stopped waiting
+  for, spec code `NIKA-CANCEL-001` (`STOPPED_CALL_CODE`), never transient.

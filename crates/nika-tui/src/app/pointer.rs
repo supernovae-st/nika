@@ -24,10 +24,13 @@ use ratatui::text::Line;
 use unicode_width::UnicodeWidthStr;
 
 use super::commands::diagnostic;
+use super::said::Said;
 use super::{
     Busy, Composer, ComposerAction, Conversation, Desk, Exit, Heard, LEAVE_WAITS, Presentation,
     Route, Shell, Signal, UiEvent, UiState, busy_key, is_ctrl_c,
 };
+use crate::composer::answer::{Offered, choice};
+use crate::model::Shape;
 use crate::render::surface::Hit;
 use crate::workspace::screen;
 use crate::workspace::{
@@ -159,6 +162,16 @@ fn painted_band(state: &UiState, desk: &Desk, composer: &Composer) -> Option<(Re
     }
 }
 
+/// The review the frame painted beside the band ([`painted_band`]): the desk's where the
+/// workspace stands; none where the focus view stands in or inline.
+fn painted_review(state: &UiState, desk: &Desk) -> Option<crate::workspace::cards::review::Review> {
+    if state.presentation == Presentation::Workspace && desk.geometry(state.size).is_some() {
+        desk.review(state.ascii)
+    } else {
+        None
+    }
+}
+
 /// A pointer event on an open surface's band: a plain press selects the
 /// command or the offer under it (the conversation takes the keys), the
 /// wheel moves the selection, and anything else there is taken and does
@@ -173,7 +186,9 @@ fn band_pointer(
 ) -> Option<Route> {
     let band = painted_band(state, desk, composer)?;
     let point = Position::new(mouse.column, mouse.row);
-    let hit = crate::render::surface::hit(state, composer, band, point)?;
+    let review = painted_review(state, desk);
+    let consent = crate::workspace::cards::review::consent(state, review.as_ref());
+    let hit = crate::render::surface::hit(state, composer, band, point, consent)?;
     let listed = composer.listing().is_some();
     let moved = match (mouse.kind, hit) {
         (MouseEventKind::ScrollUp | MouseEventKind::ScrollDown, _) => {
@@ -233,7 +248,7 @@ fn chrome_pointer(
         }
     }
     let next = desk.toggled(state.size);
-    let action = screen::object_action(&shown.object, geometry, focused, next, state.ascii);
+    let action = screen::object_action(&shown.object, geometry, focused, next, state.voice());
     if action.is_some_and(|(cells, _)| cells.contains(point)) {
         // The object's own action is `F4`: the view changes, the keys stay.
         desk.toggle_layout(state.size);
@@ -290,9 +305,11 @@ fn aside_pointer(
             desk.focus.selected,
         );
         if let Some(line) = rows.get(1) {
+            // The files tab reads in the person's language, as the aside paints it.
+            let files = state.voice().say("Files");
             return match span_at(line, column, area.width) {
                 Some("Nika") => desk.route(key(KeyCode::Left), state.size),
-                Some("Files") => desk.route(key(KeyCode::Right), state.size),
+                Some(tab) if tab == files => desk.route(key(KeyCode::Right), state.size),
                 _ => Route::Repaint,
             };
         }
@@ -332,9 +349,9 @@ fn face_pointer(state: &UiState, desk: &mut Desk, column: u16, width: u16) -> Ro
             .iter()
             .map(|face| {
                 if *face == desk.run_face {
-                    format!("[{}]", face.label())
+                    format!("[{}]", face.label_in(state.voice()))
                 } else {
-                    face.label().to_owned()
+                    face.label_in(state.voice()).to_owned()
                 }
             })
             .collect();
@@ -351,7 +368,8 @@ fn face_pointer(state: &UiState, desk: &mut Desk, column: u16, width: u16) -> Ro
             return Route::Repaint;
         };
         let label = label.trim_start_matches('[').trim_end_matches(']');
-        let Some(index) = Face::ALL.iter().position(|face| face.label() == label) else {
+        let named = |face: &Face| face.label_in(state.lang, state.ascii) == label;
+        let Some(index) = Face::ALL.iter().position(named) else {
             return Route::Repaint;
         };
         let current = Face::ALL
@@ -437,6 +455,37 @@ impl<C: Conversation + 'static> Shell<C> {
         routed
     }
 
+    /// Only a deliberate press on the painted Submit row sends multiple
+    /// choices. The same geometry paints and resolves this action; busy or
+    /// covered surfaces, modifiers, releases and wheel events never activate.
+    pub(super) fn submit_pointed(&mut self, mouse: MouseEvent) -> Option<Said> {
+        if self.diagnostic.is_some() || self.state.busy.is_some() || self.conversation.is_none() {
+            return None;
+        }
+        let point = pressed(mouse)?;
+        let band = painted_band(&self.state, &self.desk, &self.composer)?;
+        let review = painted_review(&self.state, &self.desk);
+        let consent = crate::workspace::cards::review::consent(&self.state, review.as_ref());
+        let Hit::Item(index) =
+            crate::render::surface::hit(&self.state, &self.composer, band, point, consent)?
+        else {
+            return None;
+        };
+        let (_, asked, offers) = choice(&self.state.waiting)?;
+        if !matches!(asked.shape, Shape::Multiple(_)) || index != offers.len() {
+            return None;
+        }
+        self.desk.focus.region = Region::Conversation;
+        match self.composer.submit_choices(&self.state.waiting) {
+            Offered::Answer(text) => Some(self.offered(text)),
+            Offered::Delegate => Some(super::said::delegated(
+                &self.state.waiting,
+                self.state.voice(),
+            )),
+            Offered::Pass | Offered::Moved | Offered::Notice(_) => None,
+        }
+    }
+
     /// A pointer event on an open surface's band ([`band_pointer`]).
     fn band_pointed(&mut self, mouse: MouseEvent) -> Option<Route> {
         band_pointer(&self.state, &mut self.desk, &mut self.composer, mouse)
@@ -472,6 +521,9 @@ impl<C: Conversation + 'static> Shell<C> {
             UiEvent::Paste(text) => {
                 self.state.completion = None;
                 self.composer.paste(&text);
+                if !text.is_empty() {
+                    self.guard.edited();
+                }
                 self.typed_live = true;
                 return Heard::Redraw;
             }
@@ -510,7 +562,12 @@ impl<C: Conversation + 'static> Shell<C> {
             Busy::Edit => {
                 self.state.completion = None;
                 self.typed_live = true;
-                if self.composer.handle(key) == ComposerAction::Complete
+                let before = self.composer.text();
+                let action = self.composer.handle(key);
+                if self.composer.text() != before {
+                    self.guard.edited();
+                }
+                if action == ComposerAction::Complete
                     && let crate::composer::Completion::Several(list) =
                         self.composer.complete(&self.commands)
                 {
@@ -613,6 +670,40 @@ mod tests {
         assert!(desk.focus.selected > 0);
         assert_eq!(state.focus_scroll, before);
         assert_eq!(desk.focus.region, Region::Object);
+    }
+
+    /// A click on the files tab turns the aside to it in either language: the
+    /// tab is found by the word the aside paints, « Fichiers » in French.
+    #[test]
+    fn a_click_on_the_files_tab_turns_the_aside_in_either_language() {
+        for lang in [crate::lang::Lang::En, crate::lang::Lang::Fr] {
+            let (mut state, mut desk, composer) = setup((120, 40));
+            (state.lang, desk.lang) = (lang, lang);
+            let g = Geometry::of(Rect::new(0, 0, 120, 40), desk.pins()).expect("geometry");
+            let area = g.aside.expect("aside");
+            let shown = desk.screen(state.ascii);
+            let rows =
+                aside::lines_anchored(&shown.aside, area.width, area.height, false, false, None, 0);
+            let tabs = rows[1].to_string();
+            let word = state.voice().say("Files");
+            let at = tabs.find(word).expect("the files tab");
+            let column = u16::try_from(tabs[..at].chars().count()).expect("column");
+            route(
+                &mut state,
+                &mut desk,
+                &composer,
+                mouse(
+                    MouseEventKind::Down(MouseButton::Left),
+                    area.x + column,
+                    area.y + 1,
+                ),
+            );
+            assert_eq!(
+                desk.focus.tab,
+                crate::workspace::aside::Tab::Files,
+                "{lang:?}: {tabs}"
+            );
+        }
     }
 
     #[test]
@@ -1221,7 +1312,7 @@ mod tests {
     /// The offer a press at row `y` of the band lands on, if any.
     fn offer_at(state: &UiState, composer: &Composer, band: (Rect, bool), y: u16) -> Option<usize> {
         let point = Position::new(band.0.x + 3, y);
-        match crate::render::surface::hit(state, composer, band, point) {
+        match crate::render::surface::hit(state, composer, band, point, None) {
             Some(Hit::Item(index)) => Some(index),
             Some(Hit::Band) | None => None,
         }
@@ -1247,17 +1338,27 @@ mod tests {
                 let (buffer, _) = live_frame(&state, &desk, &composer);
                 let band = painted_band(&state, &desk, &composer).expect("the band");
                 let (from, to) = inner(band.0, band.1);
-                let sep = if ascii { " - " } else { " · " };
-                let mut first = None;
+                let (cursor, radio) = if ascii {
+                    ("> ", "(*)")
+                } else {
+                    ("› ", "(●)")
+                };
+                // The question opens focused on its first row; every other
+                // offer row reads unselected.
+                let mut last = None;
                 for y in band.0.y..band.0.bottom() {
                     let text = cells(&buffer, from, to, y);
-                    let shown =
-                        (0..9).find(|n| text.trim_end() == format!("  opt-{n}{sep}label {n}"));
+                    let shown = (0..9).find(|n| {
+                        let row = text.trim_end();
+                        row == format!("  {} ( ) label {n}", n + 1)
+                            || (*n == 0 && row == format!("{cursor}1 {radio} label 0"))
+                    });
                     let hit = offer_at(&state, &composer, band, y);
                     assert_eq!(hit, shown, "{at} row {y}: {text:?}");
-                    first = first.or(hit.map(|index| (index, y)));
+                    last = hit.map(|index| (index, y)).or(last);
                 }
-                let (index, y) = first.expect("an offer is painted");
+                let (index, y) = last.expect("an offer is painted");
+                assert_ne!(index, 0, "{at}: another row than the focused one");
                 desk.focus.region = Region::Object;
                 let blocks = state.transcript.len();
                 let event = press(band.0.x + 3, y);
@@ -1271,10 +1372,9 @@ mod tests {
                 );
                 assert_eq!((state.transcript.len(), state.focus_scroll), (blocks, 0));
                 let (buffer, _) = live_frame(&state, &desk, &composer);
-                let mark = if ascii { "> " } else { "› " };
                 let row = cells(&buffer, from, to, y);
                 assert!(
-                    row.starts_with(&format!("{mark}opt-{index}")),
+                    row.starts_with(&format!("{cursor}{} {radio} label {index}", index + 1)),
                     "{at}: {row}"
                 );
             }
@@ -1290,8 +1390,11 @@ mod tests {
             offered(Presentation::Workspace, (120, 40), false);
         composer.paste("my own words");
         let band = painted_band(&state, &desk, &composer).expect("the band");
+        // The question opens focused on its first row; a press on another one moves it.
+        let focused = composer.offer_selected(&state.waiting);
+        assert_eq!(focused, Some(0));
         let y = (band.0.y..band.0.bottom())
-            .find(|y| offer_at(&state, &composer, band, *y).is_some())
+            .find(|y| offer_at(&state, &composer, band, *y).is_some_and(|at| at != 0))
             .expect("an offer row");
         let mut right = press(band.0.x + 3, y);
         right.kind = MouseEventKind::Down(MouseButton::Right);
@@ -1305,17 +1408,105 @@ mod tests {
                 "{event:?}: the band takes it"
             );
         }
-        assert_eq!(composer.offer_selected(&state.waiting), None);
+        assert_eq!(
+            composer.offer_selected(&state.waiting),
+            focused,
+            "nothing moved"
+        );
         let pressed = band_pointer(&state, &mut desk, &mut composer, press(band.0.x + 3, y));
         assert_eq!(
             pressed,
             Some(Route::Repaint),
             "words in the draft change nothing"
         );
-        assert!(composer.offer_selected(&state.waiting).is_some());
+        assert_ne!(
+            composer.offer_selected(&state.waiting),
+            focused,
+            "the press moved it"
+        );
         assert_eq!(composer.text(), "my own words");
         state.presentation = Presentation::Inline;
         let inline = painted_band(&state, &desk, &composer);
         assert_eq!(inline, None, "inline leaves the pointer to the terminal");
+    }
+
+    /// A reviewed proposal's save decision as the Session asks it, painted in the workspace at
+    /// `size`: the desk holds the candidate the conversation reviews, so the band's head is the
+    /// consent's, never the question's words alone.
+    fn reviewed(size: (u16, u16), ascii: bool) -> (UiState, Desk, Composer) {
+        use crate::model::{Asked, Offer, Shape, Waiting};
+        use crate::workspace::cards::review::fixture;
+        let offers = vec![
+            Offer::new("yes", "Save workflow"),
+            Offer::new("save & run", "Save and run once"),
+            Offer::new("no", "Discard this proposal"),
+            Offer::new("/show", "Inspect the exact changes"),
+        ];
+        let label = "What should happen to this reviewed proposal?";
+        let mut asked = Asked::new(label, "", true, Shape::Choice(offers), "action:save", 7);
+        asked.free_text = true;
+        let waiting = Waiting::Action {
+            key: "save".into(),
+            asked,
+        };
+        let proposal = Committed::proposal(fixture::id(), fixture::PREVIEW);
+        let mut state = fixture::state(size, proposal, waiting);
+        state.ascii = ascii;
+        let mut desk = Desk::new();
+        desk.proposed(Some(fixture::candidate(fixture::id(), false)));
+        desk.prepare_for(&state, false, false);
+        let mut composer = Composer::new();
+        composer.set_focused(true);
+        composer.follow(&state.waiting);
+        (state, desk, composer)
+    }
+
+    /// The pointer reads the band with the consent the frame paints ([`painted_review`]): on a
+    /// reviewed proposal's save decision, whose band carries the proposal it decides, a press on
+    /// each painted offer, on the page its selection shows, lands on that offer and selects it,
+    /// stacked and beside, in both glyph columns.
+    #[test]
+    fn a_press_on_a_painted_save_offer_selects_it_under_the_reviewed_head() {
+        use crate::workspace::cards::review::fixture;
+        let labels = [
+            "Save workflow",
+            "Save and run once",
+            "Discard this proposal",
+            "Inspect the exact changes",
+        ];
+        let identity = |ascii: bool| {
+            let sep = if ascii { "-" } else { "·" };
+            format!("{} {sep} F2", fixture::PATH)
+        };
+        for size in [(80, 24), (60, 18), (120, 40)] {
+            for ascii in [false, true] {
+                let at = format!("{size:?} ascii={ascii}");
+                let (state, mut desk, mut composer) = reviewed(size, ascii);
+                for (index, label) in labels.iter().enumerate() {
+                    composer.offer_key(&state.waiting, key(KeyCode::Home));
+                    for _ in 0..index {
+                        composer.offer_key(&state.waiting, key(KeyCode::Down));
+                    }
+                    let (buffer, _) = live_frame(&state, &desk, &composer);
+                    let band = painted_band(&state, &desk, &composer).expect("the band");
+                    let (from, to) = inner(band.0, band.1);
+                    let rows: Vec<String> = (band.0.y..band.0.bottom())
+                        .map(|y| cells(&buffer, from, to, y))
+                        .collect();
+                    assert!(
+                        rows.iter().any(|row| row.contains(&identity(ascii))),
+                        "{at}: the consent's head is painted\n{rows:#?}"
+                    );
+                    let row = (rows.iter().position(|row| row.contains(label)))
+                        .expect("the offer painted on its page");
+                    let y = band.0.y + u16::try_from(row).expect("a band row");
+                    let event = press(band.0.x + 3, y);
+                    let pressed = band_pointer(&state, &mut desk, &mut composer, event);
+                    assert_eq!(pressed, Some(Route::Repaint), "{at}: {label}");
+                    let selected = composer.offer_selected(&state.waiting);
+                    assert_eq!(selected, Some(index), "{at}: {label}");
+                }
+            }
+        }
     }
 }

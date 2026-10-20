@@ -6,6 +6,8 @@
 //! the `nika-session` unit (D-2026-07-09-N1 · ADR-144), placed below the
 //! session: `nika-session → nika-session-change`, never back.
 //!
+//! - [`arm`] — the `arm:` entries of `nika.yaml` rewritten as exact text: one entry's
+//!   cadence in another zone, or the entry removed.
 //! - [`change`] — the typed change set: built once from exact bytes,
 //!   consumed by BOTH the preview and the apply, witnessed against stale
 //!   targets, audited by the same facade `nika check` uses, landed below
@@ -26,6 +28,10 @@
 //!   the next line answers with the identity an answer names, and one
 //!   serializable snapshot of the request, the candidate, the saved
 //!   workflow and the last run. It grants nothing.
+//! - [`lang`] — the language the person speaks, read from their own lines,
+//!   and the words the unit says in it: the review's lines in French
+//!   ([`review::fr`]) and what the Session keeps of a request an
+//!   intelligence leads ([`work::understood`]).
 //!
 //! The session owns the conversation, the rounds and the money gate; it
 //! reaches this member downward, and keeps these modules at their
@@ -35,11 +41,13 @@
 
 #![forbid(unsafe_code)]
 
+pub mod arm;
 pub mod change;
 mod closure;
 pub mod consent;
 pub mod decision;
 pub mod draft;
+pub mod lang;
 pub mod outcome;
 pub mod reply;
 pub mod review;
@@ -47,6 +55,8 @@ pub mod save_run;
 pub mod tools;
 pub mod work;
 pub mod world;
+
+pub use lang::Lang;
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]

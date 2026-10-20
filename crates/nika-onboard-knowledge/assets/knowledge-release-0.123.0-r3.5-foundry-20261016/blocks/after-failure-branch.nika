@@ -1,0 +1,11 @@
+nika: p21-after-failure
+permits: { exec: ["false"], tools: ["nika:log"] }
+tasks:
+  risky:
+    exec: { command: ["false"] }
+  on_fail:
+    after: { risky: failure }
+    with: { err: "${{ tasks.risky.error }}" }
+    invoke: { tool: "nika:log", args: { level: warn, message: "risky failed: ${{ with.err }}" } }
+outputs:
+  note: ${{ tasks.on_fail.output }}

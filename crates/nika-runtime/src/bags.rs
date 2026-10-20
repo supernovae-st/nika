@@ -13,13 +13,16 @@ use crate::expr::Scope;
 use crate::record::TaskRecord;
 
 /// The three read-only value namespaces every lane threads whole (`inputs` · `const` ·
-/// `secrets`: the value authorities are exactly three since `config:` died), and the bound a
-/// rehearsal room puts on every value the run builds.
+/// `secrets`: the value authorities are exactly three since `config:` died), the facts of the
+/// run (`run`, read-only and never an authority), and the bound a rehearsal room puts on every
+/// value the run builds.
 #[derive(Clone, Copy)]
 pub(crate) struct ValueBags<'a> {
     pub(crate) inputs: &'a BTreeMap<String, Value>,
     pub(crate) consts: &'a BTreeMap<String, Value>,
     pub(crate) secrets: &'a BTreeMap<String, Value>,
+    /// The facts of the run (spec 04 §`run`); `None` where no run bound them.
+    pub(crate) run: Option<&'a Value>,
     /// The room's bound; `None` outside a room.
     pub(crate) bound: Option<&'a ValueBound>,
 }
@@ -31,6 +34,7 @@ impl<'a> ValueBags<'a> {
             inputs: scope.inputs(),
             consts: scope.consts(),
             secrets: scope.secrets(),
+            run: scope.run(),
             bound: scope.value_bound(),
         }
     }
@@ -38,6 +42,7 @@ impl<'a> ValueBags<'a> {
     /// The workflow-level scope over `records` that reads these bags, under their bound.
     pub(crate) fn scope(self, records: &'a BTreeMap<String, TaskRecord>) -> Scope<'a> {
         Scope::workflow_with_value_authorities(records, self.inputs, self.consts, self.secrets)
+            .with_run(self.run)
             .with_value_bound(self.bound)
     }
 }

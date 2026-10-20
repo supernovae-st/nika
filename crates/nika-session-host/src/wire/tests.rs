@@ -243,6 +243,87 @@ fn steer_and_follow_up_are_commands_bound_to_their_line() {
     assert_ne!(steer.digest(), submitted.digest());
 }
 
+/// A reply bound to one question names it beside its snapshot: `answer` with the line, exactly
+/// as typed, `delegate` with none. Its bytes bind the question too, so the same line for another
+/// question, or as a plain submit, is another command; a question identity is a witness, never
+/// free text, and no other op takes one.
+#[test]
+fn a_reply_bound_to_one_question_names_it_and_is_bound_to_it() {
+    let q2 = "9f".repeat(32);
+    let text = |op: &str, extra: &str| {
+        format!(
+            r#"{{"contract":"{CONTRACT}","op":"{op}","command":"c-8","snapshot":"snp_a"{extra}}}"#
+        )
+    };
+    let answer = |question: &str, line: &str| Command::Answer {
+        command: "c-8".to_owned(),
+        snapshot: "snp_a".to_owned(),
+        question: question.to_owned(),
+        line: line.to_owned(),
+    };
+    let named = format!(r#","question":"{q2}","line":"a""#);
+    assert_eq!(
+        Command::parse(text("answer", &named).as_bytes()),
+        Ok(answer(&q2, "a"))
+    );
+    let delegated = Command::Delegate {
+        command: "c-8".to_owned(),
+        snapshot: "snp_a".to_owned(),
+        question: q2.clone(),
+    };
+    let left = format!(r#","question":"{q2}""#);
+    assert_eq!(
+        Command::parse(text("delegate", &left).as_bytes()),
+        Ok(delegated.clone())
+    );
+    let refused = [
+        // a missing or forbidden field
+        text("answer", r#","line":"a""#),
+        text("answer", &left),
+        text("delegate", &named),
+        text("delegate", ""),
+        text("submit", &named),
+        format!(
+            r#"{{"contract":"{CONTRACT}","op":"steer","command":"c","line":"a","question":"{q2}"}}"#
+        ),
+        format!(r#"{{"contract":"{CONTRACT}","op":"close","question":"{q2}"}}"#),
+        // a question identity outside the alphabet or the length
+        text("answer", r#","question":"q 2","line":"a""#),
+        text("answer", r#","question":"","line":"a""#),
+        text(
+            "delegate",
+            &format!(r#","question":"{}""#, "a".repeat(MAX_QUESTION + 1)),
+        ),
+    ];
+    for text in refused {
+        assert!(Command::parse(text.as_bytes()).is_err(), "accepted {text}");
+    }
+    let q1 = "1e".repeat(32);
+    let base = answer(&q2, "a").digest();
+    assert_eq!(base, answer(&q2, "a").digest());
+    assert_ne!(base, answer(&q1, "a").digest(), "another question");
+    assert_ne!(base, answer(&q2, "b").digest(), "another line");
+    let submitted = Command::Submit {
+        command: "c-8".to_owned(),
+        snapshot: "snp_a".to_owned(),
+        line: "a".to_owned(),
+    };
+    assert_ne!(base, submitted.digest(), "a plain submit of the same line");
+    assert_ne!(base, delegated.digest());
+    // Length prefixes: moving bytes between the line and the question is another command.
+    assert_ne!(answer("ab", "c").digest(), answer("a", "bc").digest());
+    let refusal = Frame::refused(
+        "ses_1",
+        Refused::UnknownQuestion,
+        "no",
+        Some("c-8"),
+        None,
+        None,
+    );
+    assert_eq!(refusal.refusal(), Some("unknown_question"));
+    assert_eq!(refusal.status(), 409);
+}
+
 /// A stopped turn of a conversation is typed on the wire: how the stop reached the intelligence,
 /// the lines returned unsent with their identities, the draft kept; a tool step is typed beside
 /// its words, never with its arguments.
@@ -326,6 +407,55 @@ fn a_call_and_a_tool_name_their_time_and_size_only_when_known() {
     assert_eq!(keys, ["model", "ordinal", "role", "state"]);
 }
 
+/// A finished call names what it settled, as the Session priced it: `priced` with its nano-USD
+/// as a decimal string, or `unpriced`; a call that settled nothing (or still runs) names no cost.
+/// The published schema describes the frame's call and that cost, its two kinds alike.
+#[test]
+fn a_finished_call_names_what_it_settled_and_the_schema_describes_it() {
+    use nika_session::activity::{CallCost, CallState, call_activity};
+
+    let finished = |cost: Option<CallCost>| {
+        let mut call = call_activity(
+            3,
+            "conversation",
+            "deepseek/deepseek-v4-pro",
+            CallState::Finished,
+        );
+        call.call = call.call.map(|mark| match cost {
+            Some(cost) => mark.costing(cost),
+            None => mark,
+        });
+        serde_json::to_value(ActivityWire::of(&call)).expect("activity")
+    };
+    assert_eq!(
+        finished(Some(CallCost::Priced(120_000_000)))["call"]["cost"],
+        serde_json::json!({"kind": "priced", "nano_usd": "120000000"})
+    );
+    assert_eq!(
+        finished(Some(CallCost::Unpriced))["call"]["cost"],
+        serde_json::json!({"kind": "unpriced"})
+    );
+    let bare = finished(None);
+    assert!(bare["call"].get("cost").is_none(), "{bare}");
+    let document: serde_json::Value =
+        serde_json::from_str(crate::http::OPENAPI).expect("the patch is JSON");
+    let schemas = &document["components"]["schemas"];
+    assert_eq!(
+        schemas["SessionFrame"]["properties"]["call"]["$ref"],
+        "#/components/schemas/SessionCall"
+    );
+    assert_eq!(
+        schemas["SessionCall"]["properties"]["cost"]["$ref"],
+        "#/components/schemas/SessionCallCost"
+    );
+    let kinds: Vec<&str> = (schemas["SessionCallCost"]["oneOf"].as_array())
+        .expect("one branch per kind")
+        .iter()
+        .filter_map(|branch| branch["properties"]["kind"]["const"].as_str())
+        .collect();
+    assert_eq!(kinds, ["priced", "unpriced"]);
+}
+
 /// A gate shows the values its message renders and names the keys it withheld (ADR-148 point
 /// 12), as the pause wrote them; a gate whose pause wrote none carries neither member.
 #[test]
@@ -380,4 +510,27 @@ fn a_failed_tool_step_names_why_on_the_wire() {
     assert_eq!(shown, expected);
     let silent = serde_json::to_value(ActivityWire::of(&failed)).expect("activity");
     assert!(silent["tool"].get("reply").is_none());
+}
+
+#[test]
+fn proposal_verification_keeps_its_full_records_beside_the_wire_excerpt() {
+    let evidence = serde_json::json!({"schema": "nika/semantic-verification@1",
+        "candidate_sha256": "a".repeat(64), "candidate_revision": 2, "reused": false,
+        "records": [{"request": "original request ".repeat(60), "consumed": 1}]});
+    let mut activity =
+        nika_session::activity::tool_activity("call-p", "propose", ToolState::Finished, Some(8));
+    activity.tool = activity
+        .tool
+        .map(|mark| mark.with_verification(Some(evidence.clone())));
+    let value = serde_json::to_value(ActivityWire::of(&activity)).expect("activity");
+    assert_eq!(value["tool"]["verification"], evidence);
+    assert_eq!(value["tool"]["state"], "finished");
+    assert_eq!(value["tool"]["call"], "call-p");
+    assert!(value["tool"].get("reply").is_none());
+    assert!(
+        !value["note"]
+            .as_str()
+            .expect("note")
+            .contains("original request")
+    );
 }

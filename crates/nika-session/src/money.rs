@@ -83,7 +83,9 @@ pub struct MonetaryDecision {
     pub admission: Option<nika_providers::InferenceReceipt>,
     /// Billed cost is unknown without a receipt, including subscriptions.
     pub observed_cost_usd: Option<f64>,
-    /// Proposal whose exact preview carries this decision, if prepared.
+    /// Proposal whose exact preview carries this decision, when this Session prepared it:
+    /// provenance, never consent or Run authority. A decision read back from a saved receipt
+    /// after reopening names none.
     pub proposal: Option<ProposalId>,
     /// Monetary admission failure, if any. No stale amount is effective.
     pub refusal: Option<String>,
@@ -104,7 +106,7 @@ impl MonetaryDecision {
         };
         format!(
             "money: ${} USD · {:?} · project default {:?} · policy cap unknown · machine cap unknown · inference {:?} · billed cost unknown · execution requires a separate Run and downstream admission{scope}",
-            self.effective_usd.unwrap_or_default(),
+            nika_display::vocab::stated_usd(self.effective_usd.unwrap_or_default()),
             self.source,
             self.project_default_usd,
             self.inference,

@@ -480,7 +480,8 @@ impl ServiceExecutionDriver {
             .with_input_origins(options.input_origins)
             .with_max_cost_usd(options.max_cost_usd)
             .with_prompt_pause(true)
-            .with_model_override(options.model_override);
+            .with_model_override(options.model_override)
+            .with_run_facts(options.run_facts);
         // Both convenience and explicit composition execute a frozen plan;
         // neither may enter the substrate's planless embedder fallback.
         let runtime = runtime.with_access_plan(plan)?;
@@ -691,6 +692,14 @@ impl AuthorizedRuntime {
         self
     }
 
+    /// Tell the run the instant it serves (spec 04 §`run`): the slot a firer
+    /// fires, or the instant `nika test --at` names.
+    #[must_use]
+    pub fn with_run_facts(mut self, facts: nika_runtime::RunFacts) -> Self {
+        self.runtime = self.runtime.with_run_facts(facts);
+        self
+    }
+
     /// Attach validated prompt answers.
     #[must_use]
     pub fn with_prompt_answers(mut self, answers: BTreeMap<String, Value>) -> Self {
@@ -858,6 +867,9 @@ pub struct ServiceExecutionOptions {
     cancel: Option<nika_types::cancel::CancelCtx>,
     /// The host-bound configuration (the Run's cost account) composition uses.
     runtime_config: Option<nika_runtime::RuntimeConfig>,
+    /// What the caller tells the run about the instant it serves (spec 04
+    /// §`run`): a resident's scheduled slot. The default tells nothing.
+    run_facts: nika_runtime::RunFacts,
 }
 
 /// Builds the mirror sink for one run (a lane per run, the child-trace
@@ -929,6 +941,13 @@ impl ServiceExecutionOptions {
     #[must_use]
     pub fn with_cancel_option(mut self, cancel: Option<nika_types::cancel::CancelCtx>) -> Self {
         self.cancel = cancel;
+        self
+    }
+
+    /// Tell the run the instant it serves (spec 04 §`run`).
+    #[must_use]
+    pub fn with_run_facts(mut self, facts: nika_runtime::RunFacts) -> Self {
+        self.run_facts = facts;
         self
     }
 
@@ -1255,7 +1274,8 @@ impl ChildRunner for ServiceExecutionDriver {
                 .with_var_overrides(call.args.clone().into_iter().collect())
                 .with_max_cost_usd(call.remaining_budget_usd)
                 .with_source_sha256(sha256_hex(source.as_bytes()))
-                .with_run_depth(call.depth);
+                .with_run_depth(call.depth)
+                .with_run_facts(call.run_facts);
             let mut reader = |authored: &str| {
                 let skill = resolve_logical(&logical, authored)?;
                 self.snapshot

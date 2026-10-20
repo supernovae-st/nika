@@ -11,13 +11,14 @@
 //! can pass for a line of the person's or of the assistant. The summary returns to the
 //! conversation as the model's own evidence, never as the person's words.
 
+use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
 use nika_kernel::provider::{ContentBlock, Message, Role};
 use serde_json::{Value, json};
 
 use crate::run::Request;
-use crate::tree::{Entry, EntryId, EntryKind, Tree};
+use crate::tree::{Entry, EntryId, EntryKind, Tree, calls, late_replies};
 
 /// The instructions a summary is written under.
 const SYSTEM: &str = "You write faithful summaries of a conversation between a person and the \
@@ -135,19 +136,25 @@ pub fn estimate(tree: &Tree) -> u64 {
             .rev()
             .find(|e| matches!(e.kind, EntryKind::System { .. }))
             .map_or(0, |e| weight(e));
+        // The person's lines a summary folded are read beside it, verbatim (`folded_lines`).
+        let folded = crate::tree::folded_lines(&branch, &kept).map_or(0, |lines| tokens(&lines));
         let kept: u64 = kept
             .iter()
             .filter(|e| !matches!(e.kind, EntryKind::System { .. }))
             .map(|e| weight(e))
             .sum();
-        summary.saturating_add(system).saturating_add(kept)
+        summary
+            .saturating_add(system)
+            .saturating_add(kept)
+            .saturating_add(folded)
     }
 }
 
 /// The first entry kept verbatim when the branch is compacted. A cut falls at a person's line
-/// (never an answer to a waiting call) with conversation before it to fold: walking back from
-/// the leaf, the first such line whose tail weighs at least `keep`, or else the oldest one;
-/// none when no line has anything before it to fold.
+/// (never an answer to a waiting call) with conversation before it to fold or, within the run
+/// the last person's line started, at a later step of that run whose earlier calls all have
+/// their replies: walking back from the leaf, the first such place whose tail weighs at least
+/// `keep`, or else the oldest one; none when nothing has anything before it to fold.
 #[must_use]
 pub fn cut(tree: &Tree, keep: u64) -> Option<EntryId> {
     let branch = tree.branch();
@@ -155,18 +162,57 @@ pub fn cut(tree: &Tree, keep: u64) -> Option<EntryId> {
     let first = kept
         .iter()
         .position(|e| !matches!(e.kind, EntryKind::System { .. } | EntryKind::Fact { .. }))?;
+    let steps = balanced_steps(&kept);
+    let late = late_replies(&branch);
     let mut tail = 0u64;
     let mut chosen = None;
+    // Past the last person's line, only another person's line is a place to cut.
+    let mut last_run = true;
     for (k, entry) in kept.iter().enumerate().rev() {
         tail = tail.saturating_add(weight(entry));
-        if k > first && matches!(&entry.kind, EntryKind::User { answers: None, .. }) {
+        let person = match &entry.kind {
+            EntryKind::User { answers, .. } => answers.is_none() || late.contains(&&entry.id),
+            _ => false,
+        };
+        let step = last_run && steps.get(k).copied().unwrap_or(false);
+        if k > first && (person || step) {
             chosen = Some(k);
             if tail >= keep {
                 break;
             }
         }
+        if matches!(&entry.kind, EntryKind::User { .. }) {
+            last_run = false;
+        }
     }
     chosen.map(|k| kept[k].id.clone())
+}
+
+/// For each entry, whether a long run may be cut there: a message of the model that follows an
+/// earlier step of its run, every call before it answered, so the kept part holds whole calls
+/// and their replies and the folded part holds the run's first step at least.
+fn balanced_steps(kept: &[&Entry]) -> Vec<bool> {
+    let mut open: BTreeSet<String> = BTreeSet::new();
+    let mut stepped = false;
+    (kept.iter())
+        .map(|entry| match &entry.kind {
+            EntryKind::User { .. } => {
+                stepped = false;
+                false
+            }
+            EntryKind::Assistant { content, .. } => {
+                let step = stepped && open.is_empty();
+                stepped = true;
+                open.extend(calls(content).map(|(id, _, _)| id.to_owned()));
+                step
+            }
+            EntryKind::ToolResult { call, .. } | EntryKind::Parked { call, .. } => {
+                open.remove(call.as_str());
+                false
+            }
+            _ => false,
+        })
+        .collect()
 }
 
 /// The request a summary is written from: how the entries are given, the earlier summary and
@@ -174,20 +220,57 @@ pub fn cut(tree: &Tree, keep: u64) -> Option<EntryId> {
 /// (and `focus`, when the person named one). It offers no tool.
 #[must_use]
 pub fn request(tree: &Tree, first_kept: &EntryId, focus: Option<&str>) -> Request {
+    let (summary, lines) = folded(tree, first_kept);
+    summary_request(summary.as_deref(), &lines, focus)
+}
+
+/// What a cut at `first_kept` folds: the earlier summary, then the entries before it as
+/// transcript objects, one per line.
+pub(crate) fn folded(tree: &Tree, first_kept: &EntryId) -> (Option<String>, Vec<Value>) {
     let branch = tree.branch();
     let (summary, kept) = Tree::kept(&branch);
     let until = kept
         .iter()
         .position(|e| &e.id == first_kept)
         .unwrap_or(kept.len());
-    let mut lines = Vec::new();
-    if let Some(summary) = summary {
-        lines.push(json!({"from": "summary", "text": summary}));
-    }
-    for entry in &kept[..until] {
-        lines.extend(transcribe(entry));
-    }
+    let late = late_replies(&branch);
+    let lines = (kept[..until].iter()).flat_map(|entry| transcribe(entry, &late));
+    (summary.map(str::to_owned), lines.collect())
+}
+
+/// About how many tokens what a cut at `first_kept` folds weighs: the earlier summary and the
+/// entries before it, the instructions aside.
+pub(crate) fn folded_weight(tree: &Tree, first_kept: &EntryId) -> u64 {
+    let branch = tree.branch();
+    let (summary, kept) = Tree::kept(&branch);
+    let until = kept
+        .iter()
+        .position(|e| &e.id == first_kept)
+        .unwrap_or(kept.len());
+    let entries: u64 = (kept[..until].iter())
+        .filter(|e| !matches!(e.kind, EntryKind::System { .. }))
+        .map(|e| weight(e))
+        .sum();
+    entries.saturating_add(summary.map_or(0, tokens))
+}
+
+/// About how many tokens `text` weighs: four characters a token.
+pub(crate) fn tokens(text: &str) -> u64 {
+    u64::try_from(text.len().div_ceil(4)).unwrap_or(u64::MAX)
+}
+
+/// The request a summary is written from: how the entries are given, the summary written so far
+/// (`summary`), the transcript `lines`, then what the summary must keep (and `focus`, when the
+/// person named one). It offers no tool.
+pub(crate) fn summary_request(
+    summary: Option<&str>,
+    lines: &[Value],
+    focus: Option<&str>,
+) -> Request {
     let mut text = format!("{FORMAT}\n\n");
+    if let Some(summary) = summary {
+        let _ = writeln!(text, "{}", json!({"from": "summary", "text": summary}));
+    }
     for line in lines {
         let _ = writeln!(text, "{line}");
     }
@@ -199,9 +282,62 @@ pub fn request(tree: &Tree, first_kept: &EntryId, focus: Option<&str>) -> Reques
     Request::new(Some(SYSTEM.to_owned()), messages, Vec::new())
 }
 
+/// The largest prefix whose complete summary request fits the estimated `room` budget.
+/// A fixed prompt or first indivisible object over budget is refused with its estimated size.
+/// Without a known room, every object is kept.
+pub(crate) fn fitting(
+    summary: Option<&str>,
+    lines: &[Value],
+    focus: Option<&str>,
+    room: Option<u64>,
+) -> Result<usize, u64> {
+    let Some(room) = room else {
+        return Ok(lines.len());
+    };
+    let base = request_tokens(&summary_request(summary, &[], focus));
+    if base > room {
+        return Err(base);
+    }
+    // Prefix costs are monotone; search the assembled requests without quadratic growth.
+    let (mut low, mut high) = (0, lines.len());
+    while low < high {
+        let middle = low + (high - low).div_ceil(2);
+        let request = summary_request(summary, &lines[..middle], focus);
+        if request_tokens(&request) <= room {
+            low = middle;
+        } else {
+            high = middle - 1;
+        }
+    }
+    if low == 0 && !lines.is_empty() {
+        return Err(request_tokens(&summary_request(
+            summary,
+            &lines[..1],
+            focus,
+        )));
+    }
+    Ok(low)
+}
+
+/// The complete summary payload's estimate: four UTF-8 bytes per token, per content block.
+pub(crate) fn request_tokens(request: &Request) -> u64 {
+    let system = request.system.as_deref().map_or(0, tokens);
+    request
+        .messages
+        .iter()
+        .flat_map(|message| &message.content)
+        .fold(system, |used, block| used.saturating_add(tokens_of(block)))
+}
+
+/// About how many tokens `block` weighs when the model reads it.
+fn tokens_of(block: &ContentBlock) -> u64 {
+    u64::try_from(block_len(block).div_ceil(4)).unwrap_or(u64::MAX)
+}
+
 /// One entry as transcript objects, each naming whose it is; citations and call identities are
-/// kept, and every text is one JSON string, so none of it can open another line.
-fn transcribe(entry: &Entry) -> Vec<Value> {
+/// kept (a `late` line reads as any person's line), and every text is one JSON string, so none of
+/// it can open another line.
+fn transcribe(entry: &Entry, late: &[&EntryId]) -> Vec<Value> {
     match &entry.kind {
         EntryKind::User {
             cite,
@@ -210,7 +346,7 @@ fn transcribe(entry: &Entry) -> Vec<Value> {
             ..
         } => {
             let mut line = json!({"from": "person", "cite": cite, "text": text});
-            if let Some(call) = answers {
+            if let Some(call) = answers.as_ref().filter(|_| !late.contains(&&entry.id)) {
                 line["answers"] = json!(call);
             }
             vec![line]

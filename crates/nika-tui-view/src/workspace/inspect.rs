@@ -24,12 +24,14 @@
 use std::fmt::Write as _;
 use std::sync::Arc;
 
-use crate::{Canvas, Face, Finding, Verdict, Workflow};
+use crate::{Canvas, Face, Finding, Verdict, Workflow, cells};
 use nika_display::check_render::VerdictLayers;
 use nika_display::dag_art::GraphDoc;
 use nika_display::theme::Role;
+use nika_session::Lang;
 use ratatui::text::{Line, Span};
 
+use super::lang::say;
 use super::text::{fit_head, marks, wrap};
 use crate::visual::role;
 
@@ -87,6 +89,7 @@ pub struct Checked {
     hints: Vec<Said>,
     identity: Option<String>,
     risk: &'static str,
+    imports: Vec<String>,
 }
 
 impl Checked {
@@ -108,7 +111,16 @@ impl Checked {
             hints: Vec::new(),
             identity: None,
             risk,
+            imports: Vec::new(),
         }
+    }
+
+    /// With what the file names that the look does not capture (its child
+    /// workflows), said after `unknown` in the look's language.
+    #[must_use]
+    pub fn importing(mut self, imports: Vec<String>) -> Self {
+        self.imports = imports;
+        self
     }
 
     /// With the file's own name (`nika:`), when it parsed.
@@ -161,6 +173,11 @@ pub struct Inspected {
     hints: Vec<Said>,
     identity: Option<String>,
     risk: Option<&'static str>,
+    imports: Vec<String>,
+    /// The language the look's own words follow ([`Inspected::speaking`]).
+    lang: Lang,
+    /// The object holds the keys ([`Inspected::keys_here`]).
+    here: bool,
 }
 
 impl PartialEq for Inspected {
@@ -190,7 +207,31 @@ impl Inspected {
             hints: Vec::new(),
             identity: None,
             risk: None,
+            imports: Vec::new(),
+            lang: Lang::En,
+            here: true,
         }
+    }
+
+    /// This look with its key cues said from where the keys are: `here` (the
+    /// object holds them) names the keys themselves (`r`, `Left/Right`), else
+    /// the key that brings them from the box first (`F6 then …`), so no cue
+    /// names a key that does nothing where the person types. The object
+    /// holds them by default.
+    #[must_use]
+    pub fn keys_here(mut self, here: bool) -> Self {
+        self.here = here;
+        self
+    }
+
+    /// This look with its own words (the faces' names, the rows around them,
+    /// the facts above each face, its notes, the check's reasons) said in
+    /// `lang`; English by default. The bytes, the engine's findings, names
+    /// and values keep their words.
+    #[must_use]
+    pub fn speaking(mut self, lang: Lang) -> Self {
+        self.lang = lang;
+        self
     }
 
     /// The bytes of `path`, held with `witness`, that no check judged (a
@@ -226,6 +267,7 @@ impl Inspected {
                 out.hints = checked.hints;
                 out.identity = checked.identity;
                 out.risk = Some(checked.risk);
+                out.imports = checked.imports;
             }
             Err((code, message)) => out.judged = Judged::Refused { code, message },
         }
@@ -318,23 +360,33 @@ impl Inspected {
     ) -> (Line<'static>, Vec<Line<'static>>) {
         let (sep, cut) = marks(ascii);
         let cells = usize::from(width);
-        let title = title_row(self.title(), face, width, ascii, color);
-        let again = format!("{sep}r reads it again{sep}Left/Right change the face");
-        let Some(witness) = self.witness.as_deref() else {
+        let said = |en: &str| say(self.lang, ascii, en).replace("{sep}", sep);
+        let title = title_row_in(self.title(), face, width, (ascii, color), self.lang);
+        let again = format!(
+            "{sep}{}{sep}{}",
+            said(if self.here {
+                "r reads it again"
+            } else {
+                "F6 then r reads it again"
+            }),
+            said("Left/Right change the face")
+        );
+        if self.witness.is_none() {
             let why = self.unread.as_deref().unwrap_or("unknown");
             let body = [
-                format!("not read: {why}"),
-                "nothing was judged: no face is drawn over bytes nobody read".to_owned(),
+                said("not read: {why}").replace("{why}", why),
+                said("nothing was judged: no face is drawn over bytes nobody read"),
                 format!("{}{again}", self.path),
             ];
             let body = body.iter().map(|row| Line::from(fit_head(row, cells, cut)));
             return (title, body.collect());
-        };
-        let short: String = witness.chars().take(12).collect();
+        }
+        // Whose bytes these are, never their witness's hex: it names nothing a person acts on
+        // here (live gauntlet 4: « ces octets 7594d366fc7c »).
         let read = if face == Face::Graph {
-            format!("Read {short}{sep}Check for details")
+            said("This file as last read{sep}Check for details")
         } else {
-            format!("this file's bytes {short}, as last read{again}")
+            format!("{}{again}", said("this file's bytes, as last read"))
         };
         (
             title,
@@ -352,15 +404,16 @@ impl Inspected {
         said: &str,
         compact: bool,
     ) -> Vec<Line<'static>> {
-        let (_, cut) = marks(ascii);
         let findings: Vec<Finding<'_>> = self.findings.iter().map(Said::row).collect();
         let hints: Vec<Finding<'_>> = self.hints.iter().map(Said::row).collect();
-        let canvas = Canvas::new(width, ascii, color);
-        let mut rendered = crate::workflow(face, &self.workflow(&findings, &hints), canvas);
-        let witness = Line::from(Span::styled(
-            fit_head(said, usize::from(width), cut),
-            role::style(Role::Dim, color),
-        ));
+        let canvas = Canvas::new(width, ascii, color).speaking(self.lang);
+        let unknown = self.unknown_in(canvas);
+        let mut input = self.workflow(&findings, &hints);
+        if let (Judged::ParentOnly(layers, _), Some(unknown)) = (&self.judged, unknown.as_deref()) {
+            input.verdict = Verdict::ParentOnly { layers, unknown };
+        }
+        let mut rendered = crate::workflow(face, &input, canvas);
+        let witness = witness_rows(said, width, ascii, color);
         if face == Face::Graph {
             // Keep material drawing limits beside the graph. Routine capture
             // details follow it in this same scrollable object.
@@ -383,14 +436,28 @@ impl Inspected {
                 rendered.notes.clear();
                 body.extend(rendered.head(canvas));
             }
-            body.push(witness);
+            body.extend(witness);
             body
         } else {
             let mut body = rendered.head(canvas);
-            body.push(witness);
+            body.extend(witness);
             body.extend(rendered.lines);
             body
         }
+    }
+
+    /// What the look did not capture, in `canvas`'s language, then what the
+    /// file names of it; `None` unless the check judged the file alone.
+    fn unknown_in(&self, canvas: Canvas) -> Option<String> {
+        let Judged::ParentOnly(_, unknown) = &self.judged else {
+            return None;
+        };
+        let mut said = canvas.say(unknown).to_owned();
+        if !self.imports.is_empty() {
+            let names = canvas.say("; it names {children}");
+            said.push_str(&names.replace("{children}", &self.imports.join(", ")));
+        }
+        Some(said)
     }
 
     /// A compact graph retains every node and each incoming edge from the
@@ -427,12 +494,9 @@ impl Inspected {
         }
         let (sep, cut) = marks(ascii);
         let arrow = if ascii { " <- " } else { " ← " };
+        let heading = canvas.say("Compact graph{sep}exact dependencies");
         let mut rows = vec![Line::styled(
-            fit_head(
-                &format!("Compact graph{sep}exact dependencies"),
-                usize::from(width),
-                cut,
-            ),
+            fit_head(&heading.replace("{sep}", sep), usize::from(width), cut),
             role::style(Role::Dim, color),
         )];
         for node in &graph.nodes {
@@ -449,7 +513,7 @@ impl Inspected {
             }
             let _ = write!(row, "{sep}{}", node.verb);
             if node.kind == "finally" {
-                let _ = write!(row, "{sep}cleanup");
+                let _ = write!(row, "{sep}{}", canvas.say("cleanup"));
             }
             // Reserve a hanging indent so a wrapped source never reads as
             // another node. Every identity, including a trailing comma, fits.
@@ -475,6 +539,7 @@ impl Inspected {
     fn graph_summary(&self, width: u16, ascii: bool, color: bool) -> Option<Vec<Line<'static>>> {
         let graph = self.graph.as_ref()?;
         let (sep, cut) = marks(ascii);
+        let canvas = Canvas::new(width, ascii, color).speaking(self.lang);
         let tasks = graph
             .nodes
             .iter()
@@ -486,12 +551,15 @@ impl Inspected {
             .filter(|node| node.kind == "finally")
             .count();
         let edges = graph.edges.len();
-        let task_word = if tasks == 1 { "task" } else { "tasks" };
-        let edge_word = if edges == 1 { "edge" } else { "edges" };
-        let mut facts = format!("Definition{sep}{tasks} {task_word}{sep}{edges} {edge_word}");
+        let mut facts = format!(
+            "{}{sep}{}{sep}{}",
+            canvas.say("Definition"),
+            cells::count_in(tasks, "task", canvas),
+            cells::count_in(edges, "edge", canvas)
+        );
         if cleanup > 0 {
-            let unit_word = if cleanup == 1 { "unit" } else { "units" };
-            let _ = write!(facts, "{sep}{cleanup} cleanup {unit_word}");
+            let units = cells::count_in(cleanup, "cleanup unit", canvas);
+            let _ = write!(facts, "{sep}{units}");
         }
         let mut rows: Vec<_> = wrap(&facts, usize::from(width), cut)
             .into_iter()
@@ -503,11 +571,17 @@ impl Inspected {
             } else {
                 ("Structure needs attention", Role::Warn)
             };
-            let mut verdict = format!("{words}{sep}this file only");
+            let only = canvas.say("this file only");
+            let mut verdict = format!("{}{sep}{only}", canvas.say(words));
             if !self.findings.is_empty() {
                 let count = self.findings.len();
-                let noun = if count == 1 { "finding" } else { "findings" };
-                let _ = write!(verdict, "{sep}{count} {noun} in Check");
+                let phrase = if count == 1 {
+                    "1 finding in Check"
+                } else {
+                    "{n} findings in Check"
+                };
+                let found = canvas.say(phrase).replace("{n}", &count.to_string());
+                let _ = write!(verdict, "{sep}{found}");
             }
             rows.extend(
                 wrap(&verdict, usize::from(width), cut)
@@ -523,21 +597,34 @@ impl Inspected {
 /// the one in view marked, fitted to `width` cells.
 #[must_use]
 pub fn title_row(name: &str, face: Face, width: u16, ascii: bool, color: bool) -> Line<'static> {
+    title_row_in(name, face, width, (ascii, color), Lang::En)
+}
+
+/// [`title_row`] with the faces' names said in `lang`, in the glyph column
+/// and colour in use.
+pub(crate) fn title_row_in(
+    name: &str,
+    face: Face,
+    width: u16,
+    (ascii, color): (bool, bool),
+    lang: Lang,
+) -> Line<'static> {
     let (sep, cut) = marks(ascii);
+    let label = |f: Face| say(lang, ascii, f.label());
     let tabs: Vec<String> = Face::ALL
         .iter()
         .map(|f| {
             if *f == face {
-                format!("[{}]", f.label())
+                format!("[{}]", label(*f))
             } else {
-                f.label().to_owned()
+                label(*f).to_owned()
             }
         })
         .collect();
-    let tab_width: usize = tabs.iter().map(String::len).sum::<usize>() + tabs.len() - 1;
+    let tab_width: usize = tabs.iter().map(|tab| cells::width(tab)).sum::<usize>() + tabs.len() - 1;
     if usize::from(width) < tab_width {
         return Line::styled(
-            fit_head(&format!("[{}]", face.label()), usize::from(width), cut),
+            fit_head(&format!("[{}]", label(face)), usize::from(width), cut),
             role::style(Role::Accent, color),
         );
     }
@@ -562,4 +649,14 @@ pub fn title_row(name: &str, face: Face, width: u16, ascii: bool, color: bool) -
         spans.push(Span::styled(tab, style));
     }
     Line::from(spans)
+}
+
+/// The row saying whose bytes a face shows and the keys that turn it (`said`), whole on as
+/// many rows `width` cells give it: where it is wider than the face it wraps at its words
+/// rather than lose the keys at its end (the face cue was cut at about 120 columns).
+pub(crate) fn witness_rows(said: &str, width: u16, ascii: bool, color: bool) -> Vec<Line<'static>> {
+    let (_, cut) = marks(ascii);
+    (wrap(said, usize::from(width), cut).into_iter())
+        .map(|row| Line::from(Span::styled(row, role::style(Role::Dim, color))))
+        .collect()
 }

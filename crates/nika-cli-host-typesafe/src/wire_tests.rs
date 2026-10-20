@@ -90,6 +90,12 @@ impl Peer {
         requests.iter().map(|(head, _)| head.clone()).collect()
     }
 
+    /// Each request body that reached the peer, as its bytes, in arrival order.
+    pub(super) fn raw_bodies(&self) -> Vec<Vec<u8>> {
+        let requests = self.heads.lock().expect("heads");
+        requests.iter().map(|(_, body)| body.clone()).collect()
+    }
+
     /// Each request body that reached the peer, parsed, in arrival order.
     pub(super) fn bodies(&self) -> Vec<Value> {
         let requests = self.heads.lock().expect("heads");
@@ -166,6 +172,35 @@ fn exchange(peer: &Peer, state: Value) -> Result<Exchange, ExchangeError> {
         .build()
         .expect("runtime")
         .block_on(seat.exchange(&question(state)))
+}
+
+/// A question that asks its own option order reaches the service in it, never re-sorted; one
+/// that asks none keeps today's sorted bytes.
+#[test]
+fn a_question_reaches_the_service_in_its_own_order() {
+    let peer = Peer::start(vec![
+        Reply::Status(200, answer(None)),
+        Reply::Status(200, answer(None)),
+    ]);
+    let seat = TypesafeSeat::with_base(KEY.to_owned(), "jev-1.13.0", &peer.base).expect("seat");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let sorted = question(json!("tickets"));
+    let own = question(json!("tickets")).in_order(system_one::Order::Question);
+    runtime.block_on(seat.exchange(&sorted)).expect("answered");
+    runtime.block_on(seat.exchange(&own)).expect("answered");
+    let bodies: Vec<String> = (peer.raw_bodies().into_iter())
+        .map(|body| String::from_utf8(body).expect("utf-8"))
+        .collect();
+    let first = |text: &str| text.find("\"lookup\"") < text.find("\"search\"");
+    assert!(first(&bodies[0]), "sorted: lookup first: {}", bodies[0]);
+    assert!(
+        !first(&bodies[1]),
+        "its own order: search first: {}",
+        bodies[1]
+    );
 }
 
 #[test]
@@ -318,4 +353,11 @@ fn json_bytes_are_not_treated_as_a_model_context_limit() {
     let failure = exchange(&peer, json!("a word ".repeat(10_000))).expect_err("service refusal");
     assert_eq!(failure.delivery, Delivery::Responded(422));
     assert_eq!(peer.heads().len(), 1, "service refusal is never retried");
+}
+
+/// Every answer of a System One seat reports a distribution over the offered keys.
+#[test]
+fn a_typesafe_seat_weighs_its_answers() {
+    let seat = TypesafeSeat::with_base(KEY.to_owned(), "jev-1.13.0", "http://127.0.0.1:1");
+    assert!(seat.expect("seat").weighs());
 }

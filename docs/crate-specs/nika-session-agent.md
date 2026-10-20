@@ -93,6 +93,45 @@ Session's tools act on the Session, and only the Session's doors save, run or re
   the cited line's own words and a zone the person's words name or a choice the proposal shows
   offers as its default; such a choice may offer the zone, which the candidate never carries.
 
+- A conversation keeps the workflow it saved last with the witness of the bytes saved
+  (`Conversation::saved_at`), across a reopen and a new request: what a revision replaces.
+- One output per workflow, except where an open name starts: a question whose offers read one
+  name asks that name's start alone. An output and a question stand apart only when one of them
+  is such a name and every output the other may hold lies outside it, judged by the offers each
+  question showed and never by the value picked, in whichever order the person answers; a choice
+  that offers one of the name's readings asks for the same output.
+- What a conversation keeps holds each answer, never the question it answered. After a reopen,
+  `Conversation::recall` reads back from the tree which question each kept output of the request
+  answered, only when the person's line answered the call that showed or asked it, the reply names
+  it, the call's input holds it once and the offer picked (or the typed line) holds the value. It
+  restores that evidence alone, never kept: no question, answer, consent or authority; a missing
+  or conflicting record keeps the single-output rule.
+- A line the person writes in reply to a parked `ask` is kept for its request as where a reply
+  stands (`Conversation::replied_by`, read back from the tree by `recall` after a reopen; a natural
+  rerun, `RERUN_NOTE`, is never one). `Conversation::replies_in` locates every such line by its
+  citation, bound or not, so a reply never names the workflow's file; it binds, settles and
+  authorizes nothing.
+- A reply to another question of an `ask` group, given by its identity after the call stopped
+  waiting, is such a line too. `conversation::asking_call` finds the call from the question's
+  identity on the branch (the one successful `ask` whose reply names it, its input holding each
+  question once), and `Agent::with_late_reply` records the line under that call. Only the first
+  line naming a call is its answer, the call's one tool result: a later one reads as any
+  person's line in the context, an agent's transcript, a fold and its cut, with the Session's
+  reading of that line beside it (`Agent::user` keeps the reading with the run's own line,
+  whether a call waits or not, on the API and the led routes alike; never with a queued line).
+  Nothing is re-asked or answered, and no consent or authority returns.
+- `Conversation::answers` keeps selected offer keys and labels beside their bound values
+  and cited provenance for semantic verification. An offer without business values still
+  carries its selection receipt; it invents no binding. Only selected alternatives enter
+  that context, including after reopening. This evidence grants neither Save nor Run.
+- The native « Let Nika choose » act is not words: `Conversation::delegated_one_by` binds the
+  one recommended offer of the question the host named as delegated, whatever an offer's
+  label reads (with none, the author chooses). It keeps an exact continuation receipt, marked
+  `delegated`, as an exact protocol pick does; a reading of free words that delegates keeps
+  none. On a shown choice that recommendation is its default, so the act continues the
+  shown revision's mandate (`picked_default`) once, and a replayed or reopened act mints
+  nothing.
+
 ## 4. Gate evidence (admission with the unit)
 
 | Gate | State |
@@ -117,3 +156,18 @@ citation, the words and the call it answers) without the line format leaving the
 Session indexes the person's lines as they are appended, while the loop holds the tree.
 `Tree::next_cite` names the citation the next person's line will get, and `Tree::last_said` the
 text of the model's last message on the branch.
+
+**Overflow.** A request over the model's context window is `ModelError::Overflow { window }`
+(the agent model maps the provider's typed `ContextOverflow` to it before any retry), and a reply
+that filled the window (`Reply.window_full`) is no answer: neither is recorded. The loop folds the
+conversation once and asks the same step again; a step that already folded (before its request,
+or once after an overflow) fails naming the window, and so does a conversation with nothing
+earlier to fold. A cut falls at a person's line, or, within the run the last person's line
+started, at a later step of that run whose earlier calls all have their replies, so a long run
+from one line folds between its balanced steps. A summary no lighter than what it folds folds
+nothing. The complete summary payload is budgeted with the conversation's UTF-8 byte/4
+estimate, including instructions, focus, typed transcript and carried summary. A larger fold is
+summarized in whole-object parts; a fixed prompt or indivisible object over the window less its
+reserve is refused without calling the model or folding originals. Each request carries the
+summary written so far; a later refusal appends no partial `Compaction`. Provider tokenization
+remains authoritative, and a provider-reported summary overflow also folds nothing.

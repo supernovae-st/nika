@@ -19,7 +19,9 @@
 
 use std::path::PathBuf;
 
+use nika_trace::run_view::KeptRun;
 use serde::Serialize;
+use serde_json::{Map, Value};
 
 use nika_onboard::compile::{
     AuthoringReceipt, CompileDiagnostic, CompileOutcome, CompileQuestion, CompileStatus,
@@ -31,12 +33,18 @@ use crate::outcome::{GateId, ProposalId, QuestionId, RefusalClass, ReviewId};
 use crate::world::World;
 
 mod conversation;
+mod feedback;
 mod queue;
+mod understood;
 pub use conversation::{
     AskedQuestion, AskedState, Binding, Delegation, ModelFacts, Offer, OfferValue, Provenance,
     ProvenanceKind, UsdPerMillion, ValueRole,
 };
+pub use feedback::{
+    Feedback, FeedbackArtifact, FeedbackKind, FeedbackOffer, FeedbackRecord, FeedbackScope,
+};
 pub use queue::{QueueMode, Queued, QueuedState};
+pub use understood::understood;
 
 /// The version a host checks before reading a [`Work`].
 pub const CONTRACT: &str = "nika/session-work@0";
@@ -49,9 +57,9 @@ fn question_witness<S: serde::Serializer>(id: &QuestionId, out: S) -> Result<S::
 
 /// What the next line answers, by the session's one precedence: a requested run's cost review,
 /// the one-time cost decision, the choice of intelligence, the knowledge choice a held line waits
-/// for, a proposal's consent, a run's gate, then the values a question, a run input or an
-/// activation asks. Hosts route a line through the session with it; none keeps a routing bit of
-/// its own.
+/// for, a proposal's consent, a run's gate, then the values a question, a run's ceiling, a run
+/// input or an activation asks. Hosts route a line through the session with it; none keeps a
+/// routing bit of its own.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[non_exhaustive]
@@ -108,6 +116,13 @@ pub enum Waiting {
     Input {
         /// The input's name.
         name: String,
+    },
+    /// A requested run waits for its ceiling: no ceiling can be proved for it in this session,
+    /// so the person states one (its options are offered natively where a host shows them);
+    /// none is ever applied for them, and nothing runs before it.
+    RunCeiling {
+        /// The workflow the run is for, relative to the root.
+        workflow: PathBuf,
     },
     /// An activation waits for one project value.
     Activation {
@@ -235,6 +250,13 @@ pub enum AnswerAct {
         /// The key of the question that was waiting.
         key: String,
     },
+    /// The line left the value to Nika (« choisis toi-même », « carte blanche »): nothing was
+    /// bound; the request now carries the person's words for this question, and the author
+    /// chooses within them.
+    Delegated {
+        /// The key of the question that was waiting.
+        key: String,
+    },
     /// Nothing was bound and the same question still waits.
     Waits {
         /// The key of the question that still waits.
@@ -264,6 +286,9 @@ pub enum ValueSource {
     /// The seat the human already chose, the model question's offered default, taken for an
     /// empty line: nothing was typed.
     SeatDefault,
+    /// The model question's offered model, taken because the reply left the choice to Nika
+    /// (« choisis toi-même »): Nika's choice, said beside the outcome.
+    Delegated,
 }
 
 /// A refusal class on the wire: its stable word.
@@ -330,7 +355,21 @@ pub struct Work {
     /// ([`Work::with_open_choices`]); absent from the wire otherwise.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub open_choices: Vec<AskedQuestion>,
+    /// The optional offer about the last result, waiting at the free prompt, and the person's
+    /// answers to such offers ([`Work::with_feedback`]); absent from the wire when there is
+    /// none.
+    #[serde(skip_serializing_if = "Feedback::is_empty")]
+    pub feedback: Feedback,
 }
+
+/// The lead of a goal restated with a correction ([`Request::restated`]): the original's words
+/// follow it.
+const ORIGINAL_LEAD: &str = "Original request:\n";
+
+/// The label of a correction restated after its original request: the correction takes
+/// precedence where they differ, every other requirement of the original stands. No keep or
+/// exclusion lead, no restriction word: the label never makes the correction read as one.
+const CORRECTION_FRAME: &str = "Correction (it takes precedence over the original where they differ; every other requirement stands):";
 
 /// The request as the session keeps it: decisions, not chat.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
@@ -353,6 +392,30 @@ impl Request {
             decisions,
             unresolved,
         }
+    }
+
+    /// `original` restated with `correction` for the author: the original's words after their
+    /// lead, then the correction under a label saying it takes precedence where they differ and
+    /// every other requirement stands. [`Self::said`] reads it back as the person said it.
+    #[must_use]
+    pub fn restated(original: &str, correction: &str) -> String {
+        // The same words again (a retry, a restatement sent twice) say nothing new: the request
+        // stays as it was, so it never piles up the same correction (live gauntlet r06 B8). Only
+        // the last words count: a correction that returns to an earlier one is new again.
+        let (first, corrections) = said(original);
+        let last = corrections.last().copied().unwrap_or(first);
+        if last.split_whitespace().eq(correction.split_whitespace()) {
+            return original.to_owned();
+        }
+        format!("{ORIGINAL_LEAD}{original}\n{CORRECTION_FRAME}\n{correction}")
+    }
+
+    /// The goal in the person's own words, `None` without one: the original request, then each
+    /// correction in the order it was said, never the lead or the label that joined them for the
+    /// author ([`Self::restated`]). Any other goal reads whole, with no correction.
+    #[must_use]
+    pub fn said(&self) -> Option<(&str, Vec<&str>)> {
+        self.goal.as_deref().map(said)
     }
 }
 
@@ -595,6 +658,14 @@ pub struct Intelligence {
     /// The explicit reasoning effort every authoring call asks; `None` keeps each route's own
     /// default.
     pub effort: Option<String>,
+    /// Current native intelligence picker options, from the host inventory.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<Offer>,
+    /// The key of the option recommended for this conversation among `options`, by the
+    /// session's one recommendation policy; absent when none is offered. A recommendation
+    /// selects nothing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recommended: Option<String>,
 }
 
 impl Intelligence {
@@ -611,6 +682,8 @@ impl Intelligence {
             author,
             decision,
             effort,
+            options: Vec::new(),
+            recommended: None,
         }
     }
 }
@@ -876,6 +949,37 @@ pub struct Candidate {
     /// How the compiler made the workflow it lands, created or revised over its complete
     /// document, when it says: bound to these exact bytes, never to an earlier candidate's.
     pub revision: Option<DocumentRevision>,
+    /// The schedule a declaration the set lands in `nika.yaml` says, in the person's words: what
+    /// a host shows instead of its cron. `None` for a set that declares no schedule.
+    pub schedule: Option<ScheduleWords>,
+}
+
+/// A declared schedule in the person's words: when it runs, what a missed run does and the most
+/// each run may cost. The file view keeps the bytes; these words only say them.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct ScheduleWords {
+    /// The workflow the schedule runs, relative to the root.
+    pub workflow: String,
+    /// When it runs (« le 1er de chaque mois à 8h (heure de Paris) »).
+    pub cadence: String,
+    /// What a missed run does (« si le Mac est éteint : le rattraper une fois »).
+    pub missed: String,
+    /// The most each run may cost (« plafond 0,10 $ par run »).
+    pub ceiling: String,
+}
+
+impl ScheduleWords {
+    /// The words of one declared schedule.
+    #[must_use]
+    pub fn new(workflow: String, cadence: String, missed: String, ceiling: String) -> Self {
+        Self {
+            workflow,
+            cadence,
+            missed,
+            ceiling,
+        }
+    }
 }
 
 /// How the compiler made a complete workflow document: created (`written` whole or `composed`,
@@ -985,6 +1089,7 @@ impl Candidate {
             run_after_save: set.run.is_some(),
             files,
             revision: None,
+            schedule: None,
         }
     }
 
@@ -992,6 +1097,13 @@ impl Candidate {
     #[must_use]
     pub fn with_revision(mut self, revision: Option<DocumentRevision>) -> Self {
         self.revision = revision;
+        self
+    }
+
+    /// The schedule the declaration this candidate lands says, in the person's words.
+    #[must_use]
+    pub fn with_schedule(mut self, schedule: Option<ScheduleWords>) -> Self {
+        self.schedule = schedule;
         self
     }
 
@@ -1183,7 +1295,7 @@ impl RunEnd {
             Self::RefusedFindings => "refused before running (findings)",
             Self::RefusedEnvironment => "refused by the environment",
             Self::Paused => {
-                "paused for a human answer — `nika run <file> --resume <trace> --answer <task>=<value>` continues it"
+                "paused for a human answer — the run goes on once its question is answered"
             }
             Self::Interrupted => {
                 "interrupted before it finished (Ctrl+C) — the trace shows what ran"
@@ -1218,8 +1330,24 @@ pub struct Run {
     /// Whether the run sealed its journal: its settlement's receipt named the chain head. An
     /// interrupted run that sealed stopped at a wave boundary (a Stop, the first Ctrl-C) and its
     /// trace verifies; one that did not was cut mid-flight (an abort or a crash) and its trace is
-    /// incomplete.
+    /// incomplete. A verifier's judgment of the journal is `seal_verified` and `signed`, never
+    /// this fact.
     pub sealed: bool,
+    /// Whether `nika trace verify` accepts its journal's `run_sealed` record: present once a
+    /// verifier judged the journal. An unsealed journal, a seal whose key this machine cannot
+    /// check, and a forged, buried, torn or incomplete one are `false`.
+    pub seal_verified: Option<bool>,
+    /// Whether that record's signature verifies against a custody key: present with
+    /// `seal_verified`.
+    pub signed: Option<bool>,
+    /// The job a resident ran it as, when it was served.
+    pub job: Option<String>,
+    /// The receipt that resident serves for the job, when its observation ended with one.
+    pub receipt: Option<Map<String, Value>>,
+    /// The declared outputs that resident serves for the job, kept whole up to 16 KiB encoded
+    /// (an empty object when the workflow declared none). Absent is not carried (larger ones,
+    /// or none served), never « no outputs »: the job keeps them.
+    pub outputs: Option<Map<String, Value>>,
 }
 
 impl Run {
@@ -1246,7 +1374,35 @@ impl Run {
             sealed: chain_head.is_some(),
             chain_head,
             chain_len,
+            seal_verified: None,
+            signed: None,
+            job: None,
+            receipt: None,
+            outputs: None,
         }
+    }
+
+    /// A run from what a host kept of it (`current`: observed by this session for the workflow
+    /// it saved last): every part its observation named, the seal facts as a verifier attested
+    /// them, nothing re-derived.
+    #[must_use]
+    pub fn kept(current: bool, run: KeptRun) -> Self {
+        let mut kept = Self::new(
+            current,
+            run.workflow,
+            run.exit,
+            run.trace,
+            run.execution,
+            run.workflow_sha256,
+            run.chain_head,
+            run.chain_len,
+        );
+        kept.seal_verified = run.seal_verified;
+        kept.signed = run.signed;
+        kept.job = run.job;
+        kept.receipt = run.receipt.map(|receipt| *receipt);
+        kept.outputs = run.outputs;
+        kept
     }
 }
 
@@ -1352,6 +1508,7 @@ impl Work {
             questions: Vec::new(),
             queued: Vec::new(),
             open_choices: Vec::new(),
+            feedback: Feedback::default(),
         }
     }
 
@@ -1381,6 +1538,14 @@ impl Work {
     #[must_use]
     pub fn with_open_choices(mut self, open_choices: Vec<AskedQuestion>) -> Self {
         self.open_choices = open_choices;
+        self
+    }
+
+    /// The same snapshot with the optional offer about the last result and the answers
+    /// recorded.
+    #[must_use]
+    pub fn with_feedback(mut self, feedback: Feedback) -> Self {
+        self.feedback = feedback;
         self
     }
 
@@ -1421,6 +1586,21 @@ impl Work {
         self.answered = answered;
         self
     }
+}
+
+/// `goal` in the person's own words ([`Request::said`]).
+fn said(goal: &str) -> (&str, Vec<&str>) {
+    let label = format!("\n{CORRECTION_FRAME}\n");
+    let mut corrections = Vec::new();
+    let mut rest = goal;
+    while let Some(inner) = rest.strip_prefix(ORIGINAL_LEAD)
+        && let Some((original, correction)) = inner.rsplit_once(label.as_str())
+    {
+        corrections.push(correction);
+        rest = original;
+    }
+    corrections.reverse();
+    (rest, corrections)
 }
 
 #[cfg(test)]

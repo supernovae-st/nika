@@ -629,7 +629,7 @@ mod tests {
         assert_eq!(rows[1]["phase"], "unknown");
         assert_eq!(rows[1]["unsettled"]["observed_by"], "exe-next");
     }
-    const FREE: &str = "openrouter/qwen/qwen3.8-27b:free";
+    const FREE: &str = "openrouter/nvidia/nemotron-3-super-120b-a12b:free";
     fn free_plan() -> nika_providers::ExecutionAccessPlan {
         use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
         let ready = ProviderReadiness::new(

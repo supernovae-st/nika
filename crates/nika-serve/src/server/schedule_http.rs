@@ -442,7 +442,7 @@ fn schedule_status(
 }
 
 fn definition_json(definition: &ScheduleDefinition) -> Value {
-    json!({
+    let mut body = json!({
         "id": definition.id(),
         "workflow": definition.workflow(),
         "when": when_json(definition.when()),
@@ -460,7 +460,13 @@ fn definition_json(definition: &ScheduleDefinition) -> Value {
             .inputs()
             .map(|(key, text)| (key.to_owned(), Value::String(text.to_owned())))
             .collect::<serde_json::Map<String, Value>>(),
-    })
+    });
+    // A project's bounded catch-up keeps `missed` a closed word and names its
+    // bound; the job API declares only the closed words.
+    if let MissPolicy::RattraperDerniers(latest) = definition.missed() {
+        body["missedLatest"] = json!(latest.get());
+    }
+    body
 }
 
 fn last_decision_json(last: &ScheduleDecisionRecord) -> Value {
@@ -641,7 +647,7 @@ fn insert_etag(response: &mut Response<ResponseBody>, revision: &ScheduleRevisio
 
 const fn missed_word(value: MissPolicy) -> &'static str {
     match value {
-        MissPolicy::Rattraper => "catch-up",
+        MissPolicy::Rattraper | MissPolicy::RattraperDerniers(_) => "catch-up",
         MissPolicy::RattraperUneFois => "catch-up-once",
         MissPolicy::Sauter => "skip",
         _ => "unknown",

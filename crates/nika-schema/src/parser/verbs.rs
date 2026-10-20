@@ -12,8 +12,8 @@ use marked_yaml::types::{MarkedMappingNode, MarkedScalarNode};
 
 use crate::error::SchemaError;
 use crate::raw::{
-    RawAction, RawAgentAction, RawCommand, RawExecAction, RawInferAction, RawInvokeAction,
-    Thinking, VisionInput,
+    ProjectFileRef, RawAction, RawAgentAction, RawCommand, RawExecAction, RawInferAction,
+    RawInvokeAction, Thinking, VisionInput,
 };
 use crate::source::Spanned;
 use crate::types::{CaptureMode, DecodeMode};
@@ -124,13 +124,14 @@ pub(super) fn parse_verb(
 /// Parse `infer:` — single LLM call.
 fn parse_infer_body(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawInferAction, SchemaError> {
     cx.check_unknown_keys(body, INFER_KEYS, "`infer:`")?;
-    let prompt = cx.require_scalar(body, "prompt", "infer")?;
-    let mut action = RawInferAction::new(prompt);
-    action.system = cx.opt_scalar(body, "system")?;
+    let (prompt, prompt_file) = parse_text(cx, body, "prompt")?;
+    let mut action = RawInferAction::new(prompt.ok_or_else(|| missing(cx, body, "infer"))?);
+    action.prompt_file = prompt_file;
+    (action.system, action.system_file) = parse_text(cx, body, "system")?;
     action.model = cx.opt_scalar(body, "model")?;
     action.temperature = parse_temperature(cx, body)?;
     action.max_tokens = parse_u32_field(cx, body, "max_tokens")?;
-    action.schema = parse_schema(cx, body)?;
+    (action.schema, action.schema_file) = parse_schema(cx, body)?;
     action.thinking = parse_thinking(cx, body)?;
     action.vision = parse_vision(cx, body)?;
     Ok(action)
@@ -271,9 +272,10 @@ fn parse_invoke_body(
 /// Parse `agent:` — multi-turn agentic loop.
 fn parse_agent_body(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawAgentAction, SchemaError> {
     cx.check_unknown_keys(body, AGENT_KEYS, "`agent:`")?;
-    let prompt = cx.require_scalar(body, "prompt", "agent")?;
-    let mut action = RawAgentAction::new(prompt);
-    action.system = cx.opt_scalar(body, "system")?;
+    let (prompt, prompt_file) = parse_text(cx, body, "prompt")?;
+    let mut action = RawAgentAction::new(prompt.ok_or_else(|| missing(cx, body, "agent"))?);
+    action.prompt_file = prompt_file;
+    (action.system, action.system_file) = parse_text(cx, body, "system")?;
     action.model = cx.opt_scalar(body, "model")?;
     // `tools:` — whitelist globs · default-deny (« if absent the agent
     // gets NO tools · pure conversation · least-privilege »).
@@ -291,7 +293,7 @@ fn parse_agent_body(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawAgentAct
     action.max_turns = parse_max_turns(cx, body)?;
     action.max_tokens_total = parse_u64_field(cx, body, "max_tokens_total")?;
     action.temperature = parse_temperature(cx, body)?;
-    action.schema = parse_schema(cx, body)?;
+    (action.schema, action.schema_file) = parse_schema(cx, body)?;
     Ok(action)
 }
 
@@ -393,24 +395,69 @@ fn parse_u64_field(
     Ok(Some(Spanned::new(value, cx.span_or_zero(node.span()))))
 }
 
-/// `schema:` — a JSON Schema object (spec field tables · type `object`).
+/// The `prompt` a verb requires is absent.
+fn missing(cx: &Cx<'_>, body: &MarkedMappingNode, verb: &str) -> SchemaError {
+    SchemaError::MissingField {
+        field: format!("{verb}.prompt"),
+        span: cx.span(body.span()),
+    }
+}
+
+/// `prompt:` / `system:` — inline text, or the closed `{ file: <path> }` form whose text a
+/// compose step reads (spec 02 §Project files); the field then holds empty text until composed.
+fn parse_text(
+    cx: &Cx<'_>,
+    body: &MarkedMappingNode,
+    key: &'static str,
+) -> Result<(Option<Spanned<String>>, Option<ProjectFileRef>), SchemaError> {
+    let Some(mapping) = body.get_node(key).and_then(|node| node.as_mapping()) else {
+        return Ok((cx.opt_scalar(body, key)?, None));
+    };
+    let reference = project_file(cx, mapping, key)?;
+    let text = Spanned::new(String::new(), cx.span_or_zero(mapping.span()));
+    Ok((Some(text), Some(reference)))
+}
+
+/// The closed `{ file: <path> }` form: exactly the key `file` (another is `NIKA-PARSE-005`), a
+/// string path that keeps the lexical law (`NIKA-FILE-001`).
+fn project_file(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+    field: &'static str,
+) -> Result<ProjectFileRef, SchemaError> {
+    cx.check_unknown_keys_always(mapping, &["file"], &format!("the `{field}:` file form"))?;
+    let path = cx.require_scalar(mapping, "file", field)?;
+    if let Some(why) = crate::project_file::path_law(&path.value) {
+        return Err(SchemaError::ProjectFilePath {
+            field,
+            path: path.value.clone(),
+            why,
+            span: Some(path.span),
+        });
+    }
+    Ok(ProjectFileRef::new(path))
+}
+
+/// `schema:` — a JSON Schema object (spec field tables · type `object`), or the closed
+/// `{ file: <path> }` form: a mapping holding `file` is never an inline schema.
 fn parse_schema(
     cx: &Cx<'_>,
     body: &MarkedMappingNode,
-) -> Result<Option<Spanned<serde_json::Value>>, SchemaError> {
+) -> Result<(Option<Spanned<serde_json::Value>>, Option<ProjectFileRef>), SchemaError> {
     let Some(node) = body.get_node("schema") else {
-        return Ok(None);
+        return Ok((None, None));
     };
-    if node.as_mapping().is_none() {
+    let Some(mapping) = node.as_mapping() else {
         return Err(SchemaError::Validation {
             message: "`schema` must be a JSON Schema object (YAML mapping)".to_owned(),
             span: cx.span(node.span()),
         });
+    };
+    if mapping.get_node("file").is_some() {
+        return Ok((None, Some(project_file(cx, mapping, "schema")?)));
     }
-    Ok(Some(Spanned::new(
-        json_value(cx, node)?,
-        cx.span_or_zero(node.span()),
-    )))
+    let schema = Spanned::new(json_value(cx, node)?, cx.span_or_zero(node.span()));
+    Ok((Some(schema), None))
 }
 
 /// `thinking:` — `{ enabled (required bool), budget_tokens }`.

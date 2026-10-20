@@ -4277,6 +4277,225 @@ pub fn nika_dap::retention::newest_per_workflow(traces: &[nika_dap::store::Trace
 pub fn nika_dap::retention::plan(traces: &[nika_dap::store::TraceMeta], cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> alloc::vec::Vec<(usize, nika_dap::retention::Reason)>
 pub fn nika_dap::retention::prune_claims(home: &std::path::Path, cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> core::option::Option<usize>
 pub mod nika_dap::seal
+#[non_exhaustive] pub enum nika_dap::seal::KeyFile
+pub nika_dap::seal::KeyFile::Absent
+pub nika_dap::seal::KeyFile::Exposed(u32)
+pub nika_dap::seal::KeyFile::Private
+pub nika_dap::seal::KeyFile::Unreadable
+impl core::clone::Clone for nika_dap::seal::KeyFile
+pub fn nika_dap::seal::KeyFile::clone(&self) -> nika_dap::seal::KeyFile
+impl core::cmp::Eq for nika_dap::seal::KeyFile
+impl core::cmp::PartialEq for nika_dap::seal::KeyFile
+pub fn nika_dap::seal::KeyFile::eq(&self, other: &nika_dap::seal::KeyFile) -> bool
+impl core::fmt::Debug for nika_dap::seal::KeyFile
+pub fn nika_dap::seal::KeyFile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dap::seal::KeyFile
+impl core::marker::StructuralPartialEq for nika_dap::seal::KeyFile
+impl<D> owo_colors::OwoColorize for nika_dap::seal::KeyFile
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::seal::KeyFile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::seal::KeyFile::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::seal::KeyFile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::seal::KeyFile::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::seal::KeyFile where U: core::convert::From<T>
+pub fn nika_dap::seal::KeyFile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::seal::KeyFile where U: core::convert::Into<T>
+pub type nika_dap::seal::KeyFile::Error = core::convert::Infallible
+pub fn nika_dap::seal::KeyFile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::seal::KeyFile where U: core::convert::TryFrom<T>
+pub type nika_dap::seal::KeyFile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::seal::KeyFile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::seal::KeyFile where T: core::clone::Clone
+pub type nika_dap::seal::KeyFile::Owned = T
+pub fn nika_dap::seal::KeyFile::clone_into(&self, target: &mut T)
+pub fn nika_dap::seal::KeyFile::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::seal::KeyFile where T: 'static + ?core::marker::Sized
+pub fn nika_dap::seal::KeyFile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::seal::KeyFile where T: ?core::marker::Sized
+pub fn nika_dap::seal::KeyFile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::seal::KeyFile where T: ?core::marker::Sized
+pub fn nika_dap::seal::KeyFile::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::seal::KeyFile where T: core::clone::Clone
+pub unsafe fn nika_dap::seal::KeyFile::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::seal::KeyFile
+pub fn nika_dap::seal::KeyFile::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::seal::KeyFile where T: core::clone::Clone
+pub fn nika_dap::seal::KeyFile::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::seal::KeyFile where T: 'static
+pub fn nika_dap::seal::KeyFile::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_dap::seal::KeyFile where T: core::marker::Copy
+pub fn nika_dap::seal::KeyFile::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::seal::KeyFile where T: ?core::marker::Sized
+pub fn nika_dap::seal::KeyFile::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::seal::KeyFile::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::seal::KeyFile
+impl<T> tracing::instrument::WithSubscriber for nika_dap::seal::KeyFile
+impl<T> typenum::type_operators::Same for nika_dap::seal::KeyFile
+pub type nika_dap::seal::KeyFile::Output = T
+#[non_exhaustive] pub enum nika_dap::seal::KeychainUse
+pub nika_dap::seal::KeychainUse::AdHoc
+pub nika_dap::seal::KeychainUse::NoTerminal
+pub nika_dap::seal::KeychainUse::Off
+pub nika_dap::seal::KeychainUse::Opened
+pub nika_dap::seal::KeychainUse::Resident
+pub nika_dap::seal::KeychainUse::TestBinary
+impl core::clone::Clone for nika_dap::seal::KeychainUse
+pub fn nika_dap::seal::KeychainUse::clone(&self) -> nika_dap::seal::KeychainUse
+impl core::cmp::Eq for nika_dap::seal::KeychainUse
+impl core::cmp::PartialEq for nika_dap::seal::KeychainUse
+pub fn nika_dap::seal::KeychainUse::eq(&self, other: &nika_dap::seal::KeychainUse) -> bool
+impl core::fmt::Debug for nika_dap::seal::KeychainUse
+pub fn nika_dap::seal::KeychainUse::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dap::seal::KeychainUse
+impl core::marker::StructuralPartialEq for nika_dap::seal::KeychainUse
+impl<D> owo_colors::OwoColorize for nika_dap::seal::KeychainUse
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::seal::KeychainUse where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::seal::KeychainUse::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::seal::KeychainUse where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::seal::KeychainUse::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::seal::KeychainUse where U: core::convert::From<T>
+pub fn nika_dap::seal::KeychainUse::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::seal::KeychainUse where U: core::convert::Into<T>
+pub type nika_dap::seal::KeychainUse::Error = core::convert::Infallible
+pub fn nika_dap::seal::KeychainUse::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::seal::KeychainUse where U: core::convert::TryFrom<T>
+pub type nika_dap::seal::KeychainUse::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::seal::KeychainUse::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::seal::KeychainUse where T: core::clone::Clone
+pub type nika_dap::seal::KeychainUse::Owned = T
+pub fn nika_dap::seal::KeychainUse::clone_into(&self, target: &mut T)
+pub fn nika_dap::seal::KeychainUse::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::seal::KeychainUse where T: 'static + ?core::marker::Sized
+pub fn nika_dap::seal::KeychainUse::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::seal::KeychainUse where T: ?core::marker::Sized
+pub fn nika_dap::seal::KeychainUse::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::seal::KeychainUse where T: ?core::marker::Sized
+pub fn nika_dap::seal::KeychainUse::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::seal::KeychainUse where T: core::clone::Clone
+pub unsafe fn nika_dap::seal::KeychainUse::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::seal::KeychainUse
+pub fn nika_dap::seal::KeychainUse::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::seal::KeychainUse where T: core::clone::Clone
+pub fn nika_dap::seal::KeychainUse::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::seal::KeychainUse where T: 'static
+pub fn nika_dap::seal::KeychainUse::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_dap::seal::KeychainUse where T: core::marker::Copy
+pub fn nika_dap::seal::KeychainUse::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::seal::KeychainUse where T: ?core::marker::Sized
+pub fn nika_dap::seal::KeychainUse::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::seal::KeychainUse::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::seal::KeychainUse
+impl<T> tracing::instrument::WithSubscriber for nika_dap::seal::KeychainUse
+impl<T> typenum::type_operators::Same for nika_dap::seal::KeychainUse
+pub type nika_dap::seal::KeychainUse::Output = T
+#[non_exhaustive] pub struct nika_dap::seal::Alignment
+pub nika_dap::seal::Alignment::already: bool
+pub nika_dap::seal::Alignment::fingerprint: alloc::string::String
+pub nika_dap::seal::Alignment::retired: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_dap::seal::Alignment
+pub fn nika_dap::seal::Alignment::clone(&self) -> nika_dap::seal::Alignment
+impl core::cmp::Eq for nika_dap::seal::Alignment
+impl core::cmp::PartialEq for nika_dap::seal::Alignment
+pub fn nika_dap::seal::Alignment::eq(&self, other: &nika_dap::seal::Alignment) -> bool
+impl core::fmt::Debug for nika_dap::seal::Alignment
+pub fn nika_dap::seal::Alignment::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::seal::Alignment
+impl<D> owo_colors::OwoColorize for nika_dap::seal::Alignment
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::seal::Alignment where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::seal::Alignment::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::seal::Alignment where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::seal::Alignment::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::seal::Alignment where U: core::convert::From<T>
+pub fn nika_dap::seal::Alignment::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::seal::Alignment where U: core::convert::Into<T>
+pub type nika_dap::seal::Alignment::Error = core::convert::Infallible
+pub fn nika_dap::seal::Alignment::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::seal::Alignment where U: core::convert::TryFrom<T>
+pub type nika_dap::seal::Alignment::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::seal::Alignment::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::seal::Alignment where T: core::clone::Clone
+pub type nika_dap::seal::Alignment::Owned = T
+pub fn nika_dap::seal::Alignment::clone_into(&self, target: &mut T)
+pub fn nika_dap::seal::Alignment::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::seal::Alignment where T: 'static + ?core::marker::Sized
+pub fn nika_dap::seal::Alignment::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::seal::Alignment where T: ?core::marker::Sized
+pub fn nika_dap::seal::Alignment::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::seal::Alignment where T: ?core::marker::Sized
+pub fn nika_dap::seal::Alignment::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::seal::Alignment where T: core::clone::Clone
+pub unsafe fn nika_dap::seal::Alignment::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::seal::Alignment
+pub fn nika_dap::seal::Alignment::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::seal::Alignment where T: core::clone::Clone
+pub fn nika_dap::seal::Alignment::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::seal::Alignment where T: 'static
+pub fn nika_dap::seal::Alignment::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::seal::Alignment where T: ?core::marker::Sized
+pub fn nika_dap::seal::Alignment::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::seal::Alignment::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::seal::Alignment
+impl<T> tracing::instrument::WithSubscriber for nika_dap::seal::Alignment
+impl<T> typenum::type_operators::Same for nika_dap::seal::Alignment
+pub type nika_dap::seal::Alignment::Output = T
+#[non_exhaustive] pub struct nika_dap::seal::Custody
+pub nika_dap::seal::Custody::explicit: core::option::Option<core::result::Result<(std::path::PathBuf, nika_dap::seal::KeyFile), alloc::string::String>>
+pub nika_dap::seal::Custody::fallback: core::option::Option<(std::path::PathBuf, nika_dap::seal::KeyFile)>
+pub nika_dap::seal::Custody::file_fingerprint: core::option::Option<alloc::string::String>
+pub nika_dap::seal::Custody::keychain: nika_dap::seal::KeychainUse
+pub nika_dap::seal::Custody::keychain_fingerprint: core::option::Option<alloc::string::String>
+pub nika_dap::seal::Custody::keychain_key: core::option::Option<bool>
+pub nika_dap::seal::Custody::recorded: core::option::Option<alloc::string::String>
+pub nika_dap::seal::Custody::signer: core::option::Option<alloc::string::String>
+impl nika_dap::seal::Custody
+pub fn nika_dap::seal::Custody::new(explicit: core::option::Option<core::result::Result<(std::path::PathBuf, nika_dap::seal::KeyFile), alloc::string::String>>, keychain: nika_dap::seal::KeychainUse, fallback: core::option::Option<(std::path::PathBuf, nika_dap::seal::KeyFile)>) -> Self
+pub fn nika_dap::seal::Custody::with_keys(self, signer: core::option::Option<alloc::string::String>, keychain_key: core::option::Option<bool>, keychain_fingerprint: core::option::Option<alloc::string::String>, file_fingerprint: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_dap::seal::Custody::with_record(self, recorded: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_dap::seal::Custody
+pub fn nika_dap::seal::Custody::clone(&self) -> nika_dap::seal::Custody
+impl core::cmp::Eq for nika_dap::seal::Custody
+impl core::cmp::PartialEq for nika_dap::seal::Custody
+pub fn nika_dap::seal::Custody::eq(&self, other: &nika_dap::seal::Custody) -> bool
+impl core::fmt::Debug for nika_dap::seal::Custody
+pub fn nika_dap::seal::Custody::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::seal::Custody
+impl<D> owo_colors::OwoColorize for nika_dap::seal::Custody
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::seal::Custody where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::seal::Custody::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::seal::Custody where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::seal::Custody::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::seal::Custody where U: core::convert::From<T>
+pub fn nika_dap::seal::Custody::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::seal::Custody where U: core::convert::Into<T>
+pub type nika_dap::seal::Custody::Error = core::convert::Infallible
+pub fn nika_dap::seal::Custody::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::seal::Custody where U: core::convert::TryFrom<T>
+pub type nika_dap::seal::Custody::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::seal::Custody::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::seal::Custody where T: core::clone::Clone
+pub type nika_dap::seal::Custody::Owned = T
+pub fn nika_dap::seal::Custody::clone_into(&self, target: &mut T)
+pub fn nika_dap::seal::Custody::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::seal::Custody where T: 'static + ?core::marker::Sized
+pub fn nika_dap::seal::Custody::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::seal::Custody where T: ?core::marker::Sized
+pub fn nika_dap::seal::Custody::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::seal::Custody where T: ?core::marker::Sized
+pub fn nika_dap::seal::Custody::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::seal::Custody where T: core::clone::Clone
+pub unsafe fn nika_dap::seal::Custody::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::seal::Custody
+pub fn nika_dap::seal::Custody::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::seal::Custody where T: core::clone::Clone
+pub fn nika_dap::seal::Custody::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::seal::Custody where T: 'static
+pub fn nika_dap::seal::Custody::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::seal::Custody where T: ?core::marker::Sized
+pub fn nika_dap::seal::Custody::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::seal::Custody::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::seal::Custody
+impl<T> tracing::instrument::WithSubscriber for nika_dap::seal::Custody
+impl<T> typenum::type_operators::Same for nika_dap::seal::Custody
+pub type nika_dap::seal::Custody::Output = T
 #[non_exhaustive] pub struct nika_dap::seal::SealTeardown
 pub nika_dap::seal::SealTeardown::assertions: alloc::vec::Vec<serde_json::value::Value>
 pub nika_dap::seal::SealTeardown::budgets: core::option::Option<serde_json::value::Value>
@@ -4335,12 +4554,17 @@ impl<T> zvariant::optional::NoneValue for nika_dap::seal::SealTeardown where T: 
 pub type nika_dap::seal::SealTeardown::NoneType = T
 pub fn nika_dap::seal::SealTeardown::null_value() -> T
 pub fn nika_dap::seal::candidate_pubkeys(key_file: core::option::Option<&std::path::Path>) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, alloc::string::String>
+pub fn nika_dap::seal::custody() -> nika_dap::seal::Custody
 pub fn nika_dap::seal::fingerprint(pubkey_box: &str) -> alloc::string::String
+pub fn nika_dap::seal::key_align() -> core::result::Result<nika_dap::seal::Alignment, alloc::string::String>
 pub fn nika_dap::seal::key_init(force: bool) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub fn nika_dap::seal::key_rotate() -> core::result::Result<alloc::string::String, alloc::string::String>
 pub fn nika_dap::seal::key_trust() -> core::option::Option<(alloc::string::String, alloc::string::String)>
+pub fn nika_dap::seal::keychain_use() -> nika_dap::seal::KeychainUse
 pub fn nika_dap::seal::load_public_box() -> core::option::Option<alloc::string::String>
+pub fn nika_dap::seal::load_served_signing_key() -> core::option::Option<(minisign::secret_key::SecretKey, alloc::string::String)>
 pub fn nika_dap::seal::load_signing_key() -> core::option::Option<(minisign::secret_key::SecretKey, alloc::string::String)>
+pub fn nika_dap::seal::resident_custody()
 pub fn nika_dap::seal::seal_event(run_id: nika_types::id::EventId, at: nika_types::timestamp::Timestamp, head: &str, events: usize, workflow_hash: &str, engine: &str, sk: &minisign::secret_key::SecretKey, pk_box: &str) -> core::option::Option<nika_event::event::Event>
 pub fn nika_dap::seal::seal_event_with(run_id: nika_types::id::EventId, at: nika_types::timestamp::Timestamp, head: &str, events: usize, workflow_hash: &str, engine: &str, teardown: core::option::Option<&nika_dap::seal::SealTeardown>, sk: &minisign::secret_key::SecretKey, pk_box: &str) -> core::option::Option<nika_event::event::Event>
 pub fn nika_dap::seal::workflow_hash(workflow: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<alloc::string::String>

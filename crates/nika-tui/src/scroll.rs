@@ -5,7 +5,7 @@
 
 use crate::composer::Composer;
 use crate::model::{Presentation, UiState};
-use crate::render::{block_lines, content_rows, live_rows, question};
+use crate::render::{block_lines_within, content_rows, live_rows, question};
 use crate::workspace::{cards, desk::Desk, focus::Region, screen};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -78,7 +78,9 @@ fn maximum(state: &UiState, desk: &Desk, composer: &Composer) -> usize {
             .transcript
             .iter()
             .flat_map(|block| {
-                block_lines(block, state.color, state.ascii)
+                let now = cards::decided(block, &state.waiting);
+                let now = now.as_ref().unwrap_or(block);
+                block_lines_within(now, state.color, state.ascii, area.width)
                     .into_iter()
                     .chain([ratatui::text::Line::default()])
             })
@@ -128,14 +130,20 @@ fn keep(state: &mut UiState, desk: &Desk, composer: &Composer, before: Option<us
     }
 }
 
+/// Whether the conversation's own transcript takes the reading keys now: the focus view, or the
+/// workspace with the keys on the conversation (or below its minimum, where the focus view
+/// stands in). Inline, the terminal's own scrollback reads it.
+fn reads_conversation(state: &UiState, desk: &Desk) -> bool {
+    state.presentation == Presentation::Focus
+        || (state.presentation == Presentation::Workspace
+            && (!crate::workspace::geometry::fits(state.size)
+                || desk.focus.region == Region::Conversation))
+}
+
 /// End returns a scrolled transcript to its latest row; otherwise the composer
 /// or focused object keeps its normal End key.
 pub(crate) fn end(state: &mut UiState, desk: &Desk, key: KeyEvent) -> bool {
-    let conversation = state.presentation == Presentation::Focus
-        || (state.presentation == Presentation::Workspace
-            && (!crate::workspace::geometry::fits(state.size)
-                || desk.focus.region == Region::Conversation));
-    if conversation
+    if reads_conversation(state, desk)
         && state.focus_scroll > 0
         && key.code == KeyCode::End
         && key.modifiers == KeyModifiers::NONE
@@ -147,6 +155,22 @@ pub(crate) fn end(state: &mut UiState, desk: &Desk, key: KeyEvent) -> bool {
     } else {
         false
     }
+}
+
+/// Home takes the transcript to its first row, as End takes it to its latest: `Ctrl+Home`
+/// always, and a bare `Home` while nothing is typed, where it has no caret to move (live
+/// gauntlet r07: Home and `PgUp` left the person inside the last long card, with no key back
+/// to the start of the conversation). With a draft, a bare `Home` stays the composer's.
+pub(crate) fn home(state: &mut UiState, desk: &Desk, composer: &Composer, key: KeyEvent) -> bool {
+    let bare = key.modifiers == KeyModifiers::NONE && composer.text().is_empty();
+    let first = key.code == KeyCode::Home && (bare || key.modifiers == KeyModifiers::CONTROL);
+    if !first || !reads_conversation(state, desk) {
+        return false;
+    }
+    state.focus_scroll = maximum(state, desk, composer);
+    state.interrupt_armed = false;
+    state.completion = None;
+    true
 }
 
 #[cfg(test)]
@@ -442,6 +466,41 @@ mod tests {
         let mut composer = Composer::new();
         composer.paste(DRAFT);
         (state, desk, composer)
+    }
+
+    /// Home takes the conversation to its first row while nothing is typed, `Ctrl+Home` with
+    /// a draft too, and a bare `Home` over a draft stays the composer's; End comes back (live
+    /// gauntlet r07: no key led back to the start of the conversation).
+    #[test]
+    fn home_takes_the_conversation_to_its_first_row() {
+        let (mut state, desk, drafted) = selected_workspace((120, 40), false);
+        let top = maximum(&state, &desk, &drafted);
+        assert!(top > 0, "a transcript longer than its panel");
+        let bare = KeyEvent::new(KeyCode::Home, KeyModifiers::NONE);
+        assert!(
+            !home(&mut state, &desk, &drafted, bare),
+            "over a draft, Home moves the caret"
+        );
+        assert_eq!(state.focus_scroll, 0);
+        let ctrl = KeyEvent::new(KeyCode::Home, KeyModifiers::CONTROL);
+        assert!(home(&mut state, &desk, &drafted, ctrl));
+        assert_eq!(state.focus_scroll, top);
+        assert!(end(
+            &mut state,
+            &desk,
+            KeyEvent::new(KeyCode::End, KeyModifiers::NONE)
+        ));
+        assert_eq!(state.focus_scroll, 0);
+        let empty = Composer::new();
+        assert!(home(&mut state, &desk, &empty, bare));
+        assert_eq!(state.focus_scroll, maximum(&state, &desk, &empty));
+        let mut inline = state.clone();
+        inline.presentation = Presentation::Inline;
+        inline.focus_scroll = 0;
+        assert!(
+            !home(&mut inline, &desk, &empty, bare),
+            "inline, the terminal's scrollback reads it"
+        );
     }
 
     #[test]

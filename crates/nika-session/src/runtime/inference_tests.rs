@@ -122,10 +122,38 @@ pub(crate) fn authored(reply: fn(&str) -> Value) -> Vec<(u16, Value)> {
     script.push((200, reply(JUDGE_APPROVES)));
     script
 }
+/// Leave `root`'s `entree.txt` absent once the fixture wrote it: the world is observed with the
+/// input not yet arrived, and the room refuses the missing read input before any attempt, so no
+/// trial of a candidate reading it can run and a doubt over its bytes stays undecided.
+pub(crate) fn untriable(root: &Path) {
+    std::fs::remove_file(root.join("entree.txt")).expect("the fixture's input");
+}
+/// The calls one approved CREATE of `WORK` sends once its trial runs whole (an allowance
+/// admitted and `entree.txt` in the project, so `sortie.txt` is a target the run writes): the
+/// document, the judge of the whole request, then of its part again over the trial run.
+pub(crate) const TRIED_CREATE_CALLS: usize = 3;
+/// [`authored`] for a CREATE whose trial runs whole: the approving judge answers its part
+/// over the run too (the wire turns the approval into `carried` there).
+pub(crate) fn tried(reply: fn(&str) -> Value) -> Vec<(u16, Value)> {
+    let mut script = authored(reply);
+    script.push((200, reply(JUDGE_APPROVES)));
+    script
+}
 /// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer a test
 /// scripts at the judge's position, after a native candidate READY in its authoring round. The
 /// judge's call is a real request, counted and journaled like any other.
-pub(crate) const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
+/// It answers the whole request's `model_parts` too: no part a model must write.
+pub(crate) const JUDGE_APPROVES: &str = r#"{"choice":"faithful","model_parts":[]}"#;
+
+/// A judge's answer to a closed choice as a test scripts it: the whole request's keys
+/// (`faithful`, `unfaithful`) answer its `model_parts` too, no part a model must write.
+pub(crate) fn judge_answer(choice: &str) -> String {
+    let mut answer = json!({ "choice": choice });
+    if matches!(choice, "faithful" | "unfaithful") {
+        answer["model_parts"] = json!([]);
+    }
+    answer.to_string()
+}
 fn open(root: &Path) -> SessionRuntime {
     std::fs::write(root.join("entree.txt"), "A\n").expect("input");
     let selected = ResolvedSessionIntelligence::new(
@@ -164,7 +192,7 @@ fn open(root: &Path) -> SessionRuntime {
 fn positive_authoring_amendment_and_save_share_one_account() {
     // This wording enters authoring directly. Classifier/conversation/compiler
     // aggregation is exercised separately below through those real consumers.
-    let peer = Peer::start(authored(response));
+    let peer = Peer::start(tried(response));
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().expect("root");
     let mut s = open(dir.path());
@@ -176,8 +204,8 @@ fn positive_authoring_amendment_and_save_share_one_account() {
     let before = s.inference_receipt().expect("receipt").expect("account");
     assert_eq!(
         before.attempts.len(),
-        CREATE_CALLS,
-        "the plan, sketch and fill calls and the judge's"
+        TRIED_CREATE_CALLS,
+        "the document, the judge's whole request and its part over the trial run"
     );
     assert!(before.estimated.nano_usd > 0);
     assert_eq!(before.billed, None);
@@ -203,7 +231,7 @@ fn positive_authoring_amendment_and_save_share_one_account() {
         panic!("amend: {out:?}");
     };
     assert_ne!(old, id);
-    assert_eq!(peer.bodies().len(), CREATE_CALLS);
+    assert_eq!(peer.bodies().len(), TRIED_CREATE_CALLS);
     assert_eq!(
         s.inference_receipt().unwrap().unwrap().estimated,
         before.estimated
@@ -213,14 +241,14 @@ fn positive_authoring_amendment_and_save_share_one_account() {
     assert!(
         matches!(s.turn("run it"),TurnOutcome::RunRequested{ref run,..} if run.max_cost_usd.to_bits() == 3.0_f64.to_bits())
     );
-    assert_eq!(peer.bodies().len(), CREATE_CALLS);
+    assert_eq!(peer.bodies().len(), TRIED_CREATE_CALLS);
 }
 #[test]
 fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
     let peer = Peer::start(
         vec![(200, response("NEW_WORK")), (200, response("Hello"))]
             .into_iter()
-            .chain(authored(response))
+            .chain(tried(response))
             .collect(),
     );
     let _transport = test_transport::install(&peer.url);
@@ -235,10 +263,10 @@ fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
     let r = s.inference_receipt().unwrap().unwrap();
     assert_eq!(
         r.attempts.len(),
-        2 + CREATE_CALLS,
-        "classifier, conversation, plan, sketch, fill, judge"
+        2 + TRIED_CREATE_CALLS,
+        "classifier, conversation, document, judge, part over the trial run"
     );
-    assert_eq!(peer.bodies().len(), 2 + CREATE_CALLS);
+    assert_eq!(peer.bodies().len(), 2 + TRIED_CREATE_CALLS);
     assert_eq!(peer.bodies()[0]["max_tokens"], 4096);
     assert_eq!(peer.bodies()[1]["max_tokens"], 8192);
     s.admit_money("budget 2 USD", true, false).unwrap();
@@ -253,7 +281,7 @@ fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
         .amend(r.estimated)
         .unwrap();
     assert!(s.reason_with_money("another", false).is_err());
-    assert_eq!(peer.bodies().len(), 2 + CREATE_CALLS);
+    assert_eq!(peer.bodies().len(), 2 + TRIED_CREATE_CALLS);
 }
 #[test]
 fn zero_invalid_and_unknown_charge_remain_guarded_across_questions() {

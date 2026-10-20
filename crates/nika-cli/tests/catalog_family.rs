@@ -326,7 +326,7 @@ fn the_named_surface_actually_names_them() {
          a vendor the listing silently dropped",
     );
 
-    // The sovereign path still leads, and the doctrine head order holds
+    // The sovereign path still leads, and the design tokens' order holds
     // INSIDE the section that now excludes the unreachable vendors.
     let local = before.find("LOCAL").expect("a LOCAL section");
     let cloud = before.find("CLOUD").expect("a CLOUD section");
@@ -336,8 +336,26 @@ fn the_named_surface_actually_names_them() {
             .find(&format!("\n\u{2502}  {id}"))
             .unwrap_or_else(|| panic!("`{id}` must sit in a runnable section"))
     };
-    assert!(pos("mistral") < pos("anthropic"), "mistral leads anthropic");
-    assert!(pos("anthropic") < pos("openai"), "anthropic leads openai");
+    let tokens = nika_pack::design_tokens();
+    let order = tokens
+        .split_once("providers_order:")
+        .map(|(_, after)| after)
+        .unwrap_or_default();
+    let ranked: Vec<&str> = order
+        .lines()
+        .skip(1)
+        .map_while(|line| line.trim().strip_prefix("- "))
+        .filter(|id| ["mistral", "anthropic", "openai"].contains(id))
+        .collect();
+    assert_eq!(
+        ranked.len(),
+        3,
+        "the vendored token names the three: {ranked:?}"
+    );
+    assert!(
+        ranked.windows(2).all(|pair| pos(pair[0]) < pos(pair[1])),
+        "the listing follows the vendored token: {ranked:?}"
+    );
 }
 
 /// One JSON-RPC round trip against the REAL `nika mcp` stdio server.

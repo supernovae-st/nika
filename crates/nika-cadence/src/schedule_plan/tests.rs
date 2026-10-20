@@ -244,17 +244,27 @@ fn cadence_distinguishes_on_time_catch_up_once_and_skip() {
     );
     let durable = state_after(seed.due().slot().expect("seed slot"));
 
-    let catch_all = planned(
+    // `rattraper` fires the latest missed slot once: the two older ones are
+    // dropped first, as one journaled skip (spec 01 §`manqué`).
+    let latest_once = planned(
         daily(MissPolicy::Rattraper),
         "2026-09-04T12:00:00Z",
         &durable,
     );
     assert!(matches!(
-        catch_all.due(),
+        latest_once.due(),
+        ScheduleDueVerdict::SkippedMissed {
+            slot,
+            missed_slots: 2,
+        } if slot.scheduled_for() == ts("2026-09-03T09:00:00Z")
+    ));
+    let dropped = state_after(latest_once.due().slot().expect("the newest dropped slot"));
+    assert!(matches!(
+        planned(daily(MissPolicy::Rattraper), "2026-09-04T12:00:00Z", &dropped).due(),
         ScheduleDueVerdict::CatchUp {
             slot,
-            missed_slots: 3,
-        } if slot.scheduled_for() == ts("2026-09-02T09:00:00Z")
+            missed_slots: 1,
+        } if slot.scheduled_for() == ts("2026-09-04T09:00:00Z")
     ));
 
     let catch_once = planned(
@@ -278,6 +288,101 @@ fn cadence_distinguishes_on_time_catch_up_once_and_skip() {
             missed_slots: 3,
         } if slot.scheduled_for() == ts("2026-09-04T09:00:00Z")
     ));
+}
+
+/// A `rattraper-une-fois` catch-up names the silence it answers for: the instant of its
+/// first slot and how many slots it holds, the slot it fires being the last. An on-time slot,
+/// another miss policy and a skip name none.
+#[test]
+fn a_catch_up_once_names_the_silence_it_answers_for() {
+    let seed = planned(
+        daily(MissPolicy::RattraperUneFois),
+        "2026-09-01T09:00:00Z",
+        &ScheduleDecisionState::empty(),
+    );
+    assert_eq!(
+        seed.silence(),
+        None,
+        "an on-time slot answers for no silence"
+    );
+    let durable = state_after(seed.due().slot().expect("seed slot"));
+    let caught = planned(
+        daily(MissPolicy::RattraperUneFois),
+        "2026-09-04T12:00:00Z",
+        &durable,
+    );
+    assert_eq!(caught.silence(), Some((ts("2026-09-02T09:00:00Z"), 3)));
+    assert_eq!(
+        caught.due().slot().map(ScheduleSlot::scheduled_for),
+        Some(ts("2026-09-04T09:00:00Z")),
+        "the slot fired is the silence's last"
+    );
+    for missed in [MissPolicy::Rattraper, MissPolicy::Sauter] {
+        let other = planned(daily(missed), "2026-09-04T12:00:00Z", &durable);
+        assert_eq!(other.silence(), None, "{missed:?} answers for no silence");
+    }
+    let late_once = planned(
+        once(MissPolicy::RattraperUneFois),
+        "2026-09-01T09:10:00Z",
+        &ScheduleDecisionState::empty(),
+    );
+    assert_eq!(late_once.silence(), Some((ts("2026-09-01T09:00:00Z"), 1)));
+}
+
+/// `{ rattraper: N }` (spec 01 §`manqué`): up to the N latest missed slots
+/// fire, one run each, oldest first; the older ones are dropped first, as one
+/// journaled skip. A silence no longer than N fires whole, oldest first, and
+/// `{ rattraper: 1 }` IS `rattraper`.
+#[test]
+fn a_bounded_catch_up_fires_the_n_latest_oldest_first() {
+    let two = MissPolicy::rattraper(std::num::NonZeroU32::new(2).expect("two"));
+    let seed = planned(
+        daily(two),
+        "2026-09-01T09:00:00Z",
+        &ScheduleDecisionState::empty(),
+    );
+    let seeded = state_after(seed.due().slot().expect("seed slot"));
+    // Back on the 5th at noon: the 2nd, 3rd, 4th and 5th were missed.
+    let mut state = seeded.clone();
+    let mut steps = Vec::new();
+    for _ in 0..3 {
+        let plan = planned(daily(two), "2026-09-05T12:00:00Z", &state);
+        let step = match plan.due() {
+            ScheduleDueVerdict::SkippedMissed { slot, missed_slots } => {
+                (format!("skip {missed_slots}"), slot.clone())
+            }
+            ScheduleDueVerdict::CatchUp { slot, missed_slots } => {
+                (format!("catch-up {missed_slots}"), slot.clone())
+            }
+            other => panic!("a bounded catch-up step, got {other:?}"),
+        };
+        state = state_after(&step.1);
+        steps.push((step.0, step.1.scheduled_for().to_string()));
+    }
+    assert_eq!(
+        steps,
+        [
+            ("skip 2".to_owned(), "2026-09-03T09:00:00Z".to_owned()),
+            ("catch-up 2".to_owned(), "2026-09-04T09:00:00Z".to_owned()),
+            ("catch-up 1".to_owned(), "2026-09-05T09:00:00Z".to_owned()),
+        ]
+    );
+    assert!(matches!(
+        planned(daily(two), "2026-09-05T12:00:00Z", &state).due(),
+        ScheduleDueVerdict::NotDue
+    ));
+    let five = MissPolicy::rattraper(std::num::NonZeroU32::new(5).expect("five"));
+    assert!(matches!(
+        planned(daily(five), "2026-09-04T12:00:00Z", &seeded).due(),
+        ScheduleDueVerdict::CatchUp {
+            slot,
+            missed_slots: 3,
+        } if slot.scheduled_for() == ts("2026-09-02T09:00:00Z")
+    ));
+    assert_eq!(
+        MissPolicy::rattraper(std::num::NonZeroU32::MIN),
+        MissPolicy::Rattraper
+    );
 }
 
 /// A declaration edit that does not change timing (the workflow path)
@@ -316,12 +421,12 @@ fn a_workflow_path_edit_keeps_the_consumed_once_slot() {
 #[test]
 fn a_cadence_edit_keeps_the_missed_slot_watermark() {
     let seed = planned(
-        daily(MissPolicy::Rattraper),
+        daily(MissPolicy::RattraperUneFois),
         "2026-09-01T09:00:00Z",
         &ScheduleDecisionState::empty(),
     );
     let durable = state_after(seed.due().slot().expect("seed slot"));
-    let mut twice_daily = daily(MissPolicy::Rattraper);
+    let mut twice_daily = daily(MissPolicy::RattraperUneFois);
     twice_daily.when = ScheduleWhenDraft::Cadence {
         expression: "TZ=UTC 0 9,21 * * *".to_owned(),
     };
@@ -499,6 +604,101 @@ fn a_pause_whose_until_passed_wakes_at_the_decision_date() {
     assert!(
         matches!(plan.due(), ScheduleDueVerdict::PausedInactive { .. }),
         "the bound is a strict date: on its own date the pause still holds"
+    );
+}
+
+/// One beat, one meaning: a suspension whose `jusqu_au` has passed wakes under the resident's
+/// planner and under `nika arm fire` alike; both firers read the same bytes.
+#[test]
+fn a_passed_suspension_wakes_under_both_firers() {
+    let registry = parse_registry(concat!(
+        "nika: proj\n",
+        "arm:\n",
+        "  - workflow: workflows/report.nika\n",
+        "    cadence: \"TZ=UTC 0 9 * * *\"\n",
+        "    plafond: 0.25\n",
+        "    manqué: sauter\n",
+        "    actif: false\n",
+        "    raison: \"operator maintenance\"\n",
+        "    jusqu_au: \"2026-08-31\"\n",
+    ))
+    .expect("parse");
+    assert_eq!(
+        crate::validate(&registry).count(),
+        0,
+        "the fixture is lawful"
+    );
+    let beat = registry.beats().next().expect("one beat");
+    let definition = ScheduleDraft::from_project("report", beat)
+        .and_then(ScheduleDraft::validate)
+        .expect("the resident admits the beat");
+    let now = zoned("2026-09-01T09:00:00Z");
+    let plan = plan_schedule(&definition, &now, &ScheduleDecisionState::empty(), 3).expect("plan");
+    assert!(
+        matches!(plan.due(), ScheduleDueVerdict::ScheduledOnTime { .. }),
+        "the resident wakes it: {:?}",
+        plan.due()
+    );
+    let fired = crate::tick::tick_decision(&registry, 0, "report", &now, None);
+    assert!(
+        matches!(fired, crate::tick::TickDecision::Fire { .. }),
+        "the OS-unit firer must wake it too: {fired:?}"
+    );
+}
+
+/// A woken pause counts its silence from the wake: the slots it slept through
+/// are never missed, so a catch-up policy never replays the pause.
+#[test]
+fn a_woke_pause_never_replays_the_slots_it_slept_through() {
+    let before = planned(
+        daily(MissPolicy::RattraperUneFois),
+        "2026-07-01T09:00:30Z",
+        &ScheduleDecisionState::empty(),
+    );
+    let ScheduleDueVerdict::ScheduledOnTime { slot } = before.due() else {
+        panic!("the last fire before the pause: {:?}", before.due());
+    };
+    let mut woke = daily(MissPolicy::RattraperUneFois);
+    woke.active = Some(false);
+    woke.pause_reason = Some("holidays".to_owned());
+    woke.pause_until = Some("2026-08-31".to_owned());
+    let plan = planned(woke, "2026-09-01T09:00:30Z", &state_after(slot));
+    assert!(
+        matches!(plan.due(), ScheduleDueVerdict::ScheduledOnTime { .. }),
+        "the first slot after the wake is on time, not a catch-up of July and August: {:?}",
+        plan.due()
+    );
+}
+
+/// The bound reads the cadence's own zone: « until 31 October » in Europe/Paris
+/// ends at midnight Paris (23:00Z), not at midnight UTC.
+#[test]
+fn a_pause_ends_at_midnight_in_the_cadence_zone() {
+    let paris = |now: &str| {
+        let mut paused = draft(
+            ScheduleWhenDraft::Cadence {
+                expression: "TZ=Europe/Paris 0 9 * * *".to_owned(),
+            },
+            MissPolicy::Sauter,
+        );
+        paused.active = Some(false);
+        paused.pause_reason = Some("holidays".to_owned());
+        paused.pause_until = Some("2026-10-31".to_owned());
+        planned(paused, now, &ScheduleDecisionState::empty())
+    };
+    assert!(
+        matches!(
+            paris("2026-10-31T22:30:00Z").due(),
+            ScheduleDueVerdict::PausedInactive { .. }
+        ),
+        "23:30 in Paris on 31 October: still paused"
+    );
+    assert!(
+        !matches!(
+            paris("2026-10-31T23:30:00Z").due(),
+            ScheduleDueVerdict::PausedInactive { .. }
+        ),
+        "00:30 in Paris on 1 November: the pause is over, though UTC still reads 31 October"
     );
 }
 

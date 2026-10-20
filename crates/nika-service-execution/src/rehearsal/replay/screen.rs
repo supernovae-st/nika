@@ -53,6 +53,37 @@ impl ReplayScreen {
         }
     }
 
+    /// The literal paths the `nika:write` steps of `workflow` write when the trial does not
+    /// exercise them or they read one it does not ([`Self::behind`]), each once in the
+    /// workflow's order: what the trial reads back of them comes from what the room could not
+    /// give, never what a run writes (live gauntlet wave 6 r07 B2, 2026-10-18: « _Aucun article
+    /// sur les 7 derniers jours._ » three times was read back as the result, the three model
+    /// steps not run).
+    #[must_use]
+    pub fn written_behind(&self, workflow: &RawWorkflow) -> Vec<String> {
+        let mut paths: Vec<String> = Vec::new();
+        for task in &workflow.tasks {
+            let id = task.value.id.value.as_str();
+            if !(self.is_unexercised(id) || self.behind(id)) {
+                continue;
+            }
+            let RawAction::Invoke(invoke) = &task.value.action else {
+                continue;
+            };
+            let RawInvokeTarget::Tool(tool) = &invoke.target else {
+                continue;
+            };
+            let path = (invoke.args.as_ref()).and_then(|args| args.value["path"].as_str());
+            let literal = path.filter(|path| tool.value == "nika:write" && !path.contains("${{"));
+            if let Some(path) = literal
+                && !paths.iter().any(|known| known == path)
+            {
+                paths.push(path.to_owned());
+            }
+        }
+        paths
+    }
+
     /// Whether the trial does not exercise `task`.
     #[must_use]
     pub fn is_unexercised(&self, task: &str) -> bool {

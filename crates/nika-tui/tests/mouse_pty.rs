@@ -166,10 +166,21 @@ fn rule_at(screen: &qa_support::vt::Screen, x: u16) -> bool {
     screen.lines().iter().filter(|line| at(line)).count() >= 10
 }
 
-/// While a turn runs, `F4`, a dragged rule, the object's Restore control
-/// and a dragged aside edge rearrange the screen; the words
-/// typed meanwhile stay in the composer and nothing is submitted, before and
-/// after the turn ends.
+/// Open the listed workflow through the project, without submitting the draft:
+/// contextual expansion needs a selected object (`F4` is inert without one).
+fn open_listed_workflow(term: &mut Term) {
+    term.send("\x1b[17;2~"); // Shift+F6: conversation -> project.
+    term.send("\x1b[B\r"); // The first workflow follows the conversation.
+    term.wait_workspace_frame("the listed workflow is the selected object", |s| {
+        s.contains("path   release.nika") && s.contains("tasks  4")
+    });
+    term.send("\x1b[17~"); // F6: project -> conversation.
+}
+
+/// While a turn runs and a listed workflow is the selected object, `F4`, a
+/// dragged rule, the object's Restore control and a dragged aside edge
+/// rearrange the screen; the words typed meanwhile stay in the composer and
+/// nothing is submitted, before and after the turn ends.
 #[test]
 fn busy_contextual_expansion_drags_and_restore_keep_the_draft_unsent() {
     use unicode_width::UnicodeWidthStr as _;
@@ -179,6 +190,7 @@ fn busy_contextual_expansion_drags_and_restore_keep_the_draft_unsent() {
     term.send("work\r");
     term.wait_text(child::BUSY);
     term.send("draft-layout");
+    open_listed_workflow(&mut term);
     term.send("\x1bOS");
     let area = ratatui::layout::Rect::new(0, 0, 120, 40);
     let g = nika_tui::workspace::geometry::Geometry::of(area, false).expect("geometry");

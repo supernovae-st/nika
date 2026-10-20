@@ -109,8 +109,8 @@ fn check_task_contract(task: &RawTask, names: &BTreeSet<String>, errors: &mut Ve
 
         // NIKA-TYPE-003 · returns: + <verb>.schema: — one contract.
         let schema_present = match &task.action {
-            RawAction::Infer(a) => a.schema.is_some(),
-            RawAction::Agent(a) => a.schema.is_some(),
+            RawAction::Infer(a) => a.schema.is_some() || a.schema_file.is_some(),
+            RawAction::Agent(a) => a.schema.is_some() || a.schema_file.is_some(),
             RawAction::Exec(_) | RawAction::Invoke(_) => false,
             #[allow(
                 clippy::unreachable,
@@ -338,6 +338,22 @@ tasks:
             msg.contains("infer.schema:") && msg.contains("keep returns: (the typed door)"),
             "teaches the one-obvious-way: {msg}"
         );
+    }
+
+    /// A schema kept in a project file is the same contract: `returns:` beside it is TYPE-003
+    /// before any file is read, for `infer:` and `agent:`.
+    #[test]
+    fn returns_plus_a_schema_file_is_type_003() {
+        for verb in ["infer", "agent"] {
+            let errors = errors_of(&format!(
+                "nika: t\ntasks:\n  a:\n    {verb}:\n      prompt: hi\n      schema: {{ file: \"schemas/order.json\" }}\n    returns: string\n"
+            ));
+            let codes = codes_of(&errors);
+            assert!(
+                codes.iter().any(|c| c == "NIKA-TYPE-003"),
+                "{verb}: {codes:?}"
+            );
+        }
     }
 
     #[test]

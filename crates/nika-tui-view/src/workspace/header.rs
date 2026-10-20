@@ -20,6 +20,9 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
 use unicode_width::UnicodeWidthStr;
 
+use nika_session::Lang;
+
+use super::lang::say;
 use super::text::{fit_head, fit_tail, marks};
 use crate::visual::icon::Icon;
 use crate::visual::role;
@@ -41,6 +44,8 @@ pub struct Place {
     pub git: Option<bool>,
     /// What `nika.yaml` governs the project, when observed.
     pub manifest: Option<Manifest>,
+    /// The language the header's own words follow ([`Place::speaking`]).
+    lang: Lang,
 }
 
 /// What governs a location, as the Session's discovery found it: the first
@@ -68,13 +73,13 @@ const REFUSED: &str = "nika.yaml refused";
 const MIN_LOCATION: usize = 8;
 
 impl Manifest {
-    /// The fact in words, the same in both glyph columns.
-    fn words(&self) -> String {
+    /// The fact in words in `lang`, in the glyph column in use.
+    fn words(&self, lang: Lang, ascii: bool) -> String {
         match self {
             Self::Here => "nika.yaml".to_owned(),
             Self::Above(path) => path.clone(),
-            Self::Absent => "no nika.yaml".to_owned(),
-            Self::Refused => REFUSED.to_owned(),
+            Self::Absent => say(lang, ascii, "no nika.yaml").to_owned(),
+            Self::Refused => say(lang, ascii, REFUSED).to_owned(),
         }
     }
 }
@@ -89,7 +94,22 @@ impl Place {
             location: None,
             git: None,
             manifest: None,
+            lang: Lang::En,
         }
+    }
+
+    /// This place with the header's own words (what the location is, its
+    /// facts, `no project`) said in `lang`; English by default. Names,
+    /// hosts and paths keep their words.
+    #[must_use]
+    pub fn speaking(mut self, lang: Lang) -> Self {
+        self.lang = lang;
+        self
+    }
+
+    /// The language the header's own words follow.
+    pub(super) const fn lang(&self) -> Lang {
+        self.lang
     }
 
     /// This place with `project` active at `location`.
@@ -121,21 +141,27 @@ impl Place {
     }
 
     /// The observed facts about the location, in words; unobserved ones are absent.
-    fn facts(&self) -> Vec<String> {
-        let git = self
-            .git
-            .map(|g| if g { "git" } else { "no git" }.to_owned());
-        git.into_iter()
-            .chain(self.manifest.as_ref().map(Manifest::words))
-            .collect()
+    fn facts(&self, ascii: bool) -> Vec<String> {
+        let git = (self.git).map(|g| {
+            if g {
+                "git"
+            } else {
+                say(self.lang, ascii, "no git")
+            }
+            .to_owned()
+        });
+        let manifest = (self.manifest.as_ref()).map(|manifest| manifest.words(self.lang, ascii));
+        git.into_iter().chain(manifest).collect()
     }
 
     /// What follows the name: the kind of place a project is (`local
     /// project`), or the host alone where no project is active.
-    fn kind(&self, sep: &str) -> String {
+    fn kind(&self, sep: &str, ascii: bool) -> String {
         match (&self.project, self.host.is_empty()) {
-            (Some(_), true) => "  project".to_owned(),
-            (Some(_), false) => format!("  {} project", self.host),
+            (Some(_), true) => say(self.lang, ascii, "  project").to_owned(),
+            (Some(_), false) => {
+                say(self.lang, ascii, "  {host} project").replace("{host}", &self.host)
+            }
             (None, true) => String::new(),
             (None, false) => format!("{sep}{}", self.host),
         }
@@ -150,8 +176,10 @@ pub fn lines(place: &Place, width: u16, rows: u16, ascii: bool, color: bool) -> 
     let width = usize::from(width);
     let (sep, cut) = marks(ascii);
     let location = place.location.as_deref().unwrap_or_default();
-    let facts = place.facts();
-    let refused = place.manifest == Some(Manifest::Refused);
+    let facts = place.facts(ascii);
+    // A refused `nika.yaml`, in the words the facts say it.
+    let refused =
+        (place.manifest == Some(Manifest::Refused)).then(|| say(place.lang, ascii, REFUSED));
     let mut first = identity(place, width, ascii, color);
     if rows >= 2 {
         let second = trail("  ", location, &facts, (sep, cut), width);
@@ -171,10 +199,13 @@ fn identity(place: &Place, width: usize, ascii: bool, color: bool) -> Line<'stat
     let glyph = fit_head(&format!("{} ", Icon::Project.glyph(ascii)), width, "");
     let (name, style) = match &place.project {
         Some(name) => (name.as_str(), role::style(Role::Strong, color)),
-        None => ("no project", role::style(Role::Dim, color)),
+        None => (
+            say(place.lang, ascii, "no project"),
+            role::style(Role::Dim, color),
+        ),
     };
     let name = fit_head(name, width - glyph.width(), cut);
-    let kind = place.kind(sep);
+    let kind = place.kind(sep, ascii);
     let fits = glyph.width() + name.width() + kind.width() <= width;
     let mut spans = vec![
         Span::styled(glyph, role::style(Role::Accent, color)),
@@ -226,12 +257,14 @@ fn trail(
 
 /// `trail` in the quiet role, a refused `nika.yaml` at its end in the
 /// warning role: a hue beside the words, never instead of them.
-fn tinted(trail: String, refused: bool, color: bool) -> Vec<Span<'static>> {
+fn tinted(trail: String, refused: Option<&str>, color: bool) -> Vec<Span<'static>> {
     let dim = role::style(Role::Dim, color);
-    if refused && let Some(before) = trail.strip_suffix(REFUSED) {
+    if let Some(words) = refused
+        && let Some(before) = trail.strip_suffix(words)
+    {
         return vec![
             Span::styled(before.to_owned(), dim),
-            Span::styled(REFUSED, role::style(Role::Warn, color)),
+            Span::styled(words.to_owned(), role::style(Role::Warn, color)),
         ];
     }
     vec![Span::styled(trail, dim)]

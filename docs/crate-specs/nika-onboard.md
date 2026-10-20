@@ -103,10 +103,11 @@ Session and Serve. Its text recall reads informative words (builder v8), a
 family's by their light French stem (« importées » meets « importer »): a row
 that shares only a stopword with the request (« the », « with ») is not
 recalled, and every row it does reach is still presented whole, with no count or
-byte quota. The build embeds the current release, the r3 Foundry
-release (`knowledge-0.123.0-r3.2-foundry-20261012`, profile r2, `policy-r2`,
+byte quota. The build embeds the current release, the r3.5 Foundry
+release (`knowledge-0.123.0-r3.5-foundry-20261016`, profile r2, `policy-r2`,
 embedded whole from its directory and admitted against its issued snapshot), and
-retains the r2 release it replaced (`1be7d610…`, whole), a8 and R3 for earlier pins
+retains the r3.2 release it replaced (`8d52df01…`, whole), the r2 release before it
+(`1be7d610…`, whole), a8 and R3 for earlier pins
 (`knowledge::bundled`); a pin naming a release this build does not embed meets
 the strict door of its own profile, so its refusal names the identity. A current release
 replaced in place is not retained: an explicit embedded pin to the r2 release `6476372a…`

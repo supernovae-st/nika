@@ -100,6 +100,9 @@ pub(crate) fn of(report: &CheckReport) -> Vec<SpecCode> {
         "NIKA-COMP-004" => SpecCode::new("COMP", 4, SpecCategory::ValidationError),
         _ => SpecCode::new("COMP", 1, SpecCategory::ValidationError),
     }));
+    // Project files (spec 02 §Project files): each finding carries its
+    // own code · a compose step's, or the law a child's file breaks.
+    codes.extend(report.project_files.iter().filter_map(|f| f.spec));
     codes
 }
 

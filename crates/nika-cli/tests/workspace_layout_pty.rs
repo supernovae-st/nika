@@ -5,10 +5,19 @@
 //! Display preferences through the real bare `nika` host, with isolated HOME,
 //! no keys, no harness on PATH, and no submitted request. The existing workspace
 //! suite qualifies inspection; these proofs cover the host's layout checkpoint.
+//! The workspace needs an intelligence: the kept choice is a local engine
+//! whose base URL is this proof's loopback model, which no request reaches.
 
 #[path = "../../nika-tui/tests/qa_support/vt.rs"]
 #[allow(dead_code, reason = "this suite uses part of the shared VT test model")]
 mod vt;
+
+#[path = "support/loopback_model.rs"]
+#[allow(
+    dead_code,
+    reason = "the layout suite keeps the plain loopback, not its scripted reading"
+)]
+mod loopback_model;
 
 use std::io::Write as _;
 use std::process::Command;
@@ -16,6 +25,7 @@ use std::time::{Duration, Instant};
 
 use expectrl::process::unix::{Signal, WaitStatus};
 use expectrl::session::OsSession;
+use loopback_model::Model;
 use serde_json::{Value, json};
 
 const F4: &str = "\x1b[14~";
@@ -25,23 +35,37 @@ const WAIT: Duration = Duration::from_secs(30);
 struct Room {
     project: tempfile::TempDir,
     home: tempfile::TempDir,
+    /// The kept intelligence, on 127.0.0.1, for as long as the room.
+    model: Model,
 }
 
 impl Room {
     fn new() -> Self {
         let project = tempfile::tempdir().expect("project");
         let home = tempfile::tempdir().expect("home");
-        std::fs::create_dir(home.path().join(".nika")).expect("home state");
-        std::fs::write(
-            home.path().join(".nika/session-intelligence.json"),
-            r#"{"kind":{"kind":"none"},"model":null,"chosen_at":"2026-10-07T00:00:00Z"}"#,
-        )
-        .expect("kept No AI");
-        Self { project, home }
+        // « No AI » opens the required intelligence chooser over the
+        // workspace; a ready local engine opens the workspace itself.
+        let model = Model::start();
+        Model::chosen_in(home.path());
+        Self {
+            project,
+            home,
+            model,
+        }
     }
 
     fn preferences(&self) -> std::path::PathBuf {
         self.home.path().join(".nika/tui-layout.json")
+    }
+
+    /// No request reached the kept intelligence: layout submits no turn.
+    fn no_model_call(&self) {
+        let bodies = self.model.bodies();
+        assert!(
+            bodies.is_empty(),
+            "{} request(s) reached the model\n{bodies:#?}",
+            bodies.len()
+        );
     }
 
     fn spawn(&self, cols: u16, rows: u16) -> Term {
@@ -57,6 +81,7 @@ impl Room {
             .env("LANG", "en_US.UTF-8")
             .env("HOME", self.home.path())
             .env("NIKA_KEYCHAIN", "off")
+            .env("NIKA_VLLM_BASE_URL", self.model.base())
             .env("NIKA_REDUCED_MOTION", "1");
         Term::new(command, cols, rows)
     }
@@ -218,6 +243,7 @@ fn an_expanded_object_is_kept_and_reopened_without_submitting_the_draft() {
         "display preferences restore no draft"
     );
     reopened.leave();
+    room.no_model_call();
 }
 
 #[test]
@@ -239,4 +265,5 @@ fn an_unknown_preference_file_stays_intact_while_expansion_remains_usable() {
         std::fs::read_to_string(room.preferences()).expect("preserved bytes"),
         future
     );
+    room.no_model_call();
 }

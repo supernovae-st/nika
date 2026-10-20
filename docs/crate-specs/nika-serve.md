@@ -656,3 +656,28 @@ Both compile response generations describe the decision, plan, strategy and sugg
 `nika_cadence::schedule_plan::{due_json, slot_json}` for the existing schedule
 value shapes. HTTP routing, authorization, request admission, clock/store access
 and the surrounding response envelopes remain server responsibilities.
+
+## The facts a scheduled run is told
+
+A resident fire tells its run the slot it serves (spec 04 §`run`,
+`ExecutionBackend::execute_scheduled`). Under `rattraper-une-fois` a catch-up
+also answers for the silence before it: `SchedulePlan::silence` names the
+silence's first slot and how many slots it holds, and the job's schedule
+origin carries them as `missed_first` and `missed_count` (job store,
+`/v1/jobs`, the OpenAPI document), the origin's `scheduled_for` being the
+silence's last slot. The pair is present together on a `catch_up` firing only,
+and absent otherwise, so an origin without a silence keeps its bytes and its
+identity digest. `JobOrigin::with_missed` validates it; the run reads
+`${{ run.missed }}` as `{ first, last, count }`.
+
+## Catch-up
+
+`rattraper` fires the latest missed slot once and `{ rattraper: N }` (a
+project beat) up to the N latest, one run each, oldest first (spec 01
+§`manqué`): the planner first drops the older slots as one `missed_policy`
+skip, then offers the N latest oldest first, each run told only its own slot.
+A catch-up due while its schedule's previous run still runs waits for it; the
+overlap law (`chevauchement`) judges on-time slots only. `PUT /v1/schedules`
+declares the three closed words; `GET /v1/schedules/{id}` renders a bounded
+beat as `missed: catch-up` plus `missedLatest: N`. `nika arm fire` refuses
+both catch-up forms by name (`policy_unsupported`): catch-up is served.

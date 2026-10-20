@@ -51,8 +51,8 @@ fn composer() -> Composer {
         Entry::command(
             "/intelligence",
             "Choose the AI this session reasons with",
-            "this session · your next line chooses",
-            "Shows the intelligence choices again.",
+            "this session · choose from the list",
+            "Browse the AI connections and models available to this session.",
             "model",
         ),
     ]);
@@ -321,4 +321,79 @@ fn a_short_band_pages_the_list_with_the_selection() {
         "{shown:#?}"
     );
     assert!(!shown.iter().any(|row| row.contains("/help")), "{shown:#?}");
+}
+
+/// In French the chooser says its own words in French (the band's title, what
+/// waits, the keys on its hint row, the palette's search prompt) while every
+/// command keeps its name as typed; its rows read the catalog's French words.
+#[test]
+fn the_chooser_speaks_the_persons_language_and_keeps_every_name() {
+    use crate::lang::Lang;
+    let mut state = UiState::new(Presentation::Inline, false, (80, 12));
+    state.lang = Lang::Fr;
+    // The catalog's French words for three commands (its own proof pins them).
+    let french = || {
+        vec![
+            Entry::command(
+                "/help",
+                "Ce que vous pouvez demander, et chaque commande",
+                "à tout moment · lecture seule",
+                "La carte d'aide de la Session.",
+                "help",
+            ),
+            Entry::command(
+                "/status",
+                "Où vous en êtes",
+                "à tout moment · lecture seule",
+                "Racine du projet, intelligence.",
+                "model effort",
+            ),
+            Entry::command(
+                "/show",
+                "Les octets exacts de la proposition",
+                "pendant qu'une proposition attend · lecture seule",
+                "Les octets exacts qu'un oui enregistrerait.",
+                "inspect",
+            ),
+        ]
+    };
+    let mut composer = Composer::new();
+    composer.offer(french());
+    composer.set_focused(true);
+    composer.paste("/show");
+    let shown = inline(&state, &composer, 80);
+    assert!(
+        shown
+            .iter()
+            .any(|row| row.starts_with("Commandes · commençant par ce que vous avez tapé")),
+        "{shown:#?}"
+    );
+    assert_eq!(
+        shown[1],
+        entry(true, "/show", 6, "Les octets exacts de la proposition")
+    );
+    assert_eq!(
+        shown[11],
+        "Entrée envoie /show · ↑↓ choisir · Échap masque la liste"
+    );
+    state.waiting = Waiting::Proposal;
+    let shown = inline(&state, &composer, 80);
+    let said = "Une proposition attend · aucune commande n'y répond · oui + Entrée : enregistrer";
+    assert!(shown.contains(&said.to_owned()), "{shown:#?}");
+    state.waiting = Waiting::Free;
+    let mut composer = Composer::new();
+    composer.offer(french());
+    composer.set_focused(true);
+    composer.toggle_palette();
+    // A French word finds the command it describes; its name stays as typed.
+    for c in "aide".chars() {
+        composer.choose(key(KeyCode::Char(c)));
+    }
+    let shown = inline(&state, &composer, 80);
+    assert_eq!(shown[10], "commandes › aide");
+    assert!(shown[1].contains("/help"), "{shown:#?}");
+    assert_eq!(
+        shown[11],
+        "↑↓ choisir · Entrée lance · Tab insère · Échap : retour à votre brouillon"
+    );
 }

@@ -184,7 +184,7 @@ pub(crate) fn show(sheet: &mut Sheet, text: &str, protected: bool) {
         }
     }
     tally.report(&mut sheet.notes);
-    sheet.facts.push(cells::count(total, "line"));
+    sheet.facts.push(cells::count_in(total, "line", canvas));
 }
 
 #[cfg(test)]

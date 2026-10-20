@@ -17,7 +17,7 @@ use hyper::{Method, Request, Response};
 use nika_cli_host::output::exit;
 use nika_session_host::http::{Doors, Sessions, job_id, refusal_words};
 use nika_session_host::run::{
-    Admitted, JobDoor, JobEnd, JobFuture, Jobs, NoRunDoor, RunDoor, RunRequest,
+    Admitted, JobDoor, JobEnd, JobError, JobFuture, Jobs, NoRunDoor, RunDoor, RunRequest,
 };
 use sha2::{Digest as _, Sha256};
 
@@ -251,7 +251,37 @@ impl Resident {
             };
             let journal = (state.journal_dir.as_deref())
                 .and_then(|dir| super::trace_verdict::JournalKey::of(dir, &record));
-            let end = JobEnd::new(exit, journal.and_then(|key| key.path()));
+            // The journal and the ONE verifier's verdict on it, located once off the runtime: the
+            // Session keeps the seal facts that verdict attests, never a chain head read as one.
+            let located = match journal {
+                Some(key) => tokio::task::spawn_blocking(move || key.located())
+                    .await
+                    .map_err(|_| "the resident could not read the job's journal".to_owned())?,
+                None => None,
+            };
+            let (path, verdict) = located.unzip();
+            // A failed job's own words reach the Session. One that wrote no journal and lost none
+            // was refused before any task ran: told as a run that did not start, never as a
+            // workflow failure with nothing to read.
+            let failed = matches!(record.status(), JobStatus::Failed);
+            let error = failed
+                .then(|| record.error())
+                .flatten()
+                .map(|(code, message)| JobError::new(code, message));
+            let refused = failed && path.is_none() && record.evidence().is_none();
+            // What the job route serves for the job: its receipt and its declared outputs.
+            let served = record
+                .receipt()
+                .and_then(|receipt| match serde_json::to_value(receipt) {
+                    Ok(serde_json::Value::Object(receipt)) => Some(receipt),
+                    _ => None,
+                });
+            let outputs = record
+                .outputs()
+                .map(|outputs| outputs.clone().into_iter().collect());
+            let end = JobEnd::new(exit, path)
+                .with_error(error, refused)
+                .with_served(served, outputs, verdict);
             // The receipt's opaque identities: the trace one the job's trace door resolves.
             let named = |id: Option<&str>| id.map(str::to_owned);
             let head = record.receipt().and_then(crate::JobReceipt::chain_head);

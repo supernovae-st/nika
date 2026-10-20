@@ -56,6 +56,8 @@ pub(crate) struct Dispatched {
 /// `--max-cost-usd` gate sees it — Cost Intelligence follow-up).
 pub(crate) struct FailedDispatch {
     pub record: TaskErrorRecord,
+    /// Genuine caller Stop plus typed dispatch provenance; never an error-string guess.
+    pub operator_cancelled: bool,
     /// The resolved call forbids replay even when `on_codes` matches.
     pub retry_forbidden: bool,
     /// Metered spend of the attempt that failed (absent = nothing billed).
@@ -93,6 +95,7 @@ impl FailedDispatch {
     fn unspent(record: TaskErrorRecord) -> Self {
         Self {
             record,
+            operator_cancelled: false,
             retry_forbidden: false,
             cost_usd: None,
             cost_source: None,
@@ -298,6 +301,13 @@ impl Dispatched {
         self
     }
 
+    fn with_operator_cancelled(mut self, operator_cancelled: bool) -> Self {
+        if let Err(failed) = &mut self.result {
+            failed.operator_cancelled = operator_cancelled;
+        }
+        self
+    }
+
     /// the usage split of a billed-then-failed attempt — the
     /// receipt rides `task_failed` beside the spend it explains.
     fn with_failed_usage(mut self, usage: Option<Box<crate::usage::UsageSplit>>) -> Self {
@@ -397,6 +407,29 @@ impl Dispatched {
             ))),
         }
     }
+
+    /// An `infer:` or `agent:` field kept in a project file no compose step read (spec 02
+    /// §Project files): the run-side voice of the compose step for an embedder that skipped
+    /// it. Nothing of it reaches a provider; never transient.
+    fn unread_file(action: &RawAction) -> Option<Self> {
+        let (note, files) = match action {
+            RawAction::Infer(a) => (
+                "infer · ?",
+                [&a.prompt_file, &a.system_file, &a.schema_file],
+            ),
+            RawAction::Agent(a) => (
+                "agent · ?",
+                [&a.prompt_file, &a.system_file, &a.schema_file],
+            ),
+            _ => return None,
+        };
+        let unread = files.into_iter().flatten().find(|file| !file.composed)?;
+        let reason = format!(
+            "`{}` was never read at compose time: nothing is sent",
+            unread.path.value
+        );
+        Some(Self::skill_err(note, "NIKA-FILE-002", reason))
+    }
 }
 
 /// Settle a successful exec output into the task value (spec 02 · 09 ·
@@ -477,6 +510,9 @@ pub(crate) struct DispatchCtx<'a> {
     /// provider requests fold into (B7 · a `fail_fast` sibling · a `timeout:`),
     /// and the workflow and task a seat only the run decides is judged in (B9).
     pub attempt: Option<(&'a crate::ledger::RunLedger, &'a RawWorkflow, &'a RawTask)>,
+    /// Where an `mcp:` invoke a dropped attempt stopped leaves its name, for
+    /// the task's `timeout:` to read; `None` off the attempt loop.
+    pub stopped: Option<nika_verb_invoke::StoppedCallSlot>,
 }
 
 impl<'a> DispatchCtx<'a> {
@@ -498,6 +534,7 @@ impl<'a> DispatchCtx<'a> {
             gate_answer: None,
             run_start: nika_kernel::tool_executor::ToolRunStart::new(0),
             attempt: None,
+            stopped: None,
         }
     }
 }
@@ -534,13 +571,15 @@ where
     /// With `ctx.attempt` (the attempt loop), the provider requests are
     /// journaled: a dispatch dropped before it returns still debits every
     /// request it sent, once (B7 · E17-F1); a returned one carries its own.
+    /// Its tool receipts follow the same law: dropped first, it debits the
+    /// known cost of every tool success it received, read or not, once.
     pub(crate) async fn dispatch(
         &self,
         action: &RawAction,
         scope: &Scope<'_>,
         taint: &crate::integrity::ValueTaint<'_>,
         agent_buffer: &crate::agent_events::BufferingObserver,
-        ctx: DispatchCtx<'_>,
+        mut ctx: DispatchCtx<'_>,
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
         let Some((ledger, _, _)) = ctx.attempt else {
@@ -548,15 +587,42 @@ where
                 .dispatch_verb(action, scope, taint, agent_buffer, ctx, contract)
                 .await;
         };
+        // This dispatch's own receipts, under the attempt's slot so its
+        // stopped calls still reach the task. Declared before the awaited
+        // dispatch: dropped mid-await, the dispatch's futures drop first,
+        // and a ready result they leave unread is on the receipts by then.
+        ctx.stopped = ctx
+            .stopped
+            .as_ref()
+            .map(nika_verb_invoke::StoppedCallSlot::child);
+        let unreturned = crate::ledger::UnreturnedSpend::arm(
+            ledger,
+            ctx.stopped.clone(),
+            Self::unreturned_source(action),
+        );
         // Boxed: a nested run (a workflow invoking a workflow) polls this
         // from a deeper stack than a 2 MiB thread affords with it inline.
-        nika_providers::dispatch_journal::DispatchJournal::observe(
+        let dispatched = nika_providers::dispatch_journal::DispatchJournal::observe(
             Box::pin(self.dispatch_verb(action, scope, taint, agent_buffer, ctx, contract)),
             |lost| {
                 ledger.debit_calls(&lost);
             },
         )
-        .await
+        .await;
+        unreturned.disarm();
+        dispatched
+    }
+
+    /// The attribution of a dropped dispatch's tool spend: a direct tool
+    /// invoke's own id, the key its returned success carries. An agent's
+    /// returned tool spend rides its resolved model, unknown once dropped.
+    fn unreturned_source(action: &RawAction) -> Option<String> {
+        if let RawAction::Invoke(invoke) = action
+            && let nika_schema::raw::RawInvokeTarget::Tool(tool) = &invoke.target
+        {
+            return Some(tool.value.clone());
+        }
+        None
     }
 
     async fn dispatch_verb(
@@ -568,6 +634,9 @@ where
         ctx: DispatchCtx<'_>,
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
+        if let Some(refused) = Dispatched::unread_file(action) {
+            return refused;
+        }
         match action {
             RawAction::Invoke(inner) => {
                 self.dispatch_invoke(inner, scope, taint, &ctx, contract)
@@ -653,7 +722,13 @@ where
             nika_schema::raw::RawInvokeTarget::Workflow(w) => {
                 let args = action.args.as_ref();
                 return self
-                    .dispatch_workflow_call(w, args, scope, (deadline, child_budget), contract)
+                    .dispatch_workflow_call(
+                        w,
+                        args,
+                        scope,
+                        (deadline, child_budget, ctx.run_start),
+                        contract,
+                    )
                     .await;
             }
         };
@@ -703,6 +778,9 @@ where
         }
         let mut input = InvokeInput::new(tool);
         input.args = args;
+        input.stopped.clone_from(&ctx.stopped);
+        // The task `timeout:` rides the call: a fetch honors it (stdlib §fetch).
+        input.timeout = ctx.deadline;
         // F-P6 · the gated firing lane (PREVIEW → tamper seam → COMMIT
         // gate → run · `dispatch/commit.rs` owns the binding).
         self.run_invoke_gated(note, input, ctx.run_start, contract)
@@ -999,6 +1077,7 @@ where
         input.native_only = self.access_plan.is_some() && seat.is_none();
         input.requirement = self.requirement().cloned();
         Self::bridge_inputs(&mut input, scope, ctx);
+        input.cancel.clone_from(&self.cancel);
         input.max_turns = action.max_turns.as_ref().map(|t| t.value);
         input.max_tokens_total = action.max_tokens_total.as_ref().map(|t| t.value);
         // The task `timeout:` flows to the provider transport deadline of
@@ -1029,6 +1108,10 @@ where
                     verb_outcome::proven_seat_refusal(seat, &err, access.as_ref())
                 });
                 Dispatched::verb_err_spent(format!("agent · {lane_model}"), &err, spend)
+                    .with_operator_cancelled(matches!(
+                        &err,
+                        nika_verb_agent::VerbAgentError::OperatorStopped { .. }
+                    ))
                     .with_retry_forbidden(retry_forbidden)
                     .with_failed_usage(split)
                     .with_access_refused(refused)
@@ -1042,6 +1125,7 @@ where
     fn bridge_inputs(input: &mut AgentInput, scope: &Scope<'_>, ctx: &DispatchCtx<'_>) {
         input.permits = scope.permits().cloned();
         input.gate_answer.clone_from(&ctx.gate_answer);
+        input.stopped.clone_from(&ctx.stopped);
     }
 
     /// Parse the composer-resolved skill texts one agent action names

@@ -39,7 +39,10 @@ mod agenda;
 use agenda::Action;
 /// A document a conversation wrote, verified as a native door verifies its own candidate.
 mod conversation;
-pub use conversation::{Removal, verify_document, verify_document_with};
+pub use conversation::{
+    Removal, verify_document, verify_document_presented, verify_document_presented_with,
+    verify_document_with,
+};
 /// The document door of a fresh CREATE: the complete document, admitted components composed in.
 mod document_create;
 mod instructions;
@@ -49,7 +52,7 @@ mod forensic;
 pub(super) mod knowledge;
 pub use knowledge::{CONVENTIONS as OUTPUT_CONVENTIONS, card as authoring_card};
 mod native;
-pub use native::judge_document;
+pub use native::{judge_document, judge_document_answered};
 mod proposal;
 pub(crate) mod receipt;
 mod rehearsal;

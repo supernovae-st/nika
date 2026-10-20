@@ -6,8 +6,10 @@
 //! fit stays the judge's, and an offer the catalogue cannot resolve keeps it unknown.
 
 use super::{
-    ALTERNATIVES, CONSTRUCTION, Construction, Construed, HELD_ALTERNATIVE, HISTORY, HOLDING, assess,
+    ALTERNATIVES, CONSTRUCTION, Construction, Construed, HELD_ALTERNATIVE, HISTORY, HOLDING,
+    assess, folded,
 };
+use crate::decide::ChoiceOption;
 use crate::foundry::component::pinned;
 use crate::foundry::{Component, ComponentCatalog, ComponentRef, Release, Unresolved};
 use nika_compile::surface::sha256;
@@ -513,4 +515,47 @@ fn a_question_is_shown_a_copy_of_the_state_told_what_the_bytes_hold() {
         let asked = Construction::shown(&state, "Judge it.");
         assert_eq!(asked, (state.clone(), "Judge it.".to_owned()));
     }
+}
+
+/// A question that locates no part among the offers is sent each offer the bytes hold whole and
+/// every other folded to its identity, title and status; a localization also keeps each one's
+/// purpose (live gauntlet r06, 2026-10-17: the whole catalogue in every question, about 70 KB each,
+/// and the decision seat could not read the whole-request question).
+#[test]
+fn a_question_that_locates_nothing_among_the_offers_is_sent_the_held_contracts_only() {
+    let mut offered = offer(&["block:fit", "block:other", "block:gone"]);
+    assess(&Lent, &mut offered, &[seen("block:fit", LENT, "expanded")]);
+    let state = judged(&offered);
+    let verdict = [
+        ChoiceOption::new("faithful", "faithful"),
+        ChoiceOption::new("unfaithful", "unfaithful"),
+    ];
+    let sent = folded(&state, &verdict).expect("the offers the bytes lack fold");
+    let rows = (sent["authoring"]["offered"]["components"].as_array()).expect("rows");
+    assert_eq!(rows[0], offered[0], "the held offer is sent whole");
+    let other = json!({"component": {"id": "block:other", "version": "r1"},
+        "title": "the block:other block", "construction": {"held": null}});
+    assert_eq!(rows[1], other);
+    assert_eq!(
+        rows[2]["construction"]["unresolved"], offered[2]["construction"]["unresolved"],
+        "an unresolved offer says why"
+    );
+    assert!(rows[2].get("holes").is_none() && rows[2].get("purpose").is_none());
+    assert!(sent["authoring"]["offered"]["folded"].is_string());
+    assert_eq!(
+        sent["request"], state["request"],
+        "the rest of the state is unchanged"
+    );
+    // A localization weighs each offer's fit: it is sent each one's purpose, never its whole
+    // contract (live gauntlet wave 6 r06 B1).
+    let locating = Construction::of(&state).options();
+    let located = folded(&state, &locating).expect("a localization folds too");
+    let rows = (located["authoring"]["offered"]["components"].as_array()).expect("rows");
+    assert_eq!(rows[0], offered[0], "the held offer is still whole");
+    assert_eq!(rows[1]["purpose"], offered[1]["purpose"]);
+    assert!(rows[1].get("holes").is_none() && rows[1].get("effects").is_none());
+    // With every offer held, nothing folds.
+    let mut held = offer(&["block:fit"]);
+    assess(&Lent, &mut held, &[seen("block:fit", LENT, "expanded")]);
+    assert_eq!(folded(&judged(&held), &verdict), None);
 }

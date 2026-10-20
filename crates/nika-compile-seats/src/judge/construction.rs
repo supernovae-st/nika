@@ -70,6 +70,12 @@ const HOLDING: &str = "`construction.held` lists each offered component these ex
 /// What a held alternative of a localization means.
 const HELD_ALTERNATIVE: &str = "held-<k>: the clause conditionally asks to use an admitted component when one applies, and that offered component, which these bytes hold as admitted (`construction.held`), can do that part with what the request allows: the clause is carried by that composition as written. It never carries a required runtime operation, effect, target or constraint.";
 
+/// What a question that locates no part among the offers is told of the contracts it is not sent.
+const FOLDED: &str = "each offered component these bytes hold is shown with its contract; every other offer by its identity, title and status, its purpose shown where a missing part is located among the offers";
+
+/// What a localization is told of the contracts it is not sent whole.
+const FOLDED_LOCATING: &str = "each offered component these bytes hold is shown with its contract; every other offer by its identity, title, purpose and status: judge its fit by its purpose";
+
 /// What the runtime alternatives of a localization say: a task, an operation no task performs,
 /// or no task failing the clause.
 const OMITTED: &str = "the clause asks an operation of its own that no task performs";
@@ -118,6 +124,52 @@ fn strongest(composed: &[Value], id: &str, release: &Release) -> Value {
         .filter_map(|seen| seen["verdict"].as_str())
         .max_by_key(|verdict| rank(verdict))
         .map_or(Value::Null, |verdict| json!(verdict))
+}
+
+/// What a question over `state` is sent: each offer the bytes hold as admitted whole, every other
+/// one folded to its identity, title and status (`construction.held`, and why it is unresolved),
+/// with the note `FOLDED` beside them. A localization (its `options` name a `component-<k>` or `no_fit`)
+/// also keeps each folded offer's purpose, which is what it weighs, under `FOLDED_LOCATING`; the
+/// engine checks the holes and effects of the part it names. `None` when nothing would fold. Every
+/// offer whole in every question made each one as large as the catalogue (live gauntlet r06,
+/// 2026-10-17: fifty components, about 70 KB in each question; wave 6 r06, 2026-10-18: the
+/// localization alone still overflowed the decision seat on every revision).
+#[must_use]
+pub fn folded(state: &Value, options: &[ChoiceOption]) -> Option<Value> {
+    // A localization weighs each offer's fit: it is sent each one's purpose, never every hole,
+    // effect and callable of the catalogue (live gauntlet wave 6 r06 B1: that one question still
+    // overflowed the decision seat on every revision).
+    let locates = (options.iter())
+        .any(|option| option.key.starts_with("component-") || option.key == "no_fit");
+    let rows = state["authoring"]["offered"]["components"].as_array()?;
+    if rows
+        .iter()
+        .all(|row| admitted(&row["construction"]["held"]))
+    {
+        return None;
+    }
+    let mut sent = state.clone();
+    let folded: Vec<Value> = (rows.iter())
+        .map(|row| {
+            if admitted(&row["construction"]["held"]) {
+                return row.clone();
+            }
+            let mut status = json!({"held": row["construction"]["held"]});
+            if let Some(why) = row["construction"].get("unresolved") {
+                status["unresolved"] = why.clone();
+            }
+            let mut kept =
+                json!({"component": row["component"], "title": row["title"], "construction": status});
+            if locates {
+                kept["purpose"] = row["purpose"].clone();
+            }
+            kept
+        })
+        .collect();
+    sent["authoring"]["offered"]["components"] = Value::Array(folded);
+    let told = if locates { FOLDED_LOCATING } else { FOLDED };
+    sent["authoring"]["offered"]["folded"] = json!(told);
+    Some(sent)
 }
 
 /// What a localization of a missing clause may say of how the judged bytes are built, read from

@@ -58,6 +58,7 @@ mod schema_paths;
 pub mod schema_value;
 pub mod settle;
 pub mod silent_literal;
+pub mod skipped_reads;
 pub mod static_args;
 mod static_ref;
 mod task_scope;

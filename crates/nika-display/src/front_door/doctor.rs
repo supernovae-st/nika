@@ -14,6 +14,10 @@ pub enum Level {
     Ok,
     /// `⚠` advisory (the run may still work).
     Warn,
+    /// `?` a state this machine could not observe (a login check that did
+    /// not answer in time): counted apart, never as ok or as a failure, and
+    /// never an `exit 3`.
+    Unknown,
     /// `✖` a hard environment problem (drives `exit 3`).
     Fail,
 }
@@ -21,11 +25,12 @@ pub enum Level {
 impl Level {
     /// The semantic colour role — the SAME closed vocabulary the run
     /// storyboard speaks (`Role` · theme.rs): green ok · yellow advisory ·
-    /// red hard-fail. Never decorative.
+    /// red hard-fail. Never decorative. An unknown state is painted as an
+    /// advisory: it asks for a look, it proves nothing broken.
     const fn role(self) -> Role {
         match self {
             Self::Ok => Role::Good,
-            Self::Warn => Role::Warn,
+            Self::Warn | Self::Unknown => Role::Warn,
             Self::Fail => Role::Bad,
         }
     }
@@ -34,6 +39,7 @@ impl Level {
         match self {
             Self::Ok => '✔',
             Self::Warn => '⚠',
+            Self::Unknown => '?',
             Self::Fail => '✖',
         }
     }
@@ -91,7 +97,14 @@ pub fn render(
     let (ok, warn, fail) = (count(Level::Ok), count(Level::Warn), count(Level::Fail));
     let verdict = if fail > 0 { Level::Fail } else { Level::Ok };
     let glyph = |level: Level| theme.paint(level.role(), &level.glyph().to_string());
-    let _ = writeln!(s, "{} {ok} ok · {warn} warn · {fail} fail", glyph(verdict));
+    let _ = write!(s, "{} {ok} ok · {warn} warn · {fail} fail", glyph(verdict));
+    // Named only when there is one: the verdict line of a machine where
+    // everything was observed keeps its exact bytes.
+    let unknown = count(Level::Unknown);
+    if unknown > 0 {
+        let _ = write!(s, " · {unknown} unknown");
+    }
+    s.push('\n');
     for row in rows {
         let f = row.finding;
         let _ = writeln!(
@@ -140,6 +153,10 @@ pub fn render(
 /// verified versus assumed, and the repair, per host. R4: the access
 /// census rides alongside (additive) — every path with its custody and
 /// fix, the ready seats, the best path; one read, never recomputed.
+/// `summary.unknown` counts what could not be observed, apart from
+/// ok, warn and fail. `scope.mode` says what the report covers: the
+/// whole machine (`audit-wide`); a question about one workflow is
+/// `nika check`'s, never a second readiness judge here.
 /// The host owns projection, redaction and disclosure decisions for these values.
 /// This presentation function is not a policy or privacy validator; it does no I/O.
 #[must_use]
@@ -154,8 +171,10 @@ pub fn render_json(
         "summary": {
             "ok": count(Level::Ok),
             "warn": count(Level::Warn),
+            "unknown": count(Level::Unknown),
             "fail": count(Level::Fail),
         },
+        "scope": { "mode": "audit-wide" },
         "adoption_state": adoption_state,
         "findings": findings,
     });
@@ -166,12 +185,65 @@ pub fn render_json(
 
 #[cfg(test)]
 mod tests {
-    use super::Level;
+    use super::{Finding, Level, PreparedRow, render, render_json};
+    use crate::theme::Theme;
 
     #[test]
     fn level_glyphs_are_distinct() {
         assert_eq!(Level::Ok.glyph(), '✔');
         assert_eq!(Level::Warn.glyph(), '⚠');
+        assert_eq!(Level::Unknown.glyph(), '?');
         assert_eq!(Level::Fail.glyph(), '✖');
+    }
+
+    /// An unknown row is counted apart, shown with its own glyph, and
+    /// moves neither the verdict nor the warn count.
+    #[test]
+    fn an_unknown_row_is_counted_apart() {
+        let findings = vec![
+            Finding {
+                level: Level::Ok,
+                label: "binary".to_owned(),
+                detail: "v0".to_owned(),
+                fix: None,
+            },
+            Finding {
+                level: Level::Unknown,
+                label: "runtime".to_owned(),
+                detail: "sign-in unknown".to_owned(),
+                fix: None,
+            },
+        ];
+        let rows: Vec<PreparedRow<'_>> = findings
+            .iter()
+            .map(|finding| PreparedRow {
+                finding,
+                detail: finding.detail.clone(),
+                fix: None,
+            })
+            .collect();
+        let text = render(
+            &findings,
+            &rows,
+            (0, 0, false),
+            Theme::new(false, false, false),
+        );
+        assert!(
+            text.starts_with("✔ 1 ok · 0 warn · 0 fail · 1 unknown\n"),
+            "{text}"
+        );
+        assert!(text.contains("? runtime    sign-in unknown"), "{text}");
+        let json: serde_json::Value = serde_json::from_str(&render_json(
+            &findings,
+            "installed",
+            serde_json::json!([]),
+            serde_json::json!({}),
+        ))
+        .unwrap_or_default();
+        assert_eq!(
+            json["summary"],
+            serde_json::json!({"ok": 1, "warn": 0, "unknown": 1, "fail": 0})
+        );
+        assert_eq!(json["findings"][1]["level"], "unknown");
     }
 }

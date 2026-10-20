@@ -341,7 +341,7 @@ impl ScheduleDefinition {
             format!("workflow={}", quoted(&self.workflow)),
             format!("when={when}"),
             format!("max_cost_usd={:?}", self.max_cost_usd),
-            format!("missed={}", miss_word(self.missed)),
+            format!("missed={}", miss_text(self.missed)),
             format!(
                 "max_lateness_seconds={}",
                 optional(self.max_lateness_seconds.map(|v| v.to_string()))
@@ -630,8 +630,17 @@ fn canonical_cadence(tz: &str, spec: &crate::CronSpec) -> String {
 const fn miss_word(v: MissPolicy) -> &'static str {
     match v {
         MissPolicy::Rattraper => "catch-up",
+        MissPolicy::RattraperDerniers(_) => "catch-up-latest",
         MissPolicy::RattraperUneFois => "catch-up-once",
         MissPolicy::Sauter => "skip",
+    }
+}
+/// The canonical `missed` text: the closed word, `catch-up-latest:N` for
+/// `{ rattraper: N }` (a closed policy keeps its revision byte for byte).
+fn miss_text(v: MissPolicy) -> String {
+    match v {
+        MissPolicy::RattraperDerniers(latest) => format!("{}:{latest}", miss_word(v)),
+        closed => miss_word(closed).to_owned(),
     }
 }
 const fn overlap_word(v: Overlap) -> &'static str {

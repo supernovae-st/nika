@@ -29,7 +29,8 @@ fn first_script() -> Vec<(u16, Value)> {
 fn kept(s: &SessionRuntime) -> Value {
     assert!(s.pending_proposal().is_none());
     assert!(s.pending_question().is_none(), "no invented clarification");
-    assert!(s.status_line().contains("Not ready"));
+    // The request is French: so is the status row.
+    assert!(s.status_line().contains("Pas prêt"), "{}", s.status_line());
     s.authoring.as_ref().unwrap().continuation.clone().unwrap()
 }
 /// The digest of the bytes the first round's judge was asked (its call failed): the ones its
@@ -55,10 +56,17 @@ fn same_intent_retries_only_the_judge_before_any_save_or_run() {
         );
     }
     assert_eq!(peer.bodies().len(), CREATE_CALLS);
-    let judge = Peer::start(vec![(200, response(JUDGE_APPROVES))]);
+    let judge = Peer::start(vec![
+        (200, response(JUDGE_APPROVES)),
+        (200, response(JUDGE_APPROVES)),
+    ]);
     let _again = test_transport::install(&judge.url);
     assert!(matches!(s.turn("RePrEnD"), TurnOutcome::Proposal { .. }));
-    assert_eq!(judge.bodies().len(), 1, "no regenerated author calls");
+    assert_eq!(
+        judge.bodies().len(),
+        2,
+        "the judge only, the whole request then its part over the trial run: no regenerated author calls"
+    );
     assert!(judge.bodies()[0].to_string().contains("unfaithful"));
     let source = s.candidate().unwrap().set.changes[0].content();
     assert_eq!(
@@ -91,10 +99,17 @@ fn close_restore_and_retry_preserve_exact_candidate_and_obligations() {
         CREATE_CALLS,
         "restore never calls a model"
     );
-    let judge = Peer::start(vec![(200, response(JUDGE_APPROVES))]);
+    let judge = Peer::start(vec![
+        (200, response(JUDGE_APPROVES)),
+        (200, response(JUDGE_APPROVES)),
+    ]);
     let _again = test_transport::install(&judge.url);
     assert!(matches!(s.turn("Réessaie"), TurnOutcome::Proposal { .. }));
-    assert_eq!(judge.bodies().len(), 1);
+    assert_eq!(
+        judge.bodies().len(),
+        2,
+        "the whole request, then its part over the trial run"
+    );
     let source = s.candidate().unwrap().set.changes[0].content();
     assert_eq!(
         first_judged(&peer),
@@ -155,12 +170,27 @@ const TASKS: [&str; 2] = ["task-read_source", "task-write_output"];
 /// asked alone, the judge pointing to the task that does it differently.
 fn located_defect() -> Vec<(u16, Value)> {
     vec![
-        (200, response(r#"{"choice":"unfaithful"}"#)),
+        (200, response(r#"{"choice":"unfaithful","model_parts":[]}"#)),
         // The part asked alone, judged missing, then why: the task that does it differently,
         // the located defect a new authoring round starts from.
         (200, response(r#"{"choice":"missing"}"#)),
         (200, response(r#"{"choice":"task-write_output"}"#)),
     ]
+}
+/// How many admitted blocks the release `s` pinned lends a compile round (its held-out corpus
+/// out of reach): the contextual remedies a judge may point to.
+fn lent_blocks(s: &SessionRuntime) -> usize {
+    use nika_compile_seats::foundry::{ComponentCatalog, document};
+    let pin = s
+        .authoring_context
+        .knowledge()
+        .expect("the bundled release");
+    let snapshot = pin.reopen().expect("it reopens");
+    let catalogue = snapshot.catalogue(pin.exclude_corpus.as_deref());
+    let blocks = document::components(Some(&catalogue as &dyn ComponentCatalog));
+    let count = blocks.as_array().map_or(0, Vec::len);
+    assert!(count > 0, "the bundled release lends admitted blocks");
+    count
 }
 /// [`semantic_create`] with its tasks named otherwise: the same program in other bytes.
 fn renamed_create() -> [String; 1] {
@@ -188,6 +218,7 @@ fn a_replayed_candidate_the_judge_doubts_is_written_again_not_left_held() {
     let mut script = located_defect();
     script.extend(renamed_create().iter().map(|t| (200, response(t))));
     script.push((200, response(JUDGE_APPROVES)));
+    script.push((200, response(JUDGE_APPROVES)));
     let again = Peer::start(script);
     let _again = test_transport::install(&again.url);
     let out = s.turn("RePrEnD");
@@ -195,8 +226,8 @@ fn a_replayed_candidate_the_judge_doubts_is_written_again_not_left_held() {
     let bodies = again.bodies();
     assert_eq!(
         bodies.len(),
-        3 + CREATE_CALLS,
-        "the doubt, its part and the task it points to, then one authoring round"
+        3 + TRIED_CREATE_CALLS,
+        "the doubt, its part and the task it points to, then one authoring round, its trial whole"
     );
     assert!(bodies[0].to_string().contains("unfaithful"));
     let (whole, verdicts) = asked(&bodies[0]).expect("the whole request judged");
@@ -208,10 +239,10 @@ fn a_replayed_candidate_the_judge_doubts_is_written_again_not_left_held() {
     let (pointed, why) = asked(&bodies[2]).expect("the task the missing part points to");
     assert_eq!(pointed["clause"], json!({"text": PART}));
     // Both tasks, the omitted operation, then the contextual remedies the default round's lent
-    // release offers: each of the bundled release's 41 admitted blocks (`component-<k>`, in
-    // catalogue order, none held by these bytes) closed by `no_fit`; then no task, and none.
+    // release offers: each admitted block of the release the Session pinned (`component-<k>`,
+    // in catalogue order, none held by these bytes) closed by `no_fit`; then no task, and none.
     let mut offered: Vec<String> = [TASKS[0], TASKS[1], "omitted"].map(str::to_owned).into();
-    offered.extend((0..41).map(|k| format!("component-{k}")));
+    offered.extend((0..lent_blocks(&s)).map(|k| format!("component-{k}")));
     offered.extend(["no_fit", "no_task", "none"].map(str::to_owned));
     assert_eq!(why, offered);
     assert!(
@@ -354,8 +385,9 @@ pub(super) const DOUBTED: &str = "The workflow is built but not proposed: the ve
 /// nothing located the rejection: [`WORK`]'s one part carried, no task left open, and asked
 /// where its doubt is, nowhere.
 pub(super) const UNRESOLVED: &str = "The verifier doubted the request as a whole but located nothing: asked alone, none of its parts (1) was found missing, no task was found doing anything the request does not ask, and no run of these bytes decided it. Nothing is verified: the workflow is shown, never proposed, and nothing was written. Review it and describe a correction, or choose another verifier.";
-/// Why no trial decided the held bytes, as the held text names it (A4): the room refused them.
-pub(super) const UNTRIED: &str = " No trial of these bytes ran: the rehearsal room refused them before any attempt (./entree.txt is read but not observed: the room holds the observed inputs only).";
+/// Why no trial decided the held bytes, as the held text names it (A4): the room refused them
+/// before any attempt, their input not yet arrived ([`super::untriable`]).
+pub(super) const UNTRIED: &str = " No trial of these bytes ran: the rehearsal room refused them before any attempt (the observed input entree.txt is absent).";
 /// The applied `verify_held` findings of an outcome, in order.
 pub(super) fn held_findings(out: &nika_onboard::compile::CompileOutcome) -> Vec<&str> {
     (out.diagnostics.iter())
@@ -378,12 +410,13 @@ fn a_replayed_doubt_no_part_settles_is_never_written_again() {
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     let mut s = live(dir.path(), home.path());
+    untriable(dir.path());
     assert!(matches!(s.turn(WORK), TurnOutcome::Facts(_)));
     kept(&s);
     let held_sha = first_judged(&peer);
     // A later author request would be answered with the last reply, and counted below.
     let again = Peer::start(vec![
-        (200, response(r#"{"choice":"unfaithful"}"#)),
+        (200, response(r#"{"choice":"unfaithful","model_parts":[]}"#)),
         (200, response(r#"{"choice":"carried"}"#)),
         (200, response(r#"{"choice":"unlocated"}"#)),
     ]);
@@ -495,6 +528,8 @@ fn unnamed(root: &Path, home: &Path) -> SessionRuntime {
     };
     let mut s = SessionRuntime::open(root, selected, Box::new(reasoner()));
     s.factory = Some(Box::new(move |_| Box::new(reasoner())));
+    // No trial of the held bytes may decide the doubt the replay keeps.
+    untriable(root);
     s.set_authoring_context(crate::authoring::AuthoringContext::from_settings(
         &nika_cli_host::compile::config::AuthoringSettings::none(),
         &nika_cli_host::compile::config::AuthoringSettings::none(),
@@ -530,7 +565,7 @@ fn the_stronger_retry_after_a_held_replay_judges_the_held_bytes_with_its_own_jud
     let held_sha = first_judged(&peer);
     // The replay's verdict on the held bytes, then the stronger seat's own judge on those bytes.
     let script = vec![
-        (200, response(r#"{"choice":"unfaithful"}"#)),
+        (200, response(r#"{"choice":"unfaithful","model_parts":[]}"#)),
         (200, response(r#"{"choice":"carried"}"#)),
         (200, response(r#"{"choice":"only_requested"}"#)),
         (200, response(JUDGE_APPROVES)),
@@ -570,7 +605,7 @@ fn a_judge_call_refused_while_locating_keeps_the_held_words() {
         .iter()
         .map(|t| (200, response(t)))
         .collect();
-    script.push((200, response(r#"{"choice":"unfaithful"}"#)));
+    script.push((200, response(r#"{"choice":"unfaithful","model_parts":[]}"#)));
     script.push((400, json!({"error":{"message":"synthetic judge refused"}})));
     let peer = Peer::start(script);
     let _transport = test_transport::install(&peer.url);

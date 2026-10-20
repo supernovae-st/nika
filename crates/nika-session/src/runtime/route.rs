@@ -47,19 +47,38 @@ impl SessionRuntime {
     /// The context the classifier sees: the phase, the current automation
     /// in one line (the request it came from), the last thing Nika asked.
     fn turn_context(&self, phase: SessionPhase) -> TurnContext {
-        let automation = self
+        let mut automation = self
             .pending
             .as_ref()
             .map(|set| set.goal.clone())
             .or_else(|| self.intent.goal.clone());
+        if matches!(phase, SessionPhase::Idle | SessionPhase::QuestionPending)
+            && let Some(workflow) = &self.last_workflow
+        {
+            let saved = format!("The current saved workflow is `{}`.", workflow.display());
+            automation =
+                Some(automation.map_or_else(|| saved.clone(), |goal| format!("{goal}\n{saved}")));
+        }
+        let agent_prompt = || {
+            let questions = self.agent.as_ref()?.open();
+            (!questions.is_empty()).then(|| {
+                questions
+                    .into_iter()
+                    .map(|question| question.question)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+        };
         let last_prompt = match phase {
             SessionPhase::QuestionPending => self
                 .pending_question()
                 .map(|q| q.label.clone())
-                .or_else(|| self.pending_input().map(|n| format!("the value of `{n}`"))),
+                .or_else(|| self.pending_input().map(|n| format!("the value of `{n}`")))
+                .or_else(agent_prompt),
             SessionPhase::GatePending => self.pending_gate.as_ref().map(|g| g.message.clone()),
             SessionPhase::ProposalPending => Some("the proposal, waiting for yes or no".to_owned()),
-            // Idle, or a phase this session does not know (ADR-150): no last prompt.
+            SessionPhase::Idle => agent_prompt(),
+            // A phase this session does not know (ADR-150): no last prompt.
             _ => None,
         };
         TurnContext::new(phase, automation, last_prompt)
@@ -70,6 +89,50 @@ impl SessionRuntime {
     /// business), else UNKNOWN. Recorded.
     pub(super) fn classify(&mut self, phase: SessionPhase, raw: &str) -> TurnDecision {
         let context = self.turn_context(phase);
+        self.classify_context(&context, raw)
+    }
+
+    /// An existing file is context for the bounded reading, not permission to execute it.
+    /// The current workflow remains unchanged unless the ordinary Run admission succeeds.
+    pub(super) fn classify_named_run(
+        &mut self,
+        phase: SessionPhase,
+        raw: &str,
+        workflow: &std::path::Path,
+    ) -> TurnDecision {
+        let mut context = self.turn_context(phase);
+        let target = format!(
+            "The person's line explicitly names the existing project workflow `{}`. It can be run unchanged through Run admission; no new candidate is needed for that act. Its existence does not authorize a Run or settle a request to change it.",
+            workflow.display()
+        );
+        context.automation = Some(match context.automation {
+            Some(automation) => format!("{automation}\n{target}"),
+            None => target,
+        });
+        self.classify_context(&context, raw)
+    }
+
+    /// A retained Run supplies context only; a new `RequestRun` reading remains necessary.
+    pub(super) fn classify_observed_run(
+        &mut self,
+        phase: SessionPhase,
+        raw: &str,
+        workflow: &std::path::Path,
+    ) -> TurnDecision {
+        let mut context = self.turn_context(phase);
+        let target = format!(
+            "The last observed run used the existing project workflow `{}`; its current bytes match that observation. This is historical context, not a saved proposal or permission to run. Only a fresh request to run that unchanged workflow may reach Run admission.",
+            workflow.display()
+        );
+        context.automation = Some(match context.automation {
+            Some(automation) => format!("{automation}\n{target}"),
+            None => target,
+        });
+        self.classify_context(&context, raw)
+    }
+
+    fn classify_context(&mut self, context: &TurnContext, raw: &str) -> TurnDecision {
+        let phase = context.phase;
         let blocked = self.money_blocks_cognition();
         let reads = self.reads_answers();
         let mut door = self.classifier.take();
@@ -124,8 +187,8 @@ impl SessionRuntime {
             }
             match (effort, classifier, &account) {
                 (Err(why), ..) => TurnDecision::failed(&why),
-                (Ok(()), Some(c), Some(a)) => c.classify_with_admission(&context, raw, a),
-                (Ok(()), Some(c), None) => c.classify(&context, raw),
+                (Ok(()), Some(c), Some(a)) => c.classify_with_admission(context, raw, a),
+                (Ok(()), Some(c), None) => c.classify(context, raw),
                 (Ok(()), None, _) => TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback),
             }
         };
@@ -138,7 +201,14 @@ impl SessionRuntime {
     /// What an UNKNOWN route says when no intelligence could judge the
     /// line: the automation is kept, the words are not lost, the protocol
     /// forms are named.
-    pub(super) fn unknown_route_text(phase: SessionPhase, method: RoutingMethod) -> String {
+    pub(super) fn unknown_route_text(
+        phase: SessionPhase,
+        method: RoutingMethod,
+        lang: crate::Lang,
+    ) -> String {
+        if lang == crate::Lang::Fr {
+            return unknown_route_text_fr(phase, method);
+        }
         // What the line is NOT is known by construction (no protocol token
         // matched); what it means is what no one could read.
         let (not, forms) = match phase {
@@ -173,6 +243,38 @@ impl SessionRuntime {
     }
 }
 
+/// [`SessionRuntime::unknown_route_text`] in French.
+fn unknown_route_text_fr(phase: SessionPhase, method: RoutingMethod) -> String {
+    let (not, forms) = match phase {
+        SessionPhase::ProposalPending => (
+            "cette ligne n'est pas un consentement",
+            "« oui » applique la proposition · « non » l'abandonne · dites le changement voulu en une phrase · posez une question à son sujet",
+        ),
+        SessionPhase::QuestionPending => (
+            "cette ligne n'est pas une réponse que je peux lier",
+            "répondez à la question · « pourquoi ? » l'explique · « annuler » l'abandonne",
+        ),
+        SessionPhase::GatePending => (
+            "cette ligne n'est pas une réponse à la validation",
+            "« oui » ou « non » y répond · « pourquoi ? » l'explique",
+        ),
+        _ => (
+            "je n'ai pas lu cette ligne comme un travail",
+            "décrivez le travail à faire · posez une question · `/help`",
+        ),
+    };
+    let reason = match method {
+        RoutingMethod::Fallback => {
+            "aucune intelligence n'est disponible pour la lire (`/intelligence` en choisit une)"
+        }
+        RoutingMethod::Failed => {
+            "le routage n'a pas obtenu d'étiquette utilisable — `/details` montre l'échec enregistré ; vérifiez-le avant de réessayer"
+        }
+        _ => "je n'ai pas su ce qu'elle veut dire",
+    };
+    format!("{not}, et {reason} — rien n'a changé · {forms}")
+}
+
 impl SessionRuntime {
     /// An open line at the consent prompt, routed: a change (or a mixed
     /// line — a yes in it is never a consent) revises the proposal with
@@ -198,8 +300,14 @@ impl SessionRuntime {
         match decision.act {
             TurnAct::Cancel => {
                 self.decided = Some(id);
+                self.agent_discarded();
                 super::TurnOutcome::Facts(
-                    "discarded · nothing was written · ask again for the change when ready".to_owned(),
+                    self.language
+                        .pick(
+                            "discarded · nothing was written · ask again for the change when ready",
+                            "écarté · rien n'a été écrit · redemandez le changement quand vous voulez",
+                        )
+                        .to_owned(),
                 )
             }
             TurnAct::Modify | TurnAct::Mixed if self.activation_proposal.as_ref() == Some(&id) => {
@@ -236,7 +344,11 @@ impl SessionRuntime {
                         self.cognition_blocked()
                     )
                 } else {
-                    Self::unknown_route_text(SessionPhase::ProposalPending, decision.method)
+                    Self::unknown_route_text(
+                        SessionPhase::ProposalPending,
+                        decision.method,
+                        self.language,
+                    )
                 };
                 let text = format!("{}\n{why}", set.effects_fact());
                 self.hold_pending(set, id, &text)

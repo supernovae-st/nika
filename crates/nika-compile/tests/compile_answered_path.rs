@@ -26,6 +26,28 @@ use common::{approved_round, held_for_its_judge};
 
 const INTENT: &str = "Copie entree.txt vers le fichier que je vais choisir.";
 
+/// Spec 02 §Project files: a source-only preview reads no project file and no run carries one
+/// yet, so a candidate naming one is held, and the hold a host lifts for a dependency it checked
+/// leaves this one standing.
+#[test]
+fn a_candidate_naming_a_project_file_is_never_ready() {
+    use nika_compile::surface::{UNJUDGED_DEPENDENCY, finish, initial, ready_by_law};
+    let source = "nika: f\nmodel: mock/echo\npermits:\n  fs: { read: [\"prompts/**\"] }\ntasks:\n  brief:\n    infer: { prompt: { file: \"prompts/brief.md\" }, max_tokens: 16 }\n";
+    let mut out = initial();
+    finish(source.to_owned(), &mut out);
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    let held = (out.diagnostics.iter())
+        .find(|d| d.target == "brief" && d.kind == DiagnosticKind::Unknown)
+        .expect("the project file holds the candidate");
+    assert!(
+        held.message.contains("prompts/brief.md"),
+        "{}",
+        held.message
+    );
+    out.diagnostics.retain(|d| d.message != UNJUDGED_DEPENDENCY);
+    assert!(!ready_by_law(&out, true), "{out:#?}");
+}
+
 /// The seat's copy candidate in DIALOG-01's shape, its destination asked.
 fn copy_to(write: &str) -> String {
     format!(

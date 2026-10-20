@@ -150,6 +150,7 @@ pub const fn nika_arm::fire::RunShot::fired_at(&self) -> jiff::timestamp::Timest
 pub fn nika_arm::fire::RunShot::generation(&self) -> &nika_cadence::firing::ArmGeneration
 pub fn nika_arm::fire::RunShot::input_vars(&self) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String> + '_
 pub fn nika_arm::fire::RunShot::inputs(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &str)>
+pub const fn nika_arm::fire::RunShot::missed(&self) -> core::option::Option<(jiff::timestamp::Timestamp, u32)>
 pub fn nika_arm::fire::RunShot::project(&self) -> &nika_fs::owned_dir::OwnedDir
 pub fn nika_arm::fire::RunShot::root(&self) -> &std::path::Path
 pub fn nika_arm::fire::RunShot::schedule_id(&self) -> &str
@@ -602,10 +603,13 @@ impl<T> nika_error::traits::AsAny for nika_arm::resident::ResidentClaim where T:
 pub fn nika_arm::resident::ResidentClaim::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_arm::resident::ResidentClaim
 pub type nika_arm::resident::ResidentClaim::Output = T
+pub fn nika_arm::resident::alive(project_root: &std::path::Path) -> bool
 pub fn nika_arm::resident::claim_for_resident(project_root: &std::path::Path, label: &str, slot: &jiff::zoned::Zoned, slot_id: nika_cadence::firing::SlotId, generation: core::option::Option<nika_cadence::firing::ArmGeneration>, pid: u32, now: &jiff::zoned::Zoned) -> core::result::Result<nika_arm::resident::ResidentClaim, nika_arm::resident::ResidentClaimRefusal>
+pub fn nika_arm::resident::lease_held(path: &std::path::Path) -> bool
 pub fn nika_arm::resident::slot_answered(project_root: &std::path::Path, label: &str, slot: &jiff::zoned::Zoned) -> core::io::error::Result<bool>
 pub mod nika_arm::state
 pub use nika_arm::state::Claim
+pub use nika_arm::state::Decision
 pub use nika_arm::state::ExecutionLink
 pub use nika_arm::state::FireKind
 pub use nika_arm::state::HistoryEntry
@@ -615,6 +619,8 @@ pub use nika_arm::state::RecordOutcome
 pub use nika_arm::state::Unsettled
 #[non_exhaustive] pub struct nika_arm::state::ArmInspection
 impl nika_arm::state::ArmInspection
+pub fn nika_arm::state::ArmInspection::count(&self, kind: nika_cadence::ledger::DecisionKind) -> core::option::Option<usize>
+pub fn nika_arm::state::ArmInspection::decisions(&self) -> core::option::Option<&[nika_cadence::ledger::Decision]>
 pub fn nika_arm::state::ArmInspection::folded(&self) -> core::option::Option<&nika_arm::Folded>
 pub fn nika_arm::state::ArmInspection::last(&self) -> core::option::Option<&nika_cadence::ledger::LastRecord>
 pub fn nika_arm::state::ArmInspection::tallies(&self) -> core::option::Option<(usize, usize)>
@@ -763,6 +769,180 @@ pub fn nika_arm::state::Rotation::as_any(&self) -> &(dyn core::any::Any + 'stati
 impl<T> typenum::type_operators::Same for nika_arm::state::Rotation
 pub type nika_arm::state::Rotation::Output = T
 pub mod nika_arm::unit_io
+#[non_exhaustive] pub enum nika_arm::unit_io::UnitOwner
+pub nika_arm::unit_io::UnitOwner::Other(std::path::PathBuf)
+pub nika_arm::unit_io::UnitOwner::ThisProject
+pub nika_arm::unit_io::UnitOwner::Unmarked
+impl core::clone::Clone for nika_arm::unit_io::UnitOwner
+pub fn nika_arm::unit_io::UnitOwner::clone(&self) -> nika_arm::unit_io::UnitOwner
+impl core::cmp::Eq for nika_arm::unit_io::UnitOwner
+impl core::cmp::PartialEq for nika_arm::unit_io::UnitOwner
+pub fn nika_arm::unit_io::UnitOwner::eq(&self, other: &nika_arm::unit_io::UnitOwner) -> bool
+impl core::fmt::Debug for nika_arm::unit_io::UnitOwner
+pub fn nika_arm::unit_io::UnitOwner::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_arm::unit_io::UnitOwner
+impl<D> owo_colors::OwoColorize for nika_arm::unit_io::UnitOwner
+impl<Q, K> equivalent::Equivalent<K> for nika_arm::unit_io::UnitOwner where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::unit_io::UnitOwner::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_arm::unit_io::UnitOwner where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::unit_io::UnitOwner::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_arm::unit_io::UnitOwner where U: core::convert::From<T>
+pub fn nika_arm::unit_io::UnitOwner::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::unit_io::UnitOwner where U: core::convert::Into<T>
+pub type nika_arm::unit_io::UnitOwner::Error = core::convert::Infallible
+pub fn nika_arm::unit_io::UnitOwner::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::unit_io::UnitOwner where U: core::convert::TryFrom<T>
+pub type nika_arm::unit_io::UnitOwner::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::unit_io::UnitOwner::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::unit_io::UnitOwner where T: core::clone::Clone
+pub type nika_arm::unit_io::UnitOwner::Owned = T
+pub fn nika_arm::unit_io::UnitOwner::clone_into(&self, target: &mut T)
+pub fn nika_arm::unit_io::UnitOwner::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::unit_io::UnitOwner where T: 'static + ?core::marker::Sized
+pub fn nika_arm::unit_io::UnitOwner::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::unit_io::UnitOwner where T: ?core::marker::Sized
+pub fn nika_arm::unit_io::UnitOwner::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::unit_io::UnitOwner where T: ?core::marker::Sized
+pub fn nika_arm::unit_io::UnitOwner::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::unit_io::UnitOwner where T: core::clone::Clone
+pub unsafe fn nika_arm::unit_io::UnitOwner::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::unit_io::UnitOwner
+pub fn nika_arm::unit_io::UnitOwner::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::unit_io::UnitOwner where T: core::clone::Clone
+pub fn nika_arm::unit_io::UnitOwner::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::unit_io::UnitOwner where T: 'static
+pub fn nika_arm::unit_io::UnitOwner::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::unit_io::UnitOwner
+pub type nika_arm::unit_io::UnitOwner::Output = T
+#[non_exhaustive] pub struct nika_arm::unit_io::LegacyUnit
+pub nika_arm::unit_io::LegacyUnit::owner: nika_arm::unit_io::UnitOwner
+pub nika_arm::unit_io::LegacyUnit::paths: alloc::vec::Vec<std::path::PathBuf>
+pub nika_arm::unit_io::LegacyUnit::unit: alloc::string::String
+impl core::clone::Clone for nika_arm::unit_io::LegacyUnit
+pub fn nika_arm::unit_io::LegacyUnit::clone(&self) -> nika_arm::unit_io::LegacyUnit
+impl core::cmp::Eq for nika_arm::unit_io::LegacyUnit
+impl core::cmp::PartialEq for nika_arm::unit_io::LegacyUnit
+pub fn nika_arm::unit_io::LegacyUnit::eq(&self, other: &nika_arm::unit_io::LegacyUnit) -> bool
+impl core::fmt::Debug for nika_arm::unit_io::LegacyUnit
+pub fn nika_arm::unit_io::LegacyUnit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_arm::unit_io::LegacyUnit
+impl<D> owo_colors::OwoColorize for nika_arm::unit_io::LegacyUnit
+impl<Q, K> equivalent::Equivalent<K> for nika_arm::unit_io::LegacyUnit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::unit_io::LegacyUnit::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_arm::unit_io::LegacyUnit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::unit_io::LegacyUnit::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_arm::unit_io::LegacyUnit where U: core::convert::From<T>
+pub fn nika_arm::unit_io::LegacyUnit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::unit_io::LegacyUnit where U: core::convert::Into<T>
+pub type nika_arm::unit_io::LegacyUnit::Error = core::convert::Infallible
+pub fn nika_arm::unit_io::LegacyUnit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::unit_io::LegacyUnit where U: core::convert::TryFrom<T>
+pub type nika_arm::unit_io::LegacyUnit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::unit_io::LegacyUnit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::unit_io::LegacyUnit where T: core::clone::Clone
+pub type nika_arm::unit_io::LegacyUnit::Owned = T
+pub fn nika_arm::unit_io::LegacyUnit::clone_into(&self, target: &mut T)
+pub fn nika_arm::unit_io::LegacyUnit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::unit_io::LegacyUnit where T: 'static + ?core::marker::Sized
+pub fn nika_arm::unit_io::LegacyUnit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::unit_io::LegacyUnit where T: ?core::marker::Sized
+pub fn nika_arm::unit_io::LegacyUnit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::unit_io::LegacyUnit where T: ?core::marker::Sized
+pub fn nika_arm::unit_io::LegacyUnit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::unit_io::LegacyUnit where T: core::clone::Clone
+pub unsafe fn nika_arm::unit_io::LegacyUnit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::unit_io::LegacyUnit
+pub fn nika_arm::unit_io::LegacyUnit::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::unit_io::LegacyUnit where T: core::clone::Clone
+pub fn nika_arm::unit_io::LegacyUnit::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::unit_io::LegacyUnit where T: 'static
+pub fn nika_arm::unit_io::LegacyUnit::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::unit_io::LegacyUnit
+pub type nika_arm::unit_io::LegacyUnit::Output = T
+#[non_exhaustive] pub struct nika_arm::unit_io::OrphanUnit
+pub nika_arm::unit_io::OrphanUnit::label: alloc::string::String
+pub nika_arm::unit_io::OrphanUnit::owner: nika_arm::unit_io::UnitOwner
+pub nika_arm::unit_io::OrphanUnit::paths: alloc::vec::Vec<std::path::PathBuf>
+pub nika_arm::unit_io::OrphanUnit::unit: alloc::string::String
+impl core::clone::Clone for nika_arm::unit_io::OrphanUnit
+pub fn nika_arm::unit_io::OrphanUnit::clone(&self) -> nika_arm::unit_io::OrphanUnit
+impl core::cmp::Eq for nika_arm::unit_io::OrphanUnit
+impl core::cmp::PartialEq for nika_arm::unit_io::OrphanUnit
+pub fn nika_arm::unit_io::OrphanUnit::eq(&self, other: &nika_arm::unit_io::OrphanUnit) -> bool
+impl core::fmt::Debug for nika_arm::unit_io::OrphanUnit
+pub fn nika_arm::unit_io::OrphanUnit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_arm::unit_io::OrphanUnit
+impl<D> owo_colors::OwoColorize for nika_arm::unit_io::OrphanUnit
+impl<Q, K> equivalent::Equivalent<K> for nika_arm::unit_io::OrphanUnit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::unit_io::OrphanUnit::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_arm::unit_io::OrphanUnit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::unit_io::OrphanUnit::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_arm::unit_io::OrphanUnit where U: core::convert::From<T>
+pub fn nika_arm::unit_io::OrphanUnit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::unit_io::OrphanUnit where U: core::convert::Into<T>
+pub type nika_arm::unit_io::OrphanUnit::Error = core::convert::Infallible
+pub fn nika_arm::unit_io::OrphanUnit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::unit_io::OrphanUnit where U: core::convert::TryFrom<T>
+pub type nika_arm::unit_io::OrphanUnit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::unit_io::OrphanUnit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::unit_io::OrphanUnit where T: core::clone::Clone
+pub type nika_arm::unit_io::OrphanUnit::Owned = T
+pub fn nika_arm::unit_io::OrphanUnit::clone_into(&self, target: &mut T)
+pub fn nika_arm::unit_io::OrphanUnit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::unit_io::OrphanUnit where T: 'static + ?core::marker::Sized
+pub fn nika_arm::unit_io::OrphanUnit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::unit_io::OrphanUnit where T: ?core::marker::Sized
+pub fn nika_arm::unit_io::OrphanUnit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::unit_io::OrphanUnit where T: ?core::marker::Sized
+pub fn nika_arm::unit_io::OrphanUnit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::unit_io::OrphanUnit where T: core::clone::Clone
+pub unsafe fn nika_arm::unit_io::OrphanUnit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::unit_io::OrphanUnit
+pub fn nika_arm::unit_io::OrphanUnit::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::unit_io::OrphanUnit where T: core::clone::Clone
+pub fn nika_arm::unit_io::OrphanUnit::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::unit_io::OrphanUnit where T: 'static
+pub fn nika_arm::unit_io::OrphanUnit::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::unit_io::OrphanUnit
+pub type nika_arm::unit_io::OrphanUnit::Output = T
+#[non_exhaustive] pub struct nika_arm::unit_io::ProjectUnits
+impl nika_arm::unit_io::ProjectUnits
+pub fn nika_arm::unit_io::ProjectUnits::keyed(&self, file_name: &str) -> bool
+pub fn nika_arm::unit_io::ProjectUnits::new(key: alloc::string::String, project_file: std::path::PathBuf) -> Self
+pub fn nika_arm::unit_io::ProjectUnits::owner(&self, body: &str) -> nika_arm::unit_io::UnitOwner
+impl core::clone::Clone for nika_arm::unit_io::ProjectUnits
+pub fn nika_arm::unit_io::ProjectUnits::clone(&self) -> nika_arm::unit_io::ProjectUnits
+impl core::fmt::Debug for nika_arm::unit_io::ProjectUnits
+pub fn nika_arm::unit_io::ProjectUnits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_arm::unit_io::ProjectUnits
+impl<T, U> core::convert::Into<U> for nika_arm::unit_io::ProjectUnits where U: core::convert::From<T>
+pub fn nika_arm::unit_io::ProjectUnits::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::unit_io::ProjectUnits where U: core::convert::Into<T>
+pub type nika_arm::unit_io::ProjectUnits::Error = core::convert::Infallible
+pub fn nika_arm::unit_io::ProjectUnits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::unit_io::ProjectUnits where U: core::convert::TryFrom<T>
+pub type nika_arm::unit_io::ProjectUnits::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::unit_io::ProjectUnits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::unit_io::ProjectUnits where T: core::clone::Clone
+pub type nika_arm::unit_io::ProjectUnits::Owned = T
+pub fn nika_arm::unit_io::ProjectUnits::clone_into(&self, target: &mut T)
+pub fn nika_arm::unit_io::ProjectUnits::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::unit_io::ProjectUnits where T: 'static + ?core::marker::Sized
+pub fn nika_arm::unit_io::ProjectUnits::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::unit_io::ProjectUnits where T: ?core::marker::Sized
+pub fn nika_arm::unit_io::ProjectUnits::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::unit_io::ProjectUnits where T: ?core::marker::Sized
+pub fn nika_arm::unit_io::ProjectUnits::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::unit_io::ProjectUnits where T: core::clone::Clone
+pub unsafe fn nika_arm::unit_io::ProjectUnits::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::unit_io::ProjectUnits
+pub fn nika_arm::unit_io::ProjectUnits::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::unit_io::ProjectUnits where T: core::clone::Clone
+pub fn nika_arm::unit_io::ProjectUnits::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::unit_io::ProjectUnits where T: 'static
+pub fn nika_arm::unit_io::ProjectUnits::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::unit_io::ProjectUnits
+pub type nika_arm::unit_io::ProjectUnits::Output = T
 #[non_exhaustive] pub struct nika_arm::unit_io::UnitIoError
 impl nika_arm::unit_io::UnitIoError
 pub fn nika_arm::unit_io::UnitIoError::into_message(self) -> alloc::string::String
@@ -797,10 +977,15 @@ impl<T> typenum::type_operators::Same for nika_arm::unit_io::UnitIoError
 pub type nika_arm::unit_io::UnitIoError::Output = T
 pub fn nika_arm::unit_io::binary_path(explicit: core::option::Option<&std::path::Path>) -> core::result::Result<std::path::PathBuf, nika_arm::unit_io::UnitIoError>
 pub fn nika_arm::unit_io::destination(target: nika_cadence::emit::Target, explicit: core::option::Option<&std::path::Path>, home: core::option::Option<std::path::PathBuf>) -> core::result::Result<std::path::PathBuf, nika_arm::unit_io::UnitIoError>
+pub fn nika_arm::unit_io::legacy_units(dir: &std::path::Path, labels: &[alloc::string::String], target: nika_cadence::emit::Target, project: &nika_arm::unit_io::ProjectUnits) -> alloc::vec::Vec<nika_arm::unit_io::LegacyUnit>
 pub fn nika_arm::unit_io::load_commands(units: &[nika_cadence::emit::Unit], target: nika_cadence::emit::Target, dir: core::option::Option<&std::path::Path>) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, nika_arm::unit_io::UnitIoError>
+pub fn nika_arm::unit_io::orphan_units(dir: &std::path::Path, armed: &[alloc::string::String], target: nika_cadence::emit::Target, project: &nika_arm::unit_io::ProjectUnits) -> alloc::vec::Vec<nika_arm::unit_io::OrphanUnit>
+pub fn nika_arm::unit_io::orphan_unload_commands(orphan: &nika_arm::unit_io::OrphanUnit, target: nika_cadence::emit::Target) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, nika_arm::unit_io::UnitIoError>
 pub fn nika_arm::unit_io::persist_env_file(root: &std::path::Path, file: &std::path::Path) -> core::result::Result<(), nika_arm::unit_io::UnitIoError>
-pub fn nika_arm::unit_io::resolve_env_file(explicit: core::option::Option<&std::path::Path>, cwd: &std::path::Path, root: &std::path::Path, dest: core::option::Option<&std::path::Path>) -> core::result::Result<core::option::Option<std::path::PathBuf>, nika_arm::unit_io::UnitIoError>
-pub fn nika_arm::unit_io::write_units(dir: &std::path::Path, log_dir: &std::path::Path, units: &[nika_cadence::emit::Unit]) -> core::result::Result<(), nika_arm::unit_io::UnitIoError>
+pub fn nika_arm::unit_io::remove_orphan(orphan: &nika_arm::unit_io::OrphanUnit, project: &nika_arm::unit_io::ProjectUnits) -> core::result::Result<(), nika_arm::unit_io::UnitIoError>
+pub fn nika_arm::unit_io::resolve_env_file(explicit: core::option::Option<&std::path::Path>, cwd: &std::path::Path, root: &std::path::Path, dest: core::option::Option<&std::path::Path>, project: &nika_arm::unit_io::ProjectUnits) -> core::result::Result<core::option::Option<std::path::PathBuf>, nika_arm::unit_io::UnitIoError>
+pub fn nika_arm::unit_io::retire_commands(legacy: &nika_arm::unit_io::LegacyUnit, target: nika_cadence::emit::Target) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, nika_arm::unit_io::UnitIoError>
+pub fn nika_arm::unit_io::write_units(dir: &std::path::Path, log_dir: &std::path::Path, units: &[nika_cadence::emit::Unit], project: &nika_arm::unit_io::ProjectUnits) -> core::result::Result<(), nika_arm::unit_io::UnitIoError>
 #[non_exhaustive] pub enum nika_arm::ProofBinding
 pub nika_arm::ProofBinding::CurrentGeneration
 pub nika_arm::ProofBinding::Declared
@@ -1421,6 +1606,7 @@ pub const fn nika_arm::fire::RunShot::fired_at(&self) -> jiff::timestamp::Timest
 pub fn nika_arm::fire::RunShot::generation(&self) -> &nika_cadence::firing::ArmGeneration
 pub fn nika_arm::fire::RunShot::input_vars(&self) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String> + '_
 pub fn nika_arm::fire::RunShot::inputs(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &str)>
+pub const fn nika_arm::fire::RunShot::missed(&self) -> core::option::Option<(jiff::timestamp::Timestamp, u32)>
 pub fn nika_arm::fire::RunShot::project(&self) -> &nika_fs::owned_dir::OwnedDir
 pub fn nika_arm::fire::RunShot::root(&self) -> &std::path::Path
 pub fn nika_arm::fire::RunShot::schedule_id(&self) -> &str

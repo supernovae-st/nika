@@ -227,6 +227,22 @@ pub struct ModelFacts {
     /// The catalogue's output list price on a metered route.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_usd_per_million: Option<UsdPerMillion>,
+    /// The input list price of the same tariff, on a metered route; unknown or unmetered is
+    /// `None`, never free.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_usd_per_million: Option<UsdPerMillion>,
+    /// The context window in tokens the catalogue states for this model; `None` when it states
+    /// none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_tokens: Option<u64>,
+    /// The prompt tokens the stated prices hold up to, when their tariff prices only a cheaper
+    /// part of the context window (a longer prompt bills at a higher rate); `None` when they hold
+    /// across it or no tariff states them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prices_up_to_tokens: Option<u64>,
+    /// The catalogue marks this model deprecated or scheduled to retire.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub legacy: bool,
 }
 
 impl ModelFacts {
@@ -247,7 +263,35 @@ impl ModelFacts {
             configured,
             billing,
             output_usd_per_million: price.map(UsdPerMillion),
+            input_usd_per_million: None,
+            context_tokens: None,
+            prices_up_to_tokens: None,
+            legacy: false,
         }
+    }
+
+    /// The same facts with what the catalogue states beside the output price: the input price of
+    /// the same tariff, the context window and whether the model is legacy.
+    #[must_use]
+    pub fn with_catalogue(
+        mut self,
+        input: Option<f64>,
+        context: Option<u64>,
+        legacy: bool,
+    ) -> Self {
+        self.input_usd_per_million = input.map(UsdPerMillion);
+        self.context_tokens = context;
+        self.legacy = legacy;
+        self
+    }
+
+    /// The same facts with the prompt tokens their prices hold up to, when a tariff prices only
+    /// part of the context window (Claude Haiku 5.5's rates hold up to 100,000 tokens of its
+    /// million).
+    #[must_use]
+    pub fn with_prices_up_to(mut self, tokens: Option<u64>) -> Self {
+        self.prices_up_to_tokens = tokens;
+        self
     }
 }
 
@@ -263,6 +307,10 @@ pub struct Offer {
     pub recommended: bool,
     /// The concrete values accepting it binds.
     pub values: Vec<OfferValue>,
+    /// Whether it stands alone where several may be checked (« Nothing to change »,
+    /// « Later »): a set mixing it with another is refused.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub exclusive: bool,
 }
 
 impl Offer {
@@ -274,7 +322,15 @@ impl Offer {
             label: label.into(),
             recommended,
             values: Vec::new(),
+            exclusive: false,
         }
+    }
+
+    /// The same option, standing alone where several may be checked.
+    #[must_use]
+    pub fn exclusive(mut self) -> Self {
+        self.exclusive = true;
+        self
     }
 
     /// The values accepting it binds.

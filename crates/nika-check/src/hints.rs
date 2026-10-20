@@ -79,6 +79,14 @@
 //!   `NIKA-SEC-014` refusal, this hint is the undecidable remainder
 //!   (sound, never a false red); the advice teaches the `with: go` +
 //!   `when:` pattern and the risk grade reads it as a High signal.
+//! - **read beneath a skippable value** (`skipped-read`) — emitted by the
+//!   `check/skipped_read.rs` lane over the analyzer's `skipped_reads` walk:
+//!   a step into the value of a task that can be skipped, from a `with:`
+//!   binding (evaluated BEFORE the task's own `when:`) or from the body
+//!   past a `when:` that lets null through. A skipped value reads null
+//!   (spec 04) and the step raises `NIKA-VAR-001`/`006` at run; the advice
+//!   names the reader, the read, the producer and why it can skip, and
+//!   teaches the whole-value binding tested in `when:`.
 //! - **exec JSON stdout capture** (`exec-json-capture`) — an `exec:` task
 //!   declares `capture: structured`, a binding parses `.stdout | fromjson`,
 //!   and NO binding reads `exit_code`/`stderr`; use `capture: stdout` for
@@ -138,7 +146,7 @@ pub struct Hint {
     /// · `glob-readme` · `assert-quarantine` · `jq-as-map` · `infer-as-law`
     /// · `fail-open-consent`
     /// · `unproven-law` · `silent-literal` · `documentation-host`
-    /// · `exec-read-path`
+    /// · `exec-read-path` · `mcp-pins` · `skipped-read`
     /// (additive · agents route on it; the module doc describes each).
     /// The paid-run family ([`PAID_RUN_KINDS`]) is what [`paid_ready`]
     /// reads — never `is_clean`.

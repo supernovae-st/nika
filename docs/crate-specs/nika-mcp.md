@@ -60,8 +60,19 @@ boundary); `nika run` stays the gated, audited effectful path.
   else → `-32601`.
 - **Version negotiation** (spec lifecycle MUST): `initialize` ECHOES the
   client's requested `protocolVersion` when it is one of `SUPPORTED`
-  (`2025-06-18` · `2025-03-26` · `2024-11-05`), else answers with the server's
-  latest and lets the client decide.
+  (`2025-11-25` · `2025-06-18` · `2025-03-26` · `2024-11-05`), else answers
+  `2025-11-25`, the latest handshake revision, and lets the client decide.
+  `2026-07-28` is never answered: that revision has no `initialize` at all
+  (`server/discover`, a per-request `_meta.protocolVersion`, `resultType` and
+  list cache hints replace it) and neither half implements its MUSTs. A client
+  of that revision may still open with `tools/list`, which the stateless
+  dispatcher answers as every earlier revision does.
+- **Client half** (`session.rs`): requests `2025-11-25`. A `tools/call`
+  result whose `resultType` is not `complete` (`input_required` · `task`) is a
+  failed call, never an empty success. A reply wait is bounded by one deadline
+  and by the bytes it skips (the 8 MiB line ceiling), not by a message count;
+  a request that times out is cancelled (`notifications/cancelled` with its
+  id) before the pipe closes, except `initialize`.
 - **Batch**: an array of messages returns an array of the non-empty replies, or
   `None` when every member was a notification (JSON-RPC 2.0 §6).
 - A malformed line is answered with a `-32700` parse error rather than killing
@@ -130,7 +141,8 @@ invokes (`invoke: { tool: "mcp:<server>/<tool>" }`). The operator guide is
   ride every transport failure (#1376 · a launcher dying under the sandbox
   reads its own cause). Two seams: `McpConnectDyn` (entry → session) and
   `McpSessionDyn` (`tools_list` · `tools_call` → `CallOutcome` = text
-  blocks · `structuredContent` · `isError`).
+  blocks · `structuredContent` · `isError` · `tools_call_until`, the same
+  call watching a stop, `CallOutcome::stopped` when the run stopped it).
 - **`pin`** — `.nika/mcp_pins.json` (`mcp_pins_format: 1`): one blake3 pin
   per tool over `{name, description, inputSchema}` + the snapshot, keyed by
   the server's identity (command + args · re-pointing is drift). A
@@ -146,11 +158,26 @@ invokes (`invoke: { tool: "mcp:<server>/<tool>" }`). The operator guide is
   registry + lockfile are read once, lazily. `tool_defs()` offers the
   approved definitions (from the lockfile · no spawn) under their
   `mcp:<server>/<tool>` names to the agent universe.
+- **Stopping a call** (2026-10-12) — `McpToolPlane::call_until` watches the
+  call's `CancelCtx` (`run_plane` hands the invoke seam
+  `McpPlane::stoppable`; the operator's Stop reaches it as a child context,
+  a task `timeout:` by dropping the attempt). A call stopped before it is
+  written is never sent: `CancelCtx::begin` gates the `tools/call` write. One
+  in flight gets `notifications/cancelled` and its session stays open; its
+  late reply is dropped without counting against the next wait's byte budget
+  (the session remembers 64 stopped ids), and a stopped call whose cancel
+  cannot be written leaves a dead session the plane drops. A reply that
+  already arrived wins over a stop (the stop is read only after an idle
+  50 ms slice), and a server request reusing the call's id is never taken
+  for its reply. The call fails `NIKA-CANCEL-001`, never transient, with
+  `details.stopped_call` = `{tool, call_id, outcome: unknown | not_sent}`;
+  a session opening when the stop arrives finishes its handshake first.
 
 Codes: `NIKA-MCP-001` (not reachable · not configured) and `NIKA-MCP-002`
 (the tool call failed) are the spec's; `003` drift · `004` corrupt lockfile
 · `005` sandbox refusal · `006` unapproved are the pin family's own, each
-naming its remedy in the text.
+naming its remedy in the text. A stopped call fails the spec's
+`NIKA-CANCEL-001`.
 
 ---
 

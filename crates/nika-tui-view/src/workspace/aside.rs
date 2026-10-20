@@ -6,7 +6,10 @@
 //! **Files**. The header is the project's one home, so the aside's first row
 //! names its region, never the project again. It lists only entries the
 //! Session exposes, in its order, each with its identity and depth, a
-//! workflow with the installed checker's verdict in words. Where the list
+//! workflow with the installed checker's verdict in words, or with the
+//! failure of its last run observed, which wins over the check on the same
+//! screen (a row never says `ok` beside a run that failed), and a run with
+//! how it ended or stands, in words. Where the list
 //! holds more than one kind, a quiet heading names each kind above its first
 //! listed entry, a nested entry staying under its parent; a heading only
 //! groups and opens nothing. An inventory the Session marks partial says so
@@ -21,11 +24,15 @@
 //! object in view, never the conversation, and never attaches its content to
 //! the next message.
 
+use nika_display::state::TaskState;
 use nika_display::theme::Role;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use unicode_width::UnicodeWidthStr;
 
+use nika_session::Lang;
+
+use super::lang::say;
 use super::text::{fit_head, marks, wrap};
 use crate::visual::icon::Icon;
 use crate::visual::role;
@@ -40,7 +47,9 @@ pub enum Tab {
     Files,
 }
 
-/// The installed checker's verdict on a workflow, as the Session lends it.
+/// What a workflow's row says of it: the installed checker's verdict, as the
+/// Session lends it, unless its last run observed failed; what a run's row
+/// says of it: how it ended or stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Verdict {
@@ -49,6 +58,12 @@ pub enum Verdict {
     /// The check did not pass, with the findings it counted (none counted
     /// when the file did not read or parse: « not clean »).
     Findings(usize),
+    /// The last run of it observed settled failed: that outcome wins over
+    /// the check's, so the row never reads `ok` beside a failed run.
+    RunFailed,
+    /// A run's row: the state it ended in or stands in, said in words at the
+    /// row's end, so a narrow row cuts its name first and keeps its outcome.
+    Run(TaskState),
 }
 
 impl Verdict {
@@ -61,6 +76,20 @@ impl Verdict {
             Self::Findings(0) => "not clean".to_owned(),
             Self::Findings(1) => "1 finding".to_owned(),
             Self::Findings(n) => format!("{n} findings"),
+            Self::RunFailed => "run failed".to_owned(),
+            Self::Run(state) => ran(state).to_owned(),
+        }
+    }
+
+    /// The verdict in words in `lang`, in the glyph column in use.
+    fn said(self, lang: Lang, ascii: bool) -> String {
+        match self {
+            Self::Clean => "ok".to_owned(),
+            Self::Findings(0) => say(lang, ascii, "not clean").to_owned(),
+            Self::Findings(1) => say(lang, ascii, "1 finding").to_owned(),
+            Self::Findings(n) => say(lang, ascii, "{n} findings").replace("{n}", &n.to_string()),
+            Self::RunFailed => say(lang, ascii, "run failed").to_owned(),
+            Self::Run(state) => say(lang, ascii, ran(state)).to_owned(),
         }
     }
 
@@ -68,7 +97,25 @@ impl Verdict {
         match self {
             Self::Clean => Role::Good,
             Self::Findings(_) => Role::Warn,
+            Self::RunFailed => Role::Bad,
+            // The hue its glyph wears wherever the state is painted.
+            Self::Run(state) => crate::visual::state::cell(state, false).1,
         }
+    }
+}
+
+/// A run's `state` in the words its row ends with.
+const fn ran(state: TaskState) -> &'static str {
+    match state {
+        TaskState::Pending => "pending",
+        TaskState::Running => "running",
+        TaskState::Ok => "succeeded",
+        TaskState::Failed => "failed",
+        TaskState::Retrying => "retrying",
+        TaskState::Skipped => "skipped",
+        // The person's stop: a cancelled run, or one their « no » stopped at a gate.
+        TaskState::Cancelled => "stopped",
+        TaskState::Paused => "paused",
     }
 }
 
@@ -137,6 +184,8 @@ pub struct Aside {
     pub complete: bool,
     /// What the projection cannot list, in words, under its entries.
     pub note: Option<String>,
+    /// The language its own words follow ([`Aside::speaking`]).
+    lang: Lang,
 }
 
 impl Aside {
@@ -150,7 +199,17 @@ impl Aside {
             entries,
             complete,
             note: None,
+            lang: Lang::En,
         }
+    }
+
+    /// This aside with its own words (the region, the projections, the
+    /// headings, the counts, the verdicts) said in `lang`; English by default.
+    /// The entries and the note keep the words they were given.
+    #[must_use]
+    pub fn speaking(mut self, lang: Lang) -> Self {
+        self.lang = lang;
+        self
     }
 
     /// This aside with `note` under its entries.
@@ -265,22 +324,25 @@ pub fn lines_anchored(
     let (_, cut) = marks(ascii);
     let dim = role::style(Role::Dim, color);
     let quiet = |words: &str| Line::from(Span::styled(fit_head(words, width, cut), dim));
+    let said = |words: &str| say(aside.lang, ascii, words).to_owned();
+    let counted = |words: &str, hidden: usize| said(words).replace("{hidden}", &hidden.to_string());
+    let glyphs = (ascii, color, aside.lang);
     plan(aside, width, usize::from(height), ascii, anchor)
         .into_iter()
         .map(|row| match row {
-            Row::Region => quiet(REGION),
-            Row::Tabs => tabs(aside.tab, width, ascii, color),
-            Row::Heading(name) => quiet(name),
+            Row::Region => quiet(&said(REGION)),
+            Row::Tabs => tabs(aside.tab, width, glyphs),
+            Row::Heading(name) => quiet(&said(name)),
             Row::Entry(index) => aside
                 .entries
                 .get(index)
                 .map_or_else(Line::default, |entry| {
-                    entry_row(entry, width, ascii, color, selected == Some(index))
+                    entry_row(entry, width, glyphs, selected == Some(index))
                 }),
-            Row::Above(hidden) => quiet(&format!("  +{hidden} above")),
-            Row::Below(hidden) => quiet(&format!("  +{hidden} below")),
+            Row::Above(hidden) => quiet(&counted("  +{hidden} above", hidden)),
+            Row::Below(hidden) => quiet(&counted("  +{hidden} below", hidden)),
             Row::Note(words) => quiet(&words),
-            Row::Partial => quiet("partial listing"),
+            Row::Partial => quiet(&said("partial listing")),
         })
         .collect()
 }
@@ -420,7 +482,7 @@ fn window(under: &[Option<&'static str>], room: usize, anchor: usize) -> (usize,
 /// The projections' row: the chosen one in the accent, set in weight and
 /// underlined, each name its own span (the spans the pointer reads), cut at
 /// the edge like any row.
-fn tabs(tab: Tab, width: usize, ascii: bool, color: bool) -> Line<'static> {
+fn tabs(tab: Tab, width: usize, (ascii, color, lang): (bool, bool, Lang)) -> Line<'static> {
     let (sep, cut) = marks(ascii);
     let dim = role::style(Role::Dim, color);
     let chosen =
@@ -432,7 +494,7 @@ fn tabs(tab: Tab, width: usize, ascii: bool, color: bool) -> Line<'static> {
     let spans = vec![
         Span::styled("Nika", nika),
         Span::styled(sep, dim),
-        Span::styled("Files", files),
+        Span::styled(say(lang, ascii, "Files").to_owned(), files),
     ];
     clip(spans, width, cut)
 }
@@ -474,7 +536,12 @@ fn face((unicode, twin): (&'static str, &'static str), ascii: bool) -> &'static 
 /// colour, the object in view stands on the selection fill wherever the keys
 /// are, and so does the row the keys select: the marker, the underline and
 /// the weight tell the two apart.
-fn entry_row(entry: &Entry, width: usize, ascii: bool, color: bool, cursor: bool) -> Line<'static> {
+fn entry_row(
+    entry: &Entry,
+    width: usize,
+    (ascii, color, lang): (bool, bool, Lang),
+    cursor: bool,
+) -> Line<'static> {
     let (_, cut) = marks(ascii);
     let accent = role::style(Role::Accent, color);
     let marker = match (cursor, entry.open) {
@@ -502,7 +569,7 @@ fn entry_row(entry: &Entry, width: usize, ascii: bool, color: bool, cursor: bool
     // The verdict, a space, and at least one character of the label and the cut.
     let verdict = entry
         .verdict
-        .map(|verdict| (verdict.words(), verdict.role()))
+        .map(|verdict| (verdict.said(lang, ascii), verdict.role()))
         .filter(|(words, _)| room > words.width() + 1 + cut.width());
     if let Some((words, verdict_role)) = verdict {
         let label = fit_head(&entry.label, room - words.width() - 1, cut);
@@ -1003,6 +1070,67 @@ mod tests {
         assert_eq!(verdict(&colored[2]), Some(role::style(Role::Good, true)));
         assert_eq!(verdict(&colored[3]), Some(role::style(Role::Warn, true)));
         assert_eq!(Verdict::Findings(1).words(), "1 finding");
+        // A failed last run reads as such, in the failure hue, never `ok`.
+        let failed = Aside::new(
+            "demo",
+            Tab::Nika,
+            vec![Entry::new(Icon::Workflow, "release.nika").judged(Verdict::RunFailed)],
+            true,
+        );
+        assert_eq!(
+            text(&lines(&failed, 28, 10, false, false))[2],
+            row("release.nika", 3, "run failed")
+        );
+        let colored = lines(&failed, 28, 10, false, true);
+        assert_eq!(verdict(&colored[2]), Some(role::style(Role::Bad, true)));
+    }
+
+    /// A run's row ends with how it ended or stands, in words and in its
+    /// state's hue, in the person's language (live gauntlet 5, r04 B10: a run
+    /// was listed by its name alone); a narrow row cuts the name, never the
+    /// outcome.
+    #[test]
+    fn a_run_wears_its_outcome_in_words_at_the_row_end() {
+        let runs = |lang: Lang| {
+            Aside::new(
+                "demo",
+                Tab::Nika,
+                vec![
+                    Entry::new(Icon::Run, "run 10-17 07:04:30 release.nika")
+                        .at(1)
+                        .judged(Verdict::Run(TaskState::Ok)),
+                    Entry::new(Icon::Run, "run 10-16 22:15:00 enrich.nika")
+                        .at(1)
+                        .judged(Verdict::Run(TaskState::Paused)),
+                ],
+                true,
+            )
+            .speaking(lang)
+        };
+        let rows = text(&lines(&runs(Lang::En), 48, 10, false, false));
+        let row = |label: &str, gap: usize, words: &str| {
+            format!(
+                "   {} {label}{}{words}",
+                Icon::Run.glyph(false),
+                " ".repeat(gap)
+            )
+        };
+        assert_eq!(
+            rows[2],
+            row("run 10-17 07:04:30 release.nika", 3, "succeeded")
+        );
+        assert_eq!(rows[3], row("run 10-16 22:15:00 enrich.nika", 7, "paused"));
+        let narrow = text(&lines(&runs(Lang::En), 24, 10, true, false));
+        assert!(narrow[2].ends_with("... succeeded"), "{narrow:?}");
+        assert!(narrow.iter().all(|r| r.width() <= 24), "{narrow:?}");
+        let french = text(&lines(&runs(Lang::Fr), 48, 10, false, false));
+        assert!(french[2].ends_with(" réussi"), "{french:?}");
+        assert!(french[3].ends_with(" en pause"), "{french:?}");
+        let colored = lines(&runs(Lang::En), 48, 10, false, true);
+        let hue = |line: &Line<'_>| line.spans.last().map(|span| span.style);
+        assert_eq!(hue(&colored[2]), Some(role::style(Role::Good, true)));
+        assert_eq!(hue(&colored[3]), Some(role::style(Role::Warn, true)));
+        assert_eq!(Verdict::Run(TaskState::Failed).words(), "failed");
     }
 
     /// What a projection cannot list is said in words, wrapped to the width.

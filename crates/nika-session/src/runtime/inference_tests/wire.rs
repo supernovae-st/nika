@@ -77,7 +77,8 @@ impl Drop for Peer {
 }
 /// What a scripted judge approval (`JUDGE_APPROVES`) answers: the whole request `faithful`, and
 /// a part asked alone (over a trial run of the bytes too) `carried`, whichever the question
-/// offers. Every other reply is sent as scripted.
+/// offers, in the scripted reply's own envelope (its usage, priced or not). Every other reply
+/// is sent as scripted.
 fn approved(body: &Value, scripted: &Value) -> Value {
     let approval = scripted["choices"][0]["message"]["content"] == super::JUDGE_APPROVES;
     let offered = |key: &str| {
@@ -89,7 +90,9 @@ fn approved(body: &Value, scripted: &Value) -> Value {
         })
     };
     if approval && !offered("faithful") && offered("carried") {
-        return response(r#"{"choice":"carried"}"#);
+        let mut carried = scripted.clone();
+        carried["choices"][0]["message"]["content"] = json!(r#"{"choice":"carried"}"#);
+        return carried;
     }
     scripted.clone()
 }

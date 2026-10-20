@@ -116,3 +116,35 @@ fn a_schema_check_is_rehearsed() {
     assert!(outcome.is_ok(), "{outcome:?}");
     assert!(nika_service_execution::ADMITTED_TOOLS.contains(&"nika:validate"));
 }
+
+/// A listing names what it reads by its pattern: a folder or a pattern the request names holds
+/// it, anything else is refused as a read no observed input holds, and a removal stays in the
+/// room (live gauntlet r05, 2026-10-17).
+#[test]
+fn a_listing_is_held_by_the_folder_or_pattern_that_names_it() {
+    let listing = r#"nika: listing
+permits:
+  tools: ["nika:glob", "nika:remove_file"]
+  fs: { read: ["./inbox/**"], write: ["./inbox/**"] }
+tasks:
+  listed:
+    invoke: { tool: "nika:glob", args: { pattern: "./inbox/*.txt" } }
+  gone:
+    invoke: { tool: "nika:remove_file", args: { path: "./inbox/a.txt" } }
+"#;
+    for held in ["./inbox/", "./inbox", "./inbox/*.txt"] {
+        assert!(screen(listing, &[held.to_owned()]).is_ok(), "{held}");
+    }
+    let unheld = screen(listing, &["./other.txt".to_owned()]).map(|_| ());
+    let refused = unheld.expect_err("a listing no observed input holds");
+    assert_eq!(refused.refusal, Refusal::Confinement);
+    assert!(
+        refused.reason.contains("is read but not observed"),
+        "{}",
+        refused.reason
+    );
+    let climbing = listing.replace("\"./inbox/a.txt\"", "\"../a.txt\"");
+    let refused = (screen(&climbing, &["./inbox/".to_owned()]).map(|_| ()))
+        .expect_err("a removal that climbs out of the room");
+    assert_eq!(refused.refusal, Refusal::Confinement);
+}

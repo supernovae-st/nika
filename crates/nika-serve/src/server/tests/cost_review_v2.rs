@@ -296,7 +296,7 @@ async fn version_1_refuses_multiplied_runs_and_versions_never_cross() {
     server.stop().await.expect("stop");
 }
 
-const FREE: &str = "nika: free\nmodel: openrouter/qwen/qwen3.8-27b:free\npermits: {}\ntasks:\n  draft:\n    infer: { prompt: text, max_tokens: 64 }\n";
+const FREE: &str = "nika: free\nmodel: openrouter/nvidia/nemotron-3-super-120b-a12b:free\npermits: {}\ntasks:\n  draft:\n    infer: { prompt: text, max_tokens: 64 }\n";
 
 /// An admitted API lane for the exact declared-free route `FREE` names.
 fn free_plan() -> nika_service_execution::ExecutionAccessPlan {
@@ -312,7 +312,7 @@ fn free_plan() -> nika_service_execution::ExecutionAccessPlan {
     );
     nika_providers::resolve_execution_plan(
         &[nika_providers::ModelNeed::new(
-            "openrouter/qwen/qwen3.8-27b:free",
+            "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
             true,
             false,
         )],
