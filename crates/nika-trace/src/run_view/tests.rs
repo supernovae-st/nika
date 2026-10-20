@@ -1055,6 +1055,61 @@ fn a_resumed_leg_counts_what_the_legs_before_its_gate_spent() {
     assert!(view.contains("cost · no model usage recorded"), "{view}");
 }
 
+/// A run a gate split is reported under the ceiling it started with: its resumed leg's start
+/// records only what the first leg left (live gauntlet wave 8, 2026-10-19, r04: « plafond ·
+/// 0,212482 $ · le plus que ce run pouvait coûter » for a run started under 0,25 $).
+#[test]
+fn a_resumed_run_says_the_ceiling_it_started_under() {
+    let store = tempdir("resumed-ceiling");
+    let paused = "01a1453e-d896-74a2-808f-b8f8ae95a871";
+    let resumed = "01a1454f-aaab-7077-bc12-87282886951c";
+    let first = [
+        leg_frame(
+            paused,
+            "workflow_started",
+            &serde_json::json!({"workflow": "hn", "budget": {"max_cost_usd": 0.25}}),
+        ),
+        leg_frame(
+            paused,
+            "workflow_paused",
+            &serde_json::json!({"task": "approve", "mode": "confirm", "status": "paused", "total_cost_usd": 0.037_518, "priced_calls": 1, "unpriced_calls": 0, "cost_qualifier": "priced"}),
+        ),
+    ];
+    let second = [
+        leg_frame(
+            resumed,
+            "workflow_started",
+            &serde_json::json!({"workflow": "hn", "budget": {"max_cost_usd": 0.212_482}, "resumed_from": "01a1453ed89674a2808fb8f8ae95a871"}),
+        ),
+        leg_frame(
+            resumed,
+            "workflow_completed",
+            &serde_json::json!({"status": "succeeded", "priced_calls": 0, "unpriced_calls": 0, "cost_qualifier": "unmetered"}),
+        ),
+    ];
+    let traces = store.path().join("traces");
+    std::fs::create_dir_all(&traces).expect("traces");
+    std::fs::write(
+        traces.join("2026-10-19T19-16-43Z-a871.ndjson"),
+        first.join("\n"),
+    )
+    .expect("paused");
+    let leg = traces.join("2026-10-19T19-19-38Z-951c.ndjson");
+    std::fs::write(&leg, second.join("\n")).expect("resumed");
+    let facts = RunFacts::read(&leg).expect("frames");
+    let view = facts.result(store.path(), Path::new("hn.nika"));
+    assert!(
+        view.contains("ceiling · $0.25 · the most this run was allowed to cost"),
+        "{view}"
+    );
+    assert!(!view.contains("0.212482"), "{view}");
+    let french = facts.result_in(store.path(), Path::new("hn.nika"), true);
+    assert!(
+        french.contains("plafond · 0,25 $ · le plus que ce run pouvait coûter"),
+        "{french}"
+    );
+}
+
 /// A step that sends beyond this machine says whether it sent: completed, or not sent and why
 /// (live gauntlet r02 B13, 2026-10-17: the report never said whether the webhook was pinged).
 #[test]

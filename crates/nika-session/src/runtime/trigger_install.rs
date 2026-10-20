@@ -46,9 +46,12 @@ impl InstallOffer {
     /// The decision as the person reads it: what installing does, and the two acts.
     pub(super) fn question(&self, program: &str) -> String {
         let workflow = self.workflow.display();
-        let cadence = super::schedule::cadence_words(&self.cadence, self.lang);
+        let runs = nika_session_change::arm::said_and_meant(
+            &self.when,
+            &super::schedule::cadence_words(&self.cadence, self.lang),
+        );
         let missed = super::schedule::missed_words(&self.missed, self.lang);
-        let (when, ceiling) = (&self.when, &self.ceiling);
+        let ceiling = &self.ceiling;
         let warning = match (&self.gap, self.lang) {
             (None, _) => String::new(),
             (Some(keys), Lang::Fr) => format!(
@@ -62,10 +65,10 @@ impl InstallOffer {
         };
         match self.lang {
             Lang::Fr => format!(
-                "Installer le déclencheur sur ce Mac ?\n  `{workflow}` · {when} · {cadence}\n  si manqué · {missed} · plafond · {ceiling} $ par run planifié\n  effet · une unité launchd lancée par {program}, qui fera tourner le workflow tout seul{warning}\n  « désactive-le » la retire\n  1 Installer et activer · 2 Garder déclaré seulement"
+                "Installer le déclencheur sur ce Mac ?\n  `{workflow}` · {runs}\n  si manqué · {missed} · plafond · {ceiling} $ par run planifié\n  effet · une unité launchd lancée par {program}, qui fera tourner le workflow tout seul{warning}\n  « désactive-le » la retire\n  1 Installer et activer · 2 Garder déclaré seulement"
             ),
             _ => format!(
-                "Install the trigger on this Mac?\n  `{workflow}` · {when} · {cadence}\n  if missed · {missed} · ceiling · ${ceiling} per scheduled run\n  effect · one launchd unit run by {program}, which runs the workflow on its own{warning}\n  « deactivate it » removes it\n  1 Install and activate · 2 Keep declared only"
+                "Install the trigger on this Mac?\n  `{workflow}` · {runs}\n  if missed · {missed} · ceiling · ${ceiling} per scheduled run\n  effect · one launchd unit run by {program}, which runs the workflow on its own{warning}\n  « deactivate it » removes it\n  1 Install and activate · 2 Keep declared only"
             ),
         }
     }

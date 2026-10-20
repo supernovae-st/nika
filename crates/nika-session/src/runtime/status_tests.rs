@@ -64,3 +64,68 @@ fn the_status_keeps_the_schedules_other_workflows_declared() {
         "{status}"
     );
 }
+
+/// A run the person's « no » stopped at its gate exits 0 as a success does: `/status` says the
+/// refusal its trace records, never « succeeded » (live gauntlet wave 8, 2026-10-19, r02 and r04:
+/// « last run: succeeded » beside « arrêté à votre « non » »).
+#[test]
+fn the_status_says_a_run_the_person_refused_stopped_at_their_no() {
+    let root = tempfile::tempdir().expect("root");
+    let traces = root.path().join(".nika/traces");
+    std::fs::create_dir_all(&traces).expect("traces");
+    let frame = |kind: &str, fields: serde_json::Value| {
+        let fields: Vec<serde_json::Value> = (fields.as_object().into_iter().flatten())
+            .map(|(key, value)| serde_json::json!({"key": key, "value": value}))
+            .collect();
+        serde_json::json!({
+            "correlation": null,
+            "execution": {"uuid": "01a1454f-aaab-7077-bc12-87282886951d"},
+            "fields": fields,
+            "id": {"uuid": "01a0ef11-03a7-74fb-bba0-000000000002"},
+            "kind": kind,
+            "run": null,
+            "timestamp": 1
+        })
+        .to_string()
+    };
+    let journal = [
+        frame(
+            "workflow_started",
+            serde_json::json!({"workflow": "digest"}),
+        ),
+        frame(
+            "approval_decided",
+            serde_json::json!({"task": "approve", "decision": "deny", "source": "human"}),
+        ),
+        frame(
+            "workflow_completed",
+            serde_json::json!({"status": "succeeded"}),
+        ),
+    ];
+    let trace = traces.join("2026-10-19T19-21-19Z-951d.ndjson");
+    std::fs::write(&trace, journal.join("\n")).expect("journal");
+    let none = ResolvedSessionIntelligence::new(
+        IntelligenceKind::None,
+        None,
+        DataLocus::None,
+        false,
+        None,
+    );
+    let mut s = SessionRuntime::open(root.path(), none, Box::new(NoReasoner));
+    s.last_workflow = Some(PathBuf::from("digest.nika"));
+    s.last_run = Some((0, "run observed · exit 0".to_owned()));
+    s.last_trace = Some(PathBuf::from(
+        ".nika/traces/2026-10-19T19-21-19Z-951d.ndjson",
+    ));
+    let status = s.status();
+    assert!(
+        status.contains("\n    last run: stopped at your « no » at its gate\n"),
+        "{status}"
+    );
+    s.last_trace = None;
+    assert!(
+        s.status().contains("\n    last run: succeeded\n"),
+        "{}",
+        s.status()
+    );
+}

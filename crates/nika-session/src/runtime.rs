@@ -1169,9 +1169,24 @@ impl SessionRuntime {
             String::new()
         };
         let schedule = format!("{schedule}{others}");
+        // A run the person's « no » stopped exits 0 as a success does; its trace says the refusal
+        // (live gauntlet wave 8, r02 and r04: « last run: succeeded » beside « arrêté à votre
+        // « non » »).
+        let refused = |exit: u8| {
+            exit == 0
+                && (self.last_trace.as_ref())
+                    .and_then(|trace| crate::run_view::RunFacts::read(&under(root, trace)))
+                    .is_some_and(|facts| facts.refused_at_gate())
+        };
         let run = self.last_run.as_ref().map_or_else(
             || "not run in this session".to_owned(),
-            |(exit, _)| crate::work::RunEnd::of(*exit).meaning().to_owned(),
+            |(exit, _)| {
+                if refused(*exit) {
+                    "stopped at your « no » at its gate".to_owned()
+                } else {
+                    crate::work::RunEnd::of(*exit).meaning().to_owned()
+                }
+            },
         );
         format!(
             "  workflow: `{}`\n    schedule: {schedule}\n    last run: {run}\n",
