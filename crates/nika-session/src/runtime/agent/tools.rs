@@ -89,6 +89,9 @@ pub(crate) struct Decided {
     pub(crate) trigger: Option<TriggerRequirement>,
     /// The revision proposed again under the verdict the person was shown, judging nothing.
     pub(crate) reused: Option<u64>,
+    /// A proposal this turn asked for was refused (its check, its verification or its
+    /// rehearsal), and none was shown since: what the turn did, whatever its words claim.
+    pub(crate) refused: bool,
 }
 
 /// A question's identity, from the context it was asked in.
@@ -478,6 +481,8 @@ impl Parts<'_> {
     /// Judge the candidate with the choices it shows (`open`, read first), then show it; with
     /// the person's words, the acts they authorize.
     fn propose(&mut self, args: &Value, call: Option<&str>) -> ToolReply {
+        // Every return before the proposal is shown is a refusal of it.
+        self.decided.refused = true;
         let citations = self.citations();
         let open = {
             let (mint, desk) = (&mut *self.mint, &mut *self.desk);
@@ -536,6 +541,7 @@ impl Parts<'_> {
             cited,
             trigger,
             reused: revision.filter(|_| reused),
+            refused: false,
         };
         let said = match (&authorized, acts) {
             (_, Some(acts)) if acts.run => {

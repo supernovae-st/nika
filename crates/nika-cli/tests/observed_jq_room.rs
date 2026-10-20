@@ -274,6 +274,117 @@ async fn without_a_helper_a_jq_step_is_screened_before_any_room() {
     assert!(!report.room.prepared, "{report:#?}");
 }
 
+/// A per-essay jq step whose `|` binds looser than its `,`: the second item reads `.mots` in the
+/// file's name (live gauntlet wave 9 r12, 2026-10-20: « propre ✔ », then the first run failed in
+/// `assemble` with « cannot index "emma.txt" with "mots" »).
+const SLIP: &str =
+    r#"[.list[] | [.fichier | ascii_downcase, (.mots | tostring)] | join(",")] | join("\n")"#;
+/// The same step, its first item parenthesized.
+const RIGHT: &str =
+    r#"[.list[] | [(.fichier | ascii_downcase), (.mots | tostring)] | join(",")] | join("\n")"#;
+
+/// Essays a folder holds, read by pattern, counted, marked by a model step that declares its
+/// answer's shape, then assembled by `assemble` (its expression) into one file.
+fn essays(assemble: &str) -> String {
+    format!(
+        r#"nika: essay-marks
+model: vllm/trial
+permits:
+  tools: ["nika:glob", "nika:read", "nika:jq", "nika:write"]
+  fs:
+    read: ["./copies/**"]
+    write: ["./retours/**"]
+tasks:
+  listed:
+    invoke: {{ tool: "nika:glob", args: {{ pattern: "./copies/*.txt" }} }}
+  texts:
+    with: {{ paths: "${{{{ tasks.listed.output }}}}" }}
+    for_each: {{ items: "${{{{ with.paths }}}}" }}
+    invoke: {{ tool: "nika:read", args: {{ path: "${{{{ item }}}}" }} }}
+  items:
+    with: {{ paths: "${{{{ tasks.listed.output }}}}", texts: "${{{{ tasks.texts.output }}}}" }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: {{ paths: "${{{{ with.paths }}}}", texts: "${{{{ with.texts }}}}" }}
+        expression: '[range(0; (.paths | length)) as $i | {{fichier: (.paths[$i] | sub("^.*/"; "")), mots: ([.texts[$i] | scan("\\S+")] | length)}}]'
+  marks:
+    with: {{ list: "${{{{ tasks.items.output }}}}" }}
+    for_each: {{ items: "${{{{ with.list }}}}" }}
+    infer:
+      prompt: "Mark this essay out of 20: ${{{{ item.fichier }}}}"
+      schema: {{ type: object, required: [note], properties: {{ note: {{ type: integer }} }} }}
+  assemble:
+    with: {{ list: "${{{{ tasks.items.output }}}}", marks: "${{{{ tasks.marks.output }}}}" }}
+    invoke:
+      tool: "nika:jq"
+      args:
+        input: {{ list: "${{{{ with.list }}}}", marks: "${{{{ with.marks }}}}" }}
+        expression: '{assemble}'
+  save:
+    with: {{ csv: "${{{{ tasks.assemble.output }}}}" }}
+    invoke:
+      tool: "nika:write"
+      args: {{ path: "./retours/notes.csv", content: "${{{{ with.csv }}}}", create_dirs: true }}
+"#
+    )
+}
+
+/// The folder the request names is copied, so the essays are read in the room and the shape pass
+/// runs the jq step after the model step on an answer of its declared shape: the slip fails the
+/// rehearsal before any run, where an unheld folder refused to rehearse at all (« … is read but
+/// not observed ») and the proposal still read « propre ✔ ».
+#[tokio::test]
+async fn a_held_folder_lets_the_rehearsal_reach_the_jq_after_a_model_step() {
+    let world = World::new();
+    std::fs::create_dir_all(world.project().join("copies")).unwrap();
+    std::fs::write(
+        world.project().join("copies/emma.txt"),
+        "Un été au bord de la mer.",
+    )
+    .unwrap();
+    std::fs::write(
+        world.project().join("copies/noah.txt"),
+        "La forêt était calme.",
+    )
+    .unwrap();
+    let room = world
+        .room()
+        .with_captures(nika_service_execution::replay::Captures::new());
+    let targets = ["./retours/notes.csv".to_owned()];
+    let held = ["./copies/".to_owned()];
+
+    let slipped = room.rehearse_reading(&essays(SLIP), &held, &targets).await;
+    assert!(
+        matches!(
+            &slipped.outcome,
+            Rehearsal::Failed { code, task, message }
+                if code == "NIKA-REHEARSAL-SHAPE"
+                    && task == "assemble"
+                    && message.contains("cannot index")
+        ),
+        "the slip fails the rehearsal in `assemble`, on the answer's shape: {slipped:#?}"
+    );
+
+    let right = room.rehearse_reading(&essays(RIGHT), &held, &targets).await;
+    assert!(
+        !matches!(
+            right.outcome,
+            Rehearsal::Failed { .. } | Rehearsal::NotRun { .. }
+        ),
+        "the parenthesized step rehearses: {right:#?}"
+    );
+
+    let unheld = room.rehearse_reading(&essays(SLIP), &[], &targets).await;
+    assert!(
+        matches!(
+            &unheld.outcome,
+            Rehearsal::NotRun { reason } if reason.contains("is read but not observed")
+        ),
+        "an unheld folder refuses before any room: {unheld:#?}"
+    );
+}
+
 // ─── the repair, through the compile entry, on actual output ───────────────────────────────
 
 const INTENT: &str = "read ./in/input.json, count the rows where status is paid, write the count to ./out/result.json";

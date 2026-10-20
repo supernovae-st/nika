@@ -72,30 +72,44 @@ impl Witness {
     }
 
     /// This witness after a settled successful run of its own candidate whose completed writes
-    /// were `written`: each of those paths, which must all be destinations (its own state
-    /// included), is observed again and bound to the file it holds now. Read-only sources and
-    /// every other path stay bound as they were, so a source edit, a foreign write after this
-    /// observation, or anything else is still drift.
+    /// were `written`: each of those paths the world holds, which must all be destinations (its
+    /// own state included), is observed again and bound to the file it holds now. A written path
+    /// the request never named is no path of this world: nothing witnessed it, so it binds
+    /// nothing and can never drift (live gauntlet wave 9 r11, 2026-10-20: the author's own
+    /// `etat_echecs.json` beside `statut.log` refused every advance, and every rerun read
+    /// « `statut.log` appeared »). Read-only sources and every other path stay bound as they
+    /// were, so a source edit, a foreign write after this observation, or anything else is
+    /// still drift.
     ///
     /// The observation follows the run's settlement: a write by another process between the
     /// run's end and this read is bound as if the run had made it. That window is the time the
     /// host takes to report the settled run, and nothing here narrows it further.
     ///
     /// # Errors
-    /// Refuses when nothing was written, a written path is a source or no destination of this
-    /// witness, or a destination now holds no regular file within the copy bound; the caller then
-    /// keeps this witness unchanged.
+    /// Refuses when nothing was written, a written path lies outside the project, a written path
+    /// of this world is a source or no destination of this witness, or a destination now holds
+    /// no regular file within the copy bound; the caller then keeps this witness unchanged.
     pub fn advanced(&self, root: &Path, written: &[String]) -> Result<Self, String> {
         if written.is_empty() {
             return Err("the run completed no write".to_owned());
         }
+        if let Some(path) = written.iter().find(|path| relative(path).is_none()) {
+            return Err(format!("`{path}` lies outside the project"));
+        }
+        let written: Vec<String> = (written.iter())
+            .filter(|path| self.world.iter().any(|(at, _)| same_path(at, path)))
+            .cloned()
+            .collect();
         if let Some(path) = written
             .iter()
             .find(|path| !self.destinations.iter().any(|it| same_path(it, path)))
         {
             return Err(format!("`{path}` is no destination the rehearsal bound"));
         }
-        let now = match on_worker(|| observe(root, written)) {
+        if written.is_empty() {
+            return Ok(self.clone());
+        }
+        let now = match on_worker(|| observe(root, &written)) {
             Some(Ok(now)) => now,
             Some(Err(why)) => return Err(format!("the project cannot be observed again: {why}")),
             None => return Err("the project cannot be observed again".to_owned()),

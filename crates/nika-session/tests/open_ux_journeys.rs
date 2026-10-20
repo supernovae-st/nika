@@ -1147,7 +1147,14 @@ fn a_candidate_its_judge_doubts_goes_back_to_the_author_and_is_not_asked_again()
     let journey = run("doubted_candidate");
     let step = journey.step(0);
     assert_eq!(step["outcome"]["kind"], "reply", "{step}");
-    assert_eq!(step["outcome"]["text"], REPAIRING, "{step}");
+    // The author's words, then what the turn did: its proposal was refused, nothing shown.
+    assert_eq!(
+        step["outcome"]["text"],
+        format!(
+            "{REPAIRING}\n\nRien n'a été proposé, enregistré ni lancé pendant ce tour : la vérification de Nika a refusé le brouillon."
+        ),
+        "{step}"
+    );
     assert!(step["shown"]["proposal"].is_null(), "{step}");
     // The author read the held verdict after `propose`, then again after `verify`.
     let held: Vec<usize> = (journey.seen.iter().enumerate())

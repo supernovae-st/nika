@@ -58,6 +58,42 @@ fn steps() -> Vec<Step> {
     ]
 }
 
+/// What the author claims after its proposal was refused, and the same author answering a plain
+/// question with no proposal in its turn.
+pub(crate) const CLAIMED_RUN: &str = "C'est enregistré et lancé.";
+/// The author's plain answer to a change, proposing nothing and refused nothing.
+pub(crate) const PLAIN_ANSWER: &str = "Un digest rassemble les titres du jour.";
+
+/// The request, answered by a candidate whose check fails and the author's claim that it was
+/// saved and run (live gauntlet wave 9 r07, 2026-10-20), then a change the author answers in words.
+pub(super) fn claimed_after_refusal() -> Scenario {
+    Scenario {
+        files: Vec::new(),
+        history: false,
+        preparing: false,
+        acts: vec![
+            Act::Turn(REQUEST),
+            Act::Turn("ajoute aussi Le Monde au digest"),
+        ],
+        script: Script {
+            agent: vec![
+                call(
+                    "candidate_write",
+                    written(&on_claude(&format!("      {TEMPERATURE}\n"))),
+                ),
+                call_saying("Voici le workflow.", "propose", json!({})),
+                crate::peer::say(CLAIMED_RUN),
+                crate::peer::say(PLAIN_ANSWER),
+                crate::peer::say(PLAIN_ANSWER),
+                crate::peer::say(PLAIN_ANSWER),
+            ],
+            replies: Vec::new(),
+            picks: Vec::new(),
+            verdicts: Vec::new(),
+        },
+    }
+}
+
 /// The request, answered by the author's failing then repaired candidate.
 pub(super) fn failing_check() -> Scenario {
     Scenario {

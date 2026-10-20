@@ -362,7 +362,7 @@ async fn a_completed_write_advances_only_its_destination() {
     assert!(next.drift(root.path(), None).unwrap().contains("in.txt"));
 }
 
-/// No write, a source, an unbound or outside path, an absent destination, a witness without
+/// No write, a source, a path outside the project, an absent destination, a witness without
 /// destinations, a target the request also reads: nothing advances.
 #[tokio::test]
 async fn only_a_present_bound_destination_advances() {
@@ -376,17 +376,57 @@ async fn only_a_present_bound_destination_advances() {
     let absent = witness.advanced(root.path(), &[TARGET.into()]).unwrap_err();
     assert!(absent.contains("absent"), "{absent}");
     std::fs::write(root.path().join("out.txt"), OUTPUT).unwrap();
-    for wrong in [SOURCE, "./other.txt", "../out.txt"] {
-        let error = witness
-            .advanced(root.path(), &[TARGET.into(), wrong.into()])
-            .unwrap_err();
-        assert!(error.contains("no destination"), "{wrong}: {error}");
-    }
+    let source = witness
+        .advanced(root.path(), &[TARGET.into(), SOURCE.into()])
+        .unwrap_err();
+    assert!(source.contains("no destination"), "{source}");
+    let outside = witness
+        .advanced(root.path(), &[TARGET.into(), "../out.txt".into()])
+        .unwrap_err();
+    assert!(outside.contains("outside the project"), "{outside}");
     let synthetic = Witness::new(sha256(CANDIDATE), witness.world().to_vec());
     assert!(synthetic.advanced(root.path(), &[TARGET.into()]).is_err());
     // A source it only reads is no destination; a file it reads and writes is its own state.
     let read_only = synthetic.clone().writing(&[TARGET.into()]);
     assert!(read_only.advanced(root.path(), &[SOURCE.into()]).is_err());
+}
+
+/// A run that also writes a file the request never named (its own state, `etat.json`) advances
+/// the destinations the rehearsal bound and binds nothing of that file: nothing witnessed it, so
+/// nothing of it can drift, and the next run of the same bytes is no drift (live gauntlet wave 9
+/// r11, 2026-10-20: the author's `etat_echecs.json` beside `statut.log` refused every advance, and
+/// every rerun read « `statut.log` appeared »).
+#[tokio::test]
+async fn a_write_outside_the_witnessed_world_leaves_it_and_advances_the_rest() {
+    let root = world(None);
+    let witness = before(root.path())
+        .await
+        .witness(CANDIDATE, &passed())
+        .await
+        .unwrap();
+    std::fs::write(root.path().join("out.txt"), OUTPUT).unwrap();
+    std::fs::write(root.path().join("etat.json"), "[]").unwrap();
+    let next = witness
+        .advanced(root.path(), &[TARGET.into(), "./etat.json".into()])
+        .unwrap();
+    let rebound = (TARGET.to_owned(), Seen::File(Digest::of(OUTPUT.as_bytes())));
+    assert_eq!(next.world(), [witness.world()[0].clone(), rebound]);
+    assert!(
+        next.drift(root.path(), None).is_none(),
+        "its own writes are no drift"
+    );
+    std::fs::write(root.path().join("etat.json"), "[\"edited\"]").unwrap();
+    assert!(
+        next.drift(root.path(), None).is_none(),
+        "a file no request named is never witnessed"
+    );
+    let only = witness
+        .advanced(root.path(), &["./etat.json".into()])
+        .unwrap();
+    assert_eq!(
+        only, witness,
+        "nothing witnessed moved, so the witness stays"
+    );
 }
 
 /// A file the request reads and writes is its own state: the run's own completed write advances

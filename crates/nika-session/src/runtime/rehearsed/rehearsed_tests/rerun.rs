@@ -10,8 +10,13 @@ use super::*;
 
 const TARGET: &str = "./out/copied.txt";
 
-/// The frames of a run of `workflow` bytes that completed a `nika:write` of `TARGET`.
-fn trace(root: &Path, workflow_sha256: &str, terminal: &str, completed: bool) -> PathBuf {
+/// The frames of a run of `workflow` bytes whose tasks each wrote one path, `(task, path)`.
+fn trace_writing(
+    root: &Path,
+    workflow_sha256: &str,
+    (terminal, completed): (&str, bool),
+    written: &[(&str, &str)],
+) -> PathBuf {
     let execution = json!({"uuid": "01a10897-52a2-7758-aa31-024a0098d5b1"});
     let frame =
         |kind: &str, fields: Value| json!({"kind": kind, "execution": execution, "fields": fields});
@@ -21,41 +26,41 @@ fn trace(root: &Path, workflow_sha256: &str, terminal: &str, completed: bool) ->
             .map(|(k, v)| json!({"key": k, "value": v}))
             .collect()
     };
-    let mut frames = vec![
-        frame(
-            "workflow_started",
-            field(&[("workflow_sha256", json!(workflow_sha256))]),
-        ),
-        frame(
+    let mut frames = vec![frame(
+        "workflow_started",
+        field(&[("workflow_sha256", json!(workflow_sha256))]),
+    )];
+    for (task, path) in written {
+        frames.push(frame(
             "task_started",
             field(&[
-                ("task", json!("copy")),
+                ("task", json!(task)),
                 ("note", json!("invoke · nika:write")),
-            ]),
-        ),
-        frame(
-            "permit_checked",
-            field(&[
-                ("task", json!("copy")),
-                ("plane", json!("fs")),
-                ("gate", json!(format!("permits.fs.write {TARGET}"))),
-                ("decision", json!("allow")),
-            ]),
-        ),
-    ];
-    if completed {
-        // As a run journals a completion: the returned value as JSON, the outcome as an object.
-        let payload = json!({"attempts": 1, "value": TARGET});
-        let outcome = json!({"cause": "normal", "class": "success", "payload": payload});
-        frames.push(frame(
-            "task_completed",
-            field(&[
-                ("task", json!("copy")),
-                ("note", json!("invoke · nika:write")),
-                ("output", json!(json!(TARGET).to_string())),
-                ("outcome", json!(outcome.to_string())),
             ]),
         ));
+        frames.push(frame(
+            "permit_checked",
+            field(&[
+                ("task", json!(task)),
+                ("plane", json!("fs")),
+                ("gate", json!(format!("permits.fs.write {path}"))),
+                ("decision", json!("allow")),
+            ]),
+        ));
+        if completed {
+            // As a run journals a completion: the returned value as JSON, the outcome an object.
+            let payload = json!({"attempts": 1, "value": path});
+            let outcome = json!({"cause": "normal", "class": "success", "payload": payload});
+            frames.push(frame(
+                "task_completed",
+                field(&[
+                    ("task", json!(task)),
+                    ("note", json!("invoke · nika:write")),
+                    ("output", json!(json!(path).to_string())),
+                    ("outcome", json!(outcome.to_string())),
+                ]),
+            ));
+        }
     }
     let end = if terminal == "succeeded" {
         "workflow_completed"
@@ -77,6 +82,16 @@ fn ran_once(
     completed: bool,
     sha: Option<&str>,
 ) -> (tempfile::TempDir, SessionRuntime) {
+    ran_writing(terminal, completed, sha, &[])
+}
+
+/// [`ran_once`], its run also writing each `(task, path)` of `also` (bytes `[]`), beside `TARGET`.
+fn ran_writing(
+    terminal: &str,
+    completed: bool,
+    sha: Option<&str>,
+    also: &[(&str, &str)],
+) -> (tempfile::TempDir, SessionRuntime) {
     let root = project();
     let (mut s, _, _) = open(root.path(), false);
     proposal(s.turn(INTENT));
@@ -85,11 +100,31 @@ fn ran_once(
         panic!("the first run is requested");
     };
     write(root.path(), TARGET, USER);
+    for (_, path) in also {
+        write(root.path(), path, "[]");
+    }
     let landed = std::fs::read(root.path().join(LANDED)).expect("landed");
     let sha = sha.map_or_else(|| sha256_hex(&landed), str::to_owned);
-    let at = trace(root.path(), &sha, terminal, completed);
+    let written: Vec<(&str, &str)> = std::iter::once(("copy", TARGET))
+        .chain(also.iter().copied())
+        .collect();
+    let at = trace_writing(root.path(), &sha, (terminal, completed), &written);
     let _ = s.observe_run(u8::from(terminal != "succeeded"), Some(&at));
     (root, s)
+}
+
+/// A run that also writes a state file the request never named is admitted again: that file is
+/// no path of the rehearsed world, and the destination it named advances (live gauntlet wave 9
+/// r11, 2026-10-20: `etat_echecs.json` beside `statut.log`, then « `statut.log` appeared » on every
+/// « lance-le »).
+#[test]
+fn a_run_that_also_writes_an_unnamed_state_file_is_admitted_again() {
+    let (_root, mut s) = ran_writing("succeeded", true, None, &[("save_state", "out/etat.json")]);
+    let outcome = s.turn(RUN);
+    let TurnOutcome::RunRequested { run, .. } = outcome else {
+        panic!("the second run is requested over its own settled outputs: {outcome:?}");
+    };
+    assert_eq!(run.workflow, PathBuf::from(LANDED));
 }
 
 #[test]

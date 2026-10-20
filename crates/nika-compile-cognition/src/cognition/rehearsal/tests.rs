@@ -543,6 +543,54 @@ tasks:
     }
 }
 
+/// A folder the request writes with its slash (« Dans le dossier copies/ », « dans commandes/ »)
+/// is an input the room copies where the candidate reads under it; one it only writes in
+/// (« retours/ ») is none (live gauntlet wave 9, 2026-10-20: r03, r05, r10 and r12 read
+/// « … is read but not observed », and r12's first run failed on a jq step the room would have
+/// run).
+#[tokio::test]
+async fn a_folder_written_with_its_slash_is_an_input_where_the_candidate_reads_under_it() {
+    let candidate = r#"nika: copies-count
+permits:
+  tools: ["nika:glob", "nika:write"]
+  fs:
+    read: ["./copies/**"]
+    write: ["./out/result.txt"]
+tasks:
+  listed:
+    invoke:
+      tool: "nika:glob"
+      args: { pattern: "./copies/*.txt" }
+  save:
+    with: { files: "${{ tasks.listed.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/result.txt", content: "files: ${{ size(with.files) }}" }
+"#;
+    for (words, inputs) in [
+        (
+            "Dans le dossier copies/ j'ai les rédactions de mes élèves : écris leur nombre dans ./out/result.txt.",
+            vec!["./copies/".to_owned()],
+        ),
+        (
+            "Chaque jour je dépose les copies dans copies/ : écris leur nombre dans ./out/result.txt.",
+            vec!["./copies/".to_owned()],
+        ),
+        (
+            "Compte les rédactions et écris le total dans retours/ puis dans ./out/result.txt.",
+            Vec::new(),
+        ),
+    ] {
+        let host = Host::new(Mode::NotRun);
+        let mut state = Rehearsals::new(Some(&host));
+        let mut out = crate::initial();
+        nika_compile::surface::finish(candidate.into(), &mut out);
+        assert!(ready(&out), "{words}: {out:#?}");
+        state.inspect(&CompileRequest::create(words), &out).await;
+        assert_eq!(host.inputs.lock().unwrap().as_slice(), [inputs], "{words}");
+    }
+}
+
 /// A path the person states bare (« out/result.txt », typed as their reply on its own line),
 /// which the candidate writes as `./out/result.txt` and never reads, is that same file in the
 /// room's spelling: an output the room reads back, never an input it must find.
