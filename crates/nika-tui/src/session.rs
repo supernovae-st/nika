@@ -730,7 +730,15 @@ impl Live {
                 answer,
             } => {
                 self.run_started.store(true, Ordering::Release);
-                let label = format!("resuming `{}` with your answer", workflow.display());
+                // In the person's language (live gauntlet wave 8, r04: « resuming `…` with your
+                // answer » after a French « oui »).
+                let french = (self.runtime.as_ref())
+                    .is_some_and(|runtime| runtime.language() == nika_session::Lang::Fr);
+                let label = if french {
+                    format!("reprise de `{}` avec votre réponse", workflow.display())
+                } else {
+                    format!("resuming `{}` with your answer", workflow.display())
+                };
                 beats.push(Beat::Say(Committed::new(Kind::Report, label.clone())));
                 let work = Work::Resume {
                     workflow,

@@ -32,7 +32,7 @@ use unicode_width::UnicodeWidthStr;
 
 use super::inspect::{Inspected, title_row_in};
 use super::lang::say;
-use super::text::{HANG, hang, marks, own, twins, wrap};
+use super::text::{HANG, fold, hang, marks, own, twins, wrap};
 use crate::visual::role;
 
 /// The cells each effect after the first stands in under the review's one
@@ -454,10 +454,21 @@ impl Proposed {
             )),
             Some(effects) => {
                 for (at, effect) in effects.iter().enumerate() {
+                    // The check's own rows, said in French for a French person as the Session's
+                    // proposal says them (live gauntlet wave 8, 2026-10-19, r04: « à l'exécution ·
+                    // writes ./digest/*.md » and « pauses for a human answer » on a French card).
+                    // Under the ASCII column its French phrase loses its accents, unless its
+                    // own values are not ASCII: then it stays as the check wrote it.
+                    let french = nika_display::check_render::review::effect_row_fr;
+                    let effect = match (self.lang, ascii) {
+                        (Lang::Fr, false) => french(effect),
+                        (Lang::Fr, true) if effect.is_ascii() => fold(&french(effect)),
+                        _ => effect.clone(),
+                    };
                     let row = if grouped && at > 0 {
-                        (effect.clone(), Role::Dim, HUNG)
+                        (effect, Role::Dim, HUNG)
                     } else {
-                        (headed(runs, effect), Role::Dim, 0)
+                        (headed(runs, &effect), Role::Dim, 0)
                     };
                     rows.push(row);
                 }

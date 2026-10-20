@@ -180,9 +180,12 @@ impl SessionRuntime {
             ))
         } else {
             if routed {
+                // In the person's language, as the phase beside it (live gauntlet wave 8, r04:
+                // « Compréhension · reading your line »).
                 self.activity(&crate::activity::Activity::now(
                     crate::activity::Phase::Understanding,
-                    "reading your line",
+                    self.language
+                        .pick("reading your line", "lecture de votre message"),
                 ));
             }
             match (effort, classifier, &account) {

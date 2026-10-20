@@ -50,8 +50,10 @@ fn every_view_phrase_keeps_its_english_cues_values_and_typed_words() {
 }
 
 /// A proposal's review in French: its headings and the identity on its border
-/// are the view's French, the Session's facts after each heading keep their
-/// words; under ASCII the French loses its accents; English keeps English.
+/// are the view's French, and the check's rows of what it does when it runs are
+/// said in French as the Session's proposal says them, their paths as written
+/// (live gauntlet wave 8, r04); under ASCII the French loses its accents;
+/// English keeps English.
 #[test]
 fn a_french_review_names_its_headings_and_keeps_the_sessions_facts() {
     use crate::workspace::candidate::Proposed;
@@ -84,7 +86,7 @@ fn a_french_review_names_its_headings_and_keeps_the_sessions_facts() {
     assert_eq!(
         rows,
         [
-            "à l'exécution · reads ./notes/brief.md",
+            "à l'exécution · lit ./notes/brief.md",
             "répétition · aucune liée à cette identité"
         ]
     );
@@ -93,7 +95,7 @@ fn a_french_review_names_its_headings_and_keeps_the_sessions_facts() {
     assert_eq!(
         rows,
         [
-            "a l'execution - reads ./notes/brief.md",
+            "a l'execution - lit ./notes/brief.md",
             "repetition - aucune liee a cette identite"
         ]
     );
