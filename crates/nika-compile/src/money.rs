@@ -190,12 +190,20 @@ fn timing(word: &str) -> bool {
 
 /// An ordinal that ranks the run itself (« une 2e fois », « for the 3rd time »): a run once more,
 /// never a time.
-/// A day of the month a noun names (« le fichier du 16 », « le rapport du 3 »): data, never
-/// money. A day said after a run verb (« relance-le le 16 ») may say when to run, so only « du »
-/// names one here (live gauntlet wave 7 r10, 2026-10-19: « J'ai mis le fichier du 16 de côté.
-/// Relance-le. » was refused as a ceiling without a currency).
-fn names_a_day(previous: Option<&str>, word: &str) -> bool {
-    previous == Some("du") && word.parse::<u8>().is_ok_and(|day| (1..=31).contains(&day))
+/// A day of the month a noun names (« le fichier du 16 », « le rapport du 3 ») or a past
+/// participle puts aside or back (« j'ai remis le 17 et mis le 16 de côté »): data, never money.
+/// A day said after a run verb (« relance-le le 16 ») may say when to run, so it is not one here
+/// (live gauntlet wave 7 r10, 2026-10-19: « J'ai mis le fichier du 16 de côté. Relance-le. »; wave
+/// 8 r10: « J'ai remis le 17 et mis le 16 de côté. Relance. », both refused as ceilings without a
+/// currency · NIK-226).
+fn names_a_day(before: Option<&str>, previous: Option<&str>, word: &str) -> bool {
+    let day = word.parse::<u8>().is_ok_and(|day| (1..=31).contains(&day));
+    // A French past participle (« remis », « mis », « gardé », « déplacé ») names what it moved.
+    let placed = previous == Some("le")
+        && before.is_some_and(|word| {
+            word.ends_with('é') || word.ends_with("és") || word.ends_with("is")
+        });
+    day && (previous == Some("du") || placed)
 }
 
 fn ranks_the_run(word: &str, next: Option<&str>) -> bool {
@@ -378,14 +386,16 @@ pub fn parse(input: &str) -> Result<ParsedMoney, &'static str> {
     // states no money: only a bare number does (live gauntlet, 2026-10-16: « J'ai déposé 3
     // messages dans inbox/, relance-le stp » was refused as a ceiling without a currency).
     parsed.unbound_number = lower.iter().enumerate().any(|(i, w)| {
-        let previous = (i.checked_sub(1))
-            .and_then(|p| lower.get(p))
-            .map(String::as_str);
+        let at = |back: usize| {
+            (i.checked_sub(back))
+                .and_then(|p| lower.get(p))
+                .map(String::as_str)
+        };
         !used[i]
             && !data(w)
             && !ranks_the_run(w, lower.get(i + 1).map(String::as_str))
             && !counted(lower.get(i + 1).map(String::as_str))
-            && !names_a_day(previous, w)
+            && !names_a_day(at(2), at(1), w)
             && (w.parse::<f64>().is_ok() || w.starts_with(|c: char| c.is_ascii_digit()))
     });
     parsed.money_only = parsed.amount.is_some()
