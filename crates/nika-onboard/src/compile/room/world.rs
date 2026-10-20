@@ -27,7 +27,7 @@ use super::screen::Refused;
 /// What one room may be written in total, the copied world and every publish of the run.
 pub(super) const ROOM_BYTES: u64 = 4 * ObservedRoom::COPY_BOUND;
 /// Files and directories one room may be given in total.
-pub(super) const ROOM_FILES: u64 = 512;
+pub(crate) const ROOM_FILES: u64 = 512;
 /// How many fresh names a scratch directory is tried under before the host gives up.
 const ATTEMPTS: u32 = 16;
 
@@ -189,7 +189,7 @@ async fn files_of(
 
 /// A pattern split at its first component holding a wildcard: the folder it walks (`.` for the
 /// room's root) and the pattern relative to it.
-fn split_pattern(at: &str) -> (String, String) {
+pub(crate) fn split_pattern(at: &str) -> (String, String) {
     let parts: Vec<&str> = at.split('/').collect();
     let literal = (parts.iter())
         .take_while(|part| !part.contains(['*', '?', '[', '{']))
@@ -205,7 +205,7 @@ fn split_pattern(at: &str) -> (String, String) {
 }
 
 /// Matched paths as the room spells them, `.` components dropped, each once, sorted.
-fn spelled(paths: Vec<std::path::PathBuf>) -> Vec<String> {
+pub(crate) fn spelled(paths: Vec<std::path::PathBuf>) -> Vec<String> {
     let mut spelled: Vec<String> = (paths.into_iter())
         .map(|path| {
             (path.components())

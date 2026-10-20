@@ -156,25 +156,28 @@ fn room(report: &RehearsalReport, began: bool) -> Result<(), String> {
 }
 
 /// Every input of the fixture's world copied, each copy verified in the room and its evidence
-/// agreeing with it, within the room's bound; nothing else copied.
+/// agreeing with it, within the room's bound; nothing else copied. A folder is copied by the
+/// files under it and a pattern by the files it matches, with no receipt of their own: a folder
+/// or a pattern spelled as one (`inbox/`, `inbox/*.txt`) may hold none, an empty folder being a
+/// day the workflow must survive (live gauntlet wave 10, 2026-10-20: every folder's rehearsal
+/// was an invalid harness, « no receipt of the copy of copies/ »).
 fn copies(observation: &Observation, inputs: &[String]) -> Result<(), String> {
     let wanted = inputs
         .iter()
         .map(|input| normal(input).ok_or_else(|| format!("{input} is not a room path")))
         .collect::<Result<Vec<String>, String>>()?;
+    let named =
+        |at: &String, path: &str| normal(path).is_some_and(|path| *at == path || under(at, &path));
     for (input, at) in inputs.iter().zip(&wanted) {
-        if !observation
-            .copies
-            .iter()
-            .any(|copy| normal(&copy.path).as_ref() == Some(at))
-        {
+        let listing = input.ends_with('/') || input.contains(WILDCARDS);
+        if !listing && !observation.copies.iter().any(|copy| named(at, &copy.path)) {
             return Err(format!("no receipt of the copy of {input}"));
         }
     }
     let mut total = 0_u64;
     for copy in &observation.copies {
         let path = &copy.path;
-        if !normal(path).is_some_and(|at| wanted.contains(&at)) {
+        if !wanted.iter().any(|at| named(at, path)) {
             return Err(format!(
                 "the room held {path}, which the fixture does not name"
             ));
@@ -195,6 +198,19 @@ fn copies(observation: &Observation, inputs: &[String]) -> Result<(), String> {
         return Err("the copied world passes the room's byte bound".to_owned());
     }
     Ok(())
+}
+
+/// The characters that make a path a pattern.
+const WILDCARDS: [char; 4] = ['*', '?', '[', '{'];
+
+/// Whether the room path `path` lies under the input `at` names as a folder (a pattern's
+/// folder: its components before the first wildcard). Lexical only.
+fn under(at: &str, path: &str) -> bool {
+    let folder: Vec<&str> = (at.split('/'))
+        .take_while(|part| !part.contains(WILDCARDS))
+        .collect();
+    let mut parts = path.split('/');
+    folder.iter().all(|part| parts.next() == Some(part)) && parts.next().is_some()
 }
 
 /// Whether `held` is the evidence of bytes of `digest`: the whole text hashing to it, or a

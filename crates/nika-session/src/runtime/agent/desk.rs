@@ -318,7 +318,8 @@ pub(crate) struct Verified {
     /// with the witness of the bytes it read: what its proposal's basis keeps.
     read: BTreeMap<String, Witness>,
     observed: Observed,
-    tried: Option<(native::Preview, String)>,
+    /// The trial of the last ready document, or why it came to no decision, with its words.
+    tried: Option<(Result<native::Preview, String>, String)>,
 }
 
 /// The verdicts `verifier` shares with its conversation, or why they cannot be read.
@@ -338,8 +339,9 @@ impl Verified {
         self.doubt.as_deref()
     }
 
-    /// The trial of the last ready document and its words, taken once by the proposal of it.
-    pub(crate) fn take_tried(&mut self) -> Option<(native::Preview, String)> {
+    /// The trial of the last ready document, or why it came to no decision, and its words, taken
+    /// once by the proposal of it.
+    pub(crate) fn take_tried(&mut self) -> Option<(Result<native::Preview, String>, String)> {
         self.tried.take()
     }
 
@@ -788,7 +790,14 @@ impl Desk for SessionDesk {
         if out.status != CompileStatus::Ready {
             return Err(findings(&out));
         }
-        kept(verifier)?.tried = tried.ok().flatten().map(|tried| (tried, words));
+        // A ready document whose trial came to no decision is never shown in silence: its
+        // proposal says the rehearsal did not run, and why (live gauntlet wave 10, 2026-10-20:
+        // the world before the trial was refused, the account dropped, and the proposal read
+        // checked with no word of any rehearsal).
+        let tried = tried.and_then(|tried| {
+            tried.ok_or_else(|| "no rehearsal of these exact bytes came to its end".to_owned())
+        });
+        kept(verifier)?.tried = Some((tried, words));
         let reach = json!({"effects": audit.effects, "world": audit.world});
         let scope = blake3::hash(reach.to_string().as_bytes())
             .to_hex()

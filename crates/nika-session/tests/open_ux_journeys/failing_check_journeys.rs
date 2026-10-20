@@ -63,3 +63,26 @@ fn a_claim_after_a_refused_proposal_is_followed_by_what_the_turn_did() {
         "a turn that refused no proposal says no such fact: {words}"
     );
 }
+
+/// A refused revision beside a proposal that still waits says that this turn changed nothing and
+/// that the proposal shown before still waits, never that nothing was proposed: the person can still
+/// save it (live gauntlet wave 10 r08, 2026-10-20).
+#[test]
+fn a_refused_revision_beside_a_pending_proposal_says_the_proposal_still_waits() {
+    let journey = run("claimed_beside_a_pending_proposal");
+    let first = journey.step(0);
+    assert_eq!(outcome_kind(first), "proposal", "{first:#}");
+    let claimed = journey.step(1);
+    assert_eq!(outcome_kind(claimed), "reply", "{claimed:#}");
+    let text = claimed["outcome"]["text"].as_str().unwrap_or_default();
+    assert!(
+        text.starts_with(CLAIMED_RUN),
+        "the author's words stay: {text}"
+    );
+    assert!(
+        text.ends_with("Ce tour n'a rien changé : la vérification de Nika a refusé la révision, et la proposition affichée avant attend toujours votre réponse."),
+        "the turn's fact names the proposal that still waits: {text}"
+    );
+    assert!(!text.contains("Rien n'a été proposé"), "{text}");
+    assert!(work(claimed)["saved"].is_null(), "{claimed:#}");
+}

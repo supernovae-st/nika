@@ -10,7 +10,7 @@ use nika_compile::surface::sha256;
 use nika_compile_cognition::rehearse::{Attempt, Rehearsal, RehearsalReport, judged_run};
 use nika_compile_fidelity::behavior::RunEnd;
 
-use super::{Seen, Witness, changed, observe, relative};
+use super::{Seen, Witness, changed, listed, observe, relative, same_path};
 
 #[cfg(test)]
 mod tests;
@@ -25,6 +25,8 @@ pub struct WorldBefore {
     inputs: Vec<String>,
     targets: Vec<String>,
     world: Vec<(String, Seen)>,
+    /// The destinations as paths of `world`: a destination folder stands for each file it holds.
+    outlets: Vec<String>,
 }
 
 impl WorldBefore {
@@ -32,17 +34,27 @@ impl WorldBefore {
     /// observed here without adding them to the room's inputs. Paths are never inferred from
     /// the candidate; the caller supplies the effective request's sources and destinations.
     ///
+    /// A folder or a pattern the request reads is observed as the room copies it: each file
+    /// under it or matching it, one path of this world each, and a destination folder the same
+    /// way, each file it holds a destination (live gauntlet wave 10, 2026-10-20: « copies/ » was
+    /// refused as no regular file, so no proposal over a folder was ever rehearsed). These files
+    /// bind the rehearsal to the copies it ran on; the proof keeps only what the request names and
+    /// what the run wrote ([`Self::witness`]).
+    ///
     /// # Errors
-    /// Refuses a path outside the project, a symlink, an unreadable/non-regular file, or a
-    /// read exceeding the observer's existing bound. An absent destination remains absent.
+    /// Refuses a path outside the project, a symlink, an unreadable/non-regular file, a folder or
+    /// pattern past the files a room is given, or a read exceeding the observer's existing
+    /// bound. An absent destination remains absent.
     pub async fn capture(
         root: &Path,
         candidate: &str,
         inputs: &[String],
         targets: &[String],
     ) -> Result<Self, String> {
+        let sources = listed(root, inputs).await?;
+        let outlets = listed(root, targets).await?;
         let mut paths: Vec<String> = Vec::new();
-        for path in inputs.iter().chain(targets) {
+        for path in sources.iter().chain(&outlets) {
             let at = relative(path)
                 .ok_or_else(|| format!("`{path}` is not a path inside the project"))?;
             if !paths.iter().any(|old| relative(old).as_ref() == Some(&at)) {
@@ -65,13 +77,25 @@ impl WorldBefore {
             inputs: inputs.to_vec(),
             targets: targets.to_vec(),
             world,
+            outlets,
         })
     }
 
     /// Bind a completed report to this before-state, then observe the original project again
     /// after the host drained. Every input receipt must match the source observed beforehand;
     /// every published or declared output must have a before-state too. No destination is
-    /// copied into the room merely to manufacture that state.
+    /// copied into the room merely to manufacture that state: an output the request never named
+    /// (a state file, one file per item) is observed in the original project once the host
+    /// drained, which the room never writes, and joins the world as the absence it is there, a
+    /// destination from then on; one that holds a file there was never in the room, and refuses
+    /// (live gauntlet wave 10, 2026-10-20: a rehearsal that passed bound nothing of a workflow
+    /// that wrote one note per file).
+    ///
+    /// The proof keeps the paths the request names and those the run wrote. The other files of a
+    /// folder it reads or writes bound this rehearsal to the copies it ran on, and stay out of the
+    /// proof: a folder's files come and go between runs (an inbox fills and empties, a new day's
+    /// export arrives), and that is no drift of what was rehearsed. A path that held nothing and
+    /// under which the run wrote is a folder it made, and leaves the proof too.
     ///
     /// This consumes the capture. It does not run a workflow, record consent, prove a whole
     /// output from a preview, or provide an atomic snapshot against concurrent external edits.
@@ -103,11 +127,11 @@ impl WorldBefore {
                 "the rehearsal has no coherent, drained and effect-free observation".to_owned(),
             );
         }
+        let mut unnamed: Vec<String> = Vec::new();
         for path in declared.iter().chain(&report.observation.ledger.written) {
-            if self.before(path).is_none() {
-                return Err(format!(
-                    "the output `{path}` has no observed original before-state"
-                ));
+            let known = |seen: &String| relative(seen).is_some_and(|at| relative(path) == Some(at));
+            if self.before(path).is_none() && !unnamed.iter().any(known) {
+                unnamed.push(path.clone());
             }
         }
         for copy in &report.observation.copies {
@@ -119,18 +143,51 @@ impl WorldBefore {
                 ));
             }
         }
-        let paths: Vec<String> = self.world.iter().map(|(path, _)| path.clone()).collect();
+        let paths: Vec<String> = (self.world.iter())
+            .map(|(path, _)| path.clone())
+            .chain(unnamed.iter().cloned())
+            .collect();
         let now = observe(&self.root, &paths).await?;
+        let (now, outputs) = now.split_at(self.world.len());
         let moved: Vec<String> = self
             .world
             .iter()
-            .zip(&now)
+            .zip(now)
             .filter_map(|((path, before), after)| changed(path, before, after))
             .collect();
         if !moved.is_empty() {
             return Err(moved.join(" · "));
         }
-        Ok(Witness::new(self.candidate_sha256, self.world).writing(&self.targets))
+        for (path, seen) in unnamed.iter().zip(outputs) {
+            match seen {
+                Ok(Seen::Absent) => {}
+                Ok(Seen::File(_)) => {
+                    return Err(format!(
+                        "the output `{path}` already holds a file the rehearsal never saw"
+                    ));
+                }
+                Err(why) => {
+                    return Err(format!("the output `{path}` cannot be observed: it {why}"));
+                }
+            }
+        }
+        let written: Vec<String> = (declared.iter())
+            .chain(&report.observation.ledger.written)
+            .cloned()
+            .collect();
+        let (mut world, mut outlets) = (self.world, self.outlets);
+        let named =
+            |path: &str| (self.inputs.iter().chain(&self.targets)).any(|it| same_path(it, path));
+        world.retain(|(path, _)| named(path) || written.iter().any(|it| same_path(it, path)));
+        world.extend(unnamed.iter().map(|path| (path.clone(), Seen::Absent)));
+        outlets.extend(unnamed);
+        // A path the run writes is its own state from then on, a source it rewrites included:
+        // its next write advances it, never « changed » at the run after (review of wave 10's
+        // fix, 2026-10-20).
+        outlets.extend(written);
+        Ok(Witness::new(self.candidate_sha256, world)
+            .writing(&outlets)
+            .made_folders(&report.observation.ledger.written))
     }
 
     fn before(&self, path: &str) -> Option<&Seen> {

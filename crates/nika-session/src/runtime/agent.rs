@@ -1439,14 +1439,16 @@ impl SessionRuntime {
         let tried = (driver.verified.lock())
             .ok()
             .and_then(|mut kept| kept.take_tried());
-        if let Some(tried) = tried {
-            self.bind_trial((&id, &set), tried, &mut bytes);
-        } else {
-            // No trial of its own: the revision shown, proposed again under the verdict the
-            // person saw, may carry the rehearsal of those very bytes from that proposal only.
-            let shown = (shown.as_ref()).map(|(old, before)| (old, before));
-            let reused = reused == Some(candidate.number);
-            self.carry_rehearsal((shown, reused), (&id, &set), &mut bytes);
+        match tried {
+            Some((Ok(tried), words)) => self.bind_trial((&id, &set), (tried, words), &mut bytes),
+            Some((Err(why), _)) => self.untried(&why, &mut bytes),
+            None => {
+                // No trial of its own: the revision shown, proposed again under the verdict the
+                // person saw, may carry the rehearsal of those very bytes from that proposal only.
+                let shown = (shown.as_ref()).map(|(old, before)| (old, before));
+                let reused = reused == Some(candidate.number);
+                self.carry_rehearsal((shown, reused), (&id, &set), &mut bytes);
+            }
         }
         self.bind_proposal_money(&id);
         // The source basis of these bytes, bound to the identity the person reviews.
@@ -1495,14 +1497,24 @@ impl SessionRuntime {
     /// The words of a turn that shows no proposal: the author's own, then, when a proposal it
     /// asked for was refused, what the turn did, whatever those words claim (live gauntlet wave 9
     /// r07, 2026-10-20: « C'est enregistré et lancé » while nothing was proposed, saved or run).
+    /// Beside a proposal shown before and still waiting, the turn changed nothing and that
+    /// proposal still waits: never « nothing was proposed » beside a proposal the person can
+    /// still save (live gauntlet wave 10 r08, 2026-10-20).
     fn refused_said(&self, decided: &Decided, said: String) -> String {
         if !decided.refused {
             return said;
         }
-        let fact = self.language.pick(
-            "Nothing was proposed, saved or run in this turn: Nika's check refused the draft.",
-            "Rien n'a été proposé, enregistré ni lancé pendant ce tour : la vérification de Nika a refusé le brouillon.",
-        );
+        let fact = if self.pending.is_some() {
+            self.language.pick(
+                "This turn changed nothing: Nika's check refused the revision, and the proposal shown before still waits for your answer.",
+                "Ce tour n'a rien changé : la vérification de Nika a refusé la révision, et la proposition affichée avant attend toujours votre réponse.",
+            )
+        } else {
+            self.language.pick(
+                "Nothing was proposed, saved or run in this turn: Nika's check refused the draft.",
+                "Rien n'a été proposé, enregistré ni lancé pendant ce tour : la vérification de Nika a refusé le brouillon.",
+            )
+        };
         if said.trim().is_empty() {
             fact.to_owned()
         } else {

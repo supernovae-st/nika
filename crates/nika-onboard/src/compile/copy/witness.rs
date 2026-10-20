@@ -17,9 +17,9 @@ use std::path::{Component, Path, PathBuf};
 
 use nika_compile_cognition::rehearse::Digest;
 use nika_fs::{EffectLedger, OwnedDir, RoomLimits, RootedFs};
-use nika_kernel::fs::{FsError, FsMetaDyn as _, FsReadDyn as _};
+use nika_kernel::fs::{FsError, FsListDyn as _, FsMetaDyn as _, FsReadDyn as _};
 
-use crate::compile::room::ObservedRoom;
+use crate::compile::room::{ObservedRoom, ROOM_FILES, spelled, split_pattern};
 
 mod world;
 pub use world::WorldBefore;
@@ -56,6 +56,26 @@ impl Witness {
         }
     }
 
+    /// This witness without the absences a run made into folders: a world path that held
+    /// nothing, that the run did not write itself and under which it wrote (`written`, what its
+    /// ledger recorded, never an output it only declared), is a folder the run made (« dans
+    /// ./retours » before `retours/` exists), never a file that appeared. Kept, it would read
+    /// « cannot be observed: it is not a regular file » at every later run.
+    pub(super) fn made_folders(mut self, written: &[String]) -> Self {
+        let made = |at: &str| {
+            !written.iter().any(|path| same_path(at, path))
+                && written.iter().any(|path| under(at, path))
+        };
+        let folders: Vec<String> = (self.world.iter())
+            .filter(|(at, seen)| *seen == Seen::Absent && made(at))
+            .map(|(at, _)| at.clone())
+            .collect();
+        let kept = |at: &String| !folders.iter().any(|folder| same_path(folder, at));
+        self.world.retain(|(at, _)| kept(at));
+        self.destinations.retain(kept);
+        self
+    }
+
     /// This witness with `targets` as its destinations: each a world path. A target the request
     /// also reads is its own state, a log it appends to or yesterday's figure it
     /// compares with: its own completed write advances it like any destination, and a run that
@@ -81,6 +101,9 @@ impl Witness {
     /// were, so a source edit, a foreign write after this observation, or anything else is
     /// still drift.
     ///
+    /// A world path that held nothing and under which the run wrote is the folder it made, and
+    /// leaves the world.
+    ///
     /// The observation follows the run's settlement: a write by another process between the
     /// run's end and this read is bound as if the run had made it. That window is the time the
     /// host takes to report the settled run, and nothing here narrows it further.
@@ -96,25 +119,26 @@ impl Witness {
         if let Some(path) = written.iter().find(|path| relative(path).is_none()) {
             return Err(format!("`{path}` lies outside the project"));
         }
+        let next = self.clone().made_folders(written);
         let written: Vec<String> = (written.iter())
-            .filter(|path| self.world.iter().any(|(at, _)| same_path(at, path)))
+            .filter(|path| next.world.iter().any(|(at, _)| same_path(at, path)))
             .cloned()
             .collect();
         if let Some(path) = written
             .iter()
-            .find(|path| !self.destinations.iter().any(|it| same_path(it, path)))
+            .find(|path| !next.destinations.iter().any(|it| same_path(it, path)))
         {
             return Err(format!("`{path}` is no destination the rehearsal bound"));
         }
         if written.is_empty() {
-            return Ok(self.clone());
+            return Ok(next);
         }
         let now = match on_worker(|| observe(root, &written)) {
             Some(Ok(now)) => now,
             Some(Err(why)) => return Err(format!("the project cannot be observed again: {why}")),
             None => return Err("the project cannot be observed again".to_owned()),
         };
-        let mut next = self.clone();
+        let mut next = next;
         for (path, seen) in written.iter().zip(now) {
             let digest = match seen {
                 Ok(Seen::File(digest)) => digest,
@@ -205,13 +229,7 @@ pub(super) async fn observe(
     root: &Path,
     paths: &[String],
 ) -> Result<Vec<Result<Seen, String>>, String> {
-    let held = OwnedDir::open(root).map_err(|error| error.to_string())?;
-    let ledger = EffectLedger::new(RoomLimits::new(ObservedRoom::COPY_BOUND, 0));
-    for _ in 0..2 {
-        let _drained = ledger.seal_and_drain().await;
-        ledger.advance().map_err(|refusal| refusal.to_string())?;
-    }
-    let project = RootedFs::new(held, ledger);
+    let project = read_only(root).await?;
     let mut seen = Vec::with_capacity(paths.len());
     for path in paths {
         seen.push(match relative(path) {
@@ -220,6 +238,80 @@ pub(super) async fn observe(
         });
     }
     Ok(seen)
+}
+
+/// The project under `root` through a rooted handle whose ledger is past every writing phase.
+async fn read_only(root: &Path) -> Result<RootedFs, String> {
+    let held = OwnedDir::open(root).map_err(|error| error.to_string())?;
+    let ledger = EffectLedger::new(RoomLimits::new(ObservedRoom::COPY_BOUND, 0));
+    for _ in 0..2 {
+        let _drained = ledger.seal_and_drain().await;
+        ledger.advance().map_err(|refusal| refusal.to_string())?;
+    }
+    Ok(RootedFs::new(held, ledger))
+}
+
+/// The paths `inputs` stand for as the room copies them: a folder stands for each file under it,
+/// a pattern for each file it matches (none when its folder is absent), a folder spelled as one
+/// (`inbox/`) that is absent for nothing, any other path for itself. Read through the same read-only handle as [`observe`]; a folder or a
+/// pattern past the files a room is given is refused, never cut (live gauntlet wave 10,
+/// 2026-10-20: « copies/ » was refused as no regular file before any rehearsal, so no proposal
+/// over a folder was ever rehearsed).
+pub(super) async fn listed(root: &Path, inputs: &[String]) -> Result<Vec<String>, String> {
+    let project = read_only(root).await?;
+    let mut paths = Vec::new();
+    for path in inputs {
+        let at =
+            relative(path).ok_or_else(|| format!("`{path}` is not a path inside the project"))?;
+        let found = (files_of(&project, &at, path.ends_with('/')).await)
+            .map_err(|why| format!("`{path}` cannot be listed: it {why}"))?;
+        let Some(found) = found else {
+            paths.push(path.clone());
+            continue;
+        };
+        if u64::try_from(found.len()).unwrap_or(u64::MAX) > ROOM_FILES {
+            return Err(format!(
+                "`{path}` holds more than the {ROOM_FILES} files a room is given: a cut world is never rehearsed"
+            ));
+        }
+        paths.extend(found.into_iter().map(|file| format!("./{file}")));
+    }
+    Ok(paths)
+}
+
+/// The files the input `at` lists, as the room spells them: each file under it when it is a
+/// folder, none when it is absent and spelled as a folder (`folder`), each one it matches when
+/// it is a pattern; `None` when it names a single path.
+async fn files_of(
+    project: &RootedFs,
+    at: &Path,
+    folder: bool,
+) -> Result<Option<Vec<String>>, String> {
+    let named = at.to_string_lossy();
+    if named.contains(['*', '?', '[', '{']) {
+        let (folder, pattern) = split_pattern(&named);
+        return match project.glob(Path::new(&folder), &pattern).await {
+            Ok(matched) => Ok(Some(spelled(matched))),
+            Err(FsError::NotFound { .. }) => Ok(Some(Vec::new())),
+            Err(error) => Err(unreadable(&error)),
+        };
+    }
+    match project.metadata(at).await {
+        Ok(found) if found.is_dir => (project.glob(at, "**/*").await)
+            .map(|under| Some(spelled(under)))
+            .map_err(|error| unreadable(&error)),
+        Err(FsError::NotFound { .. }) if folder => Ok(Some(Vec::new())),
+        _ => Ok(None),
+    }
+}
+
+/// Whether `path` lies under `folder` inside the project: lexical, nothing read from a file
+/// system.
+fn under(folder: &str, path: &str) -> bool {
+    let (Some(folder), Some(path)) = (relative(folder), relative(path)) else {
+        return false;
+    };
+    path.starts_with(&folder) && path != folder
 }
 
 /// What the project holds at `at`.

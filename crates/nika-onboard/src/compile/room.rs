@@ -103,6 +103,7 @@ impl Rehearse for ProjectPins {
     }
 }
 use world::Scratch;
+pub(crate) use world::{ROOM_FILES, spelled, split_pattern};
 
 /// The code a value over the room's bound fails its task with (`DataflowError::ValueBound`).
 const VALUE_BOUND: &str = "NIKA-1712";

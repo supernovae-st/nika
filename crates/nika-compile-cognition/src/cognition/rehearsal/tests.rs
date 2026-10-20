@@ -1333,3 +1333,86 @@ async fn the_barrier_withdraws_a_run_whose_result_the_request_refuses() {
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(behaviour_failed(&out).is_empty(), "{out:#?}");
 }
+
+/// A source the request names without its slash, that the candidate reads only under, is handed
+/// to the room as the folder it is: « lis ./inbox » over `./inbox/*.txt` is `./inbox/`, which the
+/// room holds even empty. A source the candidate reads as itself stays a file.
+#[tokio::test]
+async fn a_source_the_candidate_reads_under_is_handed_to_the_room_as_a_folder() {
+    let listing = r#"nika: inbox-count
+permits:
+  tools: ["nika:glob", "nika:write"]
+  fs:
+    read: ["./inbox/**"]
+    write: ["./out/result.txt"]
+tasks:
+  listed:
+    invoke:
+      tool: "nika:glob"
+      args: { pattern: "./inbox/*.txt" }
+  save:
+    with: { files: "${{ tasks.listed.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./out/result.txt", content: "files: ${{ size(with.files) }}" }
+"#;
+    let reading = listing
+        .replace("./inbox/**\"]", "./inbox\"]")
+        .replace(
+            "tool: \"nika:glob\"\n      args: { pattern: \"./inbox/*.txt\" }",
+            "tool: \"nika:read\"\n      args: { path: \"./inbox\" }",
+        )
+        .replace("[\"nika:glob\", ", "[\"nika:read\", ");
+    let words = "Chaque matin, lis ./inbox et écris le nombre de messages dans ./out/result.txt.";
+    for (candidate, inputs) in [(listing, "./inbox/"), (reading.as_str(), "./inbox")] {
+        let host = Host::new(Mode::NotRun);
+        let mut state = Rehearsals::new(Some(&host));
+        let mut out = crate::initial();
+        nika_compile::surface::finish(candidate.into(), &mut out);
+        assert!(ready(&out), "{candidate}: {out:#?}");
+        state.inspect(&CompileRequest::create(words), &out).await;
+        assert_eq!(
+            host.inputs.lock().unwrap().as_slice(),
+            [vec![inputs.to_owned()]],
+            "{candidate}"
+        );
+    }
+}
+
+/// A destination the request names without its slash, that the candidate writes only under, is
+/// handed to the room as the folder it is: « une réponse par message dans ./reponses » over
+/// `./reponses/resume.txt` is `./reponses/`, which holds nothing while it is not there, never one
+/// path a run then makes.
+#[tokio::test]
+async fn a_destination_the_candidate_writes_under_is_handed_to_the_room_as_a_folder() {
+    let candidate = r#"nika: inbox-answers
+permits:
+  tools: ["nika:glob", "nika:write"]
+  fs:
+    read: ["./inbox/**"]
+    write: ["./reponses/resume.txt"]
+tasks:
+  listed:
+    invoke:
+      tool: "nika:glob"
+      args: { pattern: "./inbox/*.txt" }
+  save:
+    with: { files: "${{ tasks.listed.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./reponses/resume.txt", content: "files: ${{ size(with.files) }}" }
+"#;
+    let words = "Chaque matin, lis ./inbox et écris le résumé des messages dans ./reponses.";
+    let host = Host::new(Mode::NotRun);
+    let mut state = Rehearsals::new(Some(&host));
+    let mut out = crate::initial();
+    nika_compile::surface::finish(candidate.into(), &mut out);
+    assert!(ready(&out), "{out:#?}");
+    state.inspect(&CompileRequest::create(words), &out).await;
+    let targets = host.targets.lock().unwrap().clone();
+    assert_eq!(targets, [vec!["./reponses/".to_owned()]]);
+    assert_eq!(
+        host.inputs.lock().unwrap().as_slice(),
+        [vec!["./inbox/".to_owned()]]
+    );
+}

@@ -407,6 +407,24 @@ fn effective_paths(
         targets.retain(|path| !input(path));
         extend_paths(&mut targets, &outputs);
         extend_paths(&mut inputs, &sources);
+        // A source the request names that the candidate reads only under (« lis ./inbox » over
+        // `./inbox/*.txt`) is a folder: spelled as one, the room holds it even empty, and the
+        // run's evidence wants no receipt of the folder itself (review of wave 10's fix,
+        // 2026-10-20: an empty `./inbox` was an invalid harness the author could not repair).
+        for path in &mut inputs {
+            let folder = !path.ends_with('/')
+                && !held(&fs.read, path)
+                && fs.read.iter().any(|read| under(read, path));
+            path.push_str(if folder { "/" } else { "" });
+        }
+        // So is a destination it writes only under (« une réponse par message dans ./reponses »):
+        // a folder that is not there yet holds nothing, never one path a run then makes.
+        for path in &mut targets {
+            let folder = !path.ends_with('/')
+                && !held(&fs.write, path)
+                && fs.write.iter().any(|write| under(write, path));
+            path.push_str(if folder { "/" } else { "" });
+        }
         // A folder the request names in words (« les fichiers .txt du dossier inbox ») is
         // material the room copies where the candidate reads under it; one no read falls under
         // is no source (« le dossier client » is a case file). Live gauntlet wave 6 r05,
