@@ -896,6 +896,12 @@ mod tests {
                 && question.contains("« désactive-le » la retire"),
             "{question}"
         );
+        // `nika.yaml` runs nothing: no freshness is said of it (live gauntlet wave 8, r01 and r04:
+        // « il ne lit aucun fichier du projet » under a declaration).
+        assert!(
+            !question.contains("fraîcheur") && !question.contains("aucun fichier du projet"),
+            "{question}"
+        );
         assert_eq!(s.pending_activation(), Some(INSTALL_KEY));
         let (_, _, rows, _) = s.waiting_activation_choices().expect("its two acts");
         let keys: Vec<&str> = rows.iter().map(|row| row.key.as_str()).collect();
