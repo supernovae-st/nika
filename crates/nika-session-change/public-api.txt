@@ -322,6 +322,7 @@ pub fn nika_session_change::change::ProjectChangeSet::preview(&self) -> alloc::s
 pub fn nika_session_change::change::ProjectChangeSet::preview_condensed(&self) -> alloc::string::String
 pub fn nika_session_change::change::ProjectChangeSet::project_change(root: &std::path::Path, goal: &str, change: nika_session_change::change::ProjectChange) -> Self
 pub fn nika_session_change::change::ProjectChangeSet::project_reads(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_session_change::change::ProjectChangeSet::unchanged(&self) -> bool
 pub fn nika_session_change::change::ProjectChangeSet::workflow_at(root: &std::path::Path, goal: &str, path: &str, content: alloc::string::String) -> core::result::Result<Self, nika_session_change::change::ChangeError>
 pub fn nika_session_change::change::ProjectChangeSet::workflows(&self) -> alloc::vec::Vec<std::path::PathBuf>
 impl nika_session_change::change::ProjectChangeSet
@@ -1584,6 +1585,8 @@ impl<T> tracing::instrument::Instrument for nika_session_change::outcome::Stoppe
 impl<T> tracing::instrument::WithSubscriber for nika_session_change::outcome::Stopped
 impl<T> typenum::type_operators::Same for nika_session_change::outcome::Stopped
 pub type nika_session_change::outcome::Stopped::Output = T
+pub mod nika_session_change::rehearsal_fr
+pub fn nika_session_change::rehearsal_fr::lines(english: &str) -> alloc::string::String
 pub mod nika_session_change::reply
 pub fn nika_session_change::reply::as_typed(line: &str) -> bool
 pub fn nika_session_change::reply::carries_an_offer(question: &nika_compile::types::CompileQuestion, line: &str) -> bool

@@ -35,10 +35,10 @@ use nika_onboard::compile::room::{JqHelper, ObservedRoom};
 
 use super::{Lang, SessionRuntime, TurnOutcome};
 
-mod said_fr;
 use crate::authoring::{AuthoringError, AuthoringRound};
 use crate::trial::{self, Capture, Observer};
 use nika_onboard::compile::{CompileOutcome, CompileRequest, CompileStatus};
+use nika_session_change::rehearsal_fr as said_fr;
 
 use crate::change::ProjectChangeSet;
 use crate::outcome::{ProposalId, Refusal, RefusalClass};

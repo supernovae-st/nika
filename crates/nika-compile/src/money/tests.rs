@@ -553,6 +553,8 @@ fn a_day_a_noun_names_is_no_unbound_amount() {
     for line in [
         "J'ai mis le fichier du 16 de côté. Relance-le.",
         "relance-le sur le rapport du 3",
+        "J'ai remis le 17 et mis le 16 de côté. Relance. Tu compares bien avec hier ?",
+        "J'ai gardé le 3 et déplacé le 4, relance-le",
     ] {
         let parsed = super::parse(line).unwrap_or_else(|why| panic!("{line}: {why}"));
         assert!(!parsed.unbound_number, "{line}");

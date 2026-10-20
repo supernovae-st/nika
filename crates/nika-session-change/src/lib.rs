@@ -49,6 +49,7 @@ pub mod decision;
 pub mod draft;
 pub mod lang;
 pub mod outcome;
+pub mod rehearsal_fr;
 pub mod reply;
 pub mod review;
 pub mod save_run;

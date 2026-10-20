@@ -821,7 +821,12 @@ impl SessionRuntime {
     /// Run refusals change the Run observation, never the shared Session account.
     pub(super) fn refuse_run_money(&mut self, input: &str, reason: &str) -> TurnOutcome {
         self.money.current = Some(self.inference_observation(self.rejected_money(input, reason)));
-        TurnOutcome::Refusal(Refusal::new(RefusalClass::NotAllowed, reason))
+        let (unbound, french) = super::run_budget::UNBOUND;
+        let said = match self.language {
+            super::Lang::Fr if reason == unbound => french,
+            _ => reason,
+        };
+        TurnOutcome::Refusal(Refusal::new(RefusalClass::NotAllowed, said))
     }
 
     pub(super) fn run_money(

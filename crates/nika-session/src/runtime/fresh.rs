@@ -163,6 +163,12 @@ impl SessionRuntime {
         if let Some(read) = bound.as_ref().and_then(|b| b.read.clone()) {
             return self.read_at_yes(id, &read);
         }
+        // A set landing no workflow (a schedule's `nika.yaml`) runs nothing: no freshness to say
+        // (live gauntlet wave 8, r01 and r04: « il ne lit aucun fichier du projet » under the
+        // declaration of a workflow that reads `releves/*.csv`).
+        if set.workflows().is_empty() {
+            return Ok(None);
+        }
         let reads = set.project_reads();
         let (decision, request, derived) = match bound {
             Some(b) => (b.decision, b.request, false),

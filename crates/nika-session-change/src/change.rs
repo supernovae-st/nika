@@ -699,6 +699,19 @@ impl ProjectChangeSet {
             .collect()
     }
 
+    /// Whether every change of the set replaces a file with the very bytes its preview was built
+    /// over: a yes then writes nothing new (live gauntlet wave 8, 2026-10-19, r12: « appliqué ·
+    /// écrit » for identical before and after hashes).
+    #[must_use]
+    pub fn unchanged(&self) -> bool {
+        !self.changes.is_empty()
+            && self.changes.iter().all(|change| {
+                change
+                    .witness()
+                    .is_some_and(|before| *before == Witness::of(change.content().as_bytes()))
+            })
+    }
+
     /// The audits of the workflow bytes this set would write whose check fails: each change's
     /// own audit when the set holds it for those exact bytes, else the preview's audit of them
     /// (child-blind, as the preview shows it). Bytes their own check refuses are never saved,

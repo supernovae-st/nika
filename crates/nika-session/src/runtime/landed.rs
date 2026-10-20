@@ -117,8 +117,16 @@ impl SessionRuntime {
             .map(|p| format!("`{}`", p.display()))
             .collect();
         // The save's one wording, in the person's language (live gauntlet wave 7, 2026-10-19:
-        // « applied · wrote » in every French conversation).
-        let applied_words = self.language.pick("applied · wrote", "appliqué · écrit");
+        // « applied · wrote » in every French conversation); a yes to the very bytes the files
+        // held wrote nothing new (wave 8, r12).
+        let applied_words = if set.unchanged() {
+            (self.language).pick(
+                "applied · nothing changed in",
+                "appliqué · rien n'a changé dans",
+            )
+        } else {
+            self.language.pick("applied · wrote", "appliqué · écrit")
+        };
         let mut report = format!("{applied_words} {}{evidence}", written.join(" · "));
         // What the yes found of the sources the bytes rely on (`fresh.rs`).
         if let Some(basis) = basis {
