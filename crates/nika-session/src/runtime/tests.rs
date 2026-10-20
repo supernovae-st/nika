@@ -1559,3 +1559,22 @@ fn a_hosts_language_speaks_until_the_person_writes() {
     let _ = s.turn(COPY);
     assert_eq!(s.language(), Lang::En, "the person's English decides");
 }
+
+/// A run line whose number says no amount is refused in the person's language (live gauntlet
+/// wave 8, r10: « that number has no explicit monetary meaning … » in a French conversation).
+#[test]
+fn a_run_number_of_no_amount_is_refused_in_french_to_a_french_person() {
+    let dir = tempfile::tempdir().expect("project");
+    let mut s = saved_daily_copy(dir.path());
+    let TurnOutcome::Refusal(refused) = s.turn("relance-le le 16") else {
+        panic!("a day that may say when to run is asked, never run once now");
+    };
+    assert_eq!(refused.class, RefusalClass::NotAllowed);
+    assert!(
+        refused
+            .to_string()
+            .contains("ce nombre ne dit pas un montant")
+            && refused.to_string().contains("le run n'a pas été lancé"),
+        "{refused}"
+    );
+}
