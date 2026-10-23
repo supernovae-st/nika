@@ -188,6 +188,7 @@ pub fn nika_compile::observation::csv(head: &str, tsv: bool) -> nika_compile::ob
 pub fn nika_compile::observation::jsonl(head: &str) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_compile::observation::records(rows: &[serde_json::value::Value]) -> nika_compile::observation::Sample
 pub mod nika_compile::run_words
+pub fn nika_compile::run_words::asks_to_read(input: &str) -> bool
 pub fn nika_compile::run_words::inline_vars(input: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile::run_words::input_question(workflow: &std::path::Path, name: &str, remaining: usize) -> alloc::string::String
 pub fn nika_compile::run_words::is_run_verb(first: &str) -> bool

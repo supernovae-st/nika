@@ -36,10 +36,10 @@ impl SessionRuntime {
         {
             return None;
         }
-        // A line about activating the schedule is never a Run, whatever a classifier hears in
-        // it (live gauntlet, 2026-10-16: « Vous pouvez l'activer pour moi, directement ici ? »
-        // ran the workflow at once).
-        if mentions_activation(line) {
+        // A line about activating the schedule, or asking to see what is there, is never a Run,
+        // whatever a classifier hears in it (live gauntlet: « Vous pouvez l'activer pour moi ? »
+        // ran it at once; NIK-234: « montrez-moi le contenu des traductions » reran them).
+        if mentions_activation(line) || run_options::asks_to_read(line) {
             return None;
         }
         // A bare yes answers what the author last offered, never a Run of its own (live gauntlet

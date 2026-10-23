@@ -68,6 +68,10 @@ pub(crate) use self::kept_defaults::PARIS;
 mod session_facts;
 pub(crate) use self::session_facts::{DETAILS, HOW_MUCH};
 
+#[path = "shown_results.rs"]
+mod shown_results;
+pub(crate) use self::shown_results::{SHOW, SHOW_EN, SHOWN, WRITTEN, hears_runs};
+
 #[path = "run_ceilings.rs"]
 mod run_ceilings;
 pub(crate) use self::run_ceilings::{
@@ -420,6 +424,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
     match name {
         name if name.starts_with("proposal_choice_") => super::proposal_choices::scenario(name),
         name if name.starts_with("feedback_") => feedbacks::scenario(name),
+        name if name.starts_with("shown_results") => shown_results::scenario(name),
         "accept_offer" => accept_offer(),
         "meaning_of_a_proposal" => meaning_of_a_proposal(),
         "discard_then_fix" => discard_then_fix(),
