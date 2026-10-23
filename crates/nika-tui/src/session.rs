@@ -435,7 +435,15 @@ impl Live {
         let Some(runtime) = self.runtime.as_mut() else {
             return Vec::new();
         };
-        let mut beats = vec![Beat::Say(Committed::new(Kind::Banner, runtime.banner()))];
+        // The welcome card leaves out why the intelligence cannot serve: the opening list's head,
+        // or the notice below without a list, says it while it holds, and nothing on the card
+        // keeps it once another one is chosen (live gauntlet wave 11, 2026-10-20: all twelve
+        // personas still read « ⚠ no key for `anthropic` » there after choosing DeepSeek).
+        let mut welcome = runtime.banner();
+        if let Some(why) = &runtime.intelligence.why {
+            welcome = welcome.replacen(&format!("\n  ⚠ {why}"), "", 1);
+        }
+        let mut beats = vec![Beat::Say(Committed::new(Kind::Banner, welcome))];
         // The Session's own notice that the conversation was restored, when it gives one.
         let mut restored = false;
         match self.home.as_deref() {

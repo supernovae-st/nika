@@ -132,6 +132,59 @@ fn the_opening_guide_claims_a_pending_choice_only_while_the_list_is_open() {
     assert_eq!(calls.load(Ordering::SeqCst), 0, "nothing waited to resume");
 }
 
+/// A kept intelligence this machine cannot serve is said by the opening list's head while the
+/// list is open, never on the welcome card, which would keep it after another intelligence is
+/// chosen; reopened over the same home, the card still says none of it (live gauntlet wave 11,
+/// 2026-10-20: all twelve personas read « ⚠ no key for `anthropic` » there after choosing
+/// `deepseek`).
+#[test]
+fn the_welcome_card_never_keeps_the_warning_of_an_intelligence_not_in_use() {
+    let room = Room::new("welcome-warning");
+    let home = Room::new("welcome-warning-home");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let open = || {
+        let mut census = IntelligenceCensus::empty();
+        census.api_keys.push("deepseek".into());
+        let kept = UserIntelligencePreference::new(
+            IntelligenceKind::Api {
+                provider: "anthropic".into(),
+            },
+            None,
+        );
+        let calls = Arc::clone(&calls);
+        let mut live = Live::new(
+            room.0.clone(),
+            census,
+            Some(kept),
+            Some(home.0.clone()),
+            Box::new(move |_| Box::new(Route(Arc::clone(&calls)))),
+            runners(),
+        );
+        let opened = live.open();
+        (live, opened)
+    };
+    let welcome = |beats: &[Beat]| {
+        (said(beats).into_iter())
+            .find_map(|(kind, text)| (kind == Kind::Banner).then_some(text))
+            .unwrap_or_else(|| panic!("the welcome card: {beats:?}"))
+    };
+    let (mut first, opened) = open();
+    assert!(
+        guide(&opened).contains("no key for `anthropic`"),
+        "the list says it while it is open: {opened:?}"
+    );
+    assert!(welcome(&opened).starts_with("Nika · "), "{opened:?}");
+    assert!(!welcome(&opened).contains('⚠'), "{opened:?}");
+    let chosen = first.submit("2 deepseek/deepseek-chat");
+    assert_eq!(waits(&chosen.beats), Some(Waiting::Free), "{chosen:?}");
+    assert!(!joined(&chosen.beats).contains("no key for"), "{chosen:?}");
+    drop(first);
+    let (_, reopened) = open();
+    assert!(!welcome(&reopened).contains('⚠'), "{reopened:?}");
+    assert!(!joined(&reopened).contains("no key for"), "{reopened:?}");
+    assert_eq!(calls.load(Ordering::SeqCst), 0, "no model was called");
+}
+
 /// The required guide's home screen: every other choice and the three roles, nothing to keep
 /// and no offline choice.
 fn required(beats: &[Beat]) -> Waiting {
