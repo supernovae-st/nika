@@ -82,8 +82,11 @@ impl ReplaySession {
     pub(crate) fn load(workflow_path: &str, replay_path: &str) -> Result<Self, String> {
         let yaml = bounded_read(workflow_path, "workflow")?;
         let raw = bounded_read(replay_path, "journal")?;
-        let recovered =
+        let mut recovered =
             crate::recover::recover_events(&raw, replay_path).map_err(|e| e.to_string())?;
+        // NIK-131 · a value kept beside the journal replays as it was journaled.
+        let journal = std::path::Path::new(replay_path);
+        let _kept = crate::spill::rehydrate(&mut recovered.events, journal);
         let mut session = Self::from_parts(workflow_path, &yaml, &recovered.events)?;
         // A torn tail is the crashed-run scenario this debugger exists
         // for — the note was computed and then silently dropped here

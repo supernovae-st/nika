@@ -17,10 +17,10 @@ use std::sync::{Arc, Mutex};
 pub(super) type RunResult = (u8, Option<PathBuf>, Vec<String>);
 /// The most bytes one frame of the child may hold.
 const FRAME_CAP: u64 = 1_048_576;
-/// What an oversize frame leaves: neither shown nor kept, since the trace's
-/// lines are bounded at the same 1 MiB.
-const OVERSIZE: &str = "a step's output over 1 MiB is not shown, and the run's trace cannot keep \
-                        it either (1 MiB per line): the run goes on, its trace stops there";
+/// What an oversize frame leaves: not shown here. The run's trace keeps it,
+/// its values beside the journal (NIK-131).
+const OVERSIZE: &str = "a step's output over 1 MiB is not shown here: the run goes on, and its \
+                        trace keeps the value beside its journal";
 /// The most of the child's stderr kept: its first lines say why a run stopped before its first
 /// frame; the rest is drained unread so the child never blocks on a full pipe.
 const DIAGNOSTICS_CAP: usize = 8_192;
@@ -111,9 +111,8 @@ impl PendingRun {
     /// the review answers the exact bytes) or a read error stops. A frame past
     /// the cap is drained unread and the run goes on (live gauntlet,
     /// 2026-10-15: a task that fetched three job boards, more than 1 MiB of
-    /// output, stopped the run itself). The child's trace bounds its lines at
-    /// the same 1 MiB, so it cannot keep that frame either: its journal ends
-    /// there and the run settles with its evidence lost, as it says.
+    /// output, stopped the run itself). The child's trace keeps that frame,
+    /// its large values beside the journal (NIK-131).
     pub(super) fn read(&mut self, sink: &dyn RunSink, allow_review: bool) -> Result<bool, String> {
         loop {
             let mut line = Vec::new();

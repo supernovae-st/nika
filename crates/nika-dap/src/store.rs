@@ -377,13 +377,15 @@ fn read_meta(path: &Path) -> Result<(TraceMeta, Vec<DoubtWhy>), SkipWhy> {
     let field = |key: &str| started.and_then(|e| str_field(e, key)).map(str::to_owned);
     let run_id = crate::resume::trace_run_id(&recovered.events);
     let doubts = doubts(&recovered, started.is_some(), run_id.is_some());
+    // The values the journal keeps beside it are its bytes too (the retention budget).
+    let bytes = meta.len().saturating_add(crate::spill::kept_bytes(path));
     let mut facts = TraceMeta::new(
         path.to_path_buf(),
         name,
         workflow,
         state,
         paused_task,
-        meta.len(),
+        bytes,
         modified,
     )
     .with_resumed_from(field("resumed_from"))

@@ -468,6 +468,29 @@ fn journal_identity(first: &Event) -> Uuid {
     )
 }
 
+/// NIK-131 · a line over the reader bound moves its largest values beside
+/// the journal ([`crate::spill`]), one at a time, until it fits: the trace
+/// keeps every frame, each value by its digest. A line that cannot fit, or
+/// a lane with no journal path, is returned as it is: the admission refuses it.
+fn fit_line<T: serde::Serialize>(
+    chain: &ChainState,
+    record: &T,
+    line: (String, String),
+    journal: Option<&Path>,
+) -> std::io::Result<(String, String)> {
+    let Some(journal) = journal.filter(|_| line.0.len() > crate::chain::MAX_LINE_BYTES) else {
+        return Ok(line);
+    };
+    let mut value = serde_json::to_value(record).map_err(std::io::Error::from)?;
+    let mut line = line;
+    while line.0.len() > crate::chain::MAX_LINE_BYTES
+        && crate::spill::spill_largest(&mut value, journal)?
+    {
+        line = chain.line(&value)?;
+    }
+    Ok(line)
+}
+
 /// Admit the final serialized line against the existing reader bounds.
 /// The line walker excludes newlines; the whole-file reader includes them.
 fn admitted_journal_bytes(written: usize, line: usize) -> std::io::Result<usize> {
@@ -506,13 +529,16 @@ impl TraceFileSink {
         let Lane::Open(writer) = &mut self.lane else {
             return; // Disabled — a deliberate no-op
         };
-        let result = self.chain.line(record).and_then(|(line, next)| {
-            let bytes = admitted_journal_bytes(self.written_bytes, line.len())?;
-            writer.write_all(line.as_bytes())?;
-            writer.write_all(b"\n")?;
-            writer.flush()?;
-            Ok((next, bytes))
-        });
+        let journal = self.path.as_deref();
+        let result = (self.chain.line(record))
+            .and_then(|line| fit_line(&self.chain, record, line, journal))
+            .and_then(|(line, next)| {
+                let bytes = admitted_journal_bytes(self.written_bytes, line.len())?;
+                writer.write_all(line.as_bytes())?;
+                writer.write_all(b"\n")?;
+                writer.flush()?;
+                Ok((next, bytes))
+            });
         // Chain state commits only AFTER the bytes landed: a failed
         // write must never advance the head (a later "N events · chain
         // X" note would otherwise describe bytes no file holds).
@@ -989,12 +1015,30 @@ mod tests {
         }
     }
 
+    /// The same final-length fixture with its bulk in a field KEY: no value
+    /// can move beside the journal (NIK-131), so the bound refuses the line.
+    fn bounds_keyed_event(bytes: usize, kind: nika_event::EventKind) -> Event {
+        let execution = ExecutionId::from_bytes([0x3a; 16]);
+        let keyed = |key: &str| {
+            Event::new(EventId::new(Uuid::nil()), Timestamp::from_unix_ms(0), kind)
+                .with_field(nika_types::resource::KeyValue::new(
+                    key,
+                    nika_types::resource::Value::Int(1),
+                ))
+                .with_execution(execution)
+        };
+        let measured = bounds_stream(&keyed("k")).len() - 1;
+        let event = keyed(&"k".repeat(bytes - measured + 1));
+        assert_eq!(bounds_stream(&event).len(), bytes + 1);
+        event
+    }
+
     #[test]
     fn journal_line_refusal_preserves_the_prefix_and_stops_later_frames() {
         use nika_event::EventKind;
         let tmp = tempfile::tempdir().expect("tempdir");
         let too_large =
-            bounds_sized_event(crate::chain::MAX_LINE_BYTES + 1, EventKind::TaskCompleted);
+            bounds_keyed_event(crate::chain::MAX_LINE_BYTES + 1, EventKind::TaskCompleted);
         // Before chain insertion this same event fits the line bound.
         assert!(
             serde_json::to_vec(&too_large).expect("event").len() <= crate::chain::MAX_LINE_BYTES
