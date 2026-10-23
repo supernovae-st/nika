@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 #[test]
 fn read_argument_types_are_not_rendered_as_unknown_keys() {
     use nika_schema::{FileId, ParseMode, parse};

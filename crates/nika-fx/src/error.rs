@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Typed error surface. The nika-builtin wiring maps these onto
 //! `NIKA-BUILTIN-IMAGE_FX-NNN` codes (001 args · 003 unsupported-format ·
 //! 004 decode · 005 budget — see the builtin module).

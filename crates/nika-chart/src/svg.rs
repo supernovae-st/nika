@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The SVG writer · CHT §3bis law 5 + §12bis byte-golf.
 //!
 //! INTEGER COORDINATE SPACE (SVGO-class · «the decimal point contains no

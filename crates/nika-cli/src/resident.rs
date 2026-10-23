@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The resident's line of `nika doctor` (ADR-132 · #1352): the engine
 //! that last wrote the stores under `<cwd>/.nika/serve`, beside whether
 //! a resident holds the server lease now.

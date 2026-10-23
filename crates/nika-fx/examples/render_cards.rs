@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Vision-loop + bench driver: renders demo pipelines to files and prints
 //! per-op timings. `cargo run -p nika-fx --example render_cards --release -- <dir>`
 

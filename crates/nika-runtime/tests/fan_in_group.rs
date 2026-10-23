@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 //! The fan-in fold (spec 03 §group): `${{ group.<name> }}` in a `with:`
 //! value materializes at run time as ONE array of member records in

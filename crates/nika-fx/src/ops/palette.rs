@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Palette machinery — Oklab-distance nearest mapping (Euclid per §12-B).
 
 #![allow(

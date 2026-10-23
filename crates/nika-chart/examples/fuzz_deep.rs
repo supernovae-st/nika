@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Deep fuzz — 10k deterministic cases (the `fuzz_lite` generator at scale). A CONST-seeded LCG (deterministic:
 //! the same 200 cases forever, no clock/rand) sweeps weird-but-plausible
 //! specs; every case must either compile cleanly (then double-render

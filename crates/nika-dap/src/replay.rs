@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The replay session — a read-only debugger over a recorded run.
 //!
 //! The journal is total, so time travel is a cursor: STOPS are the task

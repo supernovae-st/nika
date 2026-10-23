@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! `nika:image_fx` — deterministic artistic image effects (stdlib §Media ·
 //! deferred-media graduate: the `image editing` row · FX master plan).
 //!

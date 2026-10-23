@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Row model + extraction. Vec-of-BTreeMap keeps field order canonical and
 //! iteration deterministic (`HashMap` is clippy-banned crate-wide).
 

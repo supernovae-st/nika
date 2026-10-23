@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! ASCII render — the terminal-native artifact. Ramp per cell luma
 //! (linear-light average), three emits: plain text, ANSI truecolor,
 //! or a PNG raster through the embedded 8×8 mini-font.

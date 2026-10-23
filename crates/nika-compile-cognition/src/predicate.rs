@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The typed computation: a row filter, a grouping with aggregations, totals over every row,
 //! a sort and a projection the semantic frontend states as meaning (columns, comparators,
 //! literals, polarity, junction, output names) and the compiler validates part by part

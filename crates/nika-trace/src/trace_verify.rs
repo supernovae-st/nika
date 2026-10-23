@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! `nika trace verify` — how far does this journal's proof honestly reach?
 //!
 //! Every journal line (0.96+) carries a `chain` field: the sha256 of

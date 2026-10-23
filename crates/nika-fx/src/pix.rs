@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! RGB8 pixel buffer — the one representation every op consumes and produces.
 //! Alpha policy v1: decoded alpha is discarded (documented; the transform
 //! output is a new derived artifact — compositing options land in a minor).

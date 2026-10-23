@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The workflow's REQUIREMENTS (E-REQ) — declaration facts only:
 //! models per task · secrets (never values) · the `inputs:` names the
 //! body READS · required inputs. Presence stays the caller's check.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! PNG chart renderer · the 4th surface (SVG · Vega-Lite · TTY · PNG).
 //! v0 slice = bar (the per-step receipt) — same recipe, raster projection.
 //! Where SVG theming is flaky (Safari `<img>` · raster pipelines), the PNG

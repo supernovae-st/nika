@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! 8×8 monochrome bitmap font · ASCII 0x20-0x7E.
 //!
 //! Data: dhepper/font8x8 `font8x8_basic.h` (Public Domain · Daniel Hepper ·

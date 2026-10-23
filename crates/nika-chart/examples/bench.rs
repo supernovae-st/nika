@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Perf harness (§10bis speed row) — release-mode wall-clock per chart type.
 //! Clock lives HERE (demo driver), never in the lib.
 #![allow(

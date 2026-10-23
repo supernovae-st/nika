@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Offline-generated deterministic tables (committed · never computed at runtime).
 //! Generator: the python script in docs/crate-specs/nika-fx.md §tables (seed 42).
 //! Re-derivation tests live in `src/det.rs::tests` (floats allowed in TESTS only).

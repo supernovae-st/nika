@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 use super::*;
 
 fn image_frame(view: &mut RunView, ms: u64, iteration: u32, path: &str) {

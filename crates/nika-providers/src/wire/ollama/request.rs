@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Pure native request projection. A native option cannot weaken the context guards.
 
 use nika_kernel::ai::provider::{

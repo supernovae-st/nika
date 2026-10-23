@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The structure of a human gate. An approval requirement is not a phrase but a shape: a
 //! connector that binds an effect to an approval (`after`, `once`, `if`, `until`, `before`),
 //! a requirement word (`needs`, `must`, `requires`), or an asking verb, a few tokens naming

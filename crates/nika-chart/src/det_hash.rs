@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! SHA-256 · hand-rolled (FIPS 180-4) · zero-dep per operator lock.
 //! The attestation seam: artifact bytes → hex digest → trace chain.
 //!

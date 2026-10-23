@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 //! The operator's cancellation ends a run with terminal frames (#1353):
 //! observed at the wave boundary, the unstarted tasks settle as cancelled by

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Vega-Lite emitter (G6) — the compile-target for RICH surfaces (vscode
 //! interactivity later · flint-mcp interop). Hand-built JSON · zero-dep ·
 //! `BTreeMap` field order + fixed-9 numerics ⇒ deterministic bytes.
