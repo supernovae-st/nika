@@ -130,9 +130,10 @@ use bags::ValueBags;
 
 pub use admit::{
     access_pin_refusal, budget_floor_refusal, budget_floor_refusal_bound,
-    budget_floor_refusal_bound_over, budget_floor_refusal_seated, effective_workflow,
-    first_modelless_task, floor_refusal, modelless_refusal, plan_refusal, required_inputs_refusal,
-    resolve_model_expr, scope_to_task, unbounded_breakdown,
+    budget_floor_refusal_bound_over, budget_floor_refusal_remaining, budget_floor_refusal_seated,
+    effective_workflow, first_modelless_task, floor_refusal, modelless_refusal, plan_refusal,
+    remaining_cost, required_inputs_refusal, resolve_model_expr, scope_to_task,
+    unbounded_breakdown,
 };
 pub use compose::{
     ProdRuntime, RunSeams, RuntimeCapabilities, SimRuntime, capabilities_of, production_runtime,
@@ -1036,12 +1037,15 @@ where
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<RunOutcome, RuntimeError> {
-        // A launch refusal precedes the prologue: zero events, zero spend.
+        // A launch refusal precedes the prologue: zero events, zero spend. A resumed
+        // run's journaled successes are cache hits: its floor prices the rest (NIK-245).
+        let settled: std::collections::BTreeSet<String> =
+            self.resume_plan.keys().cloned().collect();
         admit::gates_with_transport(
             wf,
             report,
             &self.var_overrides,
-            self.config.max_cost_usd,
+            (self.config.max_cost_usd, &settled),
             self.model_override.as_deref(),
             (
                 self.access_pin.as_deref(),

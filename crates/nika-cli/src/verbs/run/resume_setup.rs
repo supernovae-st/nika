@@ -81,6 +81,15 @@ impl ResumeSetup {
         Ok(self)
     }
 
+    /// The tasks the resumed journal completed: each is served from it as a
+    /// cache hit, so the budget gate prices only the rest (NIK-245). Empty on
+    /// a fresh run.
+    pub(super) fn settled(&self) -> std::collections::BTreeSet<String> {
+        (self.plan.iter())
+            .flat_map(|plan| plan.keys().cloned())
+            .collect()
+    }
+
     /// A fresh run (no trace to fold) — the answers ride in later.
     const fn fresh() -> Self {
         Self {
