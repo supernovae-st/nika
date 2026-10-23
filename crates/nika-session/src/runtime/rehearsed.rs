@@ -140,11 +140,16 @@ impl Rehearsals {
         self.native = None;
     }
 
-    /// A fresh request starts an account; answers and revision questions keep the existing
-    /// account and suspended proof. The active proposal and transient preview always expire.
-    pub(super) fn new_turn(&mut self, continuing: bool) {
-        if !continuing {
+    /// A line that answers no open question starts an account: a further change asked while a
+    /// revision waits is new work (live gauntlet wave 11 r06, 2026-10-20: the revisions of one
+    /// proposal shared one account until « the shared turn rehearsal budget admits no further
+    /// world » failed every turn). Answers keep the account; answers and revisions keep the
+    /// suspended proof. The active proposal and transient preview always expire.
+    pub(super) fn new_turn(&mut self, (answering, revising): (bool, bool)) {
+        if !answering {
             self.turn = Usage::default();
+        }
+        if !(answering || revising) {
             self.revising = None;
         }
         self.pending = None;

@@ -1216,8 +1216,8 @@ impl SessionRuntime {
         self.pending = None;
         self.money.pending = None;
         // A question continues the same rehearsal account; only genuinely new work resets it.
-        self.rehearsals
-            .new_turn(self.authoring.is_some() || self.revising.is_some());
+        let (answering, revising) = (self.authoring.is_some(), self.revising.is_some());
+        self.rehearsals.new_turn((answering, revising));
         match input {
             "/quit" | "/exit" => return TurnOutcome::Quit,
             _ if input.starts_with("/intelligence ") => return self.choose_unrecorded(input),
