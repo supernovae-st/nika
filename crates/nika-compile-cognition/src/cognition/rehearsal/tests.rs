@@ -1416,3 +1416,40 @@ tasks:
         [vec!["./inbox/".to_owned()]]
     );
 }
+
+/// A path the request names that the candidate both reads and writes is its own state: handed to
+/// the room as material and as a target, so its read is observed and its write a destination
+/// (live gauntlet wave 11: r05's journal was « read but not observed »).
+#[tokio::test]
+async fn a_path_the_candidate_reads_and_writes_is_handed_to_the_room_as_its_state() {
+    let candidate = r#"nika: journal-append
+permits:
+  tools: ["nika:read", "nika:write"]
+  fs:
+    read: ["./journal.md"]
+    write: ["./journal.md"]
+tasks:
+  previous:
+    invoke:
+      tool: "nika:read"
+      args: { path: "./journal.md" }
+  save:
+    with: { old: "${{ tasks.previous.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "./journal.md", content: "${{ with.old }}- une ligne", overwrite: true }
+"#;
+    let words = "Ajoute chaque soir une ligne au journal ./journal.md.";
+    let host = Host::new(Mode::NotRun);
+    let mut state = Rehearsals::new(Some(&host));
+    let mut out = crate::initial();
+    nika_compile::surface::finish(candidate.into(), &mut out);
+    assert!(ready(&out), "{out:#?}");
+    state.inspect(&CompileRequest::create(words), &out).await;
+    let journal = vec!["./journal.md".to_owned()];
+    assert_eq!(
+        host.inputs.lock().unwrap().as_slice(),
+        std::slice::from_ref(&journal)
+    );
+    assert_eq!(host.targets.lock().unwrap().as_slice(), [journal]);
+}

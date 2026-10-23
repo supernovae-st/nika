@@ -407,6 +407,20 @@ fn effective_paths(
         targets.retain(|path| !input(path));
         extend_paths(&mut targets, &outputs);
         extend_paths(&mut inputs, &sources);
+        // A path the request names that the candidate both reads and writes is its own state (a
+        // journal it appends to, the figure it compares with tomorrow): material the room holds
+        // as it is, or as the absence of the first day, and a destination its run advances (live
+        // gauntlet wave 11, 2026-10-20: r05's and r08's journals were « read but not observed »,
+        // so nothing was rehearsed, and r10's first day failed at its first real run).
+        let state = |path: &&String| held(&fs.read, path) && held(&fs.write, path);
+        let states: Vec<String> = inputs
+            .iter()
+            .chain(&targets)
+            .filter(state)
+            .cloned()
+            .collect();
+        extend_paths(&mut inputs, &states);
+        extend_paths(&mut targets, &states);
         // A source the request names that the candidate reads only under (« lis ./inbox » over
         // `./inbox/*.txt`) is a folder: spelled as one, the room holds it even empty, and the
         // run's evidence wants no receipt of the folder itself (review of wave 10's fix,
