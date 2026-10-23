@@ -27,17 +27,22 @@ use nika_session::{
 };
 use serde_json::{Value, json};
 
-use super::scenarios::{Act, During, OBSERVED_AT, Ran, SEAT, feeds, scenario};
+use super::scenarios::{Act, During, OBSERVED_AT, Ran, SEAT, feeds, hears_runs, scenario};
 
 /// A host's router: a line at a question answers it, a line at a proposal changes it, and a
-/// line while nothing waits is work. (An author that reads the conversation itself needs none.)
-struct Routes;
+/// line while nothing waits is work, or a request to run where the scenario's router hears one
+/// in every such line (`runs`), as the live one heard one in « montrez-moi le contenu »
+/// (NIK-234). (An author that reads the conversation itself needs none.)
+struct Routes {
+    runs: bool,
+}
 
 impl TurnClassifier for Routes {
     fn classify(&mut self, context: &TurnContext, _raw: &str) -> TurnDecision {
         let act = match context.phase {
             SessionPhase::QuestionPending => TurnAct::Answer,
             SessionPhase::ProposalPending => TurnAct::Modify,
+            _ if self.runs => TurnAct::RequestRun,
             _ => TurnAct::NewWork,
         };
         TurnDecision::new(act, RoutingMethod::Model)
@@ -65,9 +70,12 @@ fn open(root: &Path, home: &Path, history: bool) -> SessionRuntime {
         },
     );
     let mut session = SessionRuntime::open_with(root, census, &pref, Some(home), factory);
-    session.with_classifier(Box::new(Routes));
+    let name = std::env::var("OPEN_UX_CHILD").unwrap_or_default();
+    session.with_classifier(Box::new(Routes {
+        runs: hears_runs(&name),
+    }));
     // No page leaves these journeys: a trial observes the scenario's own feeds, nothing else.
-    let fed = feeds(&std::env::var("OPEN_UX_CHILD").unwrap_or_default());
+    let fed = feeds(&name);
     session.with_trial_observer(move |url| {
         let body = (fed.iter())
             .find(|(at, _)| *at == url)

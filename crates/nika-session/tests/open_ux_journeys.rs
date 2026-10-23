@@ -54,6 +54,8 @@ mod scenarios;
 mod schedule_journeys;
 #[path = "open_ux_journeys/session_fact_journeys.rs"]
 mod session_fact_journeys;
+#[path = "open_ux_journeys/shown_result_journeys.rs"]
+mod shown_result_journeys;
 #[path = "open_ux_journeys/two_output_journeys.rs"]
 mod two_output_journeys;
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Integer rasterizer · RGB8 framebuffer · zero float in the pixel path
 //! (Bresenham lines · half-open rects · bitmap font) — nondeterminism has no
 //! entry point (R3 Q7). Out-of-bounds is CLIPPED, never a panic or a wrap.

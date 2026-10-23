@@ -554,6 +554,41 @@ fn an_approval_gate_takes_a_typed_yes_or_no() {
     leave(&mut term);
 }
 
+/// Every card can be left (NIK-227: a recovery card with one act could only be left by quitting).
+/// `Esc` with nothing left to undo on a decision its conversation sets aside steps the card away,
+/// unanswered, says what stays undecided and gives the line back: the next words are an ordinary
+/// line, and the card does not come back over them.
+#[test]
+fn esc_sets_a_decision_aside_and_gives_the_line_back() {
+    for (cols, rows) in SIZES {
+        let mut term = Term::proto(&["--demo-surface", "recovery"], cols, rows);
+        term.wait_until("the recovery card", |screen| {
+            screen.contains("Adapt the workflow to the changed files")
+        });
+        term.send(ESC);
+        term.wait_until("the card set aside", |screen| {
+            screen.contains("stays not run")
+                && !screen.contains("Adapt the workflow to the changed files")
+        });
+        assert!(
+            !term.screen.seen("received:"),
+            "Esc answered nothing: {}",
+            term.dump()
+        );
+        term.send("what now?\r");
+        term.wait_text("received: what now?");
+        assert!(
+            !term
+                .screen
+                .contains("Adapt the workflow to the changed files"),
+            "{}",
+            term.dump()
+        );
+        term.wait_prompt(FREE);
+        leave(&mut term);
+    }
+}
+
 /// A list question its author closed to its offers still takes the person's typed line: a
 /// delegation (« choisis pour moi ») or a value (« vers 7h30 ») typed there reaches the Session
 /// as the reply, never dropped, and no row is applied in its place.

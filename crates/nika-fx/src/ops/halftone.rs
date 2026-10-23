@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Clustered-dot rotated-screen halftone — black ink on white, print class.
 //! Rotation via full per-pixel i64 products (never incremental — the §12-B
 //! zero-drift law). Angles are a closed enum with Q16 constants re-derived

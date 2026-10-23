@@ -7,6 +7,59 @@ pub use nika_arm::LastRecord
 pub use nika_arm::Receipt
 pub use nika_arm::RecordOutcome
 pub use nika_arm::Unsettled
+pub mod nika_arm::env_file
+#[non_exhaustive] pub struct nika_arm::env_file::EnvFileError
+impl nika_arm::env_file::EnvFileError
+pub fn nika_arm::env_file::EnvFileError::line(&self) -> core::option::Option<usize>
+pub fn nika_arm::env_file::EnvFileError::path(&self) -> &std::path::Path
+impl core::clone::Clone for nika_arm::env_file::EnvFileError
+pub fn nika_arm::env_file::EnvFileError::clone(&self) -> nika_arm::env_file::EnvFileError
+impl core::cmp::Eq for nika_arm::env_file::EnvFileError
+impl core::cmp::PartialEq for nika_arm::env_file::EnvFileError
+pub fn nika_arm::env_file::EnvFileError::eq(&self, other: &nika_arm::env_file::EnvFileError) -> bool
+impl core::error::Error for nika_arm::env_file::EnvFileError
+impl core::fmt::Debug for nika_arm::env_file::EnvFileError
+pub fn nika_arm::env_file::EnvFileError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_arm::env_file::EnvFileError
+pub fn nika_arm::env_file::EnvFileError::fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_arm::env_file::EnvFileError
+impl<D> owo_colors::OwoColorize for nika_arm::env_file::EnvFileError
+impl<Q, K> equivalent::Equivalent<K> for nika_arm::env_file::EnvFileError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::env_file::EnvFileError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_arm::env_file::EnvFileError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::env_file::EnvFileError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_arm::env_file::EnvFileError where U: core::convert::From<T>
+pub fn nika_arm::env_file::EnvFileError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::env_file::EnvFileError where U: core::convert::Into<T>
+pub type nika_arm::env_file::EnvFileError::Error = core::convert::Infallible
+pub fn nika_arm::env_file::EnvFileError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::env_file::EnvFileError where U: core::convert::TryFrom<T>
+pub type nika_arm::env_file::EnvFileError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::env_file::EnvFileError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::env_file::EnvFileError where T: core::clone::Clone
+pub type nika_arm::env_file::EnvFileError::Owned = T
+pub fn nika_arm::env_file::EnvFileError::clone_into(&self, target: &mut T)
+pub fn nika_arm::env_file::EnvFileError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_arm::env_file::EnvFileError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_arm::env_file::EnvFileError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_arm::env_file::EnvFileError where T: 'static + ?core::marker::Sized
+pub fn nika_arm::env_file::EnvFileError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::env_file::EnvFileError where T: ?core::marker::Sized
+pub fn nika_arm::env_file::EnvFileError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::env_file::EnvFileError where T: ?core::marker::Sized
+pub fn nika_arm::env_file::EnvFileError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::env_file::EnvFileError where T: core::clone::Clone
+pub unsafe fn nika_arm::env_file::EnvFileError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::env_file::EnvFileError
+pub fn nika_arm::env_file::EnvFileError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::env_file::EnvFileError where T: core::clone::Clone
+pub fn nika_arm::env_file::EnvFileError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::env_file::EnvFileError where T: 'static
+pub fn nika_arm::env_file::EnvFileError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::env_file::EnvFileError
+pub type nika_arm::env_file::EnvFileError::Output = T
+pub fn nika_arm::env_file::parse(text: &str) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, (usize, &'static str)>
+pub fn nika_arm::env_file::read(path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, nika_arm::env_file::EnvFileError>
 pub mod nika_arm::fire
 pub enum nika_arm::fire::Wait
 pub nika_arm::fire::Wait::Elapsed

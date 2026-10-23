@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! PNG decode + encode, hand-rolled from W3C PNG-3.
 //!
 //! Decode: depth-8 · color types 0/2/4/6 (palette → typed hint) · no Adam7 ·

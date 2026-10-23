@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Terminal inline-image escapes (R3 Q5 · vendor docs fetched 2026-07-09) ·
 //! pure string builders — the CALLER decides to print (presentation seam).
 //! kitty graphics protocol: `ESC_G f=100,a=T ; <b64> ESC\` chunked ≤4096 ·

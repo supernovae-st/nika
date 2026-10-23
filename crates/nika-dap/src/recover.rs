@@ -111,7 +111,9 @@ pub fn recover_events(raw: &str, label: &str) -> Result<RecoveredTrace, RecoverE
 }
 
 /// Load a journal file and tolerantly recover its events (the file
-/// half of [`recover_events`] — the static trace readers share it).
+/// half of [`recover_events`] — the static trace readers share it), the
+/// values it keeps beside it read back ([`crate::spill::rehydrate`]: one
+/// missing or altered keeps its digest).
 ///
 /// # Errors
 ///
@@ -120,7 +122,8 @@ pub fn recover_events(raw: &str, label: &str) -> Result<RecoveredTrace, RecoverE
 pub fn load_events(trace: &str) -> Result<Vec<Event>, String> {
     let raw = std::fs::read_to_string(trace) // seam-bypass-ok: L4 verb reading the journal it folds
         .map_err(|e| format!("cannot read {trace}: {e}"))?;
-    let recovered = recover_events(&raw, trace).map_err(|e| e.to_string())?;
+    let mut recovered = recover_events(&raw, trace).map_err(|e| e.to_string())?;
+    let _kept = crate::spill::rehydrate(&mut recovered.events, std::path::Path::new(trace));
     Ok(recovered.events)
 }
 

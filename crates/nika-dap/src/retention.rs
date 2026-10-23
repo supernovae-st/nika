@@ -364,6 +364,7 @@ pub fn collect(dir: &Path, cfg: &RetentionConfig, now: SystemTime) -> Option<GcR
     for (i, reason) in marked {
         if std::fs::remove_file(&traces[i].path).is_ok() {
             crate::liveness::remove_lease(&traces[i].path);
+            crate::spill::remove_values(&traces[i].path);
             removed.insert(i, reason);
         }
     }
@@ -621,6 +622,51 @@ mod tests {
         assert!(
             collect(&dir, &RetentionConfig::default(), SystemTime::now()).is_none(),
             "a quiet dir stays quiet"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// NIK-131 · the values a journal keeps beside it are its bytes in the
+    /// scan, and a collected journal takes them with it; a kept one keeps them.
+    #[test]
+    fn a_collected_trace_takes_its_kept_values_with_it() {
+        let dir = temp_store("kept-values");
+        let body = ndjson(&run_events("veille", Some(EventKind::WorkflowCompleted)));
+        let mut journals = Vec::new();
+        for i in 0..11u64 {
+            let name = format!("run-{i:02}.ndjson");
+            journals.push(stage_trace(
+                &dir,
+                &name,
+                &body,
+                Duration::from_secs(i * 3_600),
+            ));
+        }
+        let (newest, oldest) = (&journals[0], &journals[10]);
+        for journal in [newest, oldest] {
+            let values = crate::spill::values_dir(journal);
+            std::fs::create_dir_all(&values).expect("values dir");
+            std::fs::write(values.join("a".repeat(64)), "x".repeat(4096)).expect("value");
+        }
+        let scanned = crate::store::scan(&dir);
+        let bytes = |path: &Path| scanned.iter().find(|t| t.path == path).map(|t| t.bytes);
+        assert_eq!(
+            bytes(oldest),
+            Some(body.len() as u64 + 4096),
+            "its values count"
+        );
+        let report = collect(&dir, &RetentionConfig::default(), SystemTime::now())
+            .expect("the over-N history collects");
+        assert_eq!(report.rotated, 1);
+        assert!(!oldest.exists(), "the oldest journal is collected");
+        assert!(
+            !crate::spill::values_dir(oldest).exists(),
+            "with its values"
+        );
+        assert!(
+            crate::spill::values_dir(newest)
+                .join("a".repeat(64))
+                .exists()
         );
         let _ = std::fs::remove_dir_all(dir);
     }

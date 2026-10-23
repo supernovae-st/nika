@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Embedded text metrics (CHT §3bis law 6) — em-relative per-ASCII advance
 //! widths, Helvetica/Arial-biased, ×1.12 slack. No font I/O ever (the
 //! vl-convert system-font trap). Estimates feed LAYOUT only; viewers may

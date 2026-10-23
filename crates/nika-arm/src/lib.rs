@@ -14,6 +14,7 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod env_file;
 pub mod fire;
 pub mod readiness;
 pub mod resident;

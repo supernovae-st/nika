@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Deterministic seams — the ONLY place math beyond +−×÷ happens.
 //! Everything routes through integer/fixed-point ops or committed const
 //! tables (src/tables.rs · offline codegen). Re-derivation tests at the

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! LTTB downsampling · Largest-Triangle-Three-Buckets.
 //!
 //! Steinarsson, *Downsampling Time Series for Visual Representation*, `MSc`

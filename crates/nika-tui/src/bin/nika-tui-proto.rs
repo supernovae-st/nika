@@ -53,7 +53,7 @@ use nika_tui::model::{
 };
 
 fn usage() -> &'static str {
-    "usage: nika-tui-proto [--focus|--workspace] [--color] [--ascii] [--reduced-motion] [--demo-pace MS] [--demo-diagnostic] [--demo-surface intelligence|multi|choice|hours|hours-closed|working|decision|gate] [--panic-after N] [--exit-after N]"
+    "usage: nika-tui-proto [--focus|--workspace] [--color] [--ascii] [--reduced-motion] [--demo-pace MS] [--demo-diagnostic] [--demo-surface intelligence|multi|choice|hours|hours-closed|working|decision|gate|recovery] [--panic-after N] [--exit-after N]"
 }
 
 /// The one choice surface `--demo-surface` opens on.
@@ -76,6 +76,9 @@ enum Surface {
     Decision,
     /// A workflow's approval gate: Approve, Refuse, Explain.
     Gate,
+    /// The recovery of a saved workflow whose files changed since its rehearsal: one act, and
+    /// `Esc` sets it aside (NIK-227).
+    Recovery,
 }
 
 /// The shell's options and the demo's own pace.
@@ -111,9 +114,10 @@ fn parse(args: impl Iterator<Item = String>) -> Result<Flags, String> {
                     Some("working") => Surface::Working,
                     Some("decision") => Surface::Decision,
                     Some("gate") => Surface::Gate,
+                    Some("recovery") => Surface::Recovery,
                     other => {
                         return Err(format!(
-                            "--demo-surface needs intelligence, multi, choice, hours, hours-closed, working, decision or gate, not {other:?}"
+                            "--demo-surface needs intelligence, multi, choice, hours, hours-closed, working, decision, gate or recovery, not {other:?}"
                         ));
                     }
                 });
@@ -188,6 +192,42 @@ fn models() -> Vec<Offer> {
         .collect()
 }
 
+/// A workflow's approval gate: Approve, Refuse, Explain, and no words of one's own.
+fn gate() -> Waiting {
+    let mut asked = Asked::new(
+        "Answer this workflow confirmation",
+        "",
+        true,
+        Shape::Choice(vec![
+            Offer::new("yes", "Approve this step"),
+            Offer::new("no", "Refuse this step"),
+            Offer::new("why?", "Explain this step"),
+        ]),
+        "action:gate",
+        1,
+    );
+    asked.free_text = false;
+    Waiting::action("gate", asked)
+}
+
+/// The recovery card of a saved workflow whose files changed since its rehearsal: its one act.
+fn recovery() -> Waiting {
+    Waiting::action(
+        "stale_run",
+        Asked::new(
+            "The saved workflow or the files it reads changed since its rehearsal: it was not run",
+            "",
+            true,
+            Shape::Choice(vec![Offer::new(
+                "Adapt `demo.nika` to the files as they are now.",
+                "Adapt the workflow to the changed files",
+            )]),
+            "action:recovery",
+            1,
+        ),
+    )
+}
+
 /// The surface `kind` as the conversation waits on it.
 fn surface(kind: Surface) -> Waiting {
     match kind {
@@ -208,22 +248,8 @@ fn surface(kind: Surface) -> Waiting {
                 1,
             ),
         ),
-        Surface::Gate => {
-            let mut asked = Asked::new(
-                "Answer this workflow confirmation",
-                "",
-                true,
-                Shape::Choice(vec![
-                    Offer::new("yes", "Approve this step"),
-                    Offer::new("no", "Refuse this step"),
-                    Offer::new("why?", "Explain this step"),
-                ]),
-                "action:gate",
-                1,
-            );
-            asked.free_text = false;
-            Waiting::action("gate", asked)
-        }
+        Surface::Gate => gate(),
+        Surface::Recovery => recovery(),
         Surface::Intelligence => Waiting::selection(Asked::new(
             "Choose a model · demo",
             "",
@@ -361,6 +387,19 @@ impl Conversation for Surfaced {
 
     fn submit(&mut self, line: &str) -> Turn {
         self.answered(line)
+    }
+
+    /// The recovery card steps aside on `Esc`, saying what stays undecided, as the live
+    /// conversation sets it aside; every other surface keeps its card.
+    fn set_aside(&mut self, _waiting: &Waiting) -> Vec<Beat> {
+        if self.kind != Surface::Recovery {
+            return Vec::new();
+        }
+        let said = "set aside · `demo.nika` stays not run: its files changed since its rehearsal · say what you want next";
+        vec![
+            Beat::Say(Committed::new(Kind::Notice, said)),
+            Beat::Wait(Waiting::Free),
+        ]
     }
 
     /// The decision's palette lists the commands a person reads beside it.
@@ -577,6 +616,7 @@ mod tests {
             ("working", Surface::Working),
             ("decision", Surface::Decision),
             ("gate", Surface::Gate),
+            ("recovery", Surface::Recovery),
         ] {
             let flags = parsed(&["--demo-surface", word]).expect("a surface");
             assert_eq!(flags.surface, Some(kind));

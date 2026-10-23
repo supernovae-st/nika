@@ -101,7 +101,7 @@ fn end_of(
     if !observation.bounds.stated() {
         return Err("the host stated no bounds for the run it began".to_owned());
     }
-    copies(observation, inputs)?;
+    copies(observation, inputs, targets)?;
     finals(observation, &union(targets, declared)?)?;
     spent(observation)?;
     if let Err(reason) = coherent(observation) {
@@ -161,15 +161,22 @@ fn room(report: &RehearsalReport, began: bool) -> Result<(), String> {
 /// or a pattern spelled as one (`inbox/`, `inbox/*.txt`) may hold none, an empty folder being a
 /// day the workflow must survive (live gauntlet wave 10, 2026-10-20: every folder's rehearsal
 /// was an invalid harness, « no receipt of the copy of copies/ »).
-fn copies(observation: &Observation, inputs: &[String]) -> Result<(), String> {
+fn copies(observation: &Observation, inputs: &[String], targets: &[String]) -> Result<(), String> {
     let wanted = inputs
         .iter()
         .map(|input| normal(input).ok_or_else(|| format!("{input} is not a room path")))
         .collect::<Result<Vec<String>, String>>()?;
     let named =
         |at: &String, path: &str| normal(path).is_some_and(|path| *at == path || under(at, &path));
+    // An input that is also a target is the candidate's own state: the first day holds none,
+    // and its final state accounts for it.
+    let state = |at: &String| {
+        targets
+            .iter()
+            .any(|target| normal(target).as_ref() == Some(at))
+    };
     for (input, at) in inputs.iter().zip(&wanted) {
-        let listing = input.ends_with('/') || input.contains(WILDCARDS);
+        let listing = input.ends_with('/') || input.contains(WILDCARDS) || state(at);
         if !listing && !observation.copies.iter().any(|copy| named(at, &copy.path)) {
             return Err(format!("no receipt of the copy of {input}"));
         }

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Cross-architecture byte-parity probe: prints sha256 of 3 golden renders.
 //! Run natively (aarch64) AND under wasm32-wasip1 — lines must be identical.
 #![allow(

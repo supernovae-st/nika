@@ -446,3 +446,235 @@ fn a_zero_budget_refuses_a_certain_unbounded_priced_call() {
         "a positive budget keeps the documented warn-and-proceed"
     );
 }
+
+/// NIK-152 · the live case of 13 October, replayed through the real parse → check → run chain
+/// on recorded Anthropic Messages replies: a `for_each` of three `infer` with a `schema:` on
+/// Claude. `nika check` priced it while the run settled every call as « provider did not report
+/// usage » (`cost_usd: null` · `cost_unknown_calls: 3`), so `--max-cost-usd` never counted them.
+/// The `infer` verb dispatches buffered (never streamed), so the buffered Messages reply is the
+/// one replayed here.
+mod claude_calls {
+    use std::collections::BTreeMap;
+    use std::sync::{Arc, Mutex};
+
+    use nika_event::EventKind;
+    use nika_kernel::http::{
+        HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse,
+    };
+    use nika_kernel::secret::Secret;
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+    use nika_runtime::{DeterministicStamper, RunOutcome, Runtime, RuntimeConfig, VecSink};
+    use nika_types::resource::Value as FieldValue;
+    use nika_verb_agent::AgentVerb;
+    use nika_verb_exec::ExecVerb;
+    use nika_verb_infer::InferVerb;
+    use nika_verb_invoke::InvokeVerb;
+
+    /// Output tokens of every recorded reply.
+    const OUTPUT: u64 = 38;
+
+    /// Answers every Messages request with the recorded reply, echoing the model the request
+    /// named as Anthropic does, and keeps the bodies it was sent. The `usage` object is the
+    /// live reply's of 2026-10-15 (recorded beside the completeness rule in `nika-providers`):
+    /// input, output, the cache read and both cache-write lifetimes, the standard tier, global
+    /// inference and the standard speed, at `input` input tokens.
+    struct Anthropic {
+        input: u64,
+        sent: Mutex<Vec<serde_json::Value>>,
+    }
+
+    impl HttpPostDyn for Anthropic {
+        async fn post(&self, req: HttpRequest) -> Result<HttpResponse, HttpError> {
+            let sent: serde_json::Value =
+                serde_json::from_slice(req.body.as_ref().expect("a body")).expect("json");
+            let reply = serde_json::json!({
+                "id": "msg_01NIK152", "type": "message", "role": "assistant",
+                "model": sent["model"],
+                "content": [{"type": "text", "text": "{\"title\":\"Satin\"}"}],
+                "stop_reason": "end_turn", "stop_sequence": null,
+                "usage": {
+                    "input_tokens": self.input,
+                    "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+                    "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 0},
+                    "output_tokens": OUTPUT, "output_tokens_details": {"thinking_tokens": 0},
+                    "service_tier": "standard", "inference_geo": "global", "speed": "standard"
+                }
+            });
+            self.sent.lock().expect("sent").push(sent);
+            Ok(HttpResponse::new(
+                200,
+                BTreeMap::new(),
+                reply.to_string().into(),
+                req.url.clone(),
+            ))
+        }
+        async fn send_streaming(&self, _: HttpRequest) -> Result<HttpStreamResponse, HttpError> {
+            panic!("the infer verb dispatches buffered, never streamed");
+        }
+    }
+
+    /// The `proposals` task of the live run: three Claude calls, one at a time, each with a
+    /// `schema:` sent as native structured output.
+    fn proposals(model: &str) -> String {
+        format!(
+            "nika: qr-satin\nmodel: anthropic/{model}\npermits: {{}}\ntasks:\n  proposals:\n    for_each: {{ items: [1, 2, 3], max_parallel: 1 }}\n    infer:\n      prompt: \"Propose a title for satin QR code ${{{{ item }}}}\"\n      max_tokens: 256\n      schema:\n        type: object\n        properties: {{ title: {{ type: string }} }}\n        required: [title]\n"
+        )
+    }
+
+    /// The run of [`proposals`] on `model`, each reply reporting `input` input tokens, under
+    /// `budget`. The envelope model is the infer verb's default, as the production composer
+    /// hands it (`compose.rs`).
+    async fn run(
+        model: &str,
+        input: u64,
+        budget: Option<f64>,
+    ) -> (RunOutcome, VecSink, Arc<Anthropic>) {
+        let wf = nika_schema::parse(
+            &proposals(model),
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean(), "{:?}", report.findings);
+        let wire = Arc::new(Anthropic {
+            input,
+            sent: Mutex::default(),
+        });
+        let config = ProvidersConfig::new().with_key("anthropic", Secret::new("sk-ant-fixture"));
+        let registry = ProviderRegistry::new(Arc::clone(&wire), config);
+        let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+        let runtime = Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new())),
+            Arc::clone(&invoke),
+            InferVerb::new(Arc::new(registry), format!("anthropic/{model}")),
+            AgentVerb::new(
+                Arc::new(MockProvider::new("mock")),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "mock/echo",
+            ),
+            MockClock::new(),
+            RuntimeConfig::default().with_max_cost_usd(budget),
+        );
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .expect("the run settles");
+        (outcome, sink, wire)
+    }
+
+    /// One call's price at the model's admission tariff (Anthropic's pricing pages of
+    /// 2026-10-15/16, nano-USD per input and output token).
+    fn per_call_usd(input: u64, (input_rate, output_rate): (u32, u32)) -> f64 {
+        let nano = input * u64::from(input_rate) + OUTPUT * u64::from(output_rate);
+        f64::from(u32::try_from(nano).expect("a small fixture amount")) / 1e9
+    }
+
+    /// Each call is priced from the usage Anthropic reported, on Claude Haiku 4.5 (the live
+    /// case, $1 and $5 per million) and Claude Sonnet 5.5 (its comment, $2 and $10 per
+    /// million): the run total is the three calls, and no call stays unknown.
+    #[tokio::test]
+    async fn a_claude_fan_out_is_priced_from_the_usage_anthropic_reported() {
+        for (model, rates) in [
+            ("claude-haiku-4-5-20251001", (1_000, 5_000)),
+            ("claude-sonnet-5-5", (2_000, 10_000)),
+        ] {
+            let (outcome, sink, wire) = run(model, 412, None).await;
+            assert!(outcome.ok, "{model}: {outcome:?}");
+            let sent = wire.sent.lock().expect("sent").clone();
+            assert_eq!(sent.len(), 3, "{model}: one request per item");
+            for body in &sent {
+                assert_eq!(body["model"], model);
+                assert_eq!(body["stream"], false, "{model}: a buffered dispatch");
+                assert_eq!(
+                    body["output_config"]["format"]["type"], "json_schema",
+                    "{model}: the schema rides as native structured output"
+                );
+            }
+            assert_eq!(
+                (outcome.priced_calls, outcome.unpriced_calls),
+                (3, 0),
+                "{model}"
+            );
+            let total = outcome
+                .total_cost_usd
+                .expect("the Claude calls are metered");
+            let expected = 3.0 * per_call_usd(412, rates);
+            assert!(
+                (total - expected).abs() < 1e-12,
+                "{model}: {total} vs {expected}"
+            );
+            let frame = sink
+                .events()
+                .iter()
+                .find(|e| {
+                    e.kind == EventKind::TaskCompleted && e.str_field("task") == Some("proposals")
+                })
+                .expect("the proposals frame");
+            let field = |key: &str| frame.fields.iter().find(|f| f.key == key).map(|f| &f.value);
+            assert_eq!(
+                field("cost_unknown_calls"),
+                Some(&FieldValue::Int(0)),
+                "{model}"
+            );
+            let Some(FieldValue::String(calls)) = field("inference_calls") else {
+                panic!("{model}: the frame carries its calls");
+            };
+            let calls: serde_json::Value = serde_json::from_str(calls).expect("JSON");
+            let calls = calls.as_array().expect("an array");
+            assert_eq!(calls.len(), 3, "{model}");
+            for call in calls {
+                assert_eq!(call["usage"]["input_tokens"], 412, "{model}: {call}");
+                assert_eq!(call["usage"]["output_tokens"], OUTPUT, "{model}: {call}");
+                assert_eq!(call["usage_complete"], true, "{model}: {call}");
+                assert_eq!(call["estimate_known"], true, "{model}: {call}");
+                assert_eq!(
+                    call["pricing"]["kind"], "catalog_estimate_not_invoice",
+                    "{model}"
+                );
+                assert_eq!(
+                    call["route"]["origin"], "https://api.anthropic.com:443",
+                    "{model}"
+                );
+            }
+        }
+    }
+
+    /// `--max-cost-usd` counts the Claude calls. Each reply reports a 100,000-token prompt
+    /// ($0.10019 on Claude Haiku 4.5), far above the static floor the run is admitted on
+    /// (three `max_tokens` outputs, $0.00384): under a ceiling of one and a half calls, the
+    /// second call crosses it and counts, the third is never sent, and the fan-out fails
+    /// NIKA-1704 naming the denied iteration.
+    #[tokio::test]
+    async fn the_run_ceiling_counts_claude_calls() {
+        let per_call = per_call_usd(100_000, (1_000, 5_000));
+        let (outcome, _sink, wire) =
+            run("claude-haiku-4-5-20251001", 100_000, Some(1.5 * per_call)).await;
+        assert!(!outcome.ok, "a budget stop is a run failure");
+        assert!(outcome.budget_exceeded, "{outcome:?}");
+        assert_eq!(
+            wire.sent.lock().expect("sent").len(),
+            2,
+            "the third call never left"
+        );
+        assert_eq!((outcome.priced_calls, outcome.unpriced_calls), (2, 0));
+        let total = outcome.total_cost_usd.expect("metered");
+        assert!((total - 2.0 * per_call).abs() < 1e-12, "{total}");
+        let error = outcome.records["proposals"]
+            .error
+            .as_ref()
+            .expect("the starved fan-out fails");
+        assert_eq!(error.code, "NIKA-1704");
+        assert!(
+            error.message.contains("1 iteration(s)"),
+            "{}",
+            error.message
+        );
+    }
+}

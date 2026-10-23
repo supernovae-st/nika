@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The wave boundary's abort — the budget's (NIKA-1704) and the operator's
 //! (#1353): the unstarted tasks settle as cancelled, the run ends with its
 //! terminal frame, the settlement says which (ADR-128).

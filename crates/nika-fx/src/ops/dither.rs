@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Dithering — ordered (Bayer · blue-noise · IGN) + error diffusion
 //! (Floyd-Steinberg · Atkinson · JJN, serpentine). All integer. Error
 //! diffusion runs in gamma space (the classic look); ordered bias too.

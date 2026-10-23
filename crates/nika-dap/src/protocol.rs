@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The Debug Adapter Protocol wire layer — hand-rolled, like the LSP.
 //!
 //! DAP framing IS LSP framing (`Content-Length: N\r\n\r\n{json}`), but

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Terminal renderers — same recipe, third surface (SVG · Vega-Lite · TTY).
 //! Pure functions → String · zero escape codes (color is the CALLER's seam ·
 //! cli-presentation-canon) · deterministic.

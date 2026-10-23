@@ -13,7 +13,7 @@
 //!   <label>`, NEVER `run` (a test pins it); `serve` (W5) gets its own
 //!   unit by name, emitted today.
 //! - **D7 · no secret in a unit** — an env file rides by PATH only
-//!   (a `/bin/sh -c` wrap under launchd · `EnvironmentFile=` under
+//!   (the firer's `--env-file` under launchd · `EnvironmentFile=` under
 //!   systemd); the values never cross into the text.
 //! - **D9 · the binary path is absolute** — judged at the L4 edge,
 //!   carried here verbatim.
@@ -480,21 +480,37 @@ fn zone_deltas(cadence_tz: &str, machine_tz: &str, now: jiff::Timestamp) -> Opti
     Some(deltas.into_iter().collect())
 }
 
-/// The env-file path a unit names, if it sources one (D7).
+/// The env-file path a unit names, if it loads one (D7).
 ///
-/// Launchd carries `set -a && . '<path>' && set +a && exec …` (an older engine wrote
-/// `. '<path>' && exec …`, read too; XML-escaped in the plist);
-/// systemd carries `EnvironmentFile=`. The VALUES never appear — only
-/// the path. `None` is the short argv (`nika arm fire <label>`), the
-/// form that silently strips provider keys if it replaces a wrapped
-/// unit.
+/// A launchd beat unit hands it to its firer, `--env-file` then the path in
+/// `ProgramArguments` (NIK-198); an older engine wrapped the firer in
+/// `set -a && . '<path>' && set +a && exec …`, or `. '<path>' && exec …`
+/// before that, both read too (XML-escaped in the plist); systemd carries
+/// `EnvironmentFile=`. The VALUES never appear — only the path. `None` is
+/// the short argv (`nika arm fire <label>`), the form that silently strips
+/// provider keys if it replaces a unit that loads them.
 #[must_use]
 pub fn env_file_named_in_unit(body: &str) -> Option<String> {
+    if let Some(path) = launchd_flag_env(body) {
+        return Some(path);
+    }
     let text = xml_unescape(body);
     if let Some(path) = launchd_sourced_env(&text) {
         return Some(path);
     }
     systemd_sourced_env(&text)
+}
+
+/// `<string>--env-file</string>` then `<string><path></string>` — the
+/// firer's own flag in a launchd unit's `ProgramArguments`.
+fn launchd_flag_env(body: &str) -> Option<String> {
+    let mut lines = body.lines().map(str::trim);
+    lines.find(|line| *line == "<string>--env-file</string>")?;
+    let path = lines
+        .next()?
+        .strip_prefix("<string>")?
+        .strip_suffix("</string>")?;
+    Some(xml_unescape(path)).filter(|path| !path.is_empty())
 }
 
 /// `. '<path>' && exec …` — the launchd wrap. Scans every `. ` so a

@@ -353,6 +353,33 @@ fn a_yes_saves_only_when_the_rehearsed_world_is_unchanged() {
     assert!(!root.path().join(LANDED).exists(), "no workflow written");
 }
 
+/// A run refused over a drifted world says what restoring it would put back, never an unsaid
+/// « restore the original file » (NIK-227: the original was a stale value): the source back to
+/// the bytes it held when rehearsed, by size and digest, in place of what it holds now.
+#[test]
+fn a_drifted_run_says_what_a_restoration_puts_back() {
+    let root = project();
+    let (mut s, _, _) = open(root.path(), false);
+    proposal(s.turn(INTENT));
+    facts(s.consent("yes"));
+    let edited = "the user notes, edited at length\n";
+    write(root.path(), SOURCE, edited);
+    let why = refused(s.turn(RUN));
+    let back = format!(
+        "put `./in/source.txt` back to the {} B it held when rehearsed (sha256 {}), in place of its {} B now",
+        USER.len(),
+        &sha256_hex(USER.as_bytes())[..12],
+        edited.len()
+    );
+    assert!(why.text.contains(&back), "{}", why.text);
+    assert!(
+        !why.text.contains("restore the original file"),
+        "{}",
+        why.text
+    );
+    assert!(why.text.contains("nothing was run"), "{}", why.text);
+}
+
 /// A run line runs the saved copy only over the world and the bytes it was rehearsed on. A
 /// source changed after the yes, or the workflow replaced by another program at its path, withdraws
 /// the rehearsal and its authority: no run is requested, then or at the next run line.

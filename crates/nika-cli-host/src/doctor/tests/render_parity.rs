@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The doctor byte oracle: human `render` and the machine `render_json`
 //! through their unchanged public signatures. Every expected digest and
 //! literal below was captured by running the immutable pre-move renderer

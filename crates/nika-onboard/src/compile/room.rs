@@ -515,8 +515,12 @@ impl Job {
         let originals = world::originals(&self.project)
             .await
             .map_err(|refused| (refused, Vec::new()))?;
-        let inputs = (screened.inputs.as_slice(), screened.write_only.as_slice());
-        let result = world::copy_in(&originals, room, inputs).await;
+        // An input that is also a target is the candidate's own state: absent, it is the first
+        // day, and the room holds nothing there.
+        let states = (self.targets.iter()).filter_map(|target| screen::room_path(target, "").ok());
+        let mut absent = screened.write_only.clone();
+        absent.extend(states.filter(|at| screened.inputs.iter().any(|(_, input)| input == at)));
+        let result = world::copy_in(&originals, room, (&screened.inputs, &absent)).await;
         // Every read of the originals is joined before anything else happens.
         let _ = world::next_phase(originals.ledger()).await;
         drop(originals);

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Attestation round-trip · SQ-R: the manifest claimed « autonomous proof »
 //! but nothing could READ it back — `verify()` needed the original spec.
 //! This closes the loop: extract the embedded manifest, reconstruct the

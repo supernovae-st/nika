@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The run's settlement, built ONCE from the records and the ledger at the
 //! boundary that ends the run (ADR-128 · one door): the normal close, the
 //! operator's cancellation, the budget stop, a human gate. The type and

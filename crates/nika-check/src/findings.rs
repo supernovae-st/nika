@@ -30,6 +30,7 @@ use super::{CheckReport, FindingSeverity};
 #[non_exhaustive]
 pub struct UnifiedFinding {
     /// The class slug (`conformance` · `secret_leak` · `secret_egress` ·
+    /// `literal_credential` ·
     /// `capability_escape` · `exec_floor` · `permit_taint` · `data_sink` ·
     /// `consent` · `trifecta` · `schema_type` · `gate` ·
     /// `run_decl` · `retry_safety` · `write_conflict` · `composition` · `project_file` ·
@@ -202,6 +203,36 @@ fn push_secret_rows(out: &mut Vec<UnifiedFinding>, report: &CheckReport) {
     }
 }
 
+/// The literal-credential class (#1618): the argument, the const or `with:` value holding the
+/// token when the argument names one, and the repair, a declared secret with the egress its
+/// effect needs, pinned to the literal destination host when there is one. No spec code names
+/// the class, so none rides; the token is never printed.
+fn fold_literal_credentials(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for c in &report.literal_credentials {
+        let (held, remove) = match &c.through {
+            Some(source) => (
+                format!(", held in `{source}`"),
+                format!(" and remove it from `{source}`"),
+            ),
+            None => (String::new(), String::new()),
+        };
+        let egress = match &c.host {
+            Some(host) => format!("{{ to: \"{}\", host: \"{host}\" }}", c.sink_id),
+            None => format!("{{ to: \"{}\" }}", c.sink_id),
+        };
+        let mut f = UnifiedFinding::new(
+            "literal_credential",
+            "SECRETS",
+            format!(
+                "literal bearer token in `{}` (task `{}`){held} — the file holds the credential and the effect sends it · fix: declare it in `secrets:`, e.g. `secrets: {{ api_token: {{ source: env, key: API_TOKEN, egress: [{egress}] }} }}`, then write `Bearer ${{{{ secrets.api_token }}}}` there{remove}",
+                c.field, c.task
+            ),
+        );
+        f.task = Some(c.task.clone());
+        out.push(f);
+    }
+}
+
 /// Wire `findings[].message` for a CONFORM row. The typed
 /// `conformance[].message` stays `SchemaError` Display so the human
 /// renderer does not double-print the explain hand-off it already
@@ -239,6 +270,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         out.push(f);
     }
     push_secret_rows(&mut out, report);
+    fold_literal_credentials(report, &mut out);
     for c in &report.capability_escapes {
         let mut f = UnifiedFinding::new(
             "capability_escape",
@@ -689,6 +721,12 @@ mod tests {
                 "nika: w\npermits: { exec: false }\ntasks:\n  a:\n    exec: { command: [\"cargo\", \"x\"] }\n",
                 "capability_escape",
                 "PERMITS",
+            ),
+            (
+                // literal credential (#1618): a bearer token pasted into a header
+                "nika: w\npermits: { tools: [\"nika:fetch\"], net: { http: [\"api.example.com\"] } }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com\", headers: { Authorization: \"Bearer sk-live-THISISFAKESECRETKEY\" } } }\n",
+                "literal_credential",
+                "SECRETS",
             ),
             (
                 // unknown tool (typo'd builtin)

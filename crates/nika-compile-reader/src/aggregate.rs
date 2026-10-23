@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The shape of a typed computation after its filter: an aggregate over a group or over
 //! every row, a sort, a projection. Each stage is a closed type the semantic frontend states
 //! and the compiler validates; the composition lowers to jq in one fixed order.

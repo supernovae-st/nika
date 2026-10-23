@@ -140,6 +140,7 @@ mod findings;
 mod flow;
 mod hints;
 mod lift;
+mod literal_credential;
 pub mod native_first;
 mod order;
 mod permit_taint;
@@ -185,6 +186,7 @@ pub use hints::{
     Hint, PAID_RUN_KINDS, compiled, hint_help, paid_blockers, paid_ready, stamp_paid_ready,
 };
 pub use lift::LiftFinding;
+pub use literal_credential::LiteralCredential;
 pub use nika_check_analyzer::read_paths::static_read_paths;
 pub use order::OrderFinding;
 pub use permit_taint::{PermitTaint, PermitTaintKind};
@@ -366,6 +368,13 @@ pub struct CheckReport {
     /// Every `secrets.X` that leaves the run as a workflow `outputs:`
     /// return value (the literal exfiltration · IFC egress · ADR-092).
     pub secret_egresses: Vec<SecretEgress>,
+    /// Every bearer credential an `exec:` or `invoke:` argument carries as a
+    /// literal (#1618): written there, or in the `const:` / `with:` value
+    /// the argument names. `secrets:` is the authority for a credential;
+    /// the token itself is never recorded. Additive, and absent when
+    /// empty: `report_version` stays 1.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub literal_credentials: Vec<LiteralCredential>,
     /// Every statically-detectable effect outside the declared `permits:`
     /// boundary. F-O8 « absent = zero authority »: with NO `permits:`
     /// block every effect escapes against the zero boundary (flagged
@@ -552,15 +561,16 @@ pub struct CheckReport {
 
 impl CheckReport {
     /// Whether the workflow is clean — conformant, no leaks, no
-    /// egresses, no capability escapes, no exec-floor refusals, no
-    /// policy or consent refusals, no schema-type findings, no unknown
-    /// tools, no schema-lint defects. (Cost-ceiling unknowns and hints
-    /// are informational, not failures.)
+    /// egresses, no literal credentials, no capability escapes, no
+    /// exec-floor refusals, no policy or consent refusals, no schema-type
+    /// findings, no unknown tools, no schema-lint defects. (Cost-ceiling
+    /// unknowns and hints are informational, not failures.)
     #[must_use]
     pub fn is_clean(&self) -> bool {
         self.conformance.is_empty()
             && self.secret_leaks.is_empty()
             && self.secret_egresses.is_empty()
+            && self.literal_credentials.is_empty()
             && self.capability_escapes.is_empty()
             && self.exec_floor_findings.is_empty()
             && self.permit_taints.is_empty()
@@ -753,6 +763,8 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         data_journey: data_journey::collect(wf, &flow),
         secret_leaks: secrets::scan_leaks(wf, &flow),
         secret_egresses: secrets::scan_egresses(&flow),
+        // #1618 · a credential no `secrets:` declares, written into an argument
+        literal_credentials: literal_credential::scan(wf),
         capability_escapes,
         // #605 · the argv exec floor as a FINDING (NIKA-SEC-001) — the
         // same predicate the run judges with (nika-types::exec), so a

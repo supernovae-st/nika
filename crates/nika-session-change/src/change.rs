@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Project changes from the session (ADR-126): one typed change set,
 //! built from a compiler candidate by [`crate::review`] (or directly by
 //! a host) and consumed by BOTH the preview and the apply so the two

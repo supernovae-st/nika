@@ -447,6 +447,12 @@ mod tests {
         .with_field(nika_types::resource::KeyValue::new(
             "output",
             nika_types::resource::Value::string(&output_text),
+        ))
+        // The file journal moves a large VALUE beside it (NIK-131); a frame
+        // whose bulk sits in a key cannot be shortened and is still refused.
+        .with_field(nika_types::resource::KeyValue::new(
+            "k".repeat(nika_dap::chain::MAX_LINE_BYTES),
+            nika_types::resource::Value::Int(1),
         ));
         let mut expected_primary = Vec::new();
         JsonSink::new(&mut expected_primary).emit(event.clone());

@@ -87,7 +87,12 @@ pub(crate) fn secrets_rung(out: &mut String, report: &CheckReport, t: Theme) {
     let leak_rows: Vec<String> = report
         .findings
         .iter()
-        .filter(|f| f.kind == "secret_leak" || f.kind == "secret_egress")
+        .filter(|f| {
+            matches!(
+                f.kind,
+                "secret_leak" | "secret_egress" | "literal_credential"
+            )
+        })
         // The wire code rides the row like every other lane's: without it
         // `nika explain` has nothing to be pointed at (wave 3 · personas 02
         // and 07 both hit a SECRETS refusal with no code on the screen).

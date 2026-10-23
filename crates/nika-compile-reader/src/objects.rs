@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Object laws of the deterministic reader. A path literal settles an operation but not the
 //! rest of its clause: what the clause still says after the path re-enters the reader as its
 //! own clause, and what a write names before its destination is either a reference to

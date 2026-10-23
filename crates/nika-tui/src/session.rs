@@ -202,6 +202,9 @@ pub struct Live {
     key_names: Vec<intelligence::keys::KeyNames>,
     /// Exact finite decision painted; no authority beyond the Session door.
     action: Option<actions::Pending>,
+    /// The decision whose card the person set aside (NIK-227), by what it stands for: painted
+    /// again only once the Session asks something else.
+    set_aside: Option<actions::Identity>,
     /// The known preparation spend, in nano-USD, the Session observed when this
     /// conversation opened: what [`Conversation::spend`] counts from.
     spend_base: i128,
@@ -290,6 +293,7 @@ impl Live {
             key_checked: None,
             key_names,
             action: None,
+            set_aside: None,
             spend_base: 0,
             schedules: Vec::new(),
             schedules_said: Vec::new(),
@@ -435,7 +439,15 @@ impl Live {
         let Some(runtime) = self.runtime.as_mut() else {
             return Vec::new();
         };
-        let mut beats = vec![Beat::Say(Committed::new(Kind::Banner, runtime.banner()))];
+        // The welcome card leaves out why the intelligence cannot serve: the opening list's head,
+        // or the notice below without a list, says it while it holds, and nothing on the card
+        // keeps it once another one is chosen (live gauntlet wave 11, 2026-10-20: all twelve
+        // personas still read « ⚠ no key for `anthropic` » there after choosing DeepSeek).
+        let mut welcome = runtime.banner();
+        if let Some(why) = &runtime.intelligence.why {
+            welcome = welcome.replacen(&format!("\n  ⚠ {why}"), "", 1);
+        }
+        let mut beats = vec![Beat::Say(Committed::new(Kind::Banner, welcome))];
         // The Session's own notice that the conversation was restored, when it gives one.
         let mut restored = false;
         match self.home.as_deref() {
@@ -615,11 +627,18 @@ impl Live {
             lang: self.lang(),
             ascii: self.ascii,
         };
-        if let (Some(runtime), Some(snapshot)) = (&self.runtime, &snapshot)
-            && let Some((pending, native)) = actions::capture(runtime, snapshot, voice)
-        {
-            self.action = Some(pending);
-            waiting = native;
+        let captured = (self.runtime.as_ref().zip(snapshot.as_ref()))
+            .and_then(|(runtime, snapshot)| actions::capture(runtime, snapshot, voice));
+        // A card the person set aside stays aside while it stands for the same decision: its
+        // state's own prompt is painted instead.
+        match captured {
+            Some((pending, _)) if self.set_aside.as_ref() == Some(&pending.identity()) => {}
+            Some((pending, native)) => {
+                self.set_aside = None;
+                self.action = Some(pending);
+                waiting = native;
+            }
+            None => self.set_aside = None,
         }
         if !matches!(waiting, Waiting::Selection { .. }) {
             self.intelligence_view = intelligence::View::Home;
@@ -1233,6 +1252,10 @@ impl Conversation for Live {
         let beats = self.cancelled();
         self.fold_candidate();
         beats
+    }
+
+    fn set_aside(&mut self, waiting: &Waiting) -> Vec<Beat> {
+        self.set_card_aside(waiting)
     }
 
     /// A fresh preparation token for the turn about to start (the Session's

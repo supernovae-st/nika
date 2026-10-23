@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 #[test]
 fn read_argument_types_are_not_rendered_as_unknown_keys() {
     use nika_schema::{FileId, ParseMode, parse};
@@ -23,6 +26,26 @@ fn read_argument_types_are_not_rendered_as_unknown_keys() {
             .iter()
             .any(|r| r.contains("has no `path`") || r.contains("has no `binary`"))
     );
+}
+
+/// NIK-236: a refused literal value renders the checker's own teaching and the run's code. An
+/// unknown `nika:date` zone names the zone to write, never « has no `tz` arg ».
+#[test]
+fn a_refused_literal_value_is_not_rendered_as_an_unknown_key() {
+    use nika_schema::{FileId, ParseMode, parse};
+    let yaml = "nika: zone\npermits: { tools: [\"nika:date\"] }\ntasks:\n  t:\n    invoke: { tool: \"nika:date\", args: { op: now, tz: Paris } }\n";
+    let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+    let report = nika_check::check(&wf);
+    let rows = super::arg_rows(&report);
+    assert_eq!(rows.len(), 1, "one ARGS row: {rows:?}");
+    let row = rows.first().expect("one ARGS row");
+    assert!(
+        row.starts_with("[NIKA-BUILTIN-DATE-001]")
+            && row.contains("`tz: Paris`")
+            && row.contains("did you mean `Europe/Paris`?"),
+        "{row}"
+    );
+    assert!(!row.contains("has no `tz` arg"), "{row}");
 }
 
 mod trifecta_rung_tests {
@@ -575,6 +598,46 @@ tasks:
             rung.contains("[NIKA-SEC-0") && rung.contains("leak into invoke"),
             "the refusal row names its code for `nika explain`: {rung}"
         );
+    }
+
+    /// #1618's specimen: a bearer token pasted into a header is a SECRETS refusal naming the
+    /// argument and the repair, never « no declared secret reaches an effect », and the token
+    /// is printed nowhere.
+    #[test]
+    fn a_literal_bearer_header_is_a_secrets_refusal() {
+        let out = console(
+            r#"
+nika: secret-in-file
+model: mock/echo
+permits:
+  exec: false
+  tools: ["nika:fetch"]
+  net:
+    http: ["api.example.com"]
+tasks:
+  call:
+    invoke:
+      tool: nika:fetch
+      args:
+        url: https://api.example.com/v1
+        method: GET
+        headers:
+          Authorization: "Bearer sk-live-THISISFAKESECRETKEY"
+outputs:
+  ok: ${{ tasks.call.output }}
+"#,
+        );
+        assert!(
+            !out.contains("no declared secret reaches an effect"),
+            "the green sentence is gone:\n{out}"
+        );
+        assert!(
+            out.lines().any(|l| l.contains("SECRETS")
+                && l.contains("literal bearer token in `args.headers.Authorization`")
+                && l.contains("`secrets:`")),
+            "the SECRETS rung names the argument and the repair:\n{out}"
+        );
+        assert!(!out.contains("THISISFAKESECRETKEY"), "{out}");
     }
 
     /// A sanctioned MCP egress is not a leak, but it is still an effect.

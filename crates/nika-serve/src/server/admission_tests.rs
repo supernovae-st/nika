@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The resident's job door admits by NAME and computes absent digests
 //! (ADR-131 · #1441) — the admission tests, beside the lifecycle ones.
 

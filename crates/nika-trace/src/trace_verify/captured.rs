@@ -43,6 +43,26 @@ pub fn verify_captured(trace: &str, raw: &str, opts: &VerifyOptions) -> VerbOutp
     judge(trace, raw, opts, &candidates)
 }
 
+/// NIK-131 · a line too large for the journal keeps its values beside it,
+/// `<trace>.values/<sha256>`, and carries their digests: the chain covers the
+/// digests, so a value missing there or no longer matching its digest is the
+/// tampered class (FILE), as a broken line is. `None` when every value holds.
+fn kept_values(trace: &str, raw: &str, opts: &VerifyOptions) -> Option<VerbOutput> {
+    let unresolved = nika_dap::spill::unresolved_values(raw, std::path::Path::new(trace));
+    (!unresolved.is_empty()).then(|| {
+        finish(
+            opts,
+            trace,
+            "broken",
+            VerbOutput::file(format!(
+                "BROKEN — {} value(s) the journal keeps beside it are missing or altered: {}\n  each line carries its value's digest; a value that no longer matches it is unverified",
+                unresolved.len(),
+                unresolved.join(" · "),
+            )),
+        )
+    })
+}
+
 /// The refusal of a journal over [`JOURNAL_BOUND`], read or captured.
 pub(super) fn over_bound(opts: &VerifyOptions, trace: &str, bytes: u64) -> VerbOutput {
     finish(
@@ -55,41 +75,24 @@ pub(super) fn over_bound(opts: &VerifyOptions, trace: &str, bytes: u64) -> VerbO
     )
 }
 
-/// The walk's verdict over `raw`, then the tier ladder above an intact chain.
+/// The walk's verdict over `raw`, then, the chain holding, the values the
+/// journal keeps beside it, then the tier ladder.
 pub(super) fn judge(
     trace: &str,
     raw: &str,
     opts: &VerifyOptions,
     candidates: &[(String, String)],
 ) -> VerbOutput {
+    let ladder = |events: usize, head: &str, headline: ChainHeadline| {
+        kept_values(trace, raw, opts)
+            .unwrap_or_else(|| tiered(trace, raw, events, head, headline, opts, candidates))
+    };
     match walk(raw) {
-        Verdict::Intact { events, head, .. } => tiered(
-            trace,
-            raw,
-            events,
-            &head,
-            ChainHeadline::Intact,
-            opts,
-            candidates,
-        ),
-        Verdict::Incomplete { events, head, .. } => tiered(
-            trace,
-            raw,
-            events,
-            &head,
-            ChainHeadline::Incomplete,
-            opts,
-            candidates,
-        ),
-        Verdict::TornTail { events, head, .. } => tiered(
-            trace,
-            raw,
-            events,
-            &head,
-            ChainHeadline::Torn,
-            opts,
-            candidates,
-        ),
+        Verdict::Intact { events, head, .. } => ladder(events, &head, ChainHeadline::Intact),
+        Verdict::Incomplete { events, head, .. } => {
+            ladder(events, &head, ChainHeadline::Incomplete)
+        }
+        Verdict::TornTail { events, head, .. } => ladder(events, &head, ChainHeadline::Torn),
         Verdict::Broken {
             line,
             recorded,

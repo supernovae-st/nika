@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Vision: the 3 report charts on the PNG surface (kitty-ready).
 #![allow(
     clippy::expect_used,

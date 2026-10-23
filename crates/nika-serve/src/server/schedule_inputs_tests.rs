@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The resident binds a schedule's declared `inputs` (#1370, the Serve door):
 //! judged at `PUT` and at fire by the same law as `POST /v1/jobs`, for API
 //! schedules and project beats alike. Split from `schedule_tests.rs` under the

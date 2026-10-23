@@ -88,6 +88,45 @@ impl InstallOffer {
     }
 }
 
+/// What an installed trigger is, in the person's language: when it runs next and how it is
+/// removed. A run that would not see the workflow's keys is said to fail, and how to give them
+/// (live gauntlet wave 11 r08, 2026-10-20: « Installé et actif · tournera tout seul » under a
+/// card that had just said every scheduled run would fail).
+fn installed_said(offer: &InstallOffer, next: Option<&str>) -> String {
+    let workflow = offer.workflow.display();
+    let program = super::schedule::program();
+    let fr = offer.lang == Lang::Fr;
+    let next = next.map_or(String::new(), |next| {
+        let at = if fr { "prochain run :" } else { "next run:" };
+        format!(" · {at} {next}")
+    });
+    let (head, removes) = match (fr, &offer.gap) {
+        (true, None) => (
+            format!("Installé et actif · `{workflow}` tournera tout seul sur ce Mac{next}"),
+            "« désactive-le » le retire".to_owned(),
+        ),
+        (false, None) => (
+            format!("Installed and active · `{workflow}` runs on its own on this Mac{next}"),
+            "« deactivate it » removes it".to_owned(),
+        ),
+        (true, Some(keys)) => (
+            format!(
+                "Installé · `{workflow}` est lancé sur ce Mac{next}, mais chaque run planifié échouera tant qu'il ne voit pas {} : mettez-les dans un fichier de lignes CLÉ=valeur, puis `{program} arm --emit launchd --env-file <fichier> --write`",
+                keys.join(", ")
+            ),
+            "« désactive-le » le retire".to_owned(),
+        ),
+        (false, Some(keys)) => (
+            format!(
+                "Installed · `{workflow}` is started on this Mac{next}, but every scheduled run fails until it sees {}: put them in a file of KEY=value lines, then `{program} arm --emit launchd --env-file <file> --write`",
+                keys.join(", ")
+            ),
+            "« deactivate it » removes it".to_owned(),
+        ),
+    };
+    format!("{head}\n  {removes}")
+}
+
 /// What the person's answer to the install decision is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Answer {
@@ -425,30 +464,18 @@ impl SessionRuntime {
         }
         self.installed.extend(units.iter().cloned());
         let next = next_fire(&offer.cadence);
+        let fails = offer.gap.as_ref().map_or(String::new(), |keys| {
+            format!(
+                ", but every scheduled run fails until a file of KEY=value lines gives it {}",
+                keys.join(", ")
+            )
+        });
         self.note_for_author(&format!(
-            "Nika (not the person) installed the trigger of `{}` on this Mac on the person's yes: a launchd unit now runs it on its own{}. When the person asks whether it is active, say it is installed and active. « désactive-le » removes it: the Session's own door does it, never you.",
+            "Nika (not the person) installed the trigger of `{}` on this Mac on the person's yes: a launchd unit now runs it{}{fails}. When the person asks whether it is active, say so, and never that it runs on its own while a key is missing. « désactive-le » removes it: the Session's own door does it, never you.",
             offer.workflow.display(),
             next.as_deref().map_or(String::new(), |next| format!(" (next run {next})"))
         ));
-        let said = match (lang, next) {
-            (Lang::Fr, Some(next)) => format!(
-                "Installé et actif · `{}` tournera tout seul sur ce Mac · prochain run : {next}\n  « désactive-le » le retire",
-                offer.workflow.display()
-            ),
-            (Lang::Fr, None) => format!(
-                "Installé et actif · `{}` tournera tout seul sur ce Mac\n  « désactive-le » le retire",
-                offer.workflow.display()
-            ),
-            (_, Some(next)) => format!(
-                "Installed and active · `{}` runs on its own on this Mac · next run: {next}\n  « deactivate it » removes it",
-                offer.workflow.display()
-            ),
-            (_, None) => format!(
-                "Installed and active · `{}` runs on its own on this Mac\n  « deactivate it » removes it",
-                offer.workflow.display()
-            ),
-        };
-        TurnOutcome::Facts(said)
+        TurnOutcome::Facts(installed_said(offer, next.as_deref()))
     }
 
     /// « désactive-le »: unload and remove the units this conversation installed.
@@ -1251,6 +1278,34 @@ mod tests {
             super::unit_access_gap(dir.path(), Path::new("brief.nika")),
             None,
             "the units load a file that names its key"
+        );
+    }
+
+    /// An installed trigger whose runs would not see the workflow's keys is never said to run on
+    /// its own: the fact names the keys and how to give them (live gauntlet wave 11 r08).
+    #[test]
+    fn an_install_whose_runs_miss_their_keys_says_they_fail_and_how_to_fix_it() {
+        let offer = |gap: Option<Vec<String>>| super::InstallOffer {
+            workflow: PathBuf::from("journal.nika"),
+            when: "tous les soirs à 20h".to_owned(),
+            cadence: "TZ=Europe/Paris 0 20 * * *".to_owned(),
+            missed: "sauter".to_owned(),
+            ceiling: "0.1".to_owned(),
+            lang: crate::runtime::Lang::Fr,
+            gap,
+        };
+        let keys = vec!["DEEPSEEK_API_KEY".to_owned()];
+        let missing = super::installed_said(&offer(Some(keys)), Some("2026-10-21 20:00 +04"));
+        assert!(!missing.contains("tournera tout seul"), "{missing}");
+        assert!(
+            missing.contains("échouera tant qu'il ne voit pas DEEPSEEK_API_KEY")
+                && missing.contains("arm --emit launchd --env-file <fichier> --write"),
+            "{missing}"
+        );
+        let covered = super::installed_said(&offer(None), Some("2026-10-21 20:00 +04"));
+        assert!(
+            covered.starts_with("Installé et actif") && covered.contains("tournera tout seul"),
+            "{covered}"
         );
     }
 

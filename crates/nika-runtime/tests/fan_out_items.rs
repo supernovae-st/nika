@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 //! A `for_each` names every item's terminal (#1276 · #1397): the fan-out's
 //! terminal frame carries `items` · one row per item in input order · the

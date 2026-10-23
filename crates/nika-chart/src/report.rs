@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Run report · the W3 flagship consumer as a PURE function — trace-shaped
 //! data in, one self-contained HTML out (inline SVGs · zero JS · printable ·
 //! theme-adaptive via the same prefers-color-scheme seam as the charts).

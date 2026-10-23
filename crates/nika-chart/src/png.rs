@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Minimal deterministic PNG encoder · zero-dep · hand-rolled from primary
 //! sources (R3 annex · all fetched 2026-07-09): W3C PNG-3 (§5.2 signature ·
 //! §5.3 chunks · §5.5 CRC · §11.2.1 IHDR · §9 filters) · RFC 1950 (zlib

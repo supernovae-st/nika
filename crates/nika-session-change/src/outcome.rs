@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! The machine's typed answers (ADR-133 · the portable session): what a
 //! host renders, and what a REMOTE host judges by identity — the proposal
 //! a consent names, the gate or the question an answer names, the class of

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Embedded palettes (zero-dep · operator lock « pas de dépendances »).
 //!
 //! · Categorical: Okabe-Ito CVD-safe hues, PER-MODE steps — dark mode is a

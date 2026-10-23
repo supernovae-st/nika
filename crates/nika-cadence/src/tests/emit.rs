@@ -139,17 +139,42 @@ fn launchd_per_beat() {
 fn launchd_per_beat_with_env_file() {
     let reg = registry(TWO_BEATS);
     let units = emit::render(&reg, &ctx_with_env(), Target::Launchd, Mode::PerBeat).expect("rendu");
-    // D7: the env file rides by PATH, through a sh wrapper — never a value.
+    // D7: the env file rides by PATH, handed to the firer — never a value,
+    // never a shell (NIK-198: launchd starts the unit with none).
     assert!(
-        units[0].body.contains("/bin/sh"),
-        "le wrap env: {}",
+        units[0]
+            .body
+            .contains("<string>--env-file</string>\n\t\t<string>/projet/.env</string>"),
+        "le firer reçoit le fichier: {}",
         units[0].body
     );
-    assert!(units[0].body.contains("/projet/.env"), "le chemin, nommé");
+    assert!(!units[0].body.contains("/bin/sh"), "{}", units[0].body);
     snap("launchd_per_beat_env", &joined(&units));
 }
 
-/// #1069 — a wrapped unit names its env file; a short-argv unit does
+/// The serve unit's verb takes no `--env-file`: it keeps the shell wrap
+/// that exports the file, and a wrapped unit still names its env file (an
+/// earlier engine wrapped every beat so; the L4 edge recovers it).
+#[test]
+fn the_serve_unit_keeps_the_wrap_and_a_wrap_names_its_env_file() {
+    let reg = registry(TWO_BEATS);
+    let serve = emit::render(&reg, &ctx_with_env(), Target::Launchd, Mode::Serve).expect("serve");
+    assert!(
+        serve[0].body.contains("<string>/bin/sh</string>")
+            && serve[0]
+                .body
+                .contains("set -a &amp;&amp; . &apos;/projet/.env&apos;"),
+        "{}",
+        serve[0].body
+    );
+    assert!(!serve[0].body.contains("--env-file"), "{}", serve[0].body);
+    assert_eq!(
+        emit::env_file_named_in_unit(&serve[0].body).as_deref(),
+        Some("/projet/.env")
+    );
+}
+
+/// #1069 — a unit that loads an env file names it; a short-argv unit does
 /// not. Replacing the first with the second is the strip the L4 edge
 /// must refuse.
 #[test]
@@ -162,8 +187,8 @@ fn a_wrapped_unit_names_its_env_file_and_a_bare_unit_does_not() {
         Some("/projet/.env")
     );
     assert!(
-        wrapped[0].body.contains("&amp;&amp; exec") || wrapped[0].body.contains(" && exec "),
-        "le wrap `. env && exec` est le contrat: {}",
+        wrapped[0].body.contains("<string>--env-file</string>"),
+        "le firer reçoit `--env-file`: {}",
         wrapped[0].body
     );
     let bare = emit::render(&reg, &ctx(), Target::Launchd, Mode::PerBeat).expect("bare");

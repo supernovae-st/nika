@@ -43,6 +43,7 @@ pub mod resume;
 pub mod retention;
 pub mod seal;
 pub mod sign;
+pub mod spill;
 pub mod stats;
 pub mod store;
 

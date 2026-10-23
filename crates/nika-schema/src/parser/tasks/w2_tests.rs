@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! W2 · `NIKA-PARSE-024` per SHAPE — what the finding may PROMISE.
 //!
 //! Carved out of `tasks.rs` at the 1500-line file cap (the parser body

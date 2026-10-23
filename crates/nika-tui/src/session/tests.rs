@@ -18,6 +18,7 @@ mod native_settings;
 mod new_conversation;
 mod restored_gate;
 mod run_input_choices;
+mod set_aside;
 
 const MODEL: &str = "deepseek/s90-unpriced-fixture";
 const SOURCE: &str = "nika: fresh-run\nmodel: deepseek/s90-unpriced-fixture\ntasks:\n  answer:\n    infer: { prompt: Say OK, max_tokens: 32 }\noutputs:\n  result: ${{ tasks.answer.output }}\n";

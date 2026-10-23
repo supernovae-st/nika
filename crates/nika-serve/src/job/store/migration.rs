@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
 use super::{
     BTreeSet, Deserialize, EventHash, IncarnationLedger, JobEvent, JobRecord, JobStatus,
     JobStoreError, LEGACY_STATE_VERSION, PersistedState, STATE_VERSION, StoredJob, Value,

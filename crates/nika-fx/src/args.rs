@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Typed op pipeline — the closed vocabulary of `nika:image_fx` v1.
 //! The nika-builtin wiring maps the workflow's JSON args onto these types;
 //! this crate stays serde-free (zero-dep law). `recipe_json` re-serializes

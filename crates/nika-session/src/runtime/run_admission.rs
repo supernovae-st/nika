@@ -37,12 +37,12 @@ impl SessionRuntime {
             })
     }
 
-    /// An explicit run line — `run it` · `run brief.nika with a ceiling of
-    /// 0.05` · `test it now` — runs a workflow the human named or the one
-    /// last accepted, only when its check on disk is clean. `None` when
-    /// the line is not a run line.
+    /// An explicit run line — `run it` · `run brief.nika with a ceiling of 0.05` · `test it now`
+    /// — runs a workflow the human named or the one last accepted, only when its check on disk is
+    /// clean. `None` when the line is not a run line, or asks to see what is there (« lance-le et
+    /// montre-moi le résultat »: a reading, never a Run, NIK-234).
     pub(super) fn run_turn(&mut self, input: &str) -> Option<TurnOutcome> {
-        run_prefix(input)?;
+        run_prefix(input).filter(|_| !run_options::asks_to_read(input))?;
         let Some((line, access_pin)) = run_options::parse(input) else {
             return Some(self.refuse_run_money(input, "invalid or duplicate Run option — use --access <pin> and --max-cost-usd <amount> once each"));
         };

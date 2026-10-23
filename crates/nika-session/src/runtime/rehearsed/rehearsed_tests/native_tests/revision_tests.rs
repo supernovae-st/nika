@@ -191,7 +191,7 @@ fn native_answer_boundary_rehearses_fresh_bytes_and_keeps_the_account() {
     let (mut s, calls, old, set) = native_pending(root.path());
     ask(&mut s, set);
     // The normal answer turn expires transient state but preserves this revision's account.
-    s.rehearsals.new_turn(true);
+    s.rehearsals.new_turn((true, true));
     let mut round = s.authoring.take().expect("EDIT question");
     assert!(round.edit.is_some());
     assert_eq!(round.answer_current("keep").as_deref(), Some("gap.1"));
@@ -209,6 +209,28 @@ fn native_answer_boundary_rehearses_fresh_bytes_and_keeps_the_account() {
         RefusalClass::StaleRevision
     );
     assert!(!root.path().join(LANDED).exists());
+}
+
+/// A further change asked while a revision waits answers no question: it starts a fresh
+/// rehearsal account, and the suspended proof stays aside (live gauntlet wave 11 r06: every
+/// revision of one proposal drew on one account until a turn failed on « the shared turn
+/// rehearsal budget admits no further world »).
+#[test]
+fn a_further_change_while_a_revision_waits_starts_a_fresh_account() {
+    let root = project();
+    let (mut s, _calls, _old, set) = native_pending(root.path());
+    ask(&mut s, set);
+    s.authoring = None;
+    s.rehearsals.turn = Usage::new(6, 6, 0, 0, 0);
+    s.rehearsals.new_turn((false, true));
+    assert_eq!(s.rehearsals.turn, Usage::default());
+    assert!(
+        s.rehearsals.revising.is_some(),
+        "the suspended proof waits aside"
+    );
+    s.rehearsals.turn = Usage::new(6, 6, 0, 0, 0);
+    s.rehearsals.new_turn((true, true));
+    assert_eq!(s.rehearsals.turn.attempts, 6, "an answer keeps its account");
 }
 
 #[test]

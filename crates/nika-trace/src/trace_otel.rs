@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! `nika trace export` — project a run journal to OTLP/JSON lines.
 //!
 //! Every `OTel` tool becomes a nika viewer with zero vendor capture: the

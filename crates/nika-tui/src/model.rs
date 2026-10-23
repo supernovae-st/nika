@@ -1065,6 +1065,14 @@ pub trait Conversation: Send {
     fn cancel_pending(&mut self) -> Vec<Beat> {
         Vec::new()
     }
+    /// The decision `waiting` paints, left with `Esc` and nothing left to undo: its card steps
+    /// aside, never answered, and the conversation says what stays undecided (NIK-227: a card
+    /// with one act could only be left by quitting). No beats where nothing is set aside (the
+    /// default, or a card the conversation keeps, such as a fresh spending question): the card
+    /// stays, and the hint says `Esc` answers nothing.
+    fn set_aside(&mut self, _waiting: &Waiting) -> Vec<Beat> {
+        Vec::new()
+    }
     /// Arm a stop for the turn about to start, BEFORE the conversation moves
     /// to the worker thread. The default arms none: `Ctrl+C` then warns and
     /// leaves, as it always did. Stopping a preparation never stops a Run.

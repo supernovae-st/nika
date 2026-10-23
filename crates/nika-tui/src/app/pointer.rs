@@ -482,7 +482,7 @@ impl<C: Conversation + 'static> Shell<C> {
                 &self.state.waiting,
                 self.state.voice(),
             )),
-            Offered::Pass | Offered::Moved | Offered::Notice(_) => None,
+            Offered::Pass | Offered::Moved | Offered::Notice(_) | Offered::SetAside => None,
         }
     }
 

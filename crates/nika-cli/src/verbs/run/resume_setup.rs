@@ -81,6 +81,15 @@ impl ResumeSetup {
         Ok(self)
     }
 
+    /// The tasks the resumed journal completed: each is served from it as a
+    /// cache hit, so the budget gate prices only the rest (NIK-245). Empty on
+    /// a fresh run.
+    pub(super) fn settled(&self) -> std::collections::BTreeSet<String> {
+        (self.plan.iter())
+            .flat_map(|plan| plan.keys().cloned())
+            .collect()
+    }
+
     /// A fresh run (no trace to fold) — the answers ride in later.
     const fn fresh() -> Self {
         Self {
@@ -296,10 +305,15 @@ fn load_resume_plan(
     // ADR-099 trust amendment — the chain verdict BEFORE the fold (own
     // fn: the 100-line wall, and the judgment belongs to itself).
     let unverified = gate_trust(&raw, &label, req.allow_unverified, output_json)?;
-    let recovered = recover_events(&raw, &label).map_err(|e| refuse(e.to_string()))?;
+    let mut recovered = recover_events(&raw, &label).map_err(|e| refuse(e.to_string()))?;
     if let Some(note) = &recovered.truncated_note {
         eprintln!("nika run: {note}");
     }
+    // NIK-131 · the values the journal keeps beside it, read back before the fold.
+    say_unresolved(
+        &nika_dap::spill::rehydrate(&mut recovered.events, trace),
+        &label,
+    );
     // The project judgment FIRST (#1367 · the wave-7 gauntlet): a trace
     // written by another project has nothing else to judge, and no notice
     // below may describe a run that never happens.
@@ -363,6 +377,20 @@ fn load_resume_plan(
         restore_from: Some(trace.to_path_buf()),
         restored: Vec::new(),
     })
+}
+
+/// One stderr line for the values a journal keeps beside it that are missing
+/// or no longer match their digest: never served as a cache hit, the tasks
+/// they belong to run again (NIK-131).
+fn say_unresolved(kept: &nika_dap::spill::Rehydrated, label: &str) {
+    if !kept.unresolved.is_empty() {
+        eprintln!(
+            "nika run: --resume: {} value(s) kept beside {label} are missing or altered ({}) — \
+             the tasks they belong to run live",
+            kept.unresolved.len(),
+            kept.unresolved.join(" · ")
+        );
+    }
 }
 
 /// Bind the folded ticket to the durable claim stores (`<root>/.nika/

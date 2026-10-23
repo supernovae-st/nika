@@ -4,9 +4,10 @@
 //! Run-admission gates. Every refusal precedes the prologue, so it emits no
 //! event and spends no task. Constructors serve runtime and CLI preflights.
 
-use std::collections::BTreeMap;
+use std::borrow::Cow;
+use std::collections::{BTreeMap, BTreeSet};
 
-use nika_check::CheckReport;
+use nika_check::{CheckReport, CostCeiling};
 use nika_providers::ExecutionAccessPlan;
 use nika_providers::probe::ProviderProbe;
 use nika_providers::resolve_access::PinRefusal;
@@ -27,14 +28,15 @@ pub(crate) use nika_check::analyzer::unpriced_cloud_seat;
 
 /// The run's launch gates, in order: the report trust check
 /// (audit-before-run) · the required-input preflight below · the budget
-/// floor ([`budget_floor_refusal`]) · the MODELS rung over the seats this
-/// run uses · the access plan — all refuse BEFORE the prologue, so a
-/// refused run emits zero events and spends zero tasks.
+/// floor over the work still to run ([`budget_floor_refusal_remaining`]:
+/// `settled` names the tasks a resumed journal completed) · the MODELS rung
+/// over the seats this run uses · the access plan — all refuse BEFORE the
+/// prologue, so a refused run emits zero events and spends zero tasks.
 pub(crate) fn gates_with_transport(
     wf: &RawWorkflow,
     report: &CheckReport,
     overrides: &BTreeMap<String, Value>,
-    budget: Option<f64>,
+    (budget, settled): (Option<f64>, &BTreeSet<String>),
     model_override: Option<&str>,
     (access_pin, probes, plan): (Option<&str>, &[ProviderProbe], Option<&ExecutionAccessPlan>),
     planless_harness: bool,
@@ -46,14 +48,14 @@ pub(crate) fn gates_with_transport(
     if let Some(err) = required_inputs_refusal(wf, overrides) {
         return Err(err);
     }
-    if let Some(err) = budget_floor_refusal_bound_over(
+    if let Some(err) = budget_floor_refusal_remaining(
         wf,
         report,
         budget,
-        model_override,
-        overrides,
+        (model_override, overrides),
         false,
         probes,
+        settled,
     ) {
         return Err(err);
     }
@@ -118,7 +120,7 @@ pub(crate) fn gates(
         wf,
         report,
         overrides,
-        budget,
+        (budget, &BTreeSet::new()),
         model_override,
         context,
         false,
@@ -301,6 +303,36 @@ pub fn budget_floor_refusal_bound_over(
     seated_on_harness: bool,
     probes: &[ProviderProbe],
 ) -> Option<RuntimeError> {
+    budget_floor_refusal_remaining(
+        wf,
+        report,
+        budget,
+        (model_override, overrides),
+        seated_on_harness,
+        probes,
+        &BTreeSet::new(),
+    )
+}
+
+/// The budget floor over the work a run still has to do (NIK-245): `settled`
+/// names the tasks its resumed journal already completed. Each is served
+/// from that journal as a cache hit and spends nothing, so its cost (and a
+/// composed child or priced builtin it calls) leaves the floor and the
+/// zero-budget judgment. A resumed run's budget is what its paused leg left;
+/// pricing the finished work again refused every answer at the gate, so the
+/// answer was never recorded. Every `when:` branch already prices closed on
+/// this cheapest path, so an answer that closes one costs nothing there.
+/// With nothing settled this is [`budget_floor_refusal_bound_over`].
+#[must_use]
+pub fn budget_floor_refusal_remaining(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    budget: Option<f64>,
+    (model_override, overrides): (Option<&str>, &BTreeMap<String, Value>),
+    seated_on_harness: bool,
+    probes: &[ProviderProbe],
+    settled: &BTreeSet<String>,
+) -> Option<RuntimeError> {
     let budget = budget?;
     if let Some(err) = unmeterable_seat_on_resolved_ids(
         wf,
@@ -323,12 +355,59 @@ pub fn budget_floor_refusal_bound_over(
     if !seated_on_harness && let Some(err) = unpriced_cloud_cap_refusal(effective, budget) {
         return Some(err);
     }
-    if !seated_on_harness && let Some(message) = effective.cost.zero_budget_refusal(budget) {
+    let cost = remaining_cost(&effective.cost, settled);
+    if !seated_on_harness && let Some(message) = cost.zero_budget_refusal(budget) {
         return Some(RuntimeError::BudgetFloor { message });
     }
-    let floor = effective.cost.min_path_total_usd + priced_builtin_floor(wf);
+    let floor = cost.min_path_total_usd + priced_builtin_floor(&unsettled(wf, settled));
     let message = floor_refusal(floor, budget)?;
     Some(RuntimeError::BudgetFloor { message })
+}
+
+/// The cost envelope of the work still to run: `cost` without the tasks in
+/// `settled` (a resumed journal's successes, cache hits that spend nothing)
+/// and without the composed children they call. Its cheapest-path total is
+/// summed over what remains; the per-task rows, the floor and the zero-budget
+/// judgment read it. `cost` itself, unchanged, when nothing is settled.
+#[must_use]
+pub fn remaining_cost<'c>(
+    cost: &'c CostCeiling,
+    settled: &BTreeSet<String>,
+) -> Cow<'c, CostCeiling> {
+    if settled.is_empty() {
+        return Cow::Borrowed(cost);
+    }
+    let mut rest = cost.clone();
+    rest.tasks.retain(|task| !settled.contains(&task.task));
+    rest.composed.retain(|call| !settled.contains(&call.task));
+    let tasks: f64 = rest.tasks.iter().filter_map(|task| task.min_path_usd).sum();
+    let composed: f64 = rest
+        .composed
+        .iter()
+        .map(|call| call.min_path_total_usd)
+        .sum();
+    rest.min_path_total_usd = tasks + composed;
+    let tasks: f64 = rest.tasks.iter().filter_map(|task| task.usd).sum();
+    let composed: f64 = rest
+        .composed
+        .iter()
+        .map(|call| call.bounded_total_usd)
+        .sum();
+    rest.bounded_total_usd = tasks + composed;
+    rest.has_unbounded = rest.tasks.iter().any(|task| task.usd.is_none())
+        || rest.composed.iter().any(|call| call.has_unbounded);
+    Cow::Owned(rest)
+}
+
+/// `wf` without the tasks in `settled` — the priced builtins still to run.
+fn unsettled<'w>(wf: &'w RawWorkflow, settled: &BTreeSet<String>) -> Cow<'w, RawWorkflow> {
+    if settled.is_empty() {
+        return Cow::Borrowed(wf);
+    }
+    let mut rest = wf.clone();
+    rest.tasks
+        .retain(|task| !settled.contains(&task.value.id.value));
+    Cow::Owned(rest)
 }
 
 /// The MODELS rung `nika check` applies to a literal seat, over every seat
@@ -698,3 +777,7 @@ pub(crate) fn map_pin_refusal(refusal: PinRefusal) -> RuntimeError {
     clippy::float_cmp
 )]
 mod tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod resume_tests;

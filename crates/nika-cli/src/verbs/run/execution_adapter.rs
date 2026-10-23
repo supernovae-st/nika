@@ -346,17 +346,27 @@ fn admit_source_over(
 
 /// The Host's cost gate over the run's frozen plan, priced at the invocation's validated
 /// inputs (B11): the adapter only forwards them; the harness predicate and the floor are the
-/// Host's (`run_budget::plan_gate`).
+/// Host's (`run_budget::plan_gate`). A resume prices the work it still has to
+/// do: the tasks its journal completed are cache hits (NIK-245).
 fn budget_gate(
-    wf: &nika_schema::raw::RawWorkflow,
-    report: &nika_check::CheckReport,
+    (wf, report): (&nika_schema::raw::RawWorkflow, &nika_check::CheckReport),
     request: &CliExecutionRequest<'_>,
     machine: bool,
     plan: &nika_providers::ExecutionAccessPlan,
     inputs: &std::collections::BTreeMap<String, serde_json::Value>,
+    setup: &resume_setup::ResumeSetup,
 ) -> Result<(), u8> {
     let effective = (request.model_override, inputs);
-    budget::plan_gate(wf, report, effective, request.max_cost_usd, machine, plan)
+    let settled = setup.settled();
+    budget::plan_gate(
+        wf,
+        report,
+        effective,
+        request.max_cost_usd,
+        machine,
+        plan,
+        &settled,
+    )
 }
 
 fn run_admitted_context(
@@ -428,7 +438,14 @@ fn run_admitted_context_over(
     // Only a fresh unknown-cost choice replaces the Run's budget gate and cap.
     let unknown = matches!(&cost, Some(c) if !c.account.observes_declared_free_only());
     if !unknown
-        && let Err(code) = budget_gate(&wf, &report, request, machine, &plan, &inputs.values)
+        && let Err(code) = budget_gate(
+            (&wf, &report),
+            request,
+            machine,
+            &plan,
+            &inputs.values,
+            &setup,
+        )
     {
         return RunVerdict::bare(code);
     }

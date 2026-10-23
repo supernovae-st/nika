@@ -146,6 +146,7 @@ pub(super) fn scan_unknown_args(wf: &RawWorkflow) -> Vec<UnknownArg> {
         collect_read_types(id, &task.value.action, &mut findings);
         collect_closed_literals(id, &task.value.action, &mut findings);
         collect_date_op_args(id, &task.value.action, &mut findings);
+        collect_date_zones(id, &task.value.action, &mut findings);
     }
     findings
 }
@@ -380,6 +381,84 @@ fn collect_date_op_args(site: &str, action: &RawAction, out: &mut Vec<UnknownArg
     }
 }
 
+/// A literal `nika:date` `tz:` the embedded tzdb does not hold (NIK-236): the run refuses it at
+/// its task (`NIKA-BUILTIN-DATE-001 · unknown tz:`), after every task before it ran. Check asks
+/// the database the builtin resolves zones from (`jiff_tzdb::get`, which reads a name in any
+/// case), so a zone check accepts is a zone the run accepts. Judged when the literal op reads
+/// `tz:` or the op is templated; another op's `tz:` is [`collect_date_op_args`]' finding, and a
+/// templated zone is the run's to judge. The zone to write rides the teaching, never
+/// [`UnknownArg::suggestion`], which `--fix` reads as a key rename.
+fn collect_date_zones(site: &str, action: &RawAction, out: &mut Vec<UnknownArg>) {
+    let RawAction::Invoke(a) = action else {
+        return;
+    };
+    if a.tool().is_none_or(|t| t.value != "nika:date") {
+        return;
+    }
+    let Some(args) = a.args.as_ref().and_then(|a| a.value.as_object()) else {
+        return;
+    };
+    let Some(tz) = args.get("tz").and_then(serde_json::Value::as_str) else {
+        return;
+    };
+    let reads_tz = match args.get("op").and_then(serde_json::Value::as_str) {
+        Some(op) if !op.contains("${{") => DATE_OP_ARGS
+            .iter()
+            .any(|(name, reads)| *name == op && reads.contains(&"tz")),
+        _ => true,
+    };
+    if !reads_tz || tz.contains("${{") || jiff_tzdb::get(tz).is_some() {
+        return;
+    }
+    let mut teaching = vec![
+        "a zone of the IANA time-zone database `nika:date` embeds (`Europe/Paris` · `America/New_York` · `UTC`)"
+            .to_owned(),
+    ];
+    if let Some(zone) = obvious_zone(tz) {
+        teaching.push(format!("did you mean `{zone}`?"));
+    }
+    out.push(UnknownArg {
+        task: site.to_owned(),
+        tool: "nika:date".to_owned(),
+        arg: "tz".to_owned(),
+        suggestion: None,
+        declared: teaching,
+        invalid_value: Some(tz.to_owned()),
+    });
+}
+
+/// The one zone a name the tzdb does not hold plainly means: the only zone whose last segment
+/// is that name (`Paris` → `Europe/Paris` · `new york` → `America/New_York`), else the only zone
+/// a word of it names (`L'heure de Paris`). `None` when no zone or several do (`Buenos Aires`
+/// names two).
+fn obvious_zone(name: &str) -> Option<&'static str> {
+    let mut zones = zones_named(&name.trim().replace([' ', '-'], "_"));
+    if zones.is_empty() {
+        for word in name.split(|c: char| !c.is_alphanumeric() && c != '_') {
+            if !word.is_empty() {
+                zones.extend(zones_named(word));
+            }
+        }
+        zones.sort_unstable();
+        zones.dedup();
+    }
+    match zones.as_slice() {
+        [zone] => Some(*zone),
+        _ => None,
+    }
+}
+
+/// The embedded tzdb's zones whose last segment is `segment`, in any case.
+fn zones_named(segment: &str) -> Vec<&'static str> {
+    jiff_tzdb::available()
+        .filter(|zone| {
+            zone.rsplit('/')
+                .next()
+                .is_some_and(|last| last.eq_ignore_ascii_case(segment))
+        })
+        .collect()
+}
+
 fn collect_closed_literals(site: &str, action: &RawAction, out: &mut Vec<UnknownArg>) {
     let RawAction::Invoke(a) = action else {
         return;
@@ -592,6 +671,77 @@ mod tests {
         ] {
             assert!(args_of(clean).is_empty(), "{clean}");
         }
+    }
+
+    /// NIK-236: a literal `tz:` the embedded tzdb does not hold checked clean, then the run
+    /// failed at its first task (`NIKA-BUILTIN-DATE-001 · unknown tz: Paris`). Check refuses it
+    /// first with the run's code, naming the zone when one is obvious, and never offers a key
+    /// rename to `--fix`. A zone the tzdb holds (read case-insensitively, as the builtin reads
+    /// it) and a templated zone pass; so does an op that never reads `tz:`, which the
+    /// arg-of-another-op finding already owns.
+    #[test]
+    fn an_unknown_literal_date_zone_is_refused_with_the_obvious_zone() {
+        let check = |args: &str| {
+            let yaml = format!(
+                "nika: w\ninputs:\n  zone: {{ type: string }}\npermits: {{ tools: [\"nika:date\"] }}\ntasks:\n  t:\n    invoke: {{ tool: \"nika:date\", args: {{ {args} }} }}\n"
+            );
+            crate::check(&parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parses"))
+        };
+        let zone_rows = |r: &crate::CheckReport| -> Vec<crate::UnifiedFinding> {
+            (r.findings.iter())
+                .filter(|f| f.code.as_deref() == Some("NIKA-BUILTIN-DATE-001"))
+                .cloned()
+                .collect()
+        };
+        for (tz, zone) in [
+            ("Paris", Some("Europe/Paris")),
+            ("L'heure de Paris", Some("Europe/Paris")),
+            ("new york", Some("America/New_York")),
+            ("Buenos Aires", None),
+            ("Mars/Olympus_Mons", None),
+        ] {
+            let r = check(&format!("op: now, tz: \"{tz}\""));
+            assert!(!r.is_clean(), "{tz}");
+            let rows = zone_rows(&r);
+            let [row] = rows.as_slice() else {
+                panic!("{tz}: one zone row: {:#?}", r.findings);
+            };
+            assert_eq!((row.gate, row.task.as_deref()), ("ARGS", Some("t")), "{tz}");
+            assert!(
+                row.message.contains(&format!("`tz: {tz}`")),
+                "{}",
+                row.message
+            );
+            match zone {
+                Some(zone) => assert!(
+                    row.message.contains(&format!("did you mean `{zone}`?")),
+                    "{}",
+                    row.message
+                ),
+                None => assert!(!row.message.contains("did you mean"), "{}", row.message),
+            }
+            assert!(
+                crate::typed_renames(&r).is_empty(),
+                "{tz}: never a key rename"
+            );
+        }
+        for args in [
+            "op: now, tz: Europe/Paris",
+            "op: now, tz: europe/paris",
+            "op: now, tz: UTC",
+            "op: format, input: \"2026-10-15T00:00:00Z\", format: \"%H\", tz: Indian/Mauritius",
+            "op: now, tz: \"${{ inputs.zone }}\"",
+        ] {
+            let r = check(args);
+            assert!(r.is_clean(), "{args}: {:#?}", r.findings);
+        }
+        let r = check("op: parse, input: \"2026\", format: \"%Y\", tz: Paris");
+        assert!(zone_rows(&r).is_empty(), "{:#?}", r.findings);
+        assert!(
+            r.unknown_args.iter().any(|a| a.arg == "tz"),
+            "{:#?}",
+            r.findings
+        );
     }
 
     #[test]

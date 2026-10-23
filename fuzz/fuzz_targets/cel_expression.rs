@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Fuzz target 2 · the CEL v0.1-subset expression grammar.
 //!
 //! Invariant under fuzz · the recursive-descent parser NEVER panics,

@@ -1,5 +1,12 @@
 # Nika Roadmap
 
+> **Status after 0.123 (2026-10-23).** 0.123 is the open-source reference release of Nika: the
+> Rust engine, the CLI and TUI, and a minimal TypeScript SDK that runs `.nika` workflows. After
+> it the project is maintained: security fixes, bug fixes and compatibility. No major new
+> features are planned, and there is no hosted service or SaaS. The plan below is the earlier
+> long-range roadmap, kept as the record of how the engine was built; its forward items are not
+> commitments.
+
 The accepted [0.123 cooperative intent direction](docs/architecture/ARCHITECTURE-0.123.md),
 amended 6 October 2026, governs this convergence. Historical routing descriptions
 below do not override it. Implementation, measured qualification and release
@@ -881,7 +888,8 @@ compile-time tenant isolation contract.
 Incremental quality additions forever. Order determined by community pull +
 Nika team priorities. Possible directions include (no commitment):
 
-- **Hosted cloud runner** (`nika.sh` as optional SaaS) — self-host remains primary
+- ~~**Hosted cloud runner** (`nika.sh` as optional SaaS)~~ — not planned (2026-10-23):
+  Nika stays a local, self-hosted engine
 - **Commercial relicense** (AGPL → commercial for enterprise customers)
 - **Mobile SDK** (iOS/Android bindings to local Nika runtime)
 - **RAG as composable primitive** (distinct from agent memory)
@@ -908,7 +916,7 @@ outright or reclassified as a future layer-phase deliverable (no version tag).
 | Memory and retrieval satellites (10 · the Connectome umbrella and orchestrator are retired, D-2026-10-08-N1) | **Built during L1 phases 1e-1f-1g**, each under its own owner and release acceptance | ontology-graph + auto-descriptive, see §Memory subsystem detail |
 | WASM host (wasmtime + extism) | **Built during L3** | Sandbox-3 triplet ships alongside |
 | Keys subsystem (Keychain/OAuth) | **Built during L1 phases 1a-1b** | `nika-keys-env` + `nika-keys-keychain` |
-| Hosted cloud runner | Polish forever (post-1.0) | Self-host is primary; SaaS optional |
+| Hosted cloud runner | Not planned (2026-10-23) | Nika stays a local, self-hosted engine |
 | Commercial relicense (AGPL → commercial) | Polish forever (post-1.0) | Only when enterprise pull warrants legal setup |
 
 ## What this roadmap deliberately excludes (never)

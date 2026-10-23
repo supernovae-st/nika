@@ -827,3 +827,26 @@ fn a_folder_or_a_pattern_is_copied_by_its_files_and_a_file_still_by_its_own_rece
         );
     }
 }
+
+/// An input that is also a target is the candidate's own state (a journal it appends to): the
+/// first day holds none, so it needs no copy receipt, and its final state accounts for it. A
+/// source the request only reads still needs its receipt (live gauntlet wave 11, 2026-10-20).
+#[test]
+fn a_state_input_needs_no_receipt_and_its_final_state_accounts_for_it() {
+    let journal = "./journal.md";
+    let (inputs, targets) = ([journal.to_owned()], [journal.to_owned()]);
+    for (finals, written) in [
+        (vec![file(journal, "- une ligne\n")], vec![journal]),
+        (vec![absent(journal)], Vec::new()),
+    ] {
+        let report = completed(passed(), observed(Vec::new(), finals, &written));
+        let run = judged_run("observed", &report, &inputs, &targets, &[]);
+        assert_eq!(run.end, RunEnd::Completed, "{run:?}");
+    }
+    let report = completed(passed(), observed(Vec::new(), vec![absent(journal)], &[]));
+    let run = judged_run("observed", &report, &inputs, &[], &[]);
+    assert!(
+        matches!(run.end, RunEnd::InvalidHarness { .. }),
+        "a source only read still needs its receipt: {run:?}"
+    );
+}

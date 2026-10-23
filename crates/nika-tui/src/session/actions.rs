@@ -9,7 +9,7 @@ use nika_session::{SessionRuntime, work};
 use super::Live;
 use super::typed_answer::Reply;
 use crate::lang::Voice;
-use crate::model::{Asked, Beat, Offer, Shape, Turn, Waiting};
+use crate::model::{Asked, Beat, Committed, Kind, Offer, Shape, Turn, Waiting};
 
 /// The key the Session asks a landed declaration's trigger under (D1): install it on this Mac
 /// or keep the schedule declared.
@@ -27,6 +27,13 @@ pub(super) struct Pending {
     question: Option<nika_session::QuestionId>,
 }
 
+/// What a painted decision stands for: the Session state it answers and the facts that
+/// identify it ([`context`]), whatever presentation painted it.
+pub(super) type Identity = (work::Waiting, Option<String>);
+
+/// The prefix of the facts that identify the recovery of a drifted saved workflow.
+const STALE_RUN: &str = "stale run ";
+
 /// Only facts that identify the decision enter the comparison, not activity or costs
 /// from unrelated turns. Decisions without a strong owner ID also get a fresh nonce.
 fn context(runtime: &SessionRuntime, snapshot: &work::Work) -> Option<String> {
@@ -34,7 +41,7 @@ fn context(runtime: &SessionRuntime, snapshot: &work::Work) -> Option<String> {
         work::Waiting::CostChoice => runtime.cost_choice_details(),
         work::Waiting::Free => (runtime.waiting_judgment())
             .or_else(|| {
-                (runtime.stale_saved_run()).map(|path| format!("stale run {}", path.display()))
+                (runtime.stale_saved_run()).map(|path| format!("{STALE_RUN}{}", path.display()))
             })
             .or_else(|| {
                 (snapshot.feedback.offer.as_ref())
@@ -396,7 +403,34 @@ fn decisions(approve: &str, decline: &str, voice: Voice) -> Vec<Offer> {
     ]
 }
 
+/// What `Esc` leaves undecided at the decision `key`, asked as `label`, said in `voice`: the
+/// drifted workflow stays not run, a paused run stays paused, anything else still waits.
+fn undecided(runtime: &SessionRuntime, key: &str, label: &str, voice: Voice) -> String {
+    let stale = (runtime.stale_saved_run()).filter(|_| key == "stale_run");
+    if let Some(workflow) = stale {
+        let said = "set aside · `{workflow}` stays not run: its files changed since its rehearsal · say what you want next";
+        return (voice.say(said)).replace("{workflow}", &workflow.display().to_string());
+    }
+    let said = if matches!(key, "gate" | "gate_choice") {
+        "set aside · nothing was answered · the run stays paused until you answer \"{label}\""
+    } else {
+        "set aside · nothing was answered · \"{label}\" still waits for you"
+    };
+    (voice.say(said)).replace("{label}", label)
+}
+
 impl Pending {
+    /// What this decision stands for ([`Identity`]).
+    pub(super) fn identity(&self) -> Identity {
+        (self.waiting.clone(), self.context.clone())
+    }
+
+    /// Whether this is the recovery of a saved workflow whose files changed since its rehearsal:
+    /// a card over the free prompt, no decision the Session waits for.
+    fn recovers(&self) -> bool {
+        (self.context.as_deref()).is_some_and(|context| context.starts_with(STALE_RUN))
+    }
+
     fn matches(&self, runtime: &SessionRuntime, text: &str, witness: &str) -> bool {
         let snapshot = runtime.work();
         self.witness == witness
@@ -418,6 +452,32 @@ impl Pending {
 }
 
 impl Live {
+    /// `Esc` on the decision `waiting` paints, nothing left to undo: its card steps aside, never
+    /// answered (NIK-227). The Session still waits as it did; this host says what stays undecided
+    /// and paints that state's own prompt until the Session asks something else. Nothing painted
+    /// as `waiting` sets nothing aside, nor does a fresh spending question (its cancel or Ctrl+C
+    /// leaves it, nothing sent) or a candidate awaiting qualification (it reads the next line).
+    pub(super) fn set_card_aside(&mut self, waiting: &Waiting) -> Vec<Beat> {
+        let Waiting::Action { key, asked } = waiting else {
+            return Vec::new();
+        };
+        let Some((pending, runtime)) = (self.action.as_ref().zip(self.runtime.as_ref()))
+            .filter(|(pending, _)| pending.witness == asked.witness)
+        else {
+            return Vec::new();
+        };
+        if pending.waiting.requires_fresh_input() || runtime.waiting_judgment().is_some() {
+            return Vec::new();
+        }
+        let voice = Voice {
+            lang: self.lang(),
+            ascii: self.ascii,
+        };
+        let said = undecided(runtime, key, &asked.label, voice);
+        self.set_aside = Some(pending.identity());
+        vec![Beat::Say(Committed::new(Kind::Notice, said)), self.wait()]
+    }
+
     /// No action falls through into a new intent, another question or settings.
     pub(super) fn action_answer(&mut self, reply: Reply<'_>, witness: &str) -> Turn {
         let text = reply.text();
@@ -426,6 +486,13 @@ impl Live {
         };
         if !pending.matches(runtime, text, witness) {
             return self.not_shown(text);
+        }
+        // The recovery of a drifted saved workflow asks the Session nothing: what is sent from
+        // it, its act or one's own words, is the person's next line, and its card steps aside
+        // (NIK-227: words came back « not taken » under it, and its act brought it back).
+        if pending.recovers() {
+            self.set_aside = Some(pending.identity());
+            return self.answer(text);
         }
         if let work::Waiting::Consent { proposal } = &pending.waiting
             && !self

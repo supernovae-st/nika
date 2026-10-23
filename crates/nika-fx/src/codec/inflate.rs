@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! RFC 1950/1951 inflate — stored + fixed + dynamic Huffman. Hand-rolled from
 //! the RFC (puff-style canonical decoding) — proven in the FX spike against
 //! real zlib level-9 streams and Apple's encoder before landing here.

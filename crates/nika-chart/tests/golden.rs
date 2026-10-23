@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Golden-BYTE pins (CHT §3bis) — the attestation property as a test.
 //! If a toolchain bump or refactor changes ONE byte, this fails loudly.
 //! Pinned 2026-07-09 post vision-pass-2 (macOS · pinned via CI matrix at W2).

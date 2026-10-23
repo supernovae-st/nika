@@ -948,11 +948,15 @@ fn a_ceiling_saved_with_other_bytes_refuses_the_revision_before_any_call() {
         moved
     );
     // The moved bytes are not the ones the trial ran: the rehearsal's witness refuses them
-    // before any Run, in its own words.
+    // before any Run, in its own words, and says what a retry as rehearsed puts back (NIK-227).
     let run = s.turn("run it");
+    let rehearsed = &nika_event::source_id::sha256_hex(base.as_bytes())[..12];
+    let refused = format!(
+        "the saved workflow `compiled-workflow.nika` is not the rehearsed one · the rehearsal of `compiled-workflow.nika` was withdrawn for this attempt · nothing was run · to retry it as rehearsed, put `compiled-workflow.nika` back to the rehearsed workflow's bytes (sha256 {rehearsed}) · or ask Nika to adapt the workflow to the changed files"
+    );
     assert!(
         matches!(&run, TurnOutcome::Refusal(r) if r.class == RefusalClass::StaleRevision
-            && r.text == "the saved workflow `compiled-workflow.nika` is not the rehearsed one · the rehearsal of `compiled-workflow.nika` was withdrawn for this attempt · nothing was run · restore the original file and ask to retry, or ask Nika to adapt the workflow to the changed files"),
+            && r.text == refused),
         "{run:?}"
     );
     assert_eq!(peer.bodies().len(), calls, "nothing sent");

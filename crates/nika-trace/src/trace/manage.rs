@@ -127,7 +127,10 @@ pub fn load_events(args: &super::action::TraceArgs) -> Result<Vec<nika_event::Ev
     };
     let raw =
         std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    recover_events(&raw, &path.display().to_string())
+    let mut events = recover_events(&raw, &path.display().to_string())?;
+    // NIK-131 · the values the journal keeps beside it show and replay as journaled.
+    let _kept = nika_dap::spill::rehydrate(&mut events, &path);
+    Ok(events)
 }
 
 /// Parse an NDJSON trace, tolerating a truncated/corrupt TAIL — a crashed run

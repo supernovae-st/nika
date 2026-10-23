@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Extended-Wilkinson tick labeling · Talbot, Lin & Hanrahan, `InfoVis` 2010
 //! (DOI 10.1109/TVCG.2010.130) · CRAFT-implemented from the paper + the R
 //! `labeling::extended` reference. Density term uses the `2 − max(ρ/ρt, ρt/ρ)`

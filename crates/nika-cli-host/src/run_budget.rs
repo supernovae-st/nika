@@ -15,7 +15,7 @@
 // Host interaction/protocol projection is this module's effect boundary.
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use nika_check::{CheckReport, CostCeiling};
 use nika_schema::raw::RawWorkflow;
@@ -58,7 +58,9 @@ pub fn preflight(
 /// The cost gate over a run's frozen plan and its validated bindings (B11 ·
 /// descended from the CLI's run adapter): a run every admitted lane of which
 /// sits on a harness (`--access codex` and its kin) is bounded by the seat's
-/// subscription, so the cap gates the priced builtins only.
+/// subscription, so the cap gates the priced builtins only. `settled` names
+/// the tasks a resumed journal completed: cache hits that spend nothing, so
+/// the floor prices the work still to run (NIK-245 · empty on a fresh run).
 ///
 /// # Errors
 /// As [`preflight_bound`].
@@ -69,16 +71,17 @@ pub fn plan_gate(
     max_cost_usd: Option<f64>,
     output_json: bool,
     plan: &nika_providers::ExecutionAccessPlan,
+    settled: &BTreeSet<String>,
 ) -> Result<(), u8> {
     let seated_on_harness = plan.admitted().next().is_some()
         && plan
             .admitted()
             .all(|(_, lane)| matches!(lane.plan.chosen, nika_types::access::AccessClass::Harness));
-    preflight_bound(
+    preflight_remaining(
         wf,
         report,
         effective,
-        max_cost_usd,
+        (max_cost_usd, settled),
         output_json,
         seated_on_harness,
     )
@@ -101,19 +104,42 @@ pub fn preflight_bound(
     output_json: bool,
     seated_on_harness: bool,
 ) -> Result<(), u8> {
+    let fresh = BTreeSet::new();
+    preflight_remaining(
+        wf,
+        report,
+        (model_override, bindings),
+        (max_cost_usd, &fresh),
+        output_json,
+        seated_on_harness,
+    )
+}
+
+/// [`preflight_bound`] over the work still to run: the tasks in `settled`
+/// (a resumed journal's successes) leave the floor and the unbounded
+/// warning, through the runtime's ONE remaining-work law
+/// (`nika_runtime::budget_floor_refusal_remaining`).
+fn preflight_remaining(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    (model_override, bindings): (Option<&str>, &BTreeMap<String, Value>),
+    (max_cost_usd, settled): (Option<f64>, &BTreeSet<String>),
+    output_json: bool,
+    seated_on_harness: bool,
+) -> Result<(), u8> {
     let Some(budget) = max_cost_usd else {
         return Ok(());
     };
     let effective = effective_cost(wf, model_override, bindings);
-    let cost = effective.as_ref().unwrap_or(&report.cost);
-    if let Some(err) = nika_runtime::budget_floor_refusal_bound_over(
+    let cost = nika_runtime::remaining_cost(effective.as_ref().unwrap_or(&report.cost), settled);
+    if let Some(err) = nika_runtime::budget_floor_refusal_remaining(
         wf,
         report,
         Some(budget),
-        model_override,
-        bindings,
+        (model_override, bindings),
         seated_on_harness,
         &nika_service_execution::access::provider_probes_env(),
+        settled,
     ) {
         crate::run_protocol::emit_diagnostic(&err.to_string(), output_json);
         return Err(exit::FILE);
@@ -128,7 +154,7 @@ pub fn preflight_bound(
         eprintln!(
             "⚠ --max-cost-usd {budget}: {} — the budget bounds METERED spend \
              only; local/mock work never trips it",
-            nika_runtime::unbounded_breakdown(cost)
+            nika_runtime::unbounded_breakdown(&cost)
         );
     }
     Ok(())
@@ -156,7 +182,7 @@ fn effective_cost(
     clippy::float_cmp
 )]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
 
     use nika_schema::{FileId, ParseMode, parse};
     use serde_json::{Value, json};
@@ -388,6 +414,44 @@ mod tests {
             preflight_bound(&wf, &report, (None, &bindings), Some(0.001), false, false),
             Err(crate::output::exit::FILE),
             "the xAI image floor still refuses a tiny cap"
+        );
+    }
+
+    /// NIK-245 · a resume's preflight prices the work still to run. The image
+    /// the paused leg made is served from its journal (a cache hit), so the
+    /// cap that leg left, below the whole floor, admits the answer at the gate;
+    /// a fresh run under the same cap still refuses the $0.02 image.
+    #[test]
+    fn a_resumed_preflight_prices_only_the_work_still_to_run() {
+        let yaml = image_generate_yaml("xai").replace(
+            "\"nika:image_generate\"]",
+            "\"nika:image_generate\", \"nika:prompt\"]",
+        ) + "  keep:\n    after: { og: success }\n    invoke: { tool: \"nika:prompt\", args: { mode: confirm, message: \"Keep it?\" } }\n";
+        let wf = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean(), "fixture checks clean: {report:?}");
+        let plan = nika_providers::resolve_execution_plan(&[], &[], None);
+        let bindings = BTreeMap::new();
+        let gate = |settled: &BTreeSet<String>| {
+            super::plan_gate(
+                &wf,
+                &report,
+                (None, &bindings),
+                Some(0.01),
+                false,
+                &plan,
+                settled,
+            )
+        };
+        assert_eq!(
+            gate(&BTreeSet::new()),
+            Err(crate::output::exit::FILE),
+            "a fresh run: the $0.02 image floor refuses $0.01"
+        );
+        assert_eq!(
+            gate(&BTreeSet::from(["og".to_owned()])),
+            Ok(()),
+            "resumed: the image is a cache hit, the gate costs nothing"
         );
     }
 
