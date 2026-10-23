@@ -4,7 +4,9 @@
 //! A persisted engine pause keeps its actual question in the reopened native picker.
 use super::*;
 use crate::composer::Composer;
+use crate::composer::answer::{Offered, Sent};
 use crate::model::{Presentation, Shape, UiState};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 
@@ -151,6 +153,79 @@ fn a_reopened_gate_keeps_its_exact_question_in_the_native_menu_and_f2() {
             assert!(text.contains(exact), "{exact}: {text}");
         }
     }
+}
+
+/// A typed yes or no answers the gate exactly as picking its row does (NIK-194: « oui » and
+/// « yes » typed under « answer yes or no » sent nothing): each whole-line word, French or
+/// English, leaves as the act of the row it names (an offer, as that row's own `Enter` sends
+/// it), and the Session resumes the paused run with the very answer that row gives.
+#[test]
+fn a_typed_yes_or_no_answers_the_gate_as_its_row_does() {
+    let key = |code: KeyCode| KeyEvent::new(code, KeyModifiers::NONE);
+    for (words, row, resumed) in [
+        ("oui", 0, "ask=true"),
+        ("yes", 0, "ask=true"),
+        ("Oui !", 0, "ask=true"),
+        ("non", 1, "ask=false"),
+        ("no", 1, "ask=false"),
+        ("No.", 1, "ask=false"),
+    ] {
+        let typed = gate_answered(words, |composer, gate| {
+            for c in words.chars() {
+                assert!(composer.own_key(key(KeyCode::Char(c))), "{words:?}: {c:?}");
+            }
+            composer.offer_key(gate, key(KeyCode::Enter))
+        });
+        let picked = gate_answered(words, |composer, gate| {
+            for _ in 0..=row {
+                composer.offer_key(gate, key(KeyCode::Down));
+            }
+            composer.offer_key(gate, key(KeyCode::Enter))
+        });
+        assert_eq!(typed, picked, "{words:?} answers as row {row} does");
+        assert_eq!(typed.1, resumed, "{words:?}");
+    }
+}
+
+/// The reopened gate answered by `act` on its native card: the key `Enter` sent, and the answer
+/// the paused run resumes with.
+fn gate_answered(
+    words: &str,
+    act: impl Fn(&mut Composer, &Waiting) -> Offered,
+) -> (String, String) {
+    let room = Room::new("typed-gate");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let (home, _, _) = persisted_gate(&room, &calls);
+    let (mut live, beats) = reopened(&room, home, &calls);
+    let gate = waits(&beats).expect("the native gate");
+    let Waiting::Action { asked, .. } = &gate else {
+        panic!("{words:?}: no native gate: {gate:?}")
+    };
+    let mut composer = Composer::new();
+    composer.set_focused(true);
+    composer.follow(&gate);
+    let Offered::Answer(sent) = act(&mut composer, &gate) else {
+        panic!("{words:?}: Enter sent nothing")
+    };
+    assert_eq!(
+        composer.in_flight(),
+        Some(Sent::Offer),
+        "{words:?}: an offer"
+    );
+    let (busy, _) = std::sync::mpsc::channel();
+    let (queue, _) = std::sync::mpsc::sync_channel(8);
+    let seen = Seen::new(queue, Arc::new(feed::Gap::default()));
+    let turn = live.pick_bound(&sent, &asked.witness, &busy, &seen);
+    assert!(turn.handoff.is_some(), "{words:?}: {:?}", turn.beats);
+    let Some((_, Work::Resume { answer, .. })) = &live.pending else {
+        panic!("{words:?}: the paused run is not resumed: {:?}", turn.beats)
+    };
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "{words:?}: no model read it"
+    );
+    (sent, answer.clone())
 }
 
 #[test]
