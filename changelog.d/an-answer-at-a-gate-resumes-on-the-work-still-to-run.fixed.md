@@ -6,5 +6,6 @@
   terminal and `nika run --resume <trace> --answer <task>=<value>` alike. The CLI preflight and
   the runtime's own launch gate now price the work still to run: a task the resumed journal
   completed is a cache hit and costs nothing, with any child workflow or priced builtin it
-  calls, and a branch the answer closes was already priced closed. What still runs is judged
-  as before, and a fresh run's floor is unchanged.
+  calls, and a branch the answer closes was already priced closed. A step edited since the
+  pause runs again and is still priced by the runtime's gate. What still runs is judged as
+  before, and a fresh run's floor is unchanged.

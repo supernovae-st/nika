@@ -1037,10 +1037,10 @@ where
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<RunOutcome, RuntimeError> {
-        // A launch refusal precedes the prologue: zero events, zero spend. A resumed
-        // run's journaled successes are cache hits: its floor prices the rest (NIK-245).
-        let settled: std::collections::BTreeSet<String> =
-            self.resume_plan.keys().cloned().collect();
+        // A launch refusal precedes the prologue: zero events, zero spend. A resumed run's
+        // unedited journaled successes are cache hits: its floor prices the rest (NIK-245).
+        let identity = self.resume_context(wf, &BTreeMap::new());
+        let settled = resume::settled(&self.resume_plan, wf, &identity);
         admit::gates_with_transport(
             wf,
             report,

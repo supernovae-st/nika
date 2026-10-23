@@ -511,6 +511,56 @@ pub(crate) fn stamp(
     consts: &BTreeMap<String, Value>,
     ctx: &ResumeContext,
 ) -> Option<ResumeStamp> {
+    let definition = definition_identity(task, ctx)?;
+    let inputs = input_value(task, records, inputs, consts, ctx)?;
+    let key = ResumeKey::new(
+        task.id.value.clone(),
+        task.action.verb().to_owned(),
+        definition,
+        inputs,
+    );
+    // A secret value that flowed into a rendered input (through an
+    // upstream record) would make the input hash an oracle — refuse.
+    if ctx.leaks_secret(&key.input_jcs_text()?) {
+        return None;
+    }
+    Some(ResumeStamp {
+        def_hash: key.definition_hash()?,
+        input_hash: key.input_hash()?,
+    })
+}
+
+/// The tasks of `wf` a resume serves from its journal (NIK-245): each
+/// journaled success whose definition is the one this run executes. An
+/// edited task runs again, so its cost stays in the launch floor; an input
+/// that changed is known only at its render, where the run's ledger bounds it.
+pub(crate) fn settled(
+    plan: &ResumePlan,
+    wf: &RawWorkflow,
+    ctx: &ResumeContext,
+) -> std::collections::BTreeSet<String> {
+    (wf.tasks.iter().map(|task| &task.value))
+        .filter(|task| {
+            let Some(prior) = plan.get(&task.id.value) else {
+                return false;
+            };
+            let id = task.id.value.clone();
+            let verb = task.action.verb().to_owned();
+            (definition_identity(task, ctx))
+                .and_then(|definition| {
+                    ResumeKey::new(id, verb, definition, Value::Null).definition_hash()
+                })
+                .is_some_and(|hash| hash == prior.def_hash)
+        })
+        .map(|task| task.id.value.clone())
+        .collect()
+}
+
+/// A task's definition identity this run: its behavior-bearing fields as
+/// written, with what else decides its behavior (the effective default
+/// model, the access pin and lane, its skills' texts, its children's
+/// closures). `None` = not resume-eligible.
+fn definition_identity(task: &RawTask, ctx: &ResumeContext) -> Option<Value> {
     let mut definition = definition_value(task)?;
     // #409 · a model-less infer/agent task RUNS on the effective default
     // model, so that model joins its DEFINITION identity — swapping the
@@ -578,22 +628,7 @@ pub(crate) fn stamp(
             .as_object_mut()?
             .insert("child_closure".to_owned(), Value::Object(closures));
     }
-    let inputs = input_value(task, records, inputs, consts, ctx)?;
-    let key = ResumeKey::new(
-        task.id.value.clone(),
-        task.action.verb().to_owned(),
-        definition,
-        inputs,
-    );
-    // A secret value that flowed into a rendered input (through an
-    // upstream record) would make the input hash an oracle — refuse.
-    if ctx.leaks_secret(&key.input_jcs_text()?) {
-        return None;
-    }
-    Some(ResumeStamp {
-        def_hash: key.definition_hash()?,
-        input_hash: key.input_hash()?,
-    })
+    Some(definition)
 }
 
 /// Does this task's behavior depend on the run's DEFAULT model? True

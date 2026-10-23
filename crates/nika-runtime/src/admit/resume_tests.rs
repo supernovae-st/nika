@@ -87,18 +87,19 @@ fn blocked_prompt() -> ToolResult {
     result
 }
 
-/// What one leg is given: the wire's answers, the tool's answers, and the
-/// resume (plan · ticket · answer) of a continued leg.
-struct Leg {
+/// What one leg is given: the workflow, the wire's answers, the tool's
+/// answers, and the resume (plan · ticket · answer) of a continued leg.
+struct Leg<'s> {
+    source: &'s str,
     wire: Vec<String>,
     tools: Vec<ToolResult>,
     ceiling: f64,
     resume: Option<(ResumePlan, PausedApproval, Value)>,
 }
 
-async fn run_leg(leg: Leg) -> Result<(RunOutcome, Vec<Event>), RuntimeError> {
+async fn run_leg(leg: Leg<'_>) -> Result<(RunOutcome, Vec<Event>), RuntimeError> {
     let wf = nika_schema::parse(
-        GATED,
+        leg.source,
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     )
@@ -214,6 +215,7 @@ fn paused_from(events: &[Event]) -> PausedApproval {
 /// The first leg: `draft` is priced and paid, the gate pauses the run.
 async fn paused_leg() -> (f64, Vec<Event>) {
     let (outcome, events) = run_leg(Leg {
+        source: GATED,
         wire: vec![answer(1000)],
         tools: vec![blocked_prompt()],
         ceiling: CEILING,
@@ -289,6 +291,7 @@ async fn resumed_leg(answer_value: bool) -> (RunOutcome, Vec<Event>) {
     ];
     let resume = (plan_from(&first), paused_from(&first), json!(answer_value));
     run_leg(Leg {
+        source: GATED,
         wire,
         tools,
         ceiling: left,
@@ -321,6 +324,27 @@ async fn a_yes_at_the_gate_is_recorded_on_resume_under_what_the_pause_left() {
     completed.sort_unstable();
     assert_eq!(completed, vec!["log", "review", "send"]);
     assert!(settled(&events, EventKind::TaskSkipped).is_empty());
+}
+
+/// A step edited since the pause is no cache hit: it runs again, so its cost
+/// stays in the resumed leg's floor, which refuses what the pause left.
+#[tokio::test]
+async fn a_step_edited_since_the_pause_is_priced_again() {
+    let (spent, first) = paused_leg().await;
+    let edited = GATED.replace("Draft the note.", "Draft the memo.");
+    let resume = (plan_from(&first), paused_from(&first), json!(false));
+    let refused = run_leg(Leg {
+        source: &edited,
+        wire: Vec::new(),
+        tools: Vec::new(),
+        ceiling: CEILING - spent,
+        resume: Some(resume),
+    })
+    .await;
+    let Err(RuntimeError::BudgetFloor { message }) = refused else {
+        panic!("the edited step is priced again and refused: {refused:?}");
+    };
+    assert!(message.contains("floor $0.010200"), "{message}");
 }
 
 fn parsed(yaml: &str) -> (nika_schema::raw::RawWorkflow, nika_check::CheckReport) {
