@@ -4605,6 +4605,60 @@ pub fn nika_dap::sign::check_workflow_bytes(path: &std::path::Path, data: &[u8])
 pub fn nika_dap::sign::sidecar_path(workflow: &std::path::Path) -> std::path::PathBuf
 pub fn nika_dap::sign::sign_workflow_bytes(path: &std::path::Path, data: &[u8], sk: &minisign::secret_key::SecretKey, pk_box: &str) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub fn nika_dap::sign::sign_workflow_with(path: &std::path::Path, sk: &minisign::secret_key::SecretKey, pk_box: &str) -> core::result::Result<alloc::string::String, alloc::string::String>
+pub mod nika_dap::spill
+#[non_exhaustive] pub struct nika_dap::spill::Rehydrated
+pub nika_dap::spill::Rehydrated::restored: usize
+pub nika_dap::spill::Rehydrated::unresolved: alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_dap::spill::Rehydrated
+pub fn nika_dap::spill::Rehydrated::clone(&self) -> nika_dap::spill::Rehydrated
+impl core::cmp::Eq for nika_dap::spill::Rehydrated
+impl core::cmp::PartialEq for nika_dap::spill::Rehydrated
+pub fn nika_dap::spill::Rehydrated::eq(&self, other: &nika_dap::spill::Rehydrated) -> bool
+impl core::fmt::Debug for nika_dap::spill::Rehydrated
+pub fn nika_dap::spill::Rehydrated::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::spill::Rehydrated
+impl<D> owo_colors::OwoColorize for nika_dap::spill::Rehydrated
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::spill::Rehydrated where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::spill::Rehydrated::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::spill::Rehydrated where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::spill::Rehydrated::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::spill::Rehydrated where U: core::convert::From<T>
+pub fn nika_dap::spill::Rehydrated::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::spill::Rehydrated where U: core::convert::Into<T>
+pub type nika_dap::spill::Rehydrated::Error = core::convert::Infallible
+pub fn nika_dap::spill::Rehydrated::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::spill::Rehydrated where U: core::convert::TryFrom<T>
+pub type nika_dap::spill::Rehydrated::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::spill::Rehydrated::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::spill::Rehydrated where T: core::clone::Clone
+pub type nika_dap::spill::Rehydrated::Owned = T
+pub fn nika_dap::spill::Rehydrated::clone_into(&self, target: &mut T)
+pub fn nika_dap::spill::Rehydrated::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::spill::Rehydrated where T: 'static + ?core::marker::Sized
+pub fn nika_dap::spill::Rehydrated::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::spill::Rehydrated where T: ?core::marker::Sized
+pub fn nika_dap::spill::Rehydrated::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::spill::Rehydrated where T: ?core::marker::Sized
+pub fn nika_dap::spill::Rehydrated::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::spill::Rehydrated where T: core::clone::Clone
+pub unsafe fn nika_dap::spill::Rehydrated::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::spill::Rehydrated
+pub fn nika_dap::spill::Rehydrated::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::spill::Rehydrated where T: core::clone::Clone
+pub fn nika_dap::spill::Rehydrated::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::spill::Rehydrated where T: 'static
+pub fn nika_dap::spill::Rehydrated::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::spill::Rehydrated where T: ?core::marker::Sized
+pub fn nika_dap::spill::Rehydrated::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::spill::Rehydrated::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::spill::Rehydrated
+impl<T> tracing::instrument::WithSubscriber for nika_dap::spill::Rehydrated
+impl<T> typenum::type_operators::Same for nika_dap::spill::Rehydrated
+pub type nika_dap::spill::Rehydrated::Output = T
+pub const nika_dap::spill::SPILLED_FIELDS: &str
+pub fn nika_dap::spill::rehydrate(events: &mut [nika_event::event::Event], journal: &std::path::Path) -> nika_dap::spill::Rehydrated
+pub fn nika_dap::spill::unresolved_values(raw: &str, journal: &std::path::Path) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_dap::spill::values_dir(journal: &std::path::Path) -> std::path::PathBuf
 pub mod nika_dap::stats
 #[non_exhaustive] pub enum nika_dap::stats::Prior
 pub nika_dap::stats::Prior::Bands

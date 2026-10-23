@@ -155,7 +155,7 @@ fn read_value(dir: &Path, digest: &str) -> Option<String> {
 }
 
 /// What [`rehydrate`] restored.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Rehydrated {
     /// Values read back from beside the journal.
@@ -172,7 +172,10 @@ pub struct Rehydrated {
 #[must_use]
 pub fn rehydrate(events: &mut [Event], journal: &Path) -> Rehydrated {
     let dir = values_dir(journal);
-    let mut report = Rehydrated::default();
+    let mut report = Rehydrated {
+        restored: 0,
+        unresolved: Vec::new(),
+    };
     for event in events.iter_mut() {
         let Some(keys) = event.str_field(SPILLED_FIELDS).and_then(listed_keys) else {
             continue;

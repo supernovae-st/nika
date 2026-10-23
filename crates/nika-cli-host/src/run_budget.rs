@@ -99,7 +99,7 @@ pub fn plan_gate(
 pub fn preflight_bound(
     wf: &RawWorkflow,
     report: &CheckReport,
-    effective: (Option<&str>, &BTreeMap<String, Value>),
+    (model_override, bindings): (Option<&str>, &BTreeMap<String, Value>),
     max_cost_usd: Option<f64>,
     output_json: bool,
     seated_on_harness: bool,
@@ -108,7 +108,7 @@ pub fn preflight_bound(
     preflight_remaining(
         wf,
         report,
-        effective,
+        (model_override, bindings),
         (max_cost_usd, &fresh),
         output_json,
         seated_on_harness,

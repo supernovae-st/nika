@@ -245,6 +245,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::arm::args::ArmA
 impl<T> typenum::type_operators::Same for nika_cli::verbs::arm::args::ArmArgs
 pub type nika_cli::verbs::arm::args::ArmArgs::Output = T
 pub struct nika_cli::verbs::arm::args::FireArgs
+pub nika_cli::verbs::arm::args::FireArgs::env_file: core::option::Option<std::path::PathBuf>
 pub nika_cli::verbs::arm::args::FireArgs::label: alloc::string::String
 pub nika_cli::verbs::arm::args::FireArgs::now: core::option::Option<alloc::string::String>
 pub nika_cli::verbs::arm::args::FireArgs::unit_rev: core::option::Option<alloc::string::String>
