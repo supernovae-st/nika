@@ -197,6 +197,62 @@ impl Witness {
         }
         (!moved.is_empty()).then(|| moved.join(" · "))
     }
+
+    /// What restoring the world this selection was made on would put back, in words, for a
+    /// person deciding whether to (NIK-227: « restore the original file » would have put a stale
+    /// value back, unsaid): each path that moved back to the bytes it held when rehearsed, in
+    /// place of what it holds now, a file that appeared removed, and with `saved` that workflow
+    /// back to the candidate's own bytes. Only digests were kept, never content, so the bytes are
+    /// named by size and digest. Nothing nameable moved, or a project that cannot be observed
+    /// again: the files as they were when rehearsed.
+    #[must_use]
+    pub fn restoration(&self, root: &Path, saved: Option<&Path>) -> String {
+        let saved = saved.map(|path| path.display().to_string());
+        let mut paths: Vec<String> = self.world.iter().map(|(path, _)| path.clone()).collect();
+        paths.extend(saved.clone());
+        let now = on_worker(|| observe(root, &paths)).and_then(Result::ok);
+        let now = now.unwrap_or_default();
+        let mut back: Vec<String> = (self.world.iter().zip(&now))
+            .filter_map(|((path, then), seen)| put_back(path, then, seen))
+            .collect();
+        let rehearsed = |seen: &Result<Seen, String>| match seen {
+            Ok(Seen::File(digest)) => digest.sha256 == self.candidate_sha256,
+            _ => false,
+        };
+        if let (Some(path), Some(seen)) = (saved, now.get(self.world.len()))
+            && !rehearsed(seen)
+        {
+            back.push(format!(
+                "put `{path}` back to the rehearsed workflow's bytes (sha256 {})",
+                short(&self.candidate_sha256)
+            ));
+        }
+        if back.is_empty() {
+            return "put back the files as they were when rehearsed".to_owned();
+        }
+        back.join("; ")
+    }
+}
+
+/// What putting `path` back as it was when rehearsed (`then`) does to what it holds `now`, in
+/// words; `None` when nothing moved there.
+fn put_back(path: &str, then: &Seen, now: &Result<Seen, String>) -> Option<String> {
+    match (then, now) {
+        (Seen::File(was), Ok(Seen::File(is))) if was == is => None,
+        (Seen::Absent, Ok(Seen::Absent)) => None,
+        (Seen::File(was), Ok(Seen::File(is))) => Some(format!(
+            "put `{path}` back to the {} B it held when rehearsed (sha256 {}), in place of its {} B now",
+            was.bytes,
+            short(&was.sha256),
+            is.bytes
+        )),
+        (Seen::File(was), _) => Some(format!(
+            "put `{path}` back, the {} B it held when rehearsed (sha256 {})",
+            was.bytes,
+            short(&was.sha256)
+        )),
+        (Seen::Absent, _) => Some(format!("remove `{path}`, absent when rehearsed")),
+    }
 }
 
 /// What moved at `path` since it held `then`, in words; `None` when nothing did.

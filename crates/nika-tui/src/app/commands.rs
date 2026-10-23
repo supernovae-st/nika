@@ -184,6 +184,8 @@ pub(super) enum Caught {
     /// The typed choice holding the line sent this, bound to the question
     /// painted ([`super::surface`]).
     Sent(Said),
+    /// `Esc` with nothing left to undo on a decision: its card is set aside, unanswered.
+    SetAside,
 }
 
 impl<C: Conversation + 'static> Shell<C> {
@@ -429,7 +431,7 @@ impl<C: Conversation + 'static> Shell<C> {
                 None => Err(UiEvent::Key(key)),
                 // A typed choice holds no line while a turn works: nothing
                 // is sent here.
-                Some(Caught::Read | Caught::Sent(_)) => {
+                Some(Caught::Read | Caught::Sent(_) | Caught::SetAside) => {
                     self.typed_live = true;
                     Ok(Heard::Redraw)
                 }

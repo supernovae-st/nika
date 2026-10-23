@@ -658,6 +658,7 @@ impl<C: Conversation + 'static> Shell<C> {
                 self.send_activated(said, broker)
             }
             Some(Caught::Sent(said)) => self.send_stepped(said, broker),
+            Some(Caught::SetAside) => self.set_aside(),
             None => self.route_key(key, broker),
         }
     }
@@ -711,6 +712,7 @@ impl<C: Conversation + 'static> Shell<C> {
         let said = match self.pick(key) {
             Picked::Sent(said) => said,
             Picked::Moved => return Ok(Step::Stay),
+            Picked::SetAside => return self.set_aside(),
             Picked::Pass => match self.composer.handle(key) {
                 ComposerAction::Submit(line) => self.said(line),
                 ComposerAction::Complete | ComposerAction::Edited | ComposerAction::Ignored => {

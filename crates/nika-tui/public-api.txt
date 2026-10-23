@@ -1120,6 +1120,7 @@ pub fn nika_tui::model::Script::perform(&mut self, _handoff: &nika_tui::model::H
 pub fn nika_tui::model::Script::pick_bound(&mut self, keys: &str, witness: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>, seen: &nika_tui::session::feed::Seen) -> nika_tui::model::Turn
 pub fn nika_tui::model::Script::project(&self) -> core::option::Option<nika_tui_view::workspace::project::ProjectView>
 pub fn nika_tui::model::Script::prove(&mut self, _execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui_view::workspace::live::acquired::Proven>
+pub fn nika_tui::model::Script::set_aside(&mut self, _waiting: &nika_tui::model::Waiting) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::spend(&self) -> core::option::Option<f64>
 pub fn nika_tui::model::Script::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::model::Script::submit(&mut self, line: &str) -> nika_tui::model::Turn
@@ -1309,6 +1310,7 @@ pub fn nika_tui::model::Conversation::perform(&mut self, handoff: &nika_tui::mod
 pub fn nika_tui::model::Conversation::pick_bound(&mut self, keys: &str, witness: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>, seen: &nika_tui::session::feed::Seen) -> nika_tui::model::Turn
 pub fn nika_tui::model::Conversation::project(&self) -> core::option::Option<nika_tui_view::workspace::project::ProjectView>
 pub fn nika_tui::model::Conversation::prove(&mut self, _execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui_view::workspace::live::acquired::Proven>
+pub fn nika_tui::model::Conversation::set_aside(&mut self, _waiting: &nika_tui::model::Waiting) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Conversation::spend(&self) -> core::option::Option<f64>
 pub fn nika_tui::model::Conversation::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::model::Conversation::submit(&mut self, line: &str) -> nika_tui::model::Turn
@@ -1339,6 +1341,7 @@ pub fn nika_tui::model::Script::perform(&mut self, _handoff: &nika_tui::model::H
 pub fn nika_tui::model::Script::pick_bound(&mut self, keys: &str, witness: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>, seen: &nika_tui::session::feed::Seen) -> nika_tui::model::Turn
 pub fn nika_tui::model::Script::project(&self) -> core::option::Option<nika_tui_view::workspace::project::ProjectView>
 pub fn nika_tui::model::Script::prove(&mut self, _execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui_view::workspace::live::acquired::Proven>
+pub fn nika_tui::model::Script::set_aside(&mut self, _waiting: &nika_tui::model::Waiting) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::spend(&self) -> core::option::Option<f64>
 pub fn nika_tui::model::Script::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::model::Script::submit(&mut self, line: &str) -> nika_tui::model::Turn
@@ -1369,6 +1372,7 @@ pub fn nika_tui::session::Live::perform(&mut self, handoff: &nika_tui::model::Ha
 pub fn nika_tui::session::Live::pick_bound(&mut self, keys: &str, witness: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>, seen: &nika_tui::session::feed::Seen) -> nika_tui::model::Turn
 pub fn nika_tui::session::Live::project(&self) -> core::option::Option<nika_tui_view::workspace::project::ProjectView>
 pub fn nika_tui::session::Live::prove(&mut self, execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui_view::workspace::live::acquired::Proven>
+pub fn nika_tui::session::Live::set_aside(&mut self, waiting: &nika_tui::model::Waiting) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::spend(&self) -> core::option::Option<f64>
 pub fn nika_tui::session::Live::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::session::Live::submit(&mut self, line: &str) -> nika_tui::model::Turn
@@ -1645,6 +1649,7 @@ pub fn nika_tui::session::Live::perform(&mut self, handoff: &nika_tui::model::Ha
 pub fn nika_tui::session::Live::pick_bound(&mut self, keys: &str, witness: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>, seen: &nika_tui::session::feed::Seen) -> nika_tui::model::Turn
 pub fn nika_tui::session::Live::project(&self) -> core::option::Option<nika_tui_view::workspace::project::ProjectView>
 pub fn nika_tui::session::Live::prove(&mut self, execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui_view::workspace::live::acquired::Proven>
+pub fn nika_tui::session::Live::set_aside(&mut self, waiting: &nika_tui::model::Waiting) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::spend(&self) -> core::option::Option<f64>
 pub fn nika_tui::session::Live::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::session::Live::submit(&mut self, line: &str) -> nika_tui::model::Turn

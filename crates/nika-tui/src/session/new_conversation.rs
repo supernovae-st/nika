@@ -31,9 +31,13 @@ impl Live {
         };
         let banner = runtime.banner();
         // What this host held of the conversation that ended goes with it; the project's facts
-        // (its schedules, the run an earlier session kept) stay.
+        // (its schedules, the run an earlier session kept) stay. A card that waited stays aside
+        // over the new conversation, whose words say what carries over (NIK-227: the recovery of
+        // a drifted workflow came back over it).
         self.pending = None;
-        self.action = None;
+        if let Some(waited) = self.action.take() {
+            self.set_aside = Some(waited.identity());
+        }
         self.ran_here = false;
         self.picker_guide = None;
         self.fold_candidate();

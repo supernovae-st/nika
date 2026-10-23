@@ -26,8 +26,10 @@
 //! first. With nothing typed, a settings list closes at once, whatever row is
 //! selected (browsing is no choice): back to the list above it (the line its
 //! [`Asked`] names) or, at its top, the current choice kept. On a decision or
-//! a question it empties the selection, then sends nothing at all and says
-//! so, so no `no`, `cancel` or discard row is ever chosen by it.
+//! a question it empties the selection; then a decision's card is set aside,
+//! unanswered ([`Offered::SetAside`]: every card can be left, NIK-227), and a
+//! question sends nothing at all and says so, so no `no`, `cancel` or discard
+//! row is ever chosen by it.
 //!
 //! A selection belongs to one logical question: the epoch of the session that
 //! asked it, its key and its exact offers (keys and labels, in order). That
@@ -77,6 +79,9 @@ pub(crate) enum Offered {
     Delegate,
     /// The key was taken and nothing was sent; the hint row says why.
     Notice(&'static str),
+    /// `Esc` with nothing left to undo on a decision: its card steps aside, never answered,
+    /// and the conversation says what stays undecided.
+    SetAside,
 }
 
 /// The key a selection of the knowledge decision belongs to.
@@ -705,7 +710,8 @@ impl Composer {
     /// typed, a settings list sends the line back to the list above or, at its
     /// top, keeps the current choice, whatever row is selected (`at`); a
     /// decision or a question empties the selection, then is never answered by
-    /// it: nothing is sent and the hint row says so.
+    /// it: a decision's card is set aside, and a question sends nothing and the
+    /// hint row says so.
     fn escape(
         &mut self,
         waiting: &Waiting,
@@ -724,6 +730,9 @@ impl Composer {
         if at.is_some() && !settings {
             self.answer.selected = None;
             return Offered::Moved;
+        }
+        if (self.answer.scope.as_ref()).is_some_and(|scope| scope.kind == ScopeKind::Action) {
+            return Offered::SetAside;
         }
         if !settings {
             return Offered::Notice(ESC_ANSWERS_NOTHING);
@@ -1068,15 +1077,16 @@ mod tests {
         );
         assert_eq!(
             composer.offer_key(&next, key(KeyCode::Esc)),
-            Offered::Notice(ESC_ANSWERS_NOTHING),
-            "Esc never sends the decision's `no` row"
+            Offered::SetAside,
+            "Esc never sends the decision's `no` row: it sets the card aside"
         );
         assert!(composer.offers_armed(&next), "nothing is in flight");
     }
 
     /// `Esc` steps back one level and never answers a decision: the own
-    /// reply's words first, then the selection, then a notice; the `no`,
-    /// `cancel` and discard rows are only ever sent by `Enter` on them.
+    /// reply's words first, then the selection, then a decision's card is set
+    /// aside and a question says Esc answers nothing; the `no`, `cancel` and
+    /// discard rows are only ever sent by `Enter` on them (NIK-227).
     #[test]
     fn esc_clears_words_then_the_selection_and_never_answers_a_decision() {
         let save = Waiting::Action {
@@ -1105,6 +1115,11 @@ mod tests {
             3,
         ));
         for painted in [save, knowledge, choosing("w1"), action("action:4")] {
+            let last = if matches!(painted, Waiting::Action { .. }) {
+                Offered::SetAside
+            } else {
+                Offered::Notice(ESC_ANSWERS_NOTHING)
+            };
             let mut composer = composer(&painted);
             composer.offer_key(&painted, key(KeyCode::End));
             if composer.own_key(key(KeyCode::Char('x'))) {
@@ -1123,7 +1138,7 @@ mod tests {
             for _ in 0..3 {
                 assert_eq!(
                     composer.offer_key(&painted, key(KeyCode::Esc)),
-                    Offered::Notice(ESC_ANSWERS_NOTHING),
+                    last,
                     "{painted:?}"
                 );
             }

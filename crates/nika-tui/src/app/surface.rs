@@ -11,10 +11,12 @@
 //! inert until that answer's turn returns. With nothing to send, `Enter`
 //! says so and sends nothing. `Esc` steps back one level and never answers
 //! a decision (`crate::composer::answer`); when it has nothing left to undo
-//! there, the hint row says so. Every other key is taken and does nothing,
-//! except the shell's own (`Ctrl+C`, `Ctrl+O`, `Ctrl+T`, `Ctrl+L`, the
-//! function keys, `Shift+Tab`), so Stop, the commands, the reader, the layout
-//! and the focus routes to the project and the object stay reachable.
+//! there, a decision's card is set aside and the conversation says what stays
+//! undecided, and a question's hint row says so. Every other key is taken and
+//! does nothing, except the shell's own (`Ctrl+C`, `Ctrl+O`, `Ctrl+T`,
+//! `Ctrl+L`, the function keys, `Shift+Tab`), so Stop, the commands, the
+//! reader, the layout and the focus routes to the project and the object stay
+//! reachable.
 
 use std::time::{Duration, Instant};
 
@@ -133,14 +135,10 @@ impl<C: Conversation + 'static> Shell<C> {
                 )));
             }
             Offered::Notice(words) => {
-                let words = if words == ESC_ANSWERS_NOTHING && covers(&self.state) {
-                    ESC_ON_A_COVERING_CARD
-                } else {
-                    words
-                };
-                self.state.completion = Some(own(words, self.state.ascii));
+                self.esc_notice(words);
                 return Some(Caught::Read);
             }
+            Offered::SetAside => return Some(Caught::SetAside),
             Offered::Pass => {}
         }
         if !self.composer.own_key(key)
@@ -167,6 +165,32 @@ impl<C: Conversation + 'static> Shell<C> {
             self.state.completion = Some(own(notice, self.state.ascii));
         }
         Some(Caught::Read)
+    }
+
+    /// The hint a key's notice leaves: `Esc` answering nothing names `PgUp` on a card that covers
+    /// the conversation.
+    fn esc_notice(&mut self, words: &'static str) {
+        let words = if words == ESC_ANSWERS_NOTHING && covers(&self.state) {
+            ESC_ON_A_COVERING_CARD
+        } else {
+            words
+        };
+        self.state.completion = Some(own(words, self.state.ascii));
+    }
+
+    /// `Esc` with nothing left to undo on a decision: the conversation sets its card aside, never
+    /// answering it, and says what stays undecided, its state's own prompt painted instead
+    /// (NIK-227). A conversation that sets none aside leaves the card, the hint saying `Esc`
+    /// answers nothing.
+    pub(super) fn set_aside(&mut self) -> std::io::Result<Step> {
+        let waiting = self.state.waiting.clone();
+        let beats = (self.conversation.as_mut()).map_or_else(Vec::new, |c| c.set_aside(&waiting));
+        if beats.is_empty() {
+            self.esc_notice(ESC_ANSWERS_NOTHING);
+            return Ok(Step::Stay);
+        }
+        self.apply_all(beats)?;
+        Ok(Step::Stay)
     }
 
     /// A key while the person reads the conversation behind a covering card: the page keys, the

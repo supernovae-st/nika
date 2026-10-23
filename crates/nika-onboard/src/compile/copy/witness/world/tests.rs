@@ -286,6 +286,54 @@ async fn a_symlink_before_or_after_capture_never_supplies_a_before_state() {
     assert!(error.contains("symlink"), "{error}");
 }
 
+/// What restoring the rehearsed world would put back is said path by path (NIK-227: « restore
+/// the original file » would have put a stale value back, unsaid): an edited source back to its
+/// rehearsed bytes in place of today's, a destination that appeared removed, a vanished source
+/// back, the saved workflow back to the candidate's bytes; nothing moved, the files as they were.
+#[tokio::test]
+async fn a_restoration_says_what_it_puts_back() {
+    let root = world(None);
+    let witness = before(root.path())
+        .await
+        .witness(CANDIDATE, &passed())
+        .await
+        .unwrap();
+    let input = Digest::of(INPUT.as_bytes());
+    let short = &input.sha256[..12];
+    assert_eq!(
+        witness.restoration(root.path(), None),
+        "put back the files as they were when rehearsed"
+    );
+    std::fs::write(root.path().join("in.txt"), "edited by hand").unwrap();
+    std::fs::write(root.path().join("out.txt"), "made by hand").unwrap();
+    assert_eq!(
+        witness.restoration(root.path(), None),
+        format!(
+            "put `./in.txt` back to the {} B it held when rehearsed (sha256 {short}), in place of its 14 B now; remove `./out.txt`, absent when rehearsed",
+            input.bytes
+        )
+    );
+    std::fs::remove_file(root.path().join("in.txt")).unwrap();
+    std::fs::remove_file(root.path().join("out.txt")).unwrap();
+    assert_eq!(
+        witness.restoration(root.path(), None),
+        format!(
+            "put `./in.txt` back, the {} B it held when rehearsed (sha256 {short})",
+            input.bytes
+        )
+    );
+    std::fs::write(root.path().join("in.txt"), INPUT).unwrap();
+    let saved = Path::new("saved.nika");
+    std::fs::write(root.path().join(saved), "other candidate").unwrap();
+    assert_eq!(
+        witness.restoration(root.path(), Some(saved)),
+        format!(
+            "put `saved.nika` back to the rehearsed workflow's bytes (sha256 {})",
+            &sha256(CANDIDATE)[..12]
+        )
+    );
+}
+
 #[tokio::test]
 async fn the_checked_witness_still_refuses_a_changed_saved_candidate() {
     let root = world(None);

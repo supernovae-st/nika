@@ -228,6 +228,36 @@ fn gate_answered(
     (sent, answer.clone())
 }
 
+/// `Esc` sets the gate's card aside (NIK-227): the conversation says the run stays paused on its
+/// question and nothing was answered, and the gate's own prompt waits; a line beside the gate
+/// keeps the card aside, and « oui » at the prompt resumes the run as the card's act does.
+#[test]
+fn a_gate_set_aside_stays_paused_and_takes_a_yes_at_its_prompt() {
+    let room = Room::new("gate-set-aside");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let (home, _, _) = persisted_gate(&room, &calls);
+    let (mut live, beats) = reopened(&room, home, &calls);
+    let gate = waits(&beats).expect("the native gate");
+    let aside = live.set_aside(&gate);
+    let said = joined(&aside);
+    assert!(
+        said.contains("nothing was answered") && said.contains("\"Ship it?\""),
+        "{said}"
+    );
+    assert_eq!(waits(&aside), Some(Waiting::Gate), "{aside:?}");
+    assert!(live.pending.is_none(), "nothing resumed");
+    let why = live.submit("pourquoi ?");
+    assert_eq!(waits(&why.beats), Some(Waiting::Gate), "{:?}", why.beats);
+    assert!(live.pending.is_none(), "a why answers nothing");
+    let turn = live.submit("oui");
+    assert!(turn.handoff.is_some(), "{:?}", turn.beats);
+    let Some((_, Work::Resume { answer, .. })) = &live.pending else {
+        panic!("the paused run is not resumed: {:?}", turn.beats)
+    };
+    assert_eq!(answer, "ask=true");
+    assert_eq!(calls.load(Ordering::SeqCst), 0, "no model read it");
+}
+
 #[test]
 fn a_reopened_gate_with_a_missing_trace_stays_a_notice_without_a_native_action() {
     let room = Room::new("reopened-gate-missing");

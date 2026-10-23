@@ -264,6 +264,8 @@ pub(super) enum Picked {
     Moved,
     /// `Enter` on a selection: its key, bound to the question painted.
     Sent(Said),
+    /// `Esc` with nothing left to undo on a decision: its card is set aside, unanswered.
+    SetAside,
 }
 
 /// The hint once words that were not taken are back in the box.
@@ -300,6 +302,7 @@ impl<C: Conversation + 'static> Shell<C> {
             }
             Offered::Answer(sent) => Picked::Sent(self.offered(sent)),
             Offered::Delegate => Picked::Sent(delegated(&self.state.waiting, self.state.voice())),
+            Offered::SetAside => Picked::SetAside,
         }
     }
 

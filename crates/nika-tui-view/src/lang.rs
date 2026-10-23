@@ -2067,6 +2067,19 @@ const FR: &[(&str, &str)] = &[
         "nothing sent · Esc never answers · PgUp: history",
         "rien n'est envoyé · Échap ne répond jamais · PgUp : historique",
     ),
+    // A decision's card left with Esc (NIK-227): what stays undecided.
+    (
+        "set aside · `{workflow}` stays not run: its files changed since its rehearsal · say what you want next",
+        "mise de côté · `{workflow}` reste non lancé : ses fichiers ont changé depuis sa répétition · dites ce que vous voulez ensuite",
+    ),
+    (
+        "set aside · nothing was answered · the run stays paused until you answer \"{label}\"",
+        "mise de côté · rien n'a été répondu · le run reste en pause jusqu'à votre réponse à « {label} »",
+    ),
+    (
+        "set aside · nothing was answered · \"{label}\" still waits for you",
+        "mise de côté · rien n'a été répondu · « {label} » vous attend toujours",
+    ),
     (
         "an intelligence is required · ↑↓ choose, then Enter",
         "une intelligence est requise · ↑↓ choisissez, puis Entrée",
