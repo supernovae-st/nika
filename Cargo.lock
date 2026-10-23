@@ -4544,6 +4544,7 @@ name = "nika-check"
 version = "0.123.0-preview.1"
 dependencies = [
  "criterion",
+ "jiff-tzdb",
  "nika-cap",
  "nika-catalog",
  "nika-check-analyzer",

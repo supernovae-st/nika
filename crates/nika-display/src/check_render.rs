@@ -460,7 +460,7 @@ fn arg_rows(report: &CheckReport) -> Vec<String> {
     let mut rows: Vec<String> = report
         .unknown_args
         .iter()
-        .filter(|u| !(u.tool == "nika:read" && u.invalid_value.is_some()))
+        .filter(|u| u.invalid_value.is_none())
         .map(|u| {
             // With a suggestion the fix is the rename; without one (a
             // wrong-name-entirely miss — `extract` for fetch's `mode`),
@@ -476,14 +476,14 @@ fn arg_rows(report: &CheckReport) -> Vec<String> {
             )
         })
         .collect();
-    // Value errors use the checker's teaching, never the unknown-key wording.
-    rows.extend(
-        report
-            .findings
-            .iter()
-            .filter(|f| f.kind == "unknown_arg" && f.code.as_deref() == Some("NIKA-INVOKE-002"))
-            .map(|f| format!("[NIKA-INVOKE-002] {}", f.message)),
-    );
+    // Value errors use the checker's teaching and the run's code (`NIKA-INVOKE-002` · a
+    // closed literal or a `nika:date` zone's `NIKA-BUILTIN-<TOOL>-001`), never the
+    // unknown-key wording.
+    rows.extend(report.findings.iter().filter_map(|f| {
+        let code = f.code.as_deref()?;
+        (f.kind == "unknown_arg" && code != BUILTIN_CONTRACT)
+            .then(|| format!("[{code}] {}", f.message))
+    }));
     rows.extend(report.missing_args.iter().map(|m| {
         format!(
             "[{BUILTIN_CONTRACT}] `{}` (task `{}`) is missing required `{}`",

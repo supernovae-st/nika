@@ -34,6 +34,7 @@ nika-source  = { path = "../nika-source", version = "0.123.0-preview.1" }  # lex
 serde      = { workspace = true }
 serde_json = { workspace = true }
 url        = { workspace = true }   # permits.net.http host extraction — the SAME WHATWG parse the runtime http effect connects with (no check↔runtime drift · pure/sync)
+jiff-tzdb  = { workspace = true }   # a literal `nika:date` `tz:` (NIK-236) — the SAME embedded IANA tzdb the builtin resolves zones from (`jiff_tzdb::get`), so check refuses exactly the zones the run refuses · pure data, zero I/O
 # jaq (the jq compile-check) and jsonschema (the schema meta-check) DESCENDED
 # with the analysis substrate to nika-check-analyzer (ADR-115) — they were
 # only ever reached from `analyzer::{jq_lint, schema_lint}`. The judgment
