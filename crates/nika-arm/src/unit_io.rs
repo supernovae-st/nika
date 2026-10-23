@@ -403,13 +403,13 @@ pub fn persist_env_file(root: &Path, file: &Path) -> Result<(), UnitIoError> {
         .map_err(|e| UnitIoError::host(format!("arm --emit · {}: {e}", sidecar.display())))
 }
 
-/// Read this project's units in a dest that already carries the wrap —
+/// Read this project's units in a dest that already loads an env file —
 /// recovering the path is what makes `--write` over field units
-/// non-destructive. The wrap is the env-exec pattern itself (GENERATED
-/// header optional on a unit named with this project's key — stripping
-/// the comment must not reopen a weaker overwrite). Two named paths
-/// refuse rather than pick. A named path that is gone refuses rather
-/// than emit the short argv over the wrap.
+/// non-destructive. The load is the firer's `--env-file`, or an earlier
+/// engine's env-exec wrap (GENERATED header optional on a unit named with
+/// this project's key — stripping the comment must not reopen a weaker
+/// overwrite). Two named paths refuse rather than pick. A named path that
+/// is gone refuses rather than emit the short argv over the unit.
 fn env_file_from_existing_units(
     dir: &Path,
     project: &ProjectUnits,
@@ -464,7 +464,10 @@ fn env_file_from_existing_units(
                     }
                 }
             }
-            None if body.contains(" && exec ") || body.contains("&amp;&amp; exec") => {
+            None if body.contains(" && exec ")
+                || body.contains("&amp;&amp; exec")
+                || body.contains("<string>--env-file</string>") =>
+            {
                 return Err(weaker_refusal(None));
             }
             None => {}
@@ -483,16 +486,16 @@ fn unit_text(path: &Path) -> Option<String> {
     Some(String::from_utf8_lossy(&bytes).into_owned())
 }
 
-/// Fail closed: never emit a short argv over a unit that sources keys.
+/// Fail closed: never emit a short argv over a unit that loads keys.
 fn weaker_refusal(file: Option<&Path>) -> UnitIoError {
     match file {
         Some(file) => UnitIoError::host(format!(
-            "arm --emit · --env-file {} · illisible — un emit sans le drapeau enlèverait le wrap `. env && exec` (plus de clés) · remède: `nika arm --emit launchd --env-file {}`",
+            "arm --emit · --env-file {} · illisible — un emit sans le drapeau enlèverait l'env file de l'unité (plus de clés) · remède: `nika arm --emit launchd --env-file {}`",
             file.display(),
             file.display()
         )),
         None => UnitIoError::host(
-            "arm --emit · une unité source déjà un env file (`. env && exec`) · un emit sans --env-file l'enlèverait (plus de clés) · remède: `nika arm --emit launchd --env-file <fichier>`"
+            "arm --emit · une unité charge déjà un env file · un emit sans --env-file l'enlèverait (plus de clés) · remède: `nika arm --emit launchd --env-file <fichier>`"
                 .to_owned(),
         ),
     }

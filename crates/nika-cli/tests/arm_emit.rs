@@ -152,62 +152,93 @@ fn emit_beat_writes_only_that_beats_unit() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// An env file of plain `KEY=value` lines, as a dotenv holds them, reaches the program the
-/// launchd unit runs: the wrap exports what the file assigns (supernovae-1c, 2026-10-17: the
-/// sourced keys never reached the firer, and every scheduled API run failed).
+/// A beat that reads a provider key as a run does: the variable passes to its one step through
+/// `permits.env`, and the step prints it (the run's trace keeps the output).
+const KEYED_WORKFLOW: &str = "nika: keyed\npermits:\n  exec: [\"printenv\"]\n  env: [\"NIKA_QA_DOTENV_KEY\"]\ntasks:\n  key:\n    exec: { command: [\"printenv\", \"NIKA_QA_DOTENV_KEY\"] }\n";
+
+/// The `ProgramArguments` of a printed plist, unescaped, in order.
+fn program_arguments(plist: &str) -> Vec<String> {
+    let start = plist.find("<key>ProgramArguments</key>").expect("an argv");
+    let argv = &plist[start..];
+    let end = argv.find("</array>").expect("the argv ends");
+    (argv[..end].lines().map(str::trim))
+        .filter_map(|line| line.strip_prefix("<string>")?.strip_suffix("</string>"))
+        .map(|arg| {
+            arg.replace("&apos;", "'")
+                .replace("&quot;", "\"")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&amp;", "&")
+        })
+        .collect()
+}
+
+/// NIK-198 · an env file of plain `KEY=value` lines, as a dotenv holds them, reaches the run a
+/// launchd unit fires. The unit hands the file to `nika arm fire --env-file`, which reads it
+/// itself: no shell sources it (supernovae-1c, 2026-10-17: the sourced keys never reached the
+/// firer, and every scheduled API run failed). The unit's own argv runs under launchd's
+/// environment (HOME, USER and the system PATH alone), the injected clock aside.
 #[test]
-fn a_dotenv_without_export_reaches_the_program_a_launchd_unit_runs() {
+fn a_dotenv_without_export_reaches_the_run_a_launchd_unit_fires() {
     let zone = machine_zone();
     let dir = project("dotenv", &registry_in(&zone));
     let home = home(&dir);
-    std::fs::write(
-        dir.join("keys.env"),
-        "# keys\nNIKA_QA_DOTENV_KEY=from-the-file\n",
-    )
-    .expect("dotenv");
-    let printer = dir.join("print-key.sh");
-    std::fs::write(&printer, "#!/bin/sh\nprintf '%s' \"$NIKA_QA_DOTENV_KEY\"\n").expect("printer");
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        std::fs::set_permissions(&printer, std::fs::Permissions::from_mode(0o755))
-            .expect("executable");
-    }
+    std::fs::write(dir.join("workflows/doctor.nika"), KEYED_WORKFLOW).expect("keyed beat");
+    let keys = dir.join("keys.env");
+    std::fs::write(&keys, "# keys\nNIKA_QA_DOTENV_KEY=from-the-file\n").expect("dotenv");
+    let keys_arg = keys.to_str().expect("utf-8");
     let out = arm(
         &dir,
         &home,
-        &[
-            "arm",
-            "--emit",
-            "launchd",
-            "--env-file",
-            dir.join("keys.env").to_str().expect("utf-8"),
-            "--nika-bin",
-            printer.to_str().expect("utf-8"),
-        ],
+        &["arm", "--emit", "launchd", "--env-file", keys_arg],
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert_eq!(out.status.code(), Some(0), "{stdout}");
-    let wrapped = (stdout.lines())
-        .map(str::trim)
-        .find(|line| line.starts_with("<string>set -a"))
-        .and_then(|line| line.strip_prefix("<string>")?.strip_suffix("</string>"))
-        .expect("the wrapped command")
-        .replace("&apos;", "'")
-        .replace("&quot;", "\"")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&amp;", "&");
-    let ran = Command::new("/bin/sh")
-        .args(["-c", &wrapped])
+    let argv = program_arguments(&stdout);
+    assert!(
+        !argv
+            .iter()
+            .any(|arg| arg == "/bin/sh" || arg.contains(". ")),
+        "no shell sources the file: {argv:?}"
+    );
+    assert_eq!(argv[1..4], ["arm", "fire", "doctor"], "{argv:?}");
+    let at = (argv.iter().position(|arg| arg == "--env-file")).expect("the firer gets the file");
+    assert_eq!(argv.get(at + 1).map(String::as_str), Some(keys_arg));
+    let slot = jiff::civil::date(2026, 8, 19)
+        .at(3, 2, 0, 0)
+        .in_tz(&zone)
+        .expect("a slot in the machine zone")
+        .to_string();
+    let fired = Command::new(&argv[0])
+        .args(&argv[1..])
+        .args(["--now", &slot])
+        .current_dir(&dir)
+        .stdin(std::process::Stdio::null())
         .env_clear()
+        .env("HOME", &home)
+        .env("USER", "nika-qa")
         .env("PATH", "/usr/bin:/bin")
+        .env("NIKA_KEYCHAIN", "off")
         .output()
-        .expect("the unit's command");
-    assert_eq!(
-        String::from_utf8_lossy(&ran.stdout),
-        "from-the-file",
-        "{wrapped} · {}",
-        String::from_utf8_lossy(&ran.stderr)
+        .expect("the unit's own argv");
+    let line = String::from_utf8_lossy(&fired.stdout);
+    let stderr = String::from_utf8_lossy(&fired.stderr);
+    assert_eq!(fired.status.code(), Some(0), "{line} · {stderr}");
+    assert!(
+        line.starts_with("fired doctor · slot "),
+        "{line} · {stderr}"
+    );
+    assert!(
+        !line.contains("from-the-file"),
+        "the firer never prints a value: {line}"
+    );
+    let last = std::fs::read_to_string(dir.join(".nika/arm/doctor/last.json")).expect("last.json");
+    let last: serde_json::Value = serde_json::from_str(&last).expect("last.json is JSON");
+    let trace = dir.join(last["trace"].as_str().expect("the fire's trace"));
+    let journal = std::fs::read_to_string(trace).expect("the trace");
+    assert!(
+        journal.contains("from-the-file"),
+        "the fired run read the key from the file"
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -374,9 +405,9 @@ fn emit_never_carries_a_secret_value() {
     assert!(!body.contains("hunter2-live-zz"), "D7: {body}");
 }
 
-/// #1069 — a flag-less re-emit must keep the wrap once `--env-file`
+/// #1069 — a flag-less re-emit must keep the env file once `--env-file`
 /// has been named (the sidecar remembers it). The projection gate
-/// teaches re-emit without the flag; forgetting the wrap was the
+/// teaches re-emit without the flag; forgetting the file was the
 /// destructive path.
 #[test]
 fn flagless_reemit_keeps_the_env_wrap_from_the_sidecar() {
@@ -435,19 +466,35 @@ fn flagless_reemit_keeps_the_env_wrap_from_the_sidecar() {
     let body = std::fs::read_to_string(second.join(format!("{}.plist", unit(&dir, "doctor"))))
         .expect("plist");
     assert!(
-        body.contains("/bin/sh"),
-        "le wrap demeure sans --env-file: {body}"
+        hands_the_firer(&body, &env_file),
+        "le fichier demeure sans --env-file: {body}"
     );
-    assert!(
-        body.contains(". ") && (body.contains("&amp;&amp; exec") || body.contains(" && exec ")),
-        "`. env && exec` n'est pas strippé: {body}"
-    );
-    assert!(body.contains("providers.env"), "{body}");
     assert!(!body.contains("hunter2-live-zz"), "D7: {body}");
 }
 
-/// #1069 — a dest that already carries `. env && exec` is recovered,
-/// not replaced by the short argv, even when the sidecar is gone.
+/// Whether a plist's firer is handed `env` (`--env-file <env>`), no shell between them.
+fn hands_the_firer(plist: &str, env: &Path) -> bool {
+    let argv = program_arguments(plist);
+    let env = env.to_str().expect("utf8");
+    !argv.iter().any(|arg| arg == "/bin/sh")
+        && argv
+            .windows(2)
+            .any(|pair| pair[0] == "--env-file" && pair[1] == env)
+}
+
+/// A unit an earlier engine wrote for this project: its firer wrapped in
+/// `/bin/sh -c 'set -a && . <env> && set +a && exec …'`, XML-escaped.
+fn wrapped_plist(label: &str, env: &Path) -> String {
+    format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<plist version=\"1.0\">\n<dict>\n\t<key>Label</key>\n\t<string>{label}</string>\n\t<key>ProgramArguments</key>\n\t<array>\n\t\t<string>/bin/sh</string>\n\t\t<string>-c</string>\n\t\t<string>set -a &amp;&amp; . &apos;{}&apos; &amp;&amp; set +a &amp;&amp; exec &apos;/usr/local/bin/nika&apos; &apos;arm&apos; &apos;fire&apos; &apos;doctor&apos;</string>\n\t</array>\n</dict>\n</plist>\n",
+        env.display()
+    )
+}
+
+/// #1069 — a dest unit that already loads an env file is recovered, not
+/// replaced by the short argv, even when the sidecar is gone: one this
+/// engine wrote (`--env-file`) and one an earlier engine wrapped in a shell,
+/// which the re-emit hands to the firer instead (NIK-198).
 #[test]
 fn reemit_does_not_strip_an_existing_env_wrap() {
     let zone = machine_zone();
@@ -473,40 +520,42 @@ fn reemit_does_not_strip_an_existing_env_wrap() {
     );
     assert_eq!(out.status.code(), Some(0));
     std::fs::remove_file(dir.join(".nika/arm/env-file")).expect("drop sidecar");
-
-    let out = arm(
-        &dir,
-        &home,
-        &[
-            "arm",
-            "--emit",
-            "launchd",
-            "--write",
-            "--out",
-            dest.to_str().expect("utf8"),
-        ],
-    );
-    assert_eq!(
-        out.status.code(),
-        Some(0),
-        "stderr: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
-    let body = std::fs::read_to_string(dest.join(format!("{}.plist", unit(&dir, "doctor"))))
-        .expect("plist");
-    assert!(
-        body.contains("/bin/sh") && body.contains("providers.env"),
-        "l'unité existante n'est pas strippée: {body}"
-    );
-    assert!(
-        body.contains("&amp;&amp; exec") || body.contains(" && exec "),
-        "`. env && exec` demeure: {body}"
-    );
+    let plist = dest.join(format!("{}.plist", unit(&dir, "doctor")));
+    for earlier in [false, true] {
+        if earlier {
+            std::fs::write(&plist, wrapped_plist(&unit(&dir, "doctor"), &env_file))
+                .expect("an earlier engine's unit");
+            std::fs::remove_file(dir.join(".nika/arm/env-file")).expect("drop sidecar");
+        }
+        let out = arm(
+            &dir,
+            &home,
+            &[
+                "arm",
+                "--emit",
+                "launchd",
+                "--write",
+                "--out",
+                dest.to_str().expect("utf8"),
+            ],
+        );
+        assert_eq!(
+            out.status.code(),
+            Some(0),
+            "stderr: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let body = std::fs::read_to_string(&plist).expect("plist");
+        assert!(
+            hands_the_firer(&body, &env_file),
+            "l'unité existante n'est pas strippée (earlier: {earlier}): {body}"
+        );
+    }
 }
 
-/// #1069 refuter — a dest wrap without the GENERATED header is still
-/// a wrap. Sidecar gone, env file gone: `--write` must refuse and
-/// leave `. env && exec` intact.
+/// #1069 refuter — a dest unit without the GENERATED header still loads
+/// its env file. Sidecar gone, env file gone: `--write` must refuse and
+/// leave the unit intact.
 #[test]
 fn reemit_refuses_a_wrap_without_generated_mark() {
     let zone = machine_zone();
@@ -559,9 +608,8 @@ fn reemit_refuses_a_wrap_without_generated_mark() {
     let after = std::fs::read_to_string(&plist).expect("after");
     assert_eq!(after, before, "l'unité n'est pas écrasée");
     assert!(
-        after.contains("/bin/sh")
-            && (after.contains("&amp;&amp; exec") || after.contains(" && exec ")),
-        "`. env && exec` demeure: {after}"
+        hands_the_firer(&after, &env_file),
+        "l'env file demeure: {after}"
     );
 }
 
@@ -1024,8 +1072,8 @@ fn a_flagless_emit_never_borrows_another_projects_env_file() {
         "beta never sources alpha's file: {body}"
     );
     assert!(
-        !body.contains("/bin/sh"),
-        "no wrap without beta's own env file: {body}"
+        !body.contains("/bin/sh") && !body.contains("--env-file"),
+        "no env file without beta's own: {body}"
     );
     assert!(
         !beta.join(".nika/arm/env-file").exists(),

@@ -902,6 +902,50 @@ fn fire_prints_exactly_one_stdout_line() {
     assert_one_line(&out);
 }
 
+/// NIK-198 · an env file the firer cannot read refuses before anything fires
+/// (the environment class: the scheduled run's keys live there), naming the
+/// file; a line that is not `KEY=value` is named by its number, never its text.
+#[test]
+fn fire_refuses_an_env_file_it_cannot_read_and_never_prints_a_value() {
+    let dir = project("env-refused", DAILY_3AM, &[("doctor.nika", TRUE)]);
+    let fire = |env: &std::path::Path| {
+        bin()
+            .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
+            .arg("--env-file")
+            .arg(env)
+            .current_dir(&dir)
+            .output()
+            .expect("spawn fire")
+    };
+    let gone = dir.join("gone.env");
+    let out = fire(&gone);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(3), "{stderr}");
+    assert!(
+        stderr.contains(&format!("env file {}: cannot be read", gone.display())),
+        "{stderr}"
+    );
+    assert!(stderr.contains("nothing fired"), "{stderr}");
+    assert!(last_json(&dir, "doctor").is_none(), "nothing fired");
+    assert!(traces(&dir).is_empty(), "nothing ran");
+
+    let pasted = dir.join("pasted.env");
+    std::fs::write(&pasted, "OK=1\nsk-pasted-secret-sentinel\n").expect("env file");
+    let out = fire(&pasted);
+    let said = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(out.status.code(), Some(3), "{said}");
+    assert!(said.contains("line 2"), "{said}");
+    assert!(
+        !said.contains("sentinel"),
+        "a value is never printed: {said}"
+    );
+    assert!(last_json(&dir, "doctor").is_none(), "nothing fired");
+}
+
 #[test]
 fn fire_refuses_the_v0_unsupported_policies_with_teaching() {
     let registry = concat!(

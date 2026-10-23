@@ -12,9 +12,14 @@ expression: text
 	<string>nika.arm.0a1b2c3d.weekly</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/bin/sh</string>
-		<string>-c</string>
-		<string>set -a &amp;&amp; . &apos;/projet/.env&apos; &amp;&amp; set +a &amp;&amp; exec &apos;/usr/local/bin/nika&apos; &apos;arm&apos; &apos;fire&apos; &apos;weekly&apos; &apos;--unit-rev&apos; &apos;1785742d575a&apos;</string>
+		<string>/usr/local/bin/nika</string>
+		<string>arm</string>
+		<string>fire</string>
+		<string>weekly</string>
+		<string>--unit-rev</string>
+		<string>1785742d575a</string>
+		<string>--env-file</string>
+		<string>/projet/.env</string>
 	</array>
 	<key>WorkingDirectory</key>
 	<string>/projet</string>
@@ -46,9 +51,14 @@ expression: text
 	<string>nika.arm.0a1b2c3d.nightly</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/bin/sh</string>
-		<string>-c</string>
-		<string>set -a &amp;&amp; . &apos;/projet/.env&apos; &amp;&amp; set +a &amp;&amp; exec &apos;/usr/local/bin/nika&apos; &apos;arm&apos; &apos;fire&apos; &apos;nightly&apos; &apos;--unit-rev&apos; &apos;e54e7da7eb48&apos;</string>
+		<string>/usr/local/bin/nika</string>
+		<string>arm</string>
+		<string>fire</string>
+		<string>nightly</string>
+		<string>--unit-rev</string>
+		<string>e54e7da7eb48</string>
+		<string>--env-file</string>
+		<string>/projet/.env</string>
 	</array>
 	<key>WorkingDirectory</key>
 	<string>/projet</string>

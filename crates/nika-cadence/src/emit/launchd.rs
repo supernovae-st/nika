@@ -275,14 +275,19 @@ fn plist(
     body
 }
 
-/// The argv the unit runs — D2's one firer, D7's env wrap. Without an
-/// env file: the binary + the words. With one: a `/bin/sh -c` wrapper
-/// sources the file and `exec`s — the unit names the env PATH only.
+/// The argv the unit runs — D2's one firer, D7's env file. Without an env
+/// file: the binary + the words. With one, a beat's firer is handed it,
+/// `--env-file <path>`, and reads it itself (NIK-198: launchd starts the unit
+/// with no shell, and a sourced dotenv exported nothing). The serve unit,
+/// whose verb takes no such flag, keeps the `/bin/sh -c` wrap that exports
+/// the file and `exec`s. The unit names the env PATH only, never a value.
 fn program_args(ctx: &EmitCtx, words: &[&str]) -> Vec<String> {
     let bin = ctx.nika_bin.display().to_string();
+    let argv = std::iter::once(bin.clone()).chain(words.iter().map(|w| (*w).to_owned()));
     match &ctx.env_file {
-        None => std::iter::once(bin)
-            .chain(words.iter().map(|w| (*w).to_owned()))
+        None => argv.collect(),
+        Some(env) if words.starts_with(&["arm", "fire"]) => argv
+            .chain(["--env-file".to_owned(), env.display().to_string()])
             .collect(),
         Some(env) => {
             let quoted: Vec<String> = words.iter().map(|w| sh_quote(w)).collect();

@@ -87,6 +87,11 @@ pub struct FireArgs {
     /// gives is refused as stale, never read as a slot that is not due.
     #[arg(long, hide = true, value_name = "REV")]
     pub unit_rev: Option<String>,
+    /// The env file whose variables the fired run gets (a dotenv:
+    /// `KEY=value` lines, `export ` optional, comments, quotes). An emitted
+    /// launchd unit passes it; no value is ever printed.
+    #[arg(long, value_name = "FILE")]
+    pub env_file: Option<PathBuf>,
 }
 
 /// The OS an emitted unit targets — the W3 surface, declared now.

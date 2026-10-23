@@ -22,6 +22,9 @@ use crate::verbs::{self, VerbOutput, exit};
 /// the shared firing transaction to the in-process CLI executor.
 #[must_use]
 pub fn run(fire: &FireArgs) -> VerbOutput {
+    if let Some(env_file) = fire.env_file.as_deref() {
+        return with_env_file(fire, env_file);
+    }
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let found = match project::discover(&cwd) {
         Ok(found) => found,
@@ -90,6 +93,58 @@ pub fn run(fire: &FireArgs) -> VerbOutput {
     let verdict = fire_beat(&ctx);
     let (text, code) = verdict.into_parts();
     VerbOutput { text, code }
+}
+
+/// NIK-198 · `--env-file <FILE>`: the firer reads the file itself, then fires
+/// the same beat as a process holding those variables, so every reader of the
+/// run (provider keys, `@env:` bindings, `permits.env`) sees them. launchd
+/// starts the unit with no shell, and a sourced dotenv exported nothing. A
+/// file that cannot be read refuses before anything fires; no value is printed.
+fn with_env_file(fire: &FireArgs, env_file: &Path) -> VerbOutput {
+    let label = &fire.label;
+    let vars = match nika_arm::env_file::read(env_file) {
+        Ok(vars) => vars,
+        Err(error) => {
+            return VerbOutput::env(format!(
+                "arm fire {label}: {error} · nothing fired (the run's keys live in this file)"
+            ));
+        }
+    };
+    let mut args = vec!["arm".to_owned(), "fire".to_owned(), label.clone()];
+    for (flag, value) in [("--now", &fire.now), ("--unit-rev", &fire.unit_rev)] {
+        if let Some(value) = value {
+            args.extend([flag.to_owned(), value.clone()]);
+        }
+    }
+    let error = refire(&args, &vars);
+    VerbOutput::env(format!(
+        "arm fire {label}: the beat could not be fired with its env file's variables ({error})"
+    ))
+}
+
+/// Become `nika <args>` with `vars` set: unix `exec`, so the beat fires in this
+/// same process (its pid, its descriptors: the unit's own logs). Returns why,
+/// only when that fails.
+#[cfg(unix)]
+// disallowed_types: `std::process::Command` — the kernel ShellExecutor seam
+// spawns children; replacing the CLI's own process image is no seam's job
+// (the sync CLI-surface carve-out of nika-cli-host's git probe).
+#[allow(clippy::disallowed_types)]
+fn refire(args: &[String], vars: &[(String, String)]) -> String {
+    use std::os::unix::process::CommandExt as _;
+    match std::env::current_exe() {
+        Ok(exe) => (std::process::Command::new(exe).args(args))
+            .envs(vars.iter().map(|(key, value)| (key, value)))
+            .exec()
+            .to_string(),
+        Err(error) => format!("this binary cannot name itself: {error}"),
+    }
+}
+
+/// Off unix there is no `exec`: an env file is a launchd or systemd unit's.
+#[cfg(not(unix))]
+fn refire(_args: &[String], _vars: &[(String, String)]) -> String {
+    "an env file is read on a unix host (launchd · systemd)".to_owned()
 }
 
 /// A wake from a unit written for another schedule: the revision it carries
