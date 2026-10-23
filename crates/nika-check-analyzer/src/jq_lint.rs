@@ -15,8 +15,9 @@
 //! call + its clean-error renderer are mirrored in both — exactly like the net
 //! `url_host` split (the layer cannot host a shared std jaq below both).
 //!
-//! Only a LITERAL program is checked; a `${{ }}`-templated one is built at
-//! run time and stays the runtime `NIKA-BUILTIN-JQ-001` check.
+//! Only a program known now is checked: a literal one, or one whose templates are all
+//! `${{ const.NAME }}`, compiled as the run builds it. Any other `${{ }}`-templated one is
+//! built at run time and stays the runtime `NIKA-BUILTIN-JQ-001` check.
 //!
 //! The diagnostic is a CLEAN one-line reason (NOT the raw jaq `Debug` repr the
 //! runtime used to leak · the jq-3 finding) — `Expect::as_str` + the offending
@@ -29,6 +30,8 @@ use jaq_json::Val;
 
 use nika_schema::error::SchemaError;
 use nika_schema::raw::{RawAction, RawWorkflow};
+
+use crate::static_ref::{bare_static_ref, static_literal_of};
 
 /// Compile-check a jq program with the runtime's exact jaq stack. `Ok(())`
 /// when it compiles; `Err(reason)` with a clean one-line message otherwise.
@@ -124,11 +127,11 @@ fn syntax_msg(expected: &str, at: &str) -> String {
 /// `nika:fetch` `mode: jq` `jq:`) and compile-check it.
 pub(super) fn scan_jq(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
     for task in &wf.tasks {
-        check_action(&task.value.action, errors);
+        check_action(wf, &task.value.action, errors);
     }
 }
 
-fn check_action(action: &RawAction, errors: &mut Vec<SchemaError>) {
+fn check_action(wf: &RawWorkflow, action: &RawAction, errors: &mut Vec<SchemaError>) {
     let RawAction::Invoke(invoke) = action else {
         return;
     };
@@ -150,10 +153,17 @@ fn check_action(action: &RawAction, errors: &mut Vec<SchemaError>) {
     let Some(program) = args.get(key).and_then(serde_json::Value::as_str) else {
         return;
     };
-    // A templated program is built at run time — the runtime check owns it.
-    if program.contains("${{") {
-        return;
-    }
+    // A templated program is built at run time from what only the run knows, and the runtime
+    // check owns it. One whose templates are all `const.*` is known now: it is compiled as the
+    // run builds it (live gauntlet wave 11 r03, 2026-10-20: `${{ const.target_dir }}` set
+    // unquoted in the expression failed the first paid run, « undefined filter or variable
+    // `notes` », after « propre ✔ »).
+    let built = program.contains("${{").then(|| const_built(wf, program));
+    let program = match &built {
+        Some(Some(built)) => built.as_str(),
+        Some(None) => return,
+        None => program,
+    };
     // THE PRE-FLIGHT DEPTH GUARD (Gate-11 security finding F1). jaq's parser
     // recurses once per nesting level with no limit of its own: 470 nested
     // brackets — a 1,047-byte paste — overflow a 1 MiB stack (the wasm32
@@ -190,6 +200,28 @@ fn check_action(action: &RawAction, errors: &mut Vec<SchemaError>) {
             span: Some(span),
         });
     }
+}
+
+/// `program` with each `${{ const.NAME }}` set as a run sets it in a string: a string constant
+/// as itself, any other value as its JSON. `None` when a template names anything else, or a
+/// constant with no literal ([`static_literal_of`]).
+fn const_built(wf: &RawWorkflow, program: &str) -> Option<String> {
+    let (mut built, mut rest) = (String::with_capacity(program.len()), program);
+    while let Some(open) = rest.find("${{") {
+        built.push_str(&rest[..open]);
+        let close = open + rest[open..].find("}}")? + 2;
+        let template = &rest[open..close];
+        if !matches!(bare_static_ref(template), Some(("const.", _))) {
+            return None;
+        }
+        match static_literal_of(wf, template)? {
+            serde_json::Value::String(text) => built.push_str(text),
+            value => built.push_str(&value.to_string()),
+        }
+        rest = &rest[close..];
+    }
+    built.push_str(rest);
+    Some(built)
 }
 
 /// The first Unicode class a string of `program` names for a regex (`\p{L}`, `\pL`, `\P{N}`),
@@ -423,6 +455,31 @@ mod tests {
         // The `errs.first()` is-empty arm (line 61) — a "" / "xyzzy" body mutant
         // on `render_load` cannot reproduce this exact fallback string.
         assert_eq!(render_load(&[]), "does not parse");
+    }
+
+    /// A program whose templates are all `const.*` is known now: it is compiled as the run builds
+    /// it. An unquoted constant that reads as jq names (live gauntlet wave 11 r03) is refused; the
+    /// same constant quoted compiles; a template only the run knows is left to the run.
+    #[test]
+    fn a_program_templated_by_constants_is_compiled_as_the_run_builds_it() {
+        let flagged = |expression: &str| {
+            let wf = wf_of(&format!(
+                "nika: notes-out\nconst:\n  target_dir: \"notes-en\"\ntasks:\n  assemble:\n    invoke: {{ tool: \"nika:jq\", args: {{ expression: '{expression}' }} }}\n"
+            ));
+            let mut errors = Vec::new();
+            scan_jq(&wf, &mut errors);
+            errors
+        };
+        let unquoted = flagged("[.[] | {path: (${{ const.target_dir }} + \"/\" + .name)}]");
+        assert_eq!(unquoted.len(), 1, "{unquoted:?}");
+        let SchemaError::ExpressionViolation { reason, .. } = &unquoted[0] else {
+            panic!("expected an ExpressionViolation, got {:?}", unquoted[0]);
+        };
+        assert!(reason.contains("jq compile error"), "{reason}");
+        let quoted = flagged("[.[] | {path: (\"${{ const.target_dir }}/\" + .name)}]");
+        assert!(quoted.is_empty(), "{quoted:?}");
+        let run_only = flagged("[.[] | {path: (${{ with.dir }} + .name)}]");
+        assert!(run_only.is_empty(), "{run_only:?}");
     }
 
     #[test]
