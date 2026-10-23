@@ -191,7 +191,7 @@ pub(super) fn leak_reason(
 /// must equal. `exec` for shells, the tool id for an invoke, and `infer` /
 /// `agent` for the provider-egress sink (BUG#3 · a prompt-only egress
 /// sanctioned by `{ to: "infer" }` / `{ to: "agent" }`).
-fn sink_id(action: &RawAction) -> &str {
+pub(super) fn sink_id(action: &RawAction) -> &str {
     match action {
         RawAction::Exec(_) => "exec",
         RawAction::Invoke(a) => match &a.target {
@@ -360,7 +360,7 @@ fn string_has_other_secret(text: &str, self_secret: &str) -> bool {
 /// sink with a literal URL arg — reuses the permits-fit extraction so the
 /// declass host check and the permits host check read the SAME signature.
 /// `None` for a non-net sink OR a templated/derived destination.
-fn literal_dest_host(action: &RawAction) -> Option<String> {
+pub(super) fn literal_dest_host(action: &RawAction) -> Option<String> {
     let RawAction::Invoke(a) = action else {
         return None; // host clauses are a network-tool notion
     };

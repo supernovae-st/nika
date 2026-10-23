@@ -580,6 +580,46 @@ tasks:
         );
     }
 
+    /// #1618's specimen: a bearer token pasted into a header is a SECRETS refusal naming the
+    /// argument and the repair, never « no declared secret reaches an effect », and the token
+    /// is printed nowhere.
+    #[test]
+    fn a_literal_bearer_header_is_a_secrets_refusal() {
+        let out = console(
+            r#"
+nika: secret-in-file
+model: mock/echo
+permits:
+  exec: false
+  tools: ["nika:fetch"]
+  net:
+    http: ["api.example.com"]
+tasks:
+  call:
+    invoke:
+      tool: nika:fetch
+      args:
+        url: https://api.example.com/v1
+        method: GET
+        headers:
+          Authorization: "Bearer sk-live-THISISFAKESECRETKEY"
+outputs:
+  ok: ${{ tasks.call.output }}
+"#,
+        );
+        assert!(
+            !out.contains("no declared secret reaches an effect"),
+            "the green sentence is gone:\n{out}"
+        );
+        assert!(
+            out.lines().any(|l| l.contains("SECRETS")
+                && l.contains("literal bearer token in `args.headers.Authorization`")
+                && l.contains("`secrets:`")),
+            "the SECRETS rung names the argument and the repair:\n{out}"
+        );
+        assert!(!out.contains("THISISFAKESECRETKEY"), "{out}");
+    }
+
     /// A sanctioned MCP egress is not a leak, but it is still an effect.
     /// Both SECRETS and JOURNEY must say so before suggesting a run.
     #[test]
