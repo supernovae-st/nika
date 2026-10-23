@@ -120,7 +120,16 @@ where
         Op::Pinned(path) => format!("{:?}", fs.read_pinned(p(path)).await),
         Op::Exists(path) => format!("{:?}", fs.exists(p(path)).await),
         Op::Canonical(path) => format!("{:?}", fs.canonicalize(p(path)).await),
-        Op::Meta(path) => format!("{:?}", fs.metadata(p(path)).await),
+        // The two passes read two builds of the scenario, so a file's device and inode differ
+        // between them by construction (APFS never reuses an inode; ext4 reuses one only when
+        // nothing else allocated in between). Everything else about the entry must agree.
+        Op::Meta(path) => format!(
+            "{:?}",
+            (fs.metadata(p(path)).await).map(|m| {
+                let links = m.identity.map(|identity| identity.links);
+                (m.len, m.is_file, m.is_dir, links)
+            })
+        ),
         Op::IsDir(path) => format!("{:?}", fs.metadata(p(path)).await.map(|m| m.is_dir)),
         Op::List(path) => format!("{:?}", fs.list_dir(p(path)).await),
         Op::Glob(root, pattern) => format!("{:?}", fs.glob(p(root), pattern).await),
