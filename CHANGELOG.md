@@ -16,6 +16,3950 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.123.0](https://github.com/supernovae-st/nika/compare/v0.123.0-preview.1..v0.123.0) - 2026-10-23
+
+Nika 0.123 is the open-source reference release of Nika: the Rust engine, the `nika` command
+line and its terminal workspace, and a TypeScript SDK (`@supernovae-st/nika` 0.123.0) that runs
+`.nika` workflows from an application. After this release the project is maintained: security
+fixes, bug fixes and compatibility. No hosted service is planned.
+
+What it does:
+
+- **Say it once, keep it as a file.** Describe an outcome in the terminal workspace (`nika`);
+  Nika asks only for what is missing, writes a `.nika` workflow, checks it and, where it can,
+  rehearses it on a copy of your files before you save or run anything.
+- **Audited before it runs.** `nika check` reads the whole file first: the effects it may
+  perform and nothing else (`permits:`), where secrets go, literal credentials, cost estimates
+  and the lethal trifecta, and it names the repair where it knows one.
+- **Metered and recorded while it runs.** `--max-cost-usd` caps a run, every run is recorded
+  under `.nika/traces/`, and a run paused at a human gate resumes with the person's answer.
+- **Scheduled by your own machine.** `nika arm` emits launchd or systemd units, with an env file
+  for the provider keys a scheduled run needs.
+- **Your choice of model.** The workflow file names its model, and Nika never substitutes
+  another one silently.
+
+Known limits are listed in plain words, each with a way around it:
+[Known limits in 0.123](https://docs.nika.sh/changelog/known-limits). In short: a rehearsal
+does not call models and replays only plain GETs of pages already observed; writing a workflow
+with a large model can take minutes; the terminal mixes English and French lines; the VS Code
+extension stays at 0.120; scheduled runs need your keys in an env file.
+
+The changes since the 0.123.0-preview.1 prerelease follow; those from 0.122.0 to that
+prerelease are in its own section of this changelog.
+
+### Added
+
+- **An ACP agent can lead a Session conversation with Nika's tools alone.** The harness opens
+  one persistent session per conversation (`SpawnedHarness::converse`) and sends one prompt per
+  user entry; the agent keeps the history and runs its own loop with no turn limit. Claude Code
+  gets the audited one-shot surface without `maxTurns` (no built-in tools, strict MCP, no
+  settings, plugins, skills or agents, nothing persisted, summarized thinking) and exactly one
+  MCP server, Nika's; Codex mounts it from its configuration, read back before the spawn with
+  every other server disabled. The transport follows the agent's advertised HTTP MCP capability
+  and is recorded; an agent that cannot mount what Nika offers is refused, never sent down the
+  one-shot path. Only Nika's own tools are allowed, once; every other permission is rejected and
+  recorded. Stop sends `session/cancel` once per turn, and each turn ends with its activity
+  record, where tool frames are expected activity.
+- **An admission tariff can name the dated models its provider serves, and a
+  cache-write rate.** `nika/inference-admission@1.2` adds two optional fields.
+  `served_models` lists the models the provider's own documentation names as
+  served for the selected model (a dated snapshot its replies report): a reply
+  naming one of them answers that same route at settlement, in a restored
+  checkpoint and in the per-dispatch record, and any other name leaves the
+  charge unknown. `cache_write_nano_per_token` prices input written to the
+  provider's cache, and a write rate above input reserves the whole context as
+  written; a tariff without it leaves a call that wrote the cache unknown, now
+  at settlement as well as in the per-dispatch record. No current row uses
+  either field. Pricing observations name `table_schema` `@1.2` and a
+  `cache_write_rate`, and records written under `@1.1` still read.
+- **Claude Sonnet 5.5, Opus 5.5, Haiku 5.5 and Fable 5.1 are admitted on the direct API.**
+  Each row reads Anthropic's pricing page of 2026-10-15: input, output, cache hit and
+  5-minute cache write, a 1M window (Claude Haiku 5.5 up to its 100,000-token lower
+  tier) and 128K output. The model choice offers the four first for an Anthropic key,
+  Sonnet 5.5 leading, each with its admitted output price. A Session allowance still
+  refuses a Claude author until the Anthropic wire settles bounded calls: a qualified
+  route is never sent in another wire's shape.
+- **Anthropic requests ask for prompt caching.** A conversation, or a request with tools,
+  now carries the automatic cache marker (five minutes) and a breakpoint on its last tool,
+  so a later turn reads its prefix at a tenth of the input price. A one-shot request sends
+  no marker, since a cache write costs a quarter more than the input it holds, and a
+  request that names its own `cache_control` keeps it unchanged.
+- **`nika arm --emit <OS> --beat <label>` emits one schedule's unit.** With `--write`, only that
+  beat's unit is written, and every other beat's unit stays as it is. Another beat that could not
+  arm no longer refuses the emission. An unknown label refuses with the labels `nika.yaml` gives.
+- **An authoring call's receipt says how many requests it sent.** Each
+  authoring call in a compile's receipt records `requests_sent`, read
+  from the provider's own record of its dispatches: a call that left
+  twice says two, a call its deadline cut says one, and a harness route,
+  which counts its own invocations, says nothing.
+- **A kept run says whether it ran a component of saved bytes.**
+  `KeptRun::component_run` reads a journal's frames of the run's own execution:
+  its one start must name the hash of the exact saved bytes, and each of the
+  component's tasks is settled by that execution's frames alone (`completed`,
+  `skipped`, `failed`, `recovered`, `cache_hit`, … or `absent`). The run's exit,
+  the last start a journal holds and a child run's task of the same name never
+  stand in for it; what the frames cannot attribute is `Unknown`, with why.
+- **A new conversation in the same project.** `/new`, and `SessionRuntime::begin_new_conversation()`
+  for hosts, seal the current conversation beside its journal under a dated name and start the
+  next one empty. Nothing is deleted, and its receipts and any unknown charge stay on record. The
+  project's workflows, schedules and runs, the chosen intelligence and a paused run's gate carry
+  over, and the Session says so. Nothing begins while a decision waits for the person or a run is
+  under way. A restart resumes the new conversation.
+- **A run is told the instant it serves.** `${{ run.scheduled_for }}` reads the slot a
+  `nika arm fire` or a `nika serve` schedule fired the run for, the instant
+  `nika test --at <instant>` names, or else the run's own start, as RFC 3339 UTC. The
+  run's opening frame journals it with `scheduled_for_source` (`slot` · `at` · `start`),
+  and a child workflow the run calls serves the same instant. Under `manqué:
+  rattraper-une-fois`, `${{ run.missed }}` reads the silence a catch-up covers, `{ first,
+  last, count }` (journaled as `missed`), and null otherwise. A `nika serve` catch-up's job
+  carries that silence on its schedule origin as `missed_first` and `missed_count`.
+- **A run's result says the ceiling it was admitted under.** The result of a run said its cost
+  but not the most it was allowed to cost, so asked whether her $0.10 ceiling held, the
+  conversation answered that it could not tell which ceiling applied and pointed to the trace
+  file. The result now says « ceiling · $0.10 · the most this run was allowed to cost », read from
+  the run's own start frame, and the conversation is told the same.
+- **A Session can speak the host's language before the person writes.**
+  `SessionRuntime::with_initial_language` takes the host's guess from its locale. The restored
+  notice and `/status` then read in French under `fr_FR` from the first screen. A line the
+  person types, or one a restored conversation kept, still decides. The restored notice is now
+  said in the restored language. A turn that parks with nothing to ask says how to go on,
+  rather than showing an empty question.
+- **A knowledge release can carry a block proven on recorded worlds.**
+  Profile r2 admitted a block only as `CHECKED`, so a block whose
+  outcome was qualified on recorded worlds could not say so. A block may
+  now claim `OUTCOME_PROVEN`. Its check receipt stays bound as before,
+  and an `outcome_receipt` binds the same bytes, the target's
+  specification and the target binary to its worlds: at least one, each
+  judged `OUTCOME_CORRECT` and run at least once. Releases that do not
+  claim the level are admitted unchanged.
+- **`manqué: { rattraper: N }` fires the N latest missed slots.** A `nika serve` project beat
+  declared with the bounded catch-up fires up to the N latest missed slots, one run each,
+  oldest first, each run told only its own slot; the older slots are skipped first, journaled
+  once. `nika check` reads the form (N a whole number from 1, `{ rattraper: 1 }` being
+  `rattraper`); `nika arm` refuses it by name, as it refuses `rattraper`: catch-up is served.
+- **The catalogue lists current Anthropic, OpenAI, DeepSeek, xAI and
+  OpenRouter models, each with the source and date of its limits.** Claude
+  Fable 5.1, Opus 5.5, Sonnet 5.5 and Haiku 5.5 (1,000,000-token window,
+  128,000 output tokens), GPT-6 Astra, GPT-6.1 Sol and GPT-6 Luna (1,050,000
+  and 128,000), DeepSeek V4 Pro (1,000,000 and 384,000), Grok 4.7 and Grok 4.3
+  (500,000 and 1,000,000-token windows; their output caps are OpenRouter's
+  listing, xAI publishes none), and the five admitted OpenRouter routes at the
+  smallest window and output of their endpoints. Every admitted route now
+  reads a dated window and output cap. Claude Haiku 4.5's output cap is
+  corrected to 64,000 tokens (it read 8,192), from Anthropic's model page.
+- **The provider catalogue records where a model's limits were read and when
+  its provider retires it.** `nika/llm-providers@1.2` lets a model row carry
+  `limits_source` with `as_of`, and a `lifecycle` (`retires_not_before`,
+  `successor`, `source`, `as_of`) whose successor is another model of the same
+  provider; `nika_catalog::model_facts` returns them. Two nicknames may name
+  one model only as aliases with identical limits and facts. Rows without
+  these facts keep their exact shape.
+- **`nika-catalog` states a model's output facts.**
+  `model_output_limit` returns the output limit the catalog records with
+  where it is recorded, `generated_cap` the cap a caller generates for a
+  reasoning model within that limit, and `output_caps` the facts an
+  authoring seat reads before it writes (reasoning recorded or not, the
+  documented effort levels, the suggested cap). `nika-compile` now reads
+  them there; no record changed.
+- **The catalog records how a model reasons, and what a `.nika` file can do about it.**
+  `ModelCapabilities.reasoning_facts` says, per capability rule, whether the model reasons
+  when the request names no reasoning control, whether that reasoning is spent inside the
+  output cap, and how a `.nika` file turns it off on this engine (`ThinkingOff`: by default,
+  a zero thinking budget, not reached, or never). DeepSeek Flash and V4 Pro, Gemini 2.5
+  Flash and Pro on the Gemini API, and Claude on Anthropic's API carry recorded facts; every
+  other model stays unknown rather than assumed. Tests pin the facts to what each wire sends.
+- **A conversation's workflow can be verified like any compiled one.**
+  `verify_document` verifies a document a Session conversation wrote
+  exactly as the compiler verifies its own candidates: the fidelity laws
+  over the world the host observed for the request, the core's finish, a
+  run in the room when the host lends one, then the whole-request verdict
+  of the permitted judge (a decision model, else the authoring model),
+  never asked again on bytes it rejected. It is ready only on that
+  verdict: a doubt nothing located is held, a located defect keeps the
+  workflow as the preview with what to repair, and with no judge the
+  request stays pending.
+- **A dropped value needs words that remove it, as the judge reads them.**
+  When a conversation's revision drops a value an earlier proposal bound
+  (a source, an output), the Session cites the person's words that remove
+  it. Those words were only checked to be the person's: « I wanted
+  today's articles » could drop a source no one asked to change. The
+  verifier now asks its judge, for each such claim, whether the words
+  remove that value; a claim it does not confirm keeps the workflow from
+  being proposed, and the conversation is told which value to keep or
+  ask about.
+- **The decision seat's journal says how long each request took.** Every
+  System One request that left, a single question or one request of a
+  batch, now records `elapsed_ms` in the Session's decision-seat
+  observation (`nika/session-decision-seat@2`, additive): the time its
+  transport took, measured by the host. A request never sent records none.
+- **`nika doctor --json` states its scope.** The report carries
+  `"scope": {"mode": "audit-wide"}`: it audits the machine as a whole. A
+  question about one workflow stays with `nika check`.
+- **A draft read whole runs at its model's documented low effort.** When
+  every model step of a request is a draft (write, summarize,
+  translate), the reader admits the request whole with no constraint
+  beside it, and the model's exact catalog row documents a `low`
+  reasoning effort (DeepSeek Flash and V4 Pro today), the compiled
+  workflow declares `run.reasoning.effort: low` and the proposal says
+  so. On Flash, one measured 16.7k-token summary spent 83% of a
+  16,384-token cap reasoning at the default effort and 69% at low; at
+  the default effort the same step had ended with no answer. A
+  candidate that already declares an effort or a route keeps it, and a
+  model-written candidate gains one block, never a reformatted file.
+  The level reaches only the model's exact direct route: behind a
+  base-URL override (a gateway), every request that carries it is
+  refused with nothing sent.
+- **What a workflow reaches reads in French.** A French proposal card showed « à l'exécution ·
+  model output estimate · unbounded: `grade` declare(s) no `max_tokens`; Run admission is
+  separate » and « connected: anthropic/claude-sonnet-5-5 (remote model) ».
+  `nika_display::check_render::review::effect_row_fr` says each row `effect_rows` writes in
+  French, and `World::summary_fr` the reach summary. Paths, hosts, tools, models, tasks and
+  amounts stay as written. A row they do not know is returned as it is.
+- **`egress/001` warns about a private key in a prompt.** A `prompt:` or
+  `system:` text holding a PEM private-key block (a line
+  `-----BEGIN … PRIVATE KEY-----`) is a credential bound for the model
+  provider: the linter flags it and the check verdict lists it in
+  `hints[]`, on inline text and on the text of a prompt file alike, where
+  the door read that file. It refuses nothing and never repeats the text;
+  a secret the provider needs belongs in `secrets:`.
+- **A finding has a canonical key a host can compare across revisions.**
+  `fidelity::keys::finding(kind or target, message)` keys a finding on
+  its kind, its law's head and the subject it quotes, for example
+  `conversation:invented-literal:./news/digest.md` or
+  `semantic_verification:write the digest`. A Session can tell whether
+  the same defect still stands on a new revision without comparing
+  prose: rewording or an appended remedy keeps the key, and another
+  subject or another law changes it. No finding's target changes.
+- **A harness authoring call's record tells thinking from answering.** The
+  `activity` of a terminal ACP authoring record now also says when this
+  session's first thought and first answer arrived (`first_thought_ms`,
+  `first_answer_ms`) and which update it received last, by its closed word
+  and time (`last_update`), each null before any. A receipt can now say a
+  call was silent until its first answer, or that its last update before a
+  silence was a thought. The fields are additive; counts, deadlines and
+  acceptance are unchanged, and no frame text is kept.
+- **Hosts name a zone as the Session does.** `nika_session::zone_words` (« heure de Maurice »,
+  "Mauritius time") and `nika_session::zone_place` (« Maurice », "Mauritius") give a host the
+  words the Session itself uses for a schedule's zone, so a run list and a cadence never name the
+  same zone two ways.
+- **Hosts read a declaration's schedule in words.** A candidate that declares a schedule in
+  `nika.yaml` carries `Candidate::schedule` (`ScheduleWords`) in the person's language: when it
+  runs, what a missed run does, and its ceiling per run. A host shows these words instead of
+  the cron. The work snapshot's compile draft is kept only while one of that compile's own
+  questions waits, so a host never shows a draft beside another question.
+- **A declared schedule can be installed on this Mac from the conversation.** Once a schedule
+  lands in `nika.yaml`, the terminal Session asks « Installer le déclencheur sur ce Mac ? ». The
+  question names the workflow, its cadence and zone, the missed-run policy, the ceiling per run
+  and the effect (one launchd unit run by the program that wrote the workflow). « Installer et
+  activer » writes the unit as `arm --emit launchd --write` does, loads it and says when it runs
+  next. « Garder déclaré seulement » installs nothing, and « désactive-le » unloads and removes
+  it. Nothing is installed without that yes. Hosts other than the terminal on macOS keep the
+  schedule declared, as before.
+- **The embedded knowledge release is r3, the Foundry enrichment.** It adds 16 families,
+  14 facets, 23 packs and 83 patterns written in the studio's own words. A family now
+  recommends its packs, so the door's family, pack, pattern and block path reaches the
+  qualified blocks (`feeds-items-on-local-date`, `json-threshold-report`).
+  The r2 release it replaces stays embedded for earlier pins, which reopen its exact bytes.
+- **`nika-mcp` serves a Session's tools to the agent leading its conversation.**
+  `conversation::ToolServer` lists the session's `nika/author-tools@0` definitions and relays
+  each call of a listed tool to the session over Streamable HTTP, bound to `127.0.0.1` on an
+  ephemeral port with a bearer minted for that conversation alone and always required. A tool the
+  session does not list never reaches it; a failed call returns `isError: true`. Connections are
+  served side by side under the same bounds as `nika mcp --http`, and the session receives one
+  call at a time. The server interprets nothing and grants nothing. A stdio bridge to the same
+  server exists as a library; no CLI starts it yet.
+- **A pinned `mcp:` step is judged against its approved schema.** Once the
+  project registers the server, approved its pins under the command,
+  arguments or URL the registry names now, and the pins hold the tool,
+  `nika compile` judges an `invoke:` step's literal arguments against the
+  pinned input schema (an argument a template builds is wired, the run's to
+  judge) and records each verdict on `decision.mcp`, without reaching the
+  server. A registry re-pointed after its approval keeps the hold until the
+  server is approved again, as the run's own verification requires. The
+  served compile door judges the same step on the server project's pins and
+  records the verdict, but keeps the step held: that server runs no MCP
+  step. Any other answer keeps the source-only hold, in words that say what
+  to do; permits stay the only authority over what a step may do.
+  `nika check` advises, without blocking, on a registered server whose pins
+  were never approved or do not hold the tool.
+- **An agent can list the models each role can use and have its pick
+  validated.** `nika_providers::model_choice` keeps separate offers for
+  the Run, Author and decision roles, built from this machine's routes
+  and the catalogue, and answers a selection with one exact target, a
+  delegated pick with its rule, a targeted choice, or an exact refusal
+  with real alternatives. No id is invented and no closed provider,
+  route or protocol is changed.
+- **`nika check` names a model's published retirement floor and its
+  successor.** A workflow on `anthropic/haiku` or Claude Haiku 4.5 still
+  checks clean, with one advisory line under the green MODELS line: Anthropic
+  does not retire it before 2026-10-15, and `claude-haiku-5-5` is available to
+  name. The nickname keeps its model; nothing switches silently.
+- **OpenAI's GPT-5.2, GPT-5 mini and GPT-4o mini are admitted on the direct API.**
+  Each standard-tier row reads its model page of 2026-10-12: the input, output and
+  cached-input prices, the context window and output cap, and the dated snapshot
+  OpenAI's replies report (`gpt-5.2-2025-12-11`, `gpt-5-mini-2025-08-07`,
+  `gpt-4o-mini-2024-07-18`), which settles the same route. The pages list no
+  cache-write price, so a call that wrote the cache stays unknown. GPT-6 direct
+  rows are not admitted.
+- **An OpenAI conversation keeps its prompt cache together.** A request can name the conversation
+  it continues (`InferRequest::cache_key`, a hash of the conversation's id); the OpenAI wire sends
+  it as `prompt_cache_key`, so one conversation's calls route and account their cached prefix
+  together. Other providers ignore it, and a caller's own `prompt_cache_key` stays unchanged.
+- **Five paid OpenRouter routes are admitted.** GLM 5.3 Flash, MiMo V2.6 Flash, Step 5
+  Preview, HY4 Preview and GPT-6 Luna have exact admission tariffs read from
+  OpenRouter's endpoint listings of 2026-10-12: the highest price of any endpoint, the
+  smallest context and output limit, and, for GPT-6 Luna, an input bound below its
+  long-prompt surcharge. A Run no longer needs an unknown-cost choice for them, and a
+  Session can reserve them.
+- **`prompt:`, `system:` and `schema:` can name a project file, and
+  `nika check` judges it.** `{ file: <path> }` resolves from the folder of
+  the workflow that names it, stays inside the root workflow's folder, and
+  is read only inside that workflow's `permits.fs.read` boundary, never
+  through a symbolic link: a broken path law is `NIKA-FILE-001`, a missing
+  file `NIKA-FILE-002`, more than 65,536 bytes or bytes that are not UTF-8
+  `NIKA-FILE-003`, a schema file holding no JSON Schema `NIKA-TYPE-007`.
+  The text or schema read then meets every law the same field written
+  inline meets, in a composed child too, where each finding names the
+  child, task, field and path. A door without the files names them as
+  unread (`judged.project_files: false`). No run carries project files
+  yet: `nika run`, `nika test` and a captured world refuse such a workflow
+  before any task, and the runtime refuses a file no compose step read,
+  at launch and at the `infer:` or `agent:` dispatch.
+- **An unstable build trims the authoring prompt for evaluation.** The
+  `unstable-prompt-trims` feature of `nika-compile-seats`, off by default,
+  makes the document door show the language's schema without its
+  descriptions (29,749 bytes compact, 9,705 without them). It also narrows
+  the callable contracts to what the reader's typed plan reaches: `fetch`
+  only for a fetched, looked-up or explored source or an outbound effect,
+  `convert` for a computation, `prompt` for an approved effect, `notify`
+  for a sent one. A default build sends the whole prompt, as before; the
+  feature exists so an evaluation can measure authoring quality with and
+  without the trims.
+- **An Anthropic key can be checked on request, without running a model.** `check_key` (and
+  the Session's `check_api_key`) sends one GET of Anthropic's model list with the key, its
+  API version and the endpoint a run would use (`NIKA_ANTHROPIC_BASE_URL` honored). It
+  answers valid, refused (401 or 403, in the provider's words with the key withheld),
+  unreachable or unknown, spends no token, never follows a redirect or retries, and runs
+  only when a person asks. Another provider answers unknown without a request: an
+  OpenAI-compatible model list may answer without a key, so it would prove none.
+- **A trial run shows what each step received and returned.** A host's
+  rehearsal report can carry each task's flow, the items it received
+  and returned. The verifier is shown it with the trial's outputs, a step
+  that returned nothing from a non-empty input marked, so a filter that
+  kept no item of today's news is a fact the verifier weighs; a host's
+  card can show a passing trial's flow.
+- **A rehearsal runs `nika:validate`.** A candidate that checks data against a JSON
+  schema is tried in the room before its proposal, instead of being refused as a
+  tool the rehearsal does not know; the check reaches no network and no file.
+- **`nika check` reads the facts of the run.** `${{ run.scheduled_for }}` and
+  `${{ run.missed }}`, the closed set of facts the engine tells a run, resolve in
+  every value position and in `when:` and never make a data edge. Any other
+  `${{ run.X }}` is an unresolved reference (`NIKA-VAR-001`) whose message names
+  the two facts; a near miss (`run.schedule_for`) is offered as its rename, a
+  typo'd root is offered `run`, and `${ run.missed }` or
+  `{{ run.missed }}` without `${{` is caught as for the other namespaces.
+- **A schedule's history says its firer, its last skip's reason and its catch-ups.**
+  `ScheduleHistory` now says whether a resident `nika serve` holds the project's server lease
+  (`serve_running`), and when the unit was last disarmed and how many runs fired since
+  (`last_disarmed_at`, `fired_since_disarm`). `LastDecision` now carries a skip's reason
+  (`missed:1`, `overlap`) and the slots a catch-up run answered. Both types have `new()`
+  constructors. The unit's presence is asked of the Session's trigger host.
+  `nika_cadence::ledger::decisions` returns each decision with its instant, reason and slots.
+- **Activation offers its ceiling and missed-run policy as choices.**
+  `SessionRuntime::waiting_activation_choices` states the activation's
+  finite question (its sentence and one short line, its options, and
+  whether another typed value is admitted). The ceiling per scheduled run
+  offers 0.10, 0.25, 0.50 and 1.00 USD, recommending the smallest that
+  holds about three times the workflow's last observed run (its trace's
+  total) and 0.25 when none was observed, with why in the label. Another
+  amount is still typed, the same grammar validates every answer, and no
+  amount is ever applied without the person's answer.
+- **The selected intelligence leads the Session's conversation.** With an API or a local route,
+  a person's line now goes to one loop over that model and the Session's tools
+  (`nika/author-tools@0`): it reads the project and the language, writes and edits the candidate,
+  asks several questions together with their own identities, and proposes. Every value the
+  candidate binds carries its provenance (named, delegated, derived, answered, offered or kept)
+  checked against the person's own cited lines; a value they saw bound is never dropped
+  silently; a reopen keeps the values and their provenance, never a question or a proposal.
+  Saving and running stay the consent door's acts: the person's words open it only for the exact
+  candidate they were shown, and a candidate whose effects changed waits for their consent.
+  `NIKA_SESSION_DRIVER=rounds`, read when a host door opens the Session, keeps the round driver
+  during the transition.
+- **A Session host answers one question by its identity.** Both Session doors take `answer`
+  (`command`, `snapshot`, `question`, `line`) and `delegate` (`command`, `snapshot`,
+  `question`) and advertise `sessionQuestion`: a client that read several questions asked
+  together, or the choices a proposal shows, binds its reply to the one it names and the others
+  keep waiting, where a plain line answers every question whose offers it names. The host takes
+  the identity only among those the current snapshot asks (`unknown_question` otherwise, with
+  nothing sent), and `delegate` leaves that choice to Nika as the person's act, never as words.
+- **Every model and tool call of a Session turn reaches the host.** The
+  conversation's model requests are activity frames naming their rank in
+  the turn, the route asked, when they left, how long they took and the
+  tokens the provider reported; tool calls also name when they began and
+  their reply's size. Neither carries a prompt, an answer, arguments or a
+  reply.
+- **A conversation's candidate is tried before it is shown.** Each public
+  GET source the candidate names is observed once for the conversation
+  through the guarded observer (no credentials, no private address,
+  bounded), and the observed room replays those pages to a run of the
+  candidate where nothing leaves: a GET of exactly an observed address is
+  answered with its page, every other request is refused. A step the trial
+  cannot run (a model step, a request other than GET, an effect outside
+  the room) is named, never run as itself. A failed trial, or a filter that
+  keeps nothing of the items it read, goes back to the author with its
+  facts before any proposal; a passed trial is bound to the proposal, which
+  says what it ran on and what it did not run.
+- **A Session conversation proposes only a workflow its judge found
+  ready.** Every `verify` and `propose` of the conversation's candidate
+  now faces the verification a compile round of the same request faces:
+  the laws over the files the request names, then the whole-request
+  verdict of the Session's judge (its decision model, else its authoring
+  route; a seat's agent judges through its own one-shot). Anything short
+  of ready goes back to the author with the findings, and nothing is
+  shown. A verdict that declined some bytes is kept for the conversation
+  and never asked again on those bytes, and a ready verdict on unchanged
+  bytes, words and selections is reused.
+- **A conversation's run can be steered, stopped and watched while it works.** The Session
+  host (`nika/session-host@1`, both doors) gains `steer` and `follow_up`: a line sent while a
+  turn of the conversation runs is queued with its identity (`l1`, `l2`, …) and shown in
+  `busy.queued`, then enters after the calls under way (an ACP agent is asked once to stop) or
+  when the run would end, as the person's next cited line; a line no run reads is refused,
+  never kept for later. Stop of such a turn now settles as the typed outcome `stopped` (how it
+  reached the intelligence, the lines returned unsent, the draft kept). Each tool the
+  conversation's intelligence calls reaches the event stream as typed activity (call, tool,
+  started/finished/failed, elapsed), never its arguments. On `nika/session-work@0`, additively:
+  `queued`, and a `choice` on each offered model this machine's inventory knows (route,
+  billing, list price).
+- **One edit call, several passages.** `candidate_edit` takes `edits`, a list of old and
+  new passages applied as one revision: each old passage is found exactly once in the
+  candidate and none overlaps another, so an author repairs several places in one call.
+- **A failed run goes back to its author.** When a run the person asked
+  for fails, the author receives the run's facts and proposes the repaired
+  revision with what changed; a complaint about a run's result starts the
+  same repair. The repaired revision runs again only on the person's words
+  or consent. A revision that replaces a value the person saw bound says
+  so in words.
+- **A failed tool step says why.** The Session's activity frame for a
+  tool call that failed carries the tool's reply (`tool.reply`) as a host
+  may show it: its obvious secret shapes redacted first, on one line, at
+  most 512 bytes. A call that started or finished carries none, and no
+  frame carries a call's arguments.
+- **A gate shows its values, structured.** A run paused at a
+  `nika:prompt` gate journals the values its message renders as one
+  object (`values`), bounded, and names the keys it withheld with why
+  (`withheld`: a value derived from a secret, one past the bound, one
+  that did not resolve). A Session's gate outcome carries both beside
+  its text, so a host or a consent review binds the exact values shown.
+- **The Session host's activity frames say what each finished call cost.** An activity frame's
+  `call` now carries `cost` once the call returned, as the Session settled it:
+  `{"kind": "priced", "nano_usd": "120000000"}` (nano-USD at list price, as a decimal string: an
+  estimate, never an invoice) or `{"kind": "unpriced"}`. It is absent while the call runs, when
+  nothing settled, and when its producer states nothing. A host can sum the priced calls for a
+  live preparation cost, as the terminal does. The published contract now describes the frame's
+  `call` (`SessionCall`) and its `cost` (`SessionCallCost`).
+- **Intelligence options state each model's prices, context and lifecycle.**
+  Every option naming a model now carries typed facts for any host:
+  `ModelFacts` gains `input_usd_per_million`, `context_tokens` and `legacy`
+  beside the output price, from the route's qualified tariff or else the
+  catalogue's list row on a metered route. Unknown stays absent, never
+  zero; nothing is selected or called by stating them.
+- **The intelligence picker recommends one model.** While the choice is
+  open, `Work.intelligence.recommended` names the option recommended for
+  the conversation: the operator's saved default when this machine serves
+  it, else the default model of the first configured provider in catalogue
+  order (an Anthropic key yields Claude Sonnet 5.5). It selects nothing.
+- **The bytes a verification judged are kept.** A conversation's Session keeps each
+  candidate its verifier judged, redacted and bounded, in its history as
+  `verified/<sha256>.nika`, the digest its verify record names, so a hold can be
+  checked after the candidate is rewritten.
+- **A proposal shows its open choices with their defaults.** When the author
+  can recommend a value the person left open, such as the run model or an
+  output folder, it writes the recommendation in the candidate and proposes
+  at once, showing the choice with its default and the other options
+  instead of asking first. The person's yes keeps every default, bound as
+  the option they picked with that line; naming another option binds it and
+  the author revises; nothing is saved while a choice the proposal does not
+  show is open. The author tool contract is `nika/author-tools@1`.
+- **After a result, an optional « what would you like to adjust? ».** When a run of the workflow
+  the conversation proposed succeeds and writes its result, the terminal offers, at the free
+  prompt, the dimensions that workflow's own tasks have (depth, length, topics, sources,
+  presentation), « Nothing to change » and « Later ». Picking dimensions asks Nika to ask only
+  what is still missing and propose an amended workflow, approved as any other; the run of a later
+  revision of that same request then offers one neutral opinion (suitable for this use, still
+  needs changes, wrong result, not evaluated yet, later), with no default. Only a choice selected
+  in the offer answers it, and only while nothing else waits: words typed instead always go to the
+  conversation, whatever they read as; asking for a run or the next run closes the offer, the same
+  workflow bytes are never offered twice (a reopened conversation included), and Esc answers
+  nothing. An answer changes nothing by itself: it is kept with the exact request, revision, run
+  and files it is about, never as a permission to save, run or send.
+- **A conversation can switch its decision seat and save its default.**
+  `choose_decision` makes Jev (only the seat the host named) or the author
+  alone consult the next turn's finite choices; the author alone clears a
+  refusal the earlier seat caused, and an unavailable Jev is refused with
+  its reason. `save_operator_default` writes the kind, model, decision seat
+  by name and time to `~/.nika/session-intelligence.json` atomically, never
+  a key; a default saved deciding alone opens new conversations that way.
+- **A Session Stop now reaches the Run it handed off.** While a `save & run`
+  or a run line executes through the native door, a `stop` command asks that
+  Run to stop at its next wave boundary, as a first Ctrl-C does: the work in
+  flight completes and is counted, the next tasks are cancelled and the trace
+  seals one cancelled terminal. A Stop that arrives before the run child
+  exists is applied when it starts (before the spawn, nothing starts). The
+  receipt says `stop_requested` until the Run takes the signal and
+  `run_stopping` once it has; the snapshot's phase reads `stopping`; the
+  result adds `run_stopped` when the trace sealed, `run_aborted` when the Run
+  ended without sealing it, and the work snapshot's run gains `sealed`, so an
+  interrupted run that stopped is told from one cut mid-flight. A replayed or
+  second Stop sends nothing more and never escalates to an abort. A door that
+  cannot stop its runs (the resident's job door, for now) still answers
+  `run_underway`.
+- **The last run a Session keeps names its job, its receipt, its outputs and its verified seal.**
+  For a run `nika serve` ran, the kept run now records the job it ran as, the receipt and the
+  declared outputs that job serves (kept whole up to 16 KiB encoded; larger ones stay with the
+  job, at `GET /v1/jobs/{id}`), and whether `nika trace verify` accepts the journal's
+  `run_sealed` record and its signature (`seal_verified`, `signed`), never a seal read from the
+  receipt's chain head. Forward
+  compatibility: these parts are written only for served runs, and an engine older than this one
+  reports such a kept run as unreadable and keeps its bytes unchanged, so nothing is lost; the
+  kept value of a native run is unchanged.
+- **Both Session doors advertise `sessionSteering`.** The native identity
+  (`nika --sdk-identity`) and a resident serving Sessions (`/health`) name
+  the word beside `sessionHost` and `sessionIntelligence`, so a client tells
+  a door that takes `steer` and `follow_up` from an older one, and refuses
+  those lines itself, before it sends one.
+- **One contract for the tools a Session serves.** `nika_session_change::tools` types the
+  `nika/author-tools@0` tools once for Nika's own agent loop and for an ACP agent reaching them
+  over MCP: the 17 fixed tool names, `ToolDef`, `ToolCall` (with the caller's tool-use id),
+  `ToolReply` (text, failure, and whether the turn ends on it) and the `SessionTools` trait the
+  Session implements. It grants nothing: saves, runs and consents keep their own doors.
+- **A proposal's activity carries its original verification records.**
+  The activity of a successful `propose` tool step carries a separate,
+  versioned `tool.verification` receipt: the compiler's semantic
+  verification records for the candidate it shows, unchanged, with the
+  candidate's digest and whether this proposal reused an earlier
+  verification. A receipt the secret-shape filter would alter is withheld
+  whole, and no other tool step carries one.
+- **The work snapshot carries a conversation's values, delegations and questions.**
+  `nika/session-work@0` gains, additively, `bindings` (each value, its role and its provenance
+  with the person's citation and words), `delegations` and `questions` (each with its identity,
+  open or waiting for its prerequisites, and the concrete values its options carry), and
+  `waiting.kind: questions` when several questions are asked together. A snapshot without a
+  conversation keeps its bytes.
+- **A Session snapshot says how long its knowledge and trial stages took.**
+  `work.authoring.stages` now carries, as the compile's decision record
+  states them, the wall time of the Foundry knowledge qualification
+  (`qualification_ms`) and each trial of a candidate in order (`trials`:
+  how far it went, `elapsed_ms` and the host's `runtime_bound_ms`). The JSON
+  door and `/v1/sessions` carry it unchanged; a time the record does not
+  state is null, nothing is summed, and no output or failure text passes.
+- **A System One request can write its options in a chosen order.** `system_one::body` serializes
+  a request with each question's criteria in an `Order`: `Alphabetical` (today's bytes exactly),
+  the question's own order, or its mirror, the pair a both-order reading averages. Nothing sends
+  it yet: requests keep today's alphabetical order until the both-order setting lands.
+- **The Session reads each schedule's history, and journals its removal.**
+  `SessionRuntime::schedule_history()` returns every schedule `nika.yaml` declares, with how many
+  runs its arm ledger records as fired, skipped, paused, failed or disarmed, its last decided slot
+  and whether this Mac holds its unit. Reading it creates, locks and repairs nothing.
+  « désactive-le » now journals a `disarmed` decision in the schedule's ledger and says so.
+  Installing a trigger from the conversation installs that schedule's unit only: a schedule kept
+  declared stays without one.
+- **The Session says its own sentences in the person's language.** Every French-speaking person
+  met English questions and cards between the author's French answers. The Session now reads the
+  language of the person's own lines, English or French, and asks the activation questions (time
+  zone, missed run, ceiling), proposes the declaration and says what saving and declaring did in
+  it. A host reads it (`SessionRuntime::language`) to say its own words in it too.
+- **The activity card a turn leaves in the workspace now uses the language you write in.** In
+  a French conversation it reads « Terminé · en moins d'1 s · 1 appel auteur · routage de la
+  conversation et appels du service de décision non comptés ». Its phases (« Compréhension »,
+  « Génération », « Réparation ») and its call row (« appel 1 · planifier le workflow · demandé
+  deepseek/v4 · revenu après 3 s ») follow too. What the Session reported, the model and the
+  times stay as they are. The card's text from other doors is unchanged:
+  `ActivityCard::lines_in` is a new variant that takes the door's words, and `lines` still
+  says English.
+- **The workspace's project list and header now use the language you write in.** In a French
+  conversation the aside reads « Projet » and « Nika · Fichiers ». It names « cette
+  conversation », titles its groups (« FICHIERS », « MÉMOIRE », « RÉGLAGES ») and states a
+  workflow's verdict in French (« 2 constats », « non conforme », « run échoué »), and so are
+  its counts, footer and notes. The header says « projet local », « pas de git · pas de
+  nika.yaml » and « Préparer avec : » before the selected intelligence, or « non choisie ».
+  Project names, paths, hosts and the intelligence's own words stay as they are. A click on
+  « Fichiers » turns the list as « Files » does.
+- **A finished run's card lists its steps, models and files.** Below a run's story, the
+  terminal's card now opens on how the run ended in the theme's own state glyph (`✔ Ran in
+  16.5s · 14 tasks · $0.034 · 1 model call`, `✖ Failed after …`), then lists each step
+  with its glyph, wall time, model and cost (`✖ notify · failed: the webhook answered 500`
+  in the failure colour, beside its words; `⊘ tidy · not run`), what each model cost and
+  how often it was called, and every file the run reported writing with its path
+  (`→ ./out/digest.md (write)`). A long run lists its first twelve steps and every
+  failure, then counts the rest; unknown times, models or costs are left out.
+- **One live line says what Nika does while it prepares or runs.** In the terminal, a turn
+  that prepares reads `Preparing · 45s · 12 author calls · Ctrl+C stop`, then the Session's
+  own phase words; a workflow the turn runs reads `Running veille-tech.nika · 12s · 6/14
+  tasks · now: pick (claude-sonnet-5-5) · $0.012 of $0.25 · Ctrl+C twice leaves` (a Run is
+  never stopped there). Its card opens on how it ended: `Ran in 16.5s · 14 tasks · $0.034 ·
+  1 model call`. Outside the workspace, whose activity card already says it, a preparation
+  that called its author ends with `Prepared in 2m 10s · 35 calls · $0.91`. Every fact is
+  one the terminal observed (typed calls, the run's frames, its clock, the Session's known
+  cost estimate after the turn); an unknown one is left out, never a placeholder, and the
+  facts refresh at most twice a second. Hosts can report typed activity with
+  `Seen::activity` and the spend with `Conversation::spend`.
+- **A question that recommends an answer needs no typing.** The terminal opens such a
+  question with the recommendation selected (each recommended answer checked in a multiple
+  choice), marked `recommended`, so `Enter` alone accepts it; nothing is sent before that
+  `Enter`. A « Let Nika choose » row follows the offers and leaves the choice to Nika as the
+  person's own act, never words: the Session binds the recommended answer as delegated,
+  whatever another answer's label reads, and on a choice a proposal shows that keeps the
+  request's save and run. The own-reply field stays. Decisions, settings and the knowledge
+  choice keep opening on nothing.
+- **A source's address reads beside its name in a question's options.** When an option's
+  label names a site or a data source and then its address after « · » (`TechCrunch ·
+  techcrunch.com/feed`), the terminal paints the name first and the address dimmed in one
+  column aligned over the list, beside `recommended` where the author recommends it; a
+  narrow row cuts the address with a visible mark before it ever cuts the name. The ASCII
+  glyph column keeps every fact.
+- **`PgUp` and `PgDn` page through a long choice list.** In a question,
+  decision or `/intelligence` list they move the selection eight rows at a
+  time and stop at either end; the list follows the selection page by page.
+- **Reception proofs for the choice surfaces.** The TUI prototype takes
+  `--demo-surface intelligence|multi` and says back what it receives, and
+  `qa_surfaces` proves at 80x24, 120x40 and 180x48 that a long model list
+  pages, filters and applies the selected row, that `Esc` steps back
+  without answering, and that a multiple choice validates with `Enter`.
+- **Question options are counted, checked together and picked by their digit.** In the
+  terminal, each of a question's first nine options shows the digit that selects it: with
+  nothing typed yet, pressing that digit moves the selection there and sends nothing (once
+  words are typed, digits are words, and the `/intelligence` list keeps digits for its
+  expert route). A multiple choice counts `N of M selected` in its title, `Ctrl+A` checks
+  every answer (or none when all are), `Space` still toggles one and `Enter` validates the
+  checked set. The Submit row no longer repeats the count.
+- **A decision's question and acts now use the language you write in.** In a French
+  conversation the proposal's decision asks « Que faire de cette proposition relue ? » over
+  « Enregistrer le workflow », « Enregistrer et lancer une fois », « Écarter cette
+  proposition » and « Examiner les changements exacts ». The same holds for a run's cost
+  decision (« Continuer ce run une fois ? », « Lancer une fois », « Annuler ce run »), a gate's
+  acts, a schedule's and a run ceiling's way out, and the recovery of a drifted workflow. Every
+  act keeps its key, so `yes`, `no`, `save & run`, `/show` and `details` answer as before. The
+  Session's own questions and options stay as it says them, and English stays the default.
+- **Digits select a decision's act in the terminal.** In a decision list (Save · Save and
+  run once · Discard · Inspect, a gate's answers, a missed run's handling), each act now
+  wears the digit that selects it, and pressing that digit with nothing typed moves the
+  selection there and does nothing else; only `Enter` acts, once. A decision still opens
+  with no act selected, and the `?` keys list the digits beside it.
+- **The workspace says what a schedule's trigger fired, and the rail reads « Actif ● » only once
+  a fire is proved.** At the opening and after each turn, the workspace reads the Session's history
+  of each declared schedule's arm ledger (`SessionRuntime::schedule_history`, a read only) and
+  says, once, what changed: « `compiled-workflow.nika` a tourné tout seul : 1 run par son
+  déclencheur », its last slot with its exit and its trace, a slot caught up late (« son créneau
+  … a été rattrapé à … »), and the slots skipped, the runs a gate parked and the failures. The
+  list counts the runs fired under their workflow (« 1 run déclenché · 10-16 06:00 ✔ »). The rail's
+  activation field stays declared (◐) until a fire of an installed, active trigger is proved,
+  then reads ●, and goes back to declared once the trigger is removed.
+- **Card names, band titles and the `?` keys overlay now use the language you write in.** In a
+  French conversation a refusal's card reads « Impossible de continuer », your own messages
+  are labelled « Vous » and a result « Nika · Résultat ». A decision's band is titled
+  « Décision · obligatoire », and a question's card names the answer it takes (« Une réponse
+  en texte »). The keys overlay lists every key in French under « Conversation », « Décision »
+  or « Pendant que Nika travaille », its reader frame included. The Session's words inside
+  every card stay as written, and English stays the default.
+- **A held message shows its way on.** When the knowledge your
+  configuration names is refused, the message Nika holds stays in view
+  with the refusal and its two acts: `/knowledge embedded` resumes it
+  once with the knowledge built into Nika, `cancel` drops it.
+- **The TUI's hint row now uses the language you write in.** When the Session reads French in
+  your lines, the keys under the composer are shown in French: « ↑↓ choisir · Entrée valide »
+  at a decision, « Entrée répond · annuler l'abandonne » under a typed question, and
+  « oui + Entrée : enregistrer · non : annuler » at a proposal. The same goes for the notices a
+  key leaves (« rien n'est envoyé · tapez oui ou non… »), what a second `Ctrl+C` does, a
+  proposal's standing and the composer's caption. The words the Session reads when you type
+  them keep their form: `oui`, `non`, `annuler`, `details`, `save & run` and the slash
+  commands. The Session's words, your words, values, paths and model ids are never rewritten.
+  English stays the default and the fallback, and an ASCII screen shows the French without
+  accents.
+- **The whole-words reader opens the block at the reading position.**
+  Scrolled back in the workspace conversation, `F2` (and its palette
+  entry) opens the Session's own words of the newest block shown there
+  short of whole: a summarized refusal, the current proposal, the question
+  its card carries. A plain press on such a block opens the same words:
+  the key and the pointer read the rows painting uses. Closing returns
+  the exact rows, the draft and the keys. At the latest rows the question
+  waiting comes first, then the latest such block, as before.
+- **A fire while the workspace sits open shows without a keystroke.** About once a minute, while
+  no turn or run is busy, the TUI reads the Session's schedule history again (a read only) and says
+  a schedule's new fires as it says them after a turn: once, with the rail. Before, a fire while
+  the TUI stood open stayed unsaid until the person typed something. `Options::idle_every` sets
+  the period (`None` never asks); a conversation answers through `Conversation::idle`.
+- **The workspace installs a declared schedule's trigger on your yes (D1).** On a Mac, in your
+  own terminal, once « active-le » has declared a schedule in `nika.yaml`, the workspace asks
+  « Installer le déclencheur sur ce Mac ? » with two rows, « Installer et activer » (recommended)
+  and « Garder déclaré seulement », under the Session's report of what it wrote. « oui » writes
+  and loads the launchd unit run by the program you use and says when it fires next (« Installé
+  et actif · … prochain run : … »); « désactive-le » removes it. Nothing is installed without that
+  yes; any other door, and every test, keeps the schedule declared and names the command.
+- **Type a model's name anywhere in `/intelligence`.** From the home
+  screen or the connection list, typed words now also find models by
+  their display name under every connection (`son` finds Claude Sonnet
+  5.5 under Anthropic), and `Enter` applies the one selected.
+- **`/intelligence` opens on a short home screen.** The recommended model
+  comes first and is selected, so one `Enter` applies it; then keep the
+  current choice, other choices (every connection and its models), and the
+  Author, Decision and Run roles with their values, each row opening its
+  change: Jev or the author deciding alone for decisions, and the model for
+  the next workflows' AI steps, told to the author. `Set as default` keeps
+  the choice for new conversations. `Esc` steps back one list at a time.
+- **`/intelligence` names the key a provider uses and can test it.** API
+  rows show the variable that supplies the key (`key: ANTHROPIC_API_KEY`)
+  and warn when two set variables differ, naming the one Nika uses. A
+  `Test the key` row on the current or opened API connection sends one free
+  model-list request only when you pick it and shows the verdict inline
+  (valid, refused, unreachable, unknown); the key is never printed.
+- **Models in `/intelligence` read by name, with prices and context.** A
+  model row now shows a display name (`Claude Sonnet 5.5`, `GPT-6.1 Sol`,
+  `DeepSeek Flash`) and, in a quiet aligned column, its current and legacy
+  marks, its input and output prices per million tokens when known, its
+  context window and a key it still needs. Typing filters on these words
+  too; the key sent is always the exact model id.
+- **Type to filter the `/intelligence` lists.** Typed words narrow the
+  rows to those holding every word, case aside; the first match is
+  selected and `Enter` applies it. Words that match no row are sent as
+  typed, so `/intelligence 2 provider/model` still works for an unlisted
+  model. Questions and decisions keep their own reply field unfiltered.
+- **The live line shows what preparation costs while Nika works.** While Nika prepares, the line
+  now sums what the returned author calls cost as the Session settled them, at list price:
+  `Preparing · 45s · 12 author calls · ~$0.12 · Ctrl+C stop`. A call that returned without a
+  price is counted beside the sum (`~$0.12 + 2 unpriced`); while no call is priced, no cost is
+  shown at all. A finished call's activity mark now carries its settled cost (`CallCost`), read
+  from the preparation scope's own journal of returned requests: an estimate, never an invoice.
+- **`/new` and `Ctrl+N` begin a new conversation in the workspace.** Through the Session's own
+  door (`begin_new_conversation`): the conversation is kept as it was, the opening is painted
+  again (the banner, then the Session's words of what carries over: the project's workflows,
+  schedules and runs, a gate still waiting), and the prompt is free. While a decision waits, the
+  Session refuses in its own words (« une décision vous attend encore … ») and the decision is
+  shown again. `/new` is listed in the palette before `/quit`, and `Ctrl+N` among its keys.
+- **The notices around your own words now use the language you write in.** In a French
+  conversation a draft kept aside reads « votre brouillon « … » · il est dans la zone de saisie,
+  non envoyé », a correction « correction en attente « … » · la préparation s'arrête, puis elle
+  est envoyée », a command typed while Nika works « Nika continue · /intelligence attend votre
+  tour », and the decision card says « cette proposition n'a pas changé depuis votre dernier
+  message ». What an earlier session kept reads « dernier run ✓ sortie 0 dans une session
+  antérieure » on the status row (« Run ○ (précédent ✓) » on the rail), with its kept line and
+  its earlier context, and the conversation panel names « Message pour … », « Joint : … ». Your
+  words stay exactly as typed, a brace included. For other doors, nika-display adds
+  `correction_queued_in` and `correction_unsent_in`, and nika-tui-view `Thread::speaking`;
+  English is unchanged.
+- **The palette and the slash list now use the language you write in.** In a French
+  conversation each command and view key says what it does, where it applies and its one
+  sentence of help in French (« /status · Où vous en êtes », « Ctrl+L · Redessiner l'écran »),
+  and the chooser's own words follow too: the band's title, what waits (« Une proposition attend ·
+  aucune commande n'y répond »), its keys (« Entrée envoie /show · ↑↓ choisir · Échap masque
+  la liste ») and the search prompt « commandes › ». Command names stay as you type them, and a
+  French word finds the command it describes while the English search words still work.
+- **The prompt beside the line and the own reply's placeholder now use the language you write
+  in.** In a French conversation a proposal's line reads « Enregistrer ? › » and a question's
+  « réponse › », and the field beside a choice invites « ou tapez votre propre réponse »,
+  « ou tapez oui ou non » or « tapez pour filtrer ». The line keeps the cells the longer
+  prompt leaves, and a field already on screen changes its placeholder at once while keeping
+  what you typed. `action ›` and `nika ›` read the same in both languages.
+- **`?` shows the keys of what is on screen.** With nothing typed, `?` opens a read-only
+  frame listing the keys of the surface in view (the conversation, the intelligence list,
+  a question, a decision, or the work under way), its hint row's own words first, then the
+  keys that always hold and the view keys the palette offers now, from the same catalog.
+  `Esc`, `Enter` or `?` closes it with everything as it was; once words are typed, `?` is a
+  word. The stage line ends with `? for shortcuts`, the palette lists it, and the ASCII
+  glyph column reads the same keys.
+- **`PgUp` reads the conversation behind a question's or a decision's card.** On a full screen the
+  card covers the conversation down to the box, and a mandatory decision left no way to read the
+  activity behind it before answering. `PgUp` now steps behind the card: the conversation shows
+  and scrolls with the page keys and the arrows, the hint says « PgUp/PgDn scroll · any other key:
+  back to the card », and any other key brings the card back as it was, answering, selecting and
+  typing nothing. The card's hint names the key (« PgUp: history » where the row holds it), and so
+  does `Esc` with nothing left to undo. A decision still opens with nothing selected; a question
+  still opens on its recommended answer.
+- **The request beside its question.** A typed choice shows what the
+  Session keeps of your request, its goal and the questions still open,
+  above the question, so nothing already understood has to be typed
+  again.
+- **A proposal's review card now uses the language you write in, around the Session's own
+  facts.** In a French conversation the card reads « crée compiled-workflow.nika (33 lignes) »,
+  « remplace … · sur les octets attestés … », « révisé sur place · … » and « run demandé ·
+  report.nika une fois · plafond $0.25 ». Its headings follow (« à l'exécution · », « atteint,
+  comme déclaré · », « répétition · aucune liée à cette identité »), and so does its identity
+  on the border (« proposition 74189e5877e0 · F2 : tous les mots ») and the faces' first rows.
+  What the Session's audit says a workflow reads, writes and reaches, and its rehearsal words,
+  stay as the Session says them. On an ASCII screen these French words lose their accents.
+- **A proposal's check face details the compile record of its bytes.**
+  Below the static check, the object now shows how the proposed bytes
+  were made (the mode, their sha256, the base a revision rests on, what
+  changed and the preservation claimed) and every admitted component
+  they hold, with its version, release and admitted-file digests, its
+  bindings and what the bytes show of it now. `invoked` is admitted
+  reuse like `expanded`; only a revised, absent, unreadable or
+  unwitnessed component asks for attention.
+- **A run's ceiling is chosen from rows.** When the Session asks the
+  ceiling of a run it cannot prove one for, the TUI shows the amounts as
+  rows, the recommended one preselected with why, another amount typed
+  beside them and a way out; the transcript keeps the save report and
+  the one short question.
+- **The run in view now speaks the language you write in.** In a French conversation its
+  faces read « [run] sorties fichiers preuve », its standing « un nouveau run · terminé ·
+  réussi » (on its pinned row too), and the facts above its graph say the bytes it binds
+  (« graphe · les octets … sur lesquels il a été demandé, tels que le run les nomme »), how far
+  it went (« en cours · 4 tâche(s) vue(s) »), its settlement (« clôture · normal · 4/4 tâches ok
+  · 9857 ms »), its stream (« flux · 19 événements et la clôture, entiers ») and its evidence
+  (« attestation · scellée, comme le run l'a déclarée · la preuve est la vérification propre de
+  la trace »). Its graph counts in French, its tasks wear « ✔ réussie » or « ○ planifiée », and
+  the list says « tâches · ↑↓ choisir · Entrée détails ». The workflow, the cause, counts, times
+  and digests stay as they are; a task's detail and the outputs, files and proof faces still
+  read English. English is unchanged.
+- **A settled run's story folds to one row.** In the workspace
+  conversation, a run's story is folded once, when it is committed and
+  the shell observed its run typed, whole and settled (never paused), to
+  one quiet row: the run's label, its state and `F2`. The fold is never
+  recomputed: a later block never folds or unfolds it. `F2` at the reading
+  position, or a press on the row, opens the whole story; an untyped or
+  incomplete run keeps its words.
+- **A run's story now speaks the language you write in.** While a workflow runs from a French
+  conversation, the busy row and the activity card read « en cours · meteo-maurice-quotidienne »,
+  « ↺ today · depuis le cache », « ◇ en pause · `approve` vous attend » and « succeeded · 4/4
+  tâches · 9857 ms », and the story the transcript keeps reads the same. The workflow, the
+  tasks, the engine's status word, counts and times stay as they are. For other doors, a
+  `RunSink` gains a `say` method that defaults to English, so `nika`'s plain output and every
+  existing sink are unchanged.
+- **The stage line, the live line and a run's card now use the language you write in.** In a
+  French conversation the stage line reads « Brouillon ✓ · Enregistré ✓ · Vérifié ✓ · Actif ○ ·
+  Exécution ○ » beside « ~$0.31 dépensés » and « ? pour les raccourcis ». The line under work
+  in progress says « Préparation · 45s · 2 appels auteur · Ctrl+C arrête » or « Exécution de
+  veille-tech.nika · 2/3 tâches · en cours : write · $0.012 sur $0.25 », and a run's card opens
+  on « Échoué après 16.5s · 3 tâches exécutées · 1 échouée ». Times, amounts, file, task and
+  model names keep their form, the Session's phase words stay as it says them, and English
+  stays the default.
+- **The stage line carries what the session spent so far.** After its stages (`Draft ✓ ·
+  Saved ○ · …`), the terminal now adds `~$0.62 spent`: the Session's known estimate of
+  this session's preparation plus the metered spend of the runs it observed. Nothing is said
+  while the spend is unknown, a row too short for it drops it before the stages give way,
+  and the model and decision seat keep their one home, the header.
+- **`/welcome` brings the welcome back.** Once the first exchange took its space, the welcome and
+  the example it offers (« Try: aggregate-by-key ») could not be read again. `/welcome`, listed
+  with the commands, now brings it back as the object in view beside the conversation until
+  another object takes its place; outside the workspace its words are said in the conversation.
+  Nothing is sent to the Session.
+- **The butterfly is drawn in braille.** Outside the ASCII column the
+  welcome's mark takes Unicode braille renditions, 2×4 dots per cell, read
+  from the same samples of `media/brand/nika-logomark.svg` as the ASCII
+  density ramp, for the same five sizes; the reveal lights its dots in the
+  same five frames. A test now regenerates every rendition from the pinned
+  mark and fails on any difference, so a handful of ramp cells moved one
+  step to the reproducible sampling.
+- **A workflow's faces now speak the language you write in.** In a French conversation the
+  object pane names its faces « source plan graphe vérification », and says the facts above the
+  face (« workflow Nika · source · 1.9 Ko · identité … · 34 lignes »), what it cut (« 7 lignes
+  plus larges que 65 colonnes, coupées au bord »), the plan's waves, the graph's summary
+  (« Définition · 4 tâches · 3 arêtes ») and the check's reasons (« la définition est
+  conforme »), as well as the compile record a proposal binds to its bytes and the rows around
+  an opened file (« les octets de ce fichier …, tels que lus en dernier · r le relit »). The
+  object's own action reads « [+] Agrandir · F4 », and a click on a face's tab finds it by the
+  word painted there. The bytes, the engine's findings, the check's layer names, digests and
+  values stay as they are; English is unchanged, except that the check's closing reminder
+  now wraps rather than being cut on a narrow pane. For other hosts, `Canvas::speaking`,
+  `Inspected::speaking`, `Checked::importing` and `Face::label_in` are new additive calls.
+
+### Changed
+
+- **An Anthropic key starts on Claude Sonnet 5.5.** The catalog's Anthropic default and
+  the first-run suggestion for an Anthropic key name `claude-sonnet-5-5`, so a person who
+  picks Anthropic without naming a model runs it; an explicit model keeps running as
+  named.
+- **The Anthropic nicknames name the latest Claude models.** By maintainer decision of
+  2026-10-15, `anthropic/sonnet` runs Claude Sonnet 5.5, `anthropic/haiku` Claude Haiku
+  5.5 and the new `anthropic/opus` Claude Opus 5.5, each with that model's 1M-token
+  window and 128K output cap; the catalog's cheap Anthropic model is Claude Haiku 5.5.
+  `anthropic/claude-sonnet-4-6` and `anthropic/claude-haiku-4-5-20251001` keep running
+  as named, the latter with its retirement advice.
+- **The conversation's author offers only what one workflow can carry.** Its instructions now say
+  that every proposal is verified against the whole request, so splitting the work across several
+  workflows is no option; that an option dropping a file says so in its label and one asking for
+  an approval says who approves before what, so picking it settles the question; and that a
+  refusal is told in plain words, never by a finding's name.
+- **The workflow author shapes its choices for picking, not typing.** The author's
+  instructions and the `ask` tool now say: whenever an answer is among known alternatives,
+  give two to seven native options rather than a free-text question, with `multi_select`
+  when several may apply; label an option that names a website or a data source with its
+  display name, then « · », then its domain or feed address (`TechCrunch ·
+  techcrunch.com/feed`); whenever a default can stand, show the choice in the proposal's
+  `open` with exactly one recommended option. The assumptions-first rules are unchanged: a
+  default is still never asked, and a question asked with `ask` recommends nothing.
+- **The author waits for a fan-out and keeps independent items.** Its card showed `fail_fast: true`
+  as the one form of a fan-out, and never said that a fan-out over an empty collection is skipped
+  with a `null` output: an inbox workflow failed with NIKA-VAR-006 on an empty folder, its steady
+  state, and one failed summary of two lost both. The card now shows the plain fan-out, has every
+  task that reads a fan-out's output wait for it with `after: { <id>: success }` (an empty
+  collection then ends the run with nothing to do), and, when each item stands alone and the
+  request does not want all or nothing, keeps the other items with `on_error: { skip: true }`.
+- **Provider defaults and nicknames follow the served model ids.** OpenRouter uses
+  `anthropic/claude-sonnet-4.6` and `anthropic/claude-haiku-4.5` with their sourced
+  limits; `deepseek/chat` aliases `deepseek-flash`, while the explicit retired wire
+  id remains unchanged. OpenAI defaults to `gpt-6.1-sol` and `gpt-6-luna`; xAI
+  defaults to `grok-4.7` and `grok-4.3`, with the first-run suggestion naming
+  `xai/grok-4.3`. Retired grok-3 prices are removed, and the human catalogue lists
+  each aliased wire once. Groq defaults retain their models.
+- **`nika catalog` lists providers in the spec's presentation order.** Within its
+  LOCAL and CLOUD sections the rows follow the vendored design tokens'
+  `presentation.providers_order` (local engines first, then Mistral, Hugging Face,
+  OpenAI, xAI, Anthropic, DeepSeek, Google, Groq, NVIDIA and OpenRouter), the
+  order the language server already teaches; a provider the tokens do not name
+  comes after every named one, by id. The command keeps no order of its own.
+- **The TypeSafe decision seat lives in a size-cap member.** `nika-cli-host-typesafe` now holds
+  the System One seat (its transport, the Session's journaling seat and the batch exchange);
+  `nika-cli-host` re-exports it whole as `compile::typesafe`, so no consumer changes. The host
+  crate drops from 14,995 to about 14,076 production lines. The seat's key accessor now
+  returns a `Secret`, read only through an explicit `expose`.
+- **Decision partitions retain the exact serialized request bytes.**
+  `Partition::begin` returns the optional carried request as `Vec<u8>` instead of
+  a JSON value. Callers must preserve those bytes rather than serialize a parsed
+  value again. Model-part qualification also exposes its typed findings; this
+  preview's public API change is not exclusively additive.
+- **A decision batch is not refused twice at a size it already learned.**
+  When the System One decision service refuses a request of several items
+  for capacity, the rest of the batch never sends a request that large
+  again: a waiting half as large as the refused request is split before it
+  leaves, in order, instead of being sent whole to be refused. The seat a
+  Session keeps also remembers what its batches learned, so a later
+  compile's batch starts at the largest size the service answered, below
+  every refused size; a batch that never met the capacity teaches nothing,
+  and nothing persists beyond the process. Each journaled request split
+  before it left names that bound (`split_below`). Single items, order,
+  answers and the rest of the journal are unchanged.
+- **`nika doctor` says "unknown" when it could not see.** A harness seat
+  whose login check did not answer in time was a warning; it is now its own
+  level, `unknown` (glyph `?`), counted apart in the verdict line and in
+  `--json` as `summary.unknown`, never as ok, warn or fail. The exit code
+  is unchanged: an unknown row never makes `nika doctor` exit 3.
+- **Groq's catalogue row lists its self-serve gpt-oss models, and its defaults
+  move to them.** `groq/gpt-oss-120b` and `groq/gpt-oss-20b` name
+  `openai/gpt-oss-120b` and `openai/gpt-oss-20b` (131,072-token window, 65,536
+  output tokens, from Groq's models page of 2026-10-12), and Groq's default and
+  cheap models move to them from the Llama rows, which that page now lists for
+  enterprise contracts only. The Llama nicknames keep their models, and the same
+  ids stay usable on Scaleway, NVIDIA and local engines.
+- **The knowledge door ranks families by the light French stems of their words.** A request and a
+  family now meet whatever the inflection: each informative word of both is read by a light French
+  stem (a plural, « -aux », then one inflectional or common derivational ending), so « importées »
+  meets « importer » and « feeds » meets « feed ». On 32 held-out French requests, the family each
+  belongs to now ranks first for 20 instead of 19 and is recalled for 31 instead of 28.
+  Patterns, blocks, examples and skills reached by their own text keep their words; each family
+  recalled still brings its packs' patterns and blocks, presented whole. The pack names its
+  builder `knowledge-door-v8`.
+- **The embedded knowledge release is r3.5** (`knowledge-0.123.0-r3.5-foundry-20261016`). It adds
+  seven blocks for recurring jobs, each qualified in recorded worlds: an API value watched with a
+  state file that asks only on the first run and on a change, a report of the previous month on a
+  day-of-month cadence with amounts in integer cents, a folder translated file by file with each
+  failure named in a report, an inbox processed and emptied, a weekly reading list from feeds, a
+  daily news digest posted only on approval, and a CSV cleaned with the file line of every removed
+  row. Nine patterns (among them the run's spending ceiling, which lives in `--max-cost-usd`, the
+  project's `ceiling:` and a beat's `plafond:`, never in the workflow file), eight packs, two
+  families and French phrasings come with them, and the cadence knowledge reads a day of the month
+  (`TZ=<zone> 0 8 1 * *`). The r3.2 release it replaces stays embedded for earlier pins, which
+  reopen its exact bytes.
+- **Machine protocol 2.** This engine reports `machineProtocolVersion: 2` on `/health` and
+  `nika --sdk-identity`.
+  - **Why.** Compile questions may be `choice`, which `@supernovae-st/nika` 0.120.3 refuses
+    mid-compile. From now on, any change to an object a published SDK reads closed raises the
+    protocol in the same commit, held by a contract test against that SDK's closed sets. That SDK
+    then refuses this engine at connect (`NikaCompatibilityError`), before any job is admitted,
+    never in the middle of a run. Use the SDK of the same release. It reads protocols 1 and 2, so
+    upgrade the SDK first, then the engine.
+  - **Resident stores.** A resident stamps its stores with the protocol once it holds the lease,
+    so stores a 0.123 resident wrote are refused by an older resident, by design. Before
+    upgrading, copy the state root (by default `.nika/serve`). To roll back, serve that copy, or
+    a fresh `--state-root`.
+  - **Doctor.** Its resident row fails for stores a newer protocol wrote, whether a resident runs
+    or not, and names those two ways out. It used to read a stopped newer resident's stores as
+    fine and suggest a restart this binary would refuse.
+- **The models.dev pricing snapshot is refreshed to 2026-10-12.** It carries
+  729 rules (716 before): 38 rows arrive, among them Claude Sonnet 5.5 and
+  Haiku 5.5, GPT-6.1 Sol and Step 5 Preview, and 25 rows models.dev no longer
+  lists leave, among them `openrouter/qwen/qwen3.8-27b:free`, with the three
+  measured energy figures that rode on them. DeepSeek V4 Pro's snapshot price
+  moves from $0.435/$0.87 to $0.66/$1.98 per million tokens; its admission
+  tariff, at the peak rate, still prices its runs. DeepSeek's retired
+  `deepseek-chat` and `deepseek-reasoner` names, which models.dev no longer
+  lists, keep their `deprecated` status: priced for a recorded run, never
+  offered.
+- **The knowledge door lives in a size-cap member.** `nika-onboard-knowledge` now holds the strict
+  admission of a Foundry knowledge release, the releases this build embeds, the catalogue and the
+  authoring pack, with their assets and pinned vectors; `nika-onboard` re-exports every item at
+  `knowledge::`, so no consumer changes, and keeps `knowledge::pin`. The onboarding crate drops
+  from 14,999 to about 11,090 production lines.
+- **The access plan, the probe facts and route identity live in a size-cap member.**
+  `nika-providers-access` now holds `resolve_access`, `route_identity`, the probe's data types and
+  `canonical_provider`; `nika-providers` re-exports every one at its historical path, so no consumer
+  changes. The provider crate drops from 14,991 to about 12,800 production lines.
+- **A rehearsal bounds the values a run builds.** A candidate whose templates
+  build a value larger than the rehearsal room holds is run, and stopped where
+  the value is built: the rehearsal reports a data bound naming the task and
+  the value's size, instead of refusing every amplifying template before any
+  run.
+- **A served `rattraper` catch-up fires the latest missed slot once.** As spec 01 states, and as
+  the activation's one-ceiling worst spend assumes: a `nika serve` schedule under `manqué:
+  rattraper` (the job API's `catch-up`) no longer fires every missed slot, up to 10,000 runs. The
+  older slots are skipped, journaled once. A catch-up due while its schedule's previous run still
+  runs now waits for that run instead of being skipped as an overlap.
+- **A new run reads earlier work lean.** When the person writes, a superseded candidate's
+  arguments and findings and a page read again later reach the model as one-line stubs;
+  the person's lines, the provenance replies and the current candidate stay whole, the
+  record is unchanged, and nothing before a replayed thinking block is edited.
+- **A Session conversation is compacted within its route's window.** On
+  a route a tariff prices, the conversation's earlier entries are folded
+  into a summary before a request its route could not take, instead of
+  every request carrying the whole conversation. A route no tariff prices
+  keeps its whole conversation, as before.
+- **The session's intelligence, reasoners, line router and authoring door
+  now live in the `nika-session-intelligence` member crate.** A structural
+  split (ADR-150) that brings `nika-session` back under its production-size
+  wall: every `nika_session::{authoring, intelligence, reasoner, turn}` path
+  and root re-export names the same items, and no behaviour changes.
+- **A default picked at a proposal needs no author round trip.** When a
+  proposal shows its choices with their defaults, picking a choice's
+  recommended option (Enter on its preselected row, its key or label, or
+  `yes`) binds it and keeps the proposal shown, with its next choice or
+  its save decision, instead of asking the author to propose again. The
+  bytes, identity and card stay those the person saw. Another option, a
+  sentence, a changed candidate, the last pick of a proposal whose request
+  asked to save or run, and a conversation an ACP agent leads still reach
+  the author.
+- **The author reads the language up front.** A new conversation's instructions carry
+  the engine's one-page language, its canonical fragments and output conventions as
+  reference, and an index of what `language` and `knowledge` hold, so a missing detail
+  costs one narrow lookup.
+- **The observations of one message run side by side.** An observation reads one public
+  page outside the Session's lock, and consecutive ones run at once: three sources cost
+  about one page's time. Their replies keep the message's order; every other call stays
+  sequential.
+- **A Session turn keeps one connection to its model route.** The
+  conversation's calls in one turn share one client and its runtime,
+  built at the turn's first call, instead of a new client per request;
+  each request is still admitted and can still be stopped on its own.
+- **The author knows the run model's efforts.** The `models` tool names the
+  reasoning efforts each offered run model documents and its output limit, and the
+  author declares a `low` effort for tasks that only write or summarize text, so a
+  reasoning model's thinking no longer exhausts the answer's tokens.
+- **A saved default naming Jev opens new conversations with Jev.** When
+  the operator default names a decision seat and the host names none, the
+  session builds that seat by name, its key read through the seat's own
+  boundary, and consults it while it can; with the key missing the seat is
+  shown unavailable and never blocks the author. The header now reads
+  `Decision: Jev 1.13.0` (or `Decision: same model`).
+- **The properties you state are checked before an output is written.** The Session's
+  author is asked to check each property your words require of an output (an order, an
+  exclusion, a count or a total) with an assertion that the trial and every run evaluate
+  before the output is written; a candidate that breaks it fails its trial and is repaired
+  before you see it.
+- **A line typed during a turn holds back only the calls that hand the turn over.** A
+  steering line waits before ask, propose and new_request; a candidate write or a read
+  the author already decided still runs, and the line enters after them.
+- **A Session's last run names its job, receipt, outputs and the verifier's seal facts; `sealed`
+  keeps its meaning.** `work.run` gains `job`, `receipt`, `outputs` (kept whole up to 16 KiB
+  encoded, absent past it: the job keeps them) and `seal_verified` / `signed` as `nika trace
+  verify` attests them for the run's journal, absent when no verifier judged it. The Session
+  judges a native run's local journal when it observes the run and holds those facts beside its
+  kept value, which stays the one an earlier engine reads; an opaque trace identity is never read
+  as a local journal. `sealed` still names what the Stop's story reads, the settlement's receipt
+  naming the chain head: a run that stopped at a wave boundary without a run key reads stopped,
+  never cut, and no verifier's judgment is read from it.
+- **The author writes and proposes in one message.** A write's reply now
+  carries Nika's check findings, the laws over the person's words and
+  the values it dropped, so a candidate needs no separate check or verify
+  round before it is proposed; a shown proposal ends the turn instead of
+  costing one more model call; `compose` is lent the pinned release's
+  components and the release is admitted once per turn.
+- **The size walls are 25,000 production lines per crate and 2,500 lines per file.** The CI
+  ratchets and the pre-push gate now block a crate above 25,000 production lines and a source
+  file above 2,500 lines; the hygiene dashboard warns, without blocking, above 15,000 and 1,500
+  and names the crate closest to its wall, and a file with a `LOC-EXEMPT` marker stays capped at
+  5,000 lines. One ceiling applies to every crate: the native renderer's 19,000-line exception
+  is absorbed. ADR-154 records the decision and amends ADR-004, ADR-023 and ADR-143.
+- **A conversation's document needs an executable check for each count,
+  total, order or cut its request states.** A document the Session's author
+  wrote was READY although a typed property the request states had no check
+  any run evaluates, so its trial proved nothing about it. The conversation
+  door now holds such a document before its trial and its judge, INCOMPLETE,
+  naming each property with the request's words and the check to add: a
+  `nika:jq` boolean asserted by a `nika:assert` that reads it through
+  `with:` and quotes those words, the write waiting for it. A bound on text a
+  model writes is not asserted and stays the judge's. No model is called to
+  decide it, and the other doors follow once their author prompts teach the
+  same checks.
+- **`/status` says first whether the saved workflow is scheduled.** A person asking « is my Monday
+  recap on? » got the intelligence, the seat, the knowledge and the money lines and no word about
+  the schedule. `/status` now opens with the workflow this session saved, whether a schedule is
+  declared for it and whether a firer is proven on this machine, and how its last run ended.
+- **The conversation's author speaks as Nika and leaves the Session's acts to it.** The author's
+  instructions now say to speak as Nika in the first person. Installing, removing, activating
+  and deactivating a trigger belong to the Session: the author never claims them, nor advises a
+  terminal command or a hand edit of `nika.yaml` instead. They also cover plain text without HTML
+  entities, and « montre-le-moi avant de l'enregistrer » as a request to see the proposal. The
+  author never advises a stronger model unless the verifier asks for it, and a recommendation
+  never contradicts the person's explicit requirement. Each source of a multi-source result
+  recovers on its own, and a thinking model's `max_tokens` leaves room for its thinking.
+- **Schedule questions show their options once.** The missed-run policy
+  and the ceiling per scheduled run are chosen from rows the Session
+  states, the recommended amount preselected and another one typed
+  beside them; the transcript keeps the question's sentence and one
+  short line instead of repeating the options as text. A host without
+  rows still reads every option as text.
+- **A chosen command runs once.** `Enter` on a command in the palette
+  or the slash list runs it once, your unsent message left as it was;
+  `Tab` still only inserts it. A repeated `Enter` after choosing or
+  answering counts once, and queues nothing from a message waiting out
+  of view.
+- **One surface above a fixed composer.** The command palette, the slash
+  list and a typed question's offers open as one opaque surface above the
+  composer. The composer and the transcript keep their rows and the reading
+  position: opening, searching or closing it moves nothing, and nothing
+  hidden under it takes a key or a click. A typed choice keeps your unsent
+  message out of view, untouched, and gives its own reply a field of its
+  own; the arrows choose whatever that message holds.
+- **A decision names the act the Session recommends.** Its rows now say « recommandé » /
+  « recommended » beside that act, as a question's rows already did: the trigger's install marks
+  « Installer et activer », or « Garder déclaré seulement » when a scheduled run would not see the
+  workflow's keys, and a run's or a schedule's ceiling marks its recommended amount. A decision
+  still opens with no act selected, so Enter consents to nothing by itself; a decision the
+  Session recommends nothing for, such as a save, marks nothing.
+- **The workspace wears electric blue.** The brand, focus, selection,
+  primary action and interaction chrome take the electric-blue accent
+  and selection fill of the ratified design, replacing violet. Success,
+  caution, failure and each verb keep their own hue; `NO_COLOR` still
+  carries no hue and the ASCII column keeps its marks.
+- **`Esc` steps back and never answers a decision.** In a choice list it
+  first empties what you typed, then the selection; on a Save, cost, gate
+  or other decision it then sends nothing and says so, so its discard or
+  cancel row is chosen only with `Enter`. In `/intelligence` it returns
+  from a connection's models to all connections, and at the top keeps the
+  current choice.
+- **A connection's models open on the current generation.** In
+  `/intelligence`, earlier generations, dated snapshots and legacy models
+  now fold behind one `Older models (N)…` row, so Anthropic opens on its
+  Claude 5 models; the model in use and the recommended one always stay
+  in view.
+- **Reopened, `/intelligence` opens on `Keep current`.** Opening the picker again selected
+  `Recommended for you`, so a reflexive `Enter` replaced the author in use with the
+  recommendation. Once an intelligence is chosen, the picker now opens on `Keep current ·
+  <model>` and one `Enter` keeps it; where a first choice is required, the recommendation is
+  still selected and one `Enter` applies it.
+- **The intelligence guide no longer teaches a typed route.** `/intelligence`
+  and an opened connection now say only to choose below; every model this
+  machine offers is a row. Typing `/intelligence 2 provider/model` still
+  works as an expert fallback.
+- **`Enter` validates a multiple choice.** Space checks or unchecks an
+  answer; `Enter` on any row now sends every checked answer at once instead
+  of toggling the row under the cursor. With nothing checked it sends
+  nothing and says that Space checks an answer.
+- **The lifecycle rail names its stages in the Session's words, in the person's language.** The
+  workspace now asks the Session for the rail in the language it reads from the person
+  (`nika_session::Lang::rail`: « Brouillon ✓ · Enregistré ✓ · Vérifié ✓ · Actif ◐ · Run ○ ») and
+  paints it as it comes, instead of translating the Session's English stage names word by word
+  with its own table (which said « Exécution » where the Session says « Run »). A first
+  question's or a waiting proposal's own rail still gives its row to the card in either language.
+  Under the ASCII glyph column the Session's words keep their accents, as its other words do.
+- **The connections you can use now come first in « Choose an AI connection ».** Within each
+  access (agent accounts, APIs, local servers), the connections usable now lead: an API whose
+  key is present, an account or a local server the Session detected that can write workflows.
+  The rest keep their order below, and every other order is unchanged. With only
+  `NIKA_ANTHROPIC_API_KEY` set, Anthropic is now the first API row, where it stood twelfth under
+  eleven « key required » rows. Nothing is probed to tell.
+- **The workspace reads the Session's schedule histories as they are.** `ProjectView::schedules`
+  now holds `nika_session::ScheduleHistory` itself (built with its `new`), and the TUI's own copy
+  of it (`ScheduleView`, `SlotView`, both added in this preview) is gone. Whether this machine
+  holds a schedule's unit is the lent trigger host's answer (`TriggerHost::installed`), so a test
+  host proves the rail's « Actif ● » without touching launchd. Nothing a person sees changes.
+- **A stopped call wears the cancelled mark, not a failure's.** In the activity card a call the
+  person stopped read « ✖ call 1 · … · stopped, a charge may be unknown », the glyph the run views
+  use for a failure. It now reads « ⊘ call 1 · … », the theme's cancelled mark (« - » in ASCII):
+  a stop is the person's own act, not a failure.
+- **A typed « je voudrais l'enregistrer et le lancer » at a shown proposal is pinned through the
+  TUI.** The save decision takes the person's words through its bound door: the Session saves the
+  workflow and hands its run over, and the door runs it once. A test now holds that journey end to
+  end in the TUI, nothing run before the door performs it.
+- **The welcome names the Session's own demo.** « Try: aggregate-by-key » on the welcome screen
+  now reads the Session's `nika_session::WELCOME_DEMO`, the demo it gives a person who asks for
+  « l'exemple de l'écran d'accueil »: the screen and that answer cannot drift apart.
+- **The welcome's butterfly wears the brand's ice.** Where `COLORTERM`
+  proves 24-bit colour the mark takes the logomark's own ice, and while it
+  is revealed what each frame has just lit glows until the last frame
+  settles it. A 256-colour terminal gets the nearest xterm indices, the 16
+  ANSI slots bright cyan and bright white, `NO_COLOR` no hue; reduced
+  motion draws the settled mark at once.
+- **The wordmark locks up with the butterfly.** The welcome's spaced
+  `N I K A` becomes the wordmark `nika.` under the mark, the name strong and
+  its dot in the exec hue, and the header opens with the same wordmark in
+  place of `◆ NIKA`. Both glyph columns draw the same characters; without
+  colour it is plain `nika.`, and every other welcome word stays.
+- **A workflow named exactly `v1`, `v2`, … must be renamed.** `nika:`
+  names the file, and `v1` is the retired schema tag it once held. A
+  workflow named that way is now refused at parse (`NIKA-PARSE-003`) with
+  a remedy that says so, as `nika.yaml` already refused it. Only the
+  whole marker is refused: `vault`, `v2ray` and `v1-migration` stay
+  ordinary names.
+
+### Fixed
+
+- **« active-le » on a schedule declared earlier offers its trigger.** On a Mac whose terminal
+  Session installs triggers, activating a schedule `nika.yaml` already declares no longer stops at
+  « déjà déclaré · pas prouvé actif ». When no unit is installed, Nika asks « Installer le
+  déclencheur sur ce Mac ? ». When the unit is there, it says the schedule is active and when it
+  runs next. A line asking for another cadence still points to the entry to change.
+- **The activation honours « choisis pour moi », says when a schedule is already declared, and
+  never runs instead.** On the activation's questions, « choisis pour moi » or « fais au mieux »
+  was dropped or refused (« is not a positive amount in USD »): it now takes the run-once policy
+  and the recommended ceiling, both shown in the declaration consented to. Activating a workflow
+  already declared said so only after asking the missed policy and the ceiling again; it is now
+  said at once. « Vous pouvez l'activer pour moi, directement ici ? » ran the workflow: a filler
+  around the activation words keeps them the activation, and a line about activating or
+  scheduling never reaches Run. A green run that recorded no priced cost is still a run observed:
+  the ceiling says it cost nothing priced, not « no run of this workflow observed yet ».
+- **A second schedule joins the `arm:` list Nika wrote.** Activating a second workflow of the
+  same project was refused with « Nika does not rewrite a list it did not write », about the
+  `nika.yaml` Nika had written minutes earlier, and the person was sent to edit YAML by hand. An
+  activation now appends its entry to an `arm:` list that ends the file; a list followed by other
+  settings is still the person's to edit, and a workflow already declared keeps its entry.
+- **An agent no longer runs the calls of a message cut at its output limit.** Each call of
+  such a message is answered « not run: your message was cut at the output limit; re-issue the
+  call with complete arguments » and the loop goes on under the task's own limits, as the
+  Session's agent does. A turn the provider interrupted on its side is never acted on: the task
+  fails `NIKA-INFER-001`, transient, naming the provider's own word.
+- **An answer the provider cut at its output limit now fails instead of passing as the
+  output.** An `infer:` task whose provider stopped at `max_tokens` used to return the
+  truncated text as a success (a model that reasons by default can spend most of the cap
+  on reasoning: 4,096 of 4,096 output tokens, 3,860 of them reasoning, the answer cut
+  mid-sentence). It now fails with `NIKA-INFER-005` (not transient), before any `schema:`
+  validation or repair. The run record's `details` carry the text received
+  (`partial_output`) and the provider's stop reason, and an `on_error:` recovery can use
+  them. An agent's final message cut the same way fails with `NIKA-AGENT-006`. A blank
+  cut answer keeps its earlier failure: `NIKA-INFER-004` on a text task, the schema check
+  that names the token limit under `schema:`.
+- **Anthropic calls are priced again.** Every Anthropic reply now carries `"speed": "standard"` in
+  its `usage` object, a key the completeness rule did not know, so each call counted as « provider
+  did not report usage »: runs on Claude showed « cost · UNKNOWN · 1 unpriced call(s) » and no
+  allowance settled them. The standard speed is now a known axis beside the standard tier and
+  global inference; a fast reply, billed at another rate, still leaves its call unpriced.
+- **« Active-le tous les matins à 7h » activates that schedule.** An activation line that states
+  its cadence re-proposed the saved workflow, then asked for the English word « activate ». The
+  cadence it states is now the schedule declared, and a plain « activate » after a workflow saved
+  without one takes the cadence the person's latest line stated (« qu'il tourne toutes les
+  heures »). The activation questions read the person's words: a city for the time zone
+  (« Paris », « heure de Paris »), a sentence for a missed run (« le faire une fois quand il se
+  rallume »), an amount with its currency (« 0,10 $ ») and a choice left to Nika after another
+  clause (« je ne comprends pas, choisissez pour moi »).
+- **« Active-le tous les matins » activates the saved schedule.** An activation word with only
+  the period the saved schedule already runs on reached the author, which proposed the saved
+  workflow again. It now opens the same activation « active-le » opens; another period is a change.
+- **An activation question takes its recommended option in words.** « le recommandé, celui à
+  10 cents » was refused as no amount in USD, and « comme la dernière fois, vous choisissez » was
+  not one of the three, while « comme vous voulez » was. The recommended option, a choice left
+  to Nika in other words, and one amount said with its unit inside a sentence are now read.
+- **An answer at a gate is recorded when the paused run spent part of its ceiling.** A run that
+  paused at a `nika:prompt` gate after a priced step resumes under what its ceiling leaves, and
+  its admission priced the whole workflow again, the finished step included. « non » and « oui »
+  were both refused (`NIKA-1709 · … unavoidable cost floor $0.196608 exceeds --max-cost-usd
+  $0.195214`), the answer was never recorded and the run stayed paused, from the Session, the
+  terminal and `nika run --resume <trace> --answer <task>=<value>` alike. The CLI preflight and
+  the runtime's own launch gate now price the work still to run: a task the resumed journal
+  completed is a cache hit and costs nothing, with any child workflow or priced builtin it
+  calls, and a branch the answer closes was already priced closed. A step edited since the
+  pause runs again and is still priced by the runtime's gate. What still runs is judged as
+  before, and a fresh run's floor is unchanged.
+- **A question Nika asked no longer blocks a proposal that shows it.** When the author asked a
+  question and then proposed with that same choice shown on the card, `yes` was held (« Nika asked
+  `topics`, which this proposal does not show ») and the asked question could not be answered while
+  the proposal waited. The card's choice now is that question: `yes` keeps its default, another
+  option revises. A question the card does not show waits first and is answered by its own
+  identity (that reply never names the workflow's file); a proposal shown before that answer is
+  revised before it saves.
+- **A reasoning effort the model does not offer is a finding, not « clean ».** A workflow
+  declaring `run.reasoning.effort: low` for a model whose catalog lists no effort level passed
+  « check · clean ✔ » and « Vérifié ✓ ». Every run of it was then refused before its first task
+  (NIKA-1800). The Session's check now reports it as a finding, so such bytes are neither shown
+  as ready nor saved as clean. What only this machine lacks, such as a seat not installed, stays
+  a run-time matter.
+- **An empty product is said in the run report.** A run reported « réussi » with « produit ·
+  ./journal.md (0 B) » among its green ticks, after moving the three messages it read to
+  `traites/`. The report now says when a file it wrote is empty, and how many files the run
+  removed beside it, so the person checks the result before running it again.
+- **An HTML feed title reads as its words.** A feed title of type `html` (Atom `type="html"`, as
+  The Verge publishes) kept its markup: a reading list showed « Bluesky&#8217;s AI tool ». The
+  `feed` mode now decodes its entities and drops its tags for the feed's and each item's title; a
+  plain title, the summary and the content are unchanged.
+- **An identical restatement no longer piles up in the request.** A retry or a restatement sent
+  twice joined the request each time: « Original request: » four times, three identical
+  corrections, and a judge question large enough to overflow its context. A correction whose
+  words equal the request's last ones now leaves the request as it was.
+- **An installed trigger whose runs would miss their API keys is never said to run on its own.**
+  After the activation card had warned that a scheduled run would not see the person's keys, the
+  install still answered « Installé et actif · tournera tout seul ». It now says the trigger is
+  started, that every scheduled run fails until it sees the named keys, and how to give them: a
+  file of `KEY=value` lines passed to `arm --emit launchd --env-file <file> --write`.
+- **An answer the provider interrupted says how to go on.** « the provider interrupted the
+  answer: nothing of it was kept or run » came back three times after 2 min 05 s with nothing
+  saying whether to retry, rephrase or change the model. It now says the provider ended the
+  answer with an error, that nothing was kept or run, and to send the same line again or choose
+  another model with `/intelligence`.
+- **A GPT-6 call that wrote the prompt cache is priced.** OpenAI reports the input it wrote to
+  the prompt cache beside the cache read; Nika read any write as an unknown billed axis, so such
+  a call stayed unpriced. The write now counts within the input, at the cache-write rate the
+  GPT-6 pages state; on a model whose page lists no write rate, the call stays unpriced.
+- **An authoring call whose recalled knowledge exceeds what one request carries is still sent.**
+  Bounded inference sends at most 1 MiB and refuses a larger request before any byte leaves, so a
+  large knowledge pack lost the whole call and nothing was authored. The document, sketch,
+  revision and Plan doors now weigh their opening first: past the capacity less an eighth kept for
+  the rounds that follow, the pack's references are shown by their first line from the end of each
+  kind's order, the same share of every kind, until it fits. Each says so in its text, and its
+  receipt keeps the whole entry's size and digest (`first_line_only`). The request, the card, the
+  callable contracts, the language and the component list stay whole, and an opening that fits is
+  sent unchanged.
+- **An OpenRouter reply is priced again.** Every paid OpenRouter reply read as an unknown cost
+  (« cost · UNKNOWN · 1 unpriced call(s) ») because it carries the upstream provider's cost
+  beside its own charge, which Nika took for a BYOK bill. A non-BYOK reply now settles at the
+  charge it reports, its breakdown read for its shape only: `z-ai/glm-5.3-flash` costs
+  $0.000078 for a one-word reply instead of an unknown amount.
+- **An unbounded estimate names what bounds it not.** « model output estimate · unbounded: a
+  token or iteration bound is missing » stood beside a declared `max_tokens: 4096`, when only
+  the number of items a step fans over was unknown. The line now names the tasks that declare
+  no `max_tokens`, the tasks that run once per item of a list known only at run time, and a
+  composed workflow with an unbounded step.
+- **An unpriced call says why.** Every unknown cost read « a route with no price table (a local
+  model is unpriced, never free) », said of OpenRouter and Gemini routes, remote and billed. The
+  run result now names the reason its frames recorded: no verified tariff for the route, usage
+  its provider did not report completely, a subscription seat, rejected usage or a local model.
+- **An approval stated before an effect is a gate without an asking verb.** The reader saw a human
+  gate only through an asking verb or an « after my approval » shape, so « je veux une validation
+  humaine avant d'écrire jobs-<date>.md » or « je valide chaque run avant l'écriture de … »
+  stated none, and the « écrire jobs.md » such a gate holds was no write without the word
+  « fichier ». A person's approval that a `before` closes now gates the effect named after it,
+  and inside a gate a form of writing followed by a file it names is the write. A denied approval
+  (« pas de validation avant … ») and a validation step no person performs (« a schema
+  validation before writing ») stay none, and a person turning down a proposal (« non, je veux
+  plutôt écrire le total dans ./out/total.txt ») bans nothing.
+- **`nika arm --emit` no longer arms a beat that cannot run.** `nika arm` reported a beat
+  UNREADY (a required input with no binding source, a missing workflow, an unpriced
+  model), yet `--emit` printed its unit and `--write` installed it, so the OS would fire
+  a run that could only fail. The emission now refuses while any active local beat is
+  UNREADY, naming each one with the blockers `nika arm` shows: fix the beat, or suspend
+  it with `actif: false`. A beat whose only open question is an unknown (a child
+  workflow whose model only the run decides) now reads READY, as `nika arm fire` fires
+  it, and `nika arm` still names the unknown.
+- **`nika arm --emit --write` retires the units of beats `nika.yaml` no longer arms.** A beat
+  removed from the registry, renamed, or moved to the cloud kept its OS unit, which went on
+  waking `nika arm fire` for a beat that no longer exists; neither `--write` nor a dry
+  emit mentioned it. Now `--write` syncs the units with the registry: each of this
+  project's units whose beat is no longer armed is named with the command that unloads it,
+  then its files are removed. Loading and unloading stay your gesture, as before. A dry
+  `nika arm --emit` lists what `--write` would retire. Another project's unit, and a unit
+  without this project's GENERATED mark, are never touched.
+- **Two projects that arm a beat of the same name keep their own OS units.**
+  `nika arm --emit … --write` named a unit after the beat alone
+  (`nika.arm.daily`). A second project's `--write` replaced the first
+  project's unit, `nika arm disarm daily --write` in one project deleted the
+  other's, and a flagless `--write` could copy another project's env-file
+  wrap, so its runs sourced that project's keys. Unit names now carry the
+  project's key (`nika.arm.<key>.daily`, the start of the project root's
+  fingerprint), and neither the emit nor disarm reads, replaces or removes
+  another project's unit. Disarm now prints `launchctl bootout
+  gui/$UID/<label>`: the printed path form failed once the plist was gone, so
+  the job stayed loaded until logout. Units an older engine wrote are
+  reported with the commands that retire them; re-run `nika arm --emit
+  <target> --write` in each project. A project whose `.nika/arm/env-file`
+  already names another project's file keeps it until you pass `--env-file`.
+- **A failed authoring call names the provider's status again.** A dispatched call that fails
+  carries its money observations, and the authoring boundary judged that wrapper instead of the
+  error inside it: a busy seat's 503, now ended at once instead of re-sent, read only « the
+  authoring provider call failed », and an observed admission refusal lost its type. The document
+  now says « the authoring provider answered HTTP 503 », so the caller knows a retry may help.
+- **The author reads the Session's spend so far with each line.**
+  QA gauntlet q09: asked what preparing had cost, the author answered
+  « je n'ai accès à aucune mesure » while `/status` said $2.32. Once a
+  preparation request was observed, each line the person types now
+  reaches the author with the spend as `/status` says it, ahead of the
+  run and recovery notes. An agent leading over ACP, whose subscription
+  the Session never meters, reads none.
+- **« quoi ? » reaches the conversation.** With no recovery to tell, a bare « quoi ? » or
+  « hein ? » answered with the last run's fact, « no run yet under this root (no trace in
+  `.nika/traces/`) », beside a question the person could not read. It now reaches the
+  conversation, which answers what the person did not follow. « what happened? » still reads the
+  last run.
+- **A bare yes answers the author, never runs the workflow.** « Oui, allez-y, merci. » to the
+  author's offer to prepare a change ran the saved workflow and overwrote its report. A line made
+  only of a yes, a go-ahead and courtesy now goes to the conversation, which knows what it
+  offered.
+- **A behaviour defect is said in words.** When a rehearsal of the draft gave a result the request
+  does not ask for, and no repair followed, the conversation showed the repair's raw record
+  (`{"kind":"behaviour_failed",…}`) under « what stopped it ». It now says what the rehearsal
+  showed against what was asked.
+- **A choice or decision card no longer hides what Nika just said.** The card covers the
+  conversation, so a reply written after your last message, such as why a requested change could
+  not be made, was only found by scrolling once the card had closed, and the save decision came
+  back looking as if nothing had happened. The card now opens on Nika's words since your last
+  message: the whole reply where it has room, otherwise its first row, marked as cut, then its
+  latest lines, with Markdown marks read as words. A decision on a proposal shown before your
+  last message says `this proposal is unchanged since your last message`; an act you picked on
+  the card, such as « Inspect the exact changes », does not count as a message.
+- **A recommended ceiling reads as a multiple of one run.** « $0.10 · covers 10 runs like the last
+  one » read like a budget for ten runs. It now says « 10 × the last run ($0.0094) », in French
+  for French speakers.
+- **Naming the ceiling without an amount no longer refuses the line.** « Le plafond, je le donnerai
+  au moment de lancer » or « quel est le plafond ? » was refused as an invalid amount, and nothing
+  was prepared. Such a line now states no ceiling. A bare « …, budget » after the work and a
+  malformed amount (« plafond -1 », « budget NaN ») are still refused.
+- **A ceiling offer counts the runs it holds.** The recommended ceiling read « $0.10 · covers at
+  least 3 runs like the last one, $0.0015 » for an amount that holds 66 of them. It now says how
+  many: « covers 66 runs like the last one, $0.0015 each ».
+- **A run's ceiling now reads the same way wherever it appears.** Before a run, the
+  Session wrote « ceiling $0.1 (saved with the workflow) » and the line below it wrote « ceiling
+  $0.10 ». A ceiling under a cent showed as « $0.00 », which is wrong. Every surface that names a
+  ceiling (the run's announcement, the proposal's asked run, the project facts, a run's result,
+  `nika check` on a project) now writes the amount as you set it: `$0.10`, `$0.25`, `$0.001`,
+  `$2`. Every significant digit is kept, cents show wherever there is a fraction, and no amount is
+  rounded to zero.
+- **A change said beside a rerun is made first.** A line with a rerun word and an amount was read
+  as « rerun the saved workflow under this ceiling » whatever else it asked: « passe l'étape IA du
+  commentaire sur Claude Sonnet, et relance avec le même plafond de 0,10 $ » reran the Haiku
+  workflow at once and overwrote its report, the model change lost without a word. The shortcut
+  now applies only to a line that says nothing but the rerun and its ceiling (« augmente le budget
+  à 1 $ et relance », « relance-le, max 0,50 $ »); a line asking a change beside it reaches the
+  usual reading, which prepares the change.
+- **A choice left to Nika is said in the person's language.** « Laisser Nika choisir » recorded
+  « I leave the choice to Nika. » as a French person's words. It now records « Je laisse le choix
+  à Nika. » for a person who writes French.
+- **A revision's circumstance is judged with its clause.** « Dans rapport.md, pour les doublons,
+  mets l'email … » was cut at its commas and refused because « Dans rapport.md » and « pour les
+  doublons » were judged as missing requirements of their own, under a « Change: » label the
+  person never typed. A short phrase that opens with a preposition and ends at a comma now joins
+  the clause it frames, and the refusal no longer quotes the label.
+- **A long conversation keeps the person's own words.** When a conversation outgrew the
+  model's window, its earlier part was folded into a summary that, by design, is not the
+  person's words. The author then had nothing of theirs it could cite: it asked four times to
+  restate a request that was still on the screen, and refused to bind an authorization given
+  earlier. A summary now comes with the person's own lines it folded, verbatim, each with its
+  citation. An old line too long to fit is given by its opening words.
+- **A cost ceiling says when a model reasons beyond `max_tokens`.** On a route whose reasoning
+  no request bound holds (xAI's Grok models), check said « ✔ COST $0.0123 – $0.0123 worst-case
+  output ceiling » and « model output estimate ≤ $0.0123 ». Runs then cost $0.016 to $0.021. The
+  line now reads « visible-output ceiling · reasoning of `task` billed beyond it ». The proposal's
+  money rows name each such task and model. Run admission already reserved the whole generation.
+- **A number that counts or ranks something is no ceiling.** A run line was refused whenever it
+  held a number without a currency: « J'ai déposé 3 messages dans inbox/, relance-le stp » and
+  « relance-le une 2e fois stp » met « that number has no explicit monetary meaning ». A number
+  followed by what it counts (« 3 messages », « 2 fois ») or with an ordinal ending (« 2e »,
+  « 3rd ») now states no money; a bare number still asks for its currency.
+- **A request to create or copy a workflow is shown before anything is written.** The
+  conversation's model could treat a request such as « Crée-moi un nouveau workflow X, identique
+  à Y » as the person's consent, and the Session then saved a workflow nobody had seen. A workflow
+  the person has not seen is now saved on their earlier words only when those words say save or
+  run (« enregistre-le », « puis lance-le », « save it »). Otherwise the proposal waits for their
+  yes. Their consent to a proposal already shown is read as before.
+- **A CSV workflow is rehearsed.** A rehearsal refused every `nika:convert` step: « task
+  parse_perso runs nika:convert, outside any bounded subset a rehearsal vouches for ». So no
+  workflow that parses a CSV was ever tried before its first run. The room now runs
+  `nika:convert` over its own copy, within the copy bound. Every value a room run builds is
+  bounded where it is built.
+- **A day a noun names is no money.** « J'ai mis le fichier du 16 de côté. Relance-le. » was
+  refused as a ceiling without a currency, in English. A day of the month a noun names (« le
+  fichier du 16 ») is now data; a day said after a run verb (« relance-le le 16 ») is still asked,
+  since it may say when to run.
+- **A day a past participle names is no amount.** « J'ai remis le 17 et mis le 16 de côté.
+  Relance. » was refused as a ceiling without a currency. A day after « remis », « mis »,
+  « gardé » or « déplacé » names what was moved, as « le fichier du 16 » does; « relance-le le 16 »,
+  which may say when to run, is still asked.
+- **A day of every month is a monthly schedule.** « Le 1er de chaque mois à 8h », « tous les 15
+  du mois à 9h » and « every month on the 1st at 8 am » had no cadence reading: the Session
+  refused them as incomplete, and an author bound a daily 8:00 with a date check inside the
+  workflow, which lost every missed 1st. They now read as `0 8 1 * *` at the head or the end of
+  a request and in a schedule answer. A 29th, 30th or 31st, which some months lack, is asked
+  again with the last day of the month offered, never bound.
+- **A schedule's declaration says no freshness of its sources.** Landing `nika.yaml` said
+  « source freshness not judged: it reads no project file », even for a workflow that reads
+  `releves/*.csv`. A set that lands no workflow runs nothing, so its yes now says nothing of
+  sources.
+- **A declared schedule changes zone, or goes, in the person's words.** Four attempts to move a
+  declared schedule from Mauritius to Paris time reached the author, which cannot write
+  `nika.yaml`, and « retirez cette planification » was sent to « désactive-le », which removes a
+  trigger, never the declaration. « Mettez plutôt l'heure de Paris » now proposes `nika.yaml` with
+  that entry's cadence in the new zone, its hour, missed policy and ceiling kept, and the trigger
+  is offered again once it lands; « retire la planification » proposes the file without the
+  entry. A schedule this Mac fires is deactivated first. « l'heure de Paris » now reads as a zone.
+- **A demo asked for by its name is its skeleton.** Only the bare name of the welcome's demo
+  (« aggregate-by-key ») reached its exact skeleton: « montre-moi cette démo aggregate-by-key dont
+  tu parles sur l'écran d'accueil » went to the conversation, which showed the workflow in the
+  chat, and « enregistre et lance » then failed because no request of the person's stood behind
+  it. A line that names one demo and only asks to see, try or run it now reaches its skeleton
+  with no model: its one open value is asked and its answer proposes the demo. A line that adds a
+  path, an address or a number stays the conversation's.
+- **A discarded proposal never comes back.** After « Discard » of a revision over a saved
+  workflow, the next fix edited the discarded draft, which came back under another name as a
+  second workflow beside the saved one. A discard now leaves the saved workflow as it stands as
+  the base of the next change (no base when nothing is saved), and the author is told what was
+  discarded. The discard is said in the language you write in.
+- **A failed step says why.** « proposing the workflow failed · 3 ms » now carries the reason
+  the run reported, on one short line.
+- **A resume serves back a fan-out over its own `with:` and a group fold.** A `for_each` whose
+  collection read the task's own binding (`for_each: { items: "${{ with.ids }}" }`) was never
+  stamped, so `--resume` ran it live again: the content a gate had shown changed under the
+  answer, and every answer was refused NIKA-SEC-010. The stamp now resolves the collection over
+  the item-free `with:`, as the run does. A `${{ group.<name> }}` fold is stamped over its
+  declared members, without their durations, which the journal cannot serve back.
+- **A fetch that sends says it sends.** A `nika:fetch` task whose method is POST, PUT, PATCH or
+  DELETE now reads « sends to the web » wherever the Session says what a task does. That covers
+  the gate's « un oui permet … » line. Before, a POST to a webhook read « fetches from the web ».
+- **A file the person names alone is found where it is.** A request that names a file by its
+  name only (« si la note tarifs-2027.md échoue ») while the file lives in a folder
+  (`./notes/tarifs-2027.md`) was refused at every revision as « UNREALIZED PATH », even when the
+  workflow read every note through a glob. The observation now locates the one file of that name
+  under the project (hidden folders and build outputs aside), and a workflow that reads it where
+  it is realizes the name. Two files of that name, or none, leave it unrealized as before.
+- **A file the person takes back is no longer owed.** Every file a request named stayed owed for
+  the whole conversation: after « ne lis pas profil.md, copie mon profil dans le workflow », each
+  workflow that no longer read the file was refused until the person restated everything. Their
+  latest words about a file now decide: a later line that stops it from being read or used, or an
+  offer they picked that says it is no longer read, withdraws the earlier mention, and naming it
+  again asks for it again. A line that only qualifies the reading (« ne lis pas data.csv en
+  entier ») or a condition (« si tu ne lis pas … ») withdraws nothing.
+- **A folder named in words is held by the rehearsal.** « Les fichiers .txt du dossier inbox »
+  named no folder, because only path-shaped words (`./inbox/`) counted. The rehearsal then held
+  nothing, and the first run on the empty inbox failed. A folder introduced by its noun
+  (« dossier », « folder », « répertoire ») and a bare name is now copied into the rehearsal room
+  when the workflow reads under it. « Le dossier client » with no read under `./client/` stays a
+  case file. A named folder that is not there is skipped, as the real run finds it.
+- **A folder you name as `copies/` is tried before « propre ✔ ».** « Dans le dossier copies/ … »,
+  « dans commandes/ … » or « du dossier notes/ » named no folder the rehearsal could hold, so a
+  workflow reading those files was proposed as clean without running a step on them, and its
+  first real run could fail on its own jq. Such a folder is now copied into the rehearsal room
+  where the workflow reads under it (within the room's copy bound, originals untouched), and the
+  steps after a model step that declares its answer's shape run on an example of that shape: a
+  wrong jq is caught before you are asked to say yes.
+- **A proposal over a folder is really rehearsed, and a rehearsal that binds nothing is said.**
+  A Session proposal whose request reads a folder (« copies/ », « inbox/ ») was still shown
+  « propre ✔ » with no rehearsal: the world observed before the trial refused the folder as no
+  regular file, the trial's evidence was refused for having no receipt of the folder itself, and
+  the refusal was dropped in silence. The world before a rehearsal now holds each file of a
+  folder or a pattern the request reads, and of a destination folder, so the rehearsal is bound
+  to the copies it ran on; a source the workflow reads only under (« lis ./inbox ») is held as
+  the folder it is, even empty; a file the run writes that the request never named is bound as
+  the absence it was in your project. The proof then keeps what the request names and what the
+  run wrote: files arriving in or leaving an inbox between runs are no drift. A proposal whose
+  trial binds nothing says « No rehearsal bound to these bytes » and why.
+- **A schedule in another zone than the Mac's can be armed with launchd.** launchd fires in the
+  machine's zone, so `nika arm --emit launchd` refused a cadence such as `TZ=Europe/Paris 0 8 * *
+  *` on a Mac set to another zone. The unit now wakes at each machine hour one of the schedule's
+  slots can fall on over the coming year (10:00 and 11:00 on a Mauritius Mac for 08:00 Paris,
+  summer and winter time). The firer reads every wake in the schedule's own zone: it runs the due
+  slot and leaves the other wakes not due, without journaling them.
+- **A free « Oui » to the author's approval question is the person's approval.** When the
+  author asked « Veux-tu valider chaque envoi avant qu'il parte ? » and the person typed « Oui »,
+  that answer bound nothing, so the gate it approved still read as invented and the author asked
+  again (six times in one session). Such a yes now states the approval its question names, as a
+  picked option already did; a « Non », a qualified no (« oui, sans validation ») or a yes to a
+  question that asks no approval states none. Approval questions read their infinitive
+  (« valider », « approuver », « confirmer ») and the person glued to the verb that asks them
+  (« veux-tu », « dois-je ») or doing them (« par un humain »).
+- **A French proposal card says its rehearsal in French.** The card beside a French proposal
+  read « répétition · Rehearsed on a copy of your files · nothing ran on the originals · … »,
+  while the proposal's own text said it in French. The rehearsal words a host draws now follow
+  the person's language as the proposal does.
+- **A French card says what runs in French.** A proposal's run-time rows (« writes … », « pauses
+  for a human answer », the model estimate), the understanding note and the resume line were
+  English on a French card; they now read in French, every path, host, model and amount as
+  written.
+- **A French session reads its proposals and its runs in French.** A French proposal still
+  read « money: $0.25 USD · session default · proposal/Run ceiling · … », « when it runs: » and
+  « apply this? (yes applies · …) », and its run « check · … · clean ✔ · ceiling $0.10 (saved
+  with the workflow) » and « run observed · exit 0 · succeeded ». A person who writes French now
+  reads them in French, every path, amount, identity and workflow byte as written. The identity
+  a consent answers is unchanged. The ceiling's source now says « saved beside the workflow »:
+  it is kept beside the file, never in it.
+- **Asking one more change to a proposal no longer fails the turn.** The revisions of one
+  proposal drew on one rehearsal account across every turn, so after a few changes each new one
+  failed with « the session runtime failed: the shared turn rehearsal budget admits no further
+  world ». A line that answers no open question now starts a fresh account; answering a question
+  still continues the one it belongs to, and a suspended proof still waits aside.
+- **A run's text result says its last line too.** The run card showed a declared text output
+  by its first line. A journal each run appends to read the first run's line after every run, as
+  if nothing new had been written. A text of several lines now reads as its first line, its last
+  line and how many lines it holds.
+- **A workflow that keeps its own state is rehearsed, first day included.** A journal it appends
+  to, or yesterday's figure it compares with, was read in the rehearsal room as « read but not
+  observed », or refused as an absent input on the first day, so the whole rehearsal was dropped
+  and the first real run met the first-day case untried. A path the request names that the
+  workflow both reads and writes is now handed to the room as its state: copied as it is, or held
+  as the first day's absence, read back after the run, and its write advances the proof.
+- **A jq step built from a `const:` value is compiled by `nika check`.** A `nika:jq` expression
+  holding `${{ const.NAME }}` was skipped as « built at run time », so a constant set unquoted in
+  the program (`${{ const.target_dir }} + "/"`, read by jq as names) checked clean and failed the
+  first paid run with « undefined filter or variable ». The check now builds such a program
+  exactly as the run does and compiles it; a template only the run can know is still left to the
+  run.
+- **A judge reads the Foundry offers it weighs, not the whole catalogue.** Every verification
+  question carried each offered component with its contract, about 70 KB for fifty components.
+  The decision seat could not read the whole-request question, so nothing was judged on the
+  standard path. A question now carries in full the components the bytes hold; every other offer
+  appears by identity, title and status. Only a localization, which weighs every contract, is
+  sent them all. A seat that refuses a question as too large no longer advises a retry that
+  would ask it again.
+- **A refused key check says what the provider said.** Testing a key the provider refused
+  answered with the hint a failed run prints for the command line (« NIKA-INFER-001 …
+  `--access <seat>` »). It now reads the provider's own words and its error's kind, the key
+  withheld.
+- **A launchd unit given an env file passes its keys to the run.** `nika arm --emit launchd
+  --env-file <file>` sourced the file through `/bin/sh` without exporting it: the plain
+  `KEY=value` lines of a dotenv file never reached the firer, and every scheduled run that needs
+  an API key failed. `nika arm fire --env-file <file>` now reads the file itself (plain
+  `KEY=value` lines, an optional `export `, comments, blank lines, single or double quotes) and
+  fires the beat with those variables set, never printing a value; a file it cannot read, or a
+  line that is not `KEY=value`, refuses the fire before anything runs, naming the file and the
+  line. The launchd unit hands `--env-file <file>` to the firer in its `ProgramArguments`, with
+  no shell wrapper. Units written by an earlier engine are still recognized when they are
+  re-emitted or retired.
+- **A line typed after a failed run's diagnosis is the person's own message.** When a run the
+  person's words authorized failed, Nika's note started a turn the model answered, but the
+  proposal it ran still counted as waiting: the person's next line was read as that proposal's
+  answer and moved into its reply, so the request ended on the model's own message. Claude Opus
+  5.5 refused it (« does not support assistant message prefill ») and the turn failed. Once the
+  model has answered such a note, nothing waits on the proposal any more.
+- **A change that names the saved workflow's files revises it.** After a workflow was saved,
+  « Trie le rapport par ligne. » could be read as new work. It then got an English question about
+  the run model and an unrelated, paid `classify` workflow. A line that opens with a change (« trie
+  », « ajoute », « retire », « sort »…) and names a file the saved workflow reads or writes, by
+  name or without its extension (« le rapport » for `rapport.md`), now revises it. A line that
+  states the work again, or asks for a new workflow, still starts one.
+- **A judge locates a missing part over each offer's purpose.** On the standard path, every
+  revision still overflowed the decision seat on one question: the localization of a missing part,
+  which was sent every contract of the catalogue. It is now sent each offer's identity, title,
+  purpose and status. The components the bytes hold stay whole.
+- **A model's working notes are never shown.** A model that streams its reasoning as text (no
+  reasoning field) had its English working notes, turn ids and finding names shown in the
+  conversation and in a question card to a French person. The words beside a call are now shown
+  only when they are written in the person's language, without what a reasoning tag
+  (`</think>`, `</mm:think>`) closes or opens.
+- **A model the person named is told how to state it.** A model the person named in words
+  (« Grok 4.7 (xAI) ») but stated by the author as typed (`answered`) was refused as words
+  « not in the person's line », though they were; Grok 4.7 retried other excerpts of the same
+  line again and again. The refusal now says the value was not typed and asks for it as
+  `named` with the same words.
+- **A newline after a lone reference is written.** `content: "${{ with.d.version }}\n"` wrote
+  `3.15.0` without its newline, and `"${{ x }}\n\n"` lost both: a string holding one reference
+  and only whitespace around it was read as the reference alone, which keeps the value's type and
+  drops the whitespace. Only the reference alone keeps its type now; any other character around
+  it, whitespace included, is text. A `for_each` collection is still read whole when a block
+  scalar leaves whitespace around its reference.
+- **A per-run budget never blocks a proposal.** « … chaque run doit coûter au maximum 0,10 $ :
+  budget max 0,10 $ par run » was read as an obligation whose quote spanned the model clause too,
+  and the first proposal was blocked twice for a ceiling no task can carry. An obligation whose
+  requirement states only the Run ceiling beside the candidate is now carried there. A copy of a
+  saved workflow also keeps the ceiling the person set for its next runs in the conversation
+  (« Le plafond est de 0,10 $ par run stp », then « identique à … »: the copy ran at $0.25).
+- **An approval the person picks is their gate.** The approval laws read only the person's typed
+  words, so a gate they picked from a question (« Oui, je valide chaque run avant l'écriture de
+  jobs-<date>.md ») was refused as an invented gate, while the Rule of Two required that very gate:
+  a job digest that read the person's profile was refused after each of five such questions. The
+  laws now read the label of an offer the person picked themselves as their words: the gate it
+  asks for stands, and a candidate without it owes the approval. A choice left to Nika or a label
+  that denies the approval states none.
+- **A proposal's choice takes the words you type beside it, and `cancel` discards the
+  proposal.** The card's hint said « or type your reply · cancel drops it », yet a sentence of
+  your own came back as « not taken · answer text restored for editing » after Nika had read and
+  answered it, and « cancel » or « annuler » were sent to Nika as one more answer, so the only
+  way out was to accept a change you did not want. Words Nika reads now stay said: its reply
+  shows above the choice, which keeps waiting. `cancel` or `annuler` on its own line discards
+  the proposal through the same door as « Discard this proposal », with no model call and
+  nothing written, and the hint now says `cancel discards the proposal`. An offer that is itself
+  named `cancel` still answers the choice.
+- **A proposal of the saved workflow says nothing changed.** The saved workflow proposed again
+  byte for byte showed Save, Save and run once, and Discard. It now says nothing changed and how
+  to run or activate it, and no proposal waits.
+- **The Session no longer crashes when the decision seat skips an oversized question.** After the
+  seat had refused one question alone for its context, a later, larger question was skipped
+  without a place in the request journal. The next request then settled at the wrong index and
+  the terminal app panicked (`batch.rs:121`). Every skipped question is now journaled as never
+  sent, in its own place.
+- **A question the author asked owns its answer.** After an accidental « annuler », the author
+  asked when the journal should be written; « tous les soirs à 20h » then opened the activation
+  of the welcome example saved earlier, and its zone, missed-run and ceiling questions. A line
+  that answers a question the author asked now reaches the author; with no question waiting, a
+  schedule stated for the saved workflow still activates it.
+- **A rehearsal says when what it read back came from steps it did not run.** A trial that
+  could not run three model steps still read back the file written behind them, « _Aucun article
+  sur les 7 derniers jours._ » three times, as if it were the result; the real run wrote 46
+  articles. A trial now says that what it read back of a file its unrun steps write never is what
+  a run writes.
+- **A recommended run ceiling says why, never as a ratio.** The ceiling question of an activation
+  said « $0.10 · ~3× the last run, $0.0015 », read as $0.10 being three times $0.0015 (it is
+  about 67 times). It now says « covers at least 3 runs like the last one, $0.0015 ».
+- **A run whose gate the person refused is never said to have succeeded.** After a « non » at a
+  gate, the observation line now says « exit 0 · stopped at your no » / « arrêté à votre « non » »
+  instead of « succeeded ». `/status` says « Last run · Done · stopped at your no » / « Dernier
+  run · Terminé · arrêté à votre « non » » instead of « le run a réussi »
+  (`RunFacts::refused_at_gate`).
+- **A refused key reads plainly while a workflow is prepared.** When the provider refused the
+  key of an authoring call, the recovery card carried the hint a failed run prints for the
+  command line (« --model … --access <seat> »). It now says the provider refused the
+  connection's key, with the provider's own words, and to check it with « Test the key » in
+  `/intelligence` or choose another connection.
+- **A turn whose proposal was refused says so, whatever the reply claims.** After Nika's check had
+  refused every draft of a turn, the author's own words reached the person as they were, and could
+  read « C'est enregistré et lancé » while nothing was proposed, saved or run. Such a turn now ends
+  with « Nothing was proposed, saved or run in this turn: Nika's check refused the draft. » (in
+  French in a French conversation), after the author's words. A turn that refused no proposal
+  carries no such line.
+- **A refused revision says the proposal you saw still waits.** When Nika's check refused a
+  revision while an earlier proposal was still waiting, the turn ended with « Nothing was
+  proposed, saved or run in this turn », beside a proposal the person could still save. It now
+  says « This turn changed nothing: Nika's check refused the revision, and the proposal shown
+  before still waits for your answer. » (in French in a French conversation).
+- **A rehearsal holds the folders and patterns the request names.** A request naming a folder
+  (« inbox/ ») was not rehearsed: the room refused the folder as no regular file, and
+  `nika:glob` was outside what a rehearsal runs. The room now copies a named folder with each
+  file under it, and makes an empty one empty: the empty day is rehearsed too. It copies a named
+  pattern by its matches. A rehearsal runs `nika:glob` and `nika:remove_file` over its own copy. A
+  listing that no named folder or pattern holds is refused before any room, as a read is.
+- **A rehearsal names a web read as one.** A `nika:fetch` whose answer jq shapes was listed
+  among the steps not run as « a jq extraction » (« une extraction jq »), which reads as a jq step;
+  it is now « a web read through jq » (« une lecture du réseau filtrée par jq »).
+- **A rehearsal is told in French to a person who writes French.** The proposal's rehearsal
+  lines (« Rehearsed on a copy of your files … », « tried on the pages observed at … », « not
+  run: the model step (…) … ») stayed English under French answers. They now read « Répété sur
+  une copie de vos fichiers … », « essayé sur les pages observées à … », « pas lancé : l'étape du
+  modèle (…) … ». Names, paths, excerpts and reasons stay as written. The proof keeps the engine's
+  own words.
+- **A rehearsal tries the day a gated step is skipped.** A workflow could pass its check and
+  its rehearsal, then fail its first run with nothing new: a filter after a skipped step read its
+  null (« cannot use null as string », « cannot use null as iterable »). After its run, a
+  rehearsal now evaluates each such `nika:jq` step on that null, in its bounded jq process. It
+  fails with `NIKA-REHEARSAL-SKIPPED` only when the null alone makes the filter fail: the same
+  filter passes with a value in its place. The author then guards the step before anything is
+  proposed.
+- **A rehearsal tries the steps after a model step on an example of its answer.** A trial ran
+  no model step, so it never ran the steps after one either. A workflow could pass its check and
+  its trial, then fail its first run in a step that read the model's answer, or a date beside it,
+  the wrong way. When a model step declares its answer's shape (`schema:`, `returns:`), a second
+  pass stands an example of that shape in for the answer, over the room's files, writing nothing.
+  A step behind it that fails on the shape (a jq type error, a binding that reads beneath a value)
+  fails the trial with `NIKA-REHEARSAL-SHAPE`. A failure of content (an assertion, an empty
+  filter) is the example's, never counted. Nothing this pass computes is shown as a result.
+- **A file the run removed no longer reads « produced ».** The run result listed every path the
+  run was allowed to write as « produced », so the inbox files a run moved to `traites/` read
+  « produced · ./inbox/… ». A path that is not there now now reads « removed » when a
+  `nika:remove_file` step of the run took it away, « not there now » otherwise; the run's own
+  completed writes still read « produced ».
+- **A reopened conversation checks its saved workflow again.** After a restart, the workflow
+  the conversation saved is checked again on disk, with the same audit the save ran and no model.
+  An unchanged clean file now stays « Vérifié » instead of « Vérifié ○ », and a file changed into
+  findings says so.
+- **A reading that repeats a coverage row is said once, not repaired.** When the author's
+  reading of the request covered one span in two rows (« coverage[1].span · This identifier is
+  repeated »), the verification started a repair round with the model: 2.7 minutes, then 9.7, on
+  a slow model, before anything was judged. Rows for one span or one answer key are now merged,
+  their references united, before the reading is checked. Nothing the reading claims is dropped.
+- **A candidate refused the same way under a new revision is told it repeats.** The author was
+  never told it was repeating itself when the same `candidate_write` came back refused with the
+  same findings, because each reply carried a new revision number: Grok 4.7 sent it some sixty
+  times. The revision is left out of the comparison, so the repetition and stall notes reach the
+  model from the second and third identical call.
+- **A request over the model's context window is told apart from other refusals.** A
+  provider's documented overflow code (`context_length_exceeded`) used to be dropped, so
+  the failure read as a generic HTTP 400. It is now a typed context overflow that names
+  the model's window when the catalog knows it. On a wire without such a code (Anthropic),
+  a 400 `invalid_request_error` counts as an overflow only when Nika's own estimate of the
+  request reaches that window; the provider's wording never decides. The overflow is
+  never retried as transient, and 429, 503 and 529 stay transient rejections. An answer
+  that stopped because the context window was full (Anthropic
+  `model_context_window_exceeded`, Mistral `model_length`) stays cut, as before: never a
+  normal end, its tool calls never run. It now also carries a window-full marker, set too
+  when a provider reports more input than the model's window holds, so a conversation
+  can compact before asking again instead of re-sending the same full window.
+- **« je voudrais l'enregistrer et le lancer » saves and runs the proposal shown.** Requests around
+  the save and run words are now read by the closed consent grammar, so they no longer reach the
+  author as new work: « je voudrais », « pouvez-vous », « can you », « I'd like to », with the
+  infinitive verbs « l'enregistrer », « le lancer ». A line that asks anything more keeps its
+  route.
+- **A request to see the results never starts a run.** Asking to show, display
+  or read what a workflow produced (« Pouvez-vous me montrer le contenu des
+  trois traductions », « affiche le résultat », « lis-moi », « show me what it
+  wrote ») could be heard as a request to run it again: a metered run then
+  rewrote the very files the person wanted to read. Such a line now never
+  reaches Run, whatever a classifier hears in it, even beside a run verb; the
+  conversation answers it from the files or the last trace, and a run still
+  takes its own words (« lance-le ») (NIK-234).
+- **A refused call names the amount it needs.** A model call whose reservation the stated
+  allowance cannot cover was refused with « remaining catalog allowance cannot cover the
+  full-context reservation ». It now names the reservation, what it covers (for Grok, its whole
+  generation, since a request cannot bound its reasoning), what remains of the allowance, and the
+  amount to state: « state at least $3.40 for this work, or choose a model whose call reserves
+  less ».
+- **A result offer, a decision and a schedule are said once.** After a run, « What would you
+  like to adjust in this result? » was printed twice: in the run's words and on its own card. A
+  trigger's decision repeated « Install the trigger on this Mac? » under its own heading, and a
+  schedule read « every day at 9 · every day at 9 (Mauritius time) ». Each is now said once; words
+  the cadence reads differently stay beside it.
+- **A resumed run keeps its ceiling.** A run that paused at a gate and was resumed without
+  `--max-cost-usd` ran its next leg unbounded (« budget: none journaled »). The run answered in
+  the same terminal got its whole ceiling again. Now both continue under what the paused leg's
+  ceiling leaves after its spend (`RunFacts::ceiling_left`), and the resumed leg journals that
+  budget. A ceiling stated on the resume still stands as given.
+- **A run a gate split reports the ceiling it started under.** Its resumed leg records only
+  what the first leg left, so the report said « ceiling · $0.212482 » for a run started under
+  $0.25, and a ceiling stop compared the whole spend with that remainder.
+- **A revision of a budgeted workflow is no longer refused for its ceiling.** After a workflow
+  saved with « 0,10 dollar par run » was run, every revision was refused: « the judge finds no
+  task performing » the budget. The person's later words for the same ceiling (« le plafond de
+  0,10 dollar s'applique au lancement du run ») were not the words beside the candidate, so the
+  judge was asked to find a task for a ceiling only the Run applies. Words that say only the
+  ceiling of the amount beside the candidate are now carried there, as the first statement was.
+- **A run's card shows one task count and one cost.** The card under a finished run said
+  « ✔ Ran in 1.7s · 20 tasks · $0.005 » while the run's result beside it said « 9 tasks ran (6
+  from cache) · 2 skipped » and « cost · $0.0046 ». A run as small as « <$0.001 » read
+  « cost · $0.0004 » there too. The card now counts tasks as the result does: the tasks that
+  ran, those answered from cache, then those skipped, failed or never run. It also writes every
+  cost on the card at the result's precision (`$0.0046`).
+- **A run line with courtesy is still a run.** « lance copy.nika s'il te plaît », « lance-le une
+  fois » and « relance-le tout de suite stp » were not read as run lines. They reached the
+  conversation instead, and in one case met an English reply. They now run as « lance-le » does.
+  « lance-le une fois par jour » still is not a plain run: it asks for a schedule.
+- **A run names the items it recovered.** A site check listed `https://example.com`, a host its
+  workflow permits, and logged it as down with a code 0: the transport never dials a
+  documentation address (RFC 2606/6761), the step recovered the item, and the run report said
+  nothing of it. The report now names each item of a list that failed and was recovered, and
+  says when the address is one Nika never dials, in the person's language.
+- **A run number of no amount is refused in French to a French person.** « that number has no
+  explicit monetary meaning … » now reads « ce nombre ne dit pas un montant … » in a French
+  conversation; the money record keeps the reason as found.
+- **A run refused before it started says why.** A run the engine refused before its first step
+  (an access path refused, NIKA-1800, for an effort Gemini does not offer) showed only « exit 3 ·
+  refused by the environment »: its reason went to a discarded stderr. The run's lane now keeps
+  that reason and shows it as the run's line, never doubling a reason the stream already gave,
+  and the conversation hears it with the person's next line instead of guessing a cause.
+- **A run says whether each step that sends sent.** The run card named the files a run produced,
+  but not whether its webhook or notification went out. Each step that sends beyond the machine
+  (a notification, a request other than GET) now reads « sent · `ping` · the step completed »,
+  or « not sent · `ping` · its condition was false » (cancelled, failed, served from the cache),
+  in the person's language.
+- **A run now settles a crashed run's leftovers when it starts.** A run killed before its
+  end (SIGKILL, a machine that went down) left the files it created in place as if
+  whole, and the original bytes of the files it changed in `.nika/originals/`, where
+  nothing ever mentioned them. Each file a run first writes now leaves a small record
+  there, with the digest of a created file's bytes after each write. The next `nika run`
+  in the project settles a run whose journal shows it dead: a file it created moves to
+  `.nika/quarantine/<its run>/` only while its bytes are still the ones it wrote (a file
+  you changed since stays where it is), a file of yours it changed stays and its
+  original moves to `originals/`, and a `manifest.json` lets `--resume` of that run put
+  the moved files back. A run that is still alive, or whose state cannot be proven, is
+  never touched. Each action is one line on stderr.
+- **A save and its checks are said in the person's language.** A French conversation read
+  « applied · wrote », « check · … · clean ✔ », « running … once · ceiling $0.25 », « (the
+  proposal still waits …) », the source freshness lines, the ceiling question after « save &
+  run » and every withdrawal in English. They are now said in French to a person who writes
+  French, and a rehearsal that read no file no longer prints an empty « les fichiers de l'essai
+  sont tels qu'il les a vus :  (…) ».
+- **A schedule question names its hour in French.** For a cadence with no stated hour (« toutes
+  les heures »), the French questions read « il fixe quand tombe the scheduled time » and « Si cette
+  machine est éteinte à the scheduled time ». They now say « l'heure prévue ».
+- **A schedule stated for the saved workflow opens its activation.** After a save, « déclare-la
+  à côté, tous les jours à 8h heure de Maurice », « je voudrais que ce bilan se fasse tout seul
+  le 1er de chaque mois à 8h » or « ok tous les jours à 8h du mat alors » now open the activation
+  with that cadence, as « active-le » does. They used to reach the author, which tried to write
+  the schedule into the workflow and failed after several minutes. A zone the line names
+  (« heure de Maurice », « Europe/Paris », « Paris time ») answers the zone question, which is no
+  longer asked again. A line that also asks something else, or asks for a new workflow, keeps its
+  route.
+- **A schedule's time zone shown as a choice is said to be the schedule's.** An author that
+  offered the schedule's zone among the choices beside the candidate was told to write it in the
+  candidate, which a schedule binding never is, and tried 35 times. The refusal now says to give
+  it as the schedule's `timezone` or ask it, and to leave it out of the shown choices.
+- **Searching the intelligence list counts its matches, not every model behind it.** Typing a
+  name over the list of connections showed « 1 of 657 match » next to about 23 connections. The
+  657 counted every model of every connection, which the list keeps out of view until a search
+  finds them. Where a search can find such rows, the title now counts the matches alone
+  (« 1 match », « 17 matches »). A list that shows every row keeps « 4 of 30 match ».
+- **An agent account that cannot write workflows says so before you choose it.** The
+  intelligence list offered « copilot · Agent account » with no warning. Once chosen, every
+  request failed with « authoring unavailable · seat `copilot` is not infer-grade for
+  json_schema ». The list now reads « copilot · Agent account · cannot write workflows here » on
+  the connection's row and on its own. The check is the same one applied once a seat is chosen:
+  one turn, no implicit tool, an answer checked against a JSON schema, and an observable model.
+  Accounts that can write workflows show nothing new.
+- **The intelligence list's filled radio marks the choice in use, not the cursor.** Moving
+  through the list filled the radio of the row under the cursor, so « › (●) GPT-6 Astra » could
+  read as the current choice while Claude was in use. The filled radio now stays on the value
+  the list holds: the model in use, the decision seat consulted, or the model requested for
+  Run. The cursor alone shows the row `Enter` applies.
+- **A schedule's zone, once settled, stays settled.** After a repair of the saved workflow,
+  « active-le tous les matins à 7h » asked the zone again. A revision that carries no schedule
+  now keeps the one asked for the workflow, zone included. « Choisis pour moi » at the zone
+  question takes this machine's zone and goes on; before, the Session demanded `Area/City`
+  syntax. A word that names no zone is refused in the person's language.
+- **An OS unit left behind by an edited schedule is named and refused.** After a cadence
+  change in `nika.yaml` without re-running `nika arm --emit … --write`, the installed unit
+  kept waking `nika arm fire` at the old time; the beat answered « not due » every day and
+  nothing woke it at the new time, while `nika arm` still reported it READY. Each beat
+  unit now carries the revision of the schedule it was written for (the cadence, and for
+  launchd the machine zone it was rendered in) and hands it to the firer, which refuses a
+  wake from a stale unit with the re-emit that fixes it and fires nothing. `nika arm` lists
+  such units under « unités périmées », and also names a unit written by an older engine,
+  which carries no revision. Re-run the emit with `--write` once to give existing units
+  their revision.
+- **An author stuck repeating one failing call is told to change it.** On Gemini 3.1 Pro the
+  author copied the note Nika leaves in its history in place of an earlier candidate's document
+  and sent it as a new candidate 80 times in 15 minutes, each refused « needs the complete
+  document in `source` ». That refusal now names the copied note and the two ways out (the whole
+  document, or `candidate_edit`), and a call that returns the same reply three times in a row is
+  told that repeating it cannot change the reply. Nothing stops the conversation: no quota.
+- **A step whose output is over 1 MiB no longer ends its run's trace.** A fetched 454,763-byte
+  JSON page made a 1,180,930-byte `task_completed` frame: its `output` and its `outcome` each
+  carry the value, the journal refused the line (« journal line is 1180930 bytes; maximum is
+  1048576 ») and the trace stopped there, so the run could not be resumed. A frame over the
+  line bound now moves its largest values, one at a time, to `<trace>.values/<sha256>` beside
+  the journal until it fits, each field keeping the value's digest, and `spilled_fields` names
+  them. The chain commits to each digest, `--resume`, `nika trace show|replay` and the debugger
+  read the values back only when their bytes match it, and `nika trace verify` refuses a value
+  that is missing or altered. The line bound stays; trace retention removes the values with
+  their journal and counts them in its budget.
+- **A decision seat that cannot hold a document no longer stops its proposal.** When the decision
+  seat's context is too small for the state a verification asks about, every question was sent,
+  refused, halved and sent again (about a thousand calls in two live runs) and nothing was ever
+  proposed. A question larger than one the seat already refused alone for its context is no
+  longer sent, and a verification the seat stopped is judged by the authoring model instead. The
+  proposal says which seat could not judge and which model did.
+- **A choice gate takes the answer its resume line prints.** A choice gate whose choices spell
+  numbers (`choices: ["42", "17"]`) printed `--answer review=42` to resume, then refused that
+  very line: `42` was read as a number, not one of its strings, and a shell could not pass the
+  JSON string without a second quoting. An `input` or `choice` gate now takes the text typed
+  (`'"42"'` still gives its text); a word outside the choices is still refused.
+- **A topic is selected by the model, never by keywords.** « les 5 top stories de la front page
+  qui parlent d'IA » was written as a fixed keyword regex: it missed AI stories that do not use
+  the words and kept stories that only mention them, so one story in five was wrong in every run.
+  The author is now told that selecting items by what they are about is a judgment: an `infer`
+  step returns the matching identifiers, and a deterministic step keeps them in the source's
+  order. A filter on words the person names exactly stays deterministic.
+- **A trial names the steps it cannot run behind one it does not run.** A trial said « not
+  run: … the model step (select_top) … » and nothing of the steps that read it, which were not
+  tried either (the first run failed in one of them). Its words now add « nor what reads them: »
+  with those steps, in the workflow's order.
+- **A Unicode regex class is found before the run.** `test("\\p{L}")` compiles as jq, then the
+  runtime's regex engine refuses it on the first item: a clean check was followed by a failed
+  run. The check now names the class and the way out (an explicit set such as
+  `[A-Za-zÀ-ÖØ-öø-ÿ]`), so the author repairs it before proposing.
+- **The trigger install says when a scheduled run would not see the API keys.** A unit started by
+  launchd does not inherit the terminal's environment, so a workflow whose model reads its key
+  there (`NIKA_ANTHROPIC_API_KEY`, `ANTHROPIC_API_KEY`…) would fail at every scheduled run.
+  « Installer le déclencheur sur ce Mac ? » now names those keys, says the run would fail until
+  the project's units load a file that holds them (`arm --emit --env-file`), and recommends
+  keeping the schedule declared. Workflows with no model step, with a mock or a local model, or
+  whose units already load an environment file naming their keys keep the card as before.
+- **A line that sets the ceiling moves it.** « Mets le plafond à 0,001 $ par run et relance »
+  was not read as money: only a ceiling phrase attached to the work (« avec un plafond de … »,
+  « budget max … ») was, so the run kept the first request's 0,10 $. A verb that sets the work's
+  limit (« mets », « remets », « passe », « set », « change », « je veux un budget de … ») now
+  states the ceiling, « à » and « to » link it to its amount, and the directive ends before the
+  conjunction that opens the next clause. A record's budget (« le budget du client à 500 $ dans
+  ./clients.csv ») stays data.
+- **A verification no longer reads the same request again.** Every verification in a
+  conversation asked its author to read the person's request, then asked for an audit of that
+  reading, even when the words had not changed. With Grok 4.7, those calls took 89 % of a
+  session's reasoning tokens. The Session now keeps, in memory, the last reading audited as
+  covered. The next verification of the same words, answers, model and prompts reuses it with
+  no call. The judge still judges every candidate, and a reopened conversation reads and audits
+  the request again.
+- **A workflow named without its extension is the one run.** « je voulais relancer
+  journal-histoire-du-soir » ran the last saved workflow, journal-recopie.nika, twice. A line
+  naming exactly one project workflow by its name (a hyphen, an underscore or a digit in it)
+  now runs that workflow; two such names, or a plain word, name none.
+- **A workflow may read back the file it keeps.** « Il garde le chiffre d'affaires du jour pour le
+  comparer au jour suivant » asks for state a next run reads. The output law refused any read of a
+  derived output, so every such workflow was refused and the author re-parsed an older report
+  instead. An output may now be read back by the workflow that writes it (`nika:read`,
+  `nika:grep`, `nika:glob`), and nothing else uses it. A read source that a pure step builds
+  addresses from is refused with the way to keep it: compose the base address in the `url:` of the
+  fetch that reads each item.
+- **A workflow that keeps its own state runs again.** A rehearsed workflow that reads and writes
+  the same file (a log it appends to, yesterday's figure it compares with) could run once: every
+  later « lance-le » was refused because that file had « appeared » since the rehearsal, and the
+  only way out was the command line. The run's own completed write now advances that file in the
+  rehearsal's witness, like any file the workflow only writes. An edit by anyone else after the
+  run, or of a file the workflow only reads, still withdraws the rehearsal.
+- **A workflow that also writes a file you never named runs again.** A site check that appends to
+  `statut.log` and keeps its own `etat_echecs.json` could run once: every later « lance-le » was
+  refused because `statut.log` had « appeared » since the rehearsal. One written file outside what
+  the rehearsal witnessed cancelled the whole advance. Such a file is now left out of the witness
+  (nothing witnessed it, so it can never drift), and the files the rehearsal bound advance as
+  before. A source edit, a foreign write, or a write outside the project still withdraws it.
+- **A written text file ends with a newline.** Translated notes written from a model's answer
+  ended on their last character, while their sources ended on a line break. The author is now
+  told to end each written text with one line break.
+- **« Oui, enregistre » saves.** A plain yes before the save verb (« oui, enregistre »,
+  « ok, save it and run it ») and a courtesy after it (« stp », « s'il vous plaît », « please »)
+  were not read as the consent they gave, and the proposal waited on. They are now read as the
+  closed save, or save-and-run, line they are; a line opened by another word keeps its route to
+  the author.
+- **« oui, enregistrez ces changements » saves the card it answers.** Under a card whose option
+  reads « Enregistrer ces changements », the person's « oui, enregistrez ces changements » was
+  not read as a yes: it reached the author, which proposed something else, and the `nika.yaml`
+  was never saved. A yes may now name what the card shows: « ces changements », « these
+  changes », « ça ».
+- **« Oui, activez-le » and « vous pouvez l'activer ? » open the activation.** Only an
+  imperative opened it: « oui activez le s'il vous plait » ran the workflow once more instead,
+  and « vous pouvez l'activer ? » became a change proposal, so a French person had to learn the
+  English keyword « activate ». A yes before the words, a space for the hyphen and the polite
+  question forms now open the activation, whose questions still decide everything.
+- **A yes to the bytes a file already holds says nothing changed.** The landing said « applied ·
+  wrote » for a proposal identical to the saved workflow; it now says « applied · nothing
+  changed in … ».
+- **A yes with its go-ahead consents to the proposal shown.** « Oui, allez-y », « ok vas-y
+  merci » or « yes, go ahead please » under a proposal card now save the bytes shown, as « oui »
+  does. They used to reach the author as new words and start a fresh revision. A line that adds
+  anything else (« oui mais change le titre ») still goes to the author, and a spending approval
+  still takes the strict yes.
+- **A cloud inference call is no longer cut at 30 s by a deadline the workflow never declared.**
+  An `infer:` task without `timeout:` gave a buffered cloud call a total deadline of 30 s (300 s
+  for a local model), so a legitimate answer from a reasoning model or a long prompt failed with
+  NIKA-INFER-001 (provider 408) and the Run wrote nothing. Every buffered call without a task
+  `timeout:` now gets 600 s, local or cloud: the provider transport's own bound on a connection
+  that delivers nothing. A task `timeout:` still sets its own bound, streaming keeps its
+  idle-read guard, and the timeout message names the deadline that applied.
+- **A call that wrote to the provider's prompt cache keeps its price.** Nika priced a call
+  that reported a cache write as unknown. It now prices the written tokens at the catalogue
+  row's own cache-write rate (the five-minute one, the only lifetime Nika asks for). A row
+  that states no write rate, a declared tariff and an admission tariff still leave such a
+  call unknown, as do two write meters that disagree.
+- **« annuler » at a question the author asked drops it.**
+  Gauntlet wave 3: « cancel », « annuler » or « laisse tomber » typed at
+  the author's question reached it as one more answer. The hosts' one
+  cancel reader now drops the question with no model call: nothing is
+  bound, the author reads in one fact that the person dropped it, and
+  asking it again is refused. A cancel word the question itself offers
+  (an option « Annuler ») still answers it.
+- **The native authoring card's example no longer caps its `infer`
+  step at `max_tokens: 600`.** The card's own rule says to write
+  `max_tokens` only when the person names a token bound and otherwise to
+  leave the default to the compiler, which sizes it once the workflow's
+  model is known; its example contradicted the rule, and an author that
+  copied the 600 left a model that reasons before it answers no room to
+  answer.
+- **Carriage returns leave a model's call arguments.** GLM 5.3 Flash slipped carriage returns
+  between the words of its calls (`schedule\r_zone`, `Indian\r/Mauritius`) and copied its own
+  earlier calls with more of them each time: 115 calls were refused for a key or a time zone that
+  did not match. They are removed from every call's arguments before the tool runs and before the
+  call is recorded, so the model never reads them back.
+- **`nika check` no longer says a run would fail for a model its catalog does not
+  list.** The advisory line under MODELS, the oracle's `models_catalog_warnings` and
+  the MCP `nika_check` now read: not one of the provider's models in this binary's
+  catalog snapshot, a typo or a model newer than the snapshot, and the provider
+  decides at run time. It stays a warning, never a refusal.
+- **« Augmente le budget du run à 1 dollar » states a ceiling.** The money reader took the word
+  after « budget » as the amount, so « le budget du run à 1 dollar » was refused as an invalid
+  amount, and an unaccented « a » (« budget du run a 1 dollar ») stopped the reading too. The run a
+  ceiling bounds may now be named between the anchor and the amount (« du run », « of the run »,
+  « pour ce workflow »), and « a » reads as « à » before an amount.
+- **`nika check nika.yaml` judges the beats as `nika arm` and `nika serve`
+  do.** It read the project file's shape only, so a beat whose cadence has
+  no `TZ=` zone, names an unknown zone, breaks the cron or readable grammar,
+  carries a `décalage` other than `hash`, a `jusqu_au` that is not a date or
+  a workflow path with a `..` segment passed `check` and was refused only
+  when someone armed it. `check` now applies the arming door's own laws
+  (the same function `nika arm` uses) and names every law broken, each with
+  its beat, its code and its fix; `--json` lists one finding per law.
+- **`nika check` names a read that breaks when its producer is skipped.** A task
+  that can be skipped (a `when:` that can close, an empty `for_each`, `on_error:
+  skip`) hands its readers `null`, and a `with:` binding is evaluated before the
+  reader's own `when:`: `u: ${{ tasks.x.output.url }}` guarded by
+  `when: ${{ with.u != null }}` failed the run with `NIKA-VAR-001` while `check`
+  said « run ready ✔ » with zero hints. `check` now carries a `skipped-read`
+  hint for such a read, in a binding or in a `when:`, `for_each:` or verb field
+  stepping into a whole bound value that no `when:` rules out as null. The hint
+  names the reader, the read, the producer, why it can skip and the repair: bind
+  the whole `tasks.x.output`, test it in `when:`, then step into it in the verb.
+  Guards that hold once the producer skipped stay silent (`has()`, `!= null &&`,
+  the producer's own consent guard repeated), so does a task the skip cancels
+  or a verb read its `on_error:` recovers. Advisory: `is_clean` is unchanged,
+  and past the 2,000-task analysis cap the miss is stated.
+- **The CI file ratchet honours `LOC-EXEMPT`, as the hygiene dashboard does.** A source file
+  with a whitelisted marker (codegen, lookup-table, enum-mega) on one of its first 5 lines may
+  hold up to 5,000 lines in CI too, where it used to be refused above 2,500. Both gates read one
+  file-size policy and state the same verdict for the same file.
+- **A Claude 5 model's fixed sampling and adaptive thinking are named at check, not by an
+  HTTP 400.** The catalog records that Claude Fable 5.1, Fable 5, Opus 5.5, Opus 5, Sonnet
+  5.5, Sonnet 5 and Haiku 5.5 think by default and, on Anthropic's API, refuse a thinking
+  budget and any temperature but the default. `nika check` and the run's model admission
+  name a `temperature:` (on `infer:` or `agent:`) or a `thinking.budget_tokens` on such a
+  seat, a nickname included, with the repair; the Anthropic wire refuses the same request
+  before any byte instead of dropping the value. The Session's classification calls send
+  no temperature to these models.
+- **A Claude Code session over ACP no longer reads as silent while it
+  thinks.** Every Claude Code session the engine opens (the authoring and
+  `infer:` one-shot profile, and the `agent:` seat) now asks the adapter
+  for adaptive thinking with its summary displayed
+  (`_meta.claudeCode.options.thinking`), unless a thinking option is
+  already named. Recent models otherwise default to signature-only
+  thinking whose text is empty, which the adapter never streams, so a long
+  thinking turn showed no frame at all until its answer, and could be cut
+  as silent. This changes what is displayed, not the model, effort, budget
+  or tools; thought frames stay counted, never stored as text, and the
+  silence allowance is unchanged. Codex and other adapters send nothing
+  new.
+- **A `claude-code` call no longer runs with the person's own Claude Code setup.** `--tools ""`
+  empties only Claude Code's built-in tools: every MCP server of the person's configuration
+  (plugins and claude.ai connectors included), their hooks, plugins and personal CLAUDE.md still
+  loaded into each authoring, conversation and decision call through `claude -p`. Measured on
+  2.1.283: 180 MCP tools and about 115,000 input tokens for a one-word answer, and an authoring
+  call that ran a web-search MCP tool, then stopped at its one-turn limit, which the TUI showed as
+  « I couldn't use the authoring model for this part ». The call now also passes
+  `--strict-mcp-config` and an empty `--setting-sources`, the isolation the ACP completion profile
+  already has: a model or effort set in the person's Claude Code settings no longer applies to
+  these calls either, and the CLI's own default for the account answers, as on the ACP route.
+- **Claude Sonnet 4.6 and Claude Haiku 4.5 are priced.** The catalogue still offers these two
+  legacy models, but they had no admission tariff: the author offered them as « prix non connu
+  ici », and no run ceiling could be checked against them. Two rows now read Anthropic's pricing
+  page of 2026-10-16 (Sonnet 4.6 at $3 in / $15 out per million, its whole 1M window at standard
+  rates; Haiku 4.5 at $1 / $5, a 200K window) and each model's own page for its limits. Claude
+  Sonnet 4.6's catalogue limits were also out of date (200K, 8K output): its page says 1M and
+  128K.
+- **A refused cloud key reads « key refused », and a keyed route's own listing governs its
+  offers.** A Session's census used to call every keyed cloud route ready from the key's presence
+  alone: a key the provider had revoked was offered, and the offers came from the catalogue. The
+  census now sends each keyed OpenAI-compatible route one bounded, authenticated
+  `GET {base}/models` with its own key (about 3 s, all routes at once, never an inference): a 200
+  lets the listing govern the route's offers, a 401 or 403 reads « key refused » with the
+  provider's own words (the key withheld) and the route is not offered, and no answer leaves the
+  key configured, not validated.
+- **Codex authors again on codex-cli 0.162.** Nika admits Codex as an author only on the codex-cli
+  minors where its pre-execution empty-tools profile was measured, and that was 0.160 alone: after
+  the CLI updated to 0.162.1, every authoring call refused with « codex-cli 0.162 has no measured
+  pre-execution empty-tools profile », so the `codex` account could not write anything. The
+  profile is now measured on 0.162.1 (every disabled feature reads `false`, a prompt asking to read
+  a file, run a command and search the web ran no tool and never saw the file, a JSON-schema answer
+  came back in one turn) and that minor is admitted. Any other unmeasured minor still refuses
+  before the prompt.
+- **A Codex conversation's approval of Nika's own tool is now recognized.** codex-acp 1.13.1
+  announces each MCP call with the server and tool Codex routed it to, then asks Codex's
+  approval of it by the call's id alone (`{toolCallId, kind, status}`); Nika read only Claude
+  Code's tool name, so it rejected every such ask. Codex 0.156.1 asks one before each Nika tool
+  that is not read-only (`candidate_write` among them), and a rejection reaches the model as the
+  user cancelling the call, so no Codex-led Session could write a candidate. A turn now keeps
+  what each open call was announced as, and an ask by id alone is for that call; Codex's own
+  question (`Allow the <server> MCP server to run tool "<tool>"?`) is read when codex-acp cannot
+  tie the ask to one. Only an offered tool on Nika's server is allowed, once; an id never
+  announced or no longer open, another server, a tool Nika does not offer and a command stay
+  rejected. Claude Code's path is unchanged.
+- **A Codex-led Session conversation can write its candidate.** Codex 0.156.1 asks before each
+  Nika tool that is not read-only, and the ask reaches the client only through its
+  `tool_call_mcp_elicitation` feature, which the Codex profile turned off with every other
+  feature. Codex then asked through `request_user_input` instead; codex-acp 1.13.1 answers that
+  itself with no answer, because Nika advertises no form elicitation, and Codex reads no answer
+  as the user cancelling the call. So `candidate_write` was cancelled without Nika ever being
+  asked. The conversation profile now keeps that feature on, and the spawn-time read-back
+  requires it on, so each ask reaches Nika as `session/request_permission` and Nika allows its
+  own tool once. The one-shot completion profile and `codex exec` keep it off.
+- **An open name the request already settles is no longer asked.** When a
+  request leaves open where a file's name starts (`un payload
+  out/notification.json`), a folder another path of the request names
+  (`out/report.json`) settles it, and an answer the person gave counts on
+  every document door. A name nothing settles is still asked, with its
+  readings as the options and the path alone as the default.
+- **A request opened or closed by « tout les matins » states its
+  schedule.** The compiler's reading of a request took « tous les » and
+  « toutes les » as the quantifier of a cadence at the start or at the
+  end of a sentence, but not « tout les » or « toute les » as people
+  often type them, so « tout les matins à 9h, … » kept no trigger. They
+  now read the same way; the singular « tout le matin » (all morning
+  long) still opens no schedule.
+- **A child grant inside its parent's glob now composes.** A parent granting `fs.read: ./references/**` and a child declaring and reading exactly `./references/preview-shell.html` were refused with `NIKA-COMP-002`, because the parent ∩ child meet kept only grants spelled identically on both sides; repeating the parent's wider glob in the child was the only way through. The meet now keeps a pattern the other side contains, at its narrower spelling, for `fs.read`, `fs.write`, `net.http` and `tools` (`*.example.com` ∩ `api.example.com` is `api.example.com`, `nika:*` ∩ `nika:read` is `nika:read`), in the reading of the matcher each family is enforced with. `nika check` and the run share that one meet, so the child's read is admitted at run too, and a read outside the parent's glob is still refused (`NIKA-COMP-002` at check, `NIKA-SEC-004` at run). A child glob wider than its parent's is cut to the parent's tree, never widened past it. Path grants that leave the workspace (absolute, `~/`, climbing) or name `..` still meet only by their exact spelling, and two globs that overlap without either containing the other still meet to nothing.
+- **A workflow that computes its read paths reads the project.** For a workflow reading
+  `./releves/*.csv` or `./notes/**` through computed paths, the Session said « fraîcheur des
+  sources non jugée : il ne lit aucun fichier du projet ». It now counts the declared read grant,
+  and says the freshness of those sources is not judged because they are a pattern.
+- **« On continue » shows the waiting proposal whoever prepares.** After switching to an
+  intelligence that leads no conversation, « On continue là où on en était » reached the
+  compiler: a free, ready proposal was re-authored for 13 minutes into a new one with model
+  steps. A line that only asks to go on now shows the waiting proposal again as it stands, at the
+  consent door as in the conversation.
+- **« On continue » shows the waiting proposal again.** After an intelligence switch, « On
+  continue là où on en était » sent a ready proposal back to the author, which wrote it anew for
+  minutes and lost part of it. With a proposal waiting, a line that only asks to go on shows the
+  same proposal again, as it stands. It is never a consent and never a change.
+- **The authoring conventions show a total written alone as a workflow
+  writes it.** They said the value is « stated as `alone: true` on its
+  write ». `alone` is how the plan states that a file holds one computed
+  total by itself; `nika:write` takes no such argument, and no door that
+  reads the conventions (the native, sketch and document authors, their
+  verifier and the Session's author) states a plan. An author that copied
+  the line wrote an argument the check refuses (`NIKA-BUILTIN-001`). The
+  conventions now show the write's own form, the total's field as its
+  `content` (a json file holds `40`), and that several totals or a csv,
+  yaml or toml file are asked about rather than written. The plan's field,
+  the compiler's lowering and its refusals are unchanged.
+- **The conversation knows about a run refused before it started.** Only a run that ended (exit 0
+  or 1, with a readable trace) reached the conversation's author. A run refused before it started
+  (exit 2, its cost floor above the ceiling) or around it reached nothing, so « pourquoi le run a
+  échoué ? » right after « NIKA-1709 · refusing to start » met « aucun run n'a échoué ». Every
+  observed run now rides the person's next line to the author, as a success already did; a failed
+  run of the author's own candidate is still repaired at once.
+- **`nika:convert` reads semicolon and tab separated CSV, and writes a null as an empty
+  cell.** A European spreadsheet export (`nom;montant`, decimals with a comma) was read
+  with the comma: it became one column, or failed on its first decimal. The separator
+  is now counted on the first line outside quotes: a semicolon or a tab that outnumbers
+  the comma is the separator, otherwise the comma stays (RFC 4180). JSON to CSV wrote a
+  `null` as the text `null`; it is now an empty cell, as a missing key already was.
+  Cells are still strings: convert numbers with `tonumber` before arithmetic or
+  ordering.
+- **`nika check` refuses a `nika:date` arg its op never reads.** `{ op: now, format: "%Y-%m-%d" }`
+  passed the check, because `format` is an arg of `nika:date`, and ran without it: the file got
+  `2026-10-15T21:39:15.511348+04:00`, matching neither declared format. Each op now reads only its
+  own args (`now`: tz · `add`/`subtract`: base, duration, tz · `format`: input, format, tz ·
+  `parse`: input, format · `diff`: start, end, unit), and an arg of another op is refused as « not
+  an arg of `nika:date` op `now` » with that op's own args. A templated op is left to the run.
+- **`nika:date` documents every op that reads `tz:`.** The tool catalog
+  described `tz` as applying to `now` only, so `op: format` looked unable
+  to render local time, and workflows sliced ISO strings by hand instead.
+  `format` renders its fields in `tz:` and `add`/`subtract` apply calendar
+  units there. The description now says so, and adds that an input's own
+  offset is not kept when `tz:` is absent.
+- **« désactive-le » removes only units the trigger host says it keeps.** When an earlier
+  conversation had installed a trigger, the Session built its launchd path in
+  `~/Library/LaunchAgents` itself. A host that keeps its units elsewhere was then handed a file it
+  never wrote. A host now says where its units are (`TriggerHost::unit_of`, given by the launchd
+  host). The declared state of a schedule also asks the host whether its unit is installed.
+- **A System One decision seat no longer starts a batch with a request known to fail.** A
+  seat of `typesafe/jev-1.13.0` plans each batch inside the capacity the service documents (64k
+  tokens per request), splitting a request in halves before it leaves when its exact body would
+  exceed it, and never again sends a body as large as one the service refused for capacity. The
+  Foundry qualification of a large knowledge recall used to send the whole batch first and only
+  shrink after `max_tokens_exceeded` refusals. Other decision models keep their earlier
+  behaviour.
+- **A `provider/name` decision seat is stated as sending each request once.** The compile
+  receipt and the `--decision-model` help said its client kept protocol retries; the provider
+  transport no longer re-sends anything, so the receipt now says « its own provider client, one
+  attempt per request ».
+- **The decision seat's tally counts every call it sent.** A batched decision call (the whole
+  request's verification, its parts, Foundry qualification) is answered as a whole, but the
+  tally counted only single-question answers: `/status` said « 33 call(s) sent · 7 answered · 0
+  without a response ». A batched call that came back now counts as answered, and one the seat
+  answered with an HTTP error as without a response.
+- **« Choisis toi-même » now settles a setting instead of asking it again.** When the person left a
+  value to Nika (« choisis toi-même » to the question for a time zone, « carte blanche pour le
+  reste »), the author chose one and the fidelity law refused it as an unauthorized selection,
+  so the same question came back (« le compilateur n'accepte pas que je le choisisse à votre
+  place »). A delegated selection may now be a value, but only one that no effect carries: a pure
+  step (`nika:date`, `nika:jq`, `nika:assert` and the rest of the pure-internal class, the call
+  proven pure) or the words of a task. A fetch, a write, a command, any other tool or agent
+  configuration, the document's model, permits, run access and secrets still refuse it, and the
+  person's own words must still be cited.
+- **`/details` says what a conversation built, saved and ran.**
+  QA gauntlet q09: after two Saves and three runs it still said « no
+  workflow was read in this session yet », because only a compile round
+  set what it reads. With no such round, it now names the conversation
+  that wrote the workflow, its last revision, the workflow saved, the
+  preparation spend and the last run's trace.
+- **`nika doctor` names a refused key.** A provider that answers 403 to the route's key now reads
+  « 403 · key refused for this route » with the fix to export a key the route accepts, where the
+  doctor printed a bare « 403 ».
+- **`nika doctor` no longer calls a seat whose login check did not answer
+  "not signed in".** A harness seat whose own login command did not answer
+  within its deadline is now a warning that says the sign-in is unknown
+  and why ("the login check did not answer within 30 s"), and it teaches no
+  sign-in. A seat whose login command answered "signed out" still reads
+  "not signed in" with its sign-in gesture.
+- **A dropped task now debits the tool spend it had already incurred.** A task cut by its
+  `timeout:` or by a `fail_fast` sibling debits, once, the cost reported by tool calls that had
+  already completed, including a ready MCP reply it never read. The task stays failed, with no
+  output, row or checkpoint credit.
+- **`nika:edit` refuses an empty `find:` instead of rewriting the whole file.** An empty
+  `find:`, such as a templated input left empty, matched between every character: the
+  replacement landed between every byte (`price: 10` became `XpXrXiXcXeX…`) and the
+  task succeeded. It is now `NIKA-BUILTIN-EDIT-001`, refused before the file is read.
+- **`Enter` pressed right after `Esc` in the intelligence list now acts.** Stepping back with
+  `Esc` (from the connections to the home list, for instance) armed the guard that ignores a
+  second press of the same `Enter`, so an `Enter` pressed within half a second on « Keep
+  current » or another row did nothing. Only an `Enter` that sent something starts that guard
+  now; after `Esc`, the next `Enter` is your next choice.
+- **Every card can be left.** A saved workflow whose files changed since its
+  rehearsal showed a mandatory card with one act, « Adapter le workflow aux
+  fichiers modifiés »: `Esc`, words of one's own and `/new` all left it in
+  place, and only quitting the app did. `Esc` with nothing left to undo now
+  sets a decision's card aside, never answering it: the conversation says
+  what stays undecided (the workflow stays not run, a paused run stays
+  paused, a proposal still waits) and gives the line back. Words typed at
+  that recovery card are the person's next line, `/new` begins a new
+  conversation the card does not come back over, and a fresh spending
+  question keeps its card (its cancel or `Ctrl+C` leaves it). The refused
+  run no longer says « restore the original file »: it names what a retry
+  as rehearsed would put back, file by file, in place of what each holds
+  now (NIK-227).
+- **A failed run no longer moves a person's own files into quarantine.** When a run
+  failed, `nika run` moved every file a successful `nika:write` or `nika:edit` returned to
+  `.nika/quarantine/<run>/`, including a `notes.md` that existed before the run and was
+  only edited. The next run then failed to read or edit it. Now only files the run created
+  move. A file that existed stays where it is, and its original bytes, copied before the
+  run first changed it, wait under `.nika/quarantine/<run>/originals/`. A writer reached
+  by `after: failure`, `terminal` or `unwind` keeps its file, since it records the failure.
+  The quarantine dir carries a `manifest.json`, and resuming the failed run with
+  `--resume` puts the moved files back before it starts. The run says on stderr which
+  files moved and where each kept file's original is.
+- **A failed run's journal records its quarantine, signed or not.** What the teardown did
+  with a failed run's files rode only inside the signed `run_sealed` frame, so a run
+  without a signing key journaled nothing about it, and a crash between the moves and the
+  seal left only the manifest. A `quarantine_recorded` frame now lands right before the
+  seal: the quarantine directory, how many created files moved (and any move that
+  failed), how many of your files stayed in place, and the manifest with the sha256 of
+  its bytes. A signed run's seal covers it like every earlier line.
+- **A feed item dated only by its revision keeps its date.** `mode: feed`
+  dropped an Atom entry's `<updated>` and a JSON Feed item's
+  `date_modified`, so an item carrying only that date looked undated and
+  a filter on today's items dropped it. Each item now carries `updated`
+  when the source dates a revision of its own, an RFC 3339 instant like
+  `published`; a date filter reads `published // updated`. An RSS item's
+  `pubDate` stays its `published` alone.
+- **An author knows what a fetched feed returns.** The `nika:fetch`
+  contract an authoring model reads named the extraction modes only by
+  pointing to another page, so an author filtered a feed's items by the
+  feed's own date text and kept nothing. It now shows what each mode
+  returns, the feed's shape, and that feed dates are RFC 3339 instants
+  with an explicit offset; `nika:date` joins the everyday contracts to
+  compute a bound such as today.
+- **`nika:fetch` honors its task's `timeout:`.** A fetch whose task declares `timeout: "3m"` gets
+  those three minutes for the whole request, as the stdlib states, instead of a fixed 30s that cut
+  long API calls (an image generation, a non-streamed inference) and a 30s idle guard that cut a
+  server computing before it answers. A fetch without a task `timeout:` keeps 30s, and a timed-out
+  fetch names the setting.
+- **`nika:fetch` sends a JSON `body:` with `content-type: application/json`.** An object,
+  array or other non-string `body:` was serialized as JSON but sent with no content type,
+  so a receiver that parses by type read it as empty. It now carries
+  `application/json` unless the author's `headers:` already name a content type; a
+  string body is still sent as written.
+- **`nika:fetch` returns a CSV, text or JSON body as served in its page modes.** The
+  default `markdown` mode, like `article` and `text`, read every body as HTML: a
+  `text/csv` export came back on one line with markdown escapes (`A\_1`), so a following
+  `nika:convert from: csv` produced no rows while the run succeeded, and a `text/plain`
+  body lost its line breaks. A body whose `Content-Type` is text other than HTML
+  (`text/*`, JSON, XML, CSV, YAML, NDJSON, TOML and their `+json`/`+xml`/`+yaml`
+  suffixes) now comes back unchanged, decoded by its BOM or declared charset, else as
+  UTF-8, else as windows-1252. HTML, XHTML and untyped bodies keep the extraction.
+- **Files the person says they have in a folder are sources.** « J'ai deux fichiers CSV dans le
+  dossier releves (a.csv et b.csv) » made each file a write destination of the whole request,
+  because « dans » counted wherever it stood. Every revision reading `./releves/a.csv` was refused
+  as « UNREALIZED PATH », and one author wrote permits for files that do not exist to pass. A
+  path is now a destination only through a connector in its own sentence, in a clause that writes
+  there. A clause that says what the person has, or what there is, places existing material.
+- **A second Ctrl-C no longer leaves exec children running.** The second
+  signal ended `nika run` with `exit(130)`, which runs no destructor, while
+  every `exec` child leads a process group of its own that neither the
+  signal to the CLI nor a terminal's Ctrl-C reaches: the child kept running
+  and writing after the CLI was gone. The abort now ends every process group
+  the run still owns first (SIGTERM, a one-second grace, SIGKILL, then a
+  bounded reap), never signals a group whose leader the process can no
+  longer wait for, and says on stderr how many groups ended and which did
+  not confirm their end. Nothing is rolled back: what already ran stays
+  done, and an effect in flight has an unknown outcome.
+- **Gemini runs, priced at Google's own pages.** A budgeted run with a Gemini model was refused
+  (« this provider's wire has no bounded admission settlement »), any other run reported an
+  unknown cost, and Gemini 4 Argon, newer than the vendored price snapshot, read as unpriced
+  even to `nika check`. The Gemini wire now reserves, sends once and settles each text call at
+  its tariff: ten models (Gemini 4 Argon, 3.8 and 3.6 Flash, 3.5 and 3.1 Flash-Lite, 3.1 Pro
+  Preview, 3 Flash Preview, 2.5 Pro, 2.5 Flash and Flash-Lite) read the pricing page at peak
+  Standard rates, thinking billed with the answer. The picker and `nika check` read the same
+  prices, Gemini's snapshot rows included.
+- **GPT-6 Sol and GPT-6.1 Sol take `max_completion_tokens`.** OpenAI refused them with « 'max_tokens'
+  is not supported with this model » (HTTP 400) on the first message: the catalog knew the
+  parameter only for GPT-6 Astra. Both observed models now send `max_completion_tokens`; the rule
+  stays exact, with no claim for the rest of the family.
+- **Grok runs, priced at the charge xAI reports.** Every xAI model was unpriced at run time: a
+  workflow that fetched a page with Grok as its model was refused (« unknown-cost Run supports
+  only direct infer and local read/write/jq/assert »), and any other run reported an unknown
+  cost, while the model picker showed a price. grok-4.7 and grok-4.3 are now admitted from
+  their model pages and settle at the charge each reply reports (`cost_in_usd_ticks`). xAI's
+  reasoning is not bounded by `max_tokens` (measured: 1,973 reasoning tokens under a bound of
+  40), so a call reserves the model's whole window: a run ceiling needs about $3.40 per
+  grok-4.7 call in flight ($2.75 for grok-4.3), while the settled cost stays the real one.
+- **`nika guard` no longer refuses plain shell it can read.** Loops,
+  `if`, `[ … ]`, `find` without `-exec`, `xargs` with any other command,
+  a heredoc script such as `python3 - <<'EOF'` and a command word in a
+  variable that cannot make a run (`"$EDITOR" notes.txt`) were refused
+  as `guard_unavailable`, blocking agent commands that run no workflow.
+  The guard now judges the commands inside them and keeps no opinion
+  when none is a `nika run`; `find -exec nika`, `xargs nika` and
+  `$N run x` stay visible.
+- **A slow login check no longer reads a signed-in seat as signed out.** A
+  harness seat's own login command now has 30 s to answer: valid checks
+  were measured at 12 s and 25.8 s, and the former 10 s turned them into
+  a "not signed in" seat. The harness probe facts now also carry the
+  check's answer (`login`): signed in, signed out, or unknown when it did
+  not answer in time ("the login check did not answer within 30 s") or
+  could not run, so an unanswered check is no longer the same fact as a
+  signed-out seat. Admission still requires an answer before it admits a
+  seat, and no credential is read.
+- **Hints name the program the person runs.** A proposal's hint line said « `nika check x.nika`
+  prints them » to a person running `nika-dev`, whose `nika` on the same machine was an older
+  release that refused the file. Hints in the Session, the check summary and the refused-run
+  story now name the running program (`nika-dev`, `nika`), and a paused run's meaning no longer
+  gives a command line: the Session asks its question itself.
+- **The Session's hints name the program you run.** `/help` and `/proof` said `nika trace
+  verify` while the person ran `nika-dev`. On that Mac, `nika` was an older release that refused
+  the trace. Every command those hints name now uses the running program's own name.
+- **`Home` takes the conversation back to its first message.** `PgUp` pages through the
+  conversation a screen at a time, so a long card such as a full proposal took several presses
+  to pass, and `Home` did nothing. With nothing typed in the box, `Home` now goes to the first
+  message, `Ctrl+Home` does it even with words typed, and `End` still brings the latest
+  messages back. The `?` key list names these keys.
+- **An infer answer interrupted by its provider fails as a provider call.** When the provider
+  reports it interrupted the generation (`StopReason::Interrupted`), the answer is never the task
+  output: the task fails `NIKA-INFER-001`, transient, naming the provider's own word, and the
+  task's `retry:` decides. An answer cut at the output cap that parses, even one that satisfies
+  `schema:`, still fails `NIKA-INFER-005`.
+- **« Inspect the exact changes » shows the lines a revision changes.** For a proposal that
+  replaces a saved workflow, it used to print the whole file (« replaces `clean-contacts.nika`
+  whole (109 lines …) » followed by all 109 lines), so you had to find the one line that changed.
+  It now opens on what changes against the file as it is now, with the size of the change
+  (`+1 −1 lines`) and each change shown removed then added among the lines around it. Every byte
+  still follows. A file that changed since the proposal was made is said so and not compared.
+- **A verifier's unlocated doubt is asked where it is, then held as
+  unresolved.** The question whether a step does something the request
+  does not ask no longer offers a step that only reads paths the request
+  names and writes the output a part it carried asks: the checker's own
+  effect inference, with constants resolved, settles such steps, and
+  with none left the question is answered with no model call and
+  recorded on the attempt (`engine`). The previous check, which let a
+  named step pass without resolving its constants, is gone. When the
+  verifier rejects the whole request but carries every part, names no
+  step, and no trial run of those bytes can decide it, it is asked once
+  where its doubt is: a part or step it names is located and repaired
+  from as before, and naming nothing holds the workflow as unresolved,
+  never ready and never proposed, in words that say nothing was verified
+  (`unresolved` on the attempt).
+- **Kept defaults, source freshness and the questions left read in French.** For a French speaker,
+  « kept the default », the source freshness lines and « 1 more after this one » are now said in
+  French; the receipt lines (« applied · wrote », « check · … · clean ✔ ») keep one wording.
+- **A development build no longer asks for the keychain password on every run.** A macOS
+  keychain grant (« Always Allow ») is bound to the signature of the binary that asked. A
+  Developer ID release keeps the same signature from one version to the next, so its grant
+  sticks; an ad-hoc build (every `cargo build`, every dev build) is a new identity each time, so
+  the password prompt came back on every run. Now only a binary whose signature can keep a grant
+  opens the keychain for its run-key; any other takes the explicit `NIKA_RUN_KEY_FILE` pair or
+  the 0600 files under `~/.nika/keys`, silently, and runs unsigned when there is none, never
+  under a new key. `nika serve` never opens the keychain. A secret key file other users can read
+  is refused, as ssh refuses one. `nika doctor` says in one `run-key` line where the key comes
+  from, the fingerprint of the key this process would sign with, and why the keychain is or is
+  not part of it. A machine whose keychain holds the key a signed release signs with, beside a
+  0600 pair dev builds and `nika serve` sign with, has two identities: a release's doctor names
+  both keys, and `nika key align`, run from a signed release, gives the 0600 files the keychain
+  key and retires the one they held (the journals it sealed stay verifiable). At init, rotate and
+  align a signed release records the keychain key's fingerprint and the item's modification date
+  in `~/.nika/keys/keychain.json`; a dev build compares through that record only while the item
+  is unchanged, and otherwise says it does not know. `nika key init` in a process that does not
+  open the keychain refuses to mint a second key beside the keychain's, unless forced. Even a
+  signed release now opens the secret keychain item only to sign or to align: `nika key trust`,
+  `nika doctor`, the memory fold, a seal grade and a workflow signature read the public item
+  alone, and each item is read at most once per process. `nika key init` sees whether the keychain
+  holds a key from the items' attributes, never their data. `NIKA_KEYCHAIN=off` still turns the
+  keychain off everywhere.
+- **Without a decision seat, an authoring call no longer receives every other knowledge entry.**
+  With a knowledge release lent and no decision seat selected, the author was shown, beside the
+  recalled pack, the descriptor of every other admitted entry and of every embedded template,
+  unqualified: 244 to 369 references (102 to 199 KB) per request on the release this build
+  embeds, measured over 16 requests. A descriptor is there for a decision seat to judge whether
+  its entry serves the request, and without a seat nobody asks it. Nothing is widened then: the
+  author reads the recalled pack, and the qualification record says why. With a seat, every
+  admitted entry is still asked.
+- **A shared stopword no longer recalls knowledge for an authoring call.** The knowledge door's
+  text recall (BM25 over the release's rows) read every word of three letters or more, so a row
+  sharing only « the », « and » or « with » with the request was recalled and presented whole:
+  on the release this build embeds, a ten-word authoring request reached 22 of its 26 examples
+  and all 16 skills that way. The recall now reads informative words only, without the
+  compiler's shared stopwords. Every row it reaches is still presented whole, with no count or
+  byte quota, and the pack names its builder `knowledge-door-v7`.
+- **A French article no longer recalls knowledge either.** The knowledge door's text recall also
+  reads past the compiler's retrieval lexicon (French articles, pronouns and politeness; English
+  request scaffolding such as « please » or « help me »), the words the compile's own retrieval
+  already reads past. On the release this build embeds, a French request for a news digest
+  recalled four French-titled patterns through « les » alone; it now recalls by its content
+  words. The lexicon moved beside the shared stopwords (`nika_compile_reader::text`) unchanged.
+- **The Linux jail no longer drops a write grant without a word.** bwrap
+  can only bind a path that exists, and a jailed command cannot create its
+  own grant. The jail used `--bind-try`, which skipped such a grant
+  silently, so a command that had to create the granted file failed far
+  from the cause (on Linux only: macOS Seatbelt admits a file that does
+  not exist yet). Existing write grants now bind with `--bind` (a source
+  that vanishes before the mount fails loudly), and a spawn that leaves
+  grants unbound writes one line on stderr naming them with the remedy:
+  grant the directory, and make sure it exists before an exec writes into
+  it. An absent grant is not refused, since another task of the workflow
+  may be the one that creates it.
+- **An MCP server's network allowlist now reaches its hosts.** On macOS a
+  server declared with `"network": {"allowlist": [...]}` reached no host at
+  all and could not even resolve a name: its jail admitted loopback only,
+  while `nika mcp approve` announced it as confined like `"allow"`. The
+  spawn now starts the loopback egress proxy that the exec allowlist uses,
+  points the server at it (`HTTPS_PROXY` and siblings) and fences the jail
+  to the proxy's port, so exactly the declared hosts answer. The approval
+  note says `through a loopback egress proxy`, and a refused host prints
+  one `nika:egress REFUSED` line naming the server's allowlist.
+- **Nika's MCP server and client say only the protocol they speak.** The
+  server answered an `initialize` asking for MCP 2026-07-28 with that
+  revision, and an unknown revision with it too, yet the final 2026-07-28
+  text has no handshake and neither half implements its MUSTs; it now
+  answers 2025-11-25, the latest handshake revision, as does the
+  conversation server, and the 0.94.0 changelog line that said it spoke
+  2026-07-28 natively carries the correction. As a client, a `tools/call`
+  result whose `resultType` is `input_required` or `task` is a failed call
+  instead of an empty success; a reply that follows more than sixteen
+  interleaved notifications is read, the wait being bounded by its deadline
+  and by 8 MiB of skipped messages; and a call that times out is cancelled
+  with `notifications/cancelled` before the server is stopped.
+- **`nika mcp --http` holds every connection to a deadline and serves them side by side.**
+  A request has 30 s in all to arrive, head and body, and its response 30 s to leave; each
+  connection runs on a thread of its own, at most eight at once, the next waiting in the
+  listener's backlog, so a slow client holds one connection for a bounded time. A failed accept
+  on the server's side pauses the loop briefly.
+- **An MCP call the run stops waiting for is cancelled, not left running.**
+  When a task's `timeout:` cut an `invoke` of an `mcp:` tool, its call kept
+  running on its worker until the 120 s call timeout, holding the server's
+  pipe so every other call to that server waited behind it, and the server
+  was never told; the operator's Stop (Ctrl-C, SIGTERM, a Session's Stop)
+  waited for such a call to finish. The call now carries a stop: one not yet
+  written is never sent, and one in flight is cancelled with
+  `notifications/cancelled` while its session stays open for the next call.
+  Under the operator's Stop the task fails `NIKA-CANCEL-001`, never retried,
+  its `error.details.stopped_call` naming `{tool, call_id, outcome}` with
+  `outcome` `not_sent` or `unknown` (it was sent, so the server may have
+  acted), and the run's settlement lists every such call as `stopped_calls`
+  (`{task, tool, call_id, outcome}`), whether its task failed, was skipped
+  past or recovered. Other in-flight work still completes at the wave
+  boundary. A reply that already arrived now wins over a stop, a server
+  request that reuses the call's id is no longer taken for its reply, and a
+  stopped call's late reply no longer counts against the next call's byte
+  budget.
+- **`/meaning` beside an authored proposal reads your request.** Beside a proposal an
+  intelligence wrote, `/meaning` printed the money card: no compiler reading stood behind it.
+  It now lists, in the language you write in, what Nika kept of your request: your words, each
+  value the workflow relies on with its part and where it comes from, what you left to Nika to
+  choose and the questions still open. The proposal keeps waiting for your answer.
+- **The model question no longer demands `<provider>/<model>`.** On a subscription account (codex,
+  claude-code), a request with an AI step asked « Which explicit runtime provider/model should run
+  the language steps? » with nothing offered: « choisis toi-même » was taken as typed, and the
+  compiler answered « Name the runtime model as <provider>/<model> ». The question now offers the
+  configured model this conversation recommends (the saved default, else the newest configured
+  one), which Enter takes. A reply that leaves the choice to Nika takes it too, said as Nika's
+  choice beside the proposal, and a model named or described in words (« prends Claude Haiku ») is
+  read against the configured models whose name carries those words, never invented. A reply that
+  designates none of them binds nothing and says which model is offered.
+- **A proposal's money line says its ceiling as it was set.**
+  « money: $0.1 USD » sat two lines from « ceiling $0.10 »: the Session's
+  money lines and project default printed a ceiling with the float's own
+  digits. They now read through the one ceiling formatter every other
+  surface uses (« $0.10 », « $0.001 », « $2 »).
+- **More of the Session's own words in French.** A line the Session could not read now says, in
+  a French conversation, « je n'ai pas lu cette ligne comme un travail, et je n'ai pas su ce
+  qu'elle veut dire — rien n'a changé ». The same holds at a proposal, a question and a gate. A
+  revision's card says « Même workflow que la proposition vue » or « Changé depuis la
+  proposition vue », and a model failure says « la conversation n'a pas pu continuer ».
+- **A Claude call is priced, so the Run ledger, `--max-cost-usd` and a Session allowance
+  count it.** The Anthropic wire never marked a reply's usage complete, so every Claude
+  call stayed cost-unknown ("provider did not report usage") and a Session allowance with
+  a Claude author was refused. A reply whose usage accounts for every billed meter (input,
+  output, cache read and 5-minute cache write, no server tool, standard tier, global
+  inference) is now complete: it is priced at the model's admission tariff, else the
+  pricing snapshot on Anthropic's own endpoint, and an allowance reserves, sends once and
+  settles a Claude text call through the Anthropic wire, the model named exactly, by
+  nickname (`anthropic/sonnet`) or through the `claude` alias. A reply missing a meter, or
+  a Claude Haiku 5.5 prompt above its admitted 100,000 tokens, stays unknown, never zero;
+  under an allowance, a Haiku 5.5 request whose bytes could exceed that tier is refused
+  before anything is sent.
+- **The key a provider reads is named, and the Nika-scoped variable is the one advised.**
+  The probe lists the key variables set for each provider, names only, in the order the
+  run reads them; the census and `nika doctor` name the one that supplies the key
+  (`NIKA_ANTHROPIC_API_KEY` before `ANTHROPIC_API_KEY`), and two variables set with
+  different values earn a doctor warning naming both, compared in memory where the keys
+  are read and never printed. A missing key at run or in a conversation now advises
+  `NIKA_<ID>_API_KEY`, which no other tool reads (exporting `ANTHROPIC_API_KEY` can move
+  another application, such as Claude Code, onto that key), and a conversation shows it
+  without the command-line teaching. An API pick naming the `claude` alias
+  (`/intelligence 2 claude/<model>`) selects Anthropic.
+- **`run.reasoning.effort` reaches a Claude 5 model.** The catalog records the levels this
+  engine names (`low`, `high`, `max`) for Claude Fable 5.1, Fable 5, Opus 5.5, Opus 5,
+  Sonnet 5.5, Sonnet 5 and Haiku 5.5, so a declared effort on such a model, a nickname
+  included, is admitted at check and rides the Anthropic request as
+  `output_config.effort` on Anthropic's own endpoint, read back from the bytes sent. An
+  earlier Claude model, a thinking budget beside the level or an operator-pointed endpoint
+  still refuses before any byte, and `nika check` names the file's refused access as the
+  blocker instead of an empty list beside ACCESS READY ✖.
+- **`nika check` refuses a `nika:date` zone the run would refuse.**
+  `tz: "Paris"` checked clean, then the run failed at its first
+  `nika:date` task with `NIKA-BUILTIN-DATE-001 · unknown tz: Paris`. A
+  literal `tz:` is now judged against the embedded IANA time-zone
+  database the builtin itself reads, and an unknown zone is refused with
+  the run's code, naming the zone when one is obvious (`Paris` or
+  « L'heure de Paris » → `Europe/Paris`). A templated `tz:` is left to
+  the run. The ARGS rung now prints every refused literal value with its
+  own code and the checker's wording, where it said « has no `<arg>`
+  arg ».
+- **`nika:notify` now reaches Slack and Discord webhooks.** A Slack incoming webhook
+  (`hooks.slack.com/services/…`) refused the stdlib body `{ message, severity, data? }`
+  with HTTP 400 `no_text`, so a project whose last step posts to Slack failed on every
+  run. Slack incoming webhooks now get `{ text, mrkdwn: false }` and Discord webhooks
+  (`discord.com/api/webhooks/{id}/{token}`) get `{ content, allowed_mentions }`: the
+  message, a non-`info` severity and the `data:` context as plain text. Slack's `&`, `<`
+  and `>` become entities. Discord's markdown and mention openers are escaped, no
+  mention is parsed, and the content is bounded to Discord's 2,000 characters. Every
+  other target, including a Slack Workflow Builder trigger, keeps the stdlib body. A
+  refused delivery (`NIKA-BUILTIN-NOTIFY-002`) now quotes the receiver's answer, as one
+  bounded line with the target's own parts withheld, and carries `details.status_code`.
+- **A model offer shows the price its admission uses, or none.** A Session's
+  model offer showed the models.dev snapshot's list price, not the price its
+  admission uses: GLM 5.3 Flash on OpenRouter read $1.2 per million output
+  tokens while its admission reserves $1.6, the peak of its tariff, and a model
+  no tariff admits, such as Claude Sonnet 4.6 on an Anthropic key, showed a list
+  price all the same. An offer is now priced only from the qualified admission
+  tariff of its exact route and endpoint (the reply still settles at
+  OpenRouter's reported charge), and a route the admission cannot qualify shows
+  no price, never a bare snapshot price. Claude Sonnet 5.5, offered on an
+  Anthropic key without an admission tariff, shows no price, is never ranked by
+  the strongest-offer rule and is still chosen exactly when named.
+- **One « newest » mark per model family, chosen by real recency.** Searching the intelligence
+  list for `deepseek` showed « newest DeepSeek » on three rows at once: DeepSeek V4 Pro on the
+  DeepSeek API, the dated V4 Flash 0731 on Scaleway and R1 0528 on Hugging Face, whose « 0528 »
+  was read as version 528. « newest Grok » stood on Grok 4.20 0309 rather than Grok 4.7. A date
+  written in digits (`0528`, `250731`) is now a snapshot date, never a version; a minor version
+  reads as a decimal, so 4.7 comes after 4.20; and a family is marked once in a list that spans
+  several connections, on its newest model.
+- **GPT-6 and GPT-5.6 work with tools.** Any `agent:` task or tool-using author on GPT-6 Astra,
+  Sol, 6.1 Sol or Luna, or GPT-5.6 Sol, failed with HTTP 400 « Function tools with
+  reasoning_effort are not supported … use /v1/responses »: these models refuse function tools
+  on Chat Completions. A request with function tools to OpenAI's own endpoint now rides its
+  Responses API (stateless: `store: false`, reasoning items kept encrypted and sent back in
+  place), priced at the same verified tariff. A GPT-6 Astra agent that reads a file now answers
+  in three turns ($0.01).
+- **OpenAI's zero usage meters no longer void a reply's usage.** OpenAI's usage object
+  carries audio and predicted-output meters on every text reply, even at zero, and Nika
+  read any such key as an unknown axis, so a direct OpenAI reply never had complete
+  usage. Zero meters now read as complete; a non-zero one, a cache write or an unknown
+  key still leaves the usage incomplete.
+- **The free OpenRouter admission names a route OpenRouter still lists.**
+  `qwen/qwen3.8-27b:free` has left OpenRouter's catalogue; the declared-free
+  admission now names `nvidia/nemotron-3-super-120b-a12b:free`, read from its
+  endpoint listing of 2026-10-12: one endpoint at a zero prompt and completion
+  price, a 262,144-token window and 235,929 output tokens, for bounded text
+  requests only. A run naming the old id is no longer admitted as free.
+- **A paid OpenRouter call settles at the charge OpenRouter reports.** A paid
+  OpenRouter reply always read as unknown cost, and an admitted paid route would have
+  turned its account Uncertain at the first settlement. A non-BYOK reply from
+  OpenRouter's own endpoint with complete usage now settles at its `usage.cost`, which
+  receipts name as a provider-reported charge; its catalogue tariff only reserves. A
+  BYOK reply, a gateway's `cost` or an unknown fee stays unknown. A charge above the
+  reservation still settles known, and that route then refuses its next call until its
+  catalogue tariff is refreshed.
+- **An open-weight model named on another provider is no longer refused as a
+  wrong seat.** `nika check` refused `scaleway/llama-3.3-70b-versatile`, or a
+  local engine's `meta-llama/…` model, as served only by the one provider whose
+  catalogue row lists it. An `org/model` id, or a model the pricing snapshot
+  marks open-weight, now has no single owner, whoever lists it; a
+  provider-exclusive id pasted on another provider (`groq/grok-4.3`) is still
+  refused with its owner's id as the repair.
+- **A long conversation no longer overflows an OpenAI-compatible model's window.** Nika asks a
+  route for its whole published output capacity, and an OpenAI-compatible route counts the prompt
+  and that output against one context window. On OpenRouter's DeepSeek V4 Flash (943,718 output
+  tokens in a 1,048,576-token window) every call failed with HTTP 400 once the conversation passed
+  about 105,000 tokens: « you requested about 1060562 tokens (… 943718 in the output) », after an
+  authoring loop of 30 calls and 13 minutes. The output budget sent is now what the prompt leaves
+  of the window, the prompt counted generously from the request's size, less a margin of 1/64 of
+  the window. A budget that already fits, and a route with no known window, are sent unchanged.
+- **A task with a large output no longer stops the run.** The Session reads a run's frames line by
+  line and refused any frame over 1 MiB, ending the child mid-run: a workflow that fetched three
+  job boards (one of them 3.4 MB of JSON) failed with « Run cost review refused: Run frame exceeds
+  1 MiB; no automatic retry », its effects uncertain. A frame over the cap is now drained without
+  being kept and the run goes on to its own end; memory stays bounded. The Session says the step's
+  output was neither shown nor kept: the run's trace bounds its lines at the same 1 MiB, so its
+  journal stops at that step and the run settles with its evidence lost.
+- **The intelligence picker states a model's own context window, and how far a tiered price
+  holds.** Claude Haiku 5.5 read "100k context" because its tariff, which prices prompts up
+  to 100,000 tokens, stood in for its million-token window. An option's `context_tokens` is
+  now the model's window (its provider row when a source is recorded for it, else the
+  tariff's, else the list row's), and `ModelFacts` gains `prices_up_to_tokens` when a tariff
+  prices only a cheaper part of that window: the TUI reads "from $0.10 in / $0.50 out per
+  MTok (≤100k tokens) · 1M context".
+- **« active-le alors s'il vous plait » activates the schedule.** Only the bare activation words
+  (« active-le », « activate it ») opened the activation; with a courtesy around them the line went
+  on as a request and the workflow ran once more. A courtesy or a filler before or after them
+  (« alors », « s'il vous plaît », « stp », « please », « now », « ok ») now leaves the same
+  activation, and « active-la », « activez-le », « active la répétition » are read too. Anything
+  more, such as a cadence, keeps its route.
+- **The project file's refusals teach a cadence the arming door reads.**
+  A beat with no or an empty `cadence:` was told to write
+  `cadence: "dimanche 18h07"`, which `nika arm` and `nika serve` refuse for
+  its missing zone. The remedy now shows `TZ=Europe/Paris dimanche 18h07`
+  and the cron form with its zone.
+- **A misconfigured `nika:prompt` fails at once instead of pausing forever.** An unknown
+  `mode:` (`select`), a missing `message:` or a `default:` the mode cannot use was coded
+  `NIKA-BUILTIN-PROMPT-001`, the failure the runtime turns into a durable pause: an
+  unattended run whose author had declared a default waited for a human, and resuming
+  an unknown mode with an answer paused it again. These are now
+  `NIKA-BUILTIN-PROMPT-002`, judged before anyone is asked, with the modes or the
+  expected type named. A confirm `default:` written as a person answers a confirm
+  (`yes`, `y`, `no`, `n`, `"true"`, `"false"`) now reads as that answer, as `--answer`
+  already did; YAML 1.2 reads an unquoted `yes` as a string. Only a prompt with neither
+  a human nor a `default:` keeps `PROMPT-001` and pauses.
+- **A provider call is never re-sent by the transport, and every receipt counts what was sent.**
+  On a 429, 503 or 529 the provider layer re-sent the same request up to three more times
+  (after 1, 2 and 4 s), so one authoring call on a busy route sent four identical 772 KB requests
+  while its receipt said one call, and the money admission, which counts only the author's
+  `retry:` and schema re-asks, never counted them. The call now ends at its first answer with a
+  transient rejection; `nika_providers::transient_rejection` reads its status and the delay the
+  provider named, for the author's `retry:` or the Session to decide. Every provider client also
+  makes one physical attempt per post (no protocol-NACK replay). The fetch plane is unchanged.
+- **An answer cut or interrupted by its provider is never read as finished.** Anthropic's
+  `model_context_window_exceeded` and Mistral's `model_length` now count as an output-limit cut,
+  and a generation the provider interrupted (DeepSeek's `insufficient_system_resource` and
+  `aborted`, the `error` finish of OpenRouter and Mistral, Anthropic's `pause_turn`) is a new
+  `StopReason::Interrupted`, where it was read as an unknown, normal end. A limit finish that
+  carries a tool call stays a cut on every wire.
+- **A provider's refusal reaches the person in the provider's own words, never with the key.**
+  A provider failure kept only its status and recognised identifiers, so an exhausted Anthropic
+  balance (HTTP 400 with "Your credit balance is too low" in its message) read only "provider
+  API error (HTTP 400); type=invalid_request_error". The error now adds `the provider said:
+  "…"`: the provider's message as one line of at most 400 characters, without control or
+  invisible characters, with the key the call sent and every credential-shaped word withheld.
+  The words are relayed, not classified: transience, quota and retry still read only the status
+  and the recognised identifiers. The compile server keeps provider text from remote clients.
+- **A failed run's quarantine moves only the file the run created, inside
+  the project.** The quarantine and its restore now act through directory
+  handles opened under the project root: a recorded path that leaves the
+  project (`..`, an absolute path) is refused by name before any file
+  operation, a directory on the way that is a symbolic link is refused, and
+  the quarantine directory is created without following links. A file moves
+  only while it is the very file the run created (same device and inode,
+  one name, the size the run left); a link, another file, a second name or
+  a changed file at the path stays where it is, and the fold says why. A
+  restore links the file back at its path, so a file a person put there
+  since is never overwritten: that is a named conflict, and both files stay.
+- **A conversation's workflow leaves a reasoning model room to answer.**
+  A summary on a model that reasons before it answers (deepseek-flash),
+  capped at 4096 output tokens with thinking left on, spent the whole
+  cap on reasoning: the run ended with no answer, or with one cut short.
+  A cap the person did not type that cannot cover the reasoning plus the
+  answer, or no cap at all, is now refused before the workflow is
+  proposed, with the repairs that reach the model's route: set
+  `run.reasoning.effort: low` first where the model documents that
+  level, then raise `max_tokens` (at its default effort the model spends
+  most of a larger cap reasoning).
+- **A reasoning model's own state now goes back with the turn it came with.** Gemini puts a
+  thought signature on the parts of an answer and asks for it back, Anthropic signs each
+  thinking block and asks for assistant turns back as received, and DeepSeek asks for the
+  `reasoning_content` of earlier turns when a request carries tools. Nika dropped all three, so
+  a multi-turn tool conversation sent the model its own turns without the state it asked for.
+  The kernel carries that state as `ContentBlock::Reasoning` (and `InferEvent::Reasoning` on a
+  stream), opaque to everything but the wire that produced it: Gemini gets each signature back
+  on its own part, Anthropic its signed and redacted thinking blocks in place, and DeepSeek its
+  reasoning on every assistant message of a request with tools, empty when a turn had none.
+  The state never goes back alone or to another provider, and a decision never reads it as an
+  answer. Two limits: a Session tree that holds reasoning blocks does not load in an older
+  binary, and nothing assembles `InferEvent::Reasoning` from a stream yet, so the round-trip
+  holds on buffered calls only.
+- **A rehearsal the room stopped at its data bound is no longer read as
+  a timeout.** When a value a candidate workflow built crossed the
+  rehearsal room's data bound, the room stopped the run there, and the
+  compiler took that stop for the time bound: it asked the author to fix
+  a slowness that never happened. The stop now reads as the data bound,
+  in the room's words: a construct the workflow chose, so the author is
+  asked once for an equivalent workflow the room runs, as for a
+  candidate the room refused to start. The run still counts as not run,
+  never as failed.
+- **Rehearsal warnings include files whose paths are constants.** When a skipped model step
+  feeds a file write through `${{ const.out_path }}`, the trial now names that file in its
+  warning that the read-back is not a result of the run. Literal paths retain the same warning;
+  paths that depend on runtime inputs or task results are not guessed.
+- **Trial runs of « Look in ./x » requests.** A path the request names
+  after a locative such as « in » or « dans », which the candidate only
+  reads, was taken for an output the run should write, so the room
+  refused the run (« … is read but not observed ») or the run proved no
+  whole output. It is now copied in as the run's input.
+- **A path in a reply is no longer corrected as an unknown model.** The
+  reply guard judged any slash-shaped token whose prefix was not on a
+  folder list, so `news/2026-10-09.md` read as provider `news`. It now
+  judges a `provider/name` only in a model slot — a `model:` field, a
+  `--model` flag, or a name the prose calls a model — and there with
+  the same words whatever the name looks like; the folder list is gone.
+- **A ceiling the request states for each run is kept and named.**
+  « budget max 0,10 $ par run » in a request was read as no directive (and
+  « budget max 0,10 $ » refused the request), so the proposal showed the
+  $0.25 session default and every rerun used it in silence. The money
+  reader now takes « max » after a limit and a closing « par run », « par
+  exécution » or « per run »: the proposal shows the amount, the Save
+  keeps it, « Relance-le » reuses it, and every run report names its
+  ceiling and where it comes from.
+- **What a request says each run may cost is its ceiling.**
+  QA gauntlet q09 typed « … et chaque exécution doit coûter au maximum
+  0,10 $ (budget max 0,10 $ par run) »: the money reader found neither
+  phrase, so the proposal kept the $0.25 session default. A clause with
+  the run as its subject, a closed cost phrase and its limit (« doit
+  coûter au maximum », « must cost at most », « ne doit pas dépasser »)
+  now states the ceiling, and a segment holding no directive is read
+  again with its asides apart. An aside needs a currency; a record's
+  price or a relative clause stays business data.
+- **« Augmente le budget du run à 1 dollar et relance » reruns under that ceiling.** A natural
+  rerun line reached Run only when the classifier heard a run request and nothing else; a ceiling
+  in the same line counted as something else, so the line went to the author, which raised the
+  workflow's `max_tokens` instead. A line with a rerun word (« relance », « rerun », « run it
+  again ») and an amount the Run reader takes now runs the current workflow once under that
+  ceiling, as « run it max $1 » does, including right after a run refused before it started for
+  its cost.
+- **A request said again keeps the answers already given.** A change or new words typed at an
+  authoring question read the request again in a fresh round, which dropped every answer the round
+  had bound: the time zone and the model, both answered, were asked again after the person
+  restated the sources. The restated round now starts with the answers already bound; the compiler
+  uses those its new reading still asks for.
+- **A resumed run no longer calls a task done when its file stayed in quarantine.** When
+  `--resume` could not put a failed run's file back (something now stands at its path, for
+  example), it said so on stderr, then still counted the task that wrote it as a cache hit
+  and could finish `succeeded` while that task's bytes sat in `.nika/quarantine/<run>/`.
+  Now that task runs again, with every task after it, and the run says which one. Like a
+  fresh run, the re-run writes its file over whatever stands at that path; if the resumed
+  run then succeeds, that earlier file is not kept. A file the resume did put back belongs
+  to the resumed run: if that run fails too, the file moves to its quarantine again instead
+  of passing for a whole one.
+- **A Session no longer offers DeepSeek models the provider has retired.** `deepseek-chat`
+  and `deepseek-reasoner` were discontinued upstream on 2026-07-24, yet the Run and Author
+  model offers still listed them beside `deepseek-flash` and `deepseek-v4-pro`. Their price
+  rows are now marked deprecated and a model whose own price row is deprecated is never
+  offered; a recorded run that used one still prices.
+- **A revision says what changed in its bytes, and when nothing did.**
+  QA gauntlet q03 and q04: « Changed from the proposal you saw: model
+  claude-haiku-5-5 added » and the author's « J'ai retiré cette ligne »
+  appeared over bytes and a proposal id that never changed, because the
+  line came from the values the author bound. A change is now said only
+  where the bytes gained or lost that value, with the size of the diff
+  (or its first lines), and the very same bytes read « Same workflow as
+  the proposal you saw: its bytes did not change. »
+- **A conversation's revision keeps the ceiling saved with the workflow.**
+  QA gauntlet q09 saved its workflow with $0.10, then asked for another
+  model in a line stating no amount: the revision showed « money: $0.25
+  USD · session default », its Save rebound $0.25 and « Relance-le » ran
+  under it. A proposal landing on a saved workflow, with no ceiling of
+  the person's own for the work, now binds the one saved with its current
+  bytes, proven as a Run proves it, as a revision through the request
+  door already did.
+- **« Corrige ça » after a failed run now fixes that failure.** A revision asked right after a run
+  of the same workflow failed was sent to the author without the run: « No diagnostic was supplied
+  with « corrige ça » », so it guessed. In the live gauntlet a fetch refused after a redirect
+  (`docs.claude.com` → `platform.claude.com`, NIKA-SEC-004) was « fixed » by removing an unrelated
+  `max_tokens` and adding fallbacks, the estimate became unbounded and the next run failed the same
+  way. The revision now carries that run (`observed_world.last_run`: the exit and each failed task
+  with the error its trace recorded) and the author is told to fix what it reports and touch
+  nothing else. Live: the author granted the redirected host for GET and the next run wrote the
+  digest. A succeeded or paused run, or a run of another workflow, adds nothing.
+- **Operator-stopped MCP tasks and native agent loops retain their control outcome and every
+  actual stopped-call witness across fan-out, fail-fast and timeout.** Ordinary authored recovery
+  and completed in-flight work retain their meaning; stopped work cannot become a successful
+  resume checkpoint. Ready MCP replies keep their physical Stop and reported cost facts when a
+  stopped sibling drops their future before its final poll. A stopped batch counts those costs
+  once, without turning unread work into a successful checkpoint.
+- **What a run may cost is checked beside the workflow, not in it.**
+  QA gauntlet q09: the verifier read « chaque exécution doit coûter au
+  maximum 0,10 $ » as an obligation of the bytes and judged it missing,
+  and a revision looped 11 author calls ($0.62): no workflow field holds
+  a dollar cap per run, the Run does. The proposal's Run ceiling now
+  rides beside its bytes with the person's words that state it, and an
+  obligation those words alone evidence is settled there with no
+  question; one with other evidence is still asked.
+- **CLI resumes and answered TTY continuations retain the continued run's scheduled instant,
+  its source and missed-slot facts.** Fact-reading tasks keep their valid checkpoint identities
+  and prompt answers bind the question originally shown, while each leg retains fresh execution
+  identity and admission. Legacy traces without these facts keep the existing behavior; malformed
+  recorded facts refuse.
+- **Every door judges a run against the request's own contract before READY.**
+  The behavioural judgment of a rehearsal against the computation the
+  request states ran only in the sketch and document doors; a conversation's
+  document, an answer-round replay or a semantic record whose trial wrote a
+  wrong total, order or cut was READY whenever its judge accepted it. The
+  final barrier now judges the request's contract on the run it accepted,
+  with no new run and no model call, and withdraws the candidate with the
+  obligations it fails. Requests for a total (per group or not), a sort or
+  a top-N in the closed language also prove their output required: a run
+  that writes nothing fails, and a right one passes.
+- **A run model left to Nika is taken from its offer, unasked.**
+  QA gauntlet q04: « carte blanche » on a model switch was asked three
+  times, then the person had to type a model id: the author was told to
+  bind its own choice, which the fidelity law refuses for a run model. The
+  author now offers the models with one recommended, and Nika takes it for
+  the person, citing their words, with no second question; a model they
+  name later stays theirs.
+- **A run or a ceiling typed at a waiting proposal no longer re-authors.**
+  QA gauntlet q03: « Peut-être que le plafond de 0,25 $ est trop bas.
+  Lance translate-notes.nika avec un plafond de 2 $. » went to the author,
+  which spent five minutes writing the very bytes saved. A run naming a
+  saved workflow now runs it while the proposal waits on, a sentence
+  states its ceiling by its directive rather than by an amount it only
+  mentions, and a ceiling stated alone binds the proposal shown under a
+  fresh identity, with no author call.
+- **What a trial run showed missing stays a rejection.** A verdict that
+  stopped while locating a part a run showed missing was resumed in a
+  later round that had no run of those bytes, and the whole-request
+  answer over the bytes alone could then settle the workflow READY. That
+  verdict now stands as it was, repeated with no call.
+- **« Enregistre ce workflow et lance-le » saves and runs a shown proposal.** Only « save & run »,
+  « save and run » and « enregistre et lance » were the combined consent; the natural « Enregistre
+  ce workflow et lance-le. » at a shown proposal was routed as a change and the proposal came back.
+  The consent words now also read, as a closed grammar over the whole line, a save verb and the
+  workflow shown (a pronoun on the verb, « it », « ce workflow » or nothing), then optionally « et »,
+  « and », « puis » or « then » and a run verb said the same ways. « enregistre-le » or « save it »
+  alone saves. Anything more, a destination or a cadence, keeps its route.
+- **« Enregistre ce workflow et lance-le » no longer asks the workflow to create something.** A
+  line asking to save or run the workflow itself was read as an effect its tasks had to perform:
+  on the welcome demo, « Enregistre ce workflow et lance-le », then Nika's own suggestion
+  « sauvegarde-le sous le nom aggregate-by-key et exécute-le », then the `/help` keyword « run
+  aggregate-by-key » were each refused with « DROPPED EFFECT: the request states `create` », so
+  a workflow that only computes could not be saved from the conversation. Such a line (the
+  workflow, a pronoun standing for it or a workflow's name, with nothing but a time, a polite
+  word or the name it is saved under) is now read as the Session's act and accounted for, never
+  as an effect. A destination still makes it a write: « enregistre-le dans out/resume.md » writes
+  that file.
+- **A cadence or a zone you pick from Nika's choices schedules the work.**
+  A cadence picked from the author's list (the list sends its key) is
+  cited from the label you picked, so « Tous les jours à 9h » is shown
+  as a schedule instead of being asked again in free words. A zone you
+  picked from a proposal's choice is yours: proposed again without that
+  choice, the schedule is shown, where the Session refused it while also
+  refusing to show the settled zone again. A label you did not pick, a
+  choice left to Nika and a zone you never saw or picked are refused.
+- **A schedule's hints name the program the person runs, and the author never calls a declared
+  schedule active.** The hints after an activation said `nika serve` and `nika arm`, while the
+  person ran `nika-dev` and the `nika` on their path was an older release that refused the
+  workflow; they now name the program Nika was started as. The conversation's author told two
+  people their declared schedule was active and invented an « Activer » button; its instructions
+  now say that a declared schedule runs nothing until a firer runs, to repeat what Nika says of it
+  and to invent no button, setting or command.
+- **A cadence picked before a restart can still be scheduled after it.**
+  The label of an option the person picked was citable as their words
+  only while the Session stayed open. It is now read back from the kept
+  record of their answer, so after a reopen a schedule citing « Tous les
+  jours à 9h » from the line that picked it is shown. A label they did
+  not pick and a choice left to Nika are still refused.
+- **« tout les matins à 9h » is a daily schedule at 9:00.** People often
+  type « tout les » and « toute les » for « tous les » and « toutes les »:
+  the schedule a phrase states now reads them as that quantifier, so the
+  Session no longer refuses « tout les matins à 9h » as an incomplete
+  schedule. The singular « tout le matin » (all morning long) is not read
+  as a schedule, and no hour or day is ever invented.
+- **A change you ask keeps the zone you picked.** The zone a schedule
+  carries rides beside the workflow, never in its bytes, so a revision
+  after the proposal had shown it dropped your zone and could not be
+  proposed. A revision now keeps the zone a shown schedule carried, after
+  a reopen too, while your pick still binds it: once you changed the
+  zone, the old one is not brought back, and it is never asked again.
+- **A zone you leave to Nika as the default shown is yours.** When a
+  proposal showed the zone as a choice and you answered « comme tu veux »,
+  Nika took its default, yet a schedule following that zone was refused
+  while showing the choice again was refused as already settled. Such a
+  zone now schedules the work and is never asked again. A zone the author
+  chose on a choice that showed no such default is still refused until
+  you see it.
+- **An author's choice within the person's own words is no longer
+  refused.** A conversation's workflow was stopped when its author named
+  the output file the person left to it (« tu choisis »), listed pages
+  under the folder of a file the person typed, granted that folder's
+  read scope, or named the host of the address the person gave for
+  their local sink. Each is now admitted within that scope: a new file
+  inside the project, a read under that folder, the exact host of that
+  address. Anything beyond what the person typed is still refused.
+- **A file the request asks for without naming it is derived, not asked.**
+  When a document wrote no file for « write it into a file », or wrote
+  one under a name it never stated, the finding told its author only to
+  declare a placeholder and ask the person. The document door and a
+  Session's author now get the selection that answers it: derive a new
+  file inside the project, grant it, and state it with the person's
+  words. A public source they name or leave to the author, or a file read
+  under a folder they typed, is stated the same way. The door's
+  instructions teach every scope the selection law admits. The question
+  remains when the person's words leave the file's name to them.
+- **`nika serve` no longer spins on a slot it cannot fire.** When the CLI firer had
+  already fired a project beat's slot, or held its beat lock, or the workflow failed
+  admission, or the queue was full, the slot stayed due in the resident's own store and
+  the scheduler woke again at once, re-admitting the workflow in a busy loop: an idle
+  resident burned seconds of CPU per minute until the slot aged out. A slot the CLI
+  firer answered is now recorded as skipped (`answered_elsewhere`), and any other slot
+  that stays due is looked at again after the 5-second rescan. A slot that comes due
+  while the schedule's previous run still runs is now skipped once under
+  `chevauchement: sauter` (the default), instead of firing late when that run ends.
+- **A conversation's proposal that reads a project file can be saved.**
+  The yes withdrew every agent-written proposal that read a project
+  file: no compile had recorded its source basis, and compiling the
+  request again without AI never rebuilds an agent's bytes. The proposal
+  now keeps the witness of the bytes of each file it reads, as its
+  author read them or as they were when it was shown. At the yes those
+  files are read again: unchanged bytes let it land, and a changed or
+  missing file withdraws it before anything is written.
+- **Your words are read before an author acts on them.** When a conversation's author
+  says your words consent to saving or running its proposal, the Session reads those
+  words itself: unless they consent, nothing is saved or run and the proposal waits
+  for your consent. Natural consent keeps working without a second confirmation.
+- **A busy provider is asked again, and the person is told.** When the
+  conversation's route answers 429, 503 or 529, the Session waits the
+  delay the provider named (else 1 s, then 2 s) and asks again, twice at
+  most, each ask counted as a call. A longer named delay or a third
+  rejection ends the call with the provider's own words, how many times
+  it asked again and how long it waited. A money account that keeps the
+  rejected call's charge as unknown is never asked past: the call ends
+  there, saying so.
+- **A consent in words keeps the verdict of the proposal it answers.** Words that
+  save or run the candidate the person was shown no longer send its unchanged bytes
+  to the verifier again; a candidate written since is judged as before.
+- **A message cut at the output limit runs none of its calls.** Each of its calls is
+  answered « not run: your message was cut at the output limit; re-issue the call with
+  complete arguments », and a cut answer is marked as cut: a half call no longer reaches
+  a tool as text.
+- **A choice with a reasonable default is proposed, not asked.** When the Session's author
+  asks a question it could answer with a recommendation, or asks for the name of an output
+  in your project, Nika refuses that question and the author proposes the workflow with the
+  choice shown and its default: your yes keeps the default, naming another option changes
+  it. The Session still asks what no default can stand for: a fact only you have, readings
+  whose effects differ materially, or an authority only you can grant.
+- **A proposal you saw keeps its rehearsal once you pick its defaults.**
+  When the same workflow is proposed again after you picked the defaults of
+  the choices it showed, the rehearsal of those same bytes follows it, so
+  saving and running proceed instead of withdrawing the proposal. Other
+  bytes, another proposal or a changed project still withdraw it.
+- **Your request's save and run survives a default you pick.** When your
+  request already asked to save and run, and the proposal showed choices
+  whose defaults you then picked, the same proposal proposed again is
+  authorized by your request instead of waiting for a second consent.
+  Another option, a changed scope or any other line since still waits for
+  your consent.
+- **A saved workflow whose files changed since its rehearsal offers its recovery.** When a run
+  of the saved workflow is refused because the workflow or the files it reads changed since the
+  rehearsal, the terminal now offers « Adapt the workflow to the changed files » beside your own
+  words: a new request, proposed, rehearsed and approved afresh, never a run on the withdrawn
+  proof. Restoring the original files and asking again still runs it.
+- **Bytes whose own check fails are never offered, saved or run.** A
+  candidate failing its check (a temperature on a Claude 5 model, which
+  refuses any but its default) was shown with « Save and run once » and
+  saved over a clean file. The author's proposal is now refused with the
+  check's findings before any judge reads it, so the author repairs it
+  first; a consent to such bytes saves and runs nothing, replaces no
+  file, and keeps the proposal waiting; the TUI offers no Save for them.
+  The preview names the model findings that make a check fail.
+- **Your answers reach the verifier as yours.** When a conversation's candidate is
+  verified, its judges now read your answers to the questions asked (and the defaults you
+  accepted) and your request as you first stated it, as a compile round of the same
+  request does; a value you typed in an answer is no longer judged as invented.
+- **A refused knowledge override no longer stops the conversation.** A Session
+  whose configuration named a knowledge release it cannot verify (a historical
+  `NIKA_KNOWLEDGE`) refused every model-backed request, and its only remedy was
+  to quit and open the Session again. The conversation now opens as usual and its
+  snapshot types the refusal (`knowledge`). A line that would reach a model waits
+  before any request, exactly as typed, with one short explanation;
+  `/knowledge embedded` uses the knowledge built into Nika for that conversation
+  (its history keeps the choice) and resumes the line once, under the same
+  intelligence and effort. Nothing falls back silently, and lines that need no
+  model behave as before.
+- **Finite Session choices use native terminal controls and keep the current
+  request.** Single and multiple answers, intelligence settings, proposal actions,
+  paused questions, and required boolean/enum inputs have selectable lists.
+  Navigation and empty submission apply nothing; readers and settings preserve
+  the draft. An explicit Save/Run request continues through clarification without
+  asking for the same permission again. After reopening, a new rerun request can
+  reuse an unchanged saved or previously observed workflow through normal Run
+  admission; reopening itself performs no action. Failed conversation requests
+  retain their original context for recovery, and expired questions show their
+  renewal requirement before an answer.
+- **Only the offer the person picked is theirs.** An answer to a question
+  is read once (the protocol words, else one bounded reading of the line
+  against the offers), and the Session binds the picked offer itself: an
+  author can no longer claim an option the person did not pick, a free-text
+  « no » picks nothing, and words that left a value ambiguous never name
+  it. A choice left to the author is bound as its own (a new output's
+  name derived, a source delegated), said, and never asked again. A
+  value the person settled is asked again only when the question cites
+  their later words asking to change it.
+- **Where an open name starts stays answered after a reopen.** When you
+  answered where one output's name starts and the Session reopened, the
+  other output's choice is no longer refused as settled, and a revision
+  that drops that other output is still reported. Nika reads the question
+  you answered back from the conversation's own record; an answer it
+  cannot match there exactly keeps the single-output rule.
+- **An open name's choice is shown beside another output you named.**
+  When a request names two outputs and leaves where one's name starts
+  open (`générer out/stock.json` beside `notes/stock.md`), the choice of
+  that start is no longer refused as settled by the other output, asking
+  or answering it keeps the other output, and a revision that drops the
+  other output is still reported. The same holds the other way round:
+  once you answered where the name starts, the other output's choice is
+  still shown, and answering or reopening it keeps the name you chose.
+  A choice that also offers one of that name's readings asks for the
+  same output: its answer replaces the other, in either order.
+- **A conversation over its model's window folds and goes on.** When a request is over the
+  model's context window, or a reply filled it, the Session folds the conversation once and asks
+  again; a second overflow fails and names the window. A long run from one line can now be folded
+  between its steps, a summary that would not shrink the conversation is not used, and a
+  conversation too large for one summary request is summarized in whole-object parts within
+  its estimated payload budget; an indivisible object or fixed prompt over budget is reported
+  without folding originals.
+- **The author knows the person's time zone.** A conversation's instructions name
+  this machine's IANA zone, so « today » is computed as the person's day (with
+  `nika:date` in that zone) instead of the UTC day.
+- **A scheduled proposal is verified with its schedule beside it.** The
+  proposal's verification now receives the schedule the Session accepted
+  (the line it cites, the person's words and the zone), so a request that
+  runs « tout les matins a 9h » is shown instead of being refused on every
+  try because no task runs the workflow each morning.
+- **A Session's provider call is sent once.** The conversation's model,
+  the Session's own readings and the provider authoring seat use a
+  transport that never sends a call again on its own, not even after a
+  protocol refusal, so every request that leaves is one the money
+  admission counts.
+- **The recovery card reads a corrected request as the person said it.** After a
+  correction (a delegated answer included) and a failed authoring turn, the `I still have`
+  card printed the request as restated for the author:
+  `your request: « Original request: … Correction (it takes precedence …): … »`. It now
+  reads the original words, `your request: « … »`, then each correction in the order it was
+  said, `your correction: « … »`, never the frame that joined them.
+- **A Session line the host cannot parse is refused naming its command.**
+  Both doors refuse such a line `malformed` naming the command identity its
+  JSON carries, when a valid one, so a native client tells the refusal of
+  its own line from another's instead of taking it for a reply to a read; a
+  line naming none, or an invalid one, is still refused naming none.
+- **Words that replace a value remove it.** A revision that gives a value the
+  person saw bound its replacement (« raise the threshold to 72 hours »), or that
+  replaces a value whose choice they left to Nika, no longer asks whether the old
+  value should leave the workflow.
+- **Your answer to a question no longer names the saved workflow.** When
+  Nika asked you for a value, such as the text a workflow writes, and you
+  answered with something that looks like a workflow file
+  (`bonjour.nika`), the new workflow was saved under that name. Your
+  answer now counts only for its question, whether or not the author
+  bound it and after the Session reopens: the workflow is saved under
+  the file your request names, else under its own name.
+- **A revision needs your own words.** When a conversation's author changes a workflow you
+  were shown and claims your consent for it, the Session now saves or runs it only when your
+  words asked for that change before the save or the run, and the revision answers them with
+  the same effects. Words that consent to the workflow as shown never cover new bytes: the
+  revision waits for your consent.
+- **A run asks its ceiling when none can be proved.** After a reopen, a
+  Save that bound no ceiling or a restored exposure no longer refuses
+  « Save and run once » or « run it » in the money law's words: the
+  Session asks the run's ceiling (`Waiting::RunCeiling`), offering 0.10,
+  0.25, 0.50 and 1.00 USD and recommending the smallest that holds about
+  three times the workflow's static cost floor or last run, with why.
+  The amount stated continues the run as « run it max $X » would, through
+  the explicit path; « yes » states no amount, none is applied for the
+  person, and a changed file, an unreadable receipt or several bindings
+  still refuse. `SessionRuntime::waiting_run_ceiling_choices` states the
+  choice; a host without rows asks one short line, in French when the
+  run line was.
+- **A Save says how to run the workflow from a terminal, with the program you run and your
+  ceiling.** After a Save, Nika now adds `from a terminal: nika-dev run report.nika
+  --max-cost-usd 0.1`: the program is the one Nika was started as (`nika`, or a `nika-…`
+  release name), so the command reaches this same binary rather than an older `nika` on the
+  path, and the ceiling is the one you saved with the workflow. With no ceiling of yours the
+  flag is left out, never filled with a default. A file name with spaces is quoted (NIK-171).
+- **A served Session run its resident refuses before any task runs is told as not started.** A
+  job refused at admission (an unpriced cloud route, `NIKA-1709`) used to settle as « run
+  observed · exit 1 · the workflow failed » with nothing to read, so an author could « repair » a
+  workflow that never ran. The Session now answers that the run did not start, in the resident's
+  own words and code, and a job that ran and failed names its error beside its exit.
+- **A Session turn never ends in silence.** An author model's message with
+  no words and no call (one that only reasoned) is asked once more, in
+  Nika's words; if that answer is silent too, the person reads that the
+  turn ended without a word, with nothing asked or proposed, instead of an
+  empty reply.
+- **A doubt the verifier states reaches the proposal.** On the agent-led route a
+  ready verdict's stated doubt was dropped; the proposal now states it after its
+  summary, before the person consents, and its identity covers it.
+- **A Session's Stop stops its run over Serve too.** The run door Serve
+  lends a Session never armed a Stop: over HTTP, a Stop during a run
+  answered `run_underway` and the run went on. It now asks the resident's
+  own job cancellation (the one `POST /v1/jobs/{id}/cancel` takes) once:
+  the run is stopping and ends interrupted, a second Stop sends nothing
+  more, and a Stop before the job's admission admits nothing. A resident
+  that cannot stop a job says so.
+- **An answer you type counts only for the question it answers.** When
+  you answer a question Nika asked in your own words instead of picking
+  an offer, the answer now settles only what that question asks. The same
+  path no longer settles another name of your request that shares it,
+  whether through the answer or through your reply's words, and the
+  question's own wording is never taken as yours.
+- **A new workflow is saved under the file name your request gives it.**
+  When a request names its workflow file (`comptage.nika`), the proposal
+  and the Save use that file whatever `nika:` the author wrote; a file
+  already there is replaced only with your consent, as any update is, and
+  a folder you name is kept.
+- **An author now reads three laws that a run used to teach.** The
+  `nika:date`, `nika:jq` and `nika:fetch` contracts an authoring model
+  receives now say that a day added in a time zone is a calendar day (23
+  or 25 hours across a DST change; `PT24H` is exactly 24 hours), that a
+  `nika:jq` program emits exactly one value (wrap a stream in `[ … ]`),
+  and that a JSON API is fetched with `mode: jq` or `mode: raw`, never
+  the default Markdown.
+- **A source used through a task's binding is judged as that use.** A
+  public address the author chose, sent with POST through a `with:`
+  binding of its task, passed the scope law that keeps it read with GET,
+  and so did a person's file written through one. Both are now refused
+  as when the tool's argument holds the value directly.
+- **`/status` reads for the person.** The status card offered on the first screen listed the
+  authoring context: strategy, knowledge snapshot digests and the decision seat's internals. It
+  now shows the workflow, the project, the intelligence, who prepares and the money, and points
+  to `/details`, which keeps those internals.
+- **`/status` says a run the person refused.** A run stopped by a « no » at its gate exits 0
+  as a success does, so `/status` said « last run: succeeded » beside « stopped at your « no » ».
+  It now reads the refusal from the run's trace.
+- **A suspended beat wakes after its `jusqu_au`.** A beat suspended with `actif: false`
+  and `jusqu_au: 2026-08-31` stayed asleep forever under the OS units: `nika arm fire`
+  skipped it as inactive at every slot, `nika arm` kept it DORMANT, and `nika arm --emit`
+  wrote it no unit, while `nika serve` woke it on the machine's calendar. Both firers now
+  read one law: the suspension ends at midnight after its date in the cadence's own zone
+  (a `TZ=Europe/Paris` cadence wakes at 00:00 Paris on 1 September), and the beat fires
+  again with its silence counted from that wake, so the slots it slept through are
+  neither reported missed nor caught up. A suspended beat keeps its OS unit, and
+  `nika arm disarm <label> --write` rewrites it instead of deleting it: the firer
+  journals « inactive — <raison> · jusqu_au <date> » until the date. A beat still active
+  in `nika.yaml` is not disarmed by the flag; the gesture is in the file.
+- **Switching intelligence keeps what the person already said.** A request typed while the chosen
+  intelligence could not author (a seat that is not infer-grade, not signed in) stayed in the
+  Session's memory but never reached the next intelligence: after switching, « lance la tâche
+  qu'on avait définie plus tôt » met « Je n'ai pas trace … aucun échange avant ce message ». A
+  conversation that starts now begins with the person's earlier lines (the request the Session
+  kept and up to three of their latest lines, never a command or a consent word), cited as theirs,
+  with a note that nothing was prepared from them yet. Live: after copilot refused, Claude Sonnet
+  prepared the same translation from that sentence alone, and its run wrote the file.
+- **« Test the key » judges an OpenAI, xAI, DeepSeek, Mistral, Groq, OpenRouter or Gemini key.**
+  Only Anthropic's key could be checked: an invalid OpenAI key read « unknown », and its HTTP 401
+  came with the first message. On each provider's own endpoint, one free GET of a listing that
+  authenticates the key now says valid or refused (Gemini's `API_KEY_INVALID` included); an
+  operator's endpoint, which may list to anyone, is still not judged.
+- **The conversation and `/status` say what `nika.yaml` declares.** Right after « applied ·
+  wrote `nika.yaml` », the author said nothing was declared, and `/status` read « no schedule
+  declared » for the last workflow saved while another workflow's schedule stood in the file.
+  Nika now tells the author, with the person's next line, the declaration it saved and that a
+  declared schedule runs only once a firer runs; the status also lists the schedules the project
+  file declares for other workflows.
+- **The author lists a folder instead of guessing its file names.** Asked to read every export
+  of `releves/`, DeepSeek guessed fifteen file names, each refused « does not exist in the
+  project ». The author's read now lists a folder (`.` the project root), and a file that is not
+  there is answered with what its folder holds; hidden entries never show.
+- **The consent card names every file the run may touch.** When a workflow computes its paths
+  (one file per item, a path built from a list), the card showed only the literal paths, such
+  as « writes ./journal.md » for a run that also wrote ./traites/** and removed ./inbox/*. It
+  now shows the grant in force. It also says « removes files » when the workflow removes any.
+- **The install decision, « désactive-le » and the engine's own answers no longer reach the model.**
+  While the install card of a declared schedule waits, every answer goes to it: its label, a yes,
+  a number. Before, the conversation's model read the answer (and even the row key `declared`),
+  and the same card came back after every line. « désactive-le » now removes the trigger even when
+  an earlier conversation installed it, and so do « retire le déclencheur de ce Mac », « désactive
+  <nom du workflow> » and « turn it off ». The model is told when the Session installed or removed a
+  trigger, so it no longer contradicts the card. The answers /help promises without AI also work in
+  French: « est-ce que X est valide », « vérifie le workflow X », « explique-moi le code NIKA-… »,
+  « que veut dire NIKA-… ».
+- **The intelligence list no longer leaves its directions in the conversation.** Browsing
+  `/intelligence` used to add Nika messages such as « Choose an intelligence below. », « Choose
+  a connection below. No selection has changed. » and « Choose a model below. No selection has
+  changed. » to the history, right before « Intelligence: … ». These directions now show only
+  in the list's own head while it is open. The conversation keeps the intelligence you chose
+  and what a row you picked reported, such as a key check or a refusal.
+- **GPT-6 Astra, GPT-6 Sol, GPT-6.1 Sol, GPT-6 Luna, GPT-5.6 Sol and GPT-5.5 are priced.** These
+  models had no verified tariff: a budgeted run was refused and any other run reported an
+  unknown cost, while the model picker showed a price. Each now reads its official model page:
+  price, cache-write rate for the GPT-6 family, the 272K lower tier and the snapshot its replies
+  name. A live call on each settles at its page's price ($0.000076 on GPT-6 Sol for one word).
+- **The result offer fits the result and speaks the person's language.** After a run, a French
+  person read the offer to adjust the result in English (« What would you like to adjust in this
+  result? »), with choices from another kind of workflow (« Depth of the summary », « Diversity
+  of sources » after a bank-statement total), beside a « Request · » line that quoted their
+  latest answer rather than the request. The offer, its choices, its refusals and its
+  acknowledgement are now said in the person's language. Topics and sources are offered only for
+  a result a model writes from what it read; a computed result is offered its presentation only.
+  The offer card no longer names a request, and the request line of other cards is labelled in
+  the person's language. The keys a host sends are unchanged.
+- **The run card speaks the person's language.** A French conversation's run card now reads
+  « Terminé · `x.nika` · 9 étapes exécutées », « produit · … », « coût · 0,0004 $ · 1 appel
+  tarifé », « plafond · 0,10 $ · le plus que ce run pouvait coûter » and « Échoué · … · `t` a
+  échoué » (`RunFacts::result_in`). A run whose gate the person refused says « arrêté à votre
+  « non » » rather than a plain success. A failure's code is said once. The failure card no
+  longer tells the person to repair a workflow whose step failed for an outside cause: it asks
+  for a repair only if the cause is the workflow's own.
+- **The run ceiling stays the person's, and a run that would pass it does not start.**
+  - « Mets le plafond à 0,001 $ », with nothing waiting, sets the saved workflow's next runs in
+    this conversation. The Session says so itself, and the run card names it (« the one you set
+    for its next runs »). Before, the conversation's model acknowledged it and the next run kept
+    the old ceiling.
+  - A new request that states no ceiling keeps the one the person stated earlier in the
+    conversation, instead of the Session's $0.25 default. Before, a copy of a workflow ran under
+    $0.25 after « budget max 0,10 $ par run ».
+  - A run whose last run of the same bytes cost more than its ceiling is refused before it
+    starts, with the ceiling to give instead. Before, it stopped partway and wrote nothing.
+  - A run its ceiling stopped says « Arrêté · le plafond est atteint : 0,0035 $ dépensés pour un
+    plafond de 0,0010 $ » with what never ran. It no longer asks to repair the workflow
+    (`RunFacts::result_in`, `spent_usd`, `stopped_by_ceiling`).
+  - A run cost under a tenth of a cent shows two significant digits ($0.00015, not $0.0002).
+- **The run report says the workflow's outputs.** A run's declared `outputs:` (the totals of
+  an aggregate, the message of a translation report) appeared only in a side panel's JSON; the
+  report now lists each one (« output · totals · {"north":15,"south":20} »), a long value cut
+  at 160 characters. A read whose task failed and was recovered, such as a state file that does
+  not exist yet on a first run, reads « not there · ./state.txt · nothing was read » instead of
+  « read ».
+- **The schedule inside an author's cited words is read.** « qu'il tourne toutes les heures » and
+  « tous les soirs à 20h, heure de Maurice » were refused as incomplete schedules because the
+  whole excerpt was read as one cadence. The one schedule inside such words is now read; two
+  schedules stated apart are still asked.
+- **The Session's own lines follow your language.** Under French answers, the saved facts, the
+  help card, the stage rail, the status row and the reply to a second activation stayed in
+  English. They now follow the language you write in, with the same facts (« Enregistré ·
+  vérifié · pas actif · rien n'a tourné », « Brouillon ✓ · Enregistré ○ · … »), and the
+  language resumes when a conversation is reopened. A host can render the rail in it with
+  `Lang::rail`.
+- **Schedules, paused runs and saves read in the person's words and language.** A declared
+  schedule reads « tous les jours à 20h (heure de Maurice) » instead of its cron. Its state now
+  comes from the arm ledger and this Mac's unit (« Actif · … · dernier run … · réussi »). The
+  missed-run policy and the value an activation waits for are said in words, not as
+  `rattraper-une-fois` or `project.timezone`. A paused run's gate card, its question, « why? » and
+  the restored gate notice follow the person's language. A save counts its hints instead of
+  naming their internal kinds, and its refusals are said in French to a French speaker.
+- **The verifier no longer asks the workflow to hold a run's ceiling or a declared schedule.**
+  When the person changed their per-run ceiling (« budget max 0,10 $ par run », later
+  « plafond 0,001 $ par run »), only the words stating the ceiling bound to the proposal rode
+  beside it, so the verifier asked the plan for the other amount. One person met seven refusals
+  of a one-line model change this way. Now every earlier ceiling the last one supersedes rides
+  beside it too. A schedule `nika.yaml` already declares for the workflow a revision lands on
+  also rides beside the revision, quoted in the person's own words. Before, a repair was judged
+  to miss « tous les matins à 7h ».
+- **Asking for « l'exemple de l'écran d'accueil » gives the welcome's demo.** A person who named
+  the demo by where the welcome shows it, not by its name, got the author's smallest example,
+  written for another model. That line now opens the welcome's demo (`aggregate-by-key`) with no
+  model, as its name does. Hosts can name the same demo through `nika_session::WELCOME_DEMO`.
+- **A task `timeout:` names the MCP call it stopped.** When a task's
+  `timeout:` cut an `mcp:` call, its `NIKA-TIMEOUT-001` error now carries
+  `details.stopped_call` = `{tool, call_id, outcome}`, `outcome` being
+  `unknown` once the call was sent and `not_sent` when it never was; the
+  task's terminal frame repeats it as a `stopped_call` field, and the run's
+  settlement lists it in `stopped_calls`, whether the task failed, was
+  skipped past or recovered. A task whose call the operator's Stop cut
+  carries the same frame field.
+- **A run that a human gate split in two now costs both of its legs.** The summary after a
+  resumed run read « cost · no model usage recorded » although the leg before the gate had made
+  a priced call ($0.0438), and the activation's ceiling hint then said « the last run cost
+  nothing priced ». A resumed journal now reads what the legs it continued spent from their
+  own journals in the same store, following `resumed_from`: « cost · $0.0438 · 1 priced call(s)
+  · … · over its 2 legs ». The forecasts that `nika explain` and the ceiling hint read fold the
+  resumed leg into the run it continued: the cost is summed, the state is the final leg's, and
+  the time is the legs' time.
+- **A workflow that pins its model's access can be proposed again.** A file whose `run.access`
+  names a route or a protocol (`via: anthropic`, `protocol: api`) made the trial before a
+  proposal stop with « The rehearsal engine failed » and nothing to repair, so asking for an
+  API-only workflow could never reach a proposal. The trial now keeps that model step out, as it
+  already did for an unpinned one, and rehearses the rest. A real run still judges the pinned
+  access on its own plan.
+- **The rail reads « Actif ● » only for a fire since the trigger's last disarm, with a firer
+  standing.** It took any fire of an installed unit as proof, so a trigger installed again after
+  « désactive-le » read « Actif ● » before it ever fired again, and a fire by a resident
+  `nika serve` alone never counted. The rail now reads ● when the schedule is active and its
+  ledger reads, a fire is journaled since its last disarm (`fired_since_disarm`), and a firer
+  stands: its unit on this Mac or `nika serve` serving the project.
+- **The activity card says what Nika is doing, not the names of its tools.** While a workflow
+  was prepared the card and the busy row read « ✓ Generating · candidate_write · 28 ms »,
+  « propose failed » and « call 2 · audit_interpretation · requested … ». A tool step now reads
+  as what it does (« writing the draft · 28 ms », « proposing the workflow failed · 2 ms »), a
+  call by what it is for (« check its reading of your request », « read your request », « answer
+  you », « write the workflow », « repair the workflow »), in French too. The exact names stay
+  in the activity's typed marks and the receipts; a name no words are known for still shows as
+  it came. `nika_display::activity::tool_words` and `nika_display::activity_card::role_words`
+  give other doors the same words.
+- **An approval gate takes a typed yes or no.** A workflow's approval gate said `answer
+  yes or no`, yet typing `oui` or `yes` only showed `nothing sent · ↑↓ choose, then Enter`:
+  its field took no words. A whole-line `oui`, `yes`, `y`, `ok`, `valide` or `approuve` now
+  picks Approve, `non`, `no`, `n` or `refuse` picks Refuse, and `why` or `pourquoi` picks
+  Explain: the act's radio fills while the word is typed and `Enter` sends it, once. Other
+  words send nothing and say so, a typed command is sent as before, and `Esc` empties the
+  words and never answers no (NIK-194).
+- **A run whose turn ended never reads running.** When a run's turn ended before its
+  settlement frame arrived (an environment that refused it, for one), the header, the
+  pinned row and its task cards kept `◐ running` for as long as the session lasted, while
+  the report on the same screen said `exit 3`. No frame outlives its turn, so such a run
+  now reads `ended · no settlement received` (`ended · no frame received` when nothing
+  arrived), and a task it saw start reads `no end received`, never running. A settled run
+  keeps its settlement.
+- **A model picked in `/intelligence` reads by its name, never its key.** Picking a row
+  of the intelligence list wrote the person's line as the row's internal key
+  (`choice › 1 claude-code`). It now reads `Intelligence: claude-code`, the name the
+  list showed, and a step to another list (`Other choice…`, a connection, `Esc` back)
+  adds no line at all: the next list, or Nika's confirmation, says what happened.
+  Words typed over the list and typed commands still echo exactly as typed.
+- **A command beside a decision answers visibly, and an act's name does that act.**
+  With a decision on screen (`Decision · required`), `/meaning`, `/why` and `/show`, from
+  the palette or typed, were answered by the Session while the decision waited again, but
+  the decision's band hid the conversation: the screen did not change. Their answer now
+  opens in the reader (`Answer to /meaning`), and `Esc` returns to the decision as it was;
+  a command that said nothing says `nothing to show`. Typing an offer's exact name
+  (`Inspect the exact changes`, a source's name before « · ») fills its radio and `Enter`
+  picks it, as selecting it would; any other words stay the person's words.
+- **Typing a connection's name narrows the list to that connection.** In the connections list,
+  « openrouter » matched all 376 entries and « openai » 113 across providers, so the
+  connection's own row was buried. Words that name a connection now show that connection's row.
+  Its models appear once it is opened. Words that name no connection still find the models they
+  name, and home still finds models by name.
+- **A decision and the intelligence list no longer name a stale request.** Every decision
+  card (`Decision · required`) and the `/intelligence` list carried a `Request · …` row
+  with the Session's goal: the conversation's first request with its corrections, so it
+  stayed on the session's first message across unrelated proposals and every intelligence
+  switch. Those surfaces now name no request; a proposal's card keeps its own `request:`
+  fact, and a question and a held message still show the request they serve.
+- **A first-run choice list reads whole beside the welcome.** In the workspace, the
+  required intelligence list of a first run shared its width with the welcome mark, so
+  at 120x40 the conversation column was 44 cells wide and every row was cut (« Recommended
+  for you · Claude Sonn… »). A choice the person must read now starts the exchange like a
+  sent line does: the welcome yields its width to the conversation and the rows read
+  whole at 80x24, 120x40 and 180x48.
+- **A model found in `/intelligence` names how it is reached.** Typing `codex` over the
+  connections listed the Codex agent account beside API models whose names hold « Codex »,
+  their access only in the quiet facts, so an API model could be taken for the person's
+  subscription. A model found by its name, or listed among connections, now reads its
+  access in its name: `GPT-5.3 Codex Spark · OpenAI API`, `GPT-5.3 Codex · Codex agent
+  account`, `qwen3-coder · Ollama on this machine`. Lists of one connection stay as they were.
+- **A message typed after `F6` is never lost, and the hint row says where the keys are.** With
+  the project list or the object holding the keys, the letters of a message vanished with no
+  echo, and nothing on screen said which panel had the keys. That panel's hint row now reads
+  `keys: the project list` or `keys: the object in view`, `· typing writes in the conversation
+  · Esc returns` where it fits, and a character typed there (other than that panel's own keys:
+  `r`, `+`, `-`, `0`) returns the keys to the composer, which takes it with the rest of the
+  message.
+- **A line typed at a list question reaches the Session.** « choisis pour moi » or « 7h30 »
+  typed at a list question was dropped: a question its author closed to its offers, and an
+  activation's or a run ceiling's list question (the missed-run policy, the ceiling per
+  run), took no words, so the line showed `nothing sent` or the focused row was applied in
+  its place. Every question beside its rows now takes the typed line and sends it as the
+  reply, a delegation included, for the Session to read. Only consent decisions keep their
+  rows alone (a cost decision; an approval gate takes a typed yes or no), and a run's input
+  keeps its exact values.
+- **A recommendation its label already says reads once.** A proposal's choice read
+  `claude-sonnet-5-5 (recommandé) · recommended`: the row added its own `recommended` beside
+  a label that said it. The suffix is now left out when the offer's own words already say it
+  (`recommandé`, `recommandée`, `recommended`, any letter case); any other recommended offer
+  still reads it.
+- **A run stopped at your « non » never reads as a success.** When the person answered a gate
+  « non », the runtime still settles the run succeeded, and the TUI read that word: the runs list
+  said « réussi », the run object and the pinned row « terminé · réussi », the gate's row
+  « ✔ approve », the live line « Exécuté en … ». The runs list, the run object and the pinned row
+  now say « terminé · arrêté à votre « non » »; the gate's row, its graph chip, its detail and its
+  step on the run card read in the stop glyph with « répondu non »; the live line says « Arrêté à
+  votre « non » après … ». A gate the person allowed still reads done. In the runs list, a stopped
+  run, like a cancelled one, now reads « stopped » (« arrêté »).
+- **A connection whose key was refused is not put in use.** After « Test the key » said OpenAI
+  refused the key (401), the picker still let the person keep or choose that connection, and
+  every request then failed with the same 401. Keeping it, choosing its row or one of its models,
+  or typing over the list while it is the one in use now says « clé refusée par OpenAI (401) · ce
+  choix n'est pas appliqué · vérifiez la clé ou choisissez une autre connexion ». The list stays
+  open for another choice, and typed words come back to the box. A later key check that passes
+  lifts it.
+- **A sentence typed while the `/intelligence` list is open reaches the conversation.**
+  Words matching no row used to be sent as a choice and refused with a lesson in typed ids
+  (`1 <app>/<model>`). When they take no expert route (a pick number alone or with one
+  name, `4`, a command, a lone `provider/model`), the list now closes with the current
+  intelligence kept, one notice says `intelligence unchanged`, and the words are the
+  conversation's next message. The list says so before `Enter` is pressed. Without a usable
+  intelligence the Session keeps the words until one is chosen, as before, and a decision
+  waiting behind the list takes nothing from them: they come back to the box.
+- **A settled run draws no task running, and a lost journal says why.** A task whose end frame
+  was drained (its output over the stream's 1 MiB bound) kept `◐ fetch_stripe` on the run's
+  card and list although the settlement said `11/11 tasks ok`. Once a run settles no task
+  reads running: one still drawn running reads `settled ok` when the settlement counts every
+  task ok, and `no end received` otherwise. When the run's evidence is `lost`, its header now
+  says why when the stream told it (a step's output its trace could not keep either) and
+  `reason not reported` when nothing did (NIK-195; the 1 MiB trace bound itself is NIK-131).
+- **A single choice opens on a row, and a filled radio is the one `Enter` applies.**
+  A question the author asked and a settings list (an Agent account's model step, for
+  one) opened with no row selected: `Enter` sent nothing, and the first `Down` selected
+  row 1, so `Down Enter` meant for the second hour of a list answered the first. Every
+  single choice now opens on its recommended row, else its first row, and `Down` reaches
+  the second; a decision still opens with nothing selected. Once words are typed beside
+  a question or a decision, `Enter` sends them and no radio is drawn filled. A PTY proof
+  drives an hour list at three sizes, across a shrunk and regrown terminal, with typed
+  words and in the ASCII glyph column.
+- **A catch-up and a skipped slot are said as the arm ledger records them.** The workspace took a
+  fire answered five minutes or more after its slot for a catch-up, so a late fire on its own
+  slot read as one and a quick catch-up did not. It now says the missed slots one catch-up run
+  answered as the ledger counts them (« 2 créneaux manqués rattrapés à … »), and a skipped slot
+  says why in words: « 1 créneau manqué », « un run tournait encore », « suspendu dans nika.yaml »,
+  and the firer's other reasons; a reason it does not know is said as the ledger wrote it.
+- **The check's hints point to the check face, not to a terminal.** After a save, the
+  conversation said « 2 conseils pour l'améliorer · `nika-dev check x.nika` les affiche ». That
+  sent a person who never opened a terminal to one. In the workspace the line now says « 2
+  conseils pour l'améliorer · la face vérification les affiche · F6 puis Gauche/Droite ». The
+  check face of the saved workflow, in view after the save, lists the hints. The whole words (F2)
+  keep the command.
+- **Code in a reply reads between quiet rules, not backticks.** A reply showing a file's content
+  framed it with literal « ``` » lines. The fences now read as quiet rules (« ─── », « --- » in
+  ASCII), the first naming the code's language when the fence does (« ─── text »); the code
+  itself stays exactly as written.
+- **A connection's row and its list now count the same models.** « openrouter · API · 375
+  models » opened on a list titled « 1-50 of 280 »: the row counted every model, older ones
+  included, while the title counted the list's rows, its moves included. The row now counts the
+  models its list shows and says the older ones apart (« 278 models · 97 older »), and a list's
+  title counts its choices only, never « Older models (97)… », « Test the key » or « All
+  connections » (« 1-50 of 278 »).
+- **The `nika.yaml` card says its schedule in words.** A declaration's card showed only « crée
+  nika.yaml (6 lignes) » and « à l'exécution · pas un workflow audité par la Session : il n'exécute
+  rien », the schedule itself left to the file's raw `cadence: "TZ=Europe/Paris 0 8 * * *"`. The
+  card now says it as the Session does: « planification · compiled-workflow.nika · tous les jours
+  à 8h (heure de Paris) », « si le Mac est éteint : le rattraper une fois », « plafond 0,20 $ par
+  run ». The file view keeps the exact bytes.
+- **« Laisser Nika choisir » echoes in French.** Leaving a choice to Nika in a French
+  conversation put « I leave the choice to Nika. » in the person's bubble. The bubble now reads
+  « Je laisse le choix à Nika. », and where no typed question is painted, the line the control
+  sends is in the person's language too.
+- **Discard asks once before it is done, and the selected act is named.** On a proposal's
+  decision `Down` three times then `Enter` discarded it at once, with nothing on screen saying
+  which act the cursor was on: a persona lost a 1 min 26 s proposal that way. The first
+  `Enter` on `Discard this proposal` (or `Discard the unqualified candidate`) now asks
+  `Discard this proposal? Enter again · Esc keeps it`; only a second `Enter` discards, and any
+  other key or `Esc` keeps it. Once an act is selected the hint row names it, `Enter acts:
+  Discard this proposal`, and its row stays filled even when the list does not hold the keys.
+- **F6 no longer shows a draft from another round.** While a question waited, the source face
+  could show a draft the Session kept from a discarded or earlier round (« brouillon ·
+  lecture-semaine-flux » while the change was asked of the saved `lecture-semaine.nika`), so it
+  looked as if the change was being made on the wrong file. A draft is now shown only under a
+  question its own round asks; otherwise the saved file, or nothing, stands in its place.
+- **The footer tells an earlier session's run only while this conversation ran none.** After a
+  green run here, saving a revision reset the rail's Run field, and the footer then showed the
+  last run an earlier session kept: « Run ○ (précédent ×) » and « dernier run … × sortie 1 dans
+  une session antérieure », beside a bottom bar saying the run here succeeded. Once this
+  conversation observes a run, that earlier one is no longer told.
+- **`Esc` back out of an `/intelligence` list leaves no message behind.** Going back from a list
+  below home (every connection, a connection's models, the decision or Run list) left a phantom
+  `You · choice › /intelligence` bubble in the conversation, as if the person had typed it. The
+  step back to the list above now adds no line; a choice still reads `Intelligence: <name>`, and
+  words or a command the person types still echo as typed.
+- **One `Esc` closes the `/intelligence` list when nothing is typed.** A selected row is
+  browsing, never a choice, so the first `Esc` no longer stops to clear it: the list closes
+  with the current choice kept, or, inside an opened connection, steps back one level.
+  Typed filter words still go first, alone, and the emptied field keeps saying what typing
+  does there (`type to filter`) instead of falling back to the reply placeholder.
+- **A face's key cue now names keys that work from where you type.** While the question box had
+  focus, the object pane said « Left/Right change the face », keys that do nothing there until
+  `F6` moves the keys to the object. From the box the cue now reads « F6 then Left/Right change
+  the face » (« F6 then r reads it again » on an opened file, « tasks · F6 then ↑↓ pick · Enter
+  details » on a run's list), and once the object holds the keys it names them alone, as before.
+  For other hosts, `Inspected::keys_here` and `Proposed::keys_here` are new additive calls; the
+  default keeps the previous cues.
+- **A face's key cue stays whole in a narrow object.** At about 120 columns the row saying whose
+  bytes a face shows was cut at the object's edge, taking the keys with it (« this file's bytes,
+  as last read · F6 then r re… »). The row now wraps at its words onto a second row where it is
+  wider than the object, so « F6 then r reads it again · Left/Right change the face » always
+  reads whole, on a workflow's faces and on a reviewed proposal's.
+- **A run's files face and its card now list every file the run wrote.** The face said « wrote
+  no file » while the run had written three files with a `for_each` of `nika:write`, and again on
+  the leg resumed after a gate, whose written file comes back as a cache hit. A task now counts
+  as a write when its note names `nika:write` or when the bytes the run names declare it, and
+  each path its output names is listed, every path of a fan-out included. A path is only ever
+  read from the write's own output.
+- **A schedule's fired runs read on the clocks the person reads.** The schedule's line and its list
+  entry said its slots and catch-ups in UTC (« dernier créneau 2026-10-16 06:00 UTC »). A slot now
+  reads on its own schedule's clock, the zone its cadence declares, that zone named where it reads
+  otherwise than the machine's (« dernier créneau 16/10 08:00, heure de Paris », « 16/10 08:00
+  Paris » in the list), while a catch-up reads on the machine's clock (« rattrapé à 16/10 12:00 »),
+  dated as the runs are. The zone is read from the embedded tzdb, never the host's.
+- **The first screen speaks this machine's language.** On a French machine the top bar and the
+  first screen read English (« Prepare with: … », « No workflow in … yet ») until the person's
+  first French line. Before the person writes, the TUI's own words now take the locale (the first
+  of `LC_ALL`, `LC_MESSAGES` and `LANG` that is set): « Préparer avec : … ». The person's words
+  still decide from their first line on, and a conversation resumed in French speaks French.
+- **A folded run's row no longer says how the run ended.** A run's story folded to « run … ·
+  succeeded · F2 », the settlement's own word, in English on a French screen, and still
+  « succeeded » after the person refused a gate. The row now reads « run 17/10 11:04:30 · F2 »:
+  how the run ended is the Session's block's to say, just below it.
+- **The trigger's install decision shows its card above its two acts.** While « Installer le
+  déclencheur sur ce Mac ? » waited, the decision showed only that question and its two rows: the
+  card it decides (the workflow, the cadence, the missed-run policy, the ceiling, the launchd
+  unit, and the warning when a scheduled run would not see the terminal's API keys) stayed hidden
+  behind it. The decision now reads its card as the schedule's other questions do, so the warning
+  is on screen when « Garder déclaré seulement » is the act the Session recommends.
+- **Intelligence guidance matches the native choices.** The command palette
+  points to the connection and model list, and session help no longer asks
+  users to send their next message as a choice.
+- **Sending a request while an earlier run's journal loads no longer loses
+  Enter.** The terminal retains the activation and subsequent input in order,
+  then handles them normally after the read. Later edits remain a separate
+  draft; cancelling the retained request preserves its text without sending it.
+- **A key typed just before a question appears never answers it.** Nika
+  already keeps what you type while it works away from the decision a turn
+  ends on. A key that arrived after the turn ended, but before the decision
+  was drawn, could still answer the decision before you saw it. Such keys now
+  join your draft like any other typeahead. Only keys pressed after the
+  question appears answer it.
+- **A refused key reads in one plain line.** « Test the key » on a key the provider refused
+  answered « Key check · OpenAI: refused (401). authentication failed (HTTP 401);
+  code=invalid_api_key … The run could not reach that model … `--model` … `--access <seat>` … ».
+  That was the provider error's text and its command hints. It now says « clé refusée par OpenAI
+  (401) · vérifiez la clé ou choisissez une autre connexion ». Every key check line and the
+  verdict word beside « Test the key » follow the person's language.
+- **A question card never paints empty.** After an answer, a « Question » card could show only its
+  border, with nothing to answer. A block that comes with no words now paints no card: a question
+  has its words, or there is no card.
+- **The picker's filter finds word starts in names.** Typing « xai » listed `MiniMax`, whose
+  Hugging Face organisation `MiniMaxAI` holds those three letters. The filter now finds a row
+  when each typed term starts a word of its names (its model, its provider, its access), never
+  letters inside a word, and no longer searches the quiet facts beside it.
+- **The intelligence picker speaks French under a French footer.** Its own words stayed English
+  beside French ones: « Intelligence for this conversation », « Choose an AI connection », a
+  connection's « Agent account · 7 models · 11 older · key required », a model's « current ·
+  recommended · $2 in / $10 out per MTok · 1M context », the home rows (« Other choice… »,
+  « Author: … », « Set as default ») and every list's guide. They now read in the person's
+  language (« Choisir une connexion IA », « Compte agent · 7 modèles · 11 plus anciens · clé
+  requise », « en cours · recommandé · $2 en entrée / $10 en sortie par MTok · 1M de contexte »);
+  the models', providers' and keys' names, the prices and the Session's own words stay as they
+  are.
+- **The intelligence picker marks the connection in use.** With codex authoring, « Choose an AI
+  connection » read « ( ) codex · Agent account », with no filled radio and no « current », while
+  models in use read « (●) … · current ». The connection in use now reads as models do: its
+  radio filled and « current » first among its facts, in every connection and on its own option
+  in its list, whether the Session marks a model of it or only the selection names it (an agent
+  account that lists no model of its own). No other connection is marked.
+- **A picker list fills one radio.** The list of connections showed two « (●) … current » at
+  once: the model in use, leading the list, and its connection. A list now holds one filled
+  radio: the model where models lead it, the connection where it lists connections alone; the
+  other row in use keeps its « current » word without a second radio.
+- **The `/intelligence` filter finds the provider first, keeps each provider's rows together, and
+  lists only models that write.** Typing `xai` matched 17 of 670 rows with Hugging Face models
+  mixed in, and the Run list offered embedding models such as `text-embedding-3-large`. Rows
+  whose provider or access words hold the typed words now come first (the xAI connection and
+  its models), then the others, each provider's rows together; each provider marks one model,
+  the one Nika recommends or else its newest (`newest Grok`), never a dated snapshot or a
+  legacy model. The author and Run lists no longer offer a model that writes nothing: one the
+  catalogue prices for input alone, or whose name says it embeds or reranks.
+- **Proposals and files read by their names, not by hashes.** The workspace named a proposal by
+  the hex of its identity (« proposition b5973f37d7a7 · F2 : tous les mots ») and every face of
+  a file or a proposal by the hex of its bytes (« ces octets 7594d366fc7c »), on the card's
+  border, the object's first row, the replaced file's row and the workflow's facts. They now
+  read by name: « compiled-workflow.nika · F2: whole words », « these bytes, the proposal's own »,
+  « this file's bytes, as last read », « replaces ./notes/plan.md (4 lines) · over its bytes as
+  read ». The Session's whole words (F2) keep the identity a yes answers. Where a short band
+  joins the name and « Not saved yet » on one row, the name takes its shorter whole form so the
+  proposal's facts keep their rows.
+- **A proposal's card no longer shows its identity.** A proposal card read « identité
+  2df0f6a0c37c · « oui » écrit exactement ces octets · « non » abandonne ». The hex looked like a
+  code to keep or type back. Every proposal card, the focus view and the inline transcript now
+  read the line without the identity: « « oui » écrit exactement ces octets · « non »
+  abandonne ». The proposal's whole words (F2) keep it.
+- **The rail tells a schedule's three states apart.** « Actif ◐ » read the same whether the
+  schedule was only declared or its trigger was installed and waiting for its first slot. The
+  rail now says a word beside the glyph: « Actif ◐ déclaré » with no firer, « Actif ◐ en
+  attente » once its unit is on this Mac or `nika serve` serves the project and no fire is proved
+  yet, and « Actif ● » once it fired since its last disarm.
+- **A refused « Laisser Nika choisir » comes back in French.** When nothing took a choice left
+  to Nika, the box got « I leave the choice to Nika. » back in a French conversation. It now gets
+  « Je laisse le choix à Nika. », as the echo says it.
+- **A run refused before it starts now settles as refused, with its reason.** It stayed « run
+  (starting) » in the aside and the run pane. Now the leg is named « run (refused) », its pinned
+  row reads « refused · NIKA-1709 · … », and the run pane says « refused before its start · … ·
+  nothing ran ». For other doors, a `RunSink` gains `refused(why)`, a method that does nothing
+  by default, told by the run's story when the stream's first document is the check's refusal
+  or the error envelope.
+- **A reopened conversation says once that it was kept.** After a reopen, one card said the
+  recovery three times: the Session's « conversation restored · … » notice, the TUI's own « plus
+  tôt dans cette conversation · gardé dans votre historique · rien n'est rejoué » header, and the
+  Session's bracketed recovery note repainted as an earlier turn. Under the Session's notice the
+  earlier turns now follow with no header of the TUI's, and the Session's own recovery notes are
+  no longer repainted as turns.
+- **Nika's replies read their Markdown instead of showing it raw.** A reply such as
+  `**Résumé** · *3 sources*` with `- Le Monde` items and a `| Source | Articles |` table read
+  with its stars, dashes and pipes as typed. Replies now show bold and italic words in weight and
+  slant without their markers, code spans with their backticks, headings in weight, list items
+  behind a bullet and simple tables as aligned columns over a rule. Fenced code stays as written,
+  every word is kept, and your own lines stay exactly as you typed them. Under `NO_COLOR` the
+  weights still read; the ASCII column draws `-` bullets and `-+-` rules.
+- **The status row's reply label speaks French.** In a French conversation the status row read
+  « Latest reply above · Dernier run · … ». The label now follows the person's language:
+  « Dernière réponse ci-dessus », « Dernière demande refusée », « Préparation arrêtée ».
+- **A reply's table stands as a table in a narrow conversation.** A Markdown table wider than
+  the bubble, the focus view or the terminal wrapped its rows, the tail of a header landing under
+  its first column. Its widest columns now narrow to fit the row and a cell wider than its column
+  is cut on the cut mark (« Croissance … »), the narrow columns keeping every figure: one row of
+  the screen for each row of the table. A table that fits keeps its natural columns.
+- **A tool failure later work recovered no longer reads as a red failure.** The activity card kept
+  every failed tool step as a red « ✗ … failed », even when the next attempt of the same tool
+  succeeded a moment later, so ordinary retries read as errors. The failed step keeps its row but
+  now reads as retried, muted: « ↺ Generating · reading a project file failed · 7 ms · retried »
+  (« réessayé » in French, « r » in ASCII), and the card's heading says no failure. A failure no
+  later attempt recovered keeps its red « ✗ » to the end.
+- **The review card keeps a long release name whole.** A component whose
+  release name cannot stand whole on a row of the card shows its row
+  without the name. The check face's detail and `F2` still show the name,
+  and it is never broken mid-word. A name that fits keeps its place.
+- **A revised workflow says what changed in words.** The review read « revised in place ·
+  tasks.clean.invoke.args.expression » and « component · block:csv-clean-dedupe-report
+  knowledge-0.123.0-r3.5-foundry-20261016 · expanded · const.key = "email" ». It now reads
+  « revised in place · step clean », « component · csv-clean-dedupe-report · reused as bound ·
+  key = "email" », and a creation « created · composed from components », in French too. A
+  component's kind, release and digests stay on the check face's compile record.
+- **The runs list names each launch by when it began and says how it ended.** Runs were listed by
+  the first twelve hex digits of their execution (« run 01a148a70999 hn-ia-di… »), with no time and
+  no outcome, and a gate split one launch into two rows. Each launch now reads once, named by the
+  second it began, in UTC (« run 10-17 07:04:30 release.nika »), its row ending with how it stands
+  or ended in words and in its state's hue (« succeeded », « paused », « running »; « réussi »,
+  « en pause », « en cours » in French), which a narrow list keeps while it cuts the name. A resumed
+  leg folds into the launch it continues as soon as its start names it, and keeps the launch's name
+  in the run's title, the conversation's folded story and a later run's « again » fact. The hex
+  stays in the detail: the whole story (F2) is titled with it.
+- **Runs are named on the machine's clock, dated the person's way.** A run read « run 10-17
+  07:04:30 », the second it began in UTC: four hours off on a machine in UTC+4. It now reads the
+  machine's local time (« run 10-17 11:04:30 »), dated day/month in French (« run 17/10 11:04:30
+  release.nika »), and a resumed run and a later run's « again » fact follow the person's
+  language too. The detail (F2) keeps the run's hex; traces keep their UTC instants.
+- **The card under a resumed run counts the leg before its gate.** A run that a human gate split
+  in two showed no cost on its card, because the resumed leg made no model call of its own and
+  the paused leg leaves no card. The card now adds what the earlier legs observed in this
+  session spent, following `resumed_from`: « ✔ Ran in 1.3s · … · $0.0438 · 1 model call ». The
+  session's spend so far counts the paused leg too, so the card, the Session's summary and the
+  status row agree.
+- **A run's card now lists its steps in the order the run ran them.** The card under a finished
+  run listed tasks in the order the engine first scheduled them, which is alphabetical
+  (« admit, aggregate, validate » for a run that ran validate first), while the run pane showed
+  run order. The card now follows the graph of the bytes the run names: its waves, then the
+  declaration order within each, cleanup last. Without a bound graph it follows the order the
+  steps started.
+- **A run's task detail and its outputs, files and proof faces follow the person's language.**
+  Beside a French conversation they stayed English: « task save · Backspace: back to the tasks »,
+  « reported written by `save` », « not read yet », « this run's journal · its execution, source
+  and receipt match ». They now read « tâche save · Retour arrière : retour aux tâches »,
+  « annoncé écrit par `save` », « pas encore lu », « le journal de ce run · son exécution, sa
+  source et son reçu concordent », with the task's standing, what was measured, its output, the
+  child run a task called and what each face lacks. Task ids, paths, the trace, the language's
+  own words, the verifier's lines and the journal's values keep theirs; English stays the default.
+- **One summary per run: the Session's.** After a run, the conversation read two summaries of it,
+  the TUI's « ✔ Exécuté en 1.3s · 2 tâches exécutées » and its files, then the Session's
+  « Terminé · `copie.nika` · 1.3 s · 2 étapes exécutées » with its cost and ceiling. The Session's
+  block is now the one summary. The TUI's card under the run keeps only its steps, and only when
+  they say more: a step failed (its row in the failure's red), or a model was called (each step
+  with its model and its own cost). A run with no model and no failure has no card; the run
+  object (F6) and the run's story (F2) keep the whole detail.
+- **A run's report and the Session's summary now read the same duration.** The report under a
+  finished run cut its time to the tenth (« Ran in 9.8s » for 9857 ms) while the Session's own
+  summary of the same run rounded it (« Done · … · 9.9 s »). The report now rounds as the Session
+  does, in every language: « Ran in 9.9s », « Exécuté en 9.9s ».
+- **The spend counter says what it counts.** The stage line read « ~$1.10 dépensés » beside the
+  Session's « Total dépensé aujourd'hui dans cette session … environ 2,75 $ », and restarted from
+  zero after a reopening without a word. It counts what was spent since this conversation opened,
+  and now says so: « ~$1.10 dépensés depuis l'ouverture » / "~$1.10 spent since opening".
+- **A question is said once, a card names only the request it answers, and nothing says a
+  decided proposal still waits.** An activation's decision printed its question twice in a row
+  (`If this machine is off at 08:00 …?` above itself), and a run ceiling's did the same; the
+  question now reads once, then its consequence. A question card showed `Request · ` with the
+  first line of the session (even `qu'est-ce que tu sais faire ?`) beside questions about an
+  activation or a later change; the row now appears only beside a question the request itself
+  keeps open, and no other card names a request it does not answer. A line said beside a
+  proposal (`kept the default · …`, a revision Nika could not make) kept reading `(the proposal
+  still waits · yes applies it …)` after the proposal was applied or discarded; once no
+  proposal waits, its card leaves that line out (`F2` still reads the Session's whole words).
+- **A call you stopped no longer reads as a failure in ASCII.** In the ASCII glyph column, a call
+  stopped by the person read « x call 1 - … - stopped, a charge may be unknown », and the TUI
+  painted it in the failure's red, since « x » is also the failure's ASCII mark. A stopped call
+  now reads « - call 1 - … », never red, as its Unicode « ✖ » row already was not.
+- **A second `Ctrl+C` after a stop now leaves, even once the stopped turn has
+  ended.** While Nika prepares, the first `Ctrl+C` asks the preparation to stop,
+  and the screen says that a second press leaves. A stop ends a call under way
+  at once, so the turn often ended before the second press was read. That
+  press then only armed the idle prompt, and the door stayed open. Now the idle
+  prompt keeps the first press armed (« Ctrl+C again leaves · any key stays »).
+  The next `Ctrl+C` leaves, and any other key keeps the session. A correction
+  queued during the turn is still sent as the next line, with no press armed.
+- **A CSV or TSV file reads as its records, the header aside.** The files face said `14 rows × 4
+  columns` for a header and 13 records, though it draws the first row as the header. It now
+  says `13 rows × 4 columns`, and a table cut at its bound says how many records it drew of how
+  many it read the same way.
+- **The decision card shows what Nika said above a proposal.** A proposal's words can open
+  with notes, such as `read your answer as « … »` or which model Nika chose for a choice the
+  person left to it; the workspace's `Decision · required` card summarized the proposal
+  without them, so a delegated choice was invisible there. Those leading notes now read
+  above the card's question, wrapped whole where the band holds them; in a short band one
+  row of them stays before the last facts, cut with a visible mark, and `F2` reads them whole.
+- **The request beside a question reads as the person said it.** After a correction (a
+  delegated answer included), the `Request · …` row beside the next question showed the
+  goal as the Session restated it for its author: `Original request: … Correction (it takes
+  precedence over the original …): …`. It now reads the person's original words and their
+  latest correction, `Request · Fais-moi une veille quotidienne (correction: en markdown)`,
+  never the frame. The restatement and its reading now live together in the request
+  (`work::Request::restated` and `work::Request::said`), which the recovery card uses too;
+  the goal itself is unchanged.
+- **One state of a run per screen: the settled outcome wins.** The project list showed `ok`
+  beside a workflow whose last run had just failed, and the live line kept saying
+  `Running … 15/15 tasks` while the run's own header said `settled · failed`. A workflow whose
+  last run in this session failed now reads `run failed`, in the failure colour, until a newer
+  run of it settles otherwise. Once a run settles, the live line says how it ended, as its card
+  and its header do (`veille-tech.nika · Failed after 16.5s · 3 tasks · $0.034 · 1 model
+  call`), then what the turn does now, and never that the run is still going.
+- **Typing over a long `/intelligence` list is instant again.** With 655 rows open, each
+  keystroke cost about 260 ms in a debug build: every frame compared the whole list once
+  per row to learn which boxes were checked, and the filter lowercased every row's words
+  on every key. The list now builds its lowercased search index once when it opens,
+  reads the checked set with one comparison, and draws once per burst of waiting keys
+  instead of once per key. A debug-build regression proof types 40 keys over 1,000 rows
+  in three rounds and holds each keystroke's own work (edit, filter and one whole frame)
+  in the quickest round to an average and a median of 25 ms, so tests running beside it
+  cannot fail it; it measured 145 ms before and about 3 ms after.
+- **An unreadable arm ledger is said once, even when it counts nothing.** The workspace said a
+  schedule's line only when its counted fires changed, so a ledger the Session could not read
+  (its counts then zero) was never said and its fires stayed silently unproved. It now says, once
+  until the ledger reads again: « `compiled-workflow.nika` : le journal de son déclencheur est
+  illisible, ses runs ne peuvent pas être prouvés : … », with the reason as the Session gives it;
+  the rail stays declared. A ledger that reads again with nothing counted says nothing.
+- **The welcome card no longer says a choice is pending once you made it.** When a conversation
+  opened without a usable intelligence, « Choose an intelligence below. A message typed here
+  waits for your choice. » stayed in the welcome card after the choice. That guide now stands in
+  the intelligence list's own head while the list is open, as every list's guide does, and
+  leaves with it. With no intelligence to offer, the conversation still says what is missing.
+- **The TUI welcome card no longer keeps the warning of an intelligence that is not in use.**
+  When the kept intelligence could not serve (for example an API provider without its key), the
+  welcome card said « ⚠ no key for `anthropic` … » and kept saying it after another intelligence
+  had been chosen, and again on every reopening of the same conversation. The opening list's head
+  says why while the list is open; the welcome card no longer repeats it.
+- **The welcome speaks French to a French speaker.** Its line, its three steps, the example it
+  offers and the « no project » note stayed English beside a French conversation. They now follow
+  the person's language once the Session reads it (« Transformez une intention en workflow. »,
+  « 1  Décrivez le résultat voulu dans la conversation. », « Essayez : aggregate-by-key »), the
+  example's name kept.
+- **A question's or a decision's long option reads whole.** An option wider than the band was cut
+  at its edge (« …avant d'écrire python-version.txt / re… »), with no way to read the rest on the
+  card. It now wraps under its own indent, up to three rows, a fact never parted at its separator
+  (« techcrunch.com/feed » under its name, « recommended » after it), the last row cut with a
+  visible mark only past three rows. A press on any of its rows picks it, and the selected option
+  is filled on every row. Settings lists keep one row per model or connection.
+- **A schedule's zone reads as the Session names it.** The fired rows named a schedule's zone by
+  its database city, so a French screen read « dernier créneau 16/10 20:00, heure de Mauritius ».
+  They now use the Session's own words for a zone: « heure de Maurice » in a line, « Maurice » in
+  the list, and "Mauritius time" in English, the same words the Session says in its replies.
+- **A file you name can be the source a conversation's workflow reads.**
+  A source stated as a file the person typed (« notes.txt ») was refused
+  as « not a public address », so an agent tried other statements until
+  one passed. A source the person typed, or picked from an offer the
+  Session showed them, is now admitted as a file inside the project that
+  the workflow only reads. A source the author chose stays a public
+  address, and its refusal says how to state a typed file instead.
+- **A schedule shown beside a proposal is never judged missing from its
+  bytes.** A trigger is deployment, never part of the workflow, yet the
+  verifier asked the judge whether the program runs « every morning at
+  9:00 », found no task doing it and refused every proposal. A document
+  presented with its schedule (the cited line, the words, the zone) now
+  settles, with no judge call, each obligation whose every evidence quote
+  lies in those words, and states it among the verdict's engine facts.
+  Evidence beyond those words keeps an obligation judged; without a
+  schedule nothing changes, and an obligation only whole schedule words
+  evidence, judged missing, says to carry them as `propose.schedule`.
+- **A waiting question is explained in French to a person who writes French.** « Pourquoi ? »
+  beside an authoring question or a run input, and the lines under a waiting question (« the
+  question still waits · reply on the next line · `cancel` drops it », « authoring discarded »,
+  « run discarded », « activation dropped »), stayed English under French answers. They now read
+  « la question attend toujours · répondez sur la ligne suivante · « annuler » l'abandonne »,
+  « préparation abandonnée », « run abandonné » and « activation abandonnée ».
+- **A part judged missing on an unsure answer no longer refuses a
+  workflow.** On identical bytes, a decision model's answer on one part
+  of the request moved across its old cut, so the same workflow was
+  refused on one run and proposed on the next. A part's weighed
+  « missing » now decides only at the confidence a whole-request
+  rejection needs (0.75), read over that part's own options; below it,
+  the part is stated with the proposal and nothing more is asked of it.
+  At or above it, a part the model ties to a step goes back to its
+  author as before, and one it ties to no step is stated, never held.
+  The same holds over a trial run: a part the question over the run
+  names below that confidence is stated, never traced to a step, and a
+  part left open stays open. A judge that reports no distribution keeps
+  its verdict.
+- **A decision model's unsure verdict no longer holds a workflow.**
+  Checked against workflows whose correct result is known, a decision
+  model's answer on the request as a whole was reliable only as a
+  confident rejection: its « faithful » never reached a confidence of
+  0.6 and was wrong 5 times in 13, and its « unfaithful » below 0.75
+  also held correct workflows. Now a weighed verdict decides only as a
+  rejection at that confidence or more; otherwise the parts of the
+  request, each judged alone, and the extra-task question decide. A
+  workflow they carry is proposed with the doubt stated in words, never
+  held or turned into a question about the verifier; a part judged
+  missing goes back to its author once, and is stated if judged missing
+  again. A judge that reports no distribution keeps its verdict.
+- **Typing the welcome's demo name gives the demo again.** The welcome offers « Try:
+  aggregate-by-key », a demo whose records travel inside it. With an intelligence chosen, that line
+  reached the conversation's author, which asked for a data file to aggregate. A line that is
+  exactly an exact skeleton's name (`aggregate-by-key`, `hello`) is now the compiler's to settle,
+  with no model: the demo asks its one open value, the currency, and is proposed.
+- **« Est-ce que c'est actif ? » is answered by the Session, and « active-le » works after a
+  reopen.** Whether the saved workflow runs on its own (« est-ce que c'est actif ? », « ça tourne
+  tout seul ? », « is it active? ») is now answered from `nika.yaml` and this Mac's units: not yet
+  declared, declared without a trigger, or installed with its next run. The model no longer
+  answers it, and a waiting proposal stays. After a reopen, « active-le » activates the schedule
+  `nika.yaml` declares instead of answering, in English, that the workflow asked for no schedule.
+  The activation's refusals now read in French too. The model is told when the Session saved a
+  workflow, so it no longer offers to save one that is already saved.
+- **« Pourquoi ? » at a run's validation says why it waits.** The aside repeated the gate's
+  whole message, a whole digest included, under a card that already showed it. It now names the
+  gate's question once, says the workflow asks a person at that step, and says that nothing it
+  holds back happens without the answer.
+- **`nika wire` no longer erases a client's server table.** When a config held its servers under a
+  value that is not a JSON object (an array under `mcpServers`, `servers`, `mcp`,
+  `context_servers` or `amp.mcpServers`), five writers replaced it with `{}` and wrote the file,
+  and every server the user had listed was gone. Now each writer refuses such a value with « is not
+  a JSON object » and leaves the file byte-identical. A TOML `mcp_servers` that is not a table was
+  already refused and now says so the same way. The preview says `skipped` instead of « would
+  update ». `wire detected` and `wire all` plan every client before the first write: one config
+  that cannot be wired as it is leaves every config untouched (exit ENV, « nothing written »), so
+  the first client is no longer written before the second is found invalid. Every write is read
+  back, and a file that does not hold what was written is restored as it was.
+- **« sans journal.txt » takes the file back.** The withdrawal reader knew « ne lis pas … », not
+  « sans … »: « un fichier par soir seulement, sans journal.txt », Nika's own suggestion, was
+  refused because the file stayed owed. « sans », « without », « pas de », « plus de » and « no
+  more » before a file ending the clause now withdraw it; « sans toucher journal.txt » does not.
+- **A stated endpoint route no longer stops a trial as a path outside the
+  project.** Before a candidate rehearses, the Session observes the files
+  the request names. A destination the request states as the route of an
+  endpoint it names (`POST /notifications/stock` to the stated local sink),
+  which the candidate sends to, is that endpoint's route and no file: it is
+  left out of that observation, and the trial room is still handed it. An
+  unstated route, a rooted or `..` file outside the project, and a route the
+  candidate also writes as a file are still refused in the same words.
+- **A written candidate's findings read the person's answers.** The findings the conversation's
+  author receives when it writes a candidate judged the person's words alone, while the proposal's
+  verification also reads their answers to its questions: a gate or a value the person picked
+  could be reported as invented at the write and accepted at the proposal, sending the author to
+  remove what the person chose. Both now read the same answers.
+- **Your messages show your words, not the prompt or a machine key.** A line you sent was
+  echoed after the prompt it was typed at (« action › Save and run once », « nika › /status »,
+  and in the inline view « › nika › … » with two markers), and a model picked in the
+  intelligence list could echo as « choice › 2 anthropic/claude-sonnet-5-5 », an index and an
+  internal id you never typed. Your bubble now carries only your words, an offer you picked by
+  its label, and an intelligence row as `Intelligence: <name>` even where the recommended row
+  and the model listed under it share one key.
+
+### Security
+
+- **`nika check` refuses a bearer token written into the file.** A key
+  pasted into a header (`Authorization: "Bearer sk-live-…"`) was declared
+  nowhere, so SECRETS read « no declared secret reaches an effect » and
+  the run sent the key. A literal `Bearer` token in an `exec:` or
+  `invoke:` argument (an HTTP header is one), or in the `const:` or
+  `with:` value such an argument names, is now a SECRETS refusal that
+  names the argument and the repair: declare the credential in
+  `secrets:` with the egress its effect needs, then write
+  `Bearer ${{ secrets.<name> }}`. The template that references a secret
+  is not refused, and the token is never printed.
+- **`nika guard` judges every command a multi-line call carries.** Its
+  lexer read a newline as a space and stopped at the first `#`, so a
+  `nika run` on a second line, after a comment or after `a#b` passed as
+  no opinion; so did one inside `$( … )`, backticks or `<( … )`, in
+  `(…)` without spaces, in a function or `case` body, behind `timeout`,
+  in `nika 2>&1 run`, and in the zsh forms `=nika` and `noglob`. Each is
+  now judged. A heredoc body stays data, but its unquoted substitutions
+  are judged, and nesting deeper than 64 levels is refused with a reason.
+- **rustls 0.23.46 closes four TLS advisories.** RUSTSEC-2026-0346 to
+  RUSTSEC-2026-0349 (published 2026-10-14) affect rustls 0.23.45, which
+  the workspace, `nika-acp` and fuzz lockfiles resolved: client session
+  `Debug` output exposing TLS secrets, buffered data sent to the outer
+  server after an ECH rejection, a Brotli certificate decompression that
+  can allocate 1 GiB before authentication, and an unauthenticated
+  ServerHello downgrading later connections to classical key exchange.
+  All three lockfiles now resolve rustls 0.23.46.
+- **The async runtime is past its October soundness advisory.** `tokio` 1.53.3 makes `AsyncFd::new`
+  and its related constructors respect I/O safety again (RUSTSEC-2026-0386), and the yanked
+  `chacha20` 0.10.1 is replaced by 0.10.2, in the workspace, fuzz and ACP lockfiles.
+- **TLS certificate checks and constant-time helpers are past their October advisories.**
+  `rustls-webpki` 0.103.16 refuses distrusted intermediates (RUSTSEC-2026-0382), `webpki-roots`
+  1.0.11 drops the distrusted emSign roots (RUSTSEC-2026-0381), and `ctutils` 0.4.5 makes its mask
+  generation and `u128` comparisons constant-time again (RUSTSEC-2026-0385), in the workspace,
+  fuzz and ACP lockfiles.
 ## [0.123.0-preview.1](https://github.com/supernovae-st/nika/compare/v0.122.0..v0.123.0-preview.1) - 2026-10-09
 
 **Preview: honest scope.** 0.123.0-preview.1 is a pre-release of the 0.123 wave. It is not the
