@@ -226,5 +226,4 @@ pub fn unresolved_values(raw: &str, journal: &Path) -> Vec<String> {
 }
 
 #[cfg(test)]
-#[path = "spill_tests.rs"]
 mod tests;

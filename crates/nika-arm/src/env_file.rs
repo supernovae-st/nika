@@ -176,5 +176,4 @@ fn closed(after: &str) -> Result<(), &'static str> {
 }
 
 #[cfg(test)]
-#[path = "env_file_tests.rs"]
 mod tests;
