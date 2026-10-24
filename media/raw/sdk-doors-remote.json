@@ -1,0 +1,73 @@
+{
+ "transportKind": "http",
+ "served": [
+  "hello.nika"
+ ],
+ "check": {
+  "clean": true
+ },
+ "job": {
+  "idShape": "uuid"
+ },
+ "events": [
+  {
+   "sequence": 1,
+   "kind": "run.started",
+   "raw": "execution.started",
+   "status": "running"
+  },
+  {
+   "sequence": 2,
+   "kind": "run.settled",
+   "raw": "execution.settled",
+   "status": "succeeded"
+  }
+ ],
+ "result": {
+  "status": "succeeded",
+  "transport": "http",
+  "greeting": "mock(echo) · Say hello from the Nika SDK."
+ },
+ "receipt": {
+  "keys": [
+   "chain_head",
+   "execution_id",
+   "job_id",
+   "origin",
+   "snapshot_digest",
+   "trace_id"
+  ]
+ },
+ "verify": {
+  "verified": true,
+  "verdict": "sealed",
+  "reason": "sealed"
+ },
+ "retry": {
+  "sameJob": true
+ },
+ "badToken": {
+  "refused": true,
+  "name": "NikaOperationError",
+  "status": 401,
+  "code": "unauthorized",
+  "operation": "listWorkflows"
+ },
+ "health": {
+  "service": "nika-serve",
+  "status": "ok",
+  "engineVersion": "0.123.0",
+  "buildSha": "0bfde3765",
+  "machineProtocolVersion": 2,
+  "supportedCapabilities": [
+   "check",
+   "executionSnapshot",
+   "eventStream",
+   "cancel",
+   "jobInputs",
+   "compile",
+   "schedule"
+  ]
+ },
+ "port": "a free loopback port"
+}

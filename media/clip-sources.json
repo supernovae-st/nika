@@ -11,6 +11,7 @@
   "on-error-recover": "sha256:70bc006d010eb5c019c3d79ae5b69c0de50ae726dbfcde7d0684756aa72b83f1",
   "permits-audit": "sha256:9492234541b3bd585f4a06977d37060f49267dcf0a56bbe5e73f0b6357775c2b",
   "pr-check-comment": "sha256:bc4b425fead48f3598c95cd55f21c918067af53387d98b1e797301c9f4d5ed3f",
+  "sdk-doors": "sha256:bd55709d75614c7872143bb862808a6ba60f5ed1fe5ac70d6bd0ec7411d8f7b7",
   "spec-anatomy": "sha256:9bdf1b23d1a3df849f5dd086eb0f1dac6c71474e410350ada36507d7972cf553",
   "static-check-fix": "sha256:0e42863fc66dcd20229c3f29af60fc493ee8682ff45448aa372dff776ebb8f2d",
   "trace-proof": "sha256:5579dcf86858c048c5c2ce1253cb2ccb7d7916ae7faaf5cdbb2b54c8fde24030",

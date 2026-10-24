@@ -70,6 +70,7 @@ film from captured output:
 | `editor-diagnostics` | what `nika lsp` publishes for any LSP client, fixed by one keystroke (the editor is an illustration) |
 | `workflow-gallery` | the jobs `nika try` lists |
 | `typescript-client` | a Node app running a checked workflow through `@supernovae-st/nika` 0.123.0 and the engine it bundles, its typed result, and the receipt the engine verifies |
+| `sdk-doors` | the TypeScript SDK's two doors: `new Nika()` starts the engine the package bundles and `new Nika({ url, token })` reaches a `nika serve`; the check that refuses a file before any run, the events, the sealed record and `traceVerify()` on both (the cards, lanes, packets and pacing are illustration) |
 
 Two clips show a local model run (`ollama/llama3.2:3b`) that is older than
 their check: `nika-hero` and `chat-to-workflow`. That run was captured with
@@ -93,13 +94,19 @@ How they are made and checked is in
   replays nika-action's own renderer from a checkout of that repository
   (`NIKA_ACTION`), and the typescript-client capture runs the TypeScript
   package's quick start from a built nika-client checkout
-  (`NIKA_CLIENT_DIR`), on the engine that package bundles. The Session and
+  (`NIKA_CLIENT_DIR`), on the engine that package bundles. The sdk-doors
+  capture (`node scripts/media/capture/sdk-doors.mjs`) installs the
+  published `@supernovae-st/nika` from the npm registry in a scratch app and
+  drives both doors: the engine the package bundles, and a `nika serve` it
+  starts on loopback with a 0600 token file it never prints. The Session and
   the approval gate are driven through a pseudo-terminal, as a person
   would type them.
 - **Every complete runnable workflow shown passes `nika check`**, except the
   deliberately broken fixtures (`broken-pr-review` in static-check-fix and
-  editor-diagnostics, `permits-escape` in permits-audit), whose failure is
-  the point. `scripts/media/validate-media.sh` enforces both directions.
+  editor-diagnostics, `permits-escape` in permits-audit, `list-files.nika`
+  in sdk-doors), whose failure is the point. `scripts/media/validate-media.sh`
+  enforces both directions for the fixtures; the sdk-doors clip refuses to
+  render unless its capture records the refusal and the clean check.
 - **Illustrations say so.** The product film labels fictional data and folded
   source excerpts; a clip's plate names what it illustrates. None may be
   described as a successful real integration.
@@ -133,6 +140,7 @@ media/
 NIKA_MEDIA_LOCAL_RUN=keep \
 NIKA_ACTION=../nika-action NIKA_CLIENT_DIR=../nika-client \
   bash scripts/media/capture-transcripts.sh   # refresh the captured output
+node scripts/media/capture/sdk-doors.mjs      # sdk-doors: the published package, from the registry
 cd scripts/media/motion/intent-to-proof
 npm ci && npm run fonts                       # once
 npm run clip -- all                           # every feature clip

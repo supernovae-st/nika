@@ -159,9 +159,9 @@ other repositories hotlink), `static-check-fix`, `permits-audit`,
 `on-error-recover`, `dag-execution`, `chat-to-workflow`,
 `editor-diagnostics`, `workflow-gallery`, `full-loop`, `pr-check-comment`,
 `trace-proof`, `spec-anatomy`, `agent-plugin`, `first-session`,
-`cost-ceiling`, `approval-gate` and `typescript-client`. Each is one file
-in `clips/`, built from `clips/kit.mjs`: code cards that animate a real
-line diff, terminals that stream captured lines, row highlights and a
+`cost-ceiling`, `approval-gate`, `typescript-client` and `sdk-doors`. Each
+is one file in `clips/`, built from `clips/kit.mjs`: code cards that animate
+a real line diff, terminals that stream captured lines, row highlights and a
 camera.
 
 - Every program line, CLI line and diagnostic on screen is read from
@@ -174,6 +174,17 @@ camera.
   otherwise. What is
   illustration (the chat, the editor's chrome, the lighting of the DAG
   waves, the phrase-to-task mapping) says so on the clip's plate.
+- `sdk-doors` is captured on its own, by
+  `node scripts/media/capture/sdk-doors.mjs`: it installs the published
+  `@supernovae-st/nika` from the npm registry in a scratch app, drives the
+  engine the package bundles (`new Nika()`) and a loopback `nika serve`
+  (`new Nika({ url, token })`) with the helpers in
+  `scripts/media/capture/sdk-doors/`, and writes `media/raw/sdk-doors-*`.
+  The clip refuses to render if a captured version, verdict, event kind,
+  hash or refusal code changes. Its cards, the package column, the lanes,
+  the packets that travel them and the pacing are illustration, and its
+  plate says so: a run of `hello.nika` takes milliseconds, drawn here over
+  25 seconds.
 - The camera pushes in on what is being read, so reading moments land at
   22 to 33 px on the 1920 px frame, and pulls back for the last frame. That
   frame is the poster; for `static-check-fix` and `chat-to-workflow` it is
