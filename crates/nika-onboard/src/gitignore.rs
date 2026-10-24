@@ -2,11 +2,15 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The `.gitignore` guarantee — a founded repo cannot commit its own
-//! run traces.
+//! run traces, nor the `nika serve` token and job state.
 //!
 //! `.nika/traces/*.ndjson` journals carry model outputs, the file
 //! contents tasks read, and tool arguments — the exact payload class a
-//! user means to keep local. `cargo new` has laid a `.gitignore` down
+//! user means to keep local. `nika serve` reads its Bearer token from
+//! `.nika/serve.token` (the mint every serve surface teaches) and keeps
+//! job events and results under `.nika/serve/` (its default state
+//! root): a credential and the same payload class as the traces.
+//! `cargo new` has laid a `.gitignore` down
 //! from day one for `target/`; terraform never did for `*.tfstate`,
 //! and thousands of state files with secrets leaked into public repos.
 //! Init takes the cargo side, in BOTH lanes (scripted and wizard):
@@ -16,11 +20,14 @@
 
 use std::path::Path;
 
-/// The one section, marked — the whole contract in two lines. A fresh
+/// The one section, marked — the whole contract in five lines. A fresh
 /// file starts on it directly; an existing one gets it behind ONE
 /// blank line, the human's bytes leading verbatim.
-pub(crate) const SECTION: &str =
-    "# nika — run traces carry model outputs, file contents and tool arguments\n.nika/traces/\n";
+pub(crate) const SECTION: &str = "# nika — run traces carry model outputs, file contents and tool arguments\n\
+     .nika/traces/\n\
+     # nika serve — the HTTP token is a credential; job state carries run events and results\n\
+     .nika/serve.token\n\
+     .nika/serve/\n";
 
 /// The entry both spellings of the cover share — presence of EITHER
 /// (or of the broader `.nika/` rule) means the cover exists, ours or
@@ -114,7 +121,12 @@ fn covers(body: &str) -> bool {
 pub(crate) fn report(path: &str, outcome: &Outcome) -> (char, String) {
     match outcome {
         Outcome::Created => ('✔', format!("created {path}")),
-        Outcome::Appended => ('✔', format!("updated {path} (.nika/traces/ now ignored)")),
+        Outcome::Appended => (
+            '✔',
+            format!(
+                "updated {path} (.nika/traces/ and the nika serve token and state now ignored)"
+            ),
+        ),
         Outcome::Covered => (
             '·',
             format!("skipped {path} (.nika/traces/ already ignored)"),
@@ -144,6 +156,14 @@ mod tests {
         assert!(path.ends_with(".gitignore"), "{path}");
         let body = std::fs::read_to_string(dir.join(".gitignore")).expect("written");
         assert_eq!(body, SECTION, "a fresh file IS the section, no seam");
+        // The traces, the `nika serve` Bearer token (the path every serve
+        // surface teaches to mint) and its default job-state root.
+        let entries: Vec<&str> = body.lines().filter(|l| !l.starts_with('#')).collect();
+        assert_eq!(
+            entries,
+            [".nika/traces/", ".nika/serve.token", ".nika/serve/"],
+            "{body}"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 

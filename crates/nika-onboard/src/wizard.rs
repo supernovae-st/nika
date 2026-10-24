@@ -983,6 +983,10 @@ mod tests {
         );
         let body = std::fs::read_to_string(dir.join(".gitignore")).expect("written");
         assert!(body.contains(".nika/traces/"), "the cover entry: {body}");
+        assert!(
+            body.lines().any(|line| line == ".nika/serve.token"),
+            "the wizard lane ignores the serve token too: {body}"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 

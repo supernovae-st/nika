@@ -790,6 +790,12 @@ mod tests {
         );
         let body = std::fs::read_to_string(tmp.join(".gitignore")).expect("gitignore written");
         assert!(body.contains(".nika/traces/"), "the cover entry: {body}");
+        for entry in [".nika/serve.token", ".nika/serve/"] {
+            assert!(
+                body.lines().any(|line| line == entry),
+                "the `nika serve` credential and state stay local too ({entry}): {body}"
+            );
+        }
 
         let again = run(
             tmp.to_str().expect("utf8"),

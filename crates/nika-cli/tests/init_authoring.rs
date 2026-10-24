@@ -211,3 +211,47 @@ fn human_guide_first_workflow_runs_offline_and_project_receipt_precedes_next() {
         );
     }
 }
+
+/// A founded repository keeps the `nika serve` credential and job state out
+/// of Git: the token where every serve surface teaches to mint it
+/// (`.nika/serve.token`) and the default state root (`.nika/serve/`), beside
+/// the traces. Git itself judges the rules, not a search of `.gitignore`.
+#[test]
+fn a_founded_repository_ignores_the_serve_token_and_job_state() {
+    let home = tempfile::tempdir().expect("isolated home");
+    let project = home.path().join("project");
+    std::fs::create_dir(&project).expect("project");
+    let init = nika(home.path(), &project, &["init", "--yes"]);
+    assert!(init.status.success(), "{}", transcript(&init));
+    let git = |args: &[&str]| {
+        let mut command = Command::new("git");
+        command
+            .args(args)
+            .current_dir(&project)
+            .env("HOME", home.path());
+        // An inherited GIT_DIR/GIT_WORK_TREE would aim at the caller's checkout.
+        for (key, _) in std::env::vars_os() {
+            if key.to_string_lossy().starts_with("GIT_") {
+                command.env_remove(&key);
+            }
+        }
+        command
+            .output()
+            .expect("git is on PATH (CI runners ship it)")
+    };
+    let created = git(&["init", "-q"]);
+    assert!(created.status.success(), "{}", transcript(&created));
+    for path in [
+        ".nika/serve.token",
+        ".nika/serve/jobs/state.json",
+        ".nika/traces/run.ndjson",
+    ] {
+        let verdict = git(&["check-ignore", "-q", path]);
+        assert_eq!(
+            verdict.status.code(),
+            Some(0),
+            "{path} must be ignored in a founded repository: {}",
+            transcript(&verdict)
+        );
+    }
+}
