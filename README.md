@@ -91,6 +91,10 @@ Runs
 Can touch
   external effects · none
   human approval at run · none
+Changes
+  + `compiled-workflow.nika` · 97 lines · new
+Needs
+  nothing more from you
 Nothing has run yet · `yes` saves these exact bytes and checks them · running is its own line (« run it »)
 ```
 
@@ -184,16 +188,18 @@ curl -LsSf https://nika.sh/install.sh | sh
   `node_modules/.bin`). The package bundles the engine of its own version:
   check `nika --version`.
 - **A container** (Linux, amd64 and arm64), built from the same release
-  binaries: `docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika:0.123.0 check hello.nika`
+  binaries: `docker run --rm ghcr.io/supernovae-st/nika:0.123.0 --version`.
+  Mount a project to check or run its files, for example
+  `docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika:0.123.0 check hello.nika`.
 - **A release archive:** download one from the
   [latest release](https://github.com/supernovae-st/nika/releases/latest).
   Every release ships a checksum manifest, a GitHub attestation and SLSA
   provenance; [RELEASING.md](RELEASING.md#what-a-user-can-prove) gives the
   three verification commands, for example
   `gh attestation verify nika-macos-arm64-0.123.0.tar.gz --repo supernovae-st/nika`.
-- **Nix:** the repository has a flake. It builds the default branch,
-  which can be ahead of the latest release; append `/v0.123.0` to the
-  flake reference to build the release.
+- **Nix:** `nix profile install github:supernovae-st/nika/v0.123.0` builds
+  the release from the repository's flake. Without the tag, the flake builds
+  the default branch, which can be ahead of the latest release.
 - **Windows:** use WSL2 and the Linux binary. Native Windows binaries are
   not shipped.
 
@@ -365,7 +371,9 @@ file for you, and the check keeps it honest:
 | `agent` | Let a model use allowed tools for a bounded number of turns |
 
 A workflow uses only the verbs its job needs. The orders workflow at the
-top uses `invoke` alone: eight builtin tools, no model, no shell.
+top uses `invoke` alone: eight steps over five builtin tools (`nika:read`,
+`nika:convert`, `nika:jq`, `nika:assert` and `nika:write`), with no model
+and no shell.
 
 </details>
 
@@ -429,7 +437,6 @@ judgement.
 | 🦋 | **[nika](https://github.com/supernovae-st/nika)** | **The engine and CLI: write, check, run and verify AI workflows** |
 | 📖 | [nika-docs](https://github.com/supernovae-st/nika-docs) | The documentation, live at [docs.nika.sh](https://docs.nika.sh) |
 | 📜 | [nika-spec](https://github.com/supernovae-st/nika-spec) | The language specification and the suite that proves an engine follows it |
-| 🌐 | [nika.sh](https://github.com/supernovae-st/nika.sh) | The website, live at [nika.sh](https://nika.sh) |
 | 🧩 | [nika-vscode](https://github.com/supernovae-st/nika-vscode) | The editor extension, frozen at 0.120 and not qualified with 0.123: use `nika lsp` and the JSON Schema |
 | 🟦 | [nika-client](https://github.com/supernovae-st/nika-client) | Run and verify workflows from TypeScript |
 | ✅ | [nika-action](https://github.com/supernovae-st/nika-action) | A GitHub Action that posts a `nika check` verdict on your pull requests |
