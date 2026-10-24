@@ -97,9 +97,9 @@ const ROWS: &[(&str, &str)] = &[
     ),
     (
         "secrets-store",
-        "a referenced `secrets.X` whose source is not yet runtime-resolvable \
-         — check is green, run fails NIKA-1702. Use `source: env` or \
-         `source: file` until vault resolution ships",
+        "a referenced `secrets.X` whose source is `vault`, withdrawn from the \
+         contract (spec 01 §secrets) and resolved by no engine — check is green, \
+         run fails NIKA-VAR-001. Use `source: env` or `source: file`",
     ),
     (
         "native-first",

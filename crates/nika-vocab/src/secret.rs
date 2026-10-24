@@ -186,19 +186,22 @@ pub fn inline_literal_teaching(name: &str) -> String {
     )
 }
 
-/// No `source:` — the provenance is explicit, never defaulted (R8).
+/// No `source:` — the provenance is explicit, never defaulted (R8). The
+/// teaching names the contract's sources only: spec 01 §secrets withdrew
+/// `vault`, which no engine resolves.
 #[must_use]
 pub fn missing_source_teaching(name: &str) -> String {
     format!(
         "secret `{name}` has no `source:` — the provenance is required explicitly \
-         (vault · env · file · R8)"
+         (env · file · R8)"
     )
 }
 
-/// A `source:` outside the closed enum.
+/// A `source:` outside the closed enum — named with the contract's
+/// sources (`env` · `file`; `vault` is withdrawn, spec 01 §secrets).
 #[must_use]
 pub fn unknown_source_teaching(name: &str, source: &str) -> String {
-    format!("secret `{name}` has unknown source `{source}` (vault·env·file)")
+    format!("secret `{name}` has unknown source `{source}` (env·file)")
 }
 
 /// The wrong reference field for the declared source (`file` + `key:` ·
