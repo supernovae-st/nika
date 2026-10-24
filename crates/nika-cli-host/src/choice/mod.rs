@@ -252,12 +252,14 @@ fn key_rung(key_row: Option<&KeyRow>) -> Rung {
 /// The RAM used to be repeated here (« this machine has 18 GB ») two
 /// lines under the hardware row that already states it — the same two
 /// words naming three different things on one screen (#1196). The row
-/// above owns the hardware facet; this reason owns the price.
+/// above owns the hardware facet; this reason owns the access. A local
+/// model is unpriced, never « free » (the cost law): what the person
+/// saves is the API key, so that is what the reason says.
 fn local_reason(ready: bool, ram: Option<u32>, download: &str) -> String {
     match (ready, ram) {
-        (false, Some(_)) => format!("open weights · free · {download} to pull"),
+        (false, Some(_)) => format!("open weights · no API key · {download} to pull"),
         (true, _) | (false, None) => {
-            format!("open weights · free · runs on this computer · {download}")
+            format!("open weights · no API key · runs on this computer · {download}")
         }
     }
 }
