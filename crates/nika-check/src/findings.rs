@@ -1224,6 +1224,29 @@ tasks:
         assert_eq!(hit.task.as_deref(), Some("peek"));
     }
 
+    /// NIK-248 — a value outside a closed set is never a rename `--fix` applies: `--fix` turned
+    /// `view: record` into `records: record`. The near view is said in the refusal instead.
+    #[test]
+    fn a_near_value_is_teaching_never_a_typed_rename() {
+        let r = report(
+            "nika: w\npermits: { tools: [\"nika:inspect\"] }\ntasks:\n  look:\n    invoke: { tool: \"nika:inspect\", args: { view: record } }\n",
+        );
+        assert!(
+            super::typed_renames(&r).is_empty(),
+            "{:?}",
+            super::typed_renames(&r)
+        );
+        let hit = (r.findings.iter())
+            .find(|f| f.code.as_deref() == Some("NIKA-BUILTIN-INSPECT-001"))
+            .unwrap_or_else(|| panic!("the value finding: {:#?}", r.findings));
+        assert!(
+            hit.message.contains("`view: record`")
+                && hit.message.contains("did you mean `records`?"),
+            "{}",
+            hit.message
+        );
+    }
+
     /// C05 / W01 — webhook + a public test URL stays check-green.
     #[test]
     fn webhook_notify_to_a_public_test_url_stays_check_green() {
