@@ -62,7 +62,7 @@ run starts, and the runtime enforces the same boundary again.
 | `NIKA-SEC-011` | Preview-commit divergence | the bytes about to fire differ from the previewed ones |
 | `NIKA-SEC-012` | Unordered shared writes | two tasks with no order between them write the same target |
 | `NIKA-SEC-015` | Order law | an `exec:` task runs downstream of a network effect |
-| `NIKA-1710` · `NIKA-1711` | OS sandbox | `exec` children and MCP servers run confined (macOS Seatbelt · Linux bubblewrap); a host that cannot confine a `permits:`-declaring workflow refuses it, and a mistyped `NIKA_SANDBOX` refuses to start |
+| `NIKA-1710` · `NIKA-1711` | OS sandbox | `exec` children and MCP servers run confined (macOS Seatbelt · Linux bubblewrap); a host that cannot confine a `permits:`-declaring workflow with `exec:` children refuses to run it, and a mistyped `NIKA_SANDBOX` refuses to start |
 
 Without a code of their own:
 
