@@ -130,7 +130,7 @@ pub enum BuiltinCategory {
 impl BuiltinCategory {
     /// Kebab-case wire identifier — the SAME rendering as the serde
     /// `rename_all = "kebab-case"` derive (a unit test pins the two), so
-    /// serde-less consumers (`nika tools --json` join) speak one vocabulary.
+    /// serde-less consumers (`nika catalog --tools --json` join) speak one vocabulary.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {

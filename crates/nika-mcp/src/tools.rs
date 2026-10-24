@@ -644,7 +644,7 @@ fn catalog_payload() -> Result<String, String> {
 }
 
 /// `nika_tools` — the versioned builtin-tool projection: the SAME payload
-/// `nika tools --json` emits (built by `nika-builtin::tools_json`).
+/// `nika catalog --tools --json` emits (built by `nika-builtin::tools_json`).
 fn tools_payload() -> Result<String, String> {
     serde_json::to_string_pretty(&nika_builtin::tools_json())
         .map_err(|e| format!("tools projection failed: {e}"))
