@@ -10,7 +10,21 @@ door on loopback. Either way it runs inside a project: the folder needs a
 ## First run of the HTTP door
 
 ```sh
-printf 'nika: my-project\n' > nika.yaml   # the project file, if the folder has none
+test -f nika.yaml || printf 'nika: my-project\n' > nika.yaml   # an existing one is kept
+mkdir -p workflows
+test -f workflows/hello.nika || cat > workflows/hello.nika <<'EOF'
+nika: hello
+model: mock/echo
+permits: {}
+tasks:
+  greeting:
+    infer:
+      prompt: "Say hello from nika serve."
+      max_tokens: 32
+outputs:
+  greeting: ${{ tasks.greeting.output }}
+EOF
+nika check workflows/hello.nika
 umask 077
 mkdir -p .nika/serve
 openssl rand -hex 24 > .nika/serve.token
@@ -18,8 +32,12 @@ chmod 600 .nika/serve.token
 nika serve --bind 127.0.0.1:8787 --workflows ./workflows --token-file .nika/serve.token
 ```
 
-`nika serve` also creates `.nika/serve` (mode 0700) when the default
-state root is missing. The mkdir above is the operator-visible first run.
+`--workflows` names a folder that must exist: `nika serve` exits 1 when it
+cannot open it. It serves the `.nika` files under that folder, each named
+by its path from the project root, here `workflows/hello.nika`; the
+rehearsal model `mock/echo` needs no key and no network. `nika serve` also
+creates `.nika/serve` (mode 0700) when the default state root is missing.
+The mkdir above is the operator-visible first run.
 `nika init` adds only `.nika/traces/` to `.gitignore`: add
 `.nika/serve.token` and `.nika/serve/` yourself, so neither the token nor
 the job state is committed.
