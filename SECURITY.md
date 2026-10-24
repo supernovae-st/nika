@@ -2,15 +2,16 @@
 
 ## Supported Versions
 
-Nika is under active Diamond rebuild on `main` (renamed 2026-05-06 from
-`nika-diamond`). Security fixes ship on the active branch only — see
-[ADR-002](docs/adr/adr-002-forever-v0x.md) for the
-release model (real semver toward 1.0 · amended D-2026-06-20-N1).
+Nika 0.123 is the open-source reference release. It is maintained: security
+fixes land on `main` and ship as 0.123.x patch releases. Report against the
+latest release or `main`.
 
-| Branch       | Status     | Security fixes |
-|--------------|------------|----------------|
-| `main`       | active     | ✅ yes         |
-| `brouillon`  | read-only legacy (v0.79.3) | ❌ frozen |
+| Version or branch        | Status                     | Security fixes |
+|--------------------------|----------------------------|----------------|
+| 0.123.x (latest release) | maintained                 | ✅ yes         |
+| `main`                   | maintenance branch         | ✅ yes         |
+| older than 0.123         | unsupported: upgrade       | ❌ no          |
+| `brouillon`              | read-only legacy (v0.79.3) | ❌ frozen      |
 
 ## Reporting a Vulnerability
 

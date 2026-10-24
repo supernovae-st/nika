@@ -1,15 +1,17 @@
 # Contributing to Nika
 
-Welcome. Nika is a Rust workflow engine for AI, built as a **diamond
-rewrite toward a 1.0 launch** (amended D-2026-06-20-N1): layered crates
-(the count is projected, never a gate — ADR-037 horizon 50-90 · cap 100 ·
-ruled D-2026-07-21-N1), each passing a 12-gate admission checklist before joining the workspace.
-This document explains how to contribute.
+Welcome. Nika is a Rust workflow engine for AI. **0.123 is its open-source
+reference release**, now maintained with security fixes, bug fixes and
+compatibility, so contributions of that kind help most. The engine is a
+workspace of layered crates (the count is projected, never a gate — ADR-037
+horizon 50-90 · cap 100 · ruled D-2026-07-21-N1), each passing a 12-gate
+admission checklist before joining the workspace. This document explains how
+to contribute.
 
 See also: [`README.md`](README.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md),
 [`SECURITY.md`](SECURITY.md), [`AGENTS.md`](AGENTS.md),
 [`DIAMOND.md`](DIAMOND.md) (strategy overview),
-[`ROADMAP.md`](ROADMAP.md) (real-semver plan toward 1.0),
+[`ROADMAP.md`](ROADMAP.md) (current status, then the earlier long-range plan),
 [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
 (10-year horizon canon · v1.3 · ADR-037 count horizon 50-90 · cap 100 · 11/10 amplifiers).
 
@@ -34,7 +36,7 @@ If you are unsure whether something is in scope, open an issue first.
 
 ## Philosophy
 
-- **Real semver toward 1.0** (amended D-2026-06-20-N1). The current workspace version is declared in `Cargo.toml`; published binaries are listed in [GitHub Releases](https://github.com/supernovae-st/nika/releases). The first public launch ships as 1.0.0, then 1.x minors add the remaining crates additively toward the ADR-037 count horizon (50-90 · cap 100 · projected, never a gate · ruled D-2026-07-21-N1). Each version is diamond-grade for its declared scope.
+- **Real semver** (D-2026-06-20-N1). The current workspace version is declared in `Cargo.toml`; published binaries are listed in [GitHub Releases](https://github.com/supernovae-st/nika/releases). 0.123 is the open-source reference release; after it, changes are maintenance: security fixes, bug fixes and compatibility. Each version is diamond-grade for its declared scope.
 - **Quality over speed.** No deadline pressure. A PR lands when it is ready.
 - **Perfect diamond.** Zero band-aid, zero residue, zero ghost reference. Every leftover gets fixed or flagged — never ignored.
 - **Craft, not extraction.** Legacy code on `brouillon` (v0.79.3) is a read-only reference. Diamond rewrites each crate from scratch, guided by the legacy.
