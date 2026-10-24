@@ -21,9 +21,12 @@
 //      drives new Nika({ cwd }): check() of the quick start and of a red file,
 //      run() refusing the red file, run() of the quick start with its events,
 //      result, receipt and traceVerify(), then one changed byte in the trace;
+//      and `node demo.mts` runs the quick start itself, as the README says;
 //   4. `nika serve` starts on a free loopback port with a 0600 token file
-//      (never printed) and the same key, and remote.mjs drives
-//      new Nika({ url, token, allowInsecureHttp: true }) against it.
+//      (never printed) and the same key, and remote.mts drives
+//      new Nika({ url, token, allowInsecureHttp: true }) against it, with the
+//      quick start's run line taking an idempotencyKey in place of
+//      maxCostUsd, and records what the server door refuses of the quick start.
 // No path of this machine and no token may reach a capture.
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
@@ -136,6 +139,8 @@ run(BIN, ['key', 'init'], APP);
 const checkText = run(BIN, ['check', '--color', 'never', 'hello.nika'], APP).stdout;
 const checkRedText = run(BIN, ['check', '--color', 'never', 'list-files.nika'], APP, { allowFail: true }).stdout;
 const local = JSON.parse(run(process.execPath, ['local.mjs'], APP).stdout);
+// the README's own program, run as the README says: what it prints
+local.demo = { stdout: run(process.execPath, ['demo.mts'], APP).stdout.split('\n').filter(Boolean) };
 
 // ── 4 · the remote door: nika serve on a free loopback port ────────────────
 const freePort = () => new Promise((res, rej) => {
@@ -147,7 +152,7 @@ const PORT = await freePort();
 if (PORT >= 8787 && PORT <= 8789) fail('the free port is one other sessions use; run again');
 fs.writeFileSync(path.join(SERVE, 'nika.yaml'), 'nika: my-project\n');
 fs.writeFileSync(path.join(SERVE, 'hello.nika'), hello);
-fs.copyFileSync(path.join(HERE, 'sdk-doors/remote.mjs'), path.join(SERVE, 'remote.mjs'));
+fs.copyFileSync(path.join(HERE, 'sdk-doors/remote.mts'), path.join(SERVE, 'remote.mts'));
 fs.symlinkSync(path.join(APP, 'node_modules'), path.join(SERVE, 'node_modules'));
 fs.mkdirSync(path.join(SERVE, '.nika'), { mode: 0o700 });
 const TOKEN = randomBytes(24).toString('hex');
@@ -170,7 +175,7 @@ try {
       await new Promise(res => setTimeout(res, 250));
     }
   }
-  remote = JSON.parse(run(process.execPath, ['remote.mjs', URL_], SERVE).stdout);
+  remote = JSON.parse(run(process.execPath, ['remote.mts', URL_], SERVE).stdout);
 } finally {
   server.kill('SIGTERM');
   const stop = await Promise.race([exited, new Promise(res => setTimeout(() => res(null), 10000))]);

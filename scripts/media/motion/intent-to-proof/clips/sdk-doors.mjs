@@ -1,24 +1,32 @@
 // sdk-doors · "Your app asks. The engine decides. The receipt proves it."
 // The TypeScript SDK (@supernovae-st/nika) on one screen: one client, two
 // doors. new Nika() starts the engine the package bundles, as a child
-// process; new Nika({ url, token }) reaches a nika serve. Only the
-// constructor changes. The engine owns every decision: it checks a file
-// before it admits it (a refused file makes run() throw NikaOperationError,
-// and no run exists), runs it, streams its events in one vocabulary (six
-// frames from the local engine, two sequenced frames from the server) and
-// keeps a hash-chained record sealed by run_sealed. The receipt comes back to
-// the app, and traceVerify() has the engine re-read the trace: verified
-// locally, sealed from the server. One changed byte breaks the chain.
+// process; new Nika({ url, token }) reaches a nika serve with the same
+// methods and other options. Two lines of the quick start take the server
+// door's: line 3 its URL and token (plain HTTP to loopback only with
+// allowInsecureHttp), line 6 the idempotencyKey a server run requires where
+// a local run takes maxCostUsd, which a server run refuses. The engine owns
+// every decision: it checks a file before it admits it (a refused file makes
+// run() throw NikaOperationError, and no run exists), runs it, streams its
+// events in one vocabulary (six frames from the local engine, two sequenced
+// frames from the server) and keeps a hash-chained record sealed by
+// run_sealed. The receipt comes back to the app, and traceVerify() has the
+// engine re-read the trace: verified locally, sealed from the server. One
+// changed byte breaks the chain.
 //
 // Everything on screen that is program, output, verdict, hash, code or
 // version is read from the capture (scripts/media/capture/sdk-doors.mjs →
 // media/raw/sdk-doors-*), taken from the published npm package, the engine it
 // bundles and a nika serve the capture started: the README's demo.mts with
-// its real line numbers, the remote constructor as the capture's own driver
-// writes it, the check reports, the event kinds in their order, the journal's
-// kinds and hashes, the receipt's head, length and seal, both verifiers'
-// verdicts, the refusal and the tampered chain's first line. The clip
-// refuses to render if the capture stops saying any of it.
+// its real line numbers (the capture also ran it and kept what it printed),
+// the server door's lines 3 and 6 as the capture's own remote driver writes
+// and ran them (with the package's refusal of the quick start's own options
+// over HTTP), the check reports, the event kinds in their order, the
+// journal's kinds and hashes, the receipt's head, length and seal, both
+// verifiers' verdicts, the refusal and the tampered chain's first line. The
+// clip refuses to render if the capture stops saying any of it. A line wider
+// than the code card wraps at a space, as an editor with word wrap shows it:
+// every character stays.
 // What is illustration: the cards, the column, the lanes and every packet
 // that travels them, and the pacing (a run of hello.nika takes milliseconds;
 // the capture ran the refused file before the quick start, as here). The
@@ -43,8 +51,8 @@ const checkRed = repoLines(`${RAW}-check-red.txt`);
 const versions = JSON.parse(readRepo(`${RAW}-versions.json`));
 const local = JSON.parse(readRepo(`${RAW}-local.json`));
 const remote = JSON.parse(readRepo(`${RAW}-remote.json`));
-// the remote constructor, as the capture's remote driver writes it
-const remoteDriver = repoLines('scripts/media/capture/sdk-doors/remote.mjs');
+// the server door's lines, as the capture's remote driver writes them
+const remoteDriver = repoLines('scripts/media/capture/sdk-doors/remote.mts');
 
 const fail = why => { throw new Error(`sdk-doors capture: ${why}`); };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -62,6 +70,8 @@ if (versions.package.npm_added !== 2 || !versions.package.installed.includes(PAY
 const PROMPT = hello.map(l => l.match(/^\s*prompt: "(.*)"$/)?.[1]).find(Boolean) ?? fail('hello.nika has no prompt');
 const GREETING = `mock(echo) · ${PROMPT}`;
 if (local.result.greeting !== GREETING || remote.result.greeting !== GREETING) fail('a door no longer returns the greeting');
+// the quick start itself, run as the README says: the greeting, then the proof
+if (!same(local.demo?.stdout, [GREETING, 'receipt verified'])) fail('node demo.mts no longer prints the greeting and receipt verified');
 if (local.transportKind !== 'native-process' || remote.transportKind !== 'http') fail('the transports are not native-process and http');
 // admission: the quick start is clean, the red file is refused before any run
 if (!local.check.clean || local.check.exitCode !== 0 || !remote.check.clean) fail('hello.nika is not clean on both doors');
@@ -105,13 +115,26 @@ const L = {
   verdict: lineOf(/^console\.log\(proof\.verified \? 'receipt verified'/),
 };
 const ROWS = [L.imp, L.client, L.run, L.result, L.log, L.verify, L.verdict];
-// line 3, local and remote: one shared frame, the arguments differ
-const LOCAL_CTOR = demo[L.client - 1];
-const REMOTE_CTOR = (remoteDriver.find(l => /^const nika = new Nika\(\{ url, token, allowInsecureHttp: true \}\);/.test(l)) ?? fail('the remote driver lost its constructor')).replace(/\s*\/\/.*$/, '');
-const CTOR_HEAD = 'const nika = new Nika({ ', CTOR_TAIL = ' });';
-if (![LOCAL_CTOR, REMOTE_CTOR].every(s => s.startsWith(CTOR_HEAD) && s.endsWith(CTOR_TAIL))) fail('the two constructors no longer share their frame');
-const ARG_LOCAL = LOCAL_CTOR.slice(CTOR_HEAD.length, -CTOR_TAIL.length);
-const ARG_REMOTE = REMOTE_CTOR.slice(CTOR_HEAD.length, -CTOR_TAIL.length);
+// Lines 3 and 6, local and remote: each keeps one shared frame and only its
+// options differ, the constructor's, then run()'s. The server door's lines
+// are the remote driver's, which the capture ran against nika serve.
+const driverLine = (re, what) => (remoteDriver.find(l => re.test(l)) ?? fail(`the remote driver lost its ${what}`)).replace(/\s*\/\/.*$/, '');
+const EDITS = [
+  { ln: L.client, lag: 0, head: 'const nika = new Nika({ ', tail: ' });', remote: driverLine(/^const nika = new Nika\(\{ url, token, allowInsecureHttp: true \}\);/, 'constructor') },
+  { ln: L.run, lag: 0.15, head: "const run = await nika.run<{ greeting: string }>('hello.nika', { ", tail: ' });', remote: driverLine(/^const run = await nika\.run<\{ greeting: string \}>\('hello\.nika', \{ idempotencyKey \}\);$/, 'run line') },
+].map(e => {
+  const local = demo[e.ln - 1];
+  if (![local, e.remote].every(s => s.startsWith(e.head) && s.endsWith(e.tail))) fail(`line ${e.ln}: the two doors no longer share its frame`);
+  return { ...e, local, from: local.slice(e.head.length, -e.tail.length), to: e.remote.slice(e.head.length, -e.tail.length) };
+});
+// why they change: over HTTP the package refuses the quick start's own
+// options before any request (the capture asked it), and the server door's
+// lines carry what each refusal names
+const REFUSED = remote.refusals ?? fail('the capture no longer asks the server door to refuse the quick start');
+for (const [k, name, word] of [['plainHttp', 'NikaConfigurationError', 'allowInsecureHttp'], ['maxCostUsd', 'NikaCompatibilityError', 'maxCostUsd'], ['noKey', 'NikaConfigurationError', 'idempotencyKey']]) {
+  if (!REFUSED[k]?.refused || REFUSED[k].name !== name || !REFUSED[k].message.includes(word)) fail(`the server door no longer refuses ${k} with ${name}`);
+}
+if (!EDITS[0].to.includes('allowInsecureHttp') || !EDITS[1].from.includes('maxCostUsd') || !EDITS[1].to.includes('idempotencyKey')) fail('lines 3 and 6 no longer differ by what the server door refuses');
 
 // the engine's own report lines, verbatim: the file, the plan, the gates
 // that decide here, and its last word
@@ -183,7 +206,6 @@ function classify(tokens) {
 // the Nika blue canon: no violet
 const TS = { keyword: '#86A8FF', type: C.ice, call: C.cyan, prop: '#B3C5DD', name: C.ink, string: '#E8C79B', number: '#E8C79B', punct: '#7C90B0', comment: C.dim, ws: C.ink };
 const spansOf = src => classify(lex(src)).map(tk => ({ s: tk.s, c: TS[tk.kind] }));
-const spanLen = spans => spans.reduce((s, sp) => s + sp.s.length, 0);
 // characters [a, b) of a line of spans
 const slice = (spans, a, b = Infinity) => {
   const out = [];
@@ -206,9 +228,52 @@ const REMOTE = { x: 1200, y: 762, w: 656, h: 218 };
 const GUTTER = 56;
 const codeX = CODE.x + GUTTER;
 const CODE_MAX = Math.floor((CODE.w - GUTTER - 20) / ADV);
-const rowY = i => CODE.y + 44 + 32 + i * 31;
-const rowOfLine = ln => ROWS.indexOf(ln);
-if (REMOTE_CTOR.length > CODE_MAX) fail('the remote constructor does not fit its line');
+// A line wider than the card wraps at a space, its continuation indented, as
+// an editor with word wrap shows it: each row is the characters [a, b) of
+// the line, and only where it breaks changes.
+const WRAP_INDENT = 2;
+const wrapRanges = s => {
+  const out = [];
+  let start = 0, width = CODE_MAX;
+  while (s.length - start > width) {
+    let cut = s.lastIndexOf(' ', start + width);
+    if (cut <= start) cut = start + width;
+    out.push([start, cut]);
+    start = cut;
+    while (s[start] === ' ') start++;
+    width = CODE_MAX - WRAP_INDENT;
+  }
+  out.push([start, s.length]);
+  return out;
+};
+// An edited line keeps the rows its local form wraps to while its options
+// change, so the options stay in place on its last row.
+const editOf = ln => EDITS.find(e => e.ln === ln);
+const rangesOf = (ln, src) => {
+  const rows = wrapRanges(demo[ln - 1]);
+  if (!editOf(ln)) return rows;
+  return rows.map(([a, b], r) => [a, r === rows.length - 1 ? src.length : b]);
+};
+for (const e of EDITS) {
+  const [lr, rr] = [wrapRanges(e.local), wrapRanges(e.remote)];
+  if (!same(lr.map(r => r[0]), rr.map(r => r[0]))) fail(`line ${e.ln}: the two doors break it on different rows`);
+  if (e.head.length < lr[lr.length - 1][0]) fail(`line ${e.ln}: its options are not on its last row`);
+}
+// where an edited line's options sit: their row and column
+const argAt = (e, ranges) => {
+  const r = ranges.findLastIndex(([a]) => a <= e.head.length);
+  return { row: r, col: (r ? WRAP_INDENT : 0) + e.head.length - ranges[r][0] };
+};
+const ROW_H = 27;
+const rowY = i => CODE.y + 44 + 28 + i * ROW_H;
+// the first row of each line shown, and how many rows they take
+const ROW_START = new Map();
+let ROW_COUNT = 0;
+for (const ln of ROWS) {
+  ROW_START.set(ln, ROW_COUNT);
+  ROW_COUNT += wrapRanges(demo[ln - 1]).length;
+}
+if (rowY(ROW_COUNT - 1) + 7 > CODE.y + CODE.h - 12) fail('the quick start no longer fits its card');
 // the package between the app and the doors: a glass column, one junction
 const COL = { cx: (CODE.x + CODE.w + LOCAL.x) / 2, top: 300, bottom: 980, half: 44 };
 const J = { x: COL.cx, y: (CODE.y + CODE.h + CONSOLE.y) / 2 };
@@ -293,8 +358,8 @@ const answerTrip = (door, to) => measured([...rev(BRANCH[door]), ...rev(appSide(
 const token = (ln, s) => {
   const col = demo[ln - 1].indexOf(s);
   if (col < 0) fail(`line ${ln} lost ${s}`);
-  if (col + s.length > CODE_MAX) fail(`line ${ln}: ${s} is cut by the card`);
-  return { ln, col, len: s.length, x: codeX + (col + s.length / 2) * ADV, y: rowY(rowOfLine(ln)) - 5 };
+  if (col + s.length > wrapRanges(demo[ln - 1])[0][1]) fail(`line ${ln}: ${s} is not on its first row`);
+  return { ln, col, len: s.length, x: codeX + (col + s.length / 2) * ADV, y: rowY(ROW_START.get(ln)) - 5 };
 };
 const TOK = {
   client: token(L.client, 'nika'),
@@ -391,7 +456,7 @@ function title(R, t, a) {
 const CAPTION = { x: 64, y: 206, st: { f: 'Geist 500', size: 24, tracking: -0.2 } };
 const CAPTIONS = [
   [0.9, 3.3, 'One client. Two doors.'],
-  [3.5, 6.2, 'Only the constructor changes.'],
+  [3.5, 6.2, 'Same methods, other options.'],
   [6.4, 9.95, 'Checked first: a refused file throws, and no run exists.'],
   [10.15, 13.85, 'One vocabulary for events. The transport decides how many.'],
   [14.05, 17.15, 'The engine keeps a hash-chained record and seals it.'],
@@ -455,71 +520,90 @@ function doorTitle(R, ctor, sub, box, color, al) {
 }
 
 // ── the app: demo.mts, the README quick start ──────────────────────────
-// line 3 as it reads at t: the local constructor, edited into the remote
-// one and back (characters are erased and typed, never invented)
-function ctorAt(t) {
+// A line as it reads at t. Lines 3 and 6 are edited into the server door's
+// and back, line 6 just after line 3: only their options are erased and
+// typed (characters are erased and typed, never invented).
+function lineAt(ln, t) {
+  const e = editOf(ln);
+  if (!e) return { src: demo[ln - 1] };
+  const [go, back] = [T.m1 + e.lag, T.m2 + e.lag];
   const edit = (t0, from, to) => {
     if (t < t0) return { arg: from, editing: false };
-    const e = seg(t, t0, t0 + 0.3), ty = seg(t, t0 + 0.34, t0 + 0.34 + 0.02 * to.length);
-    if (e < 1) return { arg: from.slice(0, Math.round(from.length * (1 - e))), editing: true };
+    const k = seg(t, t0, t0 + 0.3), ty = seg(t, t0 + 0.34, t0 + 0.34 + 0.02 * to.length);
+    if (k < 1) return { arg: from.slice(0, Math.round(from.length * (1 - k))), editing: true };
     return { arg: to.slice(0, Math.round(to.length * ty)), editing: ty < 1 };
   };
-  const s = t < T.m2 ? edit(T.m1, ARG_LOCAL, ARG_REMOTE) : edit(T.m2, ARG_REMOTE, ARG_LOCAL);
-  return { src: CTOR_HEAD + s.arg + CTOR_TAIL, arg: s.arg, editing: s.editing, remote: t >= T.m1 + 0.3 && t < T.m2 + 0.3 };
+  const s = t < back ? edit(go, e.from, e.to) : edit(back, e.to, e.from);
+  return { src: e.head + s.arg + e.tail, arg: s.arg, editing: s.editing, remote: t >= go + 0.3 && t < back + 0.3, edit: e, go, back };
 }
 
 function editor(R, t, a) {
   const k = E.snap(seg(t, T.win, T.win + 0.5));
   panel(R, CODE, { title: 'demo.mts · the readme quick start', alpha: a, k });
   if (k < 1) return;
-  // a row lights while its call leaves, or its answer is read
+  // a line lights while its call leaves, its answer is read or its options change
   const hl = [
     { ln: L.client, t0: T.local - 0.1, t1: T.m2 + 0.9, c: C.ice },
+    { ln: L.run, t0: T.m1 + 0.05, t1: T.m2 + 1.05, c: C.ice },
     { ln: L.run, t0: T.hello - 0.3, t1: T.rrun + 0.7, c: C.ice },
     { ln: L.result, t0: T.resultAt - 0.05, t1: T.rresultAt + 1.0, c: C.cyan },
     { ln: L.verify, t0: T.tvHl, t1: T.rtv + 0.6, c: C.gold },
     { ln: L.verify, t0: T.proofAt - 0.05, t1: T.proofAt + 1.1, c: C.teal },
   ];
   ROWS.forEach((ln, i) => {
-    const y = rowY(i);
     const t0 = T.type0 + i * T.typeEvery;
     if (t < t0) return;
-    const ctor = ln === L.client ? ctorAt(t) : null;
-    const spans = spansOf(ctor ? ctor.src : demo[ln - 1]);
-    const n = Math.floor(spanLen(spans) * clamp((t - t0) / T.typeDur));
-    const typing = n < spanLen(spans);
+    const line = lineAt(ln, t);
+    const spans = spansOf(line.src);
+    const ranges = rangesOf(ln, line.src);
+    const r0 = ROW_START.get(ln);
+    const y = rowY(r0), yLast = rowY(r0 + ranges.length - 1);
+    const n = Math.floor(line.src.length * clamp((t - t0) / T.typeDur));
+    const typing = n < line.src.length;
     for (const h of hl) {
       if (h.ln !== ln || t < h.t0 || t > h.t1) continue;
       const hk = smooth(h.t0, h.t0 + 0.2, t) * (1 - smooth(h.t1 - 0.25, h.t1, t));
-      const c = ctor?.remote ? C.cyan : h.c;
-      rect(R, CODE.x + 6, y - 22, CODE.w - 12, 30, { fill: c, alpha: a * 0.1 * hk });
-      rect(R, CODE.x + 6, y - 22, 3, 30, { fill: c, alpha: a * hk, glow: 0.8 });
+      const c = line.remote ? C.cyan : h.c;
+      rect(R, CODE.x + 6, y - 20, CODE.w - 12, yLast - y + ROW_H, { fill: c, alpha: a * 0.1 * hk });
+      rect(R, CODE.x + 6, y - 20, 3, yLast - y + ROW_H, { fill: c, alpha: a * hk, glow: 0.8 });
     }
     text(R, String(ln), codeX - 16, y, { f: 'MM 400', size: CODE_ST.size - 2, color: C.dim, alpha: a * 0.85, align: 'right' });
-    mono(R, typing ? slice(spans, 0, n) : spans, codeX, y, { alpha: a, st: CODE_ST, max: CODE_MAX });
-    if (ctor && t >= T.m1 - 0.2 && t < T.m2 + 1.2) {
-      // the arguments are the only characters that change
-      const x0 = codeX + CTOR_HEAD.length * ADV - 3;
-      const w = Math.max(ADV, ctor.arg.length * ADV) + 6;
-      const on = smooth(T.m1 - 0.2, T.m1, t) * (1 - smooth(T.m2 + 0.8, T.m2 + 1.2, t));
-      const c = ctor.remote ? C.cyan : C.ice;
-      rrect(R, x0, y - 17, w, 23, 5, { color: c, w: 1.2, alpha: a * on * 0.9, fill: c, fillAlpha: 0.08, glow: 0.4 * on });
-      if (ctor.editing) {
+    // each row: its characters, as far as they are typed
+    ranges.forEach(([ra, rb], r) => {
+      if (r && n <= ra) return;
+      const ind = r ? WRAP_INDENT : 0;
+      mono(R, slice(spans, ra, Math.min(rb, n)), codeX + ind * ADV, rowY(r0 + r), { alpha: a, st: CODE_ST, max: CODE_MAX - ind });
+    });
+    const e = line.edit;
+    if (e && t >= line.go - 0.2 && t < line.back + 1.2) {
+      // the options are the only characters that change
+      const at = argAt(e, ranges);
+      const ya = rowY(r0 + at.row);
+      const x0 = codeX + at.col * ADV - 3;
+      const w = Math.max(ADV, line.arg.length * ADV) + 6;
+      const on = smooth(line.go - 0.2, line.go, t) * (1 - smooth(line.back + 0.8, line.back + 1.2, t));
+      const c = line.remote ? C.cyan : C.ice;
+      rrect(R, x0, ya - 17, w, 23, 5, { color: c, w: 1.2, alpha: a * on * 0.9, fill: c, fillAlpha: 0.08, glow: 0.4 * on });
+      if (line.editing) {
         const blink = Math.floor(t * 4) % 2 === 0 ? 1 : 0.35;
-        rect(R, x0 + 3 + ctor.arg.length * ADV + 1, y - 14, 2, 18, { fill: c, alpha: a * blink, glow: 0.8 });
+        rect(R, x0 + 3 + line.arg.length * ADV + 1, ya - 14, 2, 18, { fill: c, alpha: a * blink, glow: 0.8 });
       }
     }
-    // the token a packet leaves from, or lands on, lights up
+    // the token a packet leaves from, or lands on, lights up (on its first row)
     for (const mk of MARKS) {
       if (mk.tok.ln !== ln || t < mk.t0 || t > mk.t1 || typing) continue;
       const mk2 = smooth(mk.t0, mk.t0 + 0.15, t) * (1 - smooth(mk.t1 - 0.3, mk.t1, t));
       const x = codeX + mk.tok.col * ADV;
       rrect(R, x - 3, y - 16, mk.tok.len * ADV + 6, 22, 5, { fill: mk.color, fillAlpha: 0.16, color: mk.color, w: 1, alpha: a * mk2, glow: 0.5 * mk2 });
-      mono(R, [{ s: (ctor ? ctor.src : demo[ln - 1]).slice(mk.tok.col, mk.tok.col + mk.tok.len), c: mk.color, glow: 0.6 }], x, y, { alpha: a * mk2, st: CODE_ST });
+      mono(R, [{ s: line.src.slice(mk.tok.col, mk.tok.col + mk.tok.len), c: mk.color, glow: 0.6 }], x, y, { alpha: a * mk2, st: CODE_ST });
     }
     if (typing || (i === ROWS.length - 1 && t < t0 + T.typeDur + 0.5)) {
+      // the cursor: on the row the typing has reached
+      const m = typing ? n : line.src.length;
+      const r = Math.max(0, ranges.findLastIndex(([ra]) => ra < m || ra === 0));
+      const col = (r ? WRAP_INDENT : 0) + Math.min(m, ranges[r][1]) - ranges[r][0];
       const blink = Math.floor(t * 2.4) % 2 === 0 ? 1 : 0.3;
-      rect(R, codeX + Math.min(typing ? n : spanLen(spans), CODE_MAX) * ADV + 1, y - 14, 2, 18, { fill: C.ice, alpha: a * blink, glow: 0.8 });
+      rect(R, codeX + col * ADV + 1, rowY(r0 + r) - 14, 2, 18, { fill: C.ice, alpha: a * blink, glow: 0.8 });
     }
   });
 }

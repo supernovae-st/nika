@@ -53,6 +53,23 @@
   "code": "unauthorized",
   "operation": "listWorkflows"
  },
+ "refusals": {
+  "plainHttp": {
+   "refused": true,
+   "name": "NikaConfigurationError",
+   "message": "Plain HTTP requires allowInsecureHttp: true; prefer HTTPS for remote engines"
+  },
+  "maxCostUsd": {
+   "refused": true,
+   "name": "NikaCompatibilityError",
+   "message": "nika serve admission has no request envelope for vars, model, or maxCostUsd; literal workflow values ride inputs, and vars is the native --var operator channel"
+  },
+  "noKey": {
+   "refused": true,
+   "name": "NikaConfigurationError",
+   "message": "HTTP run() requires a caller-owned idempotencyKey; reuse the same key and request when retrying an uncertain admission"
+  }
+ },
  "health": {
   "service": "nika-serve",
   "status": "ok",

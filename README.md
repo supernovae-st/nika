@@ -374,20 +374,33 @@ console.log(proof.verified ? 'receipt verified' : `not verified: ${proof.reason}
 ```
 
 Save it as `demo.mts` (top-level `await` needs a module) and run
-`node demo.mts`: Node.js 22.18 or newer runs the TypeScript as is.
-`new Nika({ url, token })` reaches a `nika serve` instead of the bundled
-engine; only the constructor changes. The
+`node demo.mts`: Node.js 22.18 or newer runs the TypeScript as is. The
 [SDK quick start](https://docs.nika.sh/sdk/start/quickstart) gives the
-`hello.nika` this program runs, and
+`hello.nika` this program runs.
+
+To reach a `nika serve` instead of the bundled engine, keep the methods and
+change the options of two lines:
+
+```ts
+const nika = new Nika({ url, token, allowInsecureHttp: true });
+const run = await nika.run<{ greeting: string }>('hello.nika', { idempotencyKey });
+```
+
+`url` and `token` name the server and its bearer token. Plain `http://` is
+accepted only to a loopback host, and only with `allowInsecureHttp: true`.
+Over HTTP, `run()` needs an `idempotencyKey` you own (a retry with the same
+key returns the same job) and refuses `maxCostUsd`: the server applies its
+own per-run ceiling, USD 1 by default. `hello.nika` is then a served name,
+the workflow's path from the server's project root.
 [nika-client](https://github.com/supernovae-st/nika-client) documents the
 whole API.
 
 <p align="center">
   <a href="media/gifs/sdk-doors.optimized.gif">
-    <img src="media/gifs/sdk-doors.optimized.gif" alt="Animated diagram of the TypeScript SDK: in the quick start, new Nika() starts the engine bundled with @supernovae-st/nika 0.123.0 as a child process and new Nika({ url, token }) reaches nika serve; a refused list-files.nika gets NIKA-SEC-004 and run() throws, hello.nika runs, its events stream back to the app, its six hash-chained journal lines end in run_sealed, and traceVerify() answers verified locally and sealed from the server" width="860">
+    <img src="media/gifs/sdk-doors.optimized.gif" alt="Animated diagram of the TypeScript SDK: in the quick start, new Nika() starts the engine bundled with @supernovae-st/nika 0.123.0 as a child process; for nika serve, line 3 takes url, token and allowInsecureHttp, and line 6 takes an idempotencyKey in place of maxCostUsd. A refused list-files.nika gets NIKA-SEC-004 and run() throws, hello.nika runs, its events stream back to the app, its six hash-chained journal lines end in run_sealed, and traceVerify() answers verified locally and sealed from the server" width="860">
   </a>
 </p>
-<p align="center"><sub>Your app asks, the engine decides, the receipt proves it. Every code line, event, verdict, hash and version on screen was captured from <code>@supernovae-st/nika</code> 0.123.0, the engine it bundles and <code>nika serve</code> in a <code>mock/echo</code> rehearsal; the cards, lanes, packets and pacing are illustration.</sub></p>
+<p align="center"><sub>Your app asks, the engine decides, the receipt proves it. The code is the quick start above, which the capture ran, with lines 3 and 6 also shown as its server driver ran them against <code>nika serve</code>. Every event, verdict, hash and version on screen was captured from <code>@supernovae-st/nika</code> 0.123.0, the engine it bundles and <code>nika serve</code> in a <code>mock/echo</code> rehearsal; the cards, lanes, packets and pacing are illustration.</sub></p>
 
 ## Know the limits
 

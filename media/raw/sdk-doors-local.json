@@ -77,45 +77,45 @@
   ],
   "sealed": true,
   "chain_len": 6,
-  "chain_head": "4ae80300b5028f746746f259f8631331ce0230423f34fefe4e7d3790d31e7ce2",
-  "trace": ".nika/traces/2026-10-24T11-14-56Z-a73e.ndjson"
+  "chain_head": "3f960c75aa1a07f00815870c8d6046dd63b9ca5a9d7091e0ab3000d150be0cd9",
+  "trace": ".nika/traces/2026-10-24T16-42-23Z-89f2.ndjson"
  },
  "verify": {
   "verified": true,
   "verdict": "verified",
   "reason": null,
-  "first": "OK — 6 events · chain intact · head 4ae80300b5028f746746f259f8631331ce0230423f34fefe4e7d3790d31e7ce2"
+  "first": "OK — 6 events · chain intact · head 3f960c75aa1a07f00815870c8d6046dd63b9ca5a9d7091e0ab3000d150be0cd9"
  },
  "journal": [
   {
    "kind": "workflow_started",
    "chain": "7466341540fd02fca9ec21937862176b7821a52495b86d81bb5f30d16c8462dc",
-   "hash": "a8c5e1e59919f97b776cb8a101dc902f984bc4e500b872ef3c994f3958c30be3"
+   "hash": "2a67e39b9e64369f471e90dc46fc4659c72b8db4d302289f8d8f9f5b99df36af"
   },
   {
    "kind": "task_scheduled",
-   "chain": "a8c5e1e59919f97b776cb8a101dc902f984bc4e500b872ef3c994f3958c30be3",
-   "hash": "2d73da92908f191e346f411c407f36c23f3a62a5ce4006564b3690baadef6063"
+   "chain": "2a67e39b9e64369f471e90dc46fc4659c72b8db4d302289f8d8f9f5b99df36af",
+   "hash": "a355211c20c2b10420f6488b2e44eceb7686a2fa95ac2d3b0a5d1cba64e2f42a"
   },
   {
    "kind": "task_started",
-   "chain": "2d73da92908f191e346f411c407f36c23f3a62a5ce4006564b3690baadef6063",
-   "hash": "d1136d5c3ca3e290e1245391fd186f82c77c49ab2b102dfd5a21e3b73dc6fd5e"
+   "chain": "a355211c20c2b10420f6488b2e44eceb7686a2fa95ac2d3b0a5d1cba64e2f42a",
+   "hash": "b64fdc5926079847cee9a5563e2a6b1f7dcc4b2b5504539ca07f9bd7693d9c71"
   },
   {
    "kind": "task_completed",
-   "chain": "d1136d5c3ca3e290e1245391fd186f82c77c49ab2b102dfd5a21e3b73dc6fd5e",
-   "hash": "af8d08b92eb5730d37e9dbba97488467e9d34dc5dddb889d23a98758119603e8"
+   "chain": "b64fdc5926079847cee9a5563e2a6b1f7dcc4b2b5504539ca07f9bd7693d9c71",
+   "hash": "878939f07b0981b097642f5ae0aad00cf56e18b205542e3d4ddfbd19f4504188"
   },
   {
    "kind": "workflow_completed",
-   "chain": "af8d08b92eb5730d37e9dbba97488467e9d34dc5dddb889d23a98758119603e8",
-   "hash": "0b4ac5b536448c5b03558878a9004a2abffadf1f2433049d6164f02e824314d1"
+   "chain": "878939f07b0981b097642f5ae0aad00cf56e18b205542e3d4ddfbd19f4504188",
+   "hash": "82f17f2f220f7e0f47fcd85c5c82e72d2da198105a7f8738832fa1a7332af137"
   },
   {
    "kind": "run_sealed",
-   "chain": "0b4ac5b536448c5b03558878a9004a2abffadf1f2433049d6164f02e824314d1",
-   "hash": "4ae80300b5028f746746f259f8631331ce0230423f34fefe4e7d3790d31e7ce2"
+   "chain": "82f17f2f220f7e0f47fcd85c5c82e72d2da198105a7f8738832fa1a7332af137",
+   "hash": "3f960c75aa1a07f00815870c8d6046dd63b9ca5a9d7091e0ab3000d150be0cd9"
   }
  ],
  "tamper": {
@@ -127,6 +127,12 @@
   "verified": false,
   "verdict": "invalid",
   "reason": null,
-  "first": "BROKEN at line 5 — recorded chain af8d08b92eb5730d · computed 822fcf3374d514a9"
+  "first": "BROKEN at line 5 — recorded chain 878939f07b0981b0 · computed eec064b094c23685"
+ },
+ "demo": {
+  "stdout": [
+   "mock(echo) · Say hello from the Nika SDK.",
+   "receipt verified"
+  ]
  }
 }

@@ -176,9 +176,10 @@ camera.
   waves, the phrase-to-task mapping) says so on the clip's plate.
 - `sdk-doors` is captured on its own, by
   `node scripts/media/capture/sdk-doors.mjs`: it installs the published
-  `@supernovae-st/nika` from the npm registry in a scratch app, drives the
-  engine the package bundles (`new Nika()`) and a loopback `nika serve`
-  (`new Nika({ url, token })`) with the helpers in
+  `@supernovae-st/nika` from the npm registry in a scratch app, runs the
+  README's `demo.mts`, drives the engine the package bundles (`new Nika()`)
+  and a loopback `nika serve` (`new Nika({ url, token })`, with the options
+  the server door takes on lines 3 and 6) with the helpers in
   `scripts/media/capture/sdk-doors/`, and writes `media/raw/sdk-doors-*`.
   The clip refuses to render if a captured version, verdict, event kind,
   hash or refusal code changes. Its cards, the package column, the lanes,

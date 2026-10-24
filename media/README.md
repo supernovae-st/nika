@@ -70,7 +70,7 @@ film from captured output:
 | `editor-diagnostics` | what `nika lsp` publishes for any LSP client, fixed by one keystroke (the editor is an illustration) |
 | `workflow-gallery` | the jobs `nika try` lists |
 | `typescript-client` | a Node app running a checked workflow through `@supernovae-st/nika` 0.123.0 and the engine it bundles, its typed result, and the receipt the engine verifies |
-| `sdk-doors` | the TypeScript SDK's two doors: `new Nika()` starts the engine the package bundles and `new Nika({ url, token })` reaches a `nika serve`; the check that refuses a file before any run, the events, the sealed record and `traceVerify()` on both (the cards, lanes, packets and pacing are illustration) |
+| `sdk-doors` | the TypeScript SDK's two doors: `new Nika()` starts the engine the package bundles and `new Nika({ url, token })` reaches a `nika serve`, the same methods with other options on two lines (an `idempotencyKey` in place of `maxCostUsd`); the check that refuses a file before any run, the events, the sealed record and `traceVerify()` on both (the cards, lanes, packets and pacing are illustration) |
 
 Two clips show a local model run (`ollama/llama3.2:3b`) that is older than
 their check: `nika-hero` and `chat-to-workflow`. That run was captured with
@@ -96,9 +96,11 @@ How they are made and checked is in
   package's quick start from a built nika-client checkout
   (`NIKA_CLIENT_DIR`), on the engine that package bundles. The sdk-doors
   capture (`node scripts/media/capture/sdk-doors.mjs`) installs the
-  published `@supernovae-st/nika` from the npm registry in a scratch app and
-  drives both doors: the engine the package bundles, and a `nika serve` it
-  starts on loopback with a 0600 token file it never prints. The Session and
+  published `@supernovae-st/nika` from the npm registry in a scratch app,
+  runs the README's `demo.mts` and drives both doors: the engine the package
+  bundles, and a `nika serve` it starts on loopback with a 0600 token file it
+  never prints, where it also records what the server door refuses of the
+  quick start's own options. The Session and
   the approval gate are driven through a pseudo-terminal, as a person
   would type them.
 - **Every complete runnable workflow shown passes `nika check`**, except the
