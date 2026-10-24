@@ -4,7 +4,8 @@
 // runs `nika check`, repairs what the check refuses, checks again,
 // rehearses the run and leaves a file the person keeps.
 //
-// Real, and read here: the skill's name and its own one-line description
+// Real, and read here: the skill's name and the first sentence of its own
+// description, a parenthetical list elided as (…)
 // (.agents/plugins/nika/skills/nika-authoring/SKILL.md) and the clients
 // the kit names (.agents/plugins/nika/CHANGELOG.md); both versions of the
 // file (scripts/media/fixtures/release-notes-draft.nika, the draft, and
@@ -24,8 +25,9 @@ export const meta = { duration: 24.0, poster: 23.4 };
 // ── what the plugin says about itself ───────────────────────────────────
 const SKILL = readRepo('.agents/plugins/nika/skills/nika-authoring/SKILL.md');
 const SKILL_NAME = SKILL.match(/^name:\s*(\S+)\s*$/m)?.[1];
-// the description's first sentence, as the agent reads it when it picks a skill
-const SKILL_LINE = SKILL.match(/^description:\s*(.+?\.)(?:\s|$)/m)?.[1];
+// the description's first sentence, as the agent reads it when it picks a skill;
+// a parenthetical list is elided as (…), never reworded, so the card stays readable
+const SKILL_LINE = SKILL.match(/^description:\s*(.+?\.)(?:\s|$)/m)?.[1]?.replace(/\s*\([^)]*\)/u, ' (…)');
 const VERBS = ['Author,', 'check', 'repair'];
 if (SKILL_NAME !== 'nika-authoring' || !SKILL_LINE || !SKILL_LINE.startsWith('Author, check and repair ')) {
   throw new Error('the plugin kit no longer describes nika-authoring as the clip quotes it');

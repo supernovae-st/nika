@@ -3,8 +3,10 @@
 // The check is captured from the current binary under the same model the
 // run used (check never dials a server); the run is the committed
 // capture of a real local model (ollama/llama3.2:3b), which
-// capture-transcripts.sh keeps when no Ollama server is reachable. Its
-// action items are that run's real output (media/raw/action-items.json).
+// capture-transcripts.sh keeps when no Ollama server is reachable (or when
+// NIKA_MEDIA_LOCAL_RUN=keep). Its action items are that run's real output
+// (media/raw/action-items.json), and the plate names the release the run
+// was captured with (media/raw/run-meeting-version.txt).
 // The camera follows the reading: the audit down to its verdict, the run,
 // the file while the model task runs, then the items the run wrote.
 import { C, E, seg, smooth, repoLines, readRepo, NIKA_VERSION, codeCard, terminal, frame, headline, loopFade, panel, mono, cameraPath, frameBox, titleFade, WIDE } from './kit.mjs';
@@ -17,6 +19,9 @@ const check = repoLines('media/raw/check-meeting-ollama.txt');
 const run = repoLines('media/raw/run-meeting.txt');
 const items = JSON.parse(readRepo('media/raw/action-items.json'));
 const MODEL = (run.find(l => /infer ·/u.test(l)) || '').match(/infer · (\S+)/u)?.[1] ?? 'ollama/llama3.2:3b';
+// the release the committed run was captured with, never assumed to be the check's
+const RUN_VERSION = readRepo('media/raw/run-meeting-version.txt').trim().split(/\s+/)[1];
+if (!RUN_VERSION) throw new Error('media/raw/run-meeting-version.txt names no release');
 const at = (arr, re) => arr.findIndex(l => re.test(l));
 const lineOf = key => program.findIndex(l => l === `  ${key}:`) + 1;
 
@@ -62,7 +67,7 @@ export function env() {
 export function chrome(R, t) {
   const a = loopFade(t, meta.duration);
   const cam = camera(t);
-  frame(R, t, { kicker: 'nika check · nika run · the audit-then-run story', plate: `check: nika ${NIKA_VERSION} · run: a captured local model run (${MODEL})`, alpha: a, scrim: smooth(1, 1.12, cam.s) });
+  frame(R, t, { kicker: 'nika check · nika run · the audit-then-run story', plate: `check: nika ${NIKA_VERSION} · run: a local model run (${MODEL}) captured with nika ${RUN_VERSION}`, alpha: a, scrim: smooth(1, 1.12, cam.s) });
   headline({ ...R, fade: a * titleFade(cam) }, t, 0.2, meta.duration + 1, 'Audit first, then run.', 'EVERY TASK AUDITED · RUN LOCALLY · A HASH-CHAINED TRACE', { accent: 'then run.', accentColor: C.teal });
 }
 

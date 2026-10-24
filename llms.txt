@@ -1,34 +1,38 @@
 # Nika
 
-> Nika is the sovereign workflow engine for AI — 4 verbs (`infer · exec · invoke · agent`), AGPL-3.0-or-later, local-first, multi-provider. Workflows are `.nika` files carrying the nine-key envelope forever (`nika: <kebab-id>` opens every file · model · inputs · const · secrets · permits · run · tasks · outputs). People describe work to bare `nika` (the Session), which proposes such a file for review, or write the file directly; either way it is checked before it runs, saving never runs it, and each run leaves a trace. This repository is the "Diamond" rebuild: a layered Rust workspace (L0 primitives → L5 binary) where every crate passes a 12-gate admission protocol. This file is the agent on-ramp — read these in order, then dive into the specific layer you need.
-
-## Start here
-
-- [AGENTS.md](AGENTS.md): The cross-tool agent operating manual (Claude Code, Cursor, Aider, Codex). Hard rules, the 12-gate admission, tooling to run. Read this first.
-- [llms-install.md](llms-install.md): Installing the `nika` binary — the agent-lane runbook (package-manager paths only · verify · prove offline · wire MCP · uninstall clean).
-- [README.md](README.md): User-facing overview and current state.
-- [DIAMOND.md](DIAMOND.md): The Diamond rewrite philosophy — why an orphan-branch rebuild, CRAFT-not-extraction.
-- [ROADMAP.md](ROADMAP.md): The real-semver plan toward the 1.0 launch, the crate sequence (dep-ordered), the tag scheme. Run `bash scripts/refresh-status.sh` for the live canonical state (no volatile counts are hardcoded in docs).
+> Nika turns repeatable AI work into a `.nika` workflow file you keep: checked before it runs, run with the model you choose, proven afterwards. One Rust binary (`nika`, AGPL-3.0-or-later) with a terminal Session and a command line, plus a TypeScript SDK (`@supernovae-st/nika` on npm) for applications; the language specification is Apache-2.0. A workflow has four verbs (`infer · exec · invoke · agent`) and a nine-key envelope (`nika` · `model` · `inputs` · `const` · `secrets` · `permits` · `run` · `tasks` · `outputs`, in any order); `nika: <kebab-id>` names every file. People describe work to bare `nika` (the Session), which proposes such a file for review, or write the file directly; either way it is checked before it runs, saving never runs it, and each run leaves a hash-chained trace. 0.123 is the open-source reference release: it is maintained with security fixes, bug fixes and compatibility, with no major new development and no hosted service.
 
 ## Use Nika
 
+- [Documentation index](https://docs.nika.sh/llms.txt): docs.nika.sh, indexed for agents. The documentation describes the released 0.123.0.
+- [llms-install.md](llms-install.md): Installing the `nika` binary — the agent-lane runbook (package managers first, then a verified tarball · verify · prove offline · wire MCP · uninstall clean).
 - [README.md#try-it-in-two-minutes](README.md#try-it-in-two-minutes): Install, describe a first workflow in the Session with no AI account, set up a provider key, then compile · check · run · verify a file directly. Ends with the current limits.
-- [docs/usage/conversational-session.md](docs/usage/conversational-session.md): Bare `nika` on a terminal — describe · clarify · review · save (`yes`) · run (`run it`) · inspect (`/proof`). Provider keys come from the environment (DeepSeek example); the AI choice is kept in `~/.nika/session-intelligence.json`. Covers intelligence selection, `/restore`, knowledge provenance, the optional Jev decision model and downgrade limits. Distinguish current behavior from the 0.123 target.
-- [docs/qa/delivery-a-2026-09.md](docs/qa/delivery-a-2026-09.md): The bounded qualification of the conversational path: six synthetic journeys, one macOS installation, not a general reliability claim.
+- [docs/usage/conversational-session.md](docs/usage/conversational-session.md): Bare `nika` on a terminal — describe · clarify · review · save (`yes`) · run (`run it`) · inspect (`/proof`). Provider keys come from the environment (DeepSeek example); the AI choice is kept in `~/.nika/session-intelligence.json`. Covers intelligence selection, `/restore`, knowledge provenance, the optional Jev decision model and downgrade limits.
+- [TypeScript SDK quick start](https://docs.nika.sh/sdk/start/quickstart): run, stream and verify workflows from an application with `@supernovae-st/nika` 0.123.0, which bundles the engine of its own version.
+- [Known limits in 0.123](https://docs.nika.sh/changelog/known-limits): what this release does not do, in plain words, each with a way around it.
+- [docs/ops/README.md](docs/ops/README.md): `nika serve` — the resident schedule firer and the authenticated HTTP door, with its systemd unit and TLS proxy. [docs/ops/mcp-servers.md](docs/ops/mcp-servers.md): MCP servers a workflow invokes (declare · approve · confinement).
+- [docs/qa/delivery-a-2026-09.md](docs/qa/delivery-a-2026-09.md): A historical qualification of the conversational path on 0.120.3: six synthetic journeys, one macOS installation, not a general reliability claim.
 - [docs/architecture/session-history.md](docs/architecture/session-history.md): Where Session history lives, how reopening and recovery work, and their limits.
+
+## Contribute
+
+This repository is the "Diamond" rebuild: a layered Rust workspace (L0 primitives → L5 binary) where every crate passes a 12-gate admission protocol. Read these before changing the engine.
+
+- [AGENTS.md](AGENTS.md): The cross-tool agent operating manual for contributors (Claude Code, Cursor, Aider, Codex). Hard rules, the 12-gate admission, tooling to run.
+- [CONTRIBUTING.md](CONTRIBUTING.md): What is in scope after 0.123 (security fixes, bug fixes, compatibility, documentation), the admission flow and the DCO sign-off.
+- [DIAMOND.md](DIAMOND.md): The Diamond rewrite philosophy — why an orphan-branch rebuild, CRAFT-not-extraction.
+- [ROADMAP.md](ROADMAP.md): How the engine was built. After 0.123 the project is maintained (security fixes, bug fixes, compatibility); its forward items are not commitments. Run `bash scripts/refresh-status.sh` for the live canonical state (no volatile counts are hardcoded in docs).
 
 ## Architecture (the non-negotiables)
 
-- [docs/architecture/ARCHITECTURE-0.123.md](docs/architecture/ARCHITECTURE-0.123.md): Accepted cooperative intent direction, amended 6 October 2026. Target responsibilities, evidence, repair and migration acceptance; not a claim that the current runtime already implements or qualifies them.
-
+- [docs/architecture/ARCHITECTURE-0.123.md](docs/architecture/ARCHITECTURE-0.123.md): The cooperative intent direction 0.123 converged toward, amended 6 October 2026. Target responsibilities, evidence, repair and migration acceptance; not a claim that the released runtime implements or qualifies all of them.
 - [docs/architecture/forward-compat-invariants.md](docs/architecture/forward-compat-invariants.md): 8 patterns + 10 rules. Gate 12. Public API is protected; only strictly-additive changes pass.
 - [docs/architecture/crate-layer-registry.md](docs/architecture/crate-layer-registry.md): L0→L4 layer discipline, allowed I/O axes, strict downward dependencies.
-- [docs/architecture/BLUEPRINT_2036.md](docs/architecture/BLUEPRINT_2036.md): A proposal, not a ratified contract — the crate ladder (cap 100), the collapse-vs-publish principle, the 10-year horizon, SOTA angles.
-- [docs/architecture/VISION_2040_intelligence-layer.md](docs/architecture/VISION_2040_intelligence-layer.md): Non-binding direction — the intelligence layer: LSP, the workflow generator, agent-comprehension, the Connectome memory organism, Nika-OS.
+- [docs/architecture/BLUEPRINT_2036.md](docs/architecture/BLUEPRINT_2036.md): Historical direction, never ratified (a proposal): the crate ladder (cap 100), the collapse-vs-publish principle and the long horizon it once described. Not planned work.
+- [docs/architecture/VISION_2040_intelligence-layer.md](docs/architecture/VISION_2040_intelligence-layer.md): Historical, non-binding direction — the intelligence layer it imagined (LSP, the workflow generator, agent-comprehension, memory, Nika-OS). Not planned work.
 
 ## How to work in this repo
 
-- [CONTRIBUTING.md](CONTRIBUTING.md): How to contribute, the admission flow.
 - [.claude/rules/diamond-discipline.md](.claude/rules/diamond-discipline.md): The hard rules — read-only `brouillon`, 0 unwrap/expect in `src/`, ≤2,500 LOC/file, `#[non_exhaustive]` error enums, every I/O behind a kernel trait.
 - [.claude/rules/commit-granularity.md](.claude/rules/commit-granularity.md): Atomic commits, the mandatory admission commit-body format, `Co-Authored-By: Nika 🦋` (never "Claude").
 - [docs/adr/adr-003-12-gate-admission.md](docs/adr/adr-003-12-gate-admission.md): The 12-gate crate admission protocol.

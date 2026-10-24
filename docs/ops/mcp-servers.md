@@ -66,7 +66,7 @@ tool is otherwise a drift refusal at run.
 
 | Situation | Refusal | Where |
 |---|---|---|
-| server not in the registry | `NIKA-INVOKE-001` · names the registry + the approve step | check, then run |
+| server not in the registry | `NIKA-INVOKE-001` · names the registry (declare the server; once it is declared, the check hints `nika mcp approve <server>`) | check, then run |
 | server declared, never approved | `NIKA-MCP-006` · `nika mcp approve <server>` | run, **before any spawn** |
 | tool not in the approved pin set | `NIKA-MCP-006` · lists the pinned names | run, before any spawn |
 | live `tools/list` differs from the pins | `NIKA-MCP-003` · the drift diff | run, after the handshake, before any call |
@@ -135,6 +135,9 @@ out-of-tree cache writable.
 ## Related
 
 - `nika explain NIKA-MCP-001` · `NIKA-MCP-002` — the two spec-registered
-  codes; `003`–`006` are the pin family's own (their text names the fix).
+  codes; `003`–`006` are the pin family's own, and their refusal text names
+  the fix. In 0.123.0 a failed run still prints `fix: nika explain
+  NIKA-MCP-003` (or `006`), which `nika explain` does not know: follow the
+  remedy the refusal names (`nika mcp approve <server>`).
 - `docs/crate-specs/nika-mcp.md` — the crate contract (client · session ·
   pin · dispatch).

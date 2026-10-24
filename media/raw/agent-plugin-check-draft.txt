@@ -5,7 +5,7 @@ nika check · release-notes.nika
       wave 3 save (invoke · nika:write)
  ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping) · this machine's paths on the ACCESS line
  ✔ ACCESS   ollama/llama3.2:3b → ollama (local · local · declared) · present · liveness judged at run
- ⚠  COST     bounded portion $0.0000 no total ceiling · 1 unpriced task · prompts, exec + mcp unpriced · prices 2026-09-23
+ ⚠  COST     bounded portion $0.0000 no total ceiling · 1 unpriced task · prompts, exec + mcp unpriced · prices 2026-10-12
    notes  ollama/llama3.2:3b  UNBOUNDED — no catalog price (local model; spend not metered)
  ○ ENERGY   unpriced — no sourced Wh figure for any task model · a local model draws your watts · never 0 Wh (NEP-0018)
  ✔ SECRETS  no declared secret reaches an effect · model echo untracked

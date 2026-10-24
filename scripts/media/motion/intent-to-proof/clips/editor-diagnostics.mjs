@@ -55,7 +55,7 @@ export function env() {
 export function chrome(R, t) {
   const a = loopFade(t, meta.duration);
   const cam = camera(t);
-  frame(R, t, { kicker: 'nika lsp · the editor extension', plate: `diagnostics: nika lsp ${NIKA_VERSION} on the broken and fixed fixtures · editor: illustration`, alpha: a, scrim: smooth(1, 1.12, cam.s) });
+  frame(R, t, { kicker: 'nika lsp · the language server, in any editor', plate: `diagnostics: nika lsp ${NIKA_VERSION} on the broken and fixed fixtures · editor: illustration`, alpha: a, scrim: smooth(1, 1.12, cam.s) });
   headline({ ...R, fade: a * titleFade(cam) }, t, 0.2, meta.duration + 1, 'The audit, as you type.', 'THE SAME CHECKS IN THE EDITOR · FROM THE LANGUAGE SERVER · BEFORE A RUN', { accent: 'as you type.', accentColor: C.teal });
 }
 

@@ -40,17 +40,22 @@ nika check --color never --model "$MODEL" "$FIX/meeting-actions.nika" \
   >"$RAW/check-meeting-ollama.txt" 2>&1
 
 # The run transcript uses a REAL local model. Only refresh when an Ollama
-# server is reachable — otherwise keep the committed snapshot.
-if curl -s --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1; then
+# server is reachable and NIKA_MEDIA_LOCAL_RUN is not `keep` (a machine where
+# local inference is not wanted) — otherwise keep the committed snapshot.
+# run-meeting-version.txt names the release that snapshot was captured with,
+# and the clips that show the run name it on their plate.
+if [ "${NIKA_MEDIA_LOCAL_RUN:-}" != keep ] \
+  && curl -s --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1; then
   curl -s http://localhost:11434/api/generate \
     -d '{"model":"llama3.2:3b","prompt":"warm","stream":false}' >/dev/null || true
   rm -f action-items.json
   nika run --no-progress --color never --model "$MODEL" \
     "$FIX/meeting-actions.nika" >"$RAW/run-meeting.txt" 2>&1
+  nika --version >"$RAW/run-meeting-version.txt"
   cp action-items.json "$RAW/action-items.json"
   rm -f action-items.json
 else
-  echo "ollama unreachable — keeping committed run-meeting.txt snapshot" >&2
+  echo "keeping the committed run-meeting.txt snapshot (ollama unreachable or NIKA_MEDIA_LOCAL_RUN=keep)" >&2
 fi
 
 # ── dag-execution ───────────────────────────────────────────────────────

@@ -14,11 +14,11 @@ leave records you can inspect.
 | Run | `run it` | The saved workflow runs once, under an announced ceiling |
 | Inspect | `/proof`, `/details` | What the run produced and recorded, and how the workflow was built |
 
-This guide describes the engine in this repository. An installed release older
-than this source does not have every feature described here: compare
-`nika --version` with the [changelog](../../CHANGELOG.md). What this source
-carries beyond the latest release is described one file per change in
-[`changelog.d/`](../../changelog.d/).
+This guide describes the released 0.123.0, the open-source reference release.
+Fixes merged after it are described one file per change in
+[`changelog.d/`](../../changelog.d/) until the next maintenance release; an
+older installed release does not have every feature described here, so
+compare `nika --version` with the [changelog](../../CHANGELOG.md).
 
 ## Before you start
 
@@ -97,8 +97,8 @@ Check a provider's data policy before you send it private material.
 
 ### Other choices
 
-- Other API providers work the same way. `nika doctor` names the variable each
-  provider reads.
+- Other API providers work the same way. `nika catalog` (or
+  `nika doctor --verbose`) names the variable each provider reads.
 - A local engine (`3`, for example `3 ollama/<model>`) keeps inference on your
   machine. Nika does not price local computation: it is unpriced, not free.
 - Signed-in apps (`1`) can answer questions when Nika can attest them. Writing
@@ -162,19 +162,23 @@ expression you can read and change:
 expression: '[.records[] | select(.status == "paid")]'
 ```
 
-Type `yes`. Nika writes exactly the reviewed bytes, checks the file on disk and
-stops there:
+Type `yes`. Nika judges the sources again, writes exactly the reviewed bytes,
+checks the file on disk and stops there:
 
 ```text
 applied · wrote `compiled-workflow.nika`
+  sources judged again before writing: 1 recorded fact(s) of `./data/orders.csv` hold (rows added, removed or reordered never move them)
   check · `compiled-workflow.nika` · clean ✔
+    · 1 hint to improve it · `nika check compiled-workflow.nika` prints it
 Saved · checked · not active · nothing has run
   say « run it » to run it once (a ceiling is announced first)
+  from a terminal: `nika run compiled-workflow.nika`
 ```
 
 Type `run it`:
 
 ```text
+check · `compiled-workflow.nika` · clean ✔ · ceiling $0.25 (the Session's default)
 running `compiled-workflow.nika` once · ceiling $0.25
 …
   produced · ./out/paid.csv (92 B)
@@ -343,17 +347,30 @@ it recorded, and the path of its trace.
   and says whether the run was signed. It checks the record, not whether an AI
   answer is true.
 
+Runs stay unsigned until this machine has a run-signing key. Run
+`nika key init` once; later runs are sealed, and `/proof` and
+`nika trace verify` report `SEALED`. On an unsigned run, 0.123.0 suggests
+`nika sign`, which signs workflow files, not runs: `nika key init` is the step
+that seals them. On macOS a key minted from a terminal goes to the keychain,
+which only terminal runs open; `nika key align` copies it to `~/.nika/keys`
+for scripts, the TypeScript SDK and `nika serve`.
+
 | Where | What |
 |---|---|
 | `<project>/<name>.nika` | the saved workflow |
 | `<project>/.nika/traces/` | run traces |
 | `<project>/.nika/session-state.json` | the Session's record for this project |
 | `<project>/.nika/consents.ndjson` | which files each `yes` wrote |
+| `<project>/.nika/saved-money.ndjson` | the Run ceiling agreed when each file was saved, with the request it came from |
 | `~/.nika/sessions/<project-digest>/` | the conversation history ([details](../architecture/session-history.md)) |
 | `~/.nika/session-intelligence.json` | your AI choice |
 
-Traces and history can contain data the workflow read. Keep them out of version
-control unless you intend to publish them.
+Traces, these records and history can contain data the workflow read and the
+words of your requests. The Session does not edit `.gitignore`: add
+`.nika/traces/`, `.nika/*.ndjson` and `.nika/session-state.json` before you
+commit, unless you intend to publish them. After a run, the Session reminds
+you when traces are not ignored; `nika compile` and `nika init` add the
+`.nika/traces/` line themselves.
 
 ## Close and come back
 
@@ -400,22 +417,32 @@ the selected operation; an unavailable service is reported without fabricating a
 result. The lower-level bounded embedding APIs retain their explicitly selected
 contracts; they do not describe the interactive preparation defaults.
 
-**Run provider limits in 0.121.0.** A price shown in the model catalog is not
-enough to admit an OpenAI-compatible API route automatically. The qualified
-DeepSeek direct route is admitted. Other routes, including default OpenAI and
-Mistral endpoints, require a fresh Run cost review if their exact route and
-model are not admitted. Scripts and CI invocations without a review channel
+**Run provider limits in 0.123.** A price shown in the model catalog is not
+enough to admit an OpenAI-compatible API route automatically: the release's
+admission table names each exact route and model it admits. In 0.123.0 that is
+DeepSeek's direct API (`deepseek-v4-pro` and `deepseek-flash`); OpenAI's direct
+API from GPT-4o mini to GPT-6 (GPT-4o mini, GPT-5 mini, GPT-5.2, GPT-5.5,
+GPT-5.6 Sol, GPT-6 Astra, GPT-6 Sol, GPT-6.1 Sol and GPT-6 Luna); xAI's grok-4.7
+and grok-4.3, settled at the charge each reply reports; and six OpenRouter
+routes, five paid (GLM 5.3 Flash, MiMo V2.6 Flash, Step 5 Preview, HY4 Preview
+and GPT-6 Luna) and one declared free
+(`nvidia/nemotron-3-super-120b-a12b:free`). Any other OpenAI-compatible route
+requires a fresh Run cost review: the default Mistral endpoint, for example,
+or Scaleway's `gpt-oss-120b`, whose table row is priced in euros and never
+becomes a dollar allowance. Scripts and CI invocations without a review channel
 refuse before dispatch. The production Serve backend also refuses those routes:
 HTTP jobs are queued normally, then settle as `failed` / `admission_refused`
-before any model or tool effect. Resident schedule fires use the same gate. The terminal Session and interactive local
-`nika run` can ask for this choice; an explicit `--cost-review-stdio` host must
-implement the review exchange. A workflow's saved ceiling is not that choice.
+before any model or tool effect. Resident schedule fires use the same gate. The
+terminal Session and interactive local `nika run` can ask for this choice; an
+explicit `--cost-review-stdio` host must implement the review exchange. A
+workflow's saved ceiling is not that choice.
 
 Unknown-price review is limited to bounded HTTPS OpenAI-compatible text calls.
 HTTP API overrides and native Anthropic/Gemini gateway overrides refuse even
-interactively. Catalog-priced native models at their default endpoints and
-explicit local-provider lanes follow separate admission rules. These limits
-apply to Run, independently of which provider authored the workflow.
+interactively. A native Anthropic or Gemini model the catalog prices is
+admitted at its default endpoint by that price, and explicit local-provider
+lanes follow their own admission rules. These limits apply to Run,
+independently of which provider authored the workflow.
 
 ## Optional operator settings
 
@@ -429,15 +456,26 @@ startup file as your key. The walkthroughs above need none of them.
 | `NIKA_KNOWLEDGE_EXCLUDE` | A corpus whose examples are never recalled from the selected release, including the embedded default |
 | `NIKA_SESSION_DECISION_MODEL` | An optional decision model; only `typesafe/<model>` (Jev) is supported, with `TYPESAFE_API_KEY` |
 
-**Knowledge releases.** By default, the Session admits the release embedded in
-its binary against the build's trusted identity and pins it when it opens.
-`/status` names that identity and its embedded origin. The release contains three
-blocks linked to three patterns. Matching words in an intention select patterns
-and their blocks as reference material; an intention with no lexical match adds
-none. The release contains no examples or repair principles. The record
-distinguishes composed references from those presented in an authoring
-instruction; neither proves a better result.
-Deterministic authoring does not present knowledge to a model.
+**Knowledge releases.** By default, the Session admits the knowledge release
+embedded in its binary against the build's trusted identity and pins it when it
+opens; in 0.123.0 that is the r3.5 Foundry release
+(`knowledge-0.123.0-r3.5-foundry-20261016`). `/status` names that identity and
+its embedded origin. The release holds workflow blocks, patterns grouped in packs
+and families, examples and skills for recurring jobs; it holds no repair
+principles. The informative words of an intention recall rows from it, and a
+recalled family brings its packs' patterns and blocks. A row that shares only a
+common word such as « the » is not recalled, and an intention with no match adds
+none. A recalled row is presented whole when the pack fits one authoring
+request. Past that capacity (1 MiB, less an eighth kept for the rounds that
+follow), the rows that come last in their kind's order are shown by their first
+line, each saying so, and the record keeps the whole entry's size and digest.
+With a decision model selected, each recalled reference is first put to it
+against the whole request: one it finds unrelated never reaches the author, and
+one it cannot judge stays shown as a hypothesis. Without a decision model, the
+recall is shown unqualified and the record says so. The record distinguishes
+composed references from those presented in an authoring instruction; neither
+proves a better result. Deterministic authoring does not present knowledge to a
+model.
 
 `NIKA_KNOWLEDGE=off` disables knowledge. With authoring strategy `off` and no
 source named, the choice is unread and composes nothing; naming a source under
@@ -475,22 +513,25 @@ evidence once it doubts the workflow. Records retain paths, sizes and digests ra
 duplicating the texts. This preparation does not start the workflow's live Run; its
 `.nika` execution rules remain separate.
 
-The current adapter does not perform Foundry retrieval. Cooperative knowledge
-search and qualification are part of the accepted
-[0.123 target](../architecture/ARCHITECTURE-0.123.md), still requiring implementation
-and qualification. Jev does not write workflows or grant execution authority.
-TypeSafe is a third-party service with its own account and terms.
+Jev does not search the knowledge release itself: it judges the references the
+recall found, as described under Knowledge releases. It does not write workflows
+or grant execution authority. TypeSafe is a third-party service with its own
+account and terms.
 
 ## Limits
 
-- Nika is pre-1.0. The conversational path was qualified on six synthetic
-  journeys with one installed macOS build, recorded in the
+- 0.123 is the open-source reference release. It is maintained with security
+  fixes, bug fixes and compatibility; no major new development is planned. Its
+  known limits are listed in plain words, each with a way around it:
+  [Known limits in 0.123](https://docs.nika.sh/changelog/known-limits).
+- A historical qualification of 0.120.3 covered six synthetic journeys with
+  one installed macOS build, recorded in the
   [qualification note](../qa/delivery-a-2026-09.md). That installation also
-  used a knowledge snapshot and Jev; this historical note does not qualify the
-  current embedded knowledge release. It does not establish correctness for
+  used a knowledge snapshot and Jev; the note does not qualify the current
+  embedded knowledge release, and it does not establish correctness for
   arbitrary requests, platforms or providers.
-- Some requests cannot be expressed yet. Nika then says what stopped it and
-  what could help, and writes nothing.
+- Some requests cannot be expressed. Nika then says what stopped it and what
+  could help, and writes nothing.
 - A clean check describes the file's structure and boundary. It does not prove
   that the workflow does what you meant or that model output is true. Review
   each proposal, and compare model-written text with its sources.

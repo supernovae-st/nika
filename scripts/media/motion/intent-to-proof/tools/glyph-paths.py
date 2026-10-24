@@ -5,6 +5,7 @@ extreme zoom are drawn from their outlines as vector paths instead.
 Usage: python3 tools/glyph-paths.py <font.ttf> <chars> <out.json>
 """
 import json
+import os
 import sys
 from fontTools.ttLib import TTFont
 from fontTools.pens.svgPathPen import SVGPathPen
@@ -21,6 +22,8 @@ for ch in sorted(set(chars)):
     pen = SVGPathPen(gs)
     gs[name].draw(pen)
     data["glyphs"][ch] = {"d": pen.getCommands(), "adv": gs[name].width}
+# a fresh checkout has no .cache/glyphs yet: `npm run fonts` must not need one
+os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
 with open(out, "w") as fh:
     json.dump(data, fh)
 print(out, len(data["glyphs"]), "glyphs")

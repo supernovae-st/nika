@@ -178,7 +178,7 @@ printf '%s\n' "$findings" | head -c 2000 >&2
 if [ "$kind" = project ]; then
   printf '\nre-check with the same oracle this hook used (activate a beat only once it reads READY):\n  cd %s && %s check nika.yaml && %s arm --json\n' \
     "$project_dir" "$oracle" "$oracle" >&2
-  printf 'the beat, its zone and its activation: https://docs.nika.sh/guides/projects-and-schedules\n' >&2
+  printf 'the beat, its zone and its activation: https://docs.nika.sh/reference/arm\n' >&2
 else
   printf '\nre-check with the same oracle this hook used:\n  %s check --native-strict %s\n' "$oracle" "$file" >&2
 fi

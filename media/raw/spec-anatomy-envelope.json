@@ -7,11 +7,11 @@
  "keys": [
   {
    "key": "nika",
-   "description": "The file's NAME · kebab-case · and the mark that says « this is a nika file ». One word, one meaning across both document types: `nika.yaml` carries the PROJECT name, a `*.nika` carries the WORKFLOW name. The document TYPE is read from `tasks:` — present means workflow, absent means project — so it survives a blob, a paste or an HTTP body where the filename does not travel. This key held the literal `v1` until the envelope nuke; it carried zero bits as a version (there is no `nika: v2` — ever) and now carries the file's most necessary field instead."
+   "description": "The file's NAME · kebab-case · and the mark that says « this is a nika file ». One word, one meaning across both document types: `nika.yaml` carries the PROJECT name, a `*.nika` carries the WORKFLOW name. The document TYPE is read from `tasks:` — present means workflow, absent means project — so it survives a blob, a paste or an HTTP body where the filename does not travel. This key held the literal `v1` until the envelope nuke; it carried zero bits as a version (there is no `nika: v2` — ever) and now carries the file's most necessary field instead. A retired version tag (`v1`, `v2`, …) is refused here as in the project file: the name is a word, never a version (NIKA-PARSE-003)."
   },
   {
    "key": "model",
-   "description": "Default model · `<provider>/<name>` (e.g. ollama/qwen3.5:9b · anthropic/claude-sonnet-4-6 · mock/echo)."
+   "description": "Default model · `<provider>/<name>` (e.g. ollama/qwen3.5:9b · anthropic/claude-sonnet-4-6 · mock/echo). Names WHICH model answers; how the run reaches it and the native effort it asks for are `run.access` and `run.reasoning` (spec/01-envelope.md §run)."
   },
   {
    "key": "inputs",
@@ -23,7 +23,7 @@
   },
   {
    "key": "secrets",
-   "description": "Vault-backed masked references · `${{ secrets.X }}` · never inline literals."
+   "description": "Masked references to a store · `${{ secrets.X }}` · never inline literals. The sources are `env` and `file`; `vault` is withdrawn until an engine resolves it (spec/01-envelope.md §secrets)."
   },
   {
    "key": "permits",
@@ -31,7 +31,7 @@
   },
   {
    "key": "run",
-   "description": "The run's entropy and clock declaration · every source of randomness and of time is declared, never ambient. The two dimensions couple: only `ambient × system` (the status quo) and `none | seeded × virtual` (the deterministic states) are legal, and a declared contradiction refuses at parse (NEP-0010)."
+   "description": "The run's declarations · entropy and clock: every source of randomness and of time is declared, never ambient. The two dimensions couple: only `ambient × system` (the status quo) and `none | seeded × virtual` (the deterministic states) are legal, and a declared contradiction refuses at parse (NEP-0010). Plus the access route and the native reasoning effort that serve every `infer:`/`agent:` task of the run (spec/01-envelope.md §run). Each key is optional; an absent key leaves its dimension exactly as it was."
   },
   {
    "key": "tasks",

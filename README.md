@@ -7,7 +7,7 @@
   </a>
 </p>
 
-<h1 align="center">Say what you want done.<br>Keep it as a file.</h1>
+<h1 align="center">Say it once.<br>Keep it as a file.</h1>
 
 <p align="center">
   <b>Checked before it runs. Run with the model you choose. Proven afterwards.</b><br>
@@ -31,15 +31,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/intent-to-proof.mp4">
-    <img src="media/gifs/intent-to-proof.optimized.gif" alt="A typed request becomes six obligations; Rust proves the plan and asks for the one unknown; a person approves the exact revision; the €228.00 result returns with a verified receipt" width="960">
+  <a href="media/gifs/first-session.optimized.gif">
+    <img src="media/gifs/first-session.optimized.gif" alt="Nika's Session in four moments: a sentence typed in plain words, a checked workflow file saved only after yes, one run under a $0.25 ceiling that keeps the two paid rows, and /proof with its chain, permit checks and what it does not prove" width="960">
   </a>
 </p>
 <p align="center"><sub>
-  “Read my invoices. Ignore rejected ones. Sum by customer. Pay only after I approve.”<br>
-  ▶ <a href="https://github.com/supernovae-st/nika/raw/refs/heads/main/media/videos/intent-to-proof.mp4">The 30-second film, with sound (MP4)</a> ·
-  an illustration with fixture data, not a recording: the program it draws passes the real check, and the
-  <a href="scripts/media/motion/intent-to-proof/README.md">film notes</a> say what is real and what is illustrated.
+  “Read ./data/orders.csv, keep only the rows whose status is paid, and write them to ./out/paid.csv.”<br>
+  One sentence becomes a checked file; <code>yes</code> saves it, <code>run it</code> keeps the two paid rows, and
+  <code>/proof</code> shows what the run recorded. The real Session of nika 0.123.0, restyled; no AI model is involved.
 </sub></p>
 
 ## What is Nika?
@@ -50,8 +49,10 @@ notes"*, and Nika writes it as a readable `.nika` workflow. Before
 anything runs, its check shows what the workflow will do, which models
 and tools it uses, what it is allowed to touch and what it can cost,
 without calling a model. You run it when you decide, with the model you
-choose, local or cloud, and every run leaves a tamper-evident record you
-can verify. One Rust binary, local-first, open source (AGPL-3.0).
+choose, on your machine or through a provider's API, and every run
+leaves a tamper-evident record you can verify. One Rust binary with a
+terminal Session and a command line, plus a TypeScript SDK for your
+applications; local-first and open source (AGPL-3.0).
 
 | 1 · Say it | 2 · Check it | 3 · Run it | 4 · Prove it |
 |:---:|:---:|:---:|:---:|
@@ -74,14 +75,28 @@ can verify. One Rust binary, local-first, open source (AGPL-3.0).
 
 Describe the job in plain words. Nika writes it as a `.nika` file, shows
 you what it will do and what it can touch, and saves it only when you say
-`yes`. Nothing runs until you ask.
+`yes`. Nothing runs until you ask. The clip at the top is that Session;
+this is its first answer, as the plain view prints it:
 
-<p align="center">
-  <a href="media/gifs/first-session.optimized.gif">
-    <img src="media/gifs/first-session.optimized.gif" alt="Nika's Session in four moments: a sentence typed in plain words, a checked workflow file saved only after yes, one run under a $0.25 ceiling that keeps the two paid rows, and /proof with its chain, permit checks and what it does not prove" width="860">
-  </a>
-</p>
-<p align="center"><sub>One sentence becomes a checked file; <code>yes</code> saves it, <code>run it</code> keeps the two paid rows, and <code>/proof</code> shows what the run recorded. The real Session, restyled; no AI model involved.</sub></p>
+```text
+nika › Read ./data/orders.csv, keep only the rows whose status is paid, and write them to ./out/paid.csv.
+✓ recorded 3 requirements
+Nika proposes `compiled-workflow.nika`:
+Does
+  1. read_source · reads a file
+  …
+  8. write_output · writes a file
+Runs
+  when you ask (« run it ») · no schedule was asked
+Can touch
+  external effects · none
+  human approval at run · none
+Changes
+  + `compiled-workflow.nika` · 97 lines · new
+Needs
+  nothing more from you
+Nothing has run yet · `yes` saves these exact bytes and checks them · running is its own line (« run it »)
+```
 
 ### 2 · Check it
 
@@ -106,13 +121,20 @@ model, through Ollama, writes a meeting's action items as typed JSON.
     <img src="media/gifs/nika-hero.optimized.gif" alt="nika check audits a meeting-actions workflow, then nika run executes it on a local model through Ollama and writes the meeting's action items to a typed JSON file" width="860">
   </a>
 </p>
-<p align="center"><sub>The audit first, then a real run on a local model (<code>ollama/llama3.2:3b</code>). Nothing leaves the machine.</sub></p>
+<p align="center"><sub>The audit first, then a real run on a local model (<code>ollama/llama3.2:3b</code>); the clip names the release each part was captured with. Nothing leaves the machine.</sub></p>
 
 ### 4 · Prove it
 
 Every run leaves a hash-chained record. `nika trace verify` reads it
 back, and when a single byte changes it names the line where the chain
 breaks.
+
+Runs are also signed once this machine has a run-signing key: run
+`nika key init` once, and later runs report `SEALED` in `nika trace verify`
+and `/proof`. On macOS a key minted from a terminal goes to the keychain,
+which only terminal runs open; for scripts, CI, the TypeScript SDK and
+`nika serve`, mint it with `NIKA_KEYCHAIN=off nika key init`, or run
+`nika key align` to copy the keychain key to `~/.nika/keys`.
 
 <p align="center">
   <a href="media/gifs/trace-proof.optimized.gif">
@@ -158,20 +180,28 @@ curl -LsSf https://nika.sh/install.sh | sh
 ```
 
 <details>
-<summary>Homebrew, npm, a release archive, Nix or Windows</summary>
+<summary>Homebrew, npm, a container, a release archive, Nix or Windows</summary>
 
 - **Homebrew:** `brew install supernovae-st/tap/nika`
-- **npm**, the binary plus a TypeScript client:
+- **npm**, the binary plus the TypeScript SDK:
   `npm install @supernovae-st/nika` (the `nika` command lands in
-  `node_modules/.bin`). The npm package can trail the latest release:
+  `node_modules/.bin`). The package bundles the engine of its own version:
   check `nika --version`.
+- **A container** (Linux, amd64 and arm64), built from the same release
+  binaries: `docker run --rm ghcr.io/supernovae-st/nika:0.123.0 --version`.
+  Mount a project to check or run its files, for example
+  `docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika:0.123.0 check hello.nika`.
 - **A release archive:** download one from the
-  [latest release](https://github.com/supernovae-st/nika/releases/latest);
-  every release ships SLSA provenance you can verify. The
-  [install guide](https://nika.sh/install) shows how.
-- **Nix:** the repository has a flake. It builds the default branch,
-  which can be ahead of the latest release.
-- **Windows:** use WSL2. Native Windows binaries are not shipped yet.
+  [latest release](https://github.com/supernovae-st/nika/releases/latest).
+  Every release ships a checksum manifest, a GitHub attestation and SLSA
+  provenance; [RELEASING.md](RELEASING.md#what-a-user-can-prove) gives the
+  three verification commands, for example
+  `gh attestation verify nika-macos-arm64-0.123.0.tar.gz --repo supernovae-st/nika`.
+- **Nix:** `nix profile install github:supernovae-st/nika/v0.123.0` builds
+  the release from the repository's flake. Without the tag, the flake builds
+  the default branch, which can be ahead of the latest release.
+- **Windows:** use WSL2 and the Linux binary. Native Windows binaries are
+  not shipped.
 
 </details>
 
@@ -212,6 +242,12 @@ not.
 > and `nika --plain` gives the same Session as plain lines. The
 > [Session guide](docs/usage/conversational-session.md) covers questions,
 > changes, spending ceilings and `/restore`.
+>
+> In a Git repository, the Session leaves `.gitignore` alone: before you
+> commit, add `.nika/traces/` (run records can hold file contents and model
+> outputs) and the Session's own `.nika/*.ndjson` and
+> `.nika/session-state.json`. After a run, the Session reminds you when
+> traces are not ignored.
 
 ### 3 · Add a model
 
@@ -284,11 +320,10 @@ review its changes like any other file in your project.
   run side by side, in waves the check plans before the run.
   ▶ [Watch a workflow run in waves](media/gifs/dag-execution.optimized.gif)
 
-Apart from the film at the top, an illustration with fixture data, every
-clip on this page shows real files and terminal lines captured from the
-binary, and names what it illustrates. The
-[media index](media/README.md#feature-clips) lists them all and how they
-are made.
+Every clip on this page shows real files and terminal lines captured from
+the binary, names the release it was captured with, and says what it
+illustrates. The [media index](media/README.md#feature-clips) lists them
+all and how they are made.
 
 ## Works where you already work
 
@@ -305,24 +340,83 @@ file for you, and the check keeps it honest:
 | Where | What you get | Watch |
 |---|---|---|
 | **Your coding agent** · [nika-plugins](https://github.com/supernovae-st/nika-plugins) | Claude Code, Codex, Cursor and others learn to write a workflow, check it and repair what the check finds. | ▶ [above](media/gifs/agent-plugin.optimized.gif) |
-| **Your editor** · [nika-vscode](https://github.com/supernovae-st/nika-vscode) | Errors as you type, and your workflow as a live graph. | ▶ [The audit, as you type](media/gifs/editor-diagnostics.optimized.gif) |
+| **Your editor** · `nika lsp` | The language server inside the binary: the check's findings as you type, in any LSP client. The VS Code extension ([nika-vscode](https://github.com/supernovae-st/nika-vscode)) stays at 0.120 and was not qualified with 0.123; point its `nika.server.path` at your 0.123 binary ([known limits](https://docs.nika.sh/changelog/known-limits#the-vs-code-extension-stays-at-0-120)). | ▶ [The audit, as you type](media/gifs/editor-diagnostics.optimized.gif) |
 | **Your pull requests** · [nika-action](https://github.com/supernovae-st/nika-action) | One comment with the verdict, before anyone spends a token. | ▶ [Every pull request gets a verdict](media/gifs/pr-check-comment.optimized.gif) |
-| **Your app** · [nika-client](https://github.com/supernovae-st/nika-client) | Run a workflow from TypeScript ([the package](https://www.npmjs.com/package/@supernovae-st/nika)), get a typed result and verify its receipt. | ▶ [Run it from your app, prove what ran](media/gifs/typescript-client.optimized.gif) |
+| **Your app** · [nika-client](https://github.com/supernovae-st/nika-client) | Run a workflow from TypeScript ([the package](https://www.npmjs.com/package/@supernovae-st/nika)), get a typed result and verify its receipt, with the engine the package bundles or against your `nika serve`. | ▶ [Run it from your app, prove what ran](media/gifs/typescript-client.optimized.gif) · ▶ [One client, two doors](media/gifs/sdk-doors.optimized.gif) |
+
+### From your application
+
+`npm install @supernovae-st/nika` brings the TypeScript SDK and the engine of
+its own version (Node.js 22 or newer, on macOS or Linux with glibc). Run
+`NIKA_KEYCHAIN=off ./node_modules/.bin/nika key init` once, so the engine your
+app starts can seal each run's record. Then, beside a `hello.nika`, this is the
+package's quick start:
+
+```ts
+import { Nika, isNikaRunSucceeded } from '@supernovae-st/nika';
+
+const nika = new Nika({ cwd: process.cwd() });
+
+// The engine checks the file first: a workflow it refuses throws here and never starts.
+const run = await nika.run<{ greeting: string }>('hello.nika', { maxCostUsd: 0 });
+const result = await run.result();
+
+// A failed run is data you read, not an exception.
+if (!isNikaRunSucceeded(result) || !result.receipt) {
+  console.error(result.status, result.error?.code, result.error?.message);
+  process.exit(1);
+}
+console.log(result.outputs?.greeting);
+
+// Ask the engine to verify the run's tamper-evident record.
+const proof = await nika.traceVerify(result.receipt);
+console.log(proof.verified ? 'receipt verified' : `not verified: ${proof.reason}`);
+```
+
+Save it as `demo.mts` (top-level `await` needs a module) and run
+`node demo.mts`: Node.js 22.18 or newer runs the TypeScript as is. The
+[SDK quick start](https://docs.nika.sh/sdk/start/quickstart) gives the
+`hello.nika` this program runs.
+
+To reach a `nika serve` instead of the bundled engine, keep the methods and
+change the options of two lines:
+
+```ts
+const nika = new Nika({ url, token, allowInsecureHttp: true });
+const run = await nika.run<{ greeting: string }>('hello.nika', { idempotencyKey });
+```
+
+`url` and `token` name the server and its bearer token. Plain `http://` is
+accepted only to a loopback host, and only with `allowInsecureHttp: true`.
+Over HTTP, `run()` needs an `idempotencyKey` you own (a retry with the same
+key returns the same job) and refuses `maxCostUsd`: the server applies its
+own per-run ceiling, USD 1 by default. `hello.nika` is then a served name,
+the workflow's path from the server's project root.
+[nika-client](https://github.com/supernovae-st/nika-client) documents the
+whole API.
+
+<p align="center">
+  <a href="media/gifs/sdk-doors.optimized.gif">
+    <img src="media/gifs/sdk-doors.optimized.gif" alt="Animated diagram of the TypeScript SDK: in the quick start, new Nika() starts the engine bundled with @supernovae-st/nika 0.123.0 as a child process; for nika serve, line 3 takes url, token and allowInsecureHttp, and line 6 takes an idempotencyKey in place of maxCostUsd. A refused list-files.nika gets NIKA-SEC-004 and run() throws, hello.nika runs, its events stream back to the app, its six hash-chained journal lines end in run_sealed, and traceVerify() answers verified locally and sealed from the server" width="860">
+  </a>
+</p>
+<p align="center"><sub>Your app asks, the engine decides, the receipt proves it. The code is the quick start above, which the capture ran, with lines 3 and 6 also shown as its server driver ran them against <code>nika serve</code>. Every event, verdict, hash and version on screen was captured from <code>@supernovae-st/nika</code> 0.123.0, the engine it bundles and <code>nika serve</code> in a <code>mock/echo</code> rehearsal; the cards, lanes, packets and pacing are illustration.</sub></p>
 
 ## Know the limits
 
 - **0.123 is the open-source reference release.** It is maintained with
   security fixes, bug fixes and compatibility; no major new development is
-  planned. Its known limits are listed in plain words, each with a way around
-  it: [Known limits in 0.123](https://docs.nika.sh/changelog/known-limits).
-- **Some requests cannot be expressed yet.** Nika then says what stopped it
+  planned, and there is no hosted service. Its known limits are listed in
+  plain words, each with a way around it:
+  [Known limits in 0.123](https://docs.nika.sh/changelog/known-limits).
+- **Some requests cannot be expressed.** Nika then says what stopped it
   and writes nothing.
 - **A clean check is not a true answer.** It describes a file's structure
   and boundary; it does not prove that model output is right.
-- **This README follows the source tree.** An older installed release may
-  lack what it describes: compare `nika --version` with the
-  [changelog](CHANGELOG.md). What `main` carries beyond the latest release
-  is described one file per change in [`changelog.d/`](changelog.d/).
+- **This README describes the released 0.123.0.** Fixes merged after it
+  are described one file per change in [`changelog.d/`](changelog.d/)
+  until the next maintenance release; compare `nika --version` with the
+  [changelog](CHANGELOG.md).
 
 <details>
 <summary><b>The four building blocks</b></summary>
@@ -334,8 +428,10 @@ file for you, and the check keeps it honest:
 | `exec` | Run a command |
 | `agent` | Let a model use allowed tools for a bounded number of turns |
 
-A workflow uses only the verbs its job needs. The film uses `invoke`
-and `infer`; it does not add a shell or an agent loop to fill the diagram.
+A workflow uses only the verbs its job needs. The orders workflow at the
+top uses `invoke` alone: eight steps over five builtin tools (`nika:read`,
+`nika:convert`, `nika:jq`, `nika:assert` and `nika:write`), with no model
+and no shell.
 
 </details>
 
@@ -356,13 +452,14 @@ nika compile --base workflow.nika --change 'Set const.topic to "new topic"' --js
 
 Add `--output edited.nika` to materialize a Ready edit. The base source
 remains explicit. Unresolved intent stays incomplete without a substitute
-workflow. `--authoring-model` explicitly enables bounded model-assisted
-authoring and text revisions. It sends one authoring request unless
-`--authoring-max-calls N` authorizes more (an ACP harness counts one
-invocation, its own requests unknown). `--authoring-strategy` selects
-`escalate`, `only`, `sketch` or `off`; escalation, repairs and samples stay
-within the authorized requests. The compiler checks the proposed source and
-its fidelity to the request. This is not a guarantee of arbitrary-language
+workflow. `--authoring-model` seats a model to interpret free intent and
+revise text. No request count is imposed by default: creation ends on a
+result, a failure, no progress or a cancellation. `--authoring-max-calls N`
+sets an explicit ceiling (an ACP harness counts its invocations; its own
+requests are unknown), and typed repairs or samples that cannot fit under it
+are refused before any request. `--authoring-strategy` selects `escalate`,
+`only`, `sketch` or `off`. The compiler checks the proposed source and its
+fidelity to the request. This is not a guarantee of arbitrary-language
 understanding, and Graph editing is not implemented by this CLI.
 
 Compile's Check preview judges source only. `nika check` and `nika run` judge
@@ -398,7 +495,7 @@ judgement.
 | 🦋 | **[nika](https://github.com/supernovae-st/nika)** | **The engine and CLI: write, check, run and verify AI workflows** |
 | 📖 | [nika-docs](https://github.com/supernovae-st/nika-docs) | The documentation, live at [docs.nika.sh](https://docs.nika.sh) |
 | 📜 | [nika-spec](https://github.com/supernovae-st/nika-spec) | The language specification and the suite that proves an engine follows it |
-| 🧩 | [nika-vscode](https://github.com/supernovae-st/nika-vscode) | The editor extension: your workflow as a live graph, errors as you type |
+| 🧩 | [nika-vscode](https://github.com/supernovae-st/nika-vscode) | The editor extension, frozen at 0.120 and not qualified with 0.123: use `nika lsp` and the JSON Schema |
 | 🟦 | [nika-client](https://github.com/supernovae-st/nika-client) | Run and verify workflows from TypeScript |
 | ✅ | [nika-action](https://github.com/supernovae-st/nika-action) | A GitHub Action that posts a `nika check` verdict on your pull requests |
 | 🚀 | [nika-actions-starter](https://github.com/supernovae-st/nika-actions-starter) | A ready template: workflows, editor setup and CI from the first push |
@@ -419,7 +516,7 @@ repositories drive this engine without adding to its authority.
 [Examples](examples/README.md) ·
 [Documentation](https://docs.nika.sh) ·
 [TypeScript SDK](https://www.npmjs.com/package/@supernovae-st/nika) ·
-[Editor extension](https://marketplace.visualstudio.com/items?itemName=supernovae.nika) ·
+[Editor extension (0.120, not qualified with 0.123)](https://marketplace.visualstudio.com/items?itemName=supernovae.nika) ·
 [Open specification](https://github.com/supernovae-st/nika-spec) ·
 [Registry](https://github.com/supernovae-st/nika-registry) ·
 [Planning archive](https://github.com/orgs/supernovae-st/projects/3) ·

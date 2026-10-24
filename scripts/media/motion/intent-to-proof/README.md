@@ -1,6 +1,7 @@
 # Nika: from intent to proof
 
-A 30-second, code-generated motion film about the V9 target architecture:
+A 30-second, code-generated motion film about the V9 target architecture (a
+design illustration; the README leads with the captured `first-session` clip):
 a human intention becomes a verified program, runs under human consent, and
 leaves a real result with evidence. It follows one request through every stage:
 
@@ -33,7 +34,7 @@ What is illustration:
 
 - **The data is fictional.** It lives in `scripts/media/fixtures/invoices.json`.
 - **The payment is illustrative.** The fixture targets a documentation host (RFC 2606), which the transport never dials. The capture declined the gate, so no effect ran. The film shows the approved path, and it does not claim that run happened.
-- **Some target components are named as the V9 design names them.** They are not all shipped as single artifacts in the current release:
+- **Some target components are named as the V9 design names them.** They are not all shipped as single artifacts in the current release, and after 0.123, the maintained reference release, the ones not in the source are not planned:
 
 | Film name | In the current source |
 |---|---|
@@ -158,9 +159,9 @@ other repositories hotlink), `static-check-fix`, `permits-audit`,
 `on-error-recover`, `dag-execution`, `chat-to-workflow`,
 `editor-diagnostics`, `workflow-gallery`, `full-loop`, `pr-check-comment`,
 `trace-proof`, `spec-anatomy`, `agent-plugin`, `first-session`,
-`cost-ceiling`, `approval-gate` and `typescript-client`. Each is one file
-in `clips/`, built from `clips/kit.mjs`: code cards that animate a real
-line diff, terminals that stream captured lines, row highlights and a
+`cost-ceiling`, `approval-gate`, `typescript-client` and `sdk-doors`. Each
+is one file in `clips/`, built from `clips/kit.mjs`: code cards that animate
+a real line diff, terminals that stream captured lines, row highlights and a
 camera.
 
 - Every program line, CLI line and diagnostic on screen is read from
@@ -173,6 +174,18 @@ camera.
   otherwise. What is
   illustration (the chat, the editor's chrome, the lighting of the DAG
   waves, the phrase-to-task mapping) says so on the clip's plate.
+- `sdk-doors` is captured on its own, by
+  `node scripts/media/capture/sdk-doors.mjs`: it installs the published
+  `@supernovae-st/nika` from the npm registry in a scratch app, runs the
+  README's `demo.mts`, drives the engine the package bundles (`new Nika()`)
+  and a loopback `nika serve` (`new Nika({ url, token })`, with the options
+  the server door takes on lines 3 and 6) with the helpers in
+  `scripts/media/capture/sdk-doors/`, and writes `media/raw/sdk-doors-*`.
+  The clip refuses to render if a captured version, verdict, event kind,
+  hash or refusal code changes. Its cards, the package column, the lanes,
+  the packets that travel them and the pacing are illustration, and its
+  plate says so: a run of `hello.nika` takes milliseconds, drawn here over
+  25 seconds.
 - The camera pushes in on what is being read, so reading moments land at
   22 to 33 px on the 1920 px frame, and pulls back for the last frame. That
   frame is the poster; for `static-check-fix` and `chat-to-workflow` it is

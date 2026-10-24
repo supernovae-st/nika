@@ -60,9 +60,9 @@ const PICK = {
   model: [/^Default model/, /<provider>\/<name>/],
   inputs: [/^Typed workflow inputs/, /the parameters an author declares and a caller supplies/],
   const: [/^Named constants/, /a fixed value baked into the workflow/],
-  secrets: [/masked references/, /never inline literals/],
+  secrets: [/^Masked references to a store/, /never inline literals/],
   permits: [/^The declared capability boundary/, /default-deny unless listed/],
-  run: [/^The run's entropy and clock declaration/, /declared, never ambient/],
+  run: [/^The run's declarations · entropy and clock/, /declared, never ambient/],
   tasks: [/^The task map/, /the graph alone schedules/],
   outputs: [/^The workflow's return value/, /symmetric to inputs/],
 };
