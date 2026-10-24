@@ -978,8 +978,8 @@ pub const NIKA_1802: NikaCode = NikaCode {
 };
 /// NIKA-1803: A known agentic CLI token cannot run here — binary
 /// absent, ACP speaker missing, or this nika was built without
-/// adapters. Dummy-readable: install the CLI or pick Nika local /
-/// Nika Cloud.
+/// adapters. Dummy-readable: install the CLI, or choose an API key or a
+/// local engine instead.
 pub const NIKA_1803: NikaCode = NikaCode {
     num: 1803,
     category: Category::Access,

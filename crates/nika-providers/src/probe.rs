@@ -49,14 +49,14 @@ pub fn harness_access_probe(
     let rt = nika_types::access::HarnessRuntime::lookup(&id);
     let fix = match (product_present, acp_present, configured) {
         (false, false, _) => rt.map_or_else(
-            || format!("{id} is not installed. Install it or pick Nika local / Nika Cloud."),
+            || format!("{id} is not installed. Install it or choose an API key or a local engine instead (`nika doctor` lists them)."),
             |r| r.not_installed.to_owned(),
         ),
         (true, false, _) => rt.map_or_else(
             || {
                 format!(
                     "{id} is installed, but Nika talks to it through ACP. \
-                     Install the ACP speaker or pick Nika local / Nika Cloud."
+                     Install the ACP speaker or choose an API key or a local engine instead (`nika doctor` lists them)."
                 )
             },
             |rt| rt.acp_missing(),

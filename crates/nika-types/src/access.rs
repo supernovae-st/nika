@@ -136,7 +136,7 @@ impl HarnessRuntime {
         display: "Gemini CLI",
         detect_bin: "gemini",
         acp_bin: "gemini",
-        not_installed: "Gemini CLI is not installed. Install it or pick Nika local / Nika Cloud.",
+        not_installed: "Gemini CLI is not installed. Install it or choose an API key or a local engine instead (`nika doctor` lists them).",
     };
     /// Qwen Code (native ACP).
     pub const QWEN_CODE: Self = Self {
@@ -144,7 +144,7 @@ impl HarnessRuntime {
         display: "Qwen Code",
         detect_bin: "qwen",
         acp_bin: "qwen",
-        not_installed: "Qwen Code is not installed. Install it or pick Nika local / Nika Cloud.",
+        not_installed: "Qwen Code is not installed. Install it or choose an API key or a local engine instead (`nika doctor` lists them).",
     };
     /// Kimi Code (native ACP).
     pub const KIMI_CODE: Self = Self {
@@ -152,7 +152,7 @@ impl HarnessRuntime {
         display: "Kimi Code",
         detect_bin: "kimi",
         acp_bin: "kimi",
-        not_installed: "Kimi Code is not installed. Install it or pick Nika local / Nika Cloud.",
+        not_installed: "Kimi Code is not installed. Install it or choose an API key or a local engine instead (`nika doctor` lists them).",
     };
     /// `OpenCode` (native ACP · `opencode acp`).
     pub const OPENCODE: Self = Self {
@@ -160,7 +160,7 @@ impl HarnessRuntime {
         display: "OpenCode",
         detect_bin: "opencode",
         acp_bin: "opencode",
-        not_installed: "OpenCode is not installed. Install it or pick Nika local / Nika Cloud.",
+        not_installed: "OpenCode is not installed. Install it or choose an API key or a local engine instead (`nika doctor` lists them).",
     };
     /// Codex (ACP speaker is `codex-acp`).
     pub const CODEX: Self = Self {
@@ -168,7 +168,7 @@ impl HarnessRuntime {
         display: "Codex",
         detect_bin: "codex",
         acp_bin: "codex-acp",
-        not_installed: "Codex is not installed. Install it or pick Nika local / Nika Cloud.",
+        not_installed: "Codex is not installed. Install it or choose an API key or a local engine instead (`nika doctor` lists them).",
     };
     /// GitHub Copilot CLI (native ACP · `copilot --acp`).
     pub const COPILOT: Self = Self {
@@ -176,7 +176,7 @@ impl HarnessRuntime {
         display: "GitHub Copilot CLI",
         detect_bin: "copilot",
         acp_bin: "copilot",
-        not_installed: "GitHub Copilot CLI is not installed. Install it or pick Nika local / Nika Cloud.",
+        not_installed: "GitHub Copilot CLI is not installed. Install it or choose an API key or a local engine instead (`nika doctor` lists them).",
     };
     /// Grok Build (native ACP · `grok agent stdio`).
     pub const GROK_BUILD: Self = Self {
@@ -184,7 +184,7 @@ impl HarnessRuntime {
         display: "Grok Build",
         detect_bin: "grok",
         acp_bin: "grok",
-        not_installed: "Grok Build is not installed. Install it or pick Nika local / Nika Cloud.",
+        not_installed: "Grok Build is not installed. Install it or choose an API key or a local engine instead (`nika doctor` lists them).",
     };
     /// Claude Code (ACP speaker is `claude-agent-acp`).
     pub const CLAUDE_CODE: Self = Self {
@@ -192,7 +192,7 @@ impl HarnessRuntime {
         display: "Claude Code",
         detect_bin: "claude",
         acp_bin: "claude-agent-acp",
-        not_installed: "Claude Code is not installed. Install it or pick Nika local / Nika Cloud.",
+        not_installed: "Claude Code is not installed. Install it or choose an API key or a local engine instead (`nika doctor` lists them).",
     };
 
     /// Shipped runtimes in G-3 probe order (gemini first · Anthropic last).
@@ -236,13 +236,13 @@ impl HarnessRuntime {
         if self.detect_bin == self.acp_bin {
             alloc::format!(
                 "{} is installed, but Nika could not start its ACP mode. \
-                 Upgrade it or pick Nika local / Nika Cloud.",
+                 Upgrade it or choose an API key or a local engine instead (`nika doctor` lists them).",
                 self.display
             )
         } else {
             alloc::format!(
                 "{} is installed, but Nika talks to it through ACP. Install `{}` \
-                 (`npm i -g @agentclientprotocol/{}`) or pick Nika local / Nika Cloud.",
+                 (`npm i -g @agentclientprotocol/{}`) or choose an API key or a local engine instead (`nika doctor` lists them).",
                 self.display,
                 self.acp_bin,
                 self.acp_bin
@@ -254,8 +254,8 @@ impl HarnessRuntime {
     #[must_use]
     pub fn not_signed_in(&self) -> alloc::string::String {
         alloc::format!(
-            "{} is installed but not signed in. Sign in to {} itself, or pick \
-             Nika local / Nika Cloud.",
+            "{} is installed but not signed in. Sign in to {} itself, or choose \
+             an API key or a local engine instead (`nika doctor` lists them).",
             self.display,
             self.display
         )
@@ -1001,13 +1001,13 @@ mod tests {
         assert_eq!(
             HarnessRuntime::GEMINI_CLI.acp_missing(),
             "Gemini CLI is installed, but Nika could not start its ACP mode. \
-             Upgrade it or pick Nika local / Nika Cloud."
+             Upgrade it or choose an API key or a local engine instead (`nika doctor` lists them)."
         );
         assert_eq!(
             HarnessRuntime::CLAUDE_CODE.acp_missing(),
             "Claude Code is installed, but Nika talks to it through ACP. \
              Install `claude-agent-acp` (`npm i -g @agentclientprotocol/claude-agent-acp`) \
-             or pick Nika local / Nika Cloud."
+             or choose an API key or a local engine instead (`nika doctor` lists them)."
         );
         assert_eq!(
             HarnessRuntime::GEMINI_CLI.detect_bin,
@@ -1024,12 +1024,12 @@ mod tests {
         assert_eq!(
             HarnessRuntime::CODEX.not_signed_in(),
             "Codex is installed but not signed in. \
-             Sign in to Codex itself, or pick Nika local / Nika Cloud."
+             Sign in to Codex itself, or choose an API key or a local engine instead (`nika doctor` lists them)."
         );
         assert_eq!(
             HarnessRuntime::QWEN_CODE.not_signed_in(),
             "Qwen Code is installed but not signed in. \
-             Sign in to Qwen Code itself, or pick Nika local / Nika Cloud."
+             Sign in to Qwen Code itself, or choose an API key or a local engine instead (`nika doctor` lists them)."
         );
         for row in HarnessRuntime::ALL {
             let line = row.not_signed_in();

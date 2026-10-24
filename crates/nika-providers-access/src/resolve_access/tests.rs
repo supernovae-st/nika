@@ -298,7 +298,10 @@ fn a_missing_cli_teaches_the_dummy_install_line() {
                 message.contains("Claude Code is not installed"),
                 "{message}"
             );
-            assert!(message.contains("Nika local / Nika Cloud"), "{message}");
+            assert!(
+                message.contains("an API key or a local engine"),
+                "{message}"
+            );
         }
         other => panic!("expected 1803 Unavailable, got {other:?}"),
     }

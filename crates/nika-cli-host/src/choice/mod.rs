@@ -19,7 +19,7 @@ use crate::probe::{self, env_present};
 
 const TABLE_YAML: &str = include_str!("models.yaml");
 const ALIAS: &str = "nika/gear-one";
-const SLOGAN: &str = "Local first. Cloud when you want it.";
+const SLOGAN: &str = "Say what you want done. Keep it as a file.";
 
 #[derive(Debug, Clone, Deserialize)]
 struct Table {
@@ -134,14 +134,6 @@ fn collect_from(machine: &Machine) -> InferenceChoice {
         reason: local_reason(local_ready, ram, &download),
     };
 
-    let cloud = Rung {
-        id: "cloud".to_owned(),
-        name: "Nika Cloud".to_owned(),
-        available: false,
-        ready: false,
-        reason: "our models, our tools, your workflows online".to_owned(),
-    };
-
     // A seat is READY only if a session can actually start on it: the app
     // is here, it is signed in, AND the ACP adapter it spawns is on PATH.
     let ready_seat = seats
@@ -155,11 +147,10 @@ fn collect_from(machine: &Machine) -> InferenceChoice {
         .find(|k| keys_present.iter().any(|p| p == &k.env));
     let key = key_rung(key_row);
 
-    let mut rungs = vec![local, cloud, harness, key];
+    let mut rungs = vec![local, harness, key];
     rungs.sort_by_key(sort_key);
     let arrow = rungs
-        .iter()
-        .find(|r| r.id != "cloud")
+        .first()
         .map_or_else(|| "local".to_owned(), |r| r.id.clone());
     let chosen_model = chosen_model_for(&arrow, &pull, ready_seat, key_row);
     let chosen_access = if arrow == "harness" {
@@ -264,9 +255,9 @@ fn key_rung(key_row: Option<&KeyRow>) -> Rung {
 /// above owns the hardware facet; this reason owns the price.
 fn local_reason(ready: bool, ram: Option<u32>, download: &str) -> String {
     match (ready, ram) {
-        (false, Some(_)) => format!("ours · free · {download} to pull"),
+        (false, Some(_)) => format!("open weights · free · {download} to pull"),
         (true, _) | (false, None) => {
-            format!("ours · free · runs on this computer · {download}")
+            format!("open weights · free · runs on this computer · {download}")
         }
     }
 }
@@ -312,7 +303,6 @@ fn sort_key(rung: &Rung) -> (u8, u8) {
     let ready = u8::from(!rung.ready);
     let rank = match rung.id.as_str() {
         "local" => 0,
-        "cloud" => 1,
         "harness" => 2,
         "key" => 3,
         _ => 4,

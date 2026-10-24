@@ -998,7 +998,7 @@ fn welcome_greets_offline_and_leaks_no_secret() {
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr)
     );
-    for needle in ["Local first", "Next:", "Nika Gear One"] {
+    for needle in ["Keep it as a file", "Next:", "Nika Gear One"] {
         assert!(text.contains(needle), "welcome carries `{needle}`: {text}");
     }
     assert!(
@@ -1282,7 +1282,7 @@ fn bare_nika_greets_and_exits_zero_in_a_pipe() {
     assert_eq!(out.status.code(), Some(0), "a greeting, not a finding");
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
-        stdout.contains("Local first") && stdout.contains("Next:"),
+        stdout.contains("Keep it as a file") && stdout.contains("Next:"),
         "the cascade names the product and the next door:\n{stdout}"
     );
 }
