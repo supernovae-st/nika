@@ -197,7 +197,28 @@ pub(crate) fn scaffold_example(
             Err(e) => ScaffoldStatus::Failed(e.to_string()),
         }
     };
+    // The lesson's companions, as `nika try` stages them: the fixtures its
+    // runs read from the project root, the children it invokes beside it.
+    // Adds only — a file already there is never overwritten.
+    let ingredients = (!matches!(status, ScaffoldStatus::Failed(_)))
+        .then(|| crate::fixtures::materialize_into(body, Path::new(&dest), Path::new(dir)));
     let mut out = vec![(dest, status)];
+    match ingredients {
+        Some(Ok(written)) => out.extend(
+            written
+                .iter()
+                .map(|path| (path.to_string_lossy().into_owned(), ScaffoldStatus::Created)),
+        ),
+        Some(Err(e)) => out.push((
+            Path::new(dir)
+                .join("examples")
+                .join("fixtures")
+                .to_string_lossy()
+                .into_owned(),
+            ScaffoldStatus::Failed(e.to_string()),
+        )),
+        None => {}
+    }
     let readme_dest = Path::new(dir)
         .join("workflows/README.md")
         .to_string_lossy()
@@ -332,6 +353,68 @@ mod tests {
             }
             std::fs::remove_dir_all(&dir).ok();
         }
+    }
+
+    /// `nika init --example <slug>` founds a project its lesson can run in:
+    /// for EVERY catalog entry, each fixture the body names lands under the
+    /// project root, where its runs resolve `examples/fixtures/…`. A loop
+    /// over the whole corpus, so the next fixture-reading job inherits the
+    /// pin (0.123.0 founded 19 lessons whose first run could not read them).
+    #[test]
+    fn every_example_scaffold_takes_its_fixtures_along() {
+        let mut fixture_lessons = 0;
+        for slug in nika_pack::example_slugs() {
+            let body = nika_pack::example(&slug).expect("catalog body");
+            let dir = std::env::temp_dir().join(format!(
+                "nika-example-scaffold-{}-{}",
+                std::process::id(),
+                slug.replace('/', "-")
+            ));
+            std::fs::remove_dir_all(&dir).ok();
+            std::fs::create_dir_all(&dir).expect("mkdir");
+            let rows = scaffold_example(dir.to_str().expect("utf8"), &slug, false);
+            assert!(
+                rows.iter().all(|(_, s)| *s == ScaffoldStatus::Created),
+                "{slug}: {rows:?}"
+            );
+            let prefixes = crate::fixtures::fixture_prefixes(body);
+            fixture_lessons += usize::from(!prefixes.is_empty());
+            for p in &prefixes {
+                assert!(
+                    dir.join("examples").join("fixtures").join(p).exists(),
+                    "{slug}: `examples/fixtures/{p}` is missing at the project root"
+                );
+            }
+            std::fs::remove_dir_all(&dir).ok();
+        }
+        assert!(
+            fixture_lessons >= 3,
+            "the corpus carries fixture-reading jobs; the law must bite: {fixture_lessons}"
+        );
+    }
+
+    /// A composition lesson founds with the child it invokes beside it
+    /// (`workflow: "./10-compose-child.nika"` resolves from the parent's
+    /// folder), reported as a created row; 0.123.0 founded it without the
+    /// child and its own audit refused NIKA-COMP-001.
+    #[test]
+    fn a_compose_lesson_founds_with_its_child_beside_it() {
+        let dir = std::env::temp_dir().join(format!("nika-example-child-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let rows = scaffold_example(dir.to_str().expect("utf8"), "10-compose-pipeline", false);
+        let child = dir.join("workflows").join("10-compose-child.nika");
+        assert_eq!(
+            std::fs::read_to_string(&child).expect("the child is beside its parent"),
+            nika_pack::example("10-compose-child").expect("pack child"),
+            "the child is the pack's lesson, verbatim"
+        );
+        assert!(
+            rows.iter()
+                .any(|(path, s)| Path::new(path) == child && *s == ScaffoldStatus::Created),
+            "the child rides the report: {rows:?}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// Re-running a recipe skips what exists (the human keeps the hand).

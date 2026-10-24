@@ -6,7 +6,7 @@
 //! Init and Try stage a lesson's declared companion files through this owner.
 //! Compile only returns source: it never materializes fixtures or reads files.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Relative `workflow: "./foo.nika"` children a body invokes.
 /// `nika try 10-compose-pipeline` staged the parent alone and check
@@ -64,14 +64,43 @@ pub fn fixture_prefixes(body: &str) -> Vec<String> {
 /// An I/O failure creating a fixture directory or writing a fixture
 /// file — the door reports it and refuses to pretend the take is whole.
 pub fn materialize(body: &str, dest: &Path) -> std::io::Result<(usize, usize)> {
+    let root = dest.parent().unwrap_or_else(|| Path::new(""));
+    let mut written = Vec::new();
+    let kept = stage(body, dest, root, &mut written)?;
+    Ok((written.len(), kept))
+}
+
+/// The same ingredients for a lesson kept apart from its fixture root:
+/// `nika init --example` lays the lesson under `workflows/`, while its runs
+/// resolve `examples/fixtures/…` from the project root. Composition children
+/// land beside `dest`, fixtures under `fixture_root`. Returns every file
+/// written, for the door's receipt rows.
+///
+/// # Errors
+/// The same I/O failures as [`materialize`].
+pub(crate) fn materialize_into(
+    body: &str,
+    dest: &Path,
+    fixture_root: &Path,
+) -> std::io::Result<Vec<PathBuf>> {
+    let mut written = Vec::new();
+    stage(body, dest, fixture_root, &mut written)?;
+    Ok(written)
+}
+
+/// One staging pass: composition children beside `dest`, fixtures under
+/// `fixture_root`, each written path pushed onto `written`. Returns how
+/// many were already there (kept, never clobbered).
+fn stage(
+    body: &str,
+    dest: &Path,
+    fixture_root: &Path,
+    written: &mut Vec<PathBuf>,
+) -> std::io::Result<usize> {
     let prefixes = fixture_prefixes(body);
-    let siblings = composition_siblings(body);
-    if prefixes.is_empty() && siblings.is_empty() {
-        return Ok((0, 0));
-    }
     let base = dest.parent().unwrap_or_else(|| Path::new(""));
-    let (mut written, mut kept) = (0, 0);
-    for name in &siblings {
+    let mut kept = 0;
+    for name in &composition_siblings(body) {
         let Some(slug) = nika_source::program_stem(name) else {
             continue;
         };
@@ -84,13 +113,11 @@ pub fn materialize(body: &str, dest: &Path) -> std::io::Result<(usize, usize)> {
             continue;
         }
         std::fs::write(&target, child)?;
-        written += 1;
-        let (w, k) = materialize(child, &target)?;
-        written += w;
-        kept += k;
+        written.push(target.clone());
+        kept += stage(child, &target, fixture_root, written)?;
     }
     if prefixes.is_empty() {
-        return Ok((written, kept));
+        return Ok(kept);
     }
     for (tail, bytes) in nika_pack::example_fixture_files() {
         let wanted = prefixes
@@ -99,7 +126,7 @@ pub fn materialize(body: &str, dest: &Path) -> std::io::Result<(usize, usize)> {
         if !wanted {
             continue;
         }
-        let target = base.join("examples").join("fixtures").join(tail);
+        let target = fixture_root.join("examples").join("fixtures").join(tail);
         if target.exists() {
             kept += 1;
             continue;
@@ -108,9 +135,9 @@ pub fn materialize(body: &str, dest: &Path) -> std::io::Result<(usize, usize)> {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(&target, bytes)?;
-        written += 1;
+        written.push(target);
     }
-    Ok((written, kept))
+    Ok(kept)
 }
 
 #[cfg(test)]

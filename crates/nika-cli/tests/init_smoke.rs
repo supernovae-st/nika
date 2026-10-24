@@ -199,6 +199,82 @@ fn the_first_hour_walks_end_to_end() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// `init --example` founds a project its lesson runs in: the fixtures it
+/// reads land at the project root and the children it invokes land beside
+/// it (0.123.0 copied the lesson alone).
+#[test]
+fn init_example_founds_lessons_with_their_ingredients() {
+    let dir = workspace_tmp_dir("nika-init-example-ingredients");
+    // A fixture-reading lesson founds WITH its fixture, so the run the
+    // report hands over is green offline (0.123.0: file not found).
+    let csv = dir.join("founded-csv");
+    std::fs::create_dir_all(&csv).expect("mkdir");
+    let init = bin()
+        .args(["init", ".", "--example", "csv-chart-report"])
+        .current_dir(&csv)
+        .output()
+        .expect("init runs");
+    assert_eq!(init.status.code(), Some(0), "init --example csv is green");
+    assert!(
+        String::from_utf8_lossy(&init.stdout).contains("created examples/fixtures/sales.csv"),
+        "the fixture rides the report: {}",
+        String::from_utf8_lossy(&init.stdout)
+    );
+    let run = bin()
+        .args([
+            "run",
+            "workflows/csv-chart-report.nika",
+            "--model",
+            "mock/echo",
+            "--quiet",
+            "--no-trace-file",
+        ])
+        .current_dir(&csv)
+        .output()
+        .expect("run runs");
+    assert_eq!(
+        run.status.code(),
+        Some(0),
+        "the founded lesson runs: {}{}",
+        String::from_utf8_lossy(&run.stdout),
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert!(
+        csv.join("out/revenue-report.md").is_file(),
+        "its report landed"
+    );
+
+    // A composition lesson founds WITH the child it invokes, beside it,
+    // so its own audit is green (0.123.0: NIKA-COMP-001, exit 2).
+    let compose = dir.join("founded-compose");
+    std::fs::create_dir_all(&compose).expect("mkdir");
+    let init = bin()
+        .args(["init", ".", "--example", "10-compose-pipeline"])
+        .current_dir(&compose)
+        .output()
+        .expect("init runs");
+    assert_eq!(
+        init.status.code(),
+        Some(0),
+        "init --example compose is green: {}",
+        String::from_utf8_lossy(&init.stdout)
+    );
+    assert!(compose.join("workflows/10-compose-child.nika").is_file());
+    let check = bin()
+        .args(["check", "workflows/10-compose-pipeline.nika"])
+        .current_dir(&compose)
+        .output()
+        .expect("check runs");
+    assert_eq!(
+        check.status.code(),
+        Some(0),
+        "the parent checks green with its child: {}",
+        String::from_utf8_lossy(&check.stdout)
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn init_recipe_scaffolds_the_curriculum_and_audits_it() {
     let dir = workspace_tmp_dir("nika-init-recipe-smoke");
