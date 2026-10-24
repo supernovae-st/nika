@@ -445,12 +445,23 @@ tasks:
         assert_eq!(codes_of(&errors), ["NIKA-TYPE-006"]);
     }
 
+    /// Spec 09 §grammar: bare `money` is withdrawn from the type grammar
+    /// (R6) and `artifact<mime>` is reserved, not implemented. Each refuses
+    /// NIKA-TYPE-001 naming its status, never a wave it would land with.
     #[test]
-    fn reserved_constructor_is_type_001_naming_the_wave() {
-        let errors =
-            errors_of("nika: t\ntasks:\n  a:\n    infer: { prompt: hi }\n    returns: money\n");
-        assert_eq!(codes_of(&errors), ["NIKA-TYPE-001"]);
-        assert!(errors[0].to_string().contains("reserved"), "{}", errors[0]);
+    fn withdrawn_and_reserved_names_are_type_001_naming_their_status() {
+        for (returns, status) in [
+            ("money", "withdrawn from the type grammar"),
+            ("artifact", "reserved by the spec and not implemented"),
+        ] {
+            let errors = errors_of(&format!(
+                "nika: t\ntasks:\n  a:\n    infer: {{ prompt: hi }}\n    returns: {returns}\n"
+            ));
+            assert_eq!(codes_of(&errors), ["NIKA-TYPE-001"], "{returns}");
+            let said = errors[0].to_string();
+            assert!(said.contains(status), "{returns}: {said}");
+            assert!(!said.contains("lands with"), "{returns}: {said}");
+        }
     }
 
     #[test]

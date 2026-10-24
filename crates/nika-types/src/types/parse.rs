@@ -21,15 +21,15 @@ use serde_json::Value;
 
 use super::{Field, NikaType, NumBounds, Primitive, StrBounds};
 
-/// Reserved constructors — named in the spec, landing with their waves.
+/// Names the grammar refuses with their present status, never a promised
+/// release (spec 09 §grammar): `artifact<mime>` is reserved and not
+/// implemented; `result`, `secret` and bare `money` were withdrawn from the
+/// grammar and the reserved list (R6).
 const RESERVED: [(&str, &str); 4] = [
-    ("result", "outcomes (W5)"),
-    ("artifact", "artifact lanes (W5)"),
-    ("secret", "the authority wave (W4)"),
-    (
-        "money",
-        "the decision core (W-DEC) — fixed-point + ISO-4217, never binary floats",
-    ),
+    ("result", "withdrawn from the type grammar (spec 09)"),
+    ("artifact", "reserved by the spec and not implemented"),
+    ("secret", "withdrawn from the type grammar (spec 09)"),
+    ("money", "withdrawn from the type grammar (spec 09)"),
 ];
 
 /// A pattern longer than this is out of dialect (spec 09).
@@ -265,8 +265,8 @@ fn brace_quantifier_end(s: &str) -> Option<usize> {
 /// # Errors
 ///
 /// `NIKA-TYPE-001` on anything outside the closed grammar (with the
-/// teaching — reserved names say their wave, near-misses say
-/// did-you-mean) · `NIKA-TYPE-006` on a pattern outside the locked
+/// teaching — reserved and withdrawn names say their status, near-misses
+/// say did-you-mean) · `NIKA-TYPE-006` on a pattern outside the locked
 /// regex dialect.
 pub fn parse_type(
     value: &Value,
@@ -300,9 +300,9 @@ fn parse_name(s: &str, names: &BTreeSet<String>, where_: &str) -> Result<NikaTyp
         )));
     }
     let base = s.split('<').next().unwrap_or(s);
-    if let Some((_, wave)) = RESERVED.iter().find(|(r, _)| *r == base) {
+    if let Some((_, status)) = RESERVED.iter().find(|(r, _)| *r == base) {
         return Err(ParseTypeError::grammar(format!(
-            "{where_} · `{s}` is reserved — lands with {wave}"
+            "{where_} · `{s}` is not a type — {status}"
         )));
     }
     if let Some((_, repair)) = RETIRED_SPELLINGS.iter().find(|(r, _)| *r == s) {
@@ -801,17 +801,29 @@ mod tests {
         assert_eq!(fields["b"].ty, NikaType::Prim(Primitive::String));
     }
 
+    /// Spec 09 §grammar: `artifact<mime>` is reserved-not-implemented
+    /// (« never a delivery claim ») and `result` · `secret` · bare `money`
+    /// are withdrawn (R6). Each refuses with its present status; none names
+    /// a wave or a release (0.123.0 said « is reserved — lands with … »).
     #[test]
-    fn reserved_names_teach_their_wave_and_money_is_reserved() {
+    fn reserved_and_withdrawn_names_state_their_status_without_a_release() {
         let n = names(&[]);
         for (name, needle) in [
-            ("result", "W5"),
-            ("artifact", "W5"),
-            ("secret", "W4"),
-            ("money", "W-DEC"),
+            ("result", "withdrawn from the type grammar"),
+            ("artifact", "reserved by the spec and not implemented"),
+            (
+                "artifact<text/markdown>",
+                "reserved by the spec and not implemented",
+            ),
+            ("secret", "withdrawn from the type grammar"),
+            ("money", "withdrawn from the type grammar"),
         ] {
             let err = parse_type(&json!(name), &n, "t").unwrap_err();
+            assert_eq!(err.code, "NIKA-TYPE-001", "{name}");
             assert!(err.detail.contains(needle), "{name}: {}", err.detail);
+            for promise in ["lands with", "W4", "W5", "W-DEC"] {
+                assert!(!err.detail.contains(promise), "{name}: {}", err.detail);
+            }
         }
     }
 
