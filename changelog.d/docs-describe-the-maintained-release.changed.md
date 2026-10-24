@@ -5,4 +5,6 @@
   page gives a first run that works (a project `nika.yaml`, a health and job request, the served
   cancel route), `llms-install.md` adds the container and provenance paths and an uninstall that
   names what `~/.nika` holds, and the README and the Session guide say that runs are signed once
-  `nika key init` minted a key. The README clips are captured again from 0.123.0.
+  `nika key init` minted a key. The README clips are captured again from 0.123.0, and a new
+  `sdk-doors` clip shows the TypeScript SDK's two doors (the bundled engine and `nika serve`) from
+  a capture of the published `@supernovae-st/nika` 0.123.0.

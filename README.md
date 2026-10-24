@@ -342,7 +342,52 @@ file for you, and the check keeps it honest:
 | **Your coding agent** · [nika-plugins](https://github.com/supernovae-st/nika-plugins) | Claude Code, Codex, Cursor and others learn to write a workflow, check it and repair what the check finds. | ▶ [above](media/gifs/agent-plugin.optimized.gif) |
 | **Your editor** · `nika lsp` | The language server inside the binary: the check's findings as you type, in any LSP client. The VS Code extension ([nika-vscode](https://github.com/supernovae-st/nika-vscode)) stays at 0.120 and was not qualified with 0.123; point its `nika.server.path` at your 0.123 binary ([known limits](https://docs.nika.sh/changelog/known-limits#the-vs-code-extension-stays-at-0-120)). | ▶ [The audit, as you type](media/gifs/editor-diagnostics.optimized.gif) |
 | **Your pull requests** · [nika-action](https://github.com/supernovae-st/nika-action) | One comment with the verdict, before anyone spends a token. | ▶ [Every pull request gets a verdict](media/gifs/pr-check-comment.optimized.gif) |
-| **Your app** · [nika-client](https://github.com/supernovae-st/nika-client) | Run a workflow from TypeScript ([the package](https://www.npmjs.com/package/@supernovae-st/nika)), get a typed result and verify its receipt. | ▶ [Run it from your app, prove what ran](media/gifs/typescript-client.optimized.gif) |
+| **Your app** · [nika-client](https://github.com/supernovae-st/nika-client) | Run a workflow from TypeScript ([the package](https://www.npmjs.com/package/@supernovae-st/nika)), get a typed result and verify its receipt, with the engine the package bundles or against your `nika serve`. | ▶ [Run it from your app, prove what ran](media/gifs/typescript-client.optimized.gif) · ▶ [One client, two doors](media/gifs/sdk-doors.optimized.gif) |
+
+### From your application
+
+`npm install @supernovae-st/nika` brings the TypeScript SDK and the engine of
+its own version (Node.js 22 or newer, on macOS or Linux with glibc). Run
+`NIKA_KEYCHAIN=off ./node_modules/.bin/nika key init` once, so the engine your
+app starts can seal each run's record. Then, beside a `hello.nika`, this is the
+package's quick start:
+
+```ts
+import { Nika, isNikaRunSucceeded } from '@supernovae-st/nika';
+
+const nika = new Nika({ cwd: process.cwd() });
+
+// The engine checks the file first: a workflow it refuses throws here and never starts.
+const run = await nika.run<{ greeting: string }>('hello.nika', { maxCostUsd: 0 });
+const result = await run.result();
+
+// A failed run is data you read, not an exception.
+if (!isNikaRunSucceeded(result) || !result.receipt) {
+  console.error(result.status, result.error?.code, result.error?.message);
+  process.exit(1);
+}
+console.log(result.outputs?.greeting);
+
+// Ask the engine to verify the run's tamper-evident record.
+const proof = await nika.traceVerify(result.receipt);
+console.log(proof.verified ? 'receipt verified' : `not verified: ${proof.reason}`);
+```
+
+Save it as `demo.mts` (top-level `await` needs a module) and run
+`node demo.mts`: Node.js 22.18 or newer runs the TypeScript as is.
+`new Nika({ url, token })` reaches a `nika serve` instead of the bundled
+engine; only the constructor changes. The
+[SDK quick start](https://docs.nika.sh/sdk/start/quickstart) gives the
+`hello.nika` this program runs, and
+[nika-client](https://github.com/supernovae-st/nika-client) documents the
+whole API.
+
+<p align="center">
+  <a href="media/gifs/sdk-doors.optimized.gif">
+    <img src="media/gifs/sdk-doors.optimized.gif" alt="Animated diagram of the TypeScript SDK: in the quick start, new Nika() starts the engine bundled with @supernovae-st/nika 0.123.0 as a child process and new Nika({ url, token }) reaches nika serve; a refused list-files.nika gets NIKA-SEC-004 and run() throws, hello.nika runs, its events stream back to the app, its six hash-chained journal lines end in run_sealed, and traceVerify() answers verified locally and sealed from the server" width="860">
+  </a>
+</p>
+<p align="center"><sub>Your app asks, the engine decides, the receipt proves it. Every code line, event, verdict, hash and version on screen was captured from <code>@supernovae-st/nika</code> 0.123.0, the engine it bundles and <code>nika serve</code> in a <code>mock/echo</code> rehearsal; the cards, lanes, packets and pacing are illustration.</sub></p>
 
 ## Know the limits
 
