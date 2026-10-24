@@ -133,13 +133,14 @@ fn static_target_defect(target: &str) -> Option<String> {
             }
             Ok(_) => {}
         }
-        // A well-formed pinned ref is resolvable in FORM, but the registry
-        // resolution lane is not wired, so the child cannot run — the child
-        // runner refuses it at run. Refuse it here in the same words, so check
-        // and run agree (spec 14 law 1): a call a run cannot make is refused.
+        // A well-formed pinned ref is resolvable in FORM, but this engine
+        // does not resolve registry children, so the child cannot run — the
+        // child runner refuses it at run. Refuse it here in the same words, so
+        // check and run agree (spec 14 law 1): a call a run cannot make is
+        // refused. The words state the present limit and promise no release.
         return Some(
-            "registry child execution lands with the registry lane; \
-             run a filesystem child today (spec 14 §the form)"
+            "this engine does not run registry children; \
+             run a filesystem child (`./child.nika`) (spec 14 §the form)"
                 .to_owned(),
         );
     }
@@ -429,8 +430,9 @@ fn judge_direct_call(
     };
     if cx.target.value.starts_with("registry:") {
         // A pinned registry ref is statically WELL-FORMED (law 1's
-        // grammar) but resolves through the registry lane, not the
-        // filesystem — its contract checks land with that lane.
+        // grammar) but is not a filesystem child, and this engine does
+        // not resolve registry children: there is no child contract to
+        // check here (the static scan refuses it NIKA-COMP-001 for that).
         return;
     }
     let child_id = resolve_relative(cx.root, &cx.target.value);
@@ -824,20 +826,22 @@ outputs:
     }
 
     #[test]
-    fn a_pinned_registry_child_is_refused_until_the_lane_ships() {
-        // A well-formed pinned registry child passes the FORM checks, but the
-        // registry resolution lane is not wired, so it cannot run; check
-        // refuses it NIKA-COMP-001 in the same words as the child runner.
+    fn a_pinned_registry_child_is_refused_as_a_present_limit() {
+        // A well-formed pinned registry child passes the FORM checks, but this
+        // engine does not resolve registry children, so it cannot run; check
+        // refuses it NIKA-COMP-001 in the same words as the child runner,
+        // stating the limit without promising the release that lifts it.
         let wf = parse(&parent_yaml("registry:acme/x@1.0.0", "{}"));
         let f = scan_static(&wf);
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].code, "NIKA-COMP-001");
         assert!(
             f[0].detail
-                .contains("registry child execution lands with the registry lane"),
+                .contains("this engine does not run registry children"),
             "{}",
             f[0].detail
         );
+        assert!(!f[0].detail.contains("lands with"), "{}", f[0].detail);
     }
 
     #[test]
@@ -847,13 +851,18 @@ outputs:
         assert_eq!(f.len(), 1, "{f:?}");
         assert!(f[0].detail.contains("@version"), "{}", f[0].detail);
         // …and the pinned form is well formed: it asks for no version, and it is
-        // refused only until registry child execution ships (spec 14 §the form).
+        // refused only because this engine does not run registry children
+        // (spec 14 §the form).
         let wf = parse(&parent_yaml("registry:acme/audit@1.2.0", "{}"));
         let f = scan_static(&wf);
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].code, "NIKA-COMP-001");
         assert!(!f[0].detail.contains("@version"), "{}", f[0].detail);
-        assert!(f[0].detail.contains("registry lane"), "{}", f[0].detail);
+        assert!(
+            f[0].detail.contains("does not run registry children"),
+            "{}",
+            f[0].detail
+        );
     }
 
     #[test]
