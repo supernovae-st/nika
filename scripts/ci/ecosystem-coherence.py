@@ -27,6 +27,8 @@
 # the satellites (vscode · client-sdk · agents plugin) adopt the engine's
 # major.minor. Until then the lockstep row is WARN (preview); from 0.97
 # it graduates to FAIL automatically — the bot carries the doctrine.
+# A satellite frozen by decision (FROZEN_SATELLITES) reports a WARN at its
+# frozen line instead: the editor extension froze at 0.120 with 0.123.
 #
 # Read-only · public HTTP only · zero secrets.
 
@@ -52,6 +54,10 @@ OPENVSX_API = f"https://open-vsx.org/api/{VSCODE_EXTENSION_ID.replace('.', '/')}
 # well-known document.
 SITE_LLMS = "https://nika.sh/llms.txt"
 SITE_SPEC_PIN = "https://nika.sh/.well-known/nika-spec-pin.json"
+# Satellites frozen by decision, at their major.minor. The editor extension
+# froze at 0.120 with the 0.123 reference release and is not qualified with
+# it (README family table: use `nika lsp` and the JSON Schema).
+FROZEN_SATELLITES = {"vscode": "0.120"}
 FINDINGS = []  # (severity, surface, detail)
 
 
@@ -301,12 +307,19 @@ def main():
                              f"{wf} exists but carries no trigger — the leg is dead"))
 
     # Lockstep-at-convergence · WARN preview below 0.97 · FAIL from 0.97.
+    # A satellite frozen by decision stays visible as a WARN at its frozen
+    # line; any other drift, including a move off that line, still fails.
     if engine_main:
         lock_sev = "FAIL" if semver_key(engine_main) >= (0, 97, 0) else "WARN"
         for name, ver in (("vscode", vscode_repo), ("client-sdk", sdk_repo)):
-            if ver and mm(ver) != mm(engine_main):
-                FINDINGS.append((lock_sev, f"lockstep {name}",
-                                 f"{name} {mm(ver)} != engine {mm(engine_main)} (doctrine active from 0.97)"))
+            if not ver or mm(ver) == mm(engine_main):
+                continue
+            if FROZEN_SATELLITES.get(name) == mm(ver):
+                FINDINGS.append(("WARN", f"lockstep {name}",
+                                 f"{name} frozen at {mm(ver)} by decision, not qualified with engine {mm(engine_main)}"))
+                continue
+            FINDINGS.append((lock_sev, f"lockstep {name}",
+                             f"{name} {mm(ver)} != engine {mm(engine_main)} (doctrine active from 0.97)"))
 
     # Wave-ripeness (operator ruling 2026-07-13 · option C): the release
     # stays a DELIBERATE act — the mechanism proposes, the operator
