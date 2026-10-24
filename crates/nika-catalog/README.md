@@ -1,7 +1,7 @@
 # nika-catalog
 
-Compile-time capability vocabulary — 38 LLM providers, 105 MCP servers,
-13 embeddings, 28 builtins, 49 capability rules.
+Compile-time capability vocabulary — 39 LLM providers, 105 MCP servers,
+13 embeddings, 29 builtins, 57 capability rules.
 
 <!-- The five counts above are not typed from memory. Three of them are
      asserted by this crate's own tests (`src/lib.rs` · `all_providers`,
