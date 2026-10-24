@@ -9,5 +9,5 @@
 
 🔐 **requires** — models: `ollama/llama3.1` · all resolve in this engine · secrets: none
 ---
-<sub>nika 0.121.0 · report_version 1 · floor semantics: spend ≥ floor · [what this checks](https://docs.nika.sh/reference/machine-surfaces)</sub>
+<sub>nika 0.123.0 · report_version 1 · floor semantics: spend ≥ floor · [what this checks](https://docs.nika.sh/reference/machine-surfaces)</sub>
 <!-- nika-action:v1:flows/pr-risk-review.nika -->

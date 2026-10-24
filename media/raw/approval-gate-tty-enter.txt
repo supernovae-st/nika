@@ -3,7 +3,7 @@
   🦋 nika · gated-ship · 3 tasks
      permits ✓ declared boundary · exec outside the fs bounds
 
-  ✔  ▷ build    exec · printf · untrusted input from build  [11ms]  → "build ok" · 10B
+  ✔  ▷ build    exec · printf · untrusted input from build  [10ms]  → "build ok" · 10B
   ◇  · approve  awaiting a `nika:prompt` answer — resume with `--resume <trace> --answer <task>=<value>`
   ○  · ship
   ── 1/3 done · unmetered · elapsed 0.0s ─────────────────────────
@@ -12,8 +12,8 @@
   ◇ paused · awaiting an answer for `approve`
     answer: nika run --answer approve=true FILE  (boolean true/false, not yes)
   explore: nika run gated-ship.nika --json > run.ndjson · nika trace outputs run.ndjson
-    trace: .nika/traces/2026-09-28T21-15-02Z-4e64.ndjson · 9 events · chain aa6a6d6ad7c48d6bc443106bf9daa68d2306c7a9a7f736bda9f7918025ad507a
-    resume: nika run gated-ship.nika --resume .nika/traces/2026-09-28T21-15-02Z-4e64.ndjson --answer approve=true · or false
+    trace: .nika/traces/2026-10-24T11-02-23Z-ba90.ndjson · 9 events · chain 88c33a07f926c4663576b3b8c9c900bf826d3bff33d1121c8515e1e6fbfd6b1e
+    resume: nika run gated-ship.nika --resume .nika/traces/2026-10-24T11-02-23Z-ba90.ndjson --answer approve=true · or false
 
   ◇ approve · Ship this build to production?  [y/N]
   ▷ build ───▶ ◆ approve ───▶ ⊘ ship
@@ -28,10 +28,10 @@
   ━━━━━━━━━━━━━━━━━━━━━━━━ 3/3
   ╭─ nika ✓ gated-ship ──────────────────────────╮
   │  ◆ ⇉ ◆ ⇉ ◆    3 tasks · 3 waves · 0 retries  │
-  │  6ms · unmetered                             │
+  │  13ms · unmetered                            │
   │  wrote .nika/traces                          │
   ╰──────────────────────────────────────────────╯
   explore: nika run gated-ship.nika --json > run.ndjson · nika trace outputs run.ndjson
-    trace: .nika/traces/2026-09-28T21-15-02Z-9902.ndjson · 11 events · chain a2b7ab843ebb219b7cc02491b5103c175f34df306a091d716d674968ba9a372f
+    trace: .nika/traces/2026-10-24T11-02-23Z-014c.ndjson · 11 events · chain ca34a6b1c106dd64ce9eb6721d6f28d72b0443839ce3442f2bc5a31645a97302
 
   resumed · 1 skipped (cache hit) · 1 ran live

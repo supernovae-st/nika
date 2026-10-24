@@ -4,7 +4,7 @@ What do you want to automate?
   describe the outcome · Nika asks only for what's missing · /help · /status
 
 nika › Read ./data/orders.csv, keep only the rows whose status is paid, and write them to ./out/paid.csv.
-✓ understood 3 requirements
+✓ recorded 3 requirements
 Nika proposes `compiled-workflow.nika`:
 Does
   1. read_source · reads a file
@@ -51,54 +51,59 @@ proposed change · Read ./data/orders.csv, keep only the rows whose status is pa
   │ tasks: 8 (in run order above)
   └─ `/show` prints the exact 97 lines
   check of these bytes · `compiled-workflow.nika` · clean ✔
-    · 1 hint · assert-quarantine · `nika check compiled-workflow.nika` prints them
+    · 1 hint to improve it · `nika check compiled-workflow.nika` prints it
   when it runs:
     · reads ./data/orders.csv
     · writes ./out/paid.csv
     · tools nika:assert · nika:convert · nika:jq · nika:read · nika:write
     · model output estimate · $0 · no direct model task in these checked bytes
-apply this? (yes applies · no discards · questions keep it pending · nothing is written until you say yes)  identity 0f2aaa8f3aba · `/show` the exact bytes · `/meaning` your request clause by clause · `yes` applies · `no` discards
+apply this? (yes applies · no discards · questions keep it pending · nothing is written until you say yes)  identity db9cf6afdf9e · `/show` the exact bytes · `/meaning` your request clause by clause · `yes` applies · `no` discards
 money: $0.25 USD · session default · proposal/Run ceiling · no project default · policy cap unknown · machine cap unknown · execution requires a separate Run and downstream admission
 Session inference: no Session budget; no aggregate inference allowance; qualified priced calls observed at catalog estimates, never capped; separate from the proposal/Run ceiling; catalog estimates are not invoices or a hard billing cap; billed cost unknown
 
 
 apply? › yes
 applied · wrote `compiled-workflow.nika`
+  sources judged again before writing: 1 recorded fact(s) of `./data/orders.csv` hold (rows added, removed or reordered never move them)
   check · `compiled-workflow.nika` · clean ✔
-    · 1 hint · assert-quarantine · `nika check compiled-workflow.nika` prints them
+    · 1 hint to improve it · `nika check compiled-workflow.nika` prints it
 Saved · checked · not active · nothing has run
   say « run it » to run it once (a ceiling is announced first)
+  from a terminal: `nika run compiled-workflow.nika`
 
 nika › run it
-check · `compiled-workflow.nika` · clean ✔
+check · `compiled-workflow.nika` · clean ✔ · ceiling $0.25 (the Session's default)
 running `compiled-workflow.nika` once · ceiling $0.25
   [nika] nika · compiled-workflow · 8 tasks
      permits OK declared boundary · default-deny
 
-  ok read_source     invoke · nika:read  1ms
+  ok read_source     invoke · nika:read  0ms
   ok parse_source    invoke · nika:convert  0ms
-  ok source_columns  invoke · nika:jq  5ms
-  ok compute_guard   invoke · nika:jq  4ms
+  ok source_columns  invoke · nika:jq  3ms
+  ok compute_guard   invoke · nika:jq  0ms
   ok compute_admit   invoke · nika:assert  0ms
-  ok compute         invoke · nika:jq  4ms
+  ok compute         invoke · nika:jq  0ms
   ok paid_csv        invoke · nika:convert  0ms
-  ok write_output    invoke · nika:write  2ms
-    trace: .nika/traces/2026-09-28T20-49-54Z-817f.ndjson · 37 events · chain fc0aae33d37a8005e82041da1f5a76834fcc2763979120dde98692ae5fbf660e · sealed
-Done · `compiled-workflow.nika` · 42 ms · 8 tasks ran
+  ok write_output    invoke · nika:write  1ms
+    trace: .nika/traces/2026-10-24T11-02-20Z-e112.ndjson · 37 events · chain 90ca28bb6ef2b2b58edd9c6c2644eefc224b4d8d70711b51565484c266dbc5d2 · sealed
+Done · `compiled-workflow.nika` · 8 ms · 8 tasks ran
   produced · ./out/paid.csv (92 B)
   read · ./data/orders.csv
+  output · computed · [{"amount":"18.00","customer":"Juniper Books","order_id":"1001","status":"paid"},{"amount":"13.50","customer":"Linden Studio","order_id":"1003","status":"paid"}…
+  output · write_status · success
   cost · no model usage recorded
+  ceiling · $0.25 · the most this run was allowed to cost
   `/proof` shows the records and their limits · « run it » runs it again
-  run observed · exit 0 · succeeded · trace `.nika/traces/2026-09-28T20-49-54Z-817f.ndjson`
+  run observed · exit 0 · succeeded · trace `.nika/traces/2026-10-24T11-02-20Z-e112.ndjson`
 
 nika › /proof
-Proof · `.nika/traces/2026-09-28T20-49-54Z-817f.ndjson` · what this journal records, hash-chained line by line
+Proof · `.nika/traces/2026-10-24T11-02-20Z-e112.ndjson` · what this journal records, hash-chained line by line
   workflow · compiled-workflow · bytes sha256 2433bdb7…5cfe · meaning ccaea4ef…d879
-  chain · OK — 37 events · chain intact · head fc0aae33…660e
-  seal · SEALED — the run_sealed signature verifies · key b512f47bcf12e8e3 (~/.nika/keys/run-signing.pub)
+  chain · OK — 37 events · chain intact · head 90ca28bb…c5d2
+  seal · SEALED — the run_sealed signature verifies · key 78c76088fdba2876 (~/.nika/keys/run-signing.pub)
   boundary · 8 effect(s) declared · 8 exercised · 0 escaped · 10 permit check(s) · 10 allowed · 0 denied
   written · ./out/paid.csv · 92 B · sha256 7cac63e6…89db · RE-READ: the file as it is now, not as it was written
-  engine · 0.121.0 · sandbox landlock
+  engine · 0.123.0 · sandbox seatbelt
   records · task outcomes, permit decisions, durations, and any task input/result hashes present (the journal's encoding, not a file checksum)
   trust · signed by the run key: a rewritten journal needs that key
   does not prove · that the content is right (read it) · that anyone outside this machine trusts the key (`nika trace anchor` notarizes the head)

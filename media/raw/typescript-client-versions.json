@@ -1,21 +1,21 @@
 {
  "package": {
   "name": "@supernovae-st/nika",
-  "version": "0.120.3"
+  "version": "0.123.0"
  },
  "engine": {
   "source": "bundled",
-  "version": "0.120.3",
-  "build": "578352a31",
-  "run_journal_says": "0.120.3",
+  "version": "0.123.0",
+  "build": "0bfde3765",
+  "run_journal_says": "0.123.0",
   "payload": {
-   "name": "@supernovae-st/nika-linux-x64",
-   "version": "0.120.3",
-   "sha256": "f545cb83ce05504999d40559ade374acb5326c1773468bc73adb743678d93272",
+   "name": "@supernovae-st/nika-darwin-arm64",
+   "version": "0.123.0",
+   "sha256": "8332b5b94943285adf25c4951e06cc072aef84cf93e7487276a189726dbe07e8",
    "sha256_matches_integrity": true,
    "release": {
-    "tag": "v0.120.3",
-    "commit": "578352a31254ff04025ac6207bcf6f40d3911613"
+    "tag": "v0.123.0",
+    "commit": "0bfde3765806cae256d65920b3a67c1cc68b9acd"
    }
   }
  },
