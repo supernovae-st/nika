@@ -8,26 +8,37 @@
 
 use std::path::{Path, PathBuf};
 
-/// Relative `workflow: "./foo.nika"` children a body invokes.
-/// `nika try 10-compose-pipeline` staged the parent alone and check
-/// died on NIKA-COMP-001 (the child is an ingredient, same class as a
-/// fixture file). Only `./` static pack slugs — templated targets
-/// cannot be staged.
+/// Relative `workflow: "./foo.nika"` children a body invokes, read from
+/// its PARSED `invoke:` targets. `nika try 10-compose-pipeline` staged the
+/// parent alone and check died on NIKA-COMP-001 (the child is an
+/// ingredient, same class as a fixture file). A raw-text scan also took a
+/// child a lesson only names in a comment (`15-compose-self-check`), which
+/// init then wrote and audited. Only `./` static pack slugs — templated
+/// targets cannot be staged; a body that does not parse stages no child
+/// (its own check refuses it first).
 #[must_use]
 fn composition_siblings(body: &str) -> Vec<String> {
+    use nika_schema::raw::{RawAction, RawInvokeTarget};
+    let Ok(wf) = nika_schema::parse(
+        body,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Lenient,
+    ) else {
+        return Vec::new();
+    };
     let mut out: Vec<String> = Vec::new();
-    for (i, _) in body.match_indices("workflow:") {
-        let rest = body[i + "workflow:".len()..].trim_start();
-        let rest = rest.trim_start_matches(['\'', '"']);
-        let Some(name) = rest.strip_prefix("./") else {
+    for task in &wf.tasks {
+        let RawAction::Invoke(invoke) = &task.value.action else {
             continue;
         };
-        let name: String = name
-            .chars()
-            .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
-            .collect();
-        if nika_source::is_canonical_program_file_name(&name) && !out.iter().any(|p| p == &name) {
-            out.push(name);
+        let RawInvokeTarget::Workflow(target) = &invoke.target else {
+            continue;
+        };
+        let Some(name) = target.value.strip_prefix("./") else {
+            continue;
+        };
+        if nika_source::is_canonical_program_file_name(name) && !out.iter().any(|p| p == name) {
+            out.push(name.to_owned());
         }
     }
     out
@@ -211,6 +222,20 @@ mod tests {
             "the rehearsal room has the sibling"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A child named only in a comment is not an ingredient: the
+    /// `15-compose-self-check` header cites `./10-compose-child.nika`, but
+    /// its tasks invoke no workflow (its draft's children are never
+    /// resolved), so no door stages, writes or audits that child.
+    #[test]
+    fn a_child_named_only_in_a_comment_is_not_an_ingredient() {
+        let body = nika_pack::example("15-compose-self-check").expect("pack");
+        assert!(
+            body.contains("./10-compose-child.nika"),
+            "the header still names the child, so this test still bites"
+        );
+        assert_eq!(composition_siblings(body), Vec::<String>::new());
     }
 
     /// A body with no fixture reads materializes nothing — and a

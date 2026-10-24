@@ -417,6 +417,32 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// A lesson that only NAMES a child in a comment founds without it:
+    /// `15-compose-self-check` cites `./10-compose-child.nika` in its
+    /// header and invokes no workflow, so init writes the lesson and its
+    /// index and nothing else (it used to write and audit the child).
+    #[test]
+    fn a_child_named_only_in_a_comment_is_not_founded() {
+        let dir = std::env::temp_dir().join(format!("nika-example-comment-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let rows = scaffold_example(dir.to_str().expect("utf8"), "15-compose-self-check", false);
+        assert!(
+            !dir.join("workflows").join("10-compose-child.nika").exists(),
+            "no child file for a comment: {rows:?}"
+        );
+        let written: Vec<&str> = rows
+            .iter()
+            .filter_map(|(path, _)| Path::new(path).file_name()?.to_str())
+            .collect();
+        assert_eq!(
+            written,
+            ["15-compose-self-check.nika", "README.md"],
+            "the lesson and its index, nothing more: {rows:?}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// Re-running a recipe skips what exists (the human keeps the hand).
     #[test]
     fn rerun_skips_existing_workflows() {
