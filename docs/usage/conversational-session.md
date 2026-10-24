@@ -451,14 +451,21 @@ startup file as your key. The walkthroughs above need none of them.
 | `NIKA_KNOWLEDGE_EXCLUDE` | A corpus whose examples are never recalled from the selected release, including the embedded default |
 | `NIKA_SESSION_DECISION_MODEL` | An optional decision model; only `typesafe/<model>` (Jev) is supported, with `TYPESAFE_API_KEY` |
 
-**Knowledge releases.** By default, the Session admits the release embedded in
-its binary against the build's trusted identity and pins it when it opens.
-`/status` names that identity and its embedded origin. The release contains three
-blocks linked to three patterns. Matching words in an intention select patterns
-and their blocks as reference material; an intention with no lexical match adds
-none. The release contains no examples or repair principles. The record
-distinguishes composed references from those presented in an authoring
-instruction; neither proves a better result.
+**Knowledge releases.** By default, the Session admits the knowledge release
+embedded in its binary against the build's trusted identity and pins it when it
+opens; in 0.123.0 that is the r3.5 Foundry release
+(`knowledge-0.123.0-r3.5-foundry-20261016`). `/status` names that identity and
+its embedded origin. The release holds workflow blocks, patterns grouped in packs
+and families, examples and skills for recurring jobs; it holds no repair
+principles. The informative words of an intention recall rows from it, and a
+recalled family brings its packs' patterns and blocks. A row that shares only a
+common word such as « the » is not recalled, an intention with no match adds
+none, and every recalled row is presented whole. With a decision model selected,
+each recalled reference is first put to it against the whole request: one it
+finds unrelated never reaches the author, and one it cannot judge stays shown as
+a hypothesis. Without a decision model, the recall is shown unqualified and the
+record says so. The record distinguishes composed references from those
+presented in an authoring instruction; neither proves a better result.
 Deterministic authoring does not present knowledge to a model.
 
 `NIKA_KNOWLEDGE=off` disables knowledge. With authoring strategy `off` and no
@@ -497,9 +504,10 @@ evidence once it doubts the workflow. Records retain paths, sizes and digests ra
 duplicating the texts. This preparation does not start the workflow's live Run; its
 `.nika` execution rules remain separate.
 
-0.123.0 does not perform Foundry retrieval during authoring. Jev does not write
-workflows or grant execution authority. TypeSafe is a third-party service with
-its own account and terms.
+Jev does not search the knowledge release itself: it judges the references the
+recall found, as described under Knowledge releases. It does not write workflows
+or grant execution authority. TypeSafe is a third-party service with its own
+account and terms.
 
 ## Limits
 
