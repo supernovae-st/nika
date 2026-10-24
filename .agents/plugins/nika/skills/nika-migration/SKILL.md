@@ -45,7 +45,7 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 | the irreversible step (deploy, send, publish) | preserve its authorization and any required gate; use `nika:prompt` for a decision still needed at run time, not to re-request authorization already given |
 | what no builtin/MCP covers (git, build tools) | `exec:` with `command:` as ARGV (`["git", "log", "-1"]`) + a row in the exec ledger |
 | a pipe, redirect or glob inside the command | `shell:` explicitly — `command:` has no implicit shell |
-| a crontab line, a CI `schedule:` or a timer that runs the script | an `arm:` beat in the project's `nika.yaml`: `cadence: "TZ=<IANA zone> <cron>"`, `plafond:` and `manqué:`, checked with `nika arm --json` (READY); the workflow holds no time, and activating the beat is its own effect, carried out when the person's instruction covers it (https://docs.nika.sh/guides/projects-and-schedules) |
+| a crontab line, a CI `schedule:` or a timer that runs the script | an `arm:` beat in the project's `nika.yaml`: `cadence: "TZ=<IANA zone> <cron>"`, `plafond:` and `manqué:`, checked with `nika arm --json` (READY); the workflow holds no time, and activating the beat is its own effect, carried out when the person's instruction covers it (https://docs.nika.sh/reference/arm) |
 
 ## The port protocol
 

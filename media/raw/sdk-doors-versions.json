@@ -1,0 +1,32 @@
+{
+ "package": {
+  "name": "@supernovae-st/nika",
+  "version": "0.123.0",
+  "npm_added": 2,
+  "installed": [
+   "nika",
+   "nika-darwin-arm64"
+  ]
+ },
+ "engine": {
+  "source": "bundled",
+  "version_line": "nika 0.123.0 (0bfde3765)",
+  "engineVersion": "0.123.0",
+  "buildSha": "0bfde3765",
+  "specSha": "6390b08eb9791ce49c63ee17f8466fab118cadb8",
+  "machineProtocolVersion": 2,
+  "payload": {
+   "name": "@supernovae-st/nika-darwin-arm64",
+   "version": "0.123.0",
+   "sha256": "8332b5b94943285adf25c4951e06cc072aef84cf93e7487276a189726dbe07e8",
+   "sha256_matches_integrity": true,
+   "release": {
+    "tag": "v0.123.0",
+    "commit": "0bfde3765806cae256d65920b3a67c1cc68b9acd"
+   }
+  }
+ },
+ "node": "v22.22.2",
+ "signing_key": "nika key init in a scratch HOME (NIKA_KEYCHAIN=off: file custody)",
+ "captured": "2026-10-24"
+}

@@ -5,7 +5,9 @@
 // meeting-actions fixture; its verdict is `nika check` under the run's
 // model (media/raw/check-meeting-ollama.txt); the run and the action items
 // are the committed capture of a real local model (run-meeting.txt,
-// action-items.json). The last frame is the chat-vs-keeping social card.
+// action-items.json), and the plate names the release that run was
+// captured with (run-meeting-version.txt). The last frame is the
+// chat-vs-keeping social card.
 import { C, E, seg, smooth, repoLines, readRepo, NIKA_VERSION, codeCard, frame, headline, loopFade, panel, pill, mono, cameraPath, frameBox, titleFade, WIDE } from './kit.mjs';
 import { text, rrect, line, bezierPts, poly, circle, measure } from '../src/engine/render.mjs';
 
@@ -16,6 +18,9 @@ const check = repoLines('media/raw/check-meeting-ollama.txt');
 const run = repoLines('media/raw/run-meeting.txt');
 const items = JSON.parse(readRepo('media/raw/action-items.json'));
 const MODEL = (run.find(l => /infer ·/u.test(l)) || '').match(/infer · (\S+)/u)?.[1] ?? 'ollama/llama3.2:3b';
+// the release the committed run was captured with, never assumed to be the check's
+const RUN_VERSION = readRepo('media/raw/run-meeting-version.txt').trim().split(/\s+/)[1];
+if (!RUN_VERSION) throw new Error('media/raw/run-meeting-version.txt names no release');
 const DONE = run.find(l => /\d+\/\d+ done/u.test(l)).replace(/[─\s]+$/u, '').trim();
 if (!check.some(l => /run ready ✔/u.test(l))) throw new Error('the meeting audit is no longer run ready');
 const lineOf = key => program.findIndex(l => l === `  ${key}:`) + 1;
@@ -70,7 +75,7 @@ export function env() {
 export function chrome(R, t) {
   const a = loopFade(t, meta.duration);
   const cam = camera(t);
-  frame(R, t, { kicker: 'chat is for trying · nika is for keeping', plate: `chat and mapping: illustration · file, check (nika ${NIKA_VERSION}) and run: real · run: a captured local model (${MODEL})`, alpha: a, scrim: smooth(1, 1.12, cam.s) });
+  frame(R, t, { kicker: 'chat is for trying · nika is for keeping', plate: `chat and mapping: illustration · file, check (nika ${NIKA_VERSION}) and run: real · run: a local model (${MODEL}) captured with nika ${RUN_VERSION}`, alpha: a, scrim: smooth(1, 1.12, cam.s) });
   headline({ ...R, fade: a * titleFade(cam) }, t, 0.2, meta.duration + 1, 'Chat is for trying. Nika is for keeping.', 'IF YOU ASK IT TWICE, KEEP IT AS A WORKFLOW', { accent: 'Nika is for keeping.', accentColor: C.teal });
 }
 

@@ -10,4 +10,4 @@ rehearsal: mock/echo answers by echoing the prompt — not a real answer · a re
     see it whole: nika trace outputs
     rehearsal · a mock model echoed the prompt — not a real answer
   explore: nika run hello.nika --json > run.ndjson · nika trace outputs run.ndjson
-    trace: .nika/traces/2026-09-28T19-06-09Z-8d1d.ndjson · 5 events · chain 2a927d2e5975adb3b5fd6c2a3b7eeed3207444a459614ef1364b02d1fb265d8f
+    trace: .nika/traces/2026-10-24T11-02-18Z-64fb.ndjson · 5 events · chain 5f8f6baf1165fdc49a01bc62555bef159c7202e24bb7ab32b9ce614d469dc8ee

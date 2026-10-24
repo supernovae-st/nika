@@ -2,7 +2,7 @@ rehearsal: mock/echo answers by echoing the prompt — not a real answer · a re
   🦋 nika · release-notes · 3 tasks
      permits ✓ declared boundary · default-deny
 
-  ✔  changes  invoke · nika:read  1ms
+  ✔  changes  invoke · nika:read  0ms
   ✔  notes    infer · mock/echo  0ms
   ✔  save     invoke · nika:write  1ms
   3 tasks · 3 waves · 0 retries · 40 tok
@@ -13,4 +13,4 @@ rehearsal: mock/echo answers by echoing the prompt — not a real answer · a re
     see it whole: nika trace outputs
     rehearsal · a mock model echoed the prompt — not a real answer
   explore: nika run release-notes.nika --json > run.ndjson · nika trace outputs run.ndjson
-    trace: .nika/traces/2026-09-28T19-12-15Z-c3f2.ndjson · 15 events · chain c1b41d196ff423ed98569977035bcd2ed403827f376cfbfacb88e671f042638d
+    trace: .nika/traces/2026-10-24T11-02-18Z-28a1.ndjson · 15 events · chain 82160f4d4553adac5388eb1120731ce27702c2ac2f754d4cd27bde515e528af9

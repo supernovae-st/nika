@@ -9,7 +9,7 @@ nika check · pr-review-fanout.nika
       wave 7 save (invoke · nika:write)
  ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping) · this machine's paths on the ACCESS line
  ✔ ACCESS   ollama/qwen3.5:4b → ollama (local · local · declared) · present · liveness judged at run
- ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · 1 unpriced task · prompts, exec + mcp unpriced · prices 2026-09-23
+ ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · 1 unpriced task · prompts, exec + mcp unpriced · prices 2026-10-12
    reviews  ollama/qwen3.5:4b  UNBOUNDED — for_each over an expression (unknown count)
    summary  ollama/qwen3.5:4b  UNBOUNDED — no catalog price (local model; spend not metered)
  ⚠  ENERGY   no total energy ceiling · 0 of 2 tasks measured · 1 unpriced · 1 uncapped · never 0 Wh (NEP-0018)
@@ -27,7 +27,8 @@ nika check · pr-review-fanout.nika
  ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
  ✔ JOURNEY internal · 1 source · 2 destinations · 2 model endpoints · no secret reaches an external destination
  ↳ HINT     [consent] `save` sits on a route from `approve` the checker cannot PROVE consumes the answer (a nested binding · a non-fragment expression) — if it does not, a REFUSED confirm still settles success with value false and the effect fires on 'no'; make the consumption provable: `with: { go: "${{ tasks.approve.output }}" }` + `when: ${{ with.go == true }}` (the human-gated-ship pattern)
+ ↳ HINT     [skipped-read] the `for_each:` of task `reviews` uses `with.files` as its collection, and `with.files` binds the value of `files`: `files` can be skipped (its `when:` can close), and a skipped task's value reads null; `reviews` has no `when:` to stop it, so it raises NIKA-VAR-006 and `reviews` fails. Guard the task: `when: ${{ with.files != null }}`
  ↳ HINT     [inputs] `todo_sweep` reads `./src` which does not exist here — create it (or point its var elsewhere) · the run would fail at that wave
- ⚠ audited · 8 tasks · 7 waves · permits exec:git tools:nika:done,nika:grep,nika:jq,nika:prompt,nika:read,nika:write read:./src/** write:./REVIEW.md · est unbounded · 1 uncapped task · 1 unpriced task · 2 hints · risk unbounded — declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>` · no ceiling on the grant: fs.read ./src/** · narrow it to what the body reaches (`nika check --infer-permits <file>` derives that boundary)
+ ⚠ audited · 8 tasks · 7 waves · permits exec:git tools:nika:done,nika:grep,nika:jq,nika:prompt,nika:read,nika:write read:./src/** write:./REVIEW.md · est unbounded · 1 uncapped task · 1 unpriced task · 3 hints · risk unbounded — declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>` · no ceiling on the grant: fs.read ./src/** · narrow it to what the body reaches (`nika check --infer-permits <file>` derives that boundary)
  layers · valid ✔ · access ready ✔ · capacity fit ✔ · run ready ✔
  ↳ NEXT     see `nika explain` for coded findings — nothing here is a typed rename, so these are yours to place

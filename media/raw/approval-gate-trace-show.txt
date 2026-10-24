@@ -1,17 +1,17 @@
-nika trace: reading .nika/traces/2026-09-28T21-15-02Z-5b91.ndjson (the workspace latest)
+nika trace: reading .nika/traces/2026-10-24T11-02-23Z-f558.ndjson (the workspace latest)
   🦋 nika · gated-ship · 3 tasks
      permits ✓ declared boundary · exec outside the fs bounds
 
   ↷  build    cache hit (resume)
-  ✔  approve  invoke · nika:prompt                       0ms
-  ✔  ship     exec · printf · untrusted input from ship  11ms
+  ✔  approve  invoke · nika:prompt                      0ms
+  ✔  ship     exec · printf · untrusted input from ship  8ms
   ── 3/3 done · unmetered · elapsed 0.0s ─────────────────────────
-  approve  ▕█▏                                    0ms
-  ship     ▕     █████████████████████████████▏  11ms
-  0s ····································· 13ms
+  approve  ▕█▏                                   0ms
+  ship     ▕       ███████████████████████████▏  8ms
+  0s ····································· 10ms
   ╭─ nika ✓ gated-ship ──────────────────────╮
   │  ◆ ⇉ ◆    3 tasks · 2 waves · 0 retries  │
-  │  22ms · unmetered                        │
+  │  20ms · unmetered                        │
   ╰──────────────────────────────────────────╯
   gate "approve"
     decision: "allow"

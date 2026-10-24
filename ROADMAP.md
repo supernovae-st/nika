@@ -7,29 +7,47 @@
 > long-range roadmap, kept as the record of how the engine was built; its forward items are not
 > commitments.
 
-The accepted [0.123 cooperative intent direction](docs/architecture/ARCHITECTURE-0.123.md),
-amended 6 October 2026, governs this convergence. Historical routing descriptions
-below do not override it. Implementation, measured qualification and release
-remain separate from accepting that direction.
+## After 0.123
 
-> **⚠️ VERSION POLICY AMENDED 2026-06-20 (D-2026-06-20-N1) · "forever-v0.x" RETIRED.**
-> Nika now follows real semver toward a **1.0** public launch. The latest
-> tagged public release lives on the
-> [releases page](https://github.com/supernovae-st/nika/releases)
-> (release-candidate grade); `main` advances to the
-> next `-dev` version immediately after release → the contract system and
-> the hundred-year machinery (NEP door · conformance tiers · archives · the
-> compatibility promise · the deterministic checker · succession) land BEFORE
-> the launch, declared pre-conditions of the official 1.0 (D-2026-07-22-N1);
-> memory, retrieval and cognition capabilities each meet their own release
+- **Maintained, not extended.** Fixes land on `main` and ship as 0.123.x
+  patch releases: security fixes, bug fixes and compatibility
+  ([SECURITY.md](SECURITY.md) lists the supported versions).
+- **Not planned:** major new features, a hosted service or SaaS, and a 1.0
+  launch. The forward items in the historical plan below are not
+  commitments.
+- **Known limits** of the release, each with a way around it, are at
+  [docs.nika.sh/changelog/known-limits](https://docs.nika.sh/changelog/known-limits).
+- **Contributions** in scope are listed in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Historical plan (April to October 2026 · not commitments)
+
+Everything below is the long-range plan as it stood before 0.123, kept as the
+record of how the engine was built. Its forward items, the 1.0 launch it
+describes included, are not planned.
+
+The accepted [0.123 cooperative intent direction](docs/architecture/ARCHITECTURE-0.123.md),
+amended 6 October 2026, governed the convergence to 0.123. Historical routing
+descriptions below do not override it, and accepting that direction did not by
+itself implement, qualify or release it.
+
+> **Version policy as amended 2026-06-20 (D-2026-06-20-N1) · "forever-v0.x" retired.**
+> From June to October 2026 the plan followed real semver toward a **1.0**
+> public launch: each tagged release on the
+> [releases page](https://github.com/supernovae-st/nika/releases) was
+> release-candidate grade and `main` advanced to the next `-dev` version
+> immediately after it. The contract system and the hundred-year machinery
+> (NEP door · conformance tiers · archives · the compatibility promise · the
+> deterministic checker · succession) were to land before that launch, as
+> declared pre-conditions of an official 1.0 (D-2026-07-22-N1); memory,
+> retrieval and cognition capabilities were each to meet their own release
 > acceptance under explicit owners, with no Connectome umbrella and no
-> whole-before-1.0 gate (D-2026-10-08-N1) → design-partner
-> `1.0.0-rc.N` → first public launch **1.0.0**, the culmination → 1.x minors
-> add the remaining crates additively → the next major stays **un-numbered and
-> unnamed**, its content the operator's to declare (D-2026-07-10-N4). The nine-key LANGUAGE
-> envelope (`nika: <id>` · ADR-113) is frozen forever and unaffected. The `v0.8X.Y` layer-tag scheme below
-> is SUPERSEDED (kept for history). See ADR-002 amendment + §Tag scheme.
-> The dated history and the forward gates live in the machine-verified
+> whole-before-1.0 gate (D-2026-10-08-N1); design-partner `1.0.0-rc.N`, a first
+> public launch **1.0.0** and additive 1.x minors were to follow, with the next
+> major left un-numbered and unnamed (D-2026-07-10-N4). After 0.123 none of
+> these steps is planned. The nine-key LANGUAGE envelope (`nika: <id>` ·
+> ADR-113) is frozen forever and unaffected. The `v0.8X.Y` layer-tag scheme
+> below is superseded (kept for history). See ADR-002 amendment + §Tag scheme.
+> The dated history lives in the machine-verified
 > [timeline](https://github.com/supernovae-st/nika-spec/blob/main/timeline/timeline.yaml)
 > (every provable claim re-proven by the spec's CI · conditions, never dates).
 >
@@ -37,8 +55,9 @@ remain separate from accepting that direction.
 >
 > Nika is built bottom-up, one layer at a time: **L0 → L0.5 → L1 → L2 → L3 → L4 → L5**.
 > Every feature is crafted as its layer is reached. No feature defer. No
-> version-milestone ceremony. Real semver toward a 1.0 launch (amended
-> D-2026-06-20-N1 · was "no v1.0 target · forever-v0.x").
+> version-milestone ceremony. The plan then followed real semver toward a
+> 1.0 launch (amended D-2026-06-20-N1 · was "no v1.0 target · forever-v0.x");
+> after 0.123 that launch is not planned.
 >
 > Tag scheme (Q-plan 3b): `v0.8X.Y` where `X` climbs per layer-phase completion
 > and `Y` increments per crate admission. See §Tag scheme below.
@@ -63,13 +82,14 @@ remain separate from accepting that direction.
 > descending crate's spec. A `43 / 42` census line is two members of the
 > cli unit, not a 43rd unit.
 
-**Philosophy: diamond-grade at every release, real semver toward 1.0**
-(amended D-2026-06-20-N1 · was "forever v0.x"). Nika ships a **1.0** at its first
-public launch and increments quality additively afterward (1.1, 1.2, … each
-diamond-grade for its declared scope). The version number CLIMBS to communicate
-maturity. Unshipped features are on this roadmap — **nothing ships as a surprise,
-nothing ships half-baked**. The SQLite precedent below is the model: a complete,
-diamond-grade product at each release, with features added across the X.x line.
+**Philosophy: diamond-grade at every release** (the plan until 0.123 read
+"real semver toward 1.0", amended D-2026-06-20-N1 · was "forever v0.x"). The
+plan was for Nika to ship a **1.0** at a first public launch and to add quality
+across later minors, each diamond-grade for its declared scope; after 0.123
+neither is planned, and 0.123 is the maintained reference release. Unshipped
+features named below were the plan's, not commitments: **nothing ships as a
+surprise, nothing ships half-baked**. The SQLite precedent below was the model:
+a complete, diamond-grade product at each release.
 
 > "Diamond is a CRAFT STANDARD, not a scope list. SQLite 1.0 didn't have WAL,
 > FTS, JSON1, or window functions. Those came across 3.x releases over 20 years.
@@ -102,12 +122,13 @@ before it joins the workspace.
 
 See `docs/architecture/ai-velocity.md` for the full argument.
 
-## Current state
+## Workspace state
 
 > First public release (2026-06-21 · `brew install supernovae-st/tap/nika`).
 > The workspace census (admitted · WIP · per-layer) lives in the auto-generated
-> block below · RC-grade toward the **1.0.0** launch, which the 7 shadow zones
-> gate (D-2026-06-20-N1).
+> block below. Until 0.123 the plan called each release RC-grade toward a
+> **1.0.0** launch gated by 7 shadow zones (D-2026-06-20-N1); that launch is
+> not planned.
 
 > Single source of truth: `bash scripts/refresh-status.sh`. The block
 > below is regenerated by that script and parity-enforced by hygiene
@@ -136,16 +157,17 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | lib tests        | (skipped — pass --no-quick to compute)                              |
 | clippy           | (skipped)                              |
 
-> **Where we are · 2026-09-30.** Engine **v0.121.0** is published
-> (2026-09-25, `d71559be5`): bare `nika` opens the terminal Session, `--plain`
-> gives its line interface, and an API route whose price is unknown needs a
-> fresh Run cost review. `main` also carries #1747 (merged 2026-09-29 as
-> `5c2425996`: grounded authoring, Session recovery, run authority), which is
-> not released. The plugins marketplace and the One SDK
-> (`@supernovae-st/nika`) are still at `0.120.3`. Open gates on the
-> way to 1.0: the 7 shadow zones, `.nika` teaching on the public site
-> (#1684), the quickstart SSOT (#1659), and the compiler's general
-> natural-language and pattern breadth (#1663, #1666). Claims here are
+> **Where it stood · 2026-09-30 (before 0.123).** Engine **v0.121.0** was
+> published (2026-09-25, `d71559be5`): bare `nika` opened the terminal
+> Session, `--plain` gave its line interface, and an API route whose price was
+> unknown needed a fresh Run cost review. `main` also carried #1747 (merged
+> 2026-09-29 as `5c2425996`: grounded authoring, Session recovery, run
+> authority). The plugins marketplace and the One SDK (`@supernovae-st/nika`)
+> were still at `0.120.3`. The gates then named on the way to 1.0 were the 7
+> shadow zones, `.nika` teaching on the public site (#1684), the quickstart
+> SSOT (#1659), and the compiler's general natural-language and pattern
+> breadth (#1663, #1666). 0.123.0 followed on 2026-10-23, with the engine, the
+> plugin kit and `@supernovae-st/nika` all at 0.123.0. Claims here are
 > pointers; the ledger is the issues and the tags.
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
@@ -259,7 +281,9 @@ tracks implementation work; it does not change the default presentation.
 
 ## Tag scheme (real semver · amended D-2026-06-20-N1)
 
-Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
+The plan's scheme until 0.123: real semver toward a 1.0 launch, then
+`MAJOR.MINOR.PATCH`. After 0.123, releases are 0.123.x patches; the 1.0 rows
+below are not planned.
 
 - **MINOR** within a major = additive (new crates · builtins · providers · polish).
 - **PATCH** = bug fixes, zero contract change.
@@ -692,7 +716,7 @@ Per D-2026-05-22-N18.)
 **Distribution channels**:
 - **Homebrew** — `brew install supernovae-st/tap/nika` (formula at `supernovae-st/homebrew-tap` · SHIPPED since v0.90.0)
 - **`curl | sh`** — `curl -LsSf https://nika.sh/install.sh | sh` (platform detection, fallback to GH release tarball · SHIPPED)
-- **crates.io** — `cargo install nika` joins at the 1.0.0 launch
+- **crates.io** — `cargo install nika` was to join at the 1.0.0 launch (not planned after 0.123; the `nika` name on crates.io is a placeholder)
 - **GitHub Releases** — four pre-built tarballs from the tag-triggered release
   train (macOS arm64/x86_64, Linux arm64/x86_64), with checksums, GitHub
   attestations and SLSA provenance; `RELEASING.md` is the ceremony authority
@@ -883,10 +907,11 @@ compile-time tenant isolation contract.
 - **Keys subsystem**: macOS Keychain + Linux keyring + OAuth device flow
 - **Public launch**: `nika.sh`, community registry promotion, blog launch
 
-## Polish forever — post-1.0 (no layer climbs, no marketing events)
+## Polish forever — post-1.0 (the plan before 0.123)
 
-Incremental quality additions forever. Order determined by community pull +
-Nika team priorities. Possible directions include (no commitment):
+The plan imagined incremental quality additions after a 1.0, ordered by
+community pull and team priorities. After 0.123 none of these is planned; they
+are listed as the directions the plan once named (no commitment):
 
 - ~~**Hosted cloud runner** (`nika.sh` as optional SaaS)~~ — not planned (2026-10-23):
   Nika stays a local, self-hosted engine
@@ -938,6 +963,9 @@ Trusted reviewers may be delegated as the community grows. No DAO, no voting.
 
 ## Release cadence
 
+After 0.123, releases are 0.123.x maintenance patches, cut when fixes are
+ready. The cadence the plan described until then follows.
+
 Per ADR-037 the cadence is **admission-driven**, not calendar-driven — and
 per D-2026-06-20-N1 the tag scheme is **real semver** (`MAJOR.MINOR.PATCH` ·
 the historical `v0.8X.Y` layer-phase scheme is retired).
@@ -957,11 +985,11 @@ the historical `v0.8X.Y` layer-phase scheme is retired).
   ADR-037 count horizon (50-90 · cap 100) · 4-verb 2036 stress-test · 11/10 amplifiers ·
   ADR queue 050-056 + 060/062/064/066/070/071/072/073
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — 12-gate admission · contributor process
-- [`SECURITY.md`](SECURITY.md) — vulnerability disclosure · 11-row defense layers + NIKA-390 queued
+- [`SECURITY.md`](SECURITY.md) — supported versions · vulnerability disclosure · the defense layers 0.123 enforces
 - [`CHANGELOG.md`](CHANGELOG.md) — release log · per-crate semver entries
 - [`docs/adr/`](docs/adr/) — 38+ ADRs · architectural decisions canonical
-- **Release-candidate labels are reserved for the design-partner track**
-  (`1.0.0-rc.N` · per D-2026-06-20-N1). A 0.x wave may also ship as a
+- **Release-candidate labels were reserved for the design-partner track**
+  (`1.0.0-rc.N` · per D-2026-06-20-N1, not planned after 0.123). A 0.x wave may also ship as a
   **preview**, `vX.Y.Z-preview.N`: a GitHub pre-release that is never the
   Latest release, never in the Homebrew formula, published to npm only under
   the `next` dist-tag, and never announced. The historical `v0.80.0-alpha.*`
@@ -972,6 +1000,6 @@ the historical `v0.8X.Y` layer-phase scheme is retired).
 
 See `docs/architecture/forward-compat-invariants.md` for the full list of
 patterns, decisions, and rules that ensure every admitted crate accommodates
-L1 → L5 layers and post-1.0 polish **without breaking changes**.
+L1 → L5 layers and later additive work **without breaking changes**.
 
 🦋

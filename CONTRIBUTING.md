@@ -13,22 +13,22 @@ See also: [`README.md`](README.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md),
 [`DIAMOND.md`](DIAMOND.md) (strategy overview),
 [`ROADMAP.md`](ROADMAP.md) (current status, then the earlier long-range plan),
 [`docs/architecture/BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md)
-(10-year horizon canon · v1.3 · ADR-037 count horizon 50-90 · cap 100 · 11/10 amplifiers).
+(the earlier long-range proposal, kept as history).
 
 ---
 
-## Current phase
+## What is in scope
 
-Nika is being crafted in public on the `main` orphan branch (production
-Diamond · renamed 2026-05-06 from `nika-diamond`). Legacy v0.79.3 lives
-on `brouillon` (read-only · accessed via `git show brouillon:path`).
-External code contributions are formally welcomed once the first public
-launch (**1.0.0**) ships and all 7 pre-launch shadow zones are green
-(amended D-2026-06-20-N1). Until then:
+0.123 is maintained. The `main` branch is the maintenance branch: fixes land
+there and ship as 0.123.x patch releases. Legacy v0.79.3 lives on
+`brouillon` (read-only · accessed via `git show brouillon:path`).
 
-- **Issues, bug reports, discussion** — always welcome, now.
-- **Documentation fixes, typos, small DX improvements** — welcome via PR.
-- **New crate admissions, new features, new ADRs** — author-only for now.
+- **Bug reports, security reports, questions** — welcome now. Security
+  issues go to the private channel in [`SECURITY.md`](SECURITY.md).
+- **Bug fixes, security fixes, compatibility fixes and documentation** —
+  welcome via PR, with a test or a reproduction where the change allows one.
+- **New features, new crate admissions, new ADRs** — out of scope while 0.123
+  is maintained.
 
 If you are unsure whether something is in scope, open an issue first.
 
@@ -208,7 +208,7 @@ lanes keep flowing.
 ## Reporting issues
 
 - **Bug**: GitHub Issues, include minimal repro and `nika --version`.
-- **Feature request** (engine behavior): GitHub Issues, describe the use case before the solution.
+- **Feature request** (engine behavior): new features are out of scope while 0.123 is maintained. An issue that describes the use case still helps the record; a gap that is a defect of existing behavior is a bug.
 - **Language change** (anything normative: syntax, verbs, permits, envelope): the spec's [NEP door](https://github.com/supernovae-st/nika-spec/blob/main/governance/nep-0000-the-nep-process.md) — nobody amends the standard directly, maintainers included. Engine issues cannot change the language.
 - **Security vulnerability**: see [`SECURITY.md`](SECURITY.md). Email `security@supernovae.studio`, **not** a public issue.
 

@@ -3,7 +3,7 @@
   🦋 nika · gated-ship · 3 tasks
      permits ✓ declared boundary · exec outside the fs bounds
 
-  ✔  ▷ build    exec · printf · untrusted input from build  [9ms]  → "build ok" · 10B
+  ✔  ▷ build    exec · printf · untrusted input from build  [10ms]  → "build ok" · 10B
   ◇  · approve  awaiting a `nika:prompt` answer — resume with `--resume <trace> --answer <task>=<value>`
   ○  · ship
   ── 1/3 done · unmetered · elapsed 0.0s ─────────────────────────
@@ -12,8 +12,8 @@
   ◇ paused · awaiting an answer for `approve`
     answer: nika run --answer approve=true FILE  (boolean true/false, not yes)
   explore: nika run gated-ship.nika --json > run.ndjson · nika trace outputs run.ndjson
-    trace: .nika/traces/2026-09-28T21-15-02Z-331b.ndjson · 9 events · chain 1a122f633be5d5d36903be468bddfbb1d6cd4c9bf2a89d406cbfab0b9c1f01cf
-    resume: nika run gated-ship.nika --resume .nika/traces/2026-09-28T21-15-02Z-331b.ndjson --answer approve=true · or false
+    trace: .nika/traces/2026-10-24T11-02-22Z-7dc0.ndjson · 9 events · chain 78ad96851c9e5afa0c6144acf8dd008120589842f1ffb70d6969e35e96f30513
+    resume: nika run gated-ship.nika --resume .nika/traces/2026-10-24T11-02-22Z-7dc0.ndjson --answer approve=true · or false
 
   ◇ approve · Ship this build to production?  [y/N] y
   ▷ build ───▶ ◆ approve ───▶ ▷ ship
@@ -27,14 +27,14 @@
   ── 3/3 done · unmetered · elapsed 0.0s ─────────────────────────
   ━━━━━━━━━━━━━━━━━━━━━━━━ 3/3
   ◆ approve  ▕█▏                                    0ms
-  ▷ ship     ▕      ████████████████████████████▏  10ms
-  0s ····································· 12ms
+  ▷ ship     ▕   ███████████████████████████████▏  10ms
+  0s ····································· 11ms
   ╭─ nika ✓ gated-ship ──────────────────────────╮
   │  ◆ ⇉ ◆ ⇉ ◆    3 tasks · 3 waves · 0 retries  │
   │  21ms · unmetered                            │
   │  wrote .nika/traces                          │
   ╰──────────────────────────────────────────────╯
   explore: nika run gated-ship.nika --json > run.ndjson · nika trace outputs run.ndjson
-    trace: .nika/traces/2026-09-28T21-15-02Z-eeba.ndjson · 14 events · chain 6ad36b39fc87fee26e322f07d4650a2739304df2e50e11e3444960fc85a32585
+    trace: .nika/traces/2026-10-24T11-02-22Z-207e.ndjson · 14 events · chain 1cb15732294bc66227ba93f5b0ccf5866e5c40659675318d1f520e7fff746c26
 
   resumed · 1 skipped (cache hit) · 2 ran live
