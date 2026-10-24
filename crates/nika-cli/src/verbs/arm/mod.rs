@@ -168,6 +168,13 @@ fn emits_requested(args: &args::ArmArgs) -> bool {
         || args.beat.is_some()
 }
 
+/// What every arming door says when no `nika.yaml` is found (the report,
+/// `arm fire`, `nika serve`). Plain `nika init` lays the commented starter
+/// since #1283; the hidden `--project-file` flag only keeps older scripts
+/// working, so the hint names the visible command.
+const NO_PROJECT_FILE: &str = "nothing armed — this project has no `nika.yaml`\n  \
+                               fix: `nika init` lays a commented starter (existing files are skipped)";
+
 /// The shared door — every arming edge walks it (the report below ·
 /// the W3 `--emit`): discover the project file the ladder locates, read
 /// it, parse + law-check the cadence grammar, and verify the two
@@ -182,11 +189,7 @@ pub(crate) fn load(
         Err(e) => return Err(VerbOutput::file(format!("PROJECT ✗  {e}"))),
     };
     let Some((path, project)) = found else {
-        return Err(VerbOutput::ok(
-            "nothing armed — this project has no `nika.yaml`\n  \
-             fix: `nika init --project-file` lays a commented starter"
-                .to_owned(),
-        ));
+        return Err(VerbOutput::ok(NO_PROJECT_FILE.to_owned()));
     };
     // The cadence grammar reads the file the walk already located —
     // never a second discovery.
@@ -422,6 +425,15 @@ mod tests {
         let out = run_at(dir.path());
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(out.text.contains("nothing armed"), "{}", out.text);
+        // The fix names the visible door: `--project-file` is hidden and
+        // only routes to what plain `nika init` already does.
+        assert!(
+            out.text
+                .contains("fix: `nika init` lays a commented starter"),
+            "{}",
+            out.text
+        );
+        assert!(!out.text.contains("--project-file"), "{}", out.text);
     }
 
     /// The bare dispatch: no subcommand, no flag → the report. The

@@ -684,7 +684,8 @@ exit vocabulary.
   written », honestly (PTY-pinned at the root).
 - **Readable sober registers**: file rows keep the `✔ created …` / `· skipped …`
   prefixes. Created briefs explain their purpose; the team block teaches Git
-  and offers `nika init --project-file --yes` before the next commands.
+  and names the `nika.yaml` starter init lays by default (#1283) before the
+  next commands.
   `NIKA.md` is the human guide, leaving an existing `README.md` untouched.
 - **Wire results are outcomes**: both doors preserve each client's receipt
   and propagate a failed wiring code. A failed wizard never emits the ready
