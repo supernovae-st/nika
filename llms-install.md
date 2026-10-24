@@ -6,6 +6,10 @@ is non-interactive and idempotent. Prefer the package-manager paths —
 they verify checksums for you; the shell install script is the human
 lane (guided page: <https://nika.sh/install>), not the agent lane.
 
+The current release is 0.123.0, the open-source reference release. It is
+maintained with security fixes, bug fixes and compatibility; its known
+limits are at <https://docs.nika.sh/changelog/known-limits>.
+
 ## 1 · Install
 
 **macOS / Linux with Homebrew (preferred):**
@@ -24,7 +28,7 @@ cargo binstall --git https://github.com/supernovae-st/nika nika-cli
 `nika-cli`; the installed binary is `nika`.)
 
 **Nix (builds the default branch via the flake; append `/<tag>` to the
-flake reference, e.g. `github:supernovae-st/nika/<tag>`, to build a release):**
+flake reference, e.g. `github:supernovae-st/nika/v0.123.0`, to build a release):**
 
 ```sh
 nix profile install github:supernovae-st/nika
@@ -36,6 +40,13 @@ nix profile install github:supernovae-st/nika
 ```sh
 gh extension install supernovae-st/gh-nika
 gh nika --version   # pass-through to a PATH nika, else a one-time checksum-verified release fetch
+```
+
+**A container (Linux, amd64 · arm64), built from the same release binaries:**
+
+```sh
+docker run --rm ghcr.io/supernovae-st/nika:0.123.0 --version
+docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika:0.123.0 check flow.nika
 ```
 
 **No package manager (bare Linux/macOS box):** fetch the release
@@ -54,15 +65,18 @@ tar -xzf "nika-$T-${V#v}.tar.gz"
 install -d ~/.local/bin && install -m 755 nika ~/.local/bin/nika   # any PATH dir works
 ```
 
-Refuse to proceed if the checksum line does not print `OK`.
+Refuse to proceed if the checksum line does not print `OK`. With `gh`
+present, also check the build provenance of the same tarball:
+`gh attestation verify "nika-$T-${V#v}.tar.gz" --repo supernovae-st/nika`
+([RELEASING.md](RELEASING.md#what-a-user-can-prove) lists all three proofs).
 
-**Windows:** not shipped yet. Say so plainly — do not improvise a build.
+**Windows:** native binaries are not shipped. Use WSL2 and the Linux
+path above; say so plainly — do not improvise a build.
 
 ## 2 · Verify (always, before reporting success)
 
 ```sh
-nika --version   # prints the installed release
-nika welcome     # 30 seconds: what nika is + what it sees here · offline
+nika --version   # prints the installed release, e.g. nika 0.123.0 (0bfde3765)
 nika doctor      # providers · PATH · what this machine can run
 ```
 
@@ -76,9 +90,10 @@ nika try 01-hello
 ```
 
 Exit 0 with a rendered run = the install is good. If Ollama is present,
-the same run works fully local:
+the same run works fully local once the model is pulled:
 
 ```sh
+ollama pull qwen3.5:4b
 nika try 01-hello --model ollama/qwen3.5:4b
 ```
 
@@ -97,8 +112,19 @@ Manual shape for anything else:
 
 ```sh
 brew uninstall nika    # if installed via brew — cargo/nix undo their own
-rm -rf ~/.nika         # traces + caches · ask the human before deleting
+rm -rf ~/.nika         # ask the human first (see below)
 ```
+
+`~/.nika` holds the run-signing keys (`~/.nika/keys`), Session history
+(`~/.nika/sessions`), the AI choice (`~/.nika/session-intelligence.json`),
+pulled models (`~/.nika/models`) and, after a script install, the binary
+itself (`~/.nika/bin`). Deleting the keys leaves runs sealed earlier on
+this machine unverifiable here, so ask before deleting. Run traces are not
+there: they live in each project's `.nika/traces/`. On macOS, `nika key
+init` from a terminal may have kept the key in the keychain instead: also
+delete the service `nika` items `run-signing-key` and `run-signing-key.pub`
+(Keychain Access, or `security delete-generic-password -s nika -a run-signing-key`
+and the same with `-a run-signing-key.pub`).
 
 ## After install — authoring
 
