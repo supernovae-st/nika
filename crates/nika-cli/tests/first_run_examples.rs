@@ -120,6 +120,15 @@ fn try_lessons_succeed_without_cargo_or_a_git_repository() {
         let out = rig.nika(&["try", slug, "--model", "mock/echo", "--no-progress"]);
         assert!(out.status.success(), "{slug}: {}", transcript(&out));
         assert!(!transcript(&out).contains("try sandbox has no"));
+        // The rehearsal room is gone when `try` returns: the run's explore
+        // line (`nika run <staged file> --json …`) must not hand it over.
+        assert!(
+            !transcript(&out)
+                .lines()
+                .any(|line| line.trim_start().starts_with("explore: nika run")),
+            "{slug}: the explore line names a discarded room: {}",
+            transcript(&out)
+        );
         assert!(!rig.work.join(".build.lock").exists());
         assert!(
             !rig.work.join("out").exists(),
