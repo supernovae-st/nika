@@ -1,9 +1,12 @@
 # systemd user/system unit for the HTTP door.
 # Loopback only. Put TLS on the reverse proxy, never in this process.
-# Copy, then set User, WorkingDirectory, and the three Environment= paths.
+# Copy, then set User, WorkingDirectory and the three paths in ExecStart
+# (--workflows, --token-file, --state-root). WorkingDirectory must hold the
+# project's nika.yaml: without it nika serve exits 1 and Restart= loops.
 #
+#   printf 'nika: my-project\n' > /var/lib/nika/nika.yaml
 #   umask 077
-#   printf '…32+ ascii…\n' > /var/lib/nika/serve.token
+#   openssl rand -hex 24 > /var/lib/nika/serve.token
 #   chmod 600 /var/lib/nika/serve.token
 #
 # nika serve without --bind remains the resident ARM firer. This unit is
