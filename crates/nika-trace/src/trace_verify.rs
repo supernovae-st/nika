@@ -1379,6 +1379,16 @@ mod tests {
         assert_eq!(out.code, super::super::exit::OK, "{}", out.text);
         assert!(out.text.contains("UNSEALED"), "{}", out.text);
         assert!(out.text.contains("--sealed"), "{}", out.text);
+        // The run key seals later runs; `nika sign` only binds a workflow
+        // file to its author, so naming it here sent people to a door that
+        // never seals a journal.
+        assert!(
+            out.text
+                .contains("a run key (`nika key init`) makes later runs seal"),
+            "{}",
+            out.text
+        );
+        assert!(!out.text.contains("nika sign"), "{}", out.text);
         let _ = std::fs::remove_file(trace);
     }
 

@@ -1683,7 +1683,7 @@ impl Attestation {
                 "trust · signed by the run key: a rewritten journal needs that key\n  does not prove · that the content is right (read it) · that anyone outside this machine trusts the key (`nika trace anchor` notarizes the head)"
             }
             Self::Unsigned => {
-                "trust · unsigned: the hash chain is internally consistent; a journal rewritten end to end would chain too\n  does not prove · that the content is right (read it) · who wrote this journal (`nika sign` signs future runs)"
+                "trust · unsigned: the hash chain is internally consistent; a journal rewritten end to end would chain too\n  does not prove · that the content is right (read it) · who wrote this journal (a run key from `nika key init` makes later runs seal)"
             }
             Self::KeyElsewhere => {
                 "trust · the chain holds; the seal names a key this machine cannot check\n  does not prove · that the content is right (read it) · who signed it, until that key is checked"
