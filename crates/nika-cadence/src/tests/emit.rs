@@ -461,7 +461,7 @@ fn past_the_interval_budget_the_render_refuses_with_the_count() {
 }
 
 #[test]
-fn the_v0_unsupported_policies_refuse_with_their_version() {
+fn the_v0_unsupported_policies_refuse_with_their_present_limit() {
     for (extra, what) in [
         ("    chevauchement: remplacer\n", "chevauchement: remplacer"),
         ("    après_saut: à-complétion\n", "après_saut: à-complétion"),
@@ -472,6 +472,17 @@ fn the_v0_unsupported_policies_refuse_with_their_version() {
         ));
         let refusal =
             emit::render(&reg, &ctx(), Target::Launchd, Mode::PerBeat).expect_err("D6 refuse");
+        let said = refusal.to_string();
+        assert!(
+            said.contains(&format!(
+                "{what} — ce tireur ne tient pas cette politique · v0 n'émet"
+            )),
+            "{said}"
+        );
+        assert!(
+            !said.contains("arrive avec"),
+            "aucune version promise: {said}"
+        );
         match refusal {
             EmitRefusal::UnsupportedInV0 {
                 beat,
@@ -480,7 +491,10 @@ fn the_v0_unsupported_policies_refuse_with_their_version() {
             } => {
                 assert_eq!(beat, "doctor");
                 assert_eq!(got, what);
-                assert_eq!(arrives, "serve v0.2", "la version est nommée");
+                assert_eq!(
+                    arrives, "ce tireur ne tient pas cette politique",
+                    "la limite est dite, aucune version promise"
+                );
             }
             other => panic!("D6 attendu, reçu {other:?}"),
         }

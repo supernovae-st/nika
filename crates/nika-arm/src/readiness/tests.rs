@@ -332,9 +332,12 @@ fn an_unsupported_miss_policy_is_a_schedule_blocker() {
     let human = refused.human_lines(3).join("\n");
     assert!(human.contains("  [UNREADY] "), "{human}");
     assert!(
-        human.contains("✗ manqué: rattraper is not supported by this firer"),
+        human.contains("✗ manqué: rattraper is not supported by this firer: every fire refuses"),
         "{human}"
     );
+    // The present limit, never a release promise (0.123.0 said « arrives
+    // with serve v0.2 »; the resident already fires catch-up today).
+    assert!(!human.contains("arrives with"), "{human}");
 }
 
 /// A record of this beat's slot at the current generation proves the
