@@ -1,6 +1,7 @@
 # Nika: from intent to proof
 
-A 30-second, code-generated motion film about the V9 target architecture:
+A 30-second, code-generated motion film about the V9 target architecture (a
+design illustration; the README leads with the captured `first-session` clip):
 a human intention becomes a verified program, runs under human consent, and
 leaves a real result with evidence. It follows one request through every stage:
 
@@ -33,7 +34,7 @@ What is illustration:
 
 - **The data is fictional.** It lives in `scripts/media/fixtures/invoices.json`.
 - **The payment is illustrative.** The fixture targets a documentation host (RFC 2606), which the transport never dials. The capture declined the gate, so no effect ran. The film shows the approved path, and it does not claim that run happened.
-- **Some target components are named as the V9 design names them.** They are not all shipped as single artifacts in the current release:
+- **Some target components are named as the V9 design names them.** They are not all shipped as single artifacts in the current release, and after 0.123, the maintained reference release, the ones not in the source are not planned:
 
 | Film name | In the current source |
 |---|---|
