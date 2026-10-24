@@ -13,9 +13,11 @@ the authoritative architectural decision, see
   is needed. Never copy-pasted — every crate is rewritten clean.
 
 For the project's landing page, see [`README.md`](README.md). For
-the real-semver plan toward a 1.0 launch (amended D-2026-06-20-N1 · was
-"forever-v0.x") — the CHANGELOG top names the latest tagged release, `main` on the next
-dev version → 1.0.0 → 1.x adds the remaining crates — see [`ROADMAP.md`](ROADMAP.md). For the
+the status after 0.123 (the open-source reference release, maintained with
+security fixes, bug fixes and compatibility; no 1.0 launch is planned) and the
+historical real-semver plan it followed until then (amended D-2026-06-20-N1 ·
+was "forever-v0.x"), see [`ROADMAP.md`](ROADMAP.md); the CHANGELOG top names the
+latest tagged release. For the earlier
 **10-year architectural horizon
 (2026 → 2036)** with the ADR-037 count horizon (50-90 · cap 100 ·
 projected, never a gate · ruled D-2026-07-21-N1), 4-verb stress test
@@ -137,9 +139,11 @@ gates are green in the same atomic commit. Full spec:
 11. **Review swarm** — three agents in parallel, P0/P1 fixed same session
 12. **Atomic commit** — one admission, one commit
 
-## 7 pre-launch shadow zones
+## 7 pre-launch shadow zones (the plan before 0.123)
 
-Before `git tag v1.0.0` (the first public launch · amended D-2026-06-20-N1), all seven must be green:
+The plan required all seven to be green before a `v1.0.0` tag (the first
+public launch it described · amended D-2026-06-20-N1). After 0.123 that launch
+is not planned; the list stays as the record of what the plan named:
 
 1. `nika serve` input trust (P0 prompt injection boundary)
 2. Cross-provider structured output parity (~35 tests)
@@ -149,17 +153,19 @@ Before `git tag v1.0.0` (the first public launch · amended D-2026-06-20-N1), al
 6. `NikaError` Display parity — auto-resolved by `nika-error` admission
 7. Provider parity matrix (~72 tests)
 
-## Real semver toward 1.0 (amended D-2026-06-20-N1)
+## Release model (real semver · amended D-2026-06-20-N1)
 
-Real semver toward a **1.0** public launch (was "forever-v0.x" · retired
-D-2026-06-20-N1). Each release is diamond-grade for its declared scope —
+0.123 is the open-source reference release, maintained as 0.123.x patches;
+the 1.0 rows of the ladder below were the plan until then and are not planned.
+That plan was real semver toward a **1.0** public launch (was "forever-v0.x" ·
+retired D-2026-06-20-N1). Each release is diamond-grade for its declared scope —
 the craft standard, not the scope list. SQLite shipped a 1.0 and kept
 adding WAL, FTS, JSON1, window functions while staying diamond-grade at
 every release — that is the model. The nine-key **LANGUAGE** envelope is
 frozen forever and is orthogonal to the engine's binary version. See
 [ADR-002](docs/adr/adr-002-forever-v0x.md).
 
-Version ladder (no per-tag dates · quality > speed):
+The version ladder as the plan stood before 0.123 (no per-tag dates · quality > speed):
 
 - **release-candidate grade reached at 0.91.0**: usable vertical slice (4 verbs, 16 providers per canon.yaml, effects, static-check, MCP/LSP, CLI), headless workspace build — the CHANGELOG top names the current release.
 - **0.x previews** (`vX.Y.Z-preview.N`) — an optional pre-release of a 0.x wave: never the Latest release, never in the Homebrew formula, on npm under `next` only, never announced. `rc` stays reserved for 1.0.0.
@@ -181,9 +187,9 @@ split into modules. Every function >100 lines gets decomposed. Every
 public API gets `#[non_exhaustive]`, a `new()` constructor, a spec,
 and tests before implementation.
 
-The butterfly on the logo is not what Nika is today. It is what
-Nika becomes at the 1.0 launch (amended D-2026-06-20-N1), when the
-chrysalis opens.
+The butterfly on the logo stood for what the rewrite aimed at: the
+chrysalis opening at a 1.0 launch (amended D-2026-06-20-N1). After 0.123 that
+launch is not planned; 0.123 is the maintained reference release.
 
 ## License
 

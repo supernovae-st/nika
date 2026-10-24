@@ -2,15 +2,15 @@
   "command": "nika run weekly-update.nika --max-cost-usd 0.05",
   "exit": 2,
   "env": [
+    "all_proxy",
     "ALL_PROXY",
     "HOME",
-    "HTTPS_PROXY",
-    "HTTP_PROXY",
-    "PATH",
-    "TERM",
-    "all_proxy",
     "http_proxy",
-    "https_proxy"
+    "HTTP_PROXY",
+    "https_proxy",
+    "HTTPS_PROXY",
+    "PATH",
+    "TERM"
   ],
   "journal_written": false
 }

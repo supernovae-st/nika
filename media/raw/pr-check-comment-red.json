@@ -16,8 +16,8 @@
   ],
   "analysis": null,
   "api_version": "v1",
-  "buildSha": "d71559be5-dirty",
-  "build_sha": "d71559be5-dirty",
+  "buildSha": "0bfde3765",
+  "build_sha": "0bfde3765",
   "capability_escapes": [],
   "certificate": {
     "derivation": [
@@ -133,6 +133,7 @@
         "max_tokens": 400,
         "min_path_usd": null,
         "model": "ollama/llama3.1",
+        "reasoning_beyond": false,
         "task": "assess",
         "unbounded_reason": "NoPrice",
         "usd": null
@@ -188,8 +189,8 @@
     "scope_subtotals": [],
     "tasks": []
   },
-  "engineVersion": "0.121.0",
-  "engine_version": "0.121.0",
+  "engineVersion": "0.123.0",
+  "engine_version": "0.123.0",
   "eventFormatVersion": 1,
   "exec_floor_findings": [],
   "findings": [
@@ -221,7 +222,7 @@
     "skills": true
   },
   "lift_findings": [],
-  "machineProtocolVersion": 1,
+  "machineProtocolVersion": 2,
   "missing_args": [],
   "models_resolve": true,
   "order_findings": [],
@@ -274,11 +275,11 @@
       }
     ],
     "snapshot": {
-      "as_of": "2026-09-23",
-      "providers": 10,
-      "rules": 716,
+      "as_of": "2026-10-12",
+      "providers": 11,
+      "rules": 728,
       "source": "https://models.dev/api.json",
-      "source_sha256_16": "acf00fb003caf42c"
+      "source_sha256_16": "abd9babb167a88e4"
     }
   },
   "report_version": 1,
@@ -306,15 +307,19 @@
   "skills_resolve": true,
   "slot_findings": [],
   "snapshotFormatVersion": 1,
-  "specSha": "95ed1acf09c7798314a36fb208c9a5546b6ca658",
-  "spec_sha": "95ed1acf09c7798314a36fb208c9a5546b6ca658",
+  "specSha": "6390b08eb9791ce49c63ee17f8466fab118cadb8",
+  "spec_sha": "6390b08eb9791ce49c63ee17f8466fab118cadb8",
   "supportedCapabilities": [
     "check",
     "executionSnapshot",
     "eventStream",
     "trace",
     "inputsLiteral",
-    "compile"
+    "compile",
+    "sessionHost",
+    "sessionIntelligence",
+    "sessionSteering",
+    "sessionQuestion"
   ],
   "traceFormatVersion": 2,
   "trifecta_findings": [],

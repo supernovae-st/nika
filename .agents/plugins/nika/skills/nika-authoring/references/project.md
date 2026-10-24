@@ -50,10 +50,10 @@ missed slot becomes (`manqué:`). Neither `plafond` nor `manqué` has a default.
   missing, all of them in one question, saying what each choice changes. Never write a value
   the person neither gave nor delegated.
 - Write the `manqué` value the targeted binary fires; `nika arm --json` on that binary is the
-  judge. 0.122.0 and the 0.123 previews fire `sauter` and `rattraper-une-fois`, read
-  `rattraper` UNREADY (« not supported by this firer ») and refuse the bounded
-  `{ rattraper: N }` (`project.bad-value`). Write the bounded catch-up only for a binary whose
-  `nika arm --json` reads it READY.
+  judge. 0.122.0 and 0.123.0 fire `sauter` and `rattraper-une-fois` and read `rattraper`
+  UNREADY (« not supported by this firer »). The bounded `{ rattraper: N }` reads UNREADY the
+  same way on 0.123.0, and 0.122.0 refuses it (`project.bad-value`). Write a catch-up value
+  only for a binary whose `nika arm --json` reads it READY.
 - Saving the project, running a workflow and activating a beat are three distinct effects, and
   one scoped instruction can cover them: « save it and run it » covers the Save and that run,
   once; « … and run it every Monday » also covers activating the beat. Carry out what the
@@ -69,8 +69,8 @@ missed slot becomes (`manqué:`). Neither `plafond` nor `manqué` has a default.
   unit written for an earlier revision of the schedule refuses to fire until it is emitted again.
 
 Every cadence form, the suspension triple and the activation commands are in the
-[Projects and schedules](https://docs.nika.sh/guides/projects-and-schedules) guide and the
-[arm reference](https://docs.nika.sh/reference/arm).
+[arm reference](https://docs.nika.sh/reference/arm); the project file itself is in the
+[nika.yaml reference](https://docs.nika.sh/sdk/project/nika-yaml).
 
 ## A checked project
 

@@ -40,7 +40,7 @@ const ASK = at(/^nika › /, 'the typed request');
 const typed = line => line.match(/^(.+ ›) (.+)$/u).slice(1);
 const [NIKA_PROMPT, REQUEST] = typed(LINES[ASK]);
 const UNDERSTOOD = LINES[ASK + 1];
-if (!/^✓ understood \d+ requirements$/u.test(UNDERSTOOD)) story('Nika no longer answers the request with what it understood');
+if (!/^✓ recorded \d+ requirements$/u.test(UNDERSTOOD)) story('Nika no longer answers the request with the requirements it recorded');
 const PROPOSES = lineOf(/^Nika proposes `[^`]+`:$/, 'the proposal', ASK);
 const FILE = PROPOSES.match(/`([^`]+)`/)[1];
 const DOES = at(/^Does$/, 'the Does list', ASK);
@@ -427,7 +427,7 @@ function say(R, t, a) {
     streak(R, hx, yl, 150, 0.75 * a * (1 - sk), C.ice, 1);
     line(R, ASK_X, yl, hx, yl, { color: C.ice, w: 1.2, alpha: a * 0.55 * (1 - smooth(0.55, 1, sk)), glow: 0.6 });
   }
-  // Nika's first answer: what it understood
+  // Nika's first answer: the requirements it recorded
   rich(R, UNDERSTOOD, L1, UND_Y, { size: 19, alpha: smooth(T.understood, T.understood + 0.3, t) * a, markK: E.snap(seg(t, T.understood, T.understood + 0.4)) });
 }
 

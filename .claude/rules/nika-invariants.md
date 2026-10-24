@@ -129,15 +129,18 @@ From main CLAUDE.md + deletion-first.md + honest-assessment.md :
 
 And 17+ more from rust-analyzer adapted invariants in RUST_ENFORCEMENT.md §6.
 
-## Timeline (real semver toward 1.0 · no hard per-phase deadlines)
+## Timeline (maintenance after 0.123 · no hard per-phase deadlines)
 
-Real semver toward a **1.0** public launch (amended D-2026-06-20-N1 · was
-"forever-v0.x — no v1.0 target"). The engine's current release is whatever the
-CHANGELOG top names (never quote a number here · it rots · `main` carries the
-next dev version); the **1.0.0** launch ships when the 7 shadow zones are green, and
-the remaining crates land additively across the 1.x minors under the ADR-037
-count horizon (50-90 · cap 100 · projected, never a gate · ruled D-2026-07-21-N1). The nine-key LANGUAGE envelope (`nika: <id>` ·
-model · inputs · const · secrets · permits · run · tasks · outputs · since 0.109) is frozen forever
+0.123 is the open-source reference release: `main` is maintained (security
+fixes, bug fixes, compatibility) and ships 0.123.x patches. The engine's current
+release is whatever the CHANGELOG top names (never quote a number here · it
+rots). Until 0.123 the plan was real semver toward a **1.0** public launch
+(amended D-2026-06-20-N1 · was "forever-v0.x — no v1.0 target"), gated by the 7
+shadow zones, with the remaining crates landing across 1.x minors under the
+ADR-037 count horizon (50-90 · cap 100 · projected, never a gate · ruled
+D-2026-07-21-N1); after 0.123 no 1.0 launch and no new crate admission are
+planned. The nine-key LANGUAGE envelope (`nika: <id>` · model · inputs · const ·
+secrets · permits · run · tasks · outputs · since 0.109) is frozen forever
 (orthogonal to the engine version).
 
 No hard per-phase deadlines — quality > speed. The pace is self-paced, not a

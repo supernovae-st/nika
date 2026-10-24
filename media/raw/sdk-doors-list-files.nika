@@ -1,0 +1,9 @@
+nika: list-files
+model: mock/echo
+permits: {}
+tasks:
+  list:
+    exec:
+      command: ["ls", "-1"]
+outputs:
+  files: ${{ tasks.list.output }}

@@ -5,6 +5,24 @@ Versions move together across all manifests (the mirror gate pins it).
 
 ## Unreleased
 
+The schedule teaching links the `nika arm` reference
+(https://docs.nika.sh/reference/arm) and, for the project file, the
+nika.yaml reference: the « Projects and schedules » guide the operating
+skill, the migration row, the language rule, the session map, the README
+and the check-on-edit message named was never published and answered 404.
+The operating skill and the project reference say what 0.123.0 fires:
+`sauter` and `rattraper-une-fois`, with `rattraper` and the bounded
+`{ rattraper: N }` read UNREADY (0.122.0 refused the bounded form). The
+Cursor manifest lists `/compile` where it still named the retired `/new`,
+and the README shows how to add the plugin and links the builtin
+reference directly.
+
+## 0.123.0 — 2026-10-23
+
+Lockstep on the engine wave. From 0.109.0 to this release the kit's notes
+accumulated under « Unreleased » instead of under each release; they follow
+here, as this bundle shipped them.
+
 The arm teaching follows the engine. `nika arm --emit` refuses an
 UNREADY beat; an unknown alone leaves a beat READY, so a beat whose
 workflow calls a child is armed and names that unknown; a unit written
@@ -94,10 +112,6 @@ was spent. `on_error:` is `recover:` or `skip:`; the default IS failure
 and has no keyword. The engine-side kit gate
 (`the_kit_never_teaches_a_form_the_engine_refuses`) now holds those
 spellings, proven by mutation.
-
-## 0.123.0 — 2026-10-23
-
-Lockstep on the engine wave.
 
 ## 0.123.0-preview.1 — 2026-10-09
 

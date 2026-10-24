@@ -2,7 +2,7 @@
 
 All notable changes to **Nika** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Nika follows [real semver toward 1.0](ROADMAP.md) — incremental quality, diamond-grade at every release (amended D-2026-06-20-N1 · was "forever-v0.x").
+Nika follows [semantic versioning](https://semver.org); 0.123 is the maintained open-source reference release, patched as 0.123.x ([ROADMAP.md](ROADMAP.md)).
 
 Nika Diamond is the ground-up rewrite developed on `main`, beginning at
 v0.80.0. The legacy v0.79.3 tree remains on the read-only `brouillon` branch.

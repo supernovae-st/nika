@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Nika Workflow Language
 
-Envelope: nine keys — `nika` · `model` · `inputs` · `const` · `secrets` · `permits` · `run` · `tasks` · `outputs`. Anything else refuses `NIKA-PARSE-005`. Canonical program files use the `.nika` suffix. Project file remains `nika.yaml`; runtime state remains `.nika/`. A schedule is an `arm:` beat in `nika.yaml` (the zone inside the cadence, `plafond:`, `manqué:`), never a key of a `.nika` file (`NIKA-PARSE-005`), a cron line or a CI schedule; `nika arm --json` reads it and fires nothing (https://docs.nika.sh/guides/projects-and-schedules).
+Envelope: nine keys — `nika` · `model` · `inputs` · `const` · `secrets` · `permits` · `run` · `tasks` · `outputs`. Anything else refuses `NIKA-PARSE-005`. Canonical program files use the `.nika` suffix. Project file remains `nika.yaml`; runtime state remains `.nika/`. A schedule is an `arm:` beat in `nika.yaml` (the zone inside the cadence, `plafond:`, `manqué:`), never a key of a `.nika` file (`NIKA-PARSE-005`), a cron line or a CI schedule; `nika arm --json` reads it and fires nothing (https://docs.nika.sh/reference/arm).
 
 ## Shape
 - `nika:` is a scalar string — the file's kebab-case NAME. That one key carries both the mark and the name; there is no `workflow:` envelope key (it refuses `NIKA-PARSE-005`, as do `types:` · `policy:` · `config:` · `assert:`). `workflow:` survives only INSIDE `invoke:`, to call a child workflow.

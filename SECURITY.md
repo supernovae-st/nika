@@ -41,32 +41,48 @@ substantive response (initial triage + ETA) within **7 days**.
 We aim for **≤90 days** between report and public disclosure for
 non-trivial vulnerabilities, shorter for actively-exploited issues.
 
-## Defense Layers Already Shipped
+## Defense Layers in 0.123
 
-Per the Nika Shield threat model (v0.79 carry-over · v0.80+ kernel
-enforcement) ·
+What the released engine enforces. Every code below resolves with
+`nika explain <code>` on 0.123.0; most are refused by `nika check` before a
+run starts, and the runtime enforces the same boundary again.
 
-| Code        | Layer                          | Defense                                      |
-|-------------|--------------------------------|----------------------------------------------|
-| `NIKA-271`  | Skill integrity                | blake3 hash mismatch on skill load           |
-| `NIKA-380`  | Capability enforcement         | dangerous tool on untrusted data → block     |
-| `NIKA-381`  | Trust propagation              | strict-mode trust-level violation            |
-| `NIKA-382`  | Exfil canary                   | canary token found in output                 |
-| `NIKA-383`  | Prompt injection               | scanner + ML detection                       |
-| `NIKA-384`  | Spotlight                      | untrusted data without spotlight wrapping    |
-| `NIKA-385`  | ML model availability          | injection detection model missing            |
-| `NIKA-386`  | Workflow recursion             | depth-exceeded block                         |
-| `NIKA-387`  | Workflow cycle                 | cycle-detection block                        |
-| `NIKA-388`  | Canary-in-thinking             | extended-thinking trace leak detection       |
-| `NIKA-389`  | Vision sanitization            | untrusted images from untrusted sources      |
-| `NIKA-390`  | Memory-write injection (queued · ADR-073) | `MemoryRemember` payload scan at ingest · prevents stored prompt-injection from triggering via later `MemoryRecall` semantic match (symmetric to recall-time gate ADR-030) |
+| Code | Layer | Defense |
+|---|---|---|
+| `NIKA-AUTH-006` | Default deny | a workflow with effects and no `permits:` block has zero authority |
+| `NIKA-SEC-004` | Capability boundary | an effect outside the declared `permits:` (fs · net · exec · tool) is refused |
+| `NIKA-SEC-001` | Shell floor | `exec` refused before the child spawns on a destructive or privilege pattern, whatever the permits say |
+| `NIKA-SEC-002` | Agent tool whitelist | an agent's tool call outside its `tools:` list is refused |
+| `NIKA-SEC-003` | Recursion bound | nested-run depth exceeded, or a self-launching workflow |
+| `NIKA-SEC-005` | SSRF floor | a `nika:fetch` or `nika:notify` URL that resolves to a loopback, private, link-local or metadata address is refused, whatever the permits say |
+| `NIKA-SEC-006` · `NIKA-SEC-007` | Secret flow | a `secrets.<name>` value reaching an unsanctioned sink (exec argument, invoke payload, prompt) or the workflow's outputs |
+| `NIKA-SEC-008` | Data as code | a fetched URL naming code-bearing content without an explicit `lift:` door |
+| `NIKA-SEC-009` | Lethal trifecta | private read + untrusted ingress + external egress, with no blocking human gate in between |
+| `NIKA-SEC-010` · `NIKA-SEC-014` | Approval and consent | an approval replayed, mismatched or rate-limited; a refused confirm gate that still lets an egress effect through |
+| `NIKA-SEC-011` | Preview-commit divergence | the bytes about to fire differ from the previewed ones |
+| `NIKA-SEC-012` | Unordered shared writes | two tasks with no order between them write the same target |
+| `NIKA-SEC-015` | Order law | an `exec:` task runs downstream of a network effect |
+| `NIKA-1710` · `NIKA-1711` | OS sandbox | `exec` children and MCP servers run confined (macOS Seatbelt · Linux bubblewrap); a host that cannot confine a `permits:`-declaring workflow with `exec:` children refuses to run it, and a mistyped `NIKA_SANDBOX` refuses to start |
+
+Without a code `nika explain` resolves:
+
+- **MCP definition pins.** `nika mcp approve <server>` pins each tool's
+  definition; a run refuses an unapproved tool (`NIKA-MCP-006`) or a server
+  whose definitions drifted (`NIKA-MCP-003`). The refusal names its remedy,
+  `nika mcp approve <server>`; the `nika explain` it also suggests does not
+  know these two codes in 0.123.0
+  ([docs/ops/mcp-servers.md](docs/ops/mcp-servers.md)).
+- **Tamper-evident, signed runs.** Every run journal is hash-chained, and
+  runs are signed once `nika key init` minted a run-signing key;
+  `nika trace verify` checks both.
 
 ## Structural Hardening (architectural)
 
 - **`unsafe_code = "forbid"`** workspace-wide ([Cargo.toml](Cargo.toml))
 - **Zero `.unwrap()` / `.expect()` in `src/`** — CI-enforced
-- **`cargo deny check`** on every PR ([deny.toml](deny.toml))
-- **`cargo audit`** on every dependency change
+- **`cargo deny check`** on every PR ([deny.toml](deny.toml)): RustSec
+  advisories, licenses, bans and sources
+- **`cargo audit`** in the nightly hygiene run
 - **AGPL-3.0-or-later** — share-alike on hosted forks
 - **`#[non_exhaustive]` everywhere** + `pub fn new()` — additive evolution
 - **Sealed kernel traits** ([ADR-014](docs/adr/adr-014-sealed-kernel-traits.md)) — external impl-bypass blocked
@@ -89,7 +105,7 @@ here once fixes ship. Anonymity respected on request.
 
 ## Related
 
-- [ADR-002 — release model (real semver toward 1.0 · amended)](docs/adr/adr-002-forever-v0x.md)
+- [ADR-002 — release model](docs/adr/adr-002-forever-v0x.md)
 - [ADR-014 — Sealed kernel traits](docs/adr/adr-014-sealed-kernel-traits.md)
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution + 12-gate process
-- [`BLUEPRINT_2036.md`](docs/architecture/BLUEPRINT_2036.md) — 10-year horizon
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — what contributions are in scope, and the 12-gate process
+- [Known limits in 0.123](https://docs.nika.sh/changelog/known-limits) — what the release does not do, each with a way around it
