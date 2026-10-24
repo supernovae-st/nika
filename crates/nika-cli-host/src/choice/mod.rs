@@ -19,7 +19,7 @@ use crate::probe::{self, env_present};
 
 const TABLE_YAML: &str = include_str!("models.yaml");
 const ALIAS: &str = "nika/gear-one";
-const SLOGAN: &str = "Say what you want done. Keep it as a file.";
+const SLOGAN: &str = "Say it once. Keep it as a file.";
 
 #[derive(Debug, Clone, Deserialize)]
 struct Table {

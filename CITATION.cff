@@ -5,7 +5,7 @@ cff-version: 1.2.0
 message: "If you use Nika in your work, please cite this repository."
 type: software
 title: "Nika"
-abstract: "Nika turns the AI work you repeat into a readable workflow file that stays yours: checked before it runs (schema, permits, cost floor), run with the model you choose, proven afterwards by a tamper-evident trace. Single Rust binary."
+abstract: "Say it once. Keep it as a file. Nika turns the AI work you repeat into a readable workflow that stays yours: checked before it runs (schema, permits, cost floor), run with the model you choose, proven afterwards by a tamper-evident trace. Single Rust binary."
 authors:
   - name: "SuperNovae Studio"
     city: "Paris"

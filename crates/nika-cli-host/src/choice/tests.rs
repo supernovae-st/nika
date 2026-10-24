@@ -334,6 +334,21 @@ fn the_local_reason_names_the_api_key_it_spares_never_a_price() {
     );
 }
 
+/// One pitch: the welcome opens with the README's headline verbatim, and the
+/// data table and the code fallback carry the same line (the README moved to
+/// « Say it once. » after this welcome had copied an earlier draft).
+#[test]
+fn the_welcome_slogan_is_the_readmes_headline() {
+    assert_eq!(table().slogan, SLOGAN, "models.yaml and the fallback agree");
+    let readme = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../README.md"))
+        .expect("the README is in the repository");
+    let headline = SLOGAN.replacen(". ", ".<br>", 1);
+    assert!(
+        readme.contains(&format!(">{headline}</h1>")),
+        "the README's headline is `{headline}`"
+    );
+}
+
 #[test]
 fn the_welcome_advertises_no_cloud_and_claims_no_model_as_ours_in_the_envelope() {
     let choice = collect_from(&machine(Some(18), vec![], false, &[], false));
@@ -830,32 +845,32 @@ mod cascade_oracle {
         (
             "bare8/human",
             10,
-            "8cc5369fa7849f9ec3344d0bcce7ec340fc087775b7960a13ad48e0d8ccfeaf5",
+            "2b7e2173c9227a441125154c8191b0895c640f57f2302b06e899d29956567dfc",
         ),
         (
             "bare8/welcome",
             2,
-            "591ec96c2c648573e6c5d14dca1161962a3a47d03931908cd2ad7e57dfc7e8bb",
+            "9ad64145bfa8c4dc2e66ff5ed2ba0460c81aa68bce360bdad211b81e04a17fb0",
         ),
         (
             "bare8/human",
             10,
-            "1bb4d6fbda254293b5e3593e9c09225403c8343c570bb60e525b35fb2734de0d",
+            "992316e0bf81b70561a79349c17d0d96937b174b0cb7aaf0c76f0b19863a5621",
         ),
         (
             "bare8/welcome",
             2,
-            "41bad4edb2ea1f98309c1ef154a29eab7547150426515d660a2f6d432c1f9aa7",
+            "c7c6e04267d7661aa5bf932ba8cb2815b6551eed971a4e1e3d1ced7470df241a",
         ),
         (
             "bare8/human",
             10,
-            "56d33174f628fde16695649f60ffbcc27112faa617a3944149dd86eb67cbeb86",
+            "c6c5c135b093ec4dff7b7bfffec5458a887e3c5ea6d0f344c9e2146782577345",
         ),
         (
             "bare8/welcome",
             2,
-            "8c9d62eb55ded34999dacb10c2782b503c5cfb990329b79cf49d056a83c1c3df",
+            "030eaef0867c418e66c4563a11ac0d26149038f8cd0bf3a4d044f34f5872882d",
         ),
         (
             "bare8/cascade",
@@ -870,32 +885,32 @@ mod cascade_oracle {
         (
             "unknown_ram/human",
             10,
-            "4a65f09b552a47890203b05714977563b79c827b8731cfd90c6b6e6151dfddd9",
+            "c661365c975b48d0fff2f1822ca44fd9aa20e28a79df29df41e6c5d47bdd5c07",
         ),
         (
             "unknown_ram/welcome",
             2,
-            "e84a821f492edb3fd9f2f7cbd7cf4002be9a0d191cc713b682c9fc03edaf2372",
+            "bae740ec4a19922912270e16f69f191b88dddf40007a2e26df73ac242eac39f9",
         ),
         (
             "unknown_ram/human",
             10,
-            "9d90f3892a064d5b3d72da95ccba673dc08a2b288320d736e5e7267e8a981cbb",
+            "c04fc2764922d7f99ec15a7d74bfc6a1d5e315df849dce1d5d9866a148b8ecea",
         ),
         (
             "unknown_ram/welcome",
             2,
-            "57365b883116d917ea3a6485a0ee04ac8884f162886f72b3bb47ac8a765c3e35",
+            "838932a08bebf54a499c1c5f2705acba11507c1ec99b8ef86a4259dcef38ac35",
         ),
         (
             "unknown_ram/human",
             10,
-            "fff0fd9bb96f65cb6bfc15a1f8d747f45e8076ff0bf6decbeb8b0230ca0a977b",
+            "c72c11fb6c5a3cdb84fac4515b37a24ef10b67df2fff041b55447e01280a25d4",
         ),
         (
             "unknown_ram/welcome",
             2,
-            "faabda73dd8dc1fc7706e17d9664bc42a8d491e91babb0f61e4cbe705125fde2",
+            "bca33eab7236aa5c36309a121e98c797fae2e8d907d29d47f43805df475522ea",
         ),
         (
             "unknown_ram/cascade",
@@ -910,32 +925,32 @@ mod cascade_oracle {
         (
             "seat18/human",
             10,
-            "5dbb0d4099443090b33246e935811961a0c9f1ab1fb919e3a917b6c36c01b721",
+            "a31df2c2fbf41596fbb85c019b5efd8f236727b7ffc32ae7a45902b64ea64f5c",
         ),
         (
             "seat18/welcome",
             2,
-            "9bfaae6f386bc9888ca8cd5dea01b7482410dd102e0a574d5179edc8a28f37cb",
+            "8c908d42c6c8550180aa69795aa01a695194e3520db362a9fad606ea70321664",
         ),
         (
             "seat18/human",
             10,
-            "96953899bd016d76e73254d096a67ee7381b13f23ee54ceeec962a8546ea4124",
+            "cb2b93db92e761511b10958316fdcb6e9dfcb8d046a949290e49f7b065178bc6",
         ),
         (
             "seat18/welcome",
             2,
-            "a8001d0f4074f94fe158d6ed94c64e3de5f372c2444b49c4c8907bb16eae92c8",
+            "0743cf63c14c8a53aaa9cc61ae1ca830768e84c53928a0b67ace413b390ea424",
         ),
         (
             "seat18/human",
             10,
-            "258be398f91d9dda4879bb755f61c89cda39b22e0b271fb1db3f23d9a4a16618",
+            "10cd9a08d9c964daddfeaff5c0d4abacee92215b9a7be4ce161375f0c18472ab",
         ),
         (
             "seat18/welcome",
             2,
-            "171713fd431eadabba9bb4f8123887bc3a5e332f1ed6ed584eb4cef5e77c10d3",
+            "0877dd73c8adb6f074716ecfaff01444d72ab0c8d131e03244e8c233a6a562aa",
         ),
         (
             "seat18/cascade",
@@ -950,32 +965,32 @@ mod cascade_oracle {
         (
             "no_adapter/human",
             10,
-            "f72410006a9cec295930fcd70342e5bb0f7eb0f13a011ae3acdc9cb7a5b8f978",
+            "2555620c53c83ffc615c0e13bcc66be9042e19103ed83ef8000ee068a46c4635",
         ),
         (
             "no_adapter/welcome",
             2,
-            "158b32ce6d3471022a7d9e53fd22e9895359c1dee48d3e8875049fc7808153a8",
+            "737b5aa2fdbc78e483898e495cdcb46138e944e06ca09e91f809ef07adf66ff4",
         ),
         (
             "no_adapter/human",
             10,
-            "a0557e3128492b68a6182438a2b0d179e97fbf55b35ab0d9830626e723124f37",
+            "403c2da7d437d44e723a614bba4e88630a4558c170ccb774002466a06c3ffea3",
         ),
         (
             "no_adapter/welcome",
             2,
-            "c95b80244808cdad02a70f7dd02f6840806c3a573cf15a1bdd48f0a91f9d0598",
+            "b635f317d4604b056efc18b4580a17da72409e8c16fa570398974e1b706adbda",
         ),
         (
             "no_adapter/human",
             10,
-            "c98bc2e9312ace014bdfd276c786aaff4d0d0f7558d3ffeab9391c36f9b210e0",
+            "289977bfe34b0ddb6c9e6f9a74246fe8cd3c88d087180414d1c0056034045ecd",
         ),
         (
             "no_adapter/welcome",
             2,
-            "2f837dd40dfeab79e1317a4badca9cb69425565b50defb3528539cbcaf67ec44",
+            "b883def634b2f52b3e76bfcf2b41e71dfeb029a4ff576309a40aea2ff5b745c7",
         ),
         (
             "no_adapter/cascade",
@@ -990,32 +1005,32 @@ mod cascade_oracle {
         (
             "keys64/human",
             10,
-            "5982df07a458d1f69914301864a79c270a98913c7a1e8651365ace765aa78b1c",
+            "e8ef8188dac0db9baca10009f25f4f49d11d2ed808837ecfa62f7d8112879eb0",
         ),
         (
             "keys64/welcome",
             2,
-            "af6843f2a3fc5834dec4af1a3bd61dd5ced5b912a86dfde01434c9abd96cf223",
+            "d202ce16993dc37bd065c8056c43ee4ad999aef5f6598edcf6def206e4f7b4bf",
         ),
         (
             "keys64/human",
             10,
-            "df7639b9a11c322550f676b15357e63a6ecf620837c74eb04cd5e49d2d522e2a",
+            "85aec830d91fefa0721480e0217d7170e92b21879066007aa29e53fe7e275148",
         ),
         (
             "keys64/welcome",
             2,
-            "6ed9cee80f233203ec6070763b6771b7c931408c401ea75c519204710a872002",
+            "d3bed6296a6d40b82057f772ce3e7237890d91aa3e7ebe6b466cfec955df7f67",
         ),
         (
             "keys64/human",
             10,
-            "503a965b3dcc105d070c5daba62e5a3273ba3f5de6d5a3841ee225fde2e4be2d",
+            "0352cf0759a5a6263d468fc3f276bdb5be1640e5f75071f24cf9daa188063160",
         ),
         (
             "keys64/welcome",
             2,
-            "ef00a10b983905ff61ce042ded2541ffb2f1f90961784ef10ac00430c844b08e",
+            "a07cb54307cef2a576b88801046543e280b2ccbe08d90a7557b7257a2585a281",
         ),
         (
             "keys64/cascade",
@@ -1030,32 +1045,32 @@ mod cascade_oracle {
         (
             "seat_pulled32/human",
             10,
-            "28cd6c817aa43af86a1ee4590b16ecd0448e556d66fe16337fd49344c8639272",
+            "2115607ce62e7d0a1f380751137ec7877862ce55d7b65d4da72d0baf49baa681",
         ),
         (
             "seat_pulled32/welcome",
             2,
-            "09d8e1d1bc9aae2528d0e0446942fcc77de2765ed4901818ab81dae06857dcfa",
+            "42803c7d6e05b1f8e3e08ce8c002c584eef91108e13caf67feb1896d0d31c98d",
         ),
         (
             "seat_pulled32/human",
             10,
-            "85c577114439927b1d759388fe58a6eff34f261dc068f6eb90a7e6ec0b351ea8",
+            "4797b3dbc357c65062c264f1fd913768c2d19526e0670f71d89043db93bcd71e",
         ),
         (
             "seat_pulled32/welcome",
             2,
-            "505c733cf36967c4e903dd11caf1ee8307504c75f18185e5eb6d6689e226e601",
+            "04cd3b24525cd2cc0e58c4c35190141733dbdd45cab78c3c88bc4c8b75dacece",
         ),
         (
             "seat_pulled32/human",
             10,
-            "c81d17841aa21ada1b3b90063e9b7486d4fa09cb0e530585de3ff53987504032",
+            "ef891d7abab9d296a1f3c48360bc6efdf79e1a48195343b4b4c7ad31dad12b15",
         ),
         (
             "seat_pulled32/welcome",
             2,
-            "2bcad6a577811e51df2980a68efa4dcca7fd26c75860f0bc48e082fd444834c8",
+            "1f6620302b0c8d8a73394f3a08f6cae35586ebabbdedd230a8cd15652ef7d092",
         ),
         (
             "seat_pulled32/cascade",
