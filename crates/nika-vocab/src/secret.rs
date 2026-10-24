@@ -265,6 +265,19 @@ pub fn egress_host_and_self_teaching(name: &str) -> String {
 mod tests {
     use super::*;
 
+    /// The source teachings name the contract's sources only: spec 01
+    /// §secrets withdrew `vault` (0.123.0 still listed « vault · env · file »).
+    #[test]
+    fn the_source_teachings_list_env_and_file_never_vault() {
+        let missing = missing_source_teaching("k");
+        let unknown = unknown_source_teaching("k", "aws");
+        assert!(missing.ends_with("(env · file · R8)"), "{missing}");
+        assert!(unknown.ends_with("(env·file)"), "{unknown}");
+        for said in [&missing, &unknown] {
+            assert!(!said.contains("vault"), "{said}");
+        }
+    }
+
     #[test]
     fn default_source_is_vault() {
         assert_eq!(SecretSource::default(), SecretSource::Vault);
