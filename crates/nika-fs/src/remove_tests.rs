@@ -238,10 +238,8 @@ async fn the_host_refuses_a_symlinked_ancestor_and_spares_its_target() {
     let Err(FsError::Io { reason }) = &refused else {
         panic!("an ancestor link is refused as Io: {refused:?}");
     };
-    assert!(
-        reason.contains("Not a directory") || reason.contains("symbolic links"),
-        "{reason}"
-    );
+    // The refusal names the link (NIK-249), not the bare errno.
+    assert!(reason.contains("is a symbolic link"), "{reason}");
     assert!(!reason.contains("unsupported"), "{reason}");
     assert_eq!(host.inventory(), before);
 }

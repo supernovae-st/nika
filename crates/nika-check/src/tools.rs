@@ -473,16 +473,17 @@ fn collect_closed_literals(site: &str, action: &RawAction, out: &mut Vec<Unknown
         let Some(value) = literal.filter(|v| !v.contains("${{") && !allowed.contains(v)) else {
             continue;
         };
+        // The nearest member rides the teaching, never `suggestion`: that field is the key
+        // rename `--fix` applies, and `view: record` became `records: record` (NIK-248).
+        let near = did_you_mean(value, allowed.iter().copied());
         out.push(UnknownArg {
             task: site.to_owned(),
             tool: tool.to_owned(),
             arg: (*arg).to_owned(),
-            suggestion: did_you_mean(value, allowed.iter().copied()).map(str::to_owned),
-            declared: allowed
-                .iter()
-                .copied()
-                .chain(std::iter::once(*note))
+            suggestion: None,
+            declared: (allowed.iter().copied().chain(std::iter::once(*note)))
                 .map(str::to_owned)
+                .chain(near.map(|near| format!("did you mean `{near}`?")))
                 .collect(),
             invalid_value: Some(value.to_owned()),
         });
@@ -933,10 +934,19 @@ mod tests {
             "the four live views are the teaching: {:?}",
             f[0].declared
         );
+        // A near view is teaching, never the key rename `--fix` applies (NIK-248).
         let typo = arg_findings_of(
             "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:inspect\", args: { view: recods } }\n",
         );
-        assert_eq!(typo[0].suggestion.as_deref(), Some("records"));
+        assert_eq!(typo[0].suggestion, None, "{typo:?}");
+        assert!(
+            typo[0]
+                .declared
+                .iter()
+                .any(|d| d == "did you mean `records`?"),
+            "{:?}",
+            typo[0].declared
+        );
         for view in [
             "cost",
             "records",

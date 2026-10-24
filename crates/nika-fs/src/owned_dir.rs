@@ -48,10 +48,12 @@ impl OwnedDir {
         .map_err(io_error)?;
         let mut fd = File::from(fd);
         let mut absolute_depth = named.is_absolute().then_some(0usize);
+        let mut walked = PathBuf::from(anchor);
         for component in named.components() {
             match component {
                 Component::RootDir | Component::CurDir => {}
                 Component::ParentDir => {
+                    walked.push("..");
                     fd = open_dir(&fd, OsStr::new(".."))?;
                     if let Some(depth) = &mut absolute_depth {
                         *depth = depth.saturating_sub(1);
@@ -65,9 +67,12 @@ impl OwnedDir {
                         fd = open_dir(&fd, OsStr::new("private"))?;
                         fd = open_dir(&fd, name)?;
                         absolute_depth = Some(2);
+                        walked.push(name);
                         continue;
                     }
-                    fd = open_dir(&fd, name)?;
+                    walked.push(name);
+                    fd = open_dir(&fd, name)
+                        .map_err(|error| link_named(&fd, name, &walked, error))?;
                     if let Some(depth) = &mut absolute_depth {
                         *depth += 1;
                     }
@@ -564,6 +569,28 @@ fn open_or_create_dir(parent: &File, name: &str) -> io::Result<File> {
     open_dir(parent, OsStr::new(name))
 }
 
+/// The walk's refusal of a component that is a symbolic link, named with the path it resolves to:
+/// the bare `ENOTDIR`/`ELOOP` read « Not a directory » and pointed nowhere (NIK-249: a HOME
+/// reached through a link stopped the Session). Any other refusal is returned as it was.
+fn link_named(parent: &File, name: &OsStr, walked: &Path, error: io::Error) -> io::Error {
+    let is_link = fstatat(parent, name, AtFlags::AT_SYMLINK_NOFOLLOW)
+        .is_ok_and(|stat| stat.st_mode & SFlag::S_IFMT.bits() == SFlag::S_IFLNK.bits());
+    if !is_link {
+        return error;
+    }
+    let resolved = std::fs::canonicalize(walked).map_or_else(
+        |_| "unresolved".to_owned(),
+        |real| real.display().to_string(),
+    );
+    io::Error::new(
+        error.kind(),
+        format!(
+            "`{}` is a symbolic link: this directory is opened through real directories only · use its resolved path `{resolved}`",
+            walked.display()
+        ),
+    )
+}
+
 fn open_dir(parent: &File, name: &OsStr) -> io::Result<File> {
     let fd = openat(
         parent,
@@ -697,6 +724,32 @@ fn io_error(error: nix::errno::Errno) -> io::Error {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+
+    /// A directory reached through a symbolic link is still refused, and the refusal names the
+    /// link and the path it resolves to, never a bare « Not a directory » (NIK-249).
+    #[test]
+    fn a_link_on_the_way_is_refused_by_name_with_its_resolved_path() {
+        let root = tempfile::tempdir().expect("root");
+        let real = root.path().join("real");
+        std::fs::create_dir_all(real.join("home")).expect("real home");
+        let link = root.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).expect("link");
+        let refused = OwnedDir::open(&link.join("home")).expect_err("a link on the way");
+        let said = refused.to_string();
+        assert!(
+            said.contains(&format!("`{}` is a symbolic link", link.display())),
+            "{said}"
+        );
+        let resolved = std::fs::canonicalize(&link).expect("resolves");
+        assert!(
+            said.contains(&format!("`{}`", resolved.display())),
+            "{said}"
+        );
+        assert!(
+            OwnedDir::open(&resolved.join("home")).is_ok(),
+            "the resolved path opens"
+        );
+    }
 
     /// A file opened by its path: a link above it is the caller's own, an
     /// absent parent or file is `None`, the final name is never followed, a

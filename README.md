@@ -311,16 +311,14 @@ file for you, and the check keeps it honest:
 
 ## Know the limits
 
-- **Nika is pre-1.0.** The Session was qualified on six synthetic tasks
-  with one macOS installation of an identified development build, not the
-  released binary ([qualification note](docs/qa/delivery-a-2026-09.md)).
-  That is not a general reliability claim.
+- **0.123 is the open-source reference release.** It is maintained with
+  security fixes, bug fixes and compatibility; no major new development is
+  planned. Its known limits are listed in plain words, each with a way around
+  it: [Known limits in 0.123](https://docs.nika.sh/changelog/known-limits).
 - **Some requests cannot be expressed yet.** Nika then says what stopped it
   and writes nothing.
 - **A clean check is not a true answer.** It describes a file's structure
   and boundary; it does not prove that model output is right.
-- **Public releases do not include a knowledge snapshot.** Without one,
-  authoring uses the language card built into the binary.
 - **This README follows the source tree.** An older installed release may
   lack what it describes: compare `nika --version` with the
   [changelog](CHANGELOG.md). What `main` carries beyond the latest release
@@ -427,5 +425,6 @@ repositories drive this engine without adding to its authority.
 [Planning archive](https://github.com/orgs/supernovae-st/projects/3) ·
 [Website](https://nika.sh)
 
-Nika is usable today and pre-1.0. The engine is
+Nika 0.123 is the open-source reference release, usable today and
+maintained. The engine is
 [AGPL-3.0-or-later](LICENSE); the specification is Apache-2.0.
