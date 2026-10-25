@@ -264,7 +264,19 @@ jobs:
             test -s "${stage}/completions/${f}"
           done
           tarball="nika-${ASSET_NAME}-${version}.tar.gz"
-          tar -czf "${tarball}" -C "${stage}" nika completions
+          # Root-owned entries: the archive recorded the runner's own uid
+          # (1001 on the Linux legs · 501 on macOS), and `tar -x` run as root
+          # in a rootless container tries to restore it there, where that uid
+          # is not mapped. Record 0:0 by number instead: GNU tar on the Linux
+          # legs, bsdtar on the macOS legs. Only ownership metadata moves —
+          # the per-build mtimes already make every rebuild's bytes new, so
+          # the checksum below and the replay's byte comparison keep their
+          # meaning (RELEASING.md · a replay ships the original assets).
+          case "$(tar --version 2>/dev/null)" in
+            *'GNU tar'*) owner=(--owner=0 --group=0 --numeric-owner) ;;
+            *) owner=(--uid 0 --gid 0 --numeric-owner) ;;
+          esac
+          tar "${owner[@]}" -czf "${tarball}" -C "${stage}" nika completions
           shasum -a 256 "${tarball}" | tee "${tarball}.sha256"
       - name: Install bubblewrap (Linux gates run CONFINED · the Diamond CI tests-leg recipe)
         # Since #889 a `permits:`-declaring workflow REFUSES to start where no
