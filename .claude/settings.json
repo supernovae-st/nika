@@ -8,27 +8,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'git push[[:space:]]+.*(--force(-with-lease)?|-f)\\b'; then echo '❌ FORBIDDEN: git push --force (incl --force-with-lease). Would destroy history.' >&2; exit 2; fi"
+            "command": "INPUT=$(jq -r '.tool_input.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'git push[[:space:]]+.*(--force(-with-lease)?|-f)\\b'; then echo '❌ FORBIDDEN: git push --force (incl --force-with-lease). Would destroy history.' >&2; exit 2; fi"
           },
           {
             "type": "command",
-            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git add[[:space:]]+(-A|\\.|\\*)'; then echo '❌ FORBIDDEN: git add -A/./*. Stage explicit paths only (nika-invariants.md Rule 9).' >&2; exit 2; fi"
+            "command": "INPUT=$(jq -r '.tool_input.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git add[[:space:]]+(-A|\\.|\\*)'; then echo '❌ FORBIDDEN: git add -A/./*. Stage explicit paths only (nika-invariants.md Rule 9).' >&2; exit 2; fi"
           },
           {
             "type": "command",
-            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'cargo test[[:space:]]+--test\\b'; then echo '❌ FORBIDDEN: cargo test --test triggers macOS Keychain popup. Use --lib only (feedback_no_keychain_popup.md).' >&2; exit 2; fi"
+            "command": "INPUT=$(jq -r '.tool_input.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'cargo test[[:space:]]+--test\\b'; then echo '❌ FORBIDDEN: cargo test --test triggers macOS Keychain popup. Use --lib only (feedback_no_keychain_popup.md).' >&2; exit 2; fi"
           },
           {
             "type": "command",
-            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'git[[:space:]]+(checkout|switch)[[:space:]]+main\\b'; then echo '❌ FORBIDDEN: main is read-only. Use `git show brouillon:path` instead.' >&2; exit 2; fi"
+            "command": "INPUT=$(jq -r '.tool_input.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'git[[:space:]]+(checkout|switch)[[:space:]]+brouillon\\b'; then echo '❌ FORBIDDEN: brouillon is read-only legacy reference. Use `git show brouillon:path` instead.' >&2; exit 2; fi"
           },
           {
             "type": "command",
-            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE '(git commit|git push).*--no-verify'; then echo '❌ FORBIDDEN: --no-verify bypasses hooks. Fix the underlying issue.' >&2; exit 2; fi"
+            "command": "INPUT=$(jq -r '.tool_input.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE '(git commit|git push).*--no-verify'; then echo '❌ FORBIDDEN: --no-verify bypasses hooks. Fix the underlying issue.' >&2; exit 2; fi"
           },
           {
             "type": "command",
-            "command": "INPUT=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'cargo[[:space:]]+(yank|publish)\\b' && ! echo \"$INPUT\" | grep -qE '(--dry-run|--undo)\\b'; then echo '🛑 IRREVERSIBLE: cargo yank/publish writes to crates.io permanently.' >&2; echo '   Yanked versions stay grey forever; published ones cant be deleted.' >&2; echo '   Test with --dry-run, or get explicit user GO.' >&2; exit 2; fi"
+            "command": "INPUT=$(jq -r '.tool_input.command // empty' 2>/dev/null); if echo \"$INPUT\" | grep -qE 'cargo[[:space:]]+(yank|publish)\\b' && ! echo \"$INPUT\" | grep -qE '(--dry-run|--undo)\\b'; then echo '🛑 IRREVERSIBLE: cargo yank/publish writes to crates.io permanently.' >&2; echo '   Yanked versions stay grey forever; published ones cant be deleted.' >&2; echo '   Test with --dry-run, or get explicit user GO.' >&2; exit 2; fi"
           }
         ]
       },
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // empty' 2>/dev/null); if echo \"$FILE\" | grep -qE '/\\.git/'; then echo '❌ FORBIDDEN: editing inside .git/ directory.' >&2; exit 2; fi"
+            "command": "FILE=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); if echo \"$FILE\" | grep -qE '/\\.git/'; then echo '❌ FORBIDDEN: editing inside .git/ directory.' >&2; exit 2; fi"
           }
         ]
       }
@@ -49,15 +49,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git commit\\b' && git log -1 --format=%B 2>/dev/null | grep -qi 'Co-Authored-By: Claude'; then echo '❌ HEAD commit contains Co-Authored-By: Claude — forbidden. Use Nika 🦋 only. Amend before push.' >&2; exit 2; fi"
+            "command": "CMD=$(jq -r '.tool_input.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git commit\\b' && git log -1 --format=%B 2>/dev/null | grep -qi 'Co-Authored-By: Claude'; then echo '❌ HEAD commit contains Co-Authored-By: Claude — forbidden. Use Nika 🦋 only. Amend before push.' >&2; exit 2; fi"
           },
           {
             "type": "command",
-            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git commit\\b' && git log -1 --format=%B 2>/dev/null | grep -qE 'admit to workspace'; then printf '🆕 Crate admission commit.\\n  → Refresh generated status: bash scripts/refresh-status.sh --write\\n  → Before pushing: bash scripts/hygiene/check-all.sh (the pre-push gate runs it too)\\n  → Tags and releases follow RELEASING.md and their own authorization, never this hint\\n' >&2; fi"
+            "command": "CMD=$(jq -r '.tool_input.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git commit\\b' && git log -1 --format=%B 2>/dev/null | grep -qE 'admit to workspace'; then printf '🆕 Crate admission commit.\\n  → Refresh generated status: bash scripts/refresh-status.sh --write\\n  → Before pushing: bash scripts/hygiene/check-all.sh (the pre-push gate runs it too)\\n  → Tags and releases follow RELEASING.md and their own authorization, never this hint\\n' >&2; fi"
           },
           {
             "type": "command",
-            "command": "CMD=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git push\\b' && ! echo \"$CMD\" | grep -qE '(^|[[:space:]])(--force|-f)([[:space:]]|$)'; then HEAD=$(git log -1 --format=%h 2>/dev/null); echo \"📤 Pushed. HEAD is now $HEAD — report it with the checks actually run.\" >&2; fi"
+            "command": "CMD=$(jq -r '.tool_input.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(^|&&[[:space:]]*|;[[:space:]]*|\\|\\|[[:space:]]*)git push\\b' && ! echo \"$CMD\" | grep -qE '(^|[[:space:]])(--force|-f)([[:space:]]|$)'; then HEAD=$(git log -1 --format=%h 2>/dev/null); echo \"📤 Pushed. HEAD is now $HEAD — report it with the checks actually run.\" >&2; fi"
           }
         ]
       },
@@ -66,11 +66,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // empty' 2>/dev/null); if [ -n \"$FILE\" ] && echo \"$FILE\" | grep -q '\\.rs$' && [ -f \"$FILE\" ]; then LOC=$(wc -l < \"$FILE\" 2>/dev/null || echo 0); if [ \"$LOC\" -gt 1500 ]; then echo \"⚠️ WARNING: $FILE has $LOC lines (>1500 cap per nika-invariants.md)\" >&2; fi; fi"
+            "command": "FILE=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); if [ -n \"$FILE\" ] && echo \"$FILE\" | grep -q '\\.rs$' && [ -f \"$FILE\" ]; then LOC=$(wc -l < \"$FILE\" 2>/dev/null || echo 0); if [ \"$LOC\" -gt 1500 ]; then echo \"⚠️ WARNING: $FILE has $LOC lines (>1500 cap per nika-invariants.md)\" >&2; fi; fi"
           },
           {
             "type": "command",
-            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // empty' 2>/dev/null); if [ -n \"$FILE\" ] && echo \"$FILE\" | grep -qE '(MEMORY|SEQUENCE)\\.md$'; then REPO=$(git rev-parse --show-toplevel 2>/dev/null || echo '.'); LOG=\"$REPO/.nika/state-changes.jsonl\"; mkdir -p \"$(dirname \"$LOG\")\" 2>/dev/null; printf '{\"ts\":\"%s\",\"file\":\"%s\"}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$FILE\" >>\"$LOG\" 2>/dev/null || true; fi"
+            "command": "FILE=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); if [ -n \"$FILE\" ] && echo \"$FILE\" | grep -qE '(MEMORY|SEQUENCE)\\.md$'; then REPO=$(git rev-parse --show-toplevel 2>/dev/null || echo '.'); LOG=\"$REPO/.nika/state-changes.jsonl\"; mkdir -p \"$(dirname \"$LOG\")\" 2>/dev/null; printf '{\"ts\":\"%s\",\"file\":\"%s\"}\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$FILE\" >>\"$LOG\" 2>/dev/null || true; fi"
           }
         ]
       }

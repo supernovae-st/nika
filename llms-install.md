@@ -6,8 +6,8 @@ is non-interactive and idempotent. Prefer the package-manager paths —
 they verify checksums for you; the shell install script is the human
 lane (guided page: <https://nika.sh/install>), not the agent lane.
 
-The current release is 0.123.0, the open-source reference release. It is
-maintained with security fixes, bug fixes and compatibility; its known
+The current release is 0.123.1, a maintenance release of the 0.123
+open-source reference line. It is maintained with security fixes, bug fixes and compatibility; its known
 limits are at <https://docs.nika.sh/changelog/known-limits>.
 
 ## 1 · Install
@@ -28,7 +28,7 @@ cargo binstall --git https://github.com/supernovae-st/nika nika-cli
 `nika-cli`; the installed binary is `nika`.)
 
 **Nix (builds the default branch via the flake; append `/<tag>` to the
-flake reference, e.g. `github:supernovae-st/nika/v0.123.0`, to build a release):**
+flake reference, e.g. `github:supernovae-st/nika/v0.123.1`, to build a release):**
 
 ```sh
 nix profile install github:supernovae-st/nika
@@ -45,8 +45,8 @@ gh nika --version   # pass-through to a PATH nika, else a one-time checksum-veri
 **A container (Linux, amd64 · arm64), built from the same release binaries:**
 
 ```sh
-docker run --rm ghcr.io/supernovae-st/nika:0.123.0 --version
-docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika:0.123.0 check flow.nika
+docker run --rm ghcr.io/supernovae-st/nika:0.123.1 --version
+docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika:0.123.1 check flow.nika
 ```
 
 **No package manager (bare Linux/macOS box):** fetch the release
@@ -76,7 +76,7 @@ path above; say so plainly — do not improvise a build.
 ## 2 · Verify (always, before reporting success)
 
 ```sh
-nika --version   # prints the installed release, e.g. nika 0.123.0 (0bfde3765)
+nika --version   # prints the installed release, e.g. nika 0.123.1 (cc7b51964)
 nika doctor      # providers · PATH · what this machine can run
 ```
 
