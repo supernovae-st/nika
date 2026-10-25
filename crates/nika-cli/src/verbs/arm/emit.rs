@@ -28,7 +28,7 @@ use nika_arm::unit_io::{self, OrphanUnit, ProjectUnits, UnitOwner};
 pub fn run(args: &ArmArgs, emit_target: EmitTarget) -> VerbOutput {
     if matches!(args.mode, Some(EmitMode::System)) {
         return VerbOutput::file(
-            "arm --emit --mode system · la portée root arrive avec serve (W5) — aujourd'hui: la session de l'opérateur (LaunchAgents · systemd --user)"
+            "arm --emit --mode system · la portée root n'est pas émise — les unités vont dans la session de l'opérateur (LaunchAgents · systemd --user)"
                 .to_owned(),
         );
     }
