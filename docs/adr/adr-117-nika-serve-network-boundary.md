@@ -210,3 +210,48 @@ without artifact custody would be a false contract.
 - ADR-114 — cadence and verified ARM ledger authority.
 - ADR-116 — superseded local-only Serve decision.
 - `docs/security/nika-serve-threat-model.md` — binding threat model.
+
+## Amendment · artifact download, 2026-10-26 (NIK-265)
+
+Decided by @ThibautMelen on 26 October 2026, during maintenance after 0.123: the resident
+serves a bearer-guarded download of the artifacts a settled job's journal records. The condition
+of §5 is met in this form. The typed manifest is the job's sealed journal, so no artifact store
+is added, and a client never names a path.
+
+- **Routes.** `GET /v1/jobs/{id}/artifacts` returns the manifest, and
+  `GET /v1/jobs/{id}/artifacts/{name}` returns one artifact's bytes. Both are protected routes:
+  the bearer token is checked before any lookup, and an unknown, foreign or malformed id gets the
+  job door's own `job_not_found`. Health advertises `artifacts`.
+- **Settled jobs only.** A job that succeeded, failed, was cancelled or was interrupted answers.
+  A queued, running or paused job answers 409 `job_not_settled`.
+- **Bound to the journal.** The manifest comes from the journal the job's receipt names, found
+  by its execution and trace identity under the backend's journal directory. It is read once
+  within the verifier's bound, and those same bytes are judged by the verifier
+  `nika trace verify` runs. It is served only when the chain is intact, the seal verifies
+  against a run key that verifier weighs (`~/.nika/keys/run-signing.pub` or the retired-key
+  ledger), and the head is the receipt's `chain_head`. Otherwise the
+  routes answer 409 `artifact_journal_unavailable` or `artifact_journal_unverified`. An entry
+  exists only for an event that records a written byte stream with its SHA-256: a file-saving
+  builtin's `task_completed` frame (`nika:chart`, `nika:image_generate`, `nika:tts_generate`,
+  `nika:image_fx`) on its own successful answer, or an `agent_image_observed` frame whose image
+  the blob store kept. `nika:write` and `nika:edit` journal no digest, so their files are not
+  artifacts.
+- **Confined.** A file qualifies only by a relative path inside the project and outside `.nika`.
+  An agent image is its blob under `.nika/blobs`. `{name}` is a key into the manifest, never a
+  path. The server opens the recorded place below the project root it holds, through the
+  owned-directory open, which refuses a symbolic link at every component.
+- **Bounded.** One artifact is at most 256 MiB: a larger one stays listed and its download
+  answers 403 `artifact_too_large`. A manifest lists at most 1,024 entries. At most four
+  artifact reads run at once; beyond that the routes answer 503 `artifact_capacity`.
+- **Rechecked.** The whole file is hashed before the response starts. A size or SHA-256 that no
+  longer matches the journal answers 409 `artifact_changed`. The bytes are hashed again while
+  they stream, and the last chunk is held back until every byte matched. A file changed during
+  the stream therefore ends before its `Content-Length`, and a changed file is never served as
+  the recorded one.
+
+This discharges the artifact half of the follow-up "add typed cancellation and artifact
+authority before exposing those routes". It adds no upload, no deletion or retention policy, no
+range request, no listing of files the journal records without a digest, and no SDK method: the
+TypeScript SDK adopts the two routes separately. The threat model's route policy and checklist
+name these controls; the evidence is `crates/nika-serve/src/server/artifacts.rs` and
+`crates/nika-serve/src/server/tests/artifacts.rs`.

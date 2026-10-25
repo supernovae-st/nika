@@ -66,12 +66,18 @@ pub struct ServerLimits {
     sse_reconnect: Duration,
     default_max_cost_usd: Option<f64>,
     max_compile_requests: usize,
+    max_artifact_bytes: u64,
 }
 
 /// Concurrent `POST /v1/compile` computations out of the box. Authoring is
 /// CPU-bound and cannot be cancelled once started, so at most this many may
 /// occupy the blocking pool that admission and registry reads also use.
 const DEFAULT_MAX_COMPILE_REQUESTS: usize = 4;
+
+/// The largest artifact `GET /v1/jobs/{id}/artifacts/{name}` serves (256 MiB):
+/// the whole file is hashed once before it streams, then again while it does.
+/// A larger one stays listed in its manifest and is refused `artifact_too_large`.
+pub(crate) const DEFAULT_MAX_ARTIFACT_BYTES: u64 = 256 * 1024 * 1024;
 
 impl ServerLimits {
     /// Construct every server ceiling explicitly.
@@ -102,7 +108,15 @@ impl ServerLimits {
             sse_reconnect: Duration::from_secs(1),
             default_max_cost_usd: Some(DEFAULT_MAX_COST_USD),
             max_compile_requests: DEFAULT_MAX_COMPILE_REQUESTS,
+            max_artifact_bytes: DEFAULT_MAX_ARTIFACT_BYTES,
         }
+    }
+
+    /// Lower the artifact download bound (the size-limit tests).
+    #[cfg(test)]
+    pub(crate) const fn with_max_artifact_bytes(mut self, max_artifact_bytes: u64) -> Self {
+        self.max_artifact_bytes = max_artifact_bytes;
+        self
     }
 
     /// Replace the concurrent authoring (`POST /v1/compile`) ceiling. The next
@@ -223,6 +237,10 @@ impl ServerLimits {
 
     pub(crate) const fn max_compile_requests(self) -> usize {
         self.max_compile_requests
+    }
+
+    pub(crate) const fn max_artifact_bytes(self) -> u64 {
+        self.max_artifact_bytes
     }
 
     /// The run's effective per-run spend ceiling (#1349): a declaration

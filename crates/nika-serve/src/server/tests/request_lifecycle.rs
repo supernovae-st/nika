@@ -59,6 +59,7 @@ async fn health_is_public_and_contains_only_compile_bound_identity() {
             "cancel",
             "jobInputs",
             "compile",
+            "artifacts",
             "schedule"
         ]),
         "the live resident HTTP authority advertises its exact route subset"
@@ -486,7 +487,9 @@ async fn unknown_jobs_and_absent_authorities_disclose_one_bounded_shape() {
     assert_eq!(malformed.status, 404);
     assert_eq!(unknown.body, malformed.body);
     assert_eq!(cancel.status, 404);
+    // The artifact door answers an unknown id as the job door does: one bounded shape.
     assert_eq!(artifacts.status, 404);
+    assert_eq!(artifacts.body, unknown.body);
     server.stop().await.expect("clean stop");
 }
 

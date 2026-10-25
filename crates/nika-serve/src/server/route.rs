@@ -135,6 +135,12 @@ async fn protected(request: Request<Incoming>, state: Arc<AppState>) -> Response
     if request.method() == Method::GET && sse::is_events_path(request.uri().path()) {
         return sse::handle(request, state).await;
     }
+    // An artifact streams past any request deadline, like an event stream: its size bound
+    // and its slot bound the work (NIK-265).
+    if request.method() == Method::GET && super::artifacts::is_download(request.uri().path()) {
+        let path = request.uri().path().to_owned();
+        return super::artifacts::download(&path, state).await;
+    }
     // A Session's command outlives any request deadline: its worker owns it (nika-session-host).
     if state.sessions.is_some() && request.uri().path().starts_with("/v1/sessions") {
         return super::session::route(request, &state).await;
@@ -226,6 +232,9 @@ async fn route_authenticated(
             super::schedule_http::get(id.to_owned(), &state).await
         }
         (&Method::GET, path) if path.ends_with("/trace/verify") => verify_trace(path, &state).await,
+        (&Method::GET, path) if super::artifacts::is_manifest(path) => {
+            super::artifacts::list(path, &state).await
+        }
         (&Method::GET, _) => get_job(&path, &state).await,
         _ => ApiError::route_not_found().into_response(),
     }

@@ -15,7 +15,7 @@ const COMMITTED: &str = include_str!("../../openapi.json");
 
 /// [`OpenAPI`](https://spec.openapis.org/oas/v3.1.0) document of the live HTTP surface.
 ///
-/// Artifact and `POST /v1/run` paths are omitted until those authorities exist.
+/// The `POST /v1/run` path is omitted until that authority exists.
 pub(crate) fn document() -> Value {
     let mut document = serde_json::from_str::<Value>(COMMITTED).unwrap_or(Value::Null);
     let version = Value::from(env!("CARGO_PKG_VERSION"));
@@ -105,14 +105,14 @@ mod builder {
 
     /// [`OpenAPI`](https://spec.openapis.org/oas/v3.1.0) document of the live HTTP surface.
     ///
-    /// Artifact and `POST /v1/run` paths are omitted until those authorities exist.
+    /// The `POST /v1/run` path is omitted until that authority exists.
     pub(super) fn document() -> Value {
         json!({
             "openapi": "3.1.0",
             "info": {
                 "title": "nika serve",
                 "version": env!("CARGO_PKG_VERSION"),
-                "description": "Authenticated loopback remote execution, declarative schedules and stateless source-only authoring (POST /v1/compile never runs, admits or writes). Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent."
+                "description": "Authenticated loopback remote execution, declarative schedules, verified downloads of the artifacts a settled job's sealed journal records, and stateless source-only authoring (POST /v1/compile never runs, admits or writes). Schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent."
             },
             "servers": [{"url": "http://127.0.0.1"}],
             "security": [{"bearerAuth": []}],
@@ -200,6 +200,8 @@ mod builder {
                 "CompileOutcome".to_owned(),
                 super::super::compile::schema::outcome(),
             );
+            named.insert("ArtifactManifest".to_owned(), artifact_manifest_schema());
+            named.insert("Artifact".to_owned(), artifact_schema());
             named.insert("ScheduleFindings".to_owned(), schedule_findings_schema());
             named.insert(
                 "SchedulePreconditionFailed".to_owned(),
@@ -579,6 +581,8 @@ mod builder {
             "/v1/jobs/{id}/events": job_events_path(),
             "/v1/jobs/{id}/cancel": job_cancel_path(),
             "/v1/jobs/{id}/trace/verify": job_trace_verify_path(),
+            "/v1/jobs/{id}/artifacts": job_artifacts_path(),
+            "/v1/jobs/{id}/artifacts/{name}": job_artifact_path(),
             "/v1/schedules/{id}": schedule_path()
         })
     }
@@ -839,6 +843,80 @@ mod builder {
         }})
     }
 
+    fn job_artifacts_path() -> Value {
+        json!({"get": {
+            "summary": "The artifacts a settled job's sealed journal records",
+            "description": "Answers only for a settled job (succeeded, failed, cancelled, interrupted). The manifest is read from the journal the job's receipt names, judged by the one verifier `nika trace verify` runs: the chain must be intact, the seal must verify against a run key that verifier weighs on the server (`~/.nika/keys/run-signing.pub` or the retired-key ledger), and the head must be the receipt's `chain_head`. Each entry is one journal event that records a written byte stream with its SHA-256: a file a builtin saved (`nika:chart`, `nika:image_generate`, `nika:tts_generate`, `nika:image_fx`) at a relative path inside the project and outside `.nika`, its last write winning, or an image an agent's harness sent, kept under `.nika/blobs`. `nika:write` and `nika:edit` journal no hash of what they wrote, so their files are not listed. Every size and digest is the journal's; the download route checks the bytes against them. No filesystem path of the server is exposed.",
+            "parameters": [job_id_param()],
+            "responses": {
+                "200": {"description": "The manifest, bound to the job's receipt", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ArtifactManifest"}}}},
+                "401": error_ref(),
+                "404": error_named("`job_not_found`: unknown or foreign job id"),
+                "408": error_named("Request deadline"),
+                "409": error_named("`job_not_settled`: queued, running or paused · `artifact_journal_unavailable`: no receipt chain head, or no journal by the job's identity · `artifact_journal_unverified`: the journal is not sealed and intact with the receipt's head"),
+                "503": error_named("`store_busy`: durable job state unavailable · `artifact_capacity`: every artifact slot is busy")
+            }
+        }})
+    }
+
+    fn job_artifact_path() -> Value {
+        json!({"get": {
+            "summary": "Stream one artifact's bytes, verified against its journaled SHA-256",
+            "description": format!("`{{name}}` is an entry's `name` from GET /v1/jobs/{{id}}/artifacts, never a filesystem path: it spans several path segments (`file/out/report.pdf`, `agent_image/1.png`). Send each segment percent-encoded and keep the `/` separators literal; an escape that is not two hexadecimal digits, a decoded `/` or NUL, or an empty segment matches no entry. The server opens the recorded place below the project root it holds, refusing a symbolic link at any component, checks every byte against the recorded size and SHA-256 before the response starts (409 `artifact_changed` on a mismatch), then checks them again while they stream: a file changed during the stream ends it before its `Content-Length`, so a client never receives a complete body the journal did not record. The bound is `max_artifact_bytes`; a larger artifact stays listed and is refused 403. At most {slots} artifact reads run at once (`artifact_capacity` otherwise); a stream releases its slot once its bytes start, and is not bounded by the request deadline.", slots = super::super::artifacts::ARTIFACT_SLOTS),
+            "parameters": [job_id_param(), {"name": "name", "in": "path", "required": true, "description": "An entry's manifest `name`, each `/`-separated segment percent-encoded, the separators literal", "schema": {"type": "string", "minLength": 1}}],
+            "responses": {
+                "200": {
+                    "description": "The recorded bytes",
+                    "headers": {
+                        "Content-Length": {"description": "The recorded size", "schema": {"type": "integer", "minimum": 0}},
+                        "Nika-Artifact-Sha256": {"description": "The recorded SHA-256 (lowercase hex), the manifest's `sha256`", "schema": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+                        "Content-Disposition": {"schema": {"type": "string", "const": "attachment"}},
+                        "X-Content-Type-Options": {"schema": {"type": "string", "const": "nosniff"}},
+                        "Cache-Control": {"schema": {"type": "string", "const": "no-store"}}
+                    },
+                    "content": {"*/*": {"schema": {"description": "The artifact's bytes; Content-Type is the manifest's `mime`"}}}
+                },
+                "401": error_ref(),
+                "403": error_named("`artifact_too_large`: over this server's download bound"),
+                "404": error_named("`job_not_found`: unknown or foreign job id · `artifact_not_found`: no entry by that name"),
+                "409": error_named("`job_not_settled` · `artifact_journal_unavailable` · `artifact_journal_unverified` (as the manifest) · `artifact_changed`: the bytes at the recorded place no longer match the record"),
+                "503": error_named("`store_busy` · `artifact_capacity`")
+            }
+        }})
+    }
+
+    fn artifact_manifest_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "description": format!("A settled job's artifacts, as its sealed journal records them, bound to its receipt: `receipt` is the job's own (trace id and chain head included), `verdict` the tier its journal attained. At most {listed} entries are listed, in journal order; `truncated` says more exist (a download still finds every recorded name).", listed = super::super::artifacts::MAX_LISTED),
+            "required": ["receipt", "verdict", "max_artifact_bytes", "truncated", "artifacts"],
+            "properties": {
+                "receipt": {"$ref": "#/components/schemas/JobReceipt"},
+                "verdict": {"type": "string", "enum": ["sealed", "anchored", "replayed"]},
+                "max_artifact_bytes": {"type": "integer", "minimum": 1, "examples": [super::super::config::DEFAULT_MAX_ARTIFACT_BYTES], "description": "The largest artifact this server downloads (256 MiB by default)"},
+                "truncated": {"type": "boolean"},
+                "artifacts": {"type": "array", "maxItems": super::super::artifacts::MAX_LISTED, "items": {"$ref": "#/components/schemas/Artifact"}}
+            }
+        })
+    }
+
+    fn artifact_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["name", "kind", "size", "sha256", "mime", "event_id"],
+            "properties": {
+                "name": {"type": "string", "minLength": 1, "description": "Unique within the job: `file/<path>` or `agent_image/<n>.<ext>` (the n-th image the job's agents sent). The download route's `{name}`."},
+                "kind": {"type": "string", "enum": ["file", "agent_image"]},
+                "path": {"type": "string", "minLength": 1, "description": "A file's project-relative path, as the workflow wrote it (normalized). Absent for an agent image."},
+                "size": {"type": "integer", "minimum": 0, "description": "Bytes, as journaled"},
+                "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 of the recorded bytes, as journaled"},
+                "mime": {"type": "string", "minLength": 3, "description": "The recorded media type, else one derived from the extension, else application/octet-stream"},
+                "task": {"type": "string", "description": "The task whose event records it"},
+                "event_id": {"type": "string", "format": "uuid", "description": "The id of that journal event"}
+            }
+        })
+    }
+
     fn snapshot_request_body(named: &str) -> Value {
         json!({"required": true, "content": {"application/json": {"schema": {"oneOf": [
             {"$ref": format!("#/components/schemas/{named}")},
@@ -889,12 +967,13 @@ mod tests {
         "/v1/jobs/{id}/events",
         "/v1/jobs/{id}/cancel",
         "/v1/jobs/{id}/trace/verify",
+        "/v1/jobs/{id}/artifacts",
+        "/v1/jobs/{id}/artifacts/{name}",
         "/v1/schedules/{id}",
         "/v1/openapi.json",
     ];
 
     const ABSENT_PATHS: &[&str] = &[
-        "/v1/jobs/{id}/artifacts",
         "/v1/run",
         "/v1/schedules",
         "/v1/schedules/{id}/trigger",

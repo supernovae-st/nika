@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **WORKSPACE WIP**. Durable jobs, loopback HTTP, idempotent engine-token cancellation, resumable SSE with heartbeat/reconnect guidance, OpenAPI 3.1, SIGTERM drain, typed token-file refusal, failed-job NIKA codes, and 422 capture diagnosis. Artifacts/`POST /v1/run` stay absent; trace verification returns an honest typed refusal until a real remote journal authority exists. 12-gate crate admission still pending. |
+| Status | **WORKSPACE WIP**. Durable jobs, loopback HTTP, idempotent engine-token cancellation, resumable SSE with heartbeat/reconnect guidance, OpenAPI 3.1, SIGTERM drain, typed token-file refusal, failed-job NIKA codes, 422 capture diagnosis, and the download of a settled job's journal-bound artifacts (ADR-117 amendment, 2026-10-26). `POST /v1/run` stays absent; trace verification returns an honest typed refusal until a real remote journal authority exists. 12-gate crate admission still pending. |
 | Layer | L4 — remote execution interface projection |
 | Purpose | Persist request admission, lifecycle status, and resumable event cursors, and project the first authenticated HTTP routes over that state. |
 | LOC budget | ≤5,000 source lines for the state plane; ≤25,000 hard crate cap. |
@@ -254,7 +254,24 @@ pin every published bound, word and ceiling to the enforced constant and
 validate the live controlled payloads against the served documents. The SDK
 update remains owed.
 
-Artifact routes return 404. No route returns the bytes of a served workflow,
+Artifacts (ADR-117 amendment, 2026-10-26 · NIK-265). `GET /v1/jobs/{id}/artifacts`
+returns the manifest of a settled job (succeeded, failed, cancelled, interrupted; 409
+`job_not_settled` otherwise): its receipt, the tier its journal attained, the download bound,
+and one entry per journal event that records a written byte stream with its SHA-256 (a
+`nika:chart`, `nika:image_generate`, `nika:tts_generate` or `nika:image_fx` file at a relative
+path inside the project and outside `.nika`, its last write winning; an image an agent's
+harness sent, kept as a blob under `.nika/blobs`). The journal is the one the receipt names,
+read once within the verifier's bound and judged over those bytes: intact, sealed under a run
+key `nika trace verify` weighs, headed by the receipt's `chain_head` (409 `artifact_journal_unavailable` /
+`artifact_journal_unverified` otherwise). `GET /v1/jobs/{id}/artifacts/{name}` looks `{name}`
+up in that manifest, never on the filesystem, opens the recorded place below the held project
+root with no link at any component, refuses an artifact over 256 MiB (403), hashes the whole
+file against the record before the response starts (409 `artifact_changed`) and again while it
+streams, withholding the last chunk until every byte matched. The manifest answers within the
+request deadline; a download, like an event stream, is not bounded by it (its size bound and
+its slot bound the work). At most four artifact reads run at once (503 `artifact_capacity`).
+Apart from a recorded artifact's bytes and its project-relative path, no route returns the
+bytes of a served workflow,
 idempotency keys, request digests, event payloads, provider/tool data, paths,
 token material, or internal error text. CORS headers are not emitted.
 `Last-Event-ID` resumes after that sequence. An invalid cursor is 400; a
@@ -399,8 +416,9 @@ Inline library tests cover:
 - valid authentication plus uniform missing, duplicate, malformed, wrong, and
   oversized credential refusal;
 - auth-before-parse, invalid JSON/content type, coarse and streaming body
-  limits, slow-body timeout, contained-path refusal, and absent artifact
-  authority routes;
+  limits, slow-body timeout, contained-path refusal, and the artifact routes:
+  settled-only, journal-bound, confined, bounded and rechecked
+  (`server::tests::artifacts`, `server::artifacts::tests`);
 - twelve concurrent identical POSTs producing one backend call and one id;
 - `paused` through both public response types;
 - bounded execution timeout and bounded graceful shutdown;
@@ -451,11 +469,11 @@ admission wave closes the gates whose authority does not exist in W05.
 
 ## 6. Explicit non-goals
 
-No TLS · no workflow upload · no artifact authority · no `POST /v1/run` · no
-automatic retry of interrupted
+No TLS · no workflow upload · no artifact upload, deletion or retention
+policy · no `POST /v1/run` · no automatic retry of interrupted
 execution. OpenAPI 3.1 is the live authenticated route table
-(`GET /v1/openapi.json`): it names the live POST statuses and omits
-artifacts and `POST /v1/run`. The typed trace-verification route refuses
+(`GET /v1/openapi.json`): it names the live statuses and omits
+`POST /v1/run`. The typed trace-verification route refuses
 `unavailable` until execution supplies a held remote journal authority; a
 chain head alone is not verification. The store records the lost
 ownership but cannot prove whether an effect committed before the

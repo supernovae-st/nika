@@ -40,6 +40,104 @@
       }
     },
     "schemas": {
+      "Artifact": {
+        "additionalProperties": false,
+        "properties": {
+          "event_id": {
+            "description": "The id of that journal event",
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "file",
+              "agent_image"
+            ],
+            "type": "string"
+          },
+          "mime": {
+            "description": "The recorded media type, else one derived from the extension, else application/octet-stream",
+            "minLength": 3,
+            "type": "string"
+          },
+          "name": {
+            "description": "Unique within the job: `file/<path>` or `agent_image/<n>.<ext>` (the n-th image the job's agents sent). The download route's `{name}`.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "path": {
+            "description": "A file's project-relative path, as the workflow wrote it (normalized). Absent for an agent image.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "sha256": {
+            "description": "SHA-256 of the recorded bytes, as journaled",
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "size": {
+            "description": "Bytes, as journaled",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "task": {
+            "description": "The task whose event records it",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "size",
+          "sha256",
+          "mime",
+          "event_id"
+        ],
+        "type": "object"
+      },
+      "ArtifactManifest": {
+        "additionalProperties": false,
+        "description": "A settled job's artifacts, as its sealed journal records them, bound to its receipt: `receipt` is the job's own (trace id and chain head included), `verdict` the tier its journal attained. At most 1024 entries are listed, in journal order; `truncated` says more exist (a download still finds every recorded name).",
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/Artifact"
+            },
+            "maxItems": 1024,
+            "type": "array"
+          },
+          "max_artifact_bytes": {
+            "description": "The largest artifact this server downloads (256 MiB by default)",
+            "examples": [
+              268435456
+            ],
+            "minimum": 1,
+            "type": "integer"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/JobReceipt"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "verdict": {
+            "enum": [
+              "sealed",
+              "anchored",
+              "replayed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "receipt",
+          "verdict",
+          "max_artifact_bytes",
+          "truncated",
+          "artifacts"
+        ],
+        "type": "object"
+      },
       "CheckByName": {
         "additionalProperties": false,
         "description": "Source-only Check by served name. Required launch inputs may remain unsupplied; caller inputs are accepted only on POST /v1/jobs and are refused here. Check does not execute an access plan.",
@@ -1451,7 +1549,7 @@
     }
   },
   "info": {
-    "description": "Authenticated loopback remote execution, declarative schedules and stateless source-only authoring (POST /v1/compile never runs, admits or writes). Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent.",
+    "description": "Authenticated loopback remote execution, declarative schedules, verified downloads of the artifacts a settled job's sealed journal records, and stateless source-only authoring (POST /v1/compile never runs, admits or writes). Schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent.",
     "title": "nika serve",
     "version": "0.123.1"
   },
@@ -1864,6 +1962,208 @@
           }
         },
         "summary": "Job identity and status"
+      }
+    },
+    "/v1/jobs/{id}/artifacts": {
+      "get": {
+        "description": "Answers only for a settled job (succeeded, failed, cancelled, interrupted). The manifest is read from the journal the job's receipt names, judged by the one verifier `nika trace verify` runs: the chain must be intact, the seal must verify against a run key that verifier weighs on the server (`~/.nika/keys/run-signing.pub` or the retired-key ledger), and the head must be the receipt's `chain_head`. Each entry is one journal event that records a written byte stream with its SHA-256: a file a builtin saved (`nika:chart`, `nika:image_generate`, `nika:tts_generate`, `nika:image_fx`) at a relative path inside the project and outside `.nika`, its last write winning, or an image an agent's harness sent, kept under `.nika/blobs`. `nika:write` and `nika:edit` journal no hash of what they wrote, so their files are not listed. Every size and digest is the journal's; the download route checks the bytes against them. No filesystem path of the server is exposed.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactManifest"
+                }
+              }
+            },
+            "description": "The manifest, bound to the job's receipt"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "`job_not_found`: unknown or foreign job id"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request deadline"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "`job_not_settled`: queued, running or paused · `artifact_journal_unavailable`: no receipt chain head, or no journal by the job's identity · `artifact_journal_unverified`: the journal is not sealed and intact with the receipt's head"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "`store_busy`: durable job state unavailable · `artifact_capacity`: every artifact slot is busy"
+          }
+        },
+        "summary": "The artifacts a settled job's sealed journal records"
+      }
+    },
+    "/v1/jobs/{id}/artifacts/{name}": {
+      "get": {
+        "description": "`{name}` is an entry's `name` from GET /v1/jobs/{id}/artifacts, never a filesystem path: it spans several path segments (`file/out/report.pdf`, `agent_image/1.png`). Send each segment percent-encoded and keep the `/` separators literal; an escape that is not two hexadecimal digits, a decoded `/` or NUL, or an empty segment matches no entry. The server opens the recorded place below the project root it holds, refusing a symbolic link at any component, checks every byte against the recorded size and SHA-256 before the response starts (409 `artifact_changed` on a mismatch), then checks them again while they stream: a file changed during the stream ends it before its `Content-Length`, so a client never receives a complete body the journal did not record. The bound is `max_artifact_bytes`; a larger artifact stays listed and is refused 403. At most 4 artifact reads run at once (`artifact_capacity` otherwise); a stream releases its slot once its bytes start, and is not bounded by the request deadline.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "An entry's manifest `name`, each `/`-separated segment percent-encoded, the separators literal",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "description": "The artifact's bytes; Content-Type is the manifest's `mime`"
+                }
+              }
+            },
+            "description": "The recorded bytes",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "const": "attachment",
+                  "type": "string"
+                }
+              },
+              "Content-Length": {
+                "description": "The recorded size",
+                "schema": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "Nika-Artifact-Sha256": {
+                "description": "The recorded SHA-256 (lowercase hex), the manifest's `sha256`",
+                "schema": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "const": "nosniff",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "`artifact_too_large`: over this server's download bound"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "`job_not_found`: unknown or foreign job id · `artifact_not_found`: no entry by that name"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "`job_not_settled` · `artifact_journal_unavailable` · `artifact_journal_unverified` (as the manifest) · `artifact_changed`: the bytes at the recorded place no longer match the record"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "`store_busy` · `artifact_capacity`"
+          }
+        },
+        "summary": "Stream one artifact's bytes, verified against its journaled SHA-256"
       }
     },
     "/v1/jobs/{id}/cancel": {
