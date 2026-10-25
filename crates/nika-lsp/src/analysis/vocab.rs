@@ -75,7 +75,8 @@ pub const TOP_LEVEL_KEYS: &[Entry] = &[
     },
     Entry {
         name: "secrets",
-        doc: "Masked, vault-backed references (`${{ secrets.X }}`). \
+        doc: "Masked references to an environment variable (`source: env`) \
+              or a file (`source: file`) (`${{ secrets.X }}`). \
               Never printed; tracked by the IFC leak analysis.",
     },
     Entry {
@@ -281,6 +282,17 @@ pub fn lookup(table: &[Entry], name: &str) -> Option<Entry> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The `secrets` hover names the contract's two sources: spec 01
+    /// §secrets withdrew `vault`, which no engine resolves (0.123.0's hover
+    /// still said « vault-backed »).
+    #[test]
+    fn the_secrets_hover_names_env_and_file_never_vault() {
+        let entry = lookup(TOP_LEVEL_KEYS, "secrets").expect("secrets is a top-level key");
+        assert!(entry.doc.contains("`source: env`"), "{}", entry.doc);
+        assert!(entry.doc.contains("`source: file`"), "{}", entry.doc);
+        assert!(!entry.doc.contains("vault"), "{}", entry.doc);
+    }
 
     #[test]
     fn the_four_verbs_are_locked() {
