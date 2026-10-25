@@ -72,9 +72,9 @@ const REFUSALS_TWO_COLOR: &str = " \u{1b}[31m✗\u{1b}[0m \u{1b}[1mFIX\u{1b}[0m 
 const STOPS_TWO: &str =
     " ◼ STOP  `needs:` is foreign — rewrite it\n ◼ STOP  équipe \"x\" \\ ✨\nsecond\n";
 
-const SUMMARY_NONE: &str = " ○ FIX  no machine-applicable repairs (typed rename suggestions only — structural findings stay yours)\n";
+const SUMMARY_NONE: &str = " ○ FIX  no machine-applicable repairs (renames, `with:` hoists, retired forms — other findings stay yours)\n";
 
-const SUMMARY_SKIPPED: &str = " ○ FIX  needs-after `needs: « é »` → `after: { id: success }` skipped — `needs: « é »` is not unique in the file (a blind splice could rewrite the wrong site)\n ○ FIX  no machine-applicable repairs (typed rename suggestions only — structural findings stay yours)\n";
+const SUMMARY_SKIPPED: &str = " ○ FIX  needs-after `needs: « é »` → `after: { id: success }` skipped — `needs: « é »` is not unique in the file (a blind splice could rewrite the wrong site)\n ○ FIX  no machine-applicable repairs (renames, `with:` hoists, retired forms — other findings stay yours)\n";
 
 const SUMMARY_MIXED: &str = " ✔ FIX  bare-exec `bare exec: string` → `command: argv`\n ○ FIX  needs-after `needs: « é »` → `after: { id: success }` skipped — `needs: « é »` is not unique in the file (a blind splice could rewrite the wrong site)\n ✔ FIX  w1-map `tasks: list` → `tasks: map keyed by task id`\n ✔ FIX  2 repairs applied · re-audit below\n";
 
