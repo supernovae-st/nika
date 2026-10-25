@@ -134,7 +134,7 @@ pub const GLOSSARY: &[(&str, &str)] = &[
     ),
     (
         "model",
-        "the default seat for every `infer` · `<provider>/<name>` · `mock/echo` rehearses offline · a task may name its own",
+        "the default seat for every `infer` · `<provider>/<name>` · `mock/echo` rehearses with no model call (tools and fetches stay real) · a task may name its own",
     ),
     (
         "with",
@@ -189,5 +189,18 @@ mod tests {
             Some("environment variable")
         );
         assert!(entry("comet").is_none());
+    }
+
+    /// #1605 · the mock seat replaces the model call, not the network:
+    /// a rehearsal that fetches still reaches its host.
+    #[test]
+    fn the_model_entry_never_calls_a_mock_rehearsal_offline() {
+        let (_, model) = entry("model").expect("the envelope word is taught");
+        assert!(!model.contains("offline"), "{model}");
+        assert!(
+            model
+                .contains("`mock/echo` rehearses with no model call (tools and fetches stay real)"),
+            "{model}"
+        );
     }
 }

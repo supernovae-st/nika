@@ -435,7 +435,7 @@ fn render_human(
         super::forecast::render::forecast_section(&mut s, fc);
     }
     if failure.is_none() {
-        run_section(&mut s, path, report);
+        run_section(&mut s, path, report, crate::verbs::run::declared_hosts(wf));
     }
     recorder_section(&mut s, traces);
     s
@@ -772,8 +772,21 @@ fn risks_section(s: &mut String, path: &str, report: &CheckReport) {
     }
 }
 
+/// The mock rehearsal's comment (#1605): `mock/echo` replaces the
+/// model, not the network, so the hosts `permits.net.http` declares are named.
+fn mock_rehearsal_note(hosts: &[String]) -> String {
+    if hosts.is_empty() {
+        "mock model · zero keys".to_owned()
+    } else {
+        format!(
+            "mock model · zero keys · may still reach {}",
+            hosts.join(" · ")
+        )
+    }
+}
+
 /// Run it — plus the mock rehearsal when the workflow bills real models.
-fn run_section(s: &mut String, path: &str, report: &CheckReport) {
+fn run_section(s: &mut String, path: &str, report: &CheckReport, hosts: &[String]) {
     let _ = writeln!(s, "\nrun it");
     let _ = writeln!(s, "  nika run {path}");
     let all_mock = report
@@ -795,7 +808,8 @@ fn run_section(s: &mut String, path: &str, report: &CheckReport) {
         } else if report.data_journey.writes.is_empty() {
             let _ = writeln!(
                 s,
-                "  nika run {path} --model mock/echo   # offline rehearsal · zero keys"
+                "  nika run {path} --model mock/echo   # {}",
+                mock_rehearsal_note(hosts)
             );
         } else {
             // The mock swaps the MODEL, not the effects — a mock re-run

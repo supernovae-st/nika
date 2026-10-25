@@ -279,9 +279,10 @@ enum Command {
         #[arg(long)]
         tools: bool,
     },
-    /// See a canonical workflow WORK — offline by default (the mock
-    /// rehearsal · zero keys · zero flags), nothing written, nothing
-    /// owned. Bare `nika try` lists what there is to see.
+    /// See a canonical workflow WORK — on the mock model by default (zero
+    /// keys · no model call · zero flags; a step that fetches still reaches
+    /// its host), nothing written, nothing owned. Bare `nika try` lists what
+    /// there is to see.
     #[command(hide = true, display_order = 10)]
     Try(try_args::TryArgs),
     /// Compile a skeleton, bounded support intent or conservative edit into a reviewable workflow.

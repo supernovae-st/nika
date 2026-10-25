@@ -209,9 +209,11 @@ fn the_plain_lane_narrates_cleanly_when_piped() {
 }
 
 // `try` EXECUTES — and carries the run trio (--var · --no-progress ·
-// --max-cost-usd · gauntlet F7 2026-07-12). V5 sharpens the law: try is
-// OFFLINE BY DEFAULT (RAMS-4) — no `--model` here, and the run must
-// still be zero-keys zero-network green. 04-schema-retry has a
+// --max-cost-usd · gauntlet F7 2026-07-12). V5 sharpens the law: try
+// rehearses on the MOCK MODEL BY DEFAULT (RAMS-4) — no `--model` here,
+// and the run must still be zero-keys green. The seat replaces the model
+// only (#1605): 04-schema-retry declares no `permits.net.http` host, so
+// this run reaches no network and its card names none. It has a
 // `required:` var (unrunnable by this surface before) and infers clean
 // on the default rehearsal seat.
 #[test]
@@ -233,6 +235,11 @@ fn try_carries_the_run_trio_hermetically_offline_by_default() {
         Some(0),
         "a required-var example runs hermetically with the trio · stderr: {}",
         String::from_utf8_lossy(&out.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("may reach:"),
+        "a rehearsal that declares no host names none: {stderr}"
     );
 }
 

@@ -186,7 +186,7 @@ fn absent_model_row(out: &mut String, wf: &RawWorkflow, t: Theme) {
         out,
         " {} {}   no `model:` reaches {} {named} — declare one on the task, or as the \
          envelope default `model: <provider>/<name>`, or pass `--model` at run \
-         (`--model mock/echo` previews offline)",
+         (`--model mock/echo` previews with no model call; a fetch step still reaches its host)",
         t.paint(Role::Warn, if t.ascii { "!" } else { "⚠" }),
         t.paint(Role::Strong, "MODELS"),
         if tasks.len() == 1 { "task" } else { "tasks" },
@@ -394,5 +394,13 @@ mod tests {
         assert!(rendered.contains("declare one on the task"));
         assert!(rendered.contains("envelope default"));
         assert!(rendered.contains("pass `--model` at run"));
+        // #1605 · a mock preview replaces the model, not the network.
+        assert!(!rendered.contains("offline"), "{rendered}");
+        assert!(
+            rendered.contains(
+                "(`--model mock/echo` previews with no model call; a fetch step still reaches its host)"
+            ),
+            "{rendered}"
+        );
     }
 }
