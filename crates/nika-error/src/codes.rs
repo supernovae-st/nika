@@ -564,7 +564,10 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
              Strings are valid input and stay strings. If an object or array was \
              intended, pass the parsed value. \
              To use JSON file contents as an object or array, use `nika:read` first, then `nika:jq` \
-             with `expression: fromjson` before indexing the object or array.\n\n  \
+             with `expression: fromjson` before indexing the object or array. \
+             An `exec:` task's stdout is text as well: when the program prints JSON, declare \
+             `decode: json` on that `exec:` (`exec: { command: [...], decode: json }` · `jsonl` \
+             for one value per line) and its output is the parsed value.\n\n  \
              This code also covers argument, expression and output errors: \
              read the runtime message for the specific cause. The expression \
              must emit exactly one JSON value; wrap a stream in `[ ... ]`.\n",
@@ -851,6 +854,26 @@ mod tests {
         assert!(yaml.contains("could not decode") && yaml.contains("format: yaml"));
         let unknown = namespace_help("NIKA-BUILTIN-VALIDATE-099", "docs").expect("namespace");
         assert!(unknown.contains("per-builtin runtime diagnostic"));
+    }
+
+    /// #1584 · an `exec:` that prints JSON hands `nika:jq` a string, and the
+    /// page named only `nika:read` + `fromjson`. The exec side has its own
+    /// explicit decoder (`decode:` · text · json · jsonl · bytes); the page
+    /// names it beside the file one.
+    #[test]
+    fn jq_001_names_the_exec_decoder_for_json_stdout() {
+        let jq = namespace_help("NIKA-BUILTIN-JQ-001", "docs").expect("jq");
+        assert!(
+            jq.contains("An `exec:` task's stdout is text as well")
+                && jq.contains("`exec: { command: [...], decode: json }`")
+                && jq.contains("`jsonl`"),
+            "{jq}"
+        );
+        let read = jq
+            .find("`nika:read` first")
+            .expect("the file decoder stays");
+        let exec = jq.find("decode: json").expect("the exec decoder");
+        assert!(read < exec, "{jq}");
     }
 
     #[test]
