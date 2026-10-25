@@ -680,7 +680,7 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
         // the finding most often points at — `permits.net` before `exec:`.
         "NIKA-PARSE-019" => Some(concat!(
             "  The field's YAML shape is wrong; the finding names the field to repair. `tasks:` is a map keyed by task id.\n\n",
-            "`permits.net` is a mapping with one key, `http:`, that lists exact host names (`https://` URLs included): `permits: { net: { http: [api.example.com] } }`. A bare list of hosts (`net: [api.example.com]`) is refused.\n\n",
+            "`permits.net` is a mapping with one key, `http:`, that lists exact host names: `permits: { net: { http: [api.example.com] } }`. List the host, not the URL; the `http:` key covers `https://` URLs too. A bare list of hosts (`net: [api.example.com]`) is refused.\n\n",
             exec_body_help!(),
             "\n\nAn `invoke:` tool id is `nika:<path>` or `mcp:<server>/<tool>` (one colon, a slash inside `mcp:`).\n",
         )),
@@ -1047,6 +1047,14 @@ mod tests {
             help.contains("`net: [api.example.com]`") && help.contains("refused"),
             "the host-list reflex is named as refused: {help}"
         );
+        // Review round 1 · `http: ["https://api.example.com"]` is refused
+        // (SEC-004 beside DRIFT-001): the entry is the host, never the URL.
+        assert!(
+            help.contains("List the host, not the URL")
+                && help.contains("the `http:` key covers `https://` URLs too"),
+            "{help}"
+        );
+        assert!(!help.contains("URLs included"), "{help}");
     }
 
     /// B21 / B30: INFER-004 explain names the check finding (tiny cap
