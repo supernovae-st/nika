@@ -535,9 +535,10 @@ support: `Distribution::{Npm,Pypi,Oci,Remote,Binary,Mcpb}` aligned with
 official MCP Registry schema (`packages[]` + `remotes[]`).
 
 **Providers** ✅ SHIPPED 2026-06-11 as **`nika-providers`** (one L1.5 crate ·
-the catalog carries 32 provider rows as metadata · the v0.1 stdlib contract
-wires the canonical 14 over 3 wire formats — anthropic · openai-compat ×12 ·
-gemini · in-crate mock · rig NOT carried). The native in-process backend is
+the catalog carries more provider rows as metadata than the v0.1 stdlib
+contract wires, over 3 wire formats — anthropic · openai-compat · gemini ·
+in-crate mock · rig NOT carried; the counts live in canon.yaml `counts:` and
+`nika catalog`, never copied here). The native in-process backend is
 `nika-infer-local` (candle sidecar · ADR-091).
 
 **Tier 1 catalog additions** (high-priority provider metadata):
@@ -598,7 +599,7 @@ Grok 4 variants (grok-4/grok-4-fast).
 `response: {full, binary}`, reached via `invoke: {tool: "nika:fetch"}`.
 Per D-2026-05-22-N18.)
 
-**63 builtin tools** (full engine inventory · the `nika-spec` **v0.1 stdlib contract** curates **25** of these — 6 core · 5 file · 8 data · 2 network · 2 introspection · 2 media — per the ADR-086/087/088 Rams collapses (jq-subsumption · `wait` + `inspect` unifications · was 42 → 22, then `nika:compose` + the media pair joined) · the remaining media builtins stay stdlib-v0.x opt-in) split by domain (lives in `nika-builtin` L2, with native API adapters split into bundle crates `nika-builtin-{github,cloud,workspace}` for heavy deps isolation):
+**Builtin tools as first planned** (the live inventory is `nika catalog --tools` · the `nika-spec` **v0.1 stdlib contract** curates a subset, counted in canon.yaml `counts:` and never copied here — per the ADR-086/087/088 Rams collapses (jq-subsumption · `wait` + `inspect` unifications · was 42 → 22, then `nika:compose` + the media pair joined) · the remaining media builtins stay stdlib-v0.x opt-in) split by domain (lives in `nika-builtin` L2, with native API adapters split into bundle crates `nika-builtin-{github,cloud,workspace}` for heavy deps isolation):
 - Core (7): `sleep`, `log`, `emit`, `assert`, `prompt`, `run`, `complete`
 - File (5): `read`, `write`, `edit`, `glob`, `grep`
 - Introspection (6): `dag_info`, `task_status`, `threads`, `orchestrate`, `cost`, `records`
