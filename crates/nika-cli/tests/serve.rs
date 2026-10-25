@@ -388,7 +388,7 @@ fn missing_project_refuses_before_binding_or_creating_resident_state() {
     assert_eq!(out.status.code(), Some(1), "{text}");
     assert!(text.contains("nothing armed"), "{text}");
     assert!(
-        text.contains("fix: `nika init` lays a commented starter"),
+        text.contains("fix: `nika init` writes the project's starter files, a commented `nika.yaml` among them"),
         "{text}"
     );
     assert!(!text.contains("--project-file"), "{text}");

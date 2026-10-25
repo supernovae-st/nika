@@ -170,10 +170,13 @@ fn emits_requested(args: &args::ArmArgs) -> bool {
 
 /// What every arming door says when no `nika.yaml` is found (the report,
 /// `arm fire`, `nika serve`). Plain `nika init` lays the commented starter
-/// since #1283; the hidden `--project-file` flag only keeps older scripts
-/// working, so the hint names the visible command.
+/// since #1283, among the project's starter files (agent briefs, hooks,
+/// editor and MCP wiring, a first workflow); the hidden `--project-file`
+/// flag only keeps older scripts working, so the hint names the visible
+/// command and says what it writes.
 const NO_PROJECT_FILE: &str = "nothing armed — this project has no `nika.yaml`\n  \
-                               fix: `nika init` lays a commented starter (existing files are skipped)";
+                               fix: `nika init` writes the project's starter files, a commented \
+                               `nika.yaml` among them (existing files are skipped)";
 
 /// The shared door — every arming edge walks it (the report below ·
 /// the W3 `--emit`): discover the project file the ladder locates, read
@@ -429,7 +432,7 @@ mod tests {
         // only routes to what plain `nika init` already does.
         assert!(
             out.text
-                .contains("fix: `nika init` lays a commented starter"),
+                .contains("fix: `nika init` writes the project's starter files, a commented `nika.yaml` among them"),
             "{}",
             out.text
         );
