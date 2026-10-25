@@ -16,6 +16,143 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.123.1](https://github.com/supernovae-st/nika/compare/v0.123.0..v0.123.1) - 2026-10-25
+
+Nika 0.123.1 is the first maintenance release of the 0.123 reference line. It carries a security
+update (`crypto-bigint` 0.7.6, RUSTSEC-2026-0387) and corrections to what Nika tells you on your
+first runs: the welcome screen no longer advertises a hosted Nika Cloud, which does not exist;
+access errors, hints and help name commands and steps that exist; `nika init --example` copies the
+files its lesson reads; and a founded project keeps the `nika serve` token and job state out of
+Git. The workflow language, the file format and the SDK protocol are unchanged.
+
+### Changed
+
+- **The repository's documents describe the released 0.123.0 and its maintenance.** The README,
+  `llms.txt`, the Session guide, CONTRIBUTING, SECURITY, ROADMAP and DIAMOND say that 0.123 is
+  maintained with security fixes, bug fixes and compatibility, with no hosted service and no 1.0
+  launch planned; SECURITY's code table lists only codes `nika explain` resolves, and it names the
+  MCP pin codes it does not. The serve operations page gives a first run that works (a project
+  `nika.yaml` it keeps when one exists, a served rehearsal workflow, a health and job request, the
+  served cancel route), `llms-install.md` adds the container and provenance paths and an
+  uninstall that names what `~/.nika` holds, and the README and the Session guide say that runs are
+  signed once `nika key init` minted a key. The README says what the TypeScript SDK's server door
+  changes (`allowInsecureHttp` for plain loopback HTTP, an `idempotencyKey` and no `maxCostUsd`),
+  and the Session guide lists the routes a Run admits. The README clips are captured again from
+  0.123.0, and a new `sdk-doors` clip shows the SDK's two doors (the bundled engine and
+  `nika serve`, with the two lines whose options change) from a capture of the published
+  `@supernovae-st/nika` 0.123.0.
+
+### Fixed
+
+- **The `AGENTS.md` that `nika init` writes no longer says the shipped binary cannot serve models.**
+  It said `nika model serve` « needs a `local-infer` build — the default binary prints the build
+  recipe », but release binaries are built with `local-infer`, and 0.123.0's `nika doctor` reports
+  « local inference built in ». The guide now says release binaries include it and that only a
+  source build without the feature prints the recipe.
+- **`nika arm --emit --mode system` states its limit instead of a coming release.** It refused with
+  « la portée root arrive avec serve (W5) », promising a release. It now says « la portée root n'est
+  pas émise » and that units go to the operator's session (LaunchAgents · systemd --user), with the
+  same exit 2.
+- **A project without `nika.yaml` is pointed at plain `nika init`.** `nika arm`, `nika arm fire` and
+  `nika serve` answered « fix: `nika init --project-file` lays a commented starter », naming a hidden
+  flag and leaving out what init writes. Plain `nika init` has laid that starter by default since
+  #1283 (the flag only keeps older scripts working), among the project's starter files (agent
+  briefs, hooks, editor and MCP wiring, a first workflow). The hint now says « fix: `nika init`
+  writes the project's starter files, a commented `nika.yaml` among them (existing files are
+  skipped) ».
+- **Unsupported schedule policies state the present limit, not a future release.** `nika arm fire`
+  refused `chevauchement: remplacer`, `après_saut: à-complétion`, `manqué: rattraper` and
+  `décalage:` with « arrive avec serve v0.2 », the unit emitter said the same, and `nika arm` read
+  « not supported by this firer (arrives with serve v0.2) ». No such release is planned. The firer
+  now says « ce tireur ne tient pas cette politique » (this firer does not keep this policy), then
+  what it does today, as before. For the two catch-up policies, `rattraper` and
+  `{ rattraper: N }`, which the resident `nika serve` already keeps, the refusal adds « `nika serve`
+  la tient » and `nika arm` adds « `nika serve` keeps it ».
+- **A home or project path through a symbolic link is refused by name.** Nika opens its owned
+  directories (the Session history under the home, among others) through real directories only. A
+  path with a symbolic link on the way stopped the terminal Session with « Not a directory (os error
+  20) »; the refusal now names the link and the resolved path to use instead.
+- **`nika catalog --tools` names a command that exists.** Its listing began « nika tools — 29
+  builtins » and ended « machine: nika tools --json », but `nika tools` is not a command and exits
+  2. The listing now names `nika catalog --tools`, and its footer points at
+  `nika catalog --tools --json`, the projection that carries the model-facing JSON Schemas.
+- **`nika check --fix` no longer renames an argument when its value is the mistake.** A literal
+  outside a builtin's closed set (`nika:inspect` `view: record`) carried its nearest member as the
+  key-rename suggestion, so `--fix` rewrote the file to `records: record`. The nearest member is now
+  said in the refusal (« did you mean `records`? ») and `--fix` leaves the value for you to change.
+- **`nika init --example` founds a project its lesson can run in.** The example lane copied the
+  workflow alone: 19 lessons that read files under `examples/fixtures/` (`csv-chart-report`,
+  `meeting-actions`, …) failed their first suggested run with « file not found », and
+  `10-compose-pipeline` founded without the child it invokes, so its own audit refused
+  NIKA-COMP-001. Init now stages what `nika try` stages: the fixtures under the project root, where
+  runs resolve them, and composition children beside the lesson in `workflows/`. Each staged file
+  is a `created` row, and an existing file is never overwritten.
+- **`nika init` keeps the `nika serve` token and job state out of Git.** The generated `.gitignore`
+  covered only `.nika/traces/`, while every `nika serve` surface teaches minting the HTTP Bearer
+  token at `.nika/serve.token` and the resident keeps job events and results under `.nika/serve/`.
+  In a founded repository `git status` listed the token as a file to commit. Init's ignore section
+  now covers both, as does the same adds-only section `nika compile` writes beside a workflow, and
+  `NIKA.md` says so. Repositories founded earlier keep their section; add the two lines by hand.
+- **The agent kit links the `nika arm` reference instead of a guide that was never published.** The
+  operating and migration skills, the language rule, the session map, the kit README and the
+  check-on-edit message on a `nika.yaml` finding pointed at docs.nika.sh/guides/projects-and-schedules,
+  which answers 404; they name docs.nika.sh/reference/arm, and `nika init` lays the corrected files.
+  The operating skill and the project reference also say what 0.123.0 fires: `sauter` and
+  `rattraper-une-fois`, with `rattraper` and the bounded `{ rattraper: N }` read UNREADY. The Cursor
+  manifest lists `/compile` where it still named the retired `/new`.
+- **The agent kit separates signing a workflow from sealing a run.** The operating skill's audit
+  checklist asked for a run « signed (`nika sign`) », but `nika sign` binds a workflow file to its
+  author, and only the run key `nika key init` mints seals a journal. The checklist now asks for
+  both, each with its own command. The portable plugin manifest's description opens with the
+  README's « Say it once. Keep it as a file. » instead of the retired intent-as-code pitch.
+- **The editor's `secrets` hover names the sources that work.** `nika lsp` described `secrets:` as
+  « Masked, vault-backed references ». Spec 01 §secrets withdrew `vault`, and no engine resolves it.
+  The hover now says the references point at an environment variable (`source: env`) or a file
+  (`source: file`).
+- **A registry child is refused as a present limit, not a coming lane.** `nika check` and the run
+  both refused a pinned `registry:owner/name@1.2.0` child with « registry child execution lands with
+  the registry lane », which promised a release. They now say « this engine does not run registry
+  children; run a filesystem child (`./child.nika`) », still as NIKA-COMP-001 and in the same words
+  at check and at run.
+- **`nika trace verify --help` lists every exit the verdict returns.** The help named exits 0, 2 and
+  3, while a journal that never reached a terminal frame (a run in flight or a writer that died)
+  exits 5 INCOMPLETE. It now lists 5, names buried seals and replay divergence under exit 2, and
+  counts its four named refusals as four.
+- **`nika try` no longer hands over a command for a file that is gone.** After a rehearsal, the run's
+  closing line said « explore: nika run /var/folders/…/nika-try-01-hello/01-hello.nika --json > … »,
+  but the rehearsal room is deleted when `try` returns, so that command could never run. A try
+  rehearsal now ends on its own line, which names the example and `nika compile --list`; workspace
+  runs keep their explore line.
+- **Refused type names state their status instead of a coming wave.** A `returns:` or `type:` naming
+  `result`, `artifact`, `secret` or `money` was refused with « is reserved — lands with outcomes
+  (W5) » (or W4, W-DEC). Spec 09 keeps only `artifact<mime>` reserved, never as a delivery claim,
+  and withdrew the other three from the grammar. The refusal, still NIKA-TYPE-001, now says « is not
+  a type — reserved by the spec and not implemented » for `artifact` and « withdrawn from the type
+  grammar (spec 09) » for the others.
+- **An unsealed journal now points at the run key, not at `nika sign`.** `nika trace verify` said
+  « `nika sign` seals future runs » and the Session's `/proof` said « `nika sign` signs future runs ».
+  `nika sign` binds a workflow file to its author; it never seals a run. Both now say that a run key
+  (`nika key init`) makes later runs seal, which is what turns the next journal SEALED.
+- **Secret teachings no longer offer the withdrawn `vault` source.** The refusals for a missing or
+  unknown `source:` listed « vault · env · file », and the `secrets-store` hint said a `vault`
+  secret would work « until vault resolution ships » and fail with NIKA-1702. Spec 01 §secrets
+  withdrew `vault`, and the run reports the failure as NIKA-VAR-001. The teachings now list `env`
+  and `file`, and the hint says `vault` is withdrawn from the contract and names NIKA-VAR-001. A
+  `vault` secret still parses as before.
+- **The welcome screen and the access errors no longer advertise a Nika Cloud.** `nika welcome`
+  said « Local first. Cloud when you want it. » and « Coming: Nika Cloud · our models, our tools, your
+  workflows online. », and its envelope listed an unavailable `cloud` rung; access errors told the
+  person to « pick Nika local / Nika Cloud ». There is no hosted Nika service: the screen now opens
+  with the README's « Say it once. Keep it as a file. », the cloud rung is gone, and the errors
+  point to an API key or a local engine (`nika doctor --verbose` lists them). The featured local
+  model is described as open weights that need no API key, not as « ours » or « free » (a local
+  model is unpriced).
+
+### Security
+
+- **Big-integer arithmetic is past its October constant-time advisory.** `crypto-bigint` 0.7.6
+  keeps subtraction, zero counting, division and Montgomery multiplication free of secret-dependent
+  branches (RUSTSEC-2026-0387), in the workspace and fuzz lockfiles.
 ## [0.123.0](https://github.com/supernovae-st/nika/compare/v0.123.0-preview.1..v0.123.0) - 2026-10-23
 
 Nika 0.123 is the open-source reference release of Nika: the Rust engine, the `nika` command
