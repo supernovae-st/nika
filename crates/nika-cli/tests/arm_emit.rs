@@ -738,8 +738,8 @@ fn emit_flags_without_emit_and_mode_system_refuse_honestly() {
         "le refus nomme le drapeau: {stdout}"
     );
 
-    // --mode system: la portée root n'est pas émise — la limite est dite,
-    // aucune version n'est promise (0.123.0: « arrive avec serve (W5) »).
+    // --mode system: the root scope is not emitted. The refusal states the
+    // present limit and promises no release (0.123.0: « arrive avec serve (W5) »).
     let out = arm(
         &dir,
         &home,
@@ -750,7 +750,7 @@ fn emit_flags_without_emit_and_mode_system_refuse_honestly() {
     assert!(stdout.contains("system"), "nommé: {stdout}");
     assert!(
         stdout.contains("la portée root n'est pas émise"),
-        "la limite présente: {stdout}"
+        "the present limit: {stdout}"
     );
     assert!(!stdout.contains("arrive avec"), "aucune promesse: {stdout}");
 }

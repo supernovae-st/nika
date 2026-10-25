@@ -516,7 +516,7 @@ fn the_v0_unsupported_policies_refuse_with_their_present_limit() {
                 assert_eq!(got, what);
                 assert_eq!(
                     arrives, "ce tireur ne tient pas cette politique",
-                    "la limite est dite, aucune version promise"
+                    "the present limit is stated, no release is promised"
                 );
             }
             other => panic!("D6 attendu, reçu {other:?}"),
