@@ -17,6 +17,13 @@ Cursor manifest lists `/compile` where it still named the retired `/new`,
 and the README shows how to add the plugin and links the builtin
 reference directly.
 
+The operating skill's audit checklist separates signing the workflow from
+sealing the run: `nika sign` binds the file to its author, and only the run
+key `nika key init` mints seals a journal (the checklist asked for a run
+« signed (`nika sign`) »). The portable manifest's description opens with
+the README's « Say it once. Keep it as a file. » in place of the retired
+intent-as-code pitch.
+
 ## 0.123.0 — 2026-10-23
 
 Lockstep on the engine wave. From 0.109.0 to this release the kit's notes
