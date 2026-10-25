@@ -116,7 +116,10 @@ pub(super) fn fruit_notes(
         if !files.is_empty() {
             notes.push("rehearsal · file not kept".to_owned());
         }
-        notes.push(super::example::try_own_file_line(slug));
+        // The room's stem folds a nested slug's `/` (`snippets-weekly-radar`);
+        // the card names the slug `nika try` takes back.
+        let slug = super::example::try_command_slug(slug).unwrap_or_else(|| slug.to_owned());
+        notes.push(super::example::try_own_file_line(&slug));
     } else {
         for f in files.iter().take(3) {
             let size = std::fs::metadata(&f.path)
@@ -434,6 +437,18 @@ mod tests {
             widths(&with_door)[0],
             widths(&bare)[0],
             "the card keeps its width: {with_door:?}"
+        );
+    }
+
+    /// Review round 1 · a nested slug's card named the room's folded stem
+    /// (`rehearsal · snippets-weekly-radar`), a slug `nika try` refuses.
+    #[test]
+    fn a_nested_try_card_names_the_slug_try_takes() {
+        let notes = super::fruit_notes(&said_view("\"ok.\""), false, Some("snippets-weekly-radar"));
+        assert!(
+            notes.iter().any(|n| n
+                == "rehearsal · snippets/weekly-radar. explore authoring skeletons: nika compile --list"),
+            "{notes:?}"
         );
     }
 
