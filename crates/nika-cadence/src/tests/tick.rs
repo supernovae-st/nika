@@ -292,11 +292,11 @@ fn the_v0_unsupported_policies_refuse_with_teaching() {
         ),
         (
             "    manqué: rattraper\n",
-            "arm fire workflows/doctor.nika · manqué: rattraper — ce tireur ne tient pas cette politique · aujourd'hui: rattraper-une-fois ou sauter",
+            "arm fire workflows/doctor.nika · manqué: rattraper — ce tireur ne tient pas cette politique, `nika serve` la tient · aujourd'hui: rattraper-une-fois ou sauter",
         ),
         (
             "    manqué: { rattraper: 3 }\n",
-            "arm fire workflows/doctor.nika · manqué: { rattraper: N } — ce tireur ne tient pas cette politique · aujourd'hui: rattraper-une-fois ou sauter",
+            "arm fire workflows/doctor.nika · manqué: { rattraper: N } — ce tireur ne tient pas cette politique, `nika serve` la tient · aujourd'hui: rattraper-une-fois ou sauter",
         ),
     ] {
         let registry = registry_with(extra);
@@ -329,12 +329,14 @@ fn the_bounded_catch_up_is_refused_by_name() {
             crate::tick::v0_unsupported(beat),
             Some((
                 "manqué: { rattraper: N }",
-                "ce tireur ne tient pas cette politique"
+                "ce tireur ne tient pas cette politique, `nika serve` la tient"
             ))
         );
         match tick_decision(&registry, 0, "doctor", &at("2026-08-19T03:02:00Z"), None) {
             TickDecision::Refuse { line } => assert!(
-                line.contains("manqué: { rattraper: N } — ce tireur ne tient pas cette politique"),
+                line.contains(
+                    "manqué: { rattraper: N } — ce tireur ne tient pas cette politique, `nika serve` la tient"
+                ),
                 "{line}"
             ),
             other => panic!("refused by name, got {other:?}"),

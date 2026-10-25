@@ -109,8 +109,21 @@ impl V0Policy {
         }
     }
 
-    /// The present limit, stated as such: no release is promised.
-    const LIMIT: &'static str = "ce tireur ne tient pas cette politique";
+    /// The present limit, stated as such: no release is promised. The
+    /// catch-up policies name the firer that keeps them today: the
+    /// resident `nika serve` plans both (its window drops the slots older
+    /// than the N latest and fires those one run each), while this firer
+    /// and the OS units it is emitted into refuse them.
+    const fn limit(self) -> &'static str {
+        match self {
+            Self::Rattraper | Self::RattraperDerniers => {
+                "ce tireur ne tient pas cette politique, `nika serve` la tient"
+            }
+            Self::Remplacer | Self::ACompletion | Self::Decalage => {
+                "ce tireur ne tient pas cette politique"
+            }
+        }
+    }
 
     const fn today(self) -> &'static str {
         match self {
@@ -130,7 +143,7 @@ impl V0Policy {
 #[must_use]
 pub fn v0_unsupported(beat: &Beat) -> Option<(&'static str, &'static str)> {
     let policy = V0Policy::of(beat)?;
-    Some((policy.what(), V0Policy::LIMIT))
+    Some((policy.what(), policy.limit()))
 }
 
 /// The shared pause-bound law: an ISO civil date strictly before the
@@ -314,7 +327,7 @@ fn v0_refusal_line(beat: &Beat) -> Option<String> {
         "arm fire {} · {} — {} · {}",
         beat.workflow.as_str(),
         policy.what(),
-        V0Policy::LIMIT,
+        policy.limit(),
         policy.today(),
     ))
 }
