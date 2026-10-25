@@ -70,4 +70,41 @@ mod tests {
         assert_eq!(doc["local_model_probes"][0]["inference_tested"], false);
         assert!(doc["local_model_probes"][0]["observation"]["protocol_compatible"].is_null());
     }
+
+    /// #1626 · `ok ping llamacpp -- listening on 127.0.0.1:8080` over a web
+    /// app: an open port is a candidate, never a model. The ping row is ✔
+    /// only when the engine answered an OpenAI-shaped model list; a surface
+    /// with no list to ask (a media plane) keeps the connect verdict.
+    #[test]
+    fn an_open_port_is_an_ok_ping_only_with_a_model_list() {
+        use nika_providers::probe::ModelListing;
+        let open = (
+            "llamacpp".to_owned(),
+            "127.0.0.1:8080".to_owned(),
+            super::super::PingState::Reachable(0),
+        );
+        let mut html = ModelListing::new("model-list response is not compatible");
+        html.protocol_compatible = Some(false);
+        html.http_status = Some(200);
+        let row = super::super::ping_finding(&open, Some(&html));
+        assert_eq!(row.level, Level::Warn);
+        assert_eq!(
+            row.detail,
+            "llamacpp — 127.0.0.1:8080 accepts connections (0ms) but answers no model list \
+             (model-list response is not compatible) — not a model server"
+        );
+        let mut listed = ModelListing::new("unused");
+        listed.protocol_compatible = Some(true);
+        listed.failure = None;
+        listed.models = vec!["fake-local-model".to_owned()];
+        let row = super::super::ping_finding(&open, Some(&listed));
+        assert_eq!(row.level, Level::Ok);
+        assert_eq!(row.detail, "llamacpp — listening on 127.0.0.1:8080 (0ms)");
+        let media = (
+            "image-local".to_owned(),
+            "localhost:8080".to_owned(),
+            super::super::PingState::Reachable(0),
+        );
+        assert_eq!(super::super::ping_finding(&media, None).level, Level::Ok);
+    }
 }

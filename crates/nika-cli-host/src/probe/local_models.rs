@@ -4,6 +4,10 @@
 use nika_providers::probe::{ModelListing, ProviderProbe};
 use std::time::Duration;
 
+/// The model list beside a local engine's endpoint. The seeds and most
+/// overrides are the chat route itself (`…/v1/chat/completions`), whose
+/// list is `…/v1/models` (#1626 · `…/chat/completions/models` is a 404);
+/// a bare API root (`…/v1`) gains `/models`.
 fn endpoint(base: &str) -> Option<String> {
     let mut url = url::Url::parse(base).ok()?;
     if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
@@ -13,7 +17,9 @@ fn endpoint(base: &str) -> Option<String> {
     url.set_password(None).ok()?;
     url.set_query(None);
     url.set_fragment(None);
-    url.set_path(&format!("{}/models", url.path().trim_end_matches('/')));
+    let path = url.path().trim_end_matches('/');
+    let root = path.strip_suffix("/chat/completions").unwrap_or(path);
+    url.set_path(&format!("{root}/models"));
     Some(url.to_string())
 }
 
@@ -124,5 +130,104 @@ mod tests {
         for raw in ["file:///tmp/model", "not a url", "ftp://gpu.example/v1"] {
             assert_eq!(endpoint(raw), None);
         }
+    }
+
+    /// #1626 · every local seed is the chat route itself, and the sweep
+    /// asked `…/v1/chat/completions/models` (a 404 on every engine). The
+    /// list is the route's sibling, `…/v1/models`.
+    #[test]
+    fn the_chat_route_lists_its_models_at_its_sibling() {
+        assert_eq!(
+            endpoint("http://127.0.0.1:8080/v1/chat/completions"),
+            Some("http://127.0.0.1:8080/v1/models".into())
+        );
+        assert_eq!(
+            endpoint("http://gpu.lan:11434/v1/chat/completions/"),
+            Some("http://gpu.lan:11434/v1/models".into())
+        );
+    }
+
+    /// A loopback engine for one probe: answers `body` as `content_type`
+    /// whatever the path, and reports the request line it was sent.
+    #[allow(clippy::disallowed_methods)] // test seam — the sweep's own worker pattern
+    fn one_shot_engine(
+        content_type: &'static str,
+        body: &'static str,
+    ) -> (u16, std::sync::mpsc::Receiver<String>) {
+        use std::io::{BufRead as _, Write as _};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let Ok((stream, _)) = listener.accept() else {
+                return;
+            };
+            let mut reader = std::io::BufReader::new(stream);
+            let mut request = String::new();
+            let _ = reader.read_line(&mut request);
+            let mut header = String::new();
+            while reader.read_line(&mut header).is_ok_and(|n| n > 2) {
+                header.clear();
+            }
+            let mut stream = reader.into_inner();
+            let _ = write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\n\
+                 Connection: close\r\n\r\n{body}",
+                body.len()
+            );
+            let _ = tx.send(request.trim_end().to_owned());
+        });
+        (port, rx)
+    }
+
+    /// The `llamacpp` row a run would hit, pointed at the loopback engine.
+    fn llamacpp_at(port: u16) -> Vec<ProviderProbe> {
+        let config = nika_providers::ProvidersConfig::new().with_base_url(
+            "llamacpp",
+            format!("http://127.0.0.1:{port}/v1/chat/completions"),
+        );
+        nika_providers::probe::collect_access_probes_env(config)
+            .into_iter()
+            .filter(|p| p.id == "llamacpp")
+            .collect()
+    }
+
+    /// #1626 · a web app on the engine's port (the Lab's HTML on `:8080`):
+    /// the sweep asks the models route, and a 200 `text/html` is no list.
+    #[test]
+    fn an_html_answer_on_the_models_route_is_no_model_list() {
+        let (port, asked) =
+            one_shot_engine("text/html", "<!DOCTYPE html><html lang=\"fr\"></html>");
+        let mut rows = llamacpp_at(port);
+        collect(&mut rows);
+        assert_eq!(
+            asked.recv_timeout(Duration::from_secs(5)).as_deref(),
+            Ok("GET /v1/models HTTP/1.1")
+        );
+        let listing = rows[0].readiness.model_listing.as_ref().expect("observed");
+        assert_eq!(listing.http_status, Some(200));
+        assert_eq!(listing.protocol_compatible, Some(false));
+        assert_eq!(listing.available(), None);
+    }
+
+    /// The other direction: an OpenAI-shaped JSON list on the same route
+    /// is compatible and names its models.
+    #[test]
+    fn a_json_model_list_on_the_models_route_is_compatible() {
+        let (port, asked) = one_shot_engine(
+            "application/json",
+            r#"{"object":"list","data":[{"id":"fake-local-model","object":"model"}]}"#,
+        );
+        let mut rows = llamacpp_at(port);
+        collect(&mut rows);
+        assert_eq!(
+            asked.recv_timeout(Duration::from_secs(5)).as_deref(),
+            Ok("GET /v1/models HTTP/1.1")
+        );
+        let listing = rows[0].readiness.model_listing.as_ref().expect("observed");
+        assert_eq!(listing.protocol_compatible, Some(true));
+        assert_eq!(listing.models, ["fake-local-model"]);
+        assert_eq!(rows[0].readiness.model_available, Some(true));
     }
 }
