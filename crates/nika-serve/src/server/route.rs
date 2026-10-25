@@ -135,8 +135,8 @@ async fn protected(request: Request<Incoming>, state: Arc<AppState>) -> Response
     if request.method() == Method::GET && sse::is_events_path(request.uri().path()) {
         return sse::handle(request, state).await;
     }
-    // An artifact streams past any request deadline, like an event stream: its size bound
-    // and its slot bound the work (NIK-265).
+    // An artifact streams past any request deadline, like an event stream: its size bound,
+    // the artifact slots and the connection limit bound the work (NIK-265).
     if request.method() == Method::GET && super::artifacts::is_download(request.uri().path()) {
         let path = request.uri().path().to_owned();
         return super::artifacts::download(&path, state).await;

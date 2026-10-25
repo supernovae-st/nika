@@ -263,13 +263,16 @@ path inside the project and outside `.nika`, its last write winning; an image an
 harness sent, kept as a blob under `.nika/blobs`). The journal is the one the receipt names,
 read once within the verifier's bound and judged over those bytes: intact, sealed under a run
 key `nika trace verify` weighs, headed by the receipt's `chain_head` (409 `artifact_journal_unavailable` /
-`artifact_journal_unverified` otherwise). `GET /v1/jobs/{id}/artifacts/{name}` looks `{name}`
-up in that manifest, never on the filesystem, opens the recorded place below the held project
-root with no link at any component, refuses an artifact over 256 MiB (403), hashes the whole
-file against the record before the response starts (409 `artifact_changed`) and again while it
-streams, withholding the last chunk until every byte matched. The manifest answers within the
-request deadline; a download, like an event stream, is not bounded by it (its size bound and
-its slot bound the work). At most four artifact reads run at once (503 `artifact_capacity`).
+`artifact_journal_unverified` otherwise). `GET /v1/jobs/{id}/artifacts/{name}` percent-decodes
+`{name}` once and looks it up in that manifest, never on the filesystem, opens the recorded
+place below the held project root with no link at any component, refuses an artifact over
+256 MiB (403), and hashes the whole file against the record before the response starts (409
+`artifact_changed`), keeping each 256 KiB chunk's digest. Each streamed chunk is sent only when
+it hashes to its kept digest, so every byte that leaves is a byte of the recorded file. The
+manifest answers within the request deadline; a download, like an event stream, is not bounded
+by it. At most four journal verifications and pre-download hash passes run at once (503
+`artifact_capacity`); a stream holds no slot and is bounded by the connection limit. An
+interrupted run never sealed its journal, so its job answers 409.
 Apart from a recorded artifact's bytes and its project-relative path, no route returns the
 bytes of a served workflow,
 idempotency keys, request digests, event payloads, provider/tool data, paths,

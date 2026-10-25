@@ -81,10 +81,11 @@ the TypeScript SDK cover the API from an application.
   journal frame records no digest. To serve a file through this route, save
   it with one of those builtins.
 - `GET /v1/jobs/{id}/artifacts/{name}` streams one of them, `{name}` being
-  the entry's `name` with its `/` kept. The bytes come with `Content-Type`,
-  `Content-Length` and `Nika-Artifact-Sha256`. The server refuses to serve
-  bytes that no longer match the journal (`409 artifact_changed`), and stops
-  a stream whose file changes while it is being sent.
+  the entry's `name`, its `/` sent as is or as `%2F`. The bytes come with
+  `Content-Type`, `Content-Length` and `Nika-Artifact-Sha256`. The server
+  refuses to serve bytes that no longer match the journal
+  (`409 artifact_changed`), and stops a stream at the first chunk that
+  changed while it was being sent.
 
 Both artifact routes need a sealed journal. Create the resident's run key
 with `NIKA_KEYCHAIN=off nika key init`, which keeps it under `~/.nika/keys`.

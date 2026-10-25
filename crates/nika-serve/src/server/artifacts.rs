@@ -37,9 +37,10 @@ use super::route::json_response;
 use super::{AppState, ServerError};
 use manifest::{Artifact, Kind};
 
-/// Concurrent artifact reads (a journal judged, a file hashed before it streams): each holds
-/// one blocking worker and at most one journal in memory. The next one is refused
-/// `artifact_capacity`; nothing queues. A stream releases its slot once its bytes start.
+/// Concurrent journal verifications and pre-download hash passes: each holds one blocking
+/// worker and at most one journal in memory. The next one is refused `artifact_capacity`;
+/// nothing queues. A stream holds no slot once its bytes start (the connection limit bounds
+/// streams).
 pub(super) const ARTIFACT_SLOTS: usize = 4;
 
 /// The most entries one manifest lists, in journal order (`truncated` says more exist; a
@@ -97,7 +98,11 @@ pub(super) async fn list(path: &str, state: &AppState) -> Response<ResponseBody>
     let Some((id, None)) = route(path) else {
         return ApiError::route_not_found().into_response();
     };
-    match verified(id, state).await {
+    let settled = match settled_job(id, state).await {
+        Ok(settled) => settled,
+        Err(refused) => return refused,
+    };
+    match judged(settled, state).await {
         Ok((verified, _slot)) => json_response(
             StatusCode::OK,
             &ManifestBody::new(&verified, state.limits.max_artifact_bytes()),
@@ -107,21 +112,29 @@ pub(super) async fn list(path: &str, state: &AppState) -> Response<ResponseBody>
 }
 
 /// The verified bytes of the artifact `path` names. Outside the request deadline, like an
-/// event stream: the size bound and the slot bound the work, not the clock.
+/// event stream: the size bound, the slots and the connection limit bound the work, not the
+/// clock.
 pub(super) async fn download(path: &str, state: Arc<AppState>) -> Response<ResponseBody> {
     let Some((id, Some(raw_name))) = route(path) else {
         return ApiError::route_not_found().into_response();
     };
-    let (verified, slot) = match verified(id, &state).await {
+    let settled = match settled_job(id, &state).await {
+        Ok(settled) => settled,
+        Err(refused) => return refused,
+    };
+    // A name no manifest can hold is refused before the journal is judged.
+    let Some(name) = decode_name(raw_name) else {
+        return not_found().into_response();
+    };
+    let (verified, slot) = match judged(settled, &state).await {
         Ok(held) => held,
         Err(refused) => return refused,
     };
-    let Some(artifact) = decode_name(raw_name).and_then(|name| {
-        verified
-            .artifacts
-            .into_iter()
-            .find(|entry| entry.name == name)
-    }) else {
+    let Some(artifact) = verified
+        .artifacts
+        .into_iter()
+        .find(|entry| entry.name == name)
+    else {
         return not_found().into_response();
     };
     if artifact.size > state.limits.max_artifact_bytes() {
@@ -135,18 +148,48 @@ pub(super) async fn download(path: &str, state: Arc<AppState>) -> Response<Respo
     let opened = tokio::task::spawn_blocking(move || {
         let _slot = slot;
         // The recorded place, below the held project root, no link at any component; then
-        // every byte against the record.
-        let mut file = project.open_relative(Path::new(&at)).ok()?;
-        stream::verify_whole(&mut file, size, &expected)
-            .ok()?
-            .then_some(file)
+        // every byte against the record, keeping each chunk's digest for the stream.
+        let mut file = match project.open_relative(Path::new(&at)) {
+            Ok(file) => file,
+            Err(error) if moved_away(&error) => return Opened::Changed,
+            Err(_) => return Opened::Unreadable,
+        };
+        match stream::verify_whole(&mut file, size, &expected) {
+            Ok(Some(chunks)) => Opened::Verified(file, chunks),
+            Ok(None) => Opened::Changed,
+            Err(_) => Opened::Unreadable,
+        }
     })
     .await;
     match opened {
-        Ok(Some(file)) => streamed(&artifact, file, expected),
-        Ok(None) => changed().into_response(),
-        Err(_) => ApiError::internal().into_response(),
+        Ok(Opened::Verified(file, chunks)) => streamed(&artifact, file, chunks),
+        Ok(Opened::Changed) => changed().into_response(),
+        Ok(Opened::Unreadable) | Err(_) => ApiError::internal().into_response(),
     }
+}
+
+/// What the recorded place holds when a download opens it.
+enum Opened {
+    /// The recorded bytes, with the digest of each chunk the stream checks again.
+    Verified(std::fs::File, Vec<[u8; 32]>),
+    /// Other bytes, or no longer a regular file reached without a link.
+    Changed,
+    /// The server could not read it (permissions, descriptors, the disk).
+    Unreadable,
+}
+
+/// Whether an open failed because the recorded file is no longer there as recorded: removed
+/// or moved (`NotFound`), replaced by a link (`ELOOP`) or by a file where a directory stood
+/// (`ENOTDIR`), or no longer a regular file.
+fn moved_away(error: &std::io::Error) -> bool {
+    use std::io::ErrorKind;
+    let link = [nix::errno::Errno::ELOOP, nix::errno::Errno::ENOTDIR]
+        .iter()
+        .any(|errno| error.raw_os_error() == Some(*errno as i32));
+    link || matches!(
+        error.kind(),
+        ErrorKind::NotFound | ErrorKind::InvalidData | ErrorKind::NotADirectory
+    )
 }
 
 /// A settled job's receipt and the artifacts its sealed journal records.
@@ -156,12 +199,11 @@ struct Verified {
     artifacts: Vec<Artifact>,
 }
 
-/// The job `raw_id` names, settled, with its journal held and judged under one artifact slot
-/// (returned, so a download keeps it while it hashes the file).
-async fn verified(
+/// The receipt of the settled job `raw_id` names, and the directory its journal is under.
+async fn settled_job(
     raw_id: &str,
     state: &AppState,
-) -> Result<(Verified, OwnedSemaphorePermit), Response<ResponseBody>> {
+) -> Result<(JobReceipt, std::path::PathBuf), Response<ResponseBody>> {
     let Ok(id) = JobId::parse(raw_id) else {
         return Err(ApiError::job_not_found().into_response());
     };
@@ -176,9 +218,18 @@ async fn verified(
     if !record.status().is_settled() {
         return Err(not_settled().into_response());
     }
-    let (Some(receipt), Some(dir)) = (record.receipt().cloned(), state.journal_dir.clone()) else {
-        return Err(unavailable().into_response());
-    };
+    match (record.receipt().cloned(), state.journal_dir.clone()) {
+        (Some(receipt), Some(dir)) => Ok((receipt, dir)),
+        _ => Err(unavailable().into_response()),
+    }
+}
+
+/// The settled job's journal held and judged under one artifact slot (returned, so a download
+/// keeps it while it hashes the file).
+async fn judged(
+    (receipt, dir): (JobReceipt, std::path::PathBuf),
+    state: &AppState,
+) -> Result<(Verified, OwnedSemaphorePermit), Response<ResponseBody>> {
     let slot = match Arc::clone(&state.artifacts.slots).try_acquire_owned() {
         Ok(slot) => slot,
         Err(TryAcquireError::NoPermits) => return Err(capacity().into_response()),
@@ -203,7 +254,9 @@ async fn verified(
         Ok((Ok(verified), slot)) => Ok((verified, slot)),
         Ok((Err(journal::Refusal::Unavailable), _)) => Err(unavailable().into_response()),
         Ok((Err(journal::Refusal::Unverified), _)) => Err(unverified().into_response()),
-        Err(_) => Err(ApiError::internal().into_response()),
+        Ok((Err(journal::Refusal::Unreadable), _)) | Err(_) => {
+            Err(ApiError::internal().into_response())
+        }
     }
 }
 
@@ -211,9 +264,9 @@ async fn verified(
 fn streamed(
     artifact: &Artifact,
     file: std::fs::File,
-    expected: [u8; 32],
+    chunks: Vec<[u8; 32]>,
 ) -> Response<ResponseBody> {
-    let body = stream::VerifiedBody::new(file, artifact.size, expected).boxed_unsync();
+    let body = stream::VerifiedBody::new(file, artifact.size, chunks).boxed_unsync();
     let mut response = Response::new(body);
     let headers = response.headers_mut();
     let mime = HeaderValue::from_str(&artifact.mime)
@@ -229,34 +282,26 @@ fn streamed(
     response
 }
 
-/// The artifact name a request path addresses: each `/`-separated segment percent-decoded,
-/// the separators kept. `None` when no manifest name can match it: an escape that is not two
-/// hexadecimal digits, bytes that are not UTF-8, an empty segment, a decoded `/` or NUL.
+/// The artifact name a request path addresses: the whole remainder percent-decoded once, so
+/// `file/out/a.png` and `file%2Fout%2Fa.png` (what an `OpenAPI` client sends for one path
+/// parameter) name the same entry. It is only a key, matched exactly against the manifest's
+/// names: `None` for an escape that is not two hexadecimal digits, bytes that are not UTF-8,
+/// NUL, or nothing at all.
 fn decode_name(raw: &str) -> Option<String> {
-    let mut name = String::with_capacity(raw.len());
-    for (index, segment) in raw.split('/').enumerate() {
-        let mut bytes = Vec::with_capacity(segment.len());
-        let mut rest = segment.as_bytes();
-        while let Some((&byte, tail)) = rest.split_first() {
-            if byte == b'%' {
-                let (hex, after) = tail.split_at_checked(2)?;
-                bytes.push(hex_pair(hex)?);
-                rest = after;
-            } else {
-                bytes.push(byte);
-                rest = tail;
-            }
+    let mut bytes = Vec::with_capacity(raw.len());
+    let mut rest = raw.as_bytes();
+    while let Some((&byte, tail)) = rest.split_first() {
+        if byte == b'%' {
+            let (hex, after) = tail.split_at_checked(2)?;
+            bytes.push(hex_pair(hex)?);
+            rest = after;
+        } else {
+            bytes.push(byte);
+            rest = tail;
         }
-        let decoded = String::from_utf8(bytes).ok()?;
-        if decoded.is_empty() || decoded.contains(['/', '\0']) {
-            return None;
-        }
-        if index > 0 {
-            name.push('/');
-        }
-        name.push_str(&decoded);
     }
-    Some(name)
+    let name = String::from_utf8(bytes).ok()?;
+    (!name.is_empty() && !name.contains('\0')).then_some(name)
 }
 
 /// One byte from two hexadecimal digits (either case), nothing else.

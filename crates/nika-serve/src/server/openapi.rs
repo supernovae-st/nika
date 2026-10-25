@@ -846,7 +846,7 @@ mod builder {
     fn job_artifacts_path() -> Value {
         json!({"get": {
             "summary": "The artifacts a settled job's sealed journal records",
-            "description": "Answers only for a settled job (succeeded, failed, cancelled, interrupted). The manifest is read from the journal the job's receipt names, judged by the one verifier `nika trace verify` runs: the chain must be intact, the seal must verify against a run key that verifier weighs on the server (`~/.nika/keys/run-signing.pub` or the retired-key ledger), and the head must be the receipt's `chain_head`. Each entry is one journal event that records a written byte stream with its SHA-256: a file a builtin saved (`nika:chart`, `nika:image_generate`, `nika:tts_generate`, `nika:image_fx`) at a relative path inside the project and outside `.nika`, its last write winning, or an image an agent's harness sent, kept under `.nika/blobs`. `nika:write` and `nika:edit` journal no hash of what they wrote, so their files are not listed. Every size and digest is the journal's; the download route checks the bytes against them. No filesystem path of the server is exposed.",
+            "description": "Answers only for a settled job (succeeded, failed, cancelled, interrupted); an interrupted run never sealed its journal, so its job answers 409 `artifact_journal_unavailable`. The manifest is read from the journal the job's receipt names, judged by the one verifier `nika trace verify` runs: the chain must be intact, the seal must verify against a run key that verifier weighs on the server (`~/.nika/keys/run-signing.pub` or the retired-key ledger), and the head must be the receipt's `chain_head`. Each entry is one journal event that records a written byte stream with its SHA-256: a file a builtin saved (`nika:chart`, `nika:image_generate`, `nika:tts_generate`, `nika:image_fx`) at a relative path inside the project and outside `.nika`, its last write winning, or an image an agent's harness sent, kept under `.nika/blobs`. `nika:write` and `nika:edit` journal no hash of what they wrote, so their files are not listed. Every size and digest is the journal's; the download route checks the bytes against them. No filesystem path of the server is exposed.",
             "parameters": [job_id_param()],
             "responses": {
                 "200": {"description": "The manifest, bound to the job's receipt", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ArtifactManifest"}}}},
@@ -854,6 +854,7 @@ mod builder {
                 "404": error_named("`job_not_found`: unknown or foreign job id"),
                 "408": error_named("Request deadline"),
                 "409": error_named("`job_not_settled`: queued, running or paused · `artifact_journal_unavailable`: no receipt chain head, or no journal by the job's identity · `artifact_journal_unverified`: the journal is not sealed and intact with the receipt's head"),
+                "500": error_named("`internal_error`: the server could not read the journal"),
                 "503": error_named("`store_busy`: durable job state unavailable · `artifact_capacity`: every artifact slot is busy")
             }
         }})
@@ -862,8 +863,8 @@ mod builder {
     fn job_artifact_path() -> Value {
         json!({"get": {
             "summary": "Stream one artifact's bytes, verified against its journaled SHA-256",
-            "description": format!("`{{name}}` is an entry's `name` from GET /v1/jobs/{{id}}/artifacts, never a filesystem path: it spans several path segments (`file/out/report.pdf`, `agent_image/1.png`). Send each segment percent-encoded and keep the `/` separators literal; an escape that is not two hexadecimal digits, a decoded `/` or NUL, or an empty segment matches no entry. The server opens the recorded place below the project root it holds, refusing a symbolic link at any component, checks every byte against the recorded size and SHA-256 before the response starts (409 `artifact_changed` on a mismatch), then checks them again while they stream: a file changed during the stream ends it before its `Content-Length`, so a client never receives a complete body the journal did not record. The bound is `max_artifact_bytes`; a larger artifact stays listed and is refused 403. At most {slots} artifact reads run at once (`artifact_capacity` otherwise); a stream releases its slot once its bytes start, and is not bounded by the request deadline.", slots = super::super::artifacts::ARTIFACT_SLOTS),
-            "parameters": [job_id_param(), {"name": "name", "in": "path", "required": true, "description": "An entry's manifest `name`, each `/`-separated segment percent-encoded, the separators literal", "schema": {"type": "string", "minLength": 1}}],
+            "description": format!("`{{name}}` is an entry's `name` from GET /v1/jobs/{{id}}/artifacts, never a filesystem path. Every name contains `/` (`file/out/report.pdf`, `agent_image/1.png`): send it with its `/` literal or percent-encoded (`%2F`), as one path parameter. The rest of the path is percent-decoded once and matched exactly against the manifest's names; an escape that is not two hexadecimal digits, bytes that are not UTF-8 or NUL match no entry. The server opens the recorded place below the project root it holds, refusing a symbolic link at any component, and reads every byte against the recorded size and SHA-256 before the response starts (409 `artifact_changed` on a mismatch), keeping the SHA-256 of each 256 KiB chunk. While the bytes stream, each chunk is read again and sent only if it hashes to the digest kept for it: every byte that leaves is a byte of the recorded file, and a file changed during the stream ends it before its `Content-Length`. The bound is `max_artifact_bytes`; a larger artifact stays listed and is refused 403. At most {slots} journal verifications and pre-download hash passes run at once (`artifact_capacity` otherwise); a stream holds no slot once its bytes start, is bounded by the connection limit, and is not bounded by the request deadline.", slots = super::super::artifacts::ARTIFACT_SLOTS),
+            "parameters": [job_id_param(), {"name": "name", "in": "path", "required": true, "description": "An entry's manifest `name`; its `/` may be sent literally or as `%2F` (decoded once, matched exactly)", "schema": {"type": "string", "minLength": 1}}],
             "responses": {
                 "200": {
                     "description": "The recorded bytes",
@@ -874,12 +875,13 @@ mod builder {
                         "X-Content-Type-Options": {"schema": {"type": "string", "const": "nosniff"}},
                         "Cache-Control": {"schema": {"type": "string", "const": "no-store"}}
                     },
-                    "content": {"*/*": {"schema": {"description": "The artifact's bytes; Content-Type is the manifest's `mime`"}}}
+                    "content": {"*/*": {"schema": {"type": "string", "contentMediaType": "application/octet-stream", "description": "The artifact's bytes; Content-Type is the manifest's `mime`"}}}
                 },
                 "401": error_ref(),
                 "403": error_named("`artifact_too_large`: over this server's download bound"),
                 "404": error_named("`job_not_found`: unknown or foreign job id · `artifact_not_found`: no entry by that name"),
                 "409": error_named("`job_not_settled` · `artifact_journal_unavailable` · `artifact_journal_unverified` (as the manifest) · `artifact_changed`: the bytes at the recorded place no longer match the record"),
+                "500": error_named("`internal_error`: the server could not read the journal or the artifact"),
                 "503": error_named("`store_busy` · `artifact_capacity`")
             }
         }})
@@ -892,7 +894,7 @@ mod builder {
             "required": ["receipt", "verdict", "max_artifact_bytes", "truncated", "artifacts"],
             "properties": {
                 "receipt": {"$ref": "#/components/schemas/JobReceipt"},
-                "verdict": {"type": "string", "enum": ["sealed", "anchored", "replayed"]},
+                "verdict": {"type": "string", "enum": ["sealed", "anchored"]},
                 "max_artifact_bytes": {"type": "integer", "minimum": 1, "examples": [super::super::config::DEFAULT_MAX_ARTIFACT_BYTES], "description": "The largest artifact this server downloads (256 MiB by default)"},
                 "truncated": {"type": "boolean"},
                 "artifacts": {"type": "array", "maxItems": super::super::artifacts::MAX_LISTED, "items": {"$ref": "#/components/schemas/Artifact"}}
@@ -905,7 +907,7 @@ mod builder {
             "type": "object", "additionalProperties": false,
             "required": ["name", "kind", "size", "sha256", "mime", "event_id"],
             "properties": {
-                "name": {"type": "string", "minLength": 1, "description": "Unique within the job: `file/<path>` or `agent_image/<n>.<ext>` (the n-th image the job's agents sent). The download route's `{name}`."},
+                "name": {"type": "string", "minLength": 1, "description": "Unique within the job: `file/<path>` or `agent_image/<n>.<ext>` (the n-th image the job's agents sent that the blob store kept). The download route's `{name}`."},
                 "kind": {"type": "string", "enum": ["file", "agent_image"]},
                 "path": {"type": "string", "minLength": 1, "description": "A file's project-relative path, as the workflow wrote it (normalized). Absent for an agent image."},
                 "size": {"type": "integer", "minimum": 0, "description": "Bytes, as journaled"},

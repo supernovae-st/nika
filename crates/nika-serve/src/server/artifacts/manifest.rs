@@ -26,8 +26,10 @@ use serde_json::Value;
 /// The longest project-relative path an artifact may carry (the snapshot path bound).
 const MAX_PATH_BYTES: usize = crate::MAX_EXECUTION_SNAPSHOT_PATH_BYTES;
 
-/// The directory the harness image store keeps its blobs under, from the run root.
-const BLOB_ROOT: &str = ".nika/blobs";
+/// The directory the harness image store keeps its blobs under, from the run root, sharded
+/// `<2 hex>/<62 hex>` (`nika_runtime_laws::image_room` over `nika_blob::FsBlobStore`; a test
+/// pins both sources).
+pub(super) const BLOB_ROOT: &str = ".nika/blobs";
 
 /// What an artifact is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -173,7 +175,7 @@ fn saved_file(
     })
 }
 
-/// The `ordinal`-th image an agent's harness sent, when the store kept it.
+/// The `ordinal`-th image an agent's harness sent that the store kept, when this one was.
 fn observed_image(event: &Event, ordinal: usize) -> Option<Artifact> {
     let observation: Value = serde_json::from_str(event.str_field("harness_image")?).ok()?;
     if observation["storage"] != "stored" {
@@ -191,9 +193,10 @@ fn observed_image(event: &Event, ordinal: usize) -> Option<Artifact> {
         return None;
     }
     let (shard, rest) = hash.split_at(2);
+    // The harness names the type; only an image type is passed on.
     let mime = (observation["mime_type"].as_str())
         .or_else(|| blob["mime_type"].as_str())
-        .filter(|text| media_type(text))
+        .filter(|text| media_type(text) && text.starts_with("image/"))
         .unwrap_or("application/octet-stream");
     Some(Artifact {
         name: format!(
@@ -212,7 +215,7 @@ fn observed_image(event: &Event, ordinal: usize) -> Option<Artifact> {
 }
 
 /// `path` as a normalized project-relative path (`./out/a.png` → `out/a.png`), when it is
-/// one: relative, without `..`, outside `.nika`, within the path bound.
+/// one: relative, without `..`, outside `.nika` (in any case), within the path bound.
 pub(super) fn contained(path: &str) -> Option<String> {
     if path.len() > MAX_PATH_BYTES || path.contains('\0') || path.contains('\\') {
         return None;
@@ -225,7 +228,11 @@ pub(super) fn contained(path: &str) -> Option<String> {
             _ => return None,
         }
     }
-    (parts.first().is_some_and(|first| *first != ".nika")).then(|| parts.join("/"))
+    // `.NIKA` is `.nika` on a case-insensitive filesystem (the macOS default).
+    (parts
+        .first()
+        .is_some_and(|first| !first.eq_ignore_ascii_case(".nika")))
+    .then(|| parts.join("/"))
 }
 
 /// A canonical lowercase SHA-256 (or BLAKE3) hexadecimal digest.

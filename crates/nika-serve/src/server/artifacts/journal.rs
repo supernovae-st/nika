@@ -16,8 +16,9 @@ use serde_json::Value;
 
 use crate::JobReceipt;
 
-/// The tiers a sealed, intact journal attains (the CLI's words).
-const SEALED_TIERS: [&str; 3] = ["sealed", "anchored", "replayed"];
+/// The tiers a sealed, intact journal attains over captured bytes (the CLI's words; a captured
+/// journal is never replayed, so `replayed` cannot be reached here).
+const SEALED_TIERS: [&str; 2] = ["sealed", "anchored"];
 
 /// Why a settled job's journal yields no artifacts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,12 +27,14 @@ pub(super) enum Refusal {
     Unavailable,
     /// A journal exists but is not the sealed, intact one the receipt names.
     Unverified,
+    /// The server could not read it (permissions, descriptors, the disk): no verdict.
+    Unreadable,
 }
 
 /// A journal the receipt's head names, judged sealed: its attained tier and its events.
 #[derive(Debug)]
 pub(super) struct Held {
-    /// `sealed` · `anchored` · `replayed`.
+    /// `sealed` or `anchored`.
     pub(super) verdict: &'static str,
     /// The journal's events, in order, spilled values read back.
     pub(super) events: Vec<Event>,
@@ -49,12 +52,14 @@ pub(super) fn hold(
     let path = nika_dap::store::locate_trace(dir, receipt.execution_id(), receipt.trace_id())
         .ok_or(Refusal::Unavailable)?;
     let bound = u64::try_from(JOURNAL_BOUND).unwrap_or(u64::MAX);
-    // Over the bound, not UTF-8 or a link in place of the file: not a journal this resident
-    // wrote whole, so nothing in it is recorded.
+    // Over the bound, not UTF-8, a link or another node in place of the file: not a journal
+    // this resident wrote whole, so nothing in it is recorded. Any other failure is the
+    // server's, never a verdict on the journal.
     let raw = match nika_fs::read_owned(&path, bound) {
         Ok(Some(raw)) => raw,
         Ok(None) => return Err(Refusal::Unavailable),
-        Err(_) => return Err(Refusal::Unverified),
+        Err(error) if not_the_journal(&error) => return Err(Refusal::Unverified),
+        Err(_) => return Err(Refusal::Unreadable),
     };
     let label = path.to_string_lossy();
     let opts = VerifyOptions {
@@ -78,6 +83,15 @@ pub(super) fn hold(
         verdict,
         events: recovered.events,
     })
+}
+
+/// Whether a read refused the file itself rather than failing: over the bound or not UTF-8
+/// (`InvalidData`), a link at the final name (`ELOOP`), or another kind of node.
+fn not_the_journal(error: &std::io::Error) -> bool {
+    error.kind() == std::io::ErrorKind::InvalidData
+        || [nix::errno::Errno::ELOOP, nix::errno::Errno::ENOTDIR]
+            .iter()
+            .any(|errno| error.raw_os_error() == Some(*errno as i32))
 }
 
 /// The tier the verifier's `--json` document attains when it holds every leg: exit 0, an

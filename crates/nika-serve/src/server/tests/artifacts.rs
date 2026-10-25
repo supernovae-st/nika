@@ -51,6 +51,8 @@ struct JournalingBackend {
     project: PathBuf,
     events: Vec<Event>,
     seal: Option<(minisign::SecretKey, String)>,
+    /// A chain head to report instead of the journal's own.
+    head: Option<String>,
 }
 
 impl ExecutionBackend for JournalingBackend {
@@ -76,8 +78,9 @@ impl ExecutionBackend for JournalingBackend {
             }
         });
         let outcome = ExecutionOutcome::from(ExecutionDisposition::Succeeded);
-        let outcome = match settled {
-            Ok(Some(head)) => outcome.with_chain_head(head),
+        let outcome = match (settled, self.head.clone()) {
+            (Ok(Some(_)), Some(forged)) => outcome.with_chain_head(forged),
+            (Ok(Some(head)), None) => outcome.with_chain_head(head),
             _ => outcome,
         };
         Box::pin(async move { outcome })
@@ -255,13 +258,38 @@ async fn settled_holding(
     key: Option<&Key>,
     limits: ServerLimits,
 ) -> (TestServer, String, Arc<AppState>) {
+    let run = Run {
+        seal: key,
+        weighed: key.map(|key| key.file.as_path()),
+        head: None,
+    };
+    run_settled(world, left.events.clone(), run, limits).await
+}
+
+/// How a scripted run seals its journal and what the door weighs.
+struct Run<'a> {
+    /// The key the journal is sealed with (unsealed without one).
+    seal: Option<&'a Key>,
+    /// The public key file the door weighs beside the custody defaults.
+    weighed: Option<&'a Path>,
+    /// A chain head the backend reports instead of the journal's.
+    head: Option<String>,
+}
+
+/// A resident whose one job, already settled, journaled `events` as `run` says.
+async fn run_settled(
+    world: &TestWorld,
+    events: Vec<Event>,
+    run: Run<'_>,
+    limits: ServerLimits,
+) -> (TestServer, String, Arc<AppState>) {
     let backend = Arc::new(JournalingBackend {
         project: world.workflows.clone(),
-        events: left.events.clone(),
-        seal: key.map(|key| (key.secret.clone(), key.public.clone())),
+        events,
+        seal: run.seal.map(|key| (key.secret.clone(), key.public.clone())),
+        head: run.head,
     });
-    let (server, state) =
-        start_holding(world, backend, limits, key.map(|key| key.file.as_path())).await;
+    let (server, state) = start_holding(world, backend, limits, run.weighed).await;
     let id = admit(&server, "artifact-job").await;
     wait_for_status(&server, &id, "succeeded")
         .await
@@ -318,9 +346,19 @@ fn get(path: &str) -> String {
     get_request(path)
 }
 
-/// The document declares `status` on `GET template` and the answer validates against it.
+/// The document declares `status` on `GET template`, the answer validates against it, and a
+/// refusal's code is one the declaration names (401 is the shared envelope).
 fn assert_declared(document: &Value, template: &str, status: u16, body: &[u8]) {
     assert_declared_on(document, "get", template, status, body);
+    if status >= 400 && status != 401 {
+        let declared = &document["paths"][template]["get"]["responses"][status.to_string()];
+        let description = declared["description"].as_str().unwrap_or_default();
+        let named = format!("`{}`", code(body));
+        assert!(
+            description.contains(&named),
+            "GET {template} {status} declares no {named}: {description}"
+        );
+    }
 }
 
 fn code(body: &[u8]) -> String {
@@ -468,7 +506,7 @@ async fn a_name_outside_the_manifest_never_reaches_the_filesystem() {
         "file/../secret.txt",
         "file/out/../../serve.token",
         "file/%2e%2e/secret.txt",
-        "file/out%2Fchart.svg",
+        "file%2F%2e%2e%2Fsecret.txt",
         "file/out/chart.svg/",
         "file//out/chart.svg",
         "/etc/passwd",
@@ -484,6 +522,11 @@ async fn a_name_outside_the_manifest_never_reaches_the_filesystem() {
         assert_eq!(status, 404, "{name}: {}", String::from_utf8_lossy(&body));
         assert_eq!(code(&body), "artifact_not_found", "{name}");
         assert!(!String::from_utf8_lossy(&body).contains("never an artifact"));
+    }
+    // The form an `OpenAPI` client sends for one path parameter addresses the same entry.
+    for name in ["file%2Fout%2Fchart.svg", "file/out%2Fchart.svg"] {
+        let (status, _, bytes) = download(&server, &document, &id, name).await;
+        assert_eq!((status, bytes), (200, left.chart.clone()), "{name}");
     }
     server.stop().await.expect("clean stop");
 }
@@ -570,7 +613,7 @@ async fn a_file_changed_while_it_streams_ends_short_of_its_length() {
         .map(|n| u8::try_from(n % 199).expect("a byte"))
         .collect();
     let left = leave(&world, chart);
-    let (server, id) = settled(&world, &left, Some(&key), limits()).await;
+    let (server, id, state) = settled_holding(&world, &left, Some(&key), limits()).await;
     let mut stream = tokio::net::TcpStream::connect(server.address)
         .await
         .expect("connect");
@@ -588,6 +631,11 @@ async fn a_file_changed_while_it_streams_ends_short_of_its_length() {
     assert_eq!(
         header(&headers, "content-length"),
         Some(size.to_string().as_str())
+    );
+    assert_eq!(
+        state.artifacts.slots.available_permits(),
+        super::super::artifacts::ARTIFACT_SLOTS,
+        "a stream held back by its reader holds no slot"
     );
     // Change the tail in place while the stream is held back by the unread socket.
     let mut file = std::fs::OpenOptions::new()
@@ -829,6 +877,105 @@ async fn a_full_set_of_artifact_slots_refuses_the_next_read() {
         super::super::artifacts::ARTIFACT_SLOTS,
         "a finished stream holds no slot"
     );
+    server.stop().await.expect("clean stop");
+}
+
+/// A paused job may resume: its observation ended, but it has not settled, so it has no
+/// artifacts yet.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_paused_job_has_no_artifacts_yet() {
+    let world = TestWorld::new();
+    let pausing = Arc::new(TestBackend::completes(ExecutionDisposition::Paused));
+    let server = start(&world, pausing, limits(), None).await;
+    let document = served_document(&server).await;
+    let id = admit(&server, "paused-job").await;
+    wait_for_status(&server, &id, "paused")
+        .await
+        .expect("paused");
+    let (status, _, body) = exchange(&server, &get(&format!("/v1/jobs/{id}/artifacts"))).await;
+    assert_eq!((status, code(&body).as_str()), (409, "job_not_settled"));
+    assert_declared(&document, MANIFEST, 409, &body);
+    server.stop().await.expect("clean stop");
+}
+
+/// A journal the server cannot attribute (sealed with a key it does not weigh), or whose head
+/// is not the one the receipt names, serves nothing.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_journal_the_server_cannot_attribute_or_bind_serves_nothing() {
+    let world = TestWorld::new();
+    let key = test_key(&world);
+    let left = leave(&world, b"<svg/>".to_vec());
+    let foreign = Run {
+        seal: Some(&key),
+        weighed: None,
+        head: None,
+    };
+    let (server, id, _state) = run_settled(&world, left.events.clone(), foreign, limits()).await;
+    let document = served_document(&server).await;
+    let (status, _, body) = exchange(&server, &get(&format!("/v1/jobs/{id}/artifacts"))).await;
+    assert_eq!(
+        (status, code(&body).as_str()),
+        (409, "artifact_journal_unverified"),
+        "a seal no weighed key attributes"
+    );
+    assert_declared(&document, MANIFEST, 409, &body);
+    server.stop().await.expect("clean stop");
+
+    let world = TestWorld::new();
+    let key = test_key(&world);
+    let left = leave(&world, b"<svg/>".to_vec());
+    let rebound = Run {
+        seal: Some(&key),
+        weighed: Some(key.file.as_path()),
+        head: Some("0".repeat(64)),
+    };
+    let (server, id, _state) = run_settled(&world, left.events.clone(), rebound, limits()).await;
+    let job = server.request(&get(&format!("/v1/jobs/{id}"))).await.json();
+    assert_eq!(job["receipt"]["chain_head"], "0".repeat(64));
+    let (status, _, body) = download(&server, &document, &id, "file/out/chart.svg").await;
+    assert_eq!(
+        (status, code(&body).as_str()),
+        (409, "artifact_journal_unverified"),
+        "a sealed journal whose head is not the receipt's"
+    );
+    server.stop().await.expect("clean stop");
+}
+
+/// A zero-byte artifact downloads as an empty body, and an entry past the listed bound is
+/// still served by its name.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_empty_artifact_and_one_past_the_listed_bound_are_served() {
+    let world = TestWorld::new();
+    let key = test_key(&world);
+    let out = world.workflows.join("out");
+    std::fs::create_dir_all(&out).expect("out");
+    std::fs::write(out.join("empty.svg"), b"").expect("empty");
+    let last = b"<svg>past the bound</svg>".to_vec();
+    std::fs::write(out.join("last.svg"), &last).expect("last");
+    let listed = super::super::artifacts::MAX_LISTED;
+    let mut events = vec![chart_saved("plot", "out/empty.svg", b"")];
+    events.extend((1..listed).map(|n| chart_saved("plot", &format!("out/{n}.svg"), b"x")));
+    events.push(chart_saved("plot", "out/last.svg", &last));
+    let run = Run {
+        seal: Some(&key),
+        weighed: Some(key.file.as_path()),
+        head: None,
+    };
+    let (server, id, _state) = run_settled(&world, events, run, limits()).await;
+    let document = served_document(&server).await;
+    let manifest = server
+        .request(&get(&format!("/v1/jobs/{id}/artifacts")))
+        .await
+        .json();
+    assert_eq!(manifest["truncated"], true);
+    assert_eq!(manifest["artifacts"].as_array().map(Vec::len), Some(listed));
+    assert_eq!(manifest["artifacts"][0]["size"], 0);
+    let (status, headers, bytes) = download(&server, &document, &id, "file/out/empty.svg").await;
+    assert_eq!(status, 200, "{headers}");
+    assert_eq!(header(&headers, "content-length"), Some("0"));
+    assert!(bytes.is_empty());
+    let (status, _, bytes) = download(&server, &document, &id, "file/out/last.svg").await;
+    assert_eq!((status, bytes), (200, last));
     server.stop().await.expect("clean stop");
 }
 

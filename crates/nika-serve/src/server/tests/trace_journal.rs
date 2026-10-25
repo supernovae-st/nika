@@ -326,5 +326,15 @@ async fn an_interrupted_door_job_closes_its_journal_and_releases_its_lease() {
         .json();
     assert_eq!(body["verdict"], "ok", "{body}");
     assert_eq!(body["chain"]["headline"], "intact", "{body}");
+    // The run never settled, so its journal was never sealed and its receipt names no chain
+    // head: the artifact door serves nothing from it.
+    let artifacts = server
+        .request(&get_request(&format!("/v1/jobs/{id}/artifacts")))
+        .await;
+    assert_eq!(artifacts.status, 409, "{}", artifacts.body);
+    assert_eq!(
+        artifacts.json()["error"]["code"],
+        "artifact_journal_unavailable"
+    );
     server.stop().await.expect("clean stop");
 }

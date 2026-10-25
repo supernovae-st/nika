@@ -80,37 +80,30 @@ fn names(artifacts: &[Artifact]) -> Vec<&str> {
         .collect()
 }
 
+/// The rest of the path is decoded once: a literal `/` and `%2F` name the same entry (an
+/// `OpenAPI` client sends the second for one path parameter). Only a bad escape, bytes that are
+/// not UTF-8, NUL or nothing refuse; any other decoded value is a key that must match exactly.
 #[test]
-fn a_request_names_an_artifact_by_decoded_segments_and_nothing_else() {
-    assert_eq!(
-        decode_name("file/out/a.png").as_deref(),
-        Some("file/out/a.png")
-    );
-    assert_eq!(
-        decode_name("file/out/Rapport%20final.pdf").as_deref(),
-        Some("file/out/Rapport final.pdf")
-    );
-    assert_eq!(
-        decode_name("file/caf%C3%A9.txt").as_deref(),
-        Some("file/café.txt")
-    );
-    assert_eq!(decode_name("file/%4a.txt").as_deref(), Some("file/J.txt"));
+fn a_request_names_an_artifact_by_decoding_its_path_once() {
+    for (raw, name) in [
+        ("file/out/a.png", "file/out/a.png"),
+        ("file%2Fout%2Fa.png", "file/out/a.png"),
+        ("file/out%2fa.png", "file/out/a.png"),
+        ("file/out/Rapport%20final.pdf", "file/out/Rapport final.pdf"),
+        ("file/caf%C3%A9.txt", "file/café.txt"),
+        ("file/%4a.txt", "file/J.txt"),
+        // Decoded, then matched against names that never hold these forms.
+        ("file/%2e%2e%2fsecret", "file/../secret"),
+        ("file//a.png", "file//a.png"),
+        ("file/%252F", "file/%2F"),
+    ] {
+        assert_eq!(decode_name(raw).as_deref(), Some(name), "{raw}");
+    }
     for refused in [
-        "file/out%2Fa.png",
-        "file/%2e%2e%2fsecret",
-        "file/%zz",
-        "file/%4",
-        "file/%+f",
-        "file/%00",
-        "file//a.png",
-        "file/",
-        "",
-        "file/%C3",
+        "file/%zz", "file/%4", "file/%+f", "file/%00", "", "file/%C3", "%",
     ] {
         assert_eq!(decode_name(refused), None, "{refused}");
     }
-    // `..` decodes, and matches no manifest name: names never hold one.
-    assert_eq!(decode_name("file/%2e%2e/x").as_deref(), Some("file/../x"));
 }
 
 #[test]
@@ -276,6 +269,8 @@ fn only_a_relative_path_inside_the_project_and_outside_dot_nika_qualifies() {
         "/etc/passwd",
         ".nika/serve.token",
         "./.nika/blobs/64/x",
+        ".NIKA/keys/run.svg",
+        ".Nika/serve.token",
         "",
         ".",
         "out\\a.png",
@@ -387,6 +382,11 @@ fn a_stored_agent_image_is_its_blob_and_nothing_else_is() {
     });
     assert_eq!(odd[0].mime, "application/octet-stream");
     assert_eq!(odd[0].name, "agent_image/1.bin");
+    let not_an_image = refused(&|o| {
+        o["mime_type"] = json!("text/html");
+        o["blob"]["mime_type"] = json!("text/html");
+    });
+    assert_eq!(not_an_image[0].mime, "application/octet-stream");
 }
 
 fn document(tier: &str, exit: u8, headline: &str, seal: &str, head: &str) -> String {
@@ -451,61 +451,98 @@ fn file_with(bytes: &[u8]) -> (tempfile::NamedTempFile, [u8; 32]) {
 
 #[test]
 fn the_whole_check_refuses_other_bytes_a_shorter_and_a_longer_file() {
-    let bytes = vec![7_u8; 300_000];
+    let bytes = vec![7_u8; 600_000];
     let (file, digest) = file_with(&bytes);
     let mut handle = file.reopen().expect("reopen");
-    assert!(verify_whole(&mut handle, 300_000, &digest).expect("read"));
-    assert!(!verify_whole(&mut handle, 299_999, &digest).expect("longer than its record"));
-    assert!(!verify_whole(&mut handle, 300_001, &digest).expect("shorter than its record"));
-    assert!(!verify_whole(&mut handle, 300_000, &[0; 32]).expect("other bytes"));
+    let chunks = verify_whole(&mut handle, 600_000, &digest)
+        .expect("read")
+        .expect("the recorded file");
+    assert_eq!(chunks.len(), 3, "256 KiB chunks: 262144 · 262144 · 75712");
+    let first: [u8; 32] = Sha256::digest(&bytes[..262_144]).into();
+    let last: [u8; 32] = Sha256::digest(&bytes[524_288..]).into();
+    assert_eq!((chunks[0], chunks[2]), (first, last));
+    for (size, expected, why) in [
+        (599_999, digest, "longer than its record"),
+        (600_001, digest, "shorter than its record"),
+        (600_000, [0; 32], "other bytes"),
+    ] {
+        let verdict = verify_whole(&mut handle, size, &expected).expect("read");
+        assert_eq!(verdict, None, "{why}");
+    }
     let (empty, nothing) = file_with(b"");
-    assert!(verify_whole(&mut empty.reopen().expect("reopen"), 0, &nothing).expect("empty"));
+    let none = verify_whole(&mut empty.reopen().expect("reopen"), 0, &nothing).expect("read");
+    assert_eq!(none, Some(Vec::new()), "an empty record holds no chunk");
 }
 
-/// Every byte arrives when the file still holds the record; a file changed after the
-/// whole check never yields a complete body: its last chunk is withheld.
-#[tokio::test(flavor = "multi_thread")]
-async fn the_stream_withholds_its_last_chunk_from_a_changed_file() {
-    let bytes: Vec<u8> = (0..700_000_u32).map(|n| (n % 251) as u8).collect();
-    let (file, digest) = file_with(&bytes);
-    let streamed = VerifiedBody::new(file.reopen().expect("reopen"), 700_000, digest)
+/// The digests a whole check of `bytes` keeps, and the file holding them.
+fn verified_file(bytes: &[u8]) -> (tempfile::NamedTempFile, Vec<[u8; 32]>) {
+    let (file, digest) = file_with(bytes);
+    let size = bytes.len() as u64;
+    let chunks = verify_whole(&mut file.reopen().expect("reopen"), size, &digest)
+        .expect("read")
+        .expect("the recorded file");
+    (file, chunks)
+}
+
+async fn stream(file: &tempfile::NamedTempFile, size: u64, chunks: &[[u8; 32]]) -> Vec<u8> {
+    VerifiedBody::new(file.reopen().expect("reopen"), size, chunks.to_vec())
         .collect()
         .await
         .expect("infallible")
-        .to_bytes();
-    assert_eq!(streamed.as_ref(), bytes.as_slice());
+        .to_bytes()
+        .to_vec()
+}
 
-    let body = VerifiedBody::new(file.reopen().expect("reopen"), 700_000, digest);
-    let mut changed = std::fs::OpenOptions::new()
+fn change_at(file: &tempfile::NamedTempFile, offset: u64, bytes: &[u8]) {
+    let mut handle = std::fs::OpenOptions::new()
         .write(true)
         .open(file.path())
         .expect("open for change");
-    std::io::Seek::seek(&mut changed, std::io::SeekFrom::Start(650_000)).expect("seek");
-    changed.write_all(b"tampered").expect("change in place");
-    let short = body.collect().await.expect("infallible").to_bytes();
-    assert!(
-        short.len() < 700_000,
-        "only {} bytes may leave",
-        short.len()
-    );
+    std::io::Seek::seek(&mut handle, std::io::SeekFrom::Start(offset)).expect("seek");
+    handle.write_all(bytes).expect("change in place");
+}
+
+/// Every byte arrives while the file holds the record. Once a chunk changed after the whole
+/// check, nothing from that chunk on leaves: the first chunk sends nothing at all, a later
+/// one sends exactly the chunks before it, a truncation the whole chunks it still holds.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_stream_sends_only_chunks_that_hash_to_the_record() {
+    let bytes: Vec<u8> = (0..700_000_u32)
+        .map(|n| u8::try_from(n % 251).expect("a byte"))
+        .collect();
+    let size = 700_000;
+    let (file, chunks) = verified_file(&bytes);
     assert_eq!(
-        &short[..],
-        &bytes[..short.len()],
-        "what left is the record's prefix"
+        stream(&file, size, &chunks).await,
+        bytes,
+        "the whole record"
     );
 
-    let truncated = VerifiedBody::new(file.reopen().expect("reopen"), 700_000, digest);
-    file.as_file().set_len(100_000).expect("truncate");
-    let cut = truncated.collect().await.expect("infallible").to_bytes();
-    assert!(cut.len() <= 100_000);
+    change_at(&file, 10, b"tampered");
+    assert!(
+        stream(&file, size, &chunks).await.is_empty(),
+        "a changed first chunk sends no byte"
+    );
+    change_at(&file, 10, &bytes[10..18]);
+    change_at(&file, 650_000, b"tampered");
+    let short = stream(&file, size, &chunks).await;
+    assert_eq!(
+        short.len(),
+        524_288,
+        "the two chunks before the changed one"
+    );
+    assert_eq!(&short[..], &bytes[..524_288], "exactly the record's bytes");
 
-    let (empty, nothing) = file_with(b"");
-    let none = VerifiedBody::new(empty.reopen().expect("reopen"), 0, nothing)
-        .collect()
-        .await
-        .expect("infallible")
-        .to_bytes();
-    assert!(none.is_empty());
+    file.as_file().set_len(300_000).expect("truncate");
+    let cut = stream(&file, size, &chunks).await;
+    assert_eq!(
+        &cut[..],
+        &bytes[..262_144],
+        "only the whole chunk still held"
+    );
+
+    let (empty, none) = verified_file(b"");
+    assert!(stream(&empty, 0, &none).await.is_empty());
 }
 
 /// A manifest lists at most its bound, in journal order, and says when more exist.
@@ -553,4 +590,35 @@ fn a_long_manifest_lists_its_bound_and_says_it_is_truncated() {
     let body = serde_json::to_value(ManifestBody::new(&short, 7)).expect("manifest");
     assert_eq!(body["truncated"], false);
     assert_eq!(body["artifacts"].as_array().map(Vec::len), Some(2));
+}
+
+/// The place the door reads an agent image from is the one the harness image store writes:
+/// the image room's root and the blob store's `<2 hex>/<62 hex>` sharding, read from their own
+/// sources (both keep them private), so a change there fails here instead of making every
+/// stored image unavailable.
+#[test]
+fn the_blob_layout_is_the_image_rooms() {
+    let room = include_str!("../../../../nika-runtime-laws/src/image_room.rs");
+    let declared = format!("const BLOBS: &str = \"{}\";", super::manifest::BLOB_ROOT);
+    assert!(room.contains(&declared), "the image room's blob root moved");
+    let store = include_str!("../../../../nika-blob/src/filesystem.rs");
+    for line in [
+        "let shard = self.root.join(&raw[..2]);",
+        "let blob = shard.join(&raw[2..]);",
+    ] {
+        assert!(
+            store.contains(line),
+            "the blob store's sharding moved: {line}"
+        );
+    }
+    let image = derive(&[observed(1, &stored_image(SHA_A, 3))]);
+    assert_eq!(
+        image[0].at,
+        format!(
+            "{}/{}/{}",
+            super::manifest::BLOB_ROOT,
+            &BLAKE[..2],
+            &BLAKE[2..]
+        )
+    );
 }

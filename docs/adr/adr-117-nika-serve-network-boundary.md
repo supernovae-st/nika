@@ -236,18 +236,21 @@ is added, and a client never names a path.
   `nika:image_fx`) on its own successful answer, or an `agent_image_observed` frame whose image
   the blob store kept. `nika:write` and `nika:edit` journal no digest, so their files are not
   artifacts.
-- **Confined.** A file qualifies only by a relative path inside the project and outside `.nika`.
-  An agent image is its blob under `.nika/blobs`. `{name}` is a key into the manifest, never a
-  path. The server opens the recorded place below the project root it holds, through the
-  owned-directory open, which refuses a symbolic link at every component.
+- **Confined.** A file qualifies only by a relative path inside the project and outside `.nika`
+  (in any case). An agent image is its blob under `.nika/blobs`. `{name}` is a key into the
+  manifest, percent-decoded once and matched exactly, never a path. The server opens the
+  recorded place below the project root it holds, through the owned-directory open, which
+  refuses a symbolic link at every component.
 - **Bounded.** One artifact is at most 256 MiB: a larger one stays listed and its download
-  answers 403 `artifact_too_large`. A manifest lists at most 1,024 entries. At most four
-  artifact reads run at once; beyond that the routes answer 503 `artifact_capacity`.
-- **Rechecked.** The whole file is hashed before the response starts. A size or SHA-256 that no
-  longer matches the journal answers 409 `artifact_changed`. The bytes are hashed again while
-  they stream, and the last chunk is held back until every byte matched. A file changed during
-  the stream therefore ends before its `Content-Length`, and a changed file is never served as
-  the recorded one.
+  answers 403 `artifact_too_large`. A manifest lists at most 1,024 entries. At most four journal
+  verifications and pre-download hash passes run at once; beyond that the routes answer 503
+  `artifact_capacity`. A stream holds no slot; the connection limit bounds streams.
+- **Rechecked.** The whole file is hashed before the response starts, keeping the SHA-256 of
+  each 256 KiB chunk. A size or SHA-256 that no longer matches the journal answers 409
+  `artifact_changed`. While the bytes stream, each chunk is read again and sent only if it
+  hashes to the digest kept for it. Every byte that leaves is therefore a byte of the recorded
+  file. A file changed during the stream ends it before its `Content-Length`, and a changed file
+  is never served as the recorded one.
 
 This discharges the artifact half of the follow-up "add typed cancellation and artifact
 authority before exposing those routes". It adds no upload, no deletion or retention policy, no
