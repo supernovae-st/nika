@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika tools` — the embedded builtin-tool catalog on the wire.
+//! `nika catalog --tools` — the embedded builtin-tool catalog on the wire.
 //!
 //! `--json` emits the versioned projection (`tools_version: 1`, built by
 //! `nika-builtin::tools_json`): per builtin the model-facing JSON-Schema
@@ -18,7 +18,7 @@ use crate::verbs::VerbOutput;
 /// the first graduate of the deferred class).
 const CATEGORY_ORDER: [&str; 6] = ["core", "file", "data", "network", "introspection", "media"];
 
-/// `nika tools` — human listing, or the `--json` machine projection
+/// `nika catalog --tools` — human listing, or the `--json` machine projection
 /// (never coloured — the machine law).
 #[must_use]
 pub fn run(json: bool, theme: Theme) -> VerbOutput {
@@ -56,7 +56,7 @@ fn human_listing(payload: &serde_json::Value, theme: Theme) -> String {
     use std::fmt::Write as _;
     let tools = payload["tools"].as_array().map_or(&[][..], Vec::as_slice);
     let mut out = format!(
-        "nika tools — {} builtins · {} categories (embedded)\n",
+        "nika catalog --tools — {} builtins · {} categories (embedded)\n",
         tools.len(),
         CATEGORY_ORDER.len(),
     );
@@ -90,7 +90,7 @@ fn human_listing(payload: &serde_json::Value, theme: Theme) -> String {
         crate::display::vocab::hint(
             theme,
             "machine",
-            "nika tools --json   # the model-facing JSON-Schemas"
+            "nika catalog --tools --json   # the model-facing JSON-Schemas"
         )
     );
     out
@@ -137,8 +137,14 @@ mod tests {
             "tool names carry the nika: namespace",
         );
         assert!(
-            text.contains("--json"),
-            "the human surface teaches the machine surface",
+            text.contains("machine: nika catalog --tools --json"),
+            "the human surface teaches the machine surface by a command that exists: {text}",
+        );
+        // `nika tools` is a retired spelling (the guard refuses it as a
+        // command): the listing must never teach it again.
+        assert!(
+            !text.contains("nika tools"),
+            "the retired spelling is gone: {text}"
         );
     }
 

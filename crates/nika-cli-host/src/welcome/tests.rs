@@ -227,12 +227,7 @@ fn the_json_front_door_answers_the_same_next_as_the_screen() {
         assert_eq!(v["next"], expected, "{v}");
         assert_eq!(v["start"][0], expected, "{v}");
         assert_eq!(v["start"].as_array().map(Vec::len), Some(1), "{v}");
-        for rung in v["inference_choice"]["rungs"]
-            .as_array()
-            .expect("rungs")
-            .iter()
-            .filter(|r| r["id"] != "cloud")
-        {
+        for rung in v["inference_choice"]["rungs"].as_array().expect("rungs") {
             assert_eq!(
                 rung["next"], expected,
                 "a rung must not teach a door the screen retired: {rung}"
@@ -1055,7 +1050,7 @@ fn welcome_is_always_a_success() {
     let out = run(false, plain());
     assert_eq!(out.code, exit::OK, "{}", out.text);
     assert!(out.text.contains("Next:"), "{}", out.text);
-    assert!(out.text.contains("Local first"), "{}", out.text);
+    assert!(out.text.contains("Keep it as a file"), "{}", out.text);
     let json = run(true, plain());
     assert_eq!(json.code, exit::OK);
     assert!(json.text.contains("\"welcome_version\":1"), "{}", json.text);

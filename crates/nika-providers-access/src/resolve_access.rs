@@ -536,14 +536,14 @@ fn adapters_not_compiled_in() -> PinRefusal {
     PinRefusal::Unavailable {
         message: String::from(
             "This nika binary was built without agentic CLI adapters. \
-             Rebuild with --features access-harness, or pick Nika local / Nika Cloud.",
+             Rebuild with --features access-harness, or choose an API key or a local engine instead (`nika doctor --verbose` lists them).",
         ),
     }
 }
 
 const NO_RUNTIME_INSTALLED: &str = "No agentic CLI runtime is installed. Install \
      Claude Code, Codex, GitHub Copilot CLI, Gemini CLI, Grok Build, Kimi Code, OpenCode or Qwen \
-     Code, or pick Nika local / Nika Cloud.";
+     Code, or choose an API key or a local engine instead (`nika doctor --verbose` lists them).";
 
 /// The verbs a pinned seat must serve — decides WHICH binary presence the
 /// pin needs: an infer-grade seat spawns the PRODUCT (`codex`), an
@@ -636,7 +636,7 @@ fn refuse_harness_class(probes: &[ProviderProbe]) -> Option<PinRefusal> {
         return Some(PinRefusal::NoPath {
             message: String::from(
                 "An agentic CLI is installed but not signed in. Sign in to that \
-                 CLI, or pick Nika local / Nika Cloud.",
+                 CLI, or choose an API key or a local engine instead (`nika doctor --verbose` lists them).",
             ),
         });
     }
@@ -715,7 +715,7 @@ fn classify_pin_refusal(model: &str, pin: &str, refusal: &AccessRefusal) -> PinR
         return PinRefusal::PinUnsatisfied {
             message: format!(
                 "model `{model}` names provider `{}` — no access candidate \
-                 exists for it here (`nika doctor` lists the providers this \
+                 exists for it here (`nika doctor --verbose` lists the providers this \
                  binary drives)",
                 refusal.provider
             ),

@@ -2,7 +2,7 @@
 # Changing the featured local model is one line. Zero release, zero refactor.
 # `nika/gear-one` is an alias resolved against this table at collect-time.
 featured: gear-one
-slogan: "Local first. Cloud when you want it."
+slogan: "Say it once. Keep it as a file."
 gear_one:
   - tier: workstation
     min_ram_gb: 64

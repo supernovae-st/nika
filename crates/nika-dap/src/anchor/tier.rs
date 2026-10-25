@@ -859,8 +859,8 @@ fn seal_leg(
                 lines.push(
                     "UNSEALED — no run_sealed frame: the run was not signed (no \
                      signing key at run time · a run killed before its seal · or a \
-                     journal cut after it) — `nika sign` seals future runs · \
-                     `--sealed` requires the tier"
+                     journal cut after it) — a run key (`nika key init`) makes later \
+                     runs seal · `--sealed` requires the tier"
                         .to_owned(),
                 );
             }

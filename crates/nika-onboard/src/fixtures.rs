@@ -6,28 +6,39 @@
 //! Init and Try stage a lesson's declared companion files through this owner.
 //! Compile only returns source: it never materializes fixtures or reads files.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-/// Relative `workflow: "./foo.nika"` children a body invokes.
-/// `nika try 10-compose-pipeline` staged the parent alone and check
-/// died on NIKA-COMP-001 (the child is an ingredient, same class as a
-/// fixture file). Only `./` static pack slugs — templated targets
-/// cannot be staged.
+/// Relative `workflow: "./foo.nika"` children a body invokes, read from
+/// its PARSED `invoke:` targets. `nika try 10-compose-pipeline` staged the
+/// parent alone and check died on NIKA-COMP-001 (the child is an
+/// ingredient, same class as a fixture file). A raw-text scan also took a
+/// child a lesson only names in a comment (`15-compose-self-check`), which
+/// init then wrote and audited. Only `./` static pack slugs — templated
+/// targets cannot be staged; a body that does not parse stages no child
+/// (its own check refuses it first).
 #[must_use]
 fn composition_siblings(body: &str) -> Vec<String> {
+    use nika_schema::raw::{RawAction, RawInvokeTarget};
+    let Ok(wf) = nika_schema::parse(
+        body,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Lenient,
+    ) else {
+        return Vec::new();
+    };
     let mut out: Vec<String> = Vec::new();
-    for (i, _) in body.match_indices("workflow:") {
-        let rest = body[i + "workflow:".len()..].trim_start();
-        let rest = rest.trim_start_matches(['\'', '"']);
-        let Some(name) = rest.strip_prefix("./") else {
+    for task in &wf.tasks {
+        let RawAction::Invoke(invoke) = &task.value.action else {
             continue;
         };
-        let name: String = name
-            .chars()
-            .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
-            .collect();
-        if nika_source::is_canonical_program_file_name(&name) && !out.iter().any(|p| p == &name) {
-            out.push(name);
+        let RawInvokeTarget::Workflow(target) = &invoke.target else {
+            continue;
+        };
+        let Some(name) = target.value.strip_prefix("./") else {
+            continue;
+        };
+        if nika_source::is_canonical_program_file_name(name) && !out.iter().any(|p| p == name) {
+            out.push(name.to_owned());
         }
     }
     out
@@ -64,14 +75,43 @@ pub fn fixture_prefixes(body: &str) -> Vec<String> {
 /// An I/O failure creating a fixture directory or writing a fixture
 /// file — the door reports it and refuses to pretend the take is whole.
 pub fn materialize(body: &str, dest: &Path) -> std::io::Result<(usize, usize)> {
+    let root = dest.parent().unwrap_or_else(|| Path::new(""));
+    let mut written = Vec::new();
+    let kept = stage(body, dest, root, &mut written)?;
+    Ok((written.len(), kept))
+}
+
+/// The same ingredients for a lesson kept apart from its fixture root:
+/// `nika init --example` lays the lesson under `workflows/`, while its runs
+/// resolve `examples/fixtures/…` from the project root. Composition children
+/// land beside `dest`, fixtures under `fixture_root`. Returns every file
+/// written, for the door's receipt rows.
+///
+/// # Errors
+/// The same I/O failures as [`materialize`].
+pub(crate) fn materialize_into(
+    body: &str,
+    dest: &Path,
+    fixture_root: &Path,
+) -> std::io::Result<Vec<PathBuf>> {
+    let mut written = Vec::new();
+    stage(body, dest, fixture_root, &mut written)?;
+    Ok(written)
+}
+
+/// One staging pass: composition children beside `dest`, fixtures under
+/// `fixture_root`, each written path pushed onto `written`. Returns how
+/// many were already there (kept, never clobbered).
+fn stage(
+    body: &str,
+    dest: &Path,
+    fixture_root: &Path,
+    written: &mut Vec<PathBuf>,
+) -> std::io::Result<usize> {
     let prefixes = fixture_prefixes(body);
-    let siblings = composition_siblings(body);
-    if prefixes.is_empty() && siblings.is_empty() {
-        return Ok((0, 0));
-    }
     let base = dest.parent().unwrap_or_else(|| Path::new(""));
-    let (mut written, mut kept) = (0, 0);
-    for name in &siblings {
+    let mut kept = 0;
+    for name in &composition_siblings(body) {
         let Some(slug) = nika_source::program_stem(name) else {
             continue;
         };
@@ -84,13 +124,11 @@ pub fn materialize(body: &str, dest: &Path) -> std::io::Result<(usize, usize)> {
             continue;
         }
         std::fs::write(&target, child)?;
-        written += 1;
-        let (w, k) = materialize(child, &target)?;
-        written += w;
-        kept += k;
+        written.push(target.clone());
+        kept += stage(child, &target, fixture_root, written)?;
     }
     if prefixes.is_empty() {
-        return Ok((written, kept));
+        return Ok(kept);
     }
     for (tail, bytes) in nika_pack::example_fixture_files() {
         let wanted = prefixes
@@ -99,7 +137,7 @@ pub fn materialize(body: &str, dest: &Path) -> std::io::Result<(usize, usize)> {
         if !wanted {
             continue;
         }
-        let target = base.join("examples").join("fixtures").join(tail);
+        let target = fixture_root.join("examples").join("fixtures").join(tail);
         if target.exists() {
             kept += 1;
             continue;
@@ -108,9 +146,9 @@ pub fn materialize(body: &str, dest: &Path) -> std::io::Result<(usize, usize)> {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(&target, bytes)?;
-        written += 1;
+        written.push(target);
     }
-    Ok((written, kept))
+    Ok(kept)
 }
 
 #[cfg(test)]
@@ -184,6 +222,20 @@ mod tests {
             "the rehearsal room has the sibling"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A child named only in a comment is not an ingredient: the
+    /// `15-compose-self-check` header cites `./10-compose-child.nika`, but
+    /// its tasks invoke no workflow (its draft's children are never
+    /// resolved), so no door stages, writes or audits that child.
+    #[test]
+    fn a_child_named_only_in_a_comment_is_not_an_ingredient() {
+        let body = nika_pack::example("15-compose-self-check").expect("pack");
+        assert!(
+            body.contains("./10-compose-child.nika"),
+            "the header still names the child, so this test still bites"
+        );
+        assert_eq!(composition_siblings(body), Vec::<String>::new());
     }
 
     /// A body with no fixture reads materializes nothing — and a

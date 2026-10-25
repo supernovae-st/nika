@@ -49,7 +49,8 @@ pub enum TickDecision {
         /// Journal the decision (history · maybe last.json).
         journal: bool,
     },
-    /// v0 refuses with teaching, naming the version it arrives with.
+    /// v0 refuses with teaching: the policy it does not keep and what the
+    /// firer does today instead (never a promised release).
     Refuse {
         /// The teaching line (exit 2).
         line: String,
@@ -108,7 +109,21 @@ impl V0Policy {
         }
     }
 
-    const ARRIVES: &'static str = "serve v0.2";
+    /// The present limit, stated as such: no release is promised. The
+    /// catch-up policies name the firer that keeps them today: the
+    /// resident `nika serve` plans both (its window drops the slots older
+    /// than the N latest and fires those one run each), while this firer
+    /// and the OS units it is emitted into refuse them.
+    const fn limit(self) -> &'static str {
+        match self {
+            Self::Rattraper | Self::RattraperDerniers => {
+                "ce tireur ne tient pas cette politique, `nika serve` la tient"
+            }
+            Self::Remplacer | Self::ACompletion | Self::Decalage => {
+                "ce tireur ne tient pas cette politique"
+            }
+        }
+    }
 
     const fn today(self) -> &'static str {
         match self {
@@ -122,12 +137,13 @@ impl V0Policy {
     }
 }
 
-/// The D6 set — v0 refuses what it cannot keep, naming the version the
-/// support arrives with. Emit and [`tick_decision`] share this list.
+/// The D6 set — v0 refuses what it cannot keep: `(policy, limit)`, the
+/// policy as written and the present limit (no promised release). Emit
+/// and [`tick_decision`] share this list.
 #[must_use]
 pub fn v0_unsupported(beat: &Beat) -> Option<(&'static str, &'static str)> {
     let policy = V0Policy::of(beat)?;
-    Some((policy.what(), V0Policy::ARRIVES))
+    Some((policy.what(), policy.limit()))
 }
 
 /// The shared pause-bound law: an ISO civil date strictly before the
@@ -308,10 +324,10 @@ pub fn tick_decision(
 fn v0_refusal_line(beat: &Beat) -> Option<String> {
     let policy = V0Policy::of(beat)?;
     Some(format!(
-        "arm fire {} · {} — arrive avec {} · {}",
+        "arm fire {} · {} — {} · {}",
         beat.workflow.as_str(),
         policy.what(),
-        V0Policy::ARRIVES,
+        policy.limit(),
         policy.today(),
     ))
 }

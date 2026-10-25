@@ -265,17 +265,18 @@ pub enum EmitRefusal {
         /// The zone the machine runs in.
         machine_tz: String,
     },
-    /// D6 — a policy v0 cannot keep; the refusal names the version it
-    /// arrives with.
+    /// D6 — a policy v0 cannot keep; the refusal states the present limit
+    /// and promises no release.
     #[error(
-        "beat {beat} · {what} — arrive avec {arrives} · v0 n'émet que ce qu'elle peut tenir (les défauts de la loi ⑥ demeurent)"
+        "beat {beat} · {what} — {arrives} · v0 n'émet que ce qu'elle peut tenir (les défauts de la loi ⑥ demeurent)"
     )]
     UnsupportedInV0 {
         /// The beat's label (D4).
         beat: String,
         /// The policy, as written in the file (`chevauchement: remplacer`).
         what: String,
-        /// The version the support arrives with.
+        /// The present limit, as [`crate::v0_unsupported`] states it (the
+        /// field kept its historical name; it no longer names a release).
         arrives: String,
     },
     /// The cartesian product outgrew [`MAX_INTERVALS`] — a plist of n

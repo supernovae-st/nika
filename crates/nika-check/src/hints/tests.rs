@@ -539,6 +539,28 @@ fn referenced_vault_secret_gets_the_secrets_store_hint() {
     assert!(hit.advice.contains("secrets.FOO"), "{hit:?}");
 }
 
+/// The hint states the contract as it is: spec 01 §secrets withdrew `vault`,
+/// and the run reports the unresolved reference as NIKA-VAR-001. 0.123.0
+/// named NIKA-1702 and promised « until vault resolution ships »; the explain
+/// entry for the hint (`nika explain secrets-store`) says the same as the hint.
+#[test]
+fn the_vault_hint_names_the_withdrawal_and_the_run_code() {
+    let h = hints_of(
+        "nika: w\nsecrets:\n  FOO:\n    source: vault\n    key: prod/foo\ntasks:\n  t:\n    exec: { shell: \"echo ${{ secrets.FOO }}\" }\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "secrets-store")
+        .expect("secrets-store hint");
+    let help = crate::hints::hint_help("secrets-store").expect("catalog row");
+    for said in [hit.advice.as_str(), help] {
+        assert!(said.contains("withdrawn from the contract"), "{said}");
+        assert!(said.contains("NIKA-VAR-001"), "{said}");
+        assert!(!said.contains("NIKA-1702"), "{said}");
+        assert!(!said.contains("until vault resolution ships"), "{said}");
+    }
+}
+
 #[test]
 fn unreferenced_vault_secret_gets_no_hint() {
     // declared-but-unused vault secret is harmless — the hint fires

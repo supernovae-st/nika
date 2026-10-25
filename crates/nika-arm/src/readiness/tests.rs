@@ -310,8 +310,10 @@ fn a_bounded_catch_up_is_a_schedule_blocker() {
     assert_eq!(kinds(&refused), ["policy_unsupported"]);
     let human = refused.human_lines(3).join("\n");
     assert!(
-        human.contains("✗ manqué: { rattraper: N } is not supported by this firer"),
-        "{human}"
+        human.contains(
+            "✗ manqué: { rattraper: N } is not supported by this firer: every fire refuses · `nika serve` keeps it"
+        ),
+        "the blocker names the firer that keeps it: {human}"
     );
 }
 
@@ -332,9 +334,32 @@ fn an_unsupported_miss_policy_is_a_schedule_blocker() {
     let human = refused.human_lines(3).join("\n");
     assert!(human.contains("  [UNREADY] "), "{human}");
     assert!(
-        human.contains("✗ manqué: rattraper is not supported by this firer"),
+        human.contains(
+            "✗ manqué: rattraper is not supported by this firer: every fire refuses · `nika serve` keeps it"
+        ),
+        "the blocker names the firer that keeps it: {human}"
+    );
+    // The present limit, never a release promise (0.123.0 said « arrives
+    // with serve v0.2 »; the resident already fires catch-up today).
+    assert!(!human.contains("arrives with"), "{human}");
+}
+
+/// A policy no firer keeps today names no keeper: `nika serve` is cited
+/// only where it really fires the beat (the catch-ups).
+#[test]
+fn a_policy_no_firer_keeps_names_no_keeper() {
+    let registry = registry("    manqué: sauter\n    chevauchement: remplacer\n");
+    let dir = project("no-keeper");
+    let refused = receipt(&registry, dir.path(), "2026-09-28T03:00:10Z", ready());
+    assert_eq!(kinds(&refused), ["policy_unsupported"]);
+    let human = refused.human_lines(3).join("\n");
+    assert!(
+        human.contains(
+            "✗ chevauchement: remplacer is not supported by this firer: every fire refuses"
+        ),
         "{human}"
     );
+    assert!(!human.contains("nika serve"), "{human}");
 }
 
 /// A record of this beat's slot at the current generation proves the

@@ -103,16 +103,18 @@ pub enum TraceAction {
     /// against a custody key) · ANCHORED (the `<trace>.anchor.json`
     /// sidecar verifies fully offline) · REPLAYED (--replay compares
     /// a fresh run). The HIGHEST honestly-attained tier is reported.
-    /// Three refusals name themselves rather than hide in a tier:
+    /// Four refusals name themselves rather than hide in a tier:
     /// TAMPERED · SEAL BURIED (lines chained AFTER the seal — appending
     /// needs only write access, so this is forgery, never a crash) ·
     /// ANCHOR FORGED (a sidecar that vouches for nothing) · and
     /// SEAL UNATTRIBUTABLE (the seal names a key you do not hold: the
     /// signature is NOT judged, which is a missing input and never
     /// evidence of forgery).
-    /// Exit 0 the tier holds · 2 broken chain, forged seal or forged
-    /// anchor · 3 unchained (pre-chain journal), a missing input, or a
-    /// seal this host cannot attribute.
+    /// Exit 0 the tier holds · 2 broken chain, forged or buried seal,
+    /// forged anchor or replay divergence · 3 unchained (pre-chain
+    /// journal), a missing input, or a seal this host cannot attribute ·
+    /// 5 incomplete: the journal never reached a terminal frame (a run
+    /// in flight or a writer that died).
     Verify {
         /// Trace NDJSON path(s) — a shell glob (`.nika/traces/*.ndjson`)
         /// just works: each file verifies under its own header, the
@@ -308,6 +310,33 @@ mod tests {
             "cost reconcile exe-1 --project p --prior h --resolution paid --reference x",
         ] {
             assert!(parse(refused).is_err(), "{refused}");
+        }
+    }
+
+    /// The verify help names every exit its verdict returns. Exit 5 (a
+    /// journal with no terminal frame · ADR-129) was returned while the help
+    /// listed only 0, 2 and 3, so a monitor written from the help treated an
+    /// unfinished journal as an unknown failure.
+    #[test]
+    fn the_verify_help_names_every_exit_the_verdict_returns() {
+        use crate::exit;
+        use clap::CommandFactory as _;
+        let mut tree = Trace::command();
+        let Some(verify) = tree.find_subcommand_mut("verify") else {
+            panic!("`trace verify` is a subcommand");
+        };
+        let help = verify.render_long_help().to_string();
+        for needle in [
+            format!("Exit {} the tier holds", exit::OK),
+            format!("{} broken chain, forged or buried seal", exit::FILE),
+            format!("{} unchained (pre-chain journal)", exit::ENV),
+            format!(
+                "{} incomplete: the journal never reached a terminal frame",
+                exit::INCOMPLETE
+            ),
+            "Four refusals name themselves".to_owned(),
+        ] {
+            assert!(help.contains(&needle), "missing `{needle}`:\n{help}");
         }
     }
 

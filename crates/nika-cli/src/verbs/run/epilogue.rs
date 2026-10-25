@@ -73,19 +73,26 @@ pub(super) fn print_flow_epilogue(
     for line in crate::display::flow::verdict_card(view, &theme, &notes) {
         println!("{line}");
     }
-    println!("  {}", explore_hint_line(theme, file));
+    if let Some(hint) = explore_hint_line(theme, file) {
+        println!("  {hint}");
+    }
 }
 
 /// The explore teaching line BOTH faces close with (#1244 · the pipe
 /// withheld the one line that teaches the machine surfaces). The
 /// workflow path is CLICKABLE on link-capable terminals (OSC-8 ·
 /// file:// — the ndjson names are the suggested two-step, not files
-/// that exist yet).
-pub(super) fn explore_hint_line(theme: Theme, file: &str) -> String {
+/// that exist yet). `None` in a `nika try` rehearsal (C12 · UX-3): its
+/// room is discarded when the verb returns, so a command naming the
+/// staged file could never run; the try verb closes with its own line.
+pub(super) fn explore_hint_line(theme: Theme, file: &str) -> Option<String> {
+    if super::example::try_rehearsal_slug(file).is_some() {
+        return None;
+    }
     let file_cell = crate::verbs::linked_path(theme, file);
     let record =
         format!("nika run {file_cell} --json > run.ndjson · nika trace outputs run.ndjson");
-    crate::display::vocab::hint(theme, "explore", &record)
+    Some(crate::display::vocab::hint(theme, "explore", &record))
 }
 
 /// The FRUIT block (A-2 · user gauntlet 2026-07-31 · "the run wrote
@@ -302,6 +309,27 @@ mod tests {
 
     fn nika_cli_display_demo_bare(kind: nika_event::EventKind, ms: u64) -> nika_event::Event {
         crate::display::demo::bare_event(kind, ms)
+    }
+
+    /// C12 · UX-3 on the explore line: a `nika try` room is discarded when
+    /// the verb returns, so no line may name its staged file (0.123.0
+    /// printed `nika run …/nika-try-01-hello/01-hello.nika`, gone by the
+    /// time anyone could type it). A workspace run keeps its two-step.
+    #[test]
+    fn the_explore_line_never_names_a_discarded_try_room() {
+        let plain = crate::Theme::new(false, false, false);
+        assert_eq!(
+            super::explore_hint_line(
+                plain,
+                "/tmp/nika-rehearsal-x/nika-try-01-hello/01-hello.nika"
+            ),
+            None
+        );
+        let hint = super::explore_hint_line(plain, "hello.nika").expect("a workspace run explores");
+        assert_eq!(
+            hint,
+            "explore: nika run hello.nika --json > run.ndjson · nika trace outputs run.ndjson"
+        );
     }
 
     /// Wave 2 · Marta: a CUT `said` quote teaches the zero-arg door to

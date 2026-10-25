@@ -187,7 +187,7 @@ pub fn plan_refusal(plan: &ExecutionAccessPlan) -> Option<RuntimeError> {
     let rendered = if witnesses.is_empty() {
         format!(
             "model `{model}` names provider `{}` — no access candidate exists for it here \
-             (`nika doctor` lists the providers this binary drives)",
+             (`nika doctor --verbose` lists the providers this binary drives)",
             refusal.provider
         )
     } else {

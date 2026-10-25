@@ -31,11 +31,7 @@ pub fn run(fire: &FireArgs) -> VerbOutput {
         Err(error) => return VerbOutput::file(format!("PROJECT ✗  {error}")),
     };
     let Some((path, _project)) = found else {
-        return VerbOutput::file(
-            "nothing armed — this project has no `nika.yaml`\n  \
-             fix: `nika init --project-file` lays a commented starter"
-                .to_owned(),
-        );
+        return VerbOutput::file(super::NO_PROJECT_FILE.to_owned());
     };
     let text = match std::fs::read_to_string(&path) {
         Ok(text) => text,

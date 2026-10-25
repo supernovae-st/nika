@@ -56,8 +56,10 @@ the changes you want.
   changes. A skipped settings file may still need the new hooks merged into it.
 - `workflows/README.md` indexes the scaffolded workflows with their check
   and run commands.
-- `.gitignore` keeps `.nika/traces/` out of Git. Traces can contain prompts,
-  outputs and sensitive context; review them before sharing.
+- `.gitignore` keeps `.nika/traces/`, the `nika serve` token
+  (`.nika/serve.token`) and its job state (`.nika/serve/`) out of Git. Traces
+  and job state can contain prompts, outputs and sensitive context; review
+  them before sharing.
 
 ## What to commit
 
@@ -67,7 +69,7 @@ Remove machine-specific paths and secrets before sharing configuration.
 Review generated artifacts individually before committing them.
 
 Keep credentials, `.env` secret values, signing private keys and raw traces
-out of Git. The generated trace ignore is not a complete secret policy;
+out of Git. The generated ignore rules are not a complete secret policy;
 use your team's existing secret store and ignore rules.
 
 `nika doctor` diagnoses the local installation. For authoring details, open

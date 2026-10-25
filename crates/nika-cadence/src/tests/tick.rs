@@ -280,23 +280,23 @@ fn the_v0_unsupported_policies_refuse_with_teaching() {
     for (extra, line) in [
         (
             "    manqué: sauter\n    chevauchement: remplacer\n",
-            "arm fire workflows/doctor.nika · chevauchement: remplacer — arrive avec serve v0.2 · aujourd'hui: sauter (le défaut) ou file",
+            "arm fire workflows/doctor.nika · chevauchement: remplacer — ce tireur ne tient pas cette politique · aujourd'hui: sauter (le défaut) ou file",
         ),
         (
             "    manqué: sauter\n    chevauchement: sauter\n    après_saut: à-complétion\n",
-            "arm fire workflows/doctor.nika · après_saut: à-complétion — arrive avec serve v0.2 · aujourd'hui: prochain-créneau (le défaut)",
+            "arm fire workflows/doctor.nika · après_saut: à-complétion — ce tireur ne tient pas cette politique · aujourd'hui: prochain-créneau (le défaut)",
         ),
         (
             "    manqué: sauter\n    décalage: hash\n",
-            "arm fire workflows/doctor.nika · décalage: — arrive avec serve v0.2 · aujourd'hui le créneau tire à l'instant dit",
+            "arm fire workflows/doctor.nika · décalage: — ce tireur ne tient pas cette politique · aujourd'hui le créneau tire à l'instant dit",
         ),
         (
             "    manqué: rattraper\n",
-            "arm fire workflows/doctor.nika · manqué: rattraper — arrive avec serve v0.2 · aujourd'hui: rattraper-une-fois ou sauter",
+            "arm fire workflows/doctor.nika · manqué: rattraper — ce tireur ne tient pas cette politique, `nika serve` la tient · aujourd'hui: rattraper-une-fois ou sauter",
         ),
         (
             "    manqué: { rattraper: 3 }\n",
-            "arm fire workflows/doctor.nika · manqué: { rattraper: N } — arrive avec serve v0.2 · aujourd'hui: rattraper-une-fois ou sauter",
+            "arm fire workflows/doctor.nika · manqué: { rattraper: N } — ce tireur ne tient pas cette politique, `nika serve` la tient · aujourd'hui: rattraper-une-fois ou sauter",
         ),
     ] {
         let registry = registry_with(extra);
@@ -327,11 +327,16 @@ fn the_bounded_catch_up_is_refused_by_name() {
         );
         assert_eq!(
             crate::tick::v0_unsupported(beat),
-            Some(("manqué: { rattraper: N }", "serve v0.2"))
+            Some((
+                "manqué: { rattraper: N }",
+                "ce tireur ne tient pas cette politique, `nika serve` la tient"
+            ))
         );
         match tick_decision(&registry, 0, "doctor", &at("2026-08-19T03:02:00Z"), None) {
             TickDecision::Refuse { line } => assert!(
-                line.contains("manqué: { rattraper: N } — arrive avec serve v0.2"),
+                line.contains(
+                    "manqué: { rattraper: N } — ce tireur ne tient pas cette politique, `nika serve` la tient"
+                ),
                 "{line}"
             ),
             other => panic!("refused by name, got {other:?}"),
@@ -374,12 +379,15 @@ fn emit_and_tick_share_the_same_v0_policy_set() {
     let beat = registry.beats().next().expect("beat");
     let (what, arrives) = v0_unsupported(beat).expect("D6");
     assert_eq!(what, "chevauchement: remplacer");
-    assert_eq!(arrives, "serve v0.2");
+    // The present limit, never a promised release (0.123.0 said « arrive
+    // avec serve v0.2 », a version that does not keep these policies).
+    assert_eq!(arrives, "ce tireur ne tient pas cette politique");
+    assert!(!arrives.contains("v0."), "{arrives}");
     match tick_decision(&registry, 0, "doctor", &at("2026-08-19T03:02:00Z"), None) {
         TickDecision::Refuse { line } => {
             assert_eq!(
                 line,
-                "arm fire workflows/doctor.nika · chevauchement: remplacer — arrive avec serve v0.2 · aujourd'hui: sauter (le défaut) ou file"
+                "arm fire workflows/doctor.nika · chevauchement: remplacer — ce tireur ne tient pas cette politique · aujourd'hui: sauter (le défaut) ou file"
             );
             assert!(line.contains(what), "{line}");
             assert!(line.contains(arrives), "{line}");

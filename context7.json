@@ -1,7 +1,7 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
   "projectTitle": "Nika",
-  "description": "Intent-as-code workflow engine for AI: reviewable YAML DAGs, statically checked (schema, permits, cost floor) before execution, tamper-evident traces after. Single Rust binary.",
+  "description": "Say it once. Keep it as a file. Nika turns the AI work you repeat into a readable workflow that stays yours: checked before it runs (schema, permits, cost floor), run with the model you choose, proven afterwards by a tamper-evident trace. Single Rust binary.",
   "folders": [],
   "excludeFolders": ["crates", "fuzz", "media", "scripts"],
   "excludeFiles": [],
@@ -9,6 +9,6 @@
     "Workflows are .nika files: a nine-key envelope opening with `nika: <kebab-id>` (the file's name, never `v1`) plus model, inputs, const, secrets, permits, run, tasks, outputs; four verbs (infer, exec, invoke, agent); everything callable is a tool under invoke",
     "Run `nika check <file>` before handing a workflow to anyone — exit 0 is the bar, and the diagnostics name the exact fix",
     "Models are provider/model form (ollama/llama3.2:3b local-first, mock/echo for offline preview); local models are unpriced, never call them free",
-    "Never invent nika:* builtins or providers — `nika tools` and `nika catalog` list the canonical sets"
+    "Never invent nika:* builtins or providers — `nika catalog --tools` and `nika catalog` list the canonical sets"
   ]
 }

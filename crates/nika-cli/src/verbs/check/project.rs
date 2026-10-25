@@ -5,7 +5,7 @@
 //!
 //! `check` used to apply the nine-key WORKFLOW envelope to every document,
 //! so a project file came back `NIKA-PARSE-002 missing … tasks` — on a file
-//! `nika init --project-file` had just written — and obeying that finding
+//! `nika init` had just written — and obeying that finding
 //! converts a correct project file into a broken workflow.
 //!
 //! The discriminant lives in [`nika_vocab::project`], beside the grammar it

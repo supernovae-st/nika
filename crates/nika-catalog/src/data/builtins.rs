@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Static builtin tool catalog — 25 `nika:*` tools in a sorted array.
+//! Static builtin tool catalog — 29 `nika:*` tools in a sorted array.
 //!
 //! Case-sensitive lookup via binary search. Tool names are engine-controlled,
 //! always lowercase.
@@ -16,15 +16,16 @@
 //! express) + `nika:compose` (ADR-096) + `nika:image_generate` (stdlib
 //! §Media · the first deferred-media graduate) + `nika:tts_generate`
 //! (stdlib §Audio · sovereign-first) + `nika:decide` (spec 11 W-DEC · the
-//! deterministic decision kernel).
+//! deterministic decision kernel) + `nika:remove_file` (stdlib
+//! §`nika:remove_file`).
 //!
-//! 6 categories · Core 6 · File 5 · Data 9 · Network 2 · Introspection 2 · Media 4 = 28.
+//! 6 categories · Core 6 · File 6 · Data 9 · Network 2 · Introspection 2 · Media 4 = 29.
 
 use crate::types::builtin::{Builtin, BuiltinCategory};
 
 use BuiltinCategory::{Core, Data, File, Introspection, Media, Network};
 
-/// All 28 builtin tools, **sorted alphabetically by name**.
+/// All 29 builtin tools, **sorted alphabetically by name**.
 ///
 /// Invariant: array MUST be sorted for `binary_search` to work.
 /// This is validated by a unit test.

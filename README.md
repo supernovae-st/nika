@@ -129,12 +129,15 @@ Every run leaves a hash-chained record. `nika trace verify` reads it
 back, and when a single byte changes it names the line where the chain
 breaks.
 
-Runs are also signed once this machine has a run-signing key: run
-`nika key init` once, and later runs report `SEALED` in `nika trace verify`
-and `/proof`. On macOS a key minted from a terminal goes to the keychain,
-which only terminal runs open; for scripts, CI, the TypeScript SDK and
-`nika serve`, mint it with `NIKA_KEYCHAIN=off nika key init`, or run
-`nika key align` to copy the keychain key to `~/.nika/keys`.
+Runs are also signed once this machine has a run-signing key. Mint it once
+with `NIKA_KEYCHAIN=off nika key init`: the key lands in `~/.nika/keys/`
+(mode `0600`), where terminal runs, scripts, CI, the TypeScript SDK and
+`nika serve` all read it, and later runs report `SEALED` in
+`nika trace verify` and `/proof`. Without the variable, a terminal on a Linux
+desktop can keep the key in the Secret Service, which only terminal runs open
+(`nika key align` copies it to the files), and on a Mac whose keychain holds a
+key from Nika 0.122 or older, `nika key init` refuses: 0.123.0 never opens the
+macOS keychain.
 
 <p align="center">
   <a href="media/gifs/trace-proof.optimized.gif">

@@ -51,10 +51,10 @@ pub fn tool_defs() -> Vec<ToolDef> {
     defs
 }
 
-/// Version marker of the `nika tools --json` envelope. Additive-only.
+/// Version marker of the `nika catalog --tools --json` envelope. Additive-only.
 pub const TOOLS_EXPORT_VERSION: u32 = 1;
 
-/// The builtin-tool wire projection — what `nika tools --json` and the MCP
+/// The builtin-tool wire projection — what `nika catalog --tools --json` and the MCP
 /// `nika_tools` tool emit.
 ///
 /// One entry per builtin: the model-facing definition (`name` ·

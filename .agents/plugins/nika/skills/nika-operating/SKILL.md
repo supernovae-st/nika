@@ -241,7 +241,9 @@ re-pinning is a review decision, not an automatic fix for drift.
 6. Spend cap on the run line (`--max-cost-usd`).
 7. Trace store known (`.nika/traces/`) — export wired if anyone
    watches dashboards.
-8. For a run someone will audit: signed (`nika sign`), verified to its
+8. For a run someone will audit: the workflow signed (`nika sign` binds
+   the file to its author), the journal sealed (only a run key from
+   `nika key init` seals a run; `nika sign` never does), verified to its
    highest honest tier (`nika trace verify`), packed
    (`nika trace evidence`).
 

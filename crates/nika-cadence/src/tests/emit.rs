@@ -460,8 +460,31 @@ fn past_the_interval_budget_the_render_refuses_with_the_count() {
     emit::render(&reg, &ctx(), Target::SystemdUser, Mode::PerBeat).expect("systemd rend dense");
 }
 
+/// A catch-up beat refuses to emit as an OS unit (the unit would run this
+/// firer, which does not keep it) and names the firer that does keep it
+/// today: the resident `nika serve`, for both `rattraper` forms.
 #[test]
-fn the_v0_unsupported_policies_refuse_with_their_version() {
+fn a_catch_up_beat_refuses_to_emit_and_names_nika_serve() {
+    for (manque, what) in [
+        ("rattraper", "manqué: rattraper"),
+        ("{ rattraper: 3 }", "manqué: { rattraper: N }"),
+    ] {
+        let reg = registry(&format!(
+            "nika: proj\narm:\n  - workflow: workflows/doctor.nika\n    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n    plafond: 0.25\n    manqué: {manque}\n"
+        ));
+        let refusal =
+            emit::render(&reg, &ctx(), Target::Launchd, Mode::PerBeat).expect_err("D6 refuse");
+        assert_eq!(
+            refusal.to_string(),
+            format!(
+                "beat doctor · {what} — ce tireur ne tient pas cette politique, `nika serve` la tient · v0 n'émet que ce qu'elle peut tenir (les défauts de la loi ⑥ demeurent)"
+            )
+        );
+    }
+}
+
+#[test]
+fn the_v0_unsupported_policies_refuse_with_their_present_limit() {
     for (extra, what) in [
         ("    chevauchement: remplacer\n", "chevauchement: remplacer"),
         ("    après_saut: à-complétion\n", "après_saut: à-complétion"),
@@ -472,6 +495,17 @@ fn the_v0_unsupported_policies_refuse_with_their_version() {
         ));
         let refusal =
             emit::render(&reg, &ctx(), Target::Launchd, Mode::PerBeat).expect_err("D6 refuse");
+        let said = refusal.to_string();
+        assert!(
+            said.contains(&format!(
+                "{what} — ce tireur ne tient pas cette politique · v0 n'émet"
+            )),
+            "{said}"
+        );
+        assert!(
+            !said.contains("arrive avec"),
+            "aucune version promise: {said}"
+        );
         match refusal {
             EmitRefusal::UnsupportedInV0 {
                 beat,
@@ -480,7 +514,10 @@ fn the_v0_unsupported_policies_refuse_with_their_version() {
             } => {
                 assert_eq!(beat, "doctor");
                 assert_eq!(got, what);
-                assert_eq!(arrives, "serve v0.2", "la version est nommée");
+                assert_eq!(
+                    arrives, "ce tireur ne tient pas cette politique",
+                    "the present limit is stated, no release is promised"
+                );
             }
             other => panic!("D6 attendu, reçu {other:?}"),
         }

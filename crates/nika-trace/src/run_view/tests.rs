@@ -342,9 +342,13 @@ fn an_unsealed_journal_never_claims_who_wrote_it() {
     assert!(
         view.contains("\n  trust · unsigned: the hash chain is internally consistent")
             && view.contains("a journal rewritten end to end would chain too")
-            && view.contains("who wrote this journal (`nika sign` signs future runs)"),
+            && view.contains(
+                "who wrote this journal (a run key from `nika key init` makes later runs seal)"
+            ),
         "{view}"
     );
+    // `nika sign` binds a workflow file to its author; it never seals a run.
+    assert!(!view.contains("nika sign"), "{view}");
     assert!(!view.contains("trusts the key"), "no key exists: {view}");
 }
 

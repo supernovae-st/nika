@@ -769,11 +769,11 @@ fn push_exec_json_capture_hint(
 }
 
 /// The `secrets-store` hint (MINOR-B): a referenced `secrets.X` whose
-/// `source` the runtime cannot resolve yet (`vault`) — without this the
-/// check is GREEN but the value fails at runtime with NIKA-1702 (an
-/// unresolved reference). The hint names the gap so the author switches the
-/// store (`env`/`file`) or waits for vault wiring, rather than hitting a
-/// green-check → runtime-1702 surprise. Only fires for a REFERENCED secret
+/// `source` no engine resolves (`vault`, withdrawn from the contract by
+/// spec 01 §secrets) — without this the check is GREEN but the run fails
+/// with NIKA-VAR-001 (an unresolved reference). The hint names the gap so
+/// the author switches the store to `env`/`file`, rather than hitting a
+/// green-check → run-time surprise. Only fires for a REFERENCED secret
 /// (a declared-but-unused vault secret is harmless). Advisory — never fails
 /// the check.
 fn push_unresolvable_secret_hints(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
@@ -792,7 +792,7 @@ fn push_unresolvable_secret_hints(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
                 "secrets-store",
                 "-",
                 format!(
-                    "`secrets.{name}` uses source `{source}`, not yet runtime-resolvable \u{2014} the check is green but `${{{{ secrets.{name} }}}}` will fail at run with NIKA-1702; use `source: env` or `source: file` until vault resolution ships",
+                    "`secrets.{name}` uses source `{source}`, withdrawn from the contract (spec 01 §secrets) and resolved by no engine \u{2014} the check is green but `${{{{ secrets.{name} }}}}` will fail at run with NIKA-VAR-001; use `source: env` or `source: file`",
                     name = name.value,
                     source = secret.value.source,
                 ),

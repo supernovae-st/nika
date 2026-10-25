@@ -49,9 +49,9 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-/// The 10 primitive types (spec 09 §grammar). `money` is NOT here — it
-/// is reserved for the decision core (W-DEC · fixed-point + ISO-4217 ·
-/// never binary floats).
+/// The 10 primitive types (spec 09 §grammar). `money` is NOT here — bare
+/// `money` was withdrawn from the type grammar (spec 09 · R6); amounts are
+/// never binary floats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
@@ -674,7 +674,7 @@ mod tests {
         assert_eq!(
             Primitive::from_name("money"),
             None,
-            "money is reserved (W-DEC)"
+            "money is not a primitive (withdrawn · spec 09)"
         );
         assert_eq!(
             Primitive::from_name("boolean"),

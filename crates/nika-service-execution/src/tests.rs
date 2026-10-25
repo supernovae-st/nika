@@ -412,6 +412,39 @@ fn root_and_child_plans_read_the_same_driver_probe_snapshot() -> TestResult<()> 
     Ok(())
 }
 
+/// A pinned registry child is refused at run in the words check uses
+/// (spec 14 law 1: check and run agree), stating the present limit without
+/// promising the release that would lift it.
+#[test]
+fn a_registry_child_is_refused_at_run_as_a_present_limit() -> TestResult<()> {
+    let root = "nika: root\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: hi }\n  call:\n    invoke: { workflow: ./child.nika }\n";
+    let child =
+        "nika: child\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: child }\n";
+    let driver = admitted_driver(&[("root.nika", root), ("child.nika", child)])?;
+    let runtime = driver.compose("openai/gpt-4.1")?;
+    let call = ChildCall {
+        target: "registry:acme/x@1.0.0".to_owned(),
+        ..child_call()
+    };
+    let Err(refusal) = runtime.child_driver.load_child(&call) else {
+        return Err("a registry child must be refused".into());
+    };
+    assert_eq!(refusal.code, "NIKA-COMP-001");
+    assert!(
+        refusal
+            .message
+            .contains("this engine does not run registry children"),
+        "{}",
+        refusal.message
+    );
+    assert!(
+        !refusal.message.contains("lands with"),
+        "{}",
+        refusal.message
+    );
+    Ok(())
+}
+
 #[test]
 fn a_child_resolves_its_own_model_under_the_parents_explicit_pin() -> TestResult<()> {
     let root = "nika: root\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: hi }\n  call:\n    invoke: { workflow: ./child.nika }\n";

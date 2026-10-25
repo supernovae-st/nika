@@ -83,7 +83,7 @@ impl InferenceChoice {
             );
         }
         let _ = writeln!(s);
-        for rung in self.rungs.iter().filter(|r| r.id != "cloud") {
+        for rung in &self.rungs {
             if !rung.available && !rung.ready && rung.id == "harness" {
                 continue;
             }
@@ -101,11 +101,6 @@ impl InferenceChoice {
         let _ = writeln!(s);
         let _ = writeln!(s, "Next:");
         let _ = writeln!(s, "  {}", theme.paint(Role::Strong, next));
-        let _ = writeln!(s);
-        let _ = writeln!(
-            s,
-            "Coming: Nika Cloud · our models, our tools, your workflows online."
-        );
         s
     }
 
@@ -113,8 +108,7 @@ impl InferenceChoice {
     ///
     /// `next` is the screen's ONE next step, passed in rather than
     /// derived: an agent reading `rungs[].next` and a human reading
-    /// the `Next:` block must be told the same thing (#1187). Cloud is
-    /// the one rung with no door — it does not ship yet.
+    /// the `Next:` block must be told the same thing (#1187).
     #[must_use]
     pub fn welcome_json(&self, next: &str) -> serde_json::Value {
         let rungs: Vec<serde_json::Value> = self
@@ -127,7 +121,7 @@ impl InferenceChoice {
                     "available": r.available,
                     "ready": r.ready,
                     "reason": r.reason,
-                    "next": if r.id == "cloud" { "" } else { next },
+                    "next": next,
                 })
             })
             .collect();

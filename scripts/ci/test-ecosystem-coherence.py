@@ -9,7 +9,8 @@
 # monkeypatches `fetch`, and drives the decision table offline:
 #   T1  a fresh release (<24h) demotes tag-pins to WARN (grace window)
 #   T2  a day-old release makes a stale tap a hard FAIL (exit 1)
-#   T3  lockstep is WARN below engine 0.97, FAIL from 0.97
+#   T3  lockstep is WARN below engine 0.97, FAIL from 0.97; a satellite
+#       frozen by decision WARNs at its frozen line, and fails off it
 #   T4  a pre-release engine version (0.97.0-rc1) must not crash
 #   T5  every surface unreadable: WARNs only inside the grace window;
 #       tag-pin and immune blindness past the window is itself a FAIL
@@ -125,6 +126,19 @@ code, f = run(fixtures(engine="0.96.0", vscode="0.99.0"))
 check("T3a lockstep WARN below 0.97", any(x[0] == "WARN" and "lockstep vscode" == x[1] for x in f), f)
 code, f = run(fixtures(engine="0.97.0", site="0.97.0", tap="0.97.0", tag="0.97.0", docs="0.97.0", vscode="0.99.0"))
 check("T3b lockstep FAIL from 0.97", code == 1 and any(x[0] == "FAIL" and "lockstep vscode" == x[1] for x in f), f)
+
+# T3d · a satellite frozen by decision WARNs at its frozen line, and a move
+# off that line fails again.
+code, f = run(fixtures(engine="0.123.0", site="0.123.0", tap="0.123.0", tag="0.123.0",
+                       docs="0.123.0", sdk="0.123.0", npm="0.123.0", action="0.123.0",
+                       starter="0.123.0", certeng="0.123.0", vscode="0.120.1"))
+check("T3d frozen editor WARNs, never fails", code == 0 and any(
+    x[0] == "WARN" and x[1] == "lockstep vscode" and "frozen at 0.120" in x[2] for x in f), f)
+code, f = run(fixtures(engine="0.123.0", site="0.123.0", tap="0.123.0", tag="0.123.0",
+                       docs="0.123.0", sdk="0.123.0", npm="0.123.0", action="0.123.0",
+                       starter="0.123.0", certeng="0.123.0", vscode="0.121.0"))
+check("T3e a move off the frozen line fails", code == 1 and any(
+    x[0] == "FAIL" and x[1] == "lockstep vscode" for x in f), f)
 
 # T3c · the engine pin and embedded pack marker are one identity.
 code, f = run(fixtures(engine_pin="c" * 40))

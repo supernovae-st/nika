@@ -186,19 +186,22 @@ pub fn inline_literal_teaching(name: &str) -> String {
     )
 }
 
-/// No `source:` — the provenance is explicit, never defaulted (R8).
+/// No `source:` — the provenance is explicit, never defaulted (R8). The
+/// teaching names the contract's sources only: spec 01 §secrets withdrew
+/// `vault`, which no engine resolves.
 #[must_use]
 pub fn missing_source_teaching(name: &str) -> String {
     format!(
         "secret `{name}` has no `source:` — the provenance is required explicitly \
-         (vault · env · file · R8)"
+         (env · file · R8)"
     )
 }
 
-/// A `source:` outside the closed enum.
+/// A `source:` outside the closed enum — named with the contract's
+/// sources (`env` · `file`; `vault` is withdrawn, spec 01 §secrets).
 #[must_use]
 pub fn unknown_source_teaching(name: &str, source: &str) -> String {
-    format!("secret `{name}` has unknown source `{source}` (vault·env·file)")
+    format!("secret `{name}` has unknown source `{source}` (env·file)")
 }
 
 /// The wrong reference field for the declared source (`file` + `key:` ·
@@ -261,6 +264,19 @@ pub fn egress_host_and_self_teaching(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The source teachings name the contract's sources only: spec 01
+    /// §secrets withdrew `vault` (0.123.0 still listed « vault · env · file »).
+    #[test]
+    fn the_source_teachings_list_env_and_file_never_vault() {
+        let missing = missing_source_teaching("k");
+        let unknown = unknown_source_teaching("k", "aws");
+        assert!(missing.ends_with("(env · file · R8)"), "{missing}");
+        assert!(unknown.ends_with("(env·file)"), "{unknown}");
+        for said in [&missing, &unknown] {
+            assert!(!said.contains("vault"), "{said}");
+        }
+    }
 
     #[test]
     fn default_source_is_vault() {

@@ -84,7 +84,7 @@ fn a_pipe_is_the_concierge_and_the_tty_is_the_session() {
     );
     let pipe_text = output_text(&piped);
     assert!(
-        pipe_text.contains("Local first"),
+        pipe_text.contains("Keep it as a file"),
         "the pipe shows the cascade: {pipe_text}"
     );
     assert!(

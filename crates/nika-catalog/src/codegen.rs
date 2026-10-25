@@ -9,7 +9,7 @@
 //! root, so the public path is unchanged.
 //!
 //! **Today** · pure-Rust helpers that emit JSON-Schema fragments derived
-//! from `nika-catalog` (single source of truth · the canonical 28 builtins
+//! from `nika-catalog` (single source of truth · the canonical 29 builtins
 //! per `nika/spec/stdlib/builtins-v0.1.md` post ADR-084 catalog
 //! reconciliation, ADR-086 convert, ADR-087 wait, ADR-088 inspect,
 //! ADR-096 compose, and `image_generate` — the first stdlib §Media

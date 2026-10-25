@@ -966,7 +966,11 @@ fn fire_refuses_the_v0_unsupported_policies_with_teaching() {
     assert_eq!(out.status.code(), Some(2));
     let line = assert_one_line(&out);
     assert!(line.contains("chevauchement: remplacer"), "{line}");
-    assert!(line.contains("serve v0.2"), "names the version: {line}");
+    assert!(
+        line.contains("ce tireur ne tient pas cette politique"),
+        "states the present limit: {line}"
+    );
+    assert!(!line.contains("v0.2"), "promises no release: {line}");
     assert!(traces(&dir).is_empty(), "a refusal never runs");
 }
 

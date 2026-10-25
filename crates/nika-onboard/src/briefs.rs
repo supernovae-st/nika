@@ -203,8 +203,8 @@ builtins. Copy, fill, check.
 `nika lsp` (language server) · `nika mcp` (MCP: check/explain/schema/examples
 as tools) · `nika completions <shell>` generates shell completions.
 `nika model serve --model <path.gguf>` serves a local model on loopback
-(OpenAI-compatible · needs a `local-infer` build — the default binary
-prints the build recipe).
+(OpenAI-compatible · release binaries include it; a source build without
+the `local-infer` feature prints the build recipe).
 
 ## Discipline
 - `permits:` IS the boundary, and ABSENT MEANS ZERO AUTHORITY: an effect under
@@ -1046,6 +1046,31 @@ mod tests {
                 "the guide names the discovery command `{needle}`"
             );
         }
+    }
+
+    /// The guide's local-inference claim follows the release build: the
+    /// release workflow builds with `local-infer`, so a downloaded binary
+    /// serves (0.123.0's guide said « the default binary prints the build
+    /// recipe », true only of a source build without the feature).
+    #[test]
+    fn agents_md_states_local_inference_as_the_release_builds_it() {
+        let release = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../.github/workflows/release.yml"
+        ))
+        .expect("the release workflow is in the repository");
+        assert!(
+            release.contains("--features local-infer"),
+            "release binaries are built with local inference"
+        );
+        assert!(
+            AGENTS_MD.contains("release binaries include it"),
+            "the guide says the downloaded binary serves"
+        );
+        assert!(
+            !AGENTS_MD.contains("the default binary\nprints the build recipe"),
+            "the guide no longer says the shipped binary cannot serve"
+        );
     }
 
     /// The scaffold table stays complete — every family present (schema

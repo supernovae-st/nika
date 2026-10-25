@@ -516,7 +516,7 @@ impl ServiceExecutionDriver {
             return Err(refusal(
                 "NIKA-COMP-001",
                 format!(
-                    "`{}` — registry child execution lands with the registry lane; run a filesystem child today (spec 14 §the form)",
+                    "`{}` — this engine does not run registry children; run a filesystem child (`./child.nika`) (spec 14 §the form)",
                     call.target
                 ),
             ));

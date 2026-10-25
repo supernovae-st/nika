@@ -666,14 +666,20 @@ fn schedule_side(beat: &Beat, cadence: Option<&Cadence>, now: &Zoned) -> Schedul
             format!("jusqu_au {date} has passed: every fire skips as expired"),
         ));
     }
-    if let Some((what, arrives)) = v0_unsupported(beat) {
+    if let Some((what, _limit)) = v0_unsupported(beat) {
+        // Every `manqué:` policy this firer refuses is a catch-up, and the
+        // resident `nika serve` keeps both (`rattraper` · `{ rattraper: N }`):
+        // name the firer that does, never only the one that cannot.
+        let keeper = if what.starts_with("manqué:") {
+            " · `nika serve` keeps it"
+        } else {
+            ""
+        };
         blockers.push(Blocker::new(
             "policy_unsupported",
             None,
             None,
-            format!(
-                "{what} is not supported by this firer (arrives with {arrives}): every fire refuses"
-            ),
+            format!("{what} is not supported by this firer: every fire refuses{keeper}"),
         ));
     }
     let timezone = match cadence {
