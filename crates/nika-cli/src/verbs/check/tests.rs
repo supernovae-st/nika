@@ -897,6 +897,41 @@ fn the_check_help_carries_the_exit_contract() {
     );
 }
 
+/// #1601 · `--fix` help promised « typed rename repairs » while the ladder
+/// also hoists `with:` bindings and migrates retired forms — and a rename
+/// alone was all a reader could expect from it. `-h` says repairs without
+/// narrowing them; `--help` names the three repair families the ladder
+/// applies (`verbs/fix.rs` · `fix_ladder.rs`).
+#[test]
+fn the_fix_help_names_what_the_repair_ladder_applies() {
+    use clap::Args as _;
+    let check = CheckArgs::augment_args(clap::Command::new("check"));
+    let fix = check
+        .get_arguments()
+        .find(|a| a.get_long() == Some("fix"))
+        .expect("--fix");
+    let short = fix.get_help().map(ToString::to_string).unwrap_or_default();
+    assert_eq!(
+        short,
+        "Apply the machine-applicable repairs to the file, then re-audit"
+    );
+    let help = fix
+        .get_long_help()
+        .map(ToString::to_string)
+        .unwrap_or_default();
+    for family in [
+        "near-miss renames",
+        "`with:` hoists (NIKA-VAR-021)",
+        "retired-form migrations",
+    ] {
+        assert!(help.contains(family), "`{family}` missing: {help}");
+    }
+    for migration in ["`needs:`", "`depends_on`", "`vars:`", "a string `exec:`"] {
+        assert!(help.contains(migration), "`{migration}` missing: {help}");
+    }
+    assert!(help.contains("Other findings stay yours"), "{help}");
+}
+
 /// A typed parser refusal reaches `--json` whole: an authored value holding a line feed or a
 /// carriage return and line feed keeps them, the explain pointer follows, and the human frame
 /// (`-->`, the file, the caret) never enters the finding, while the human lane keeps it.
