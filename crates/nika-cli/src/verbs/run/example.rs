@@ -71,7 +71,7 @@ pub(super) fn try_rehearsal_slug(path: &str) -> Option<&str> {
 /// The slug `nika try` takes back for a staged room: the room's stem folds
 /// a nested slug's `/` into `-` (`snippets/weekly-radar`), so the pack's
 /// own list maps it back. `None` when no shipped example stages that stem.
-fn try_command_slug(stem: &str) -> Option<String> {
+pub(super) fn try_command_slug(stem: &str) -> Option<String> {
     if nika_pack::example(stem).is_some() {
         return Some(stem.to_owned());
     }
@@ -84,21 +84,28 @@ fn try_command_slug(stem: &str) -> Option<String> {
 /// discarded when the verb returns, so the card's `nika run --answer …
 /// FILE` names a file nobody can reach; `nika try <slug> --answer …`
 /// pre-seeds the gate on a fresh rehearsal, the form that finishes it
-/// (`nika try --help` · `--answer` without `--resume`). Rewrites exactly
-/// the two answer shapes the card speaks for `task`; any other line, and
-/// any run outside a try room, passes through unchanged.
-pub(super) fn try_answer_door(path: &str, task: &str, lines: Vec<String>) -> Vec<String> {
+/// (`nika try --help` · `--answer` without `--resume`). `carry` is the
+/// rehearsal's own flags ([`try_carry`]): a door that dropped them would
+/// rerun another rehearsal (the mock seat, the inputs' defaults). Rewrites
+/// exactly the two answer shapes the card speaks for `task`; any other
+/// line, and any run outside a try room, passes through unchanged.
+pub(super) fn try_answer_door(
+    path: &str,
+    task: &str,
+    carry: &str,
+    lines: Vec<String>,
+) -> Vec<String> {
     let Some(slug) = try_rehearsal_slug(path).and_then(try_command_slug) else {
         return lines;
     };
     let doors = [
         (
             format!("nika run --answer {task}=true FILE"),
-            format!("nika try {slug} --answer {task}=true"),
+            format!("nika try {slug}{carry} --answer {task}=true"),
         ),
         (
             format!("nika run --answer {task}=\"your answer\" FILE"),
-            format!("nika try {slug} --answer {task}=\"your answer\""),
+            format!("nika try {slug}{carry} --answer {task}=\"your answer\""),
         ),
     ];
     lines
@@ -109,6 +116,40 @@ pub(super) fn try_answer_door(path: &str, task: &str, lines: Vec<String>) -> Vec
                 .fold(line, |line, (run, try_door)| line.replace(run, try_door))
         })
         .collect()
+}
+
+/// The try verb's re-invocation flags (review round 1 · #1633), in the
+/// try dialect and paste-safe, the way `nika run` threads `resume_carry`:
+/// every `--var` and the RAW `--model` (`self` stays `self` — the resolved
+/// seat reads as the mock default), the access pin, the cost ceiling, a
+/// `--resume` trace and the answers already given. Display flags
+/// (`--plain` · `--quiet` · `--no-progress`) change no outcome and stay
+/// out, and so do the kit's supplied vars: the next `nika try` supplies
+/// them itself.
+fn try_carry(
+    model_flag: Option<&str>,
+    access_pin: Option<&str>,
+    vars: &[String],
+    max_cost_usd: Option<f64>,
+    (answers, resume): (&[String], Option<&std::path::Path>),
+) -> String {
+    use nika_cli_host::output::sh_word;
+    use std::fmt::Write as _;
+    let mut carry = super::epilogue::resume_carry(vars, model_flag);
+    // write! to a String is infallible.
+    if let Some(access) = access_pin {
+        let _ = write!(carry, " --access {}", sh_word(access));
+    }
+    if let Some(usd) = max_cost_usd {
+        let _ = write!(carry, " --max-cost-usd {usd}");
+    }
+    if let Some(trace) = resume {
+        let _ = write!(carry, " --resume {}", sh_word(&trace.to_string_lossy()));
+    }
+    for answer in answers {
+        let _ = write!(carry, " --answer {}", sh_word(answer));
+    }
+    carry
 }
 
 /// UX-3 · every try card: how to own the file.
@@ -186,6 +227,13 @@ pub fn example(
     }
     let mut run_vars = vars.to_vec();
     run_vars.extend(nika_onboard::rehearsal::supplied_vars(slug, vars));
+    let carry = try_carry(
+        model_flag,
+        access_pin,
+        vars,
+        max_cost_usd,
+        (answers, resume),
+    );
     let verdict = run_verdict(
         &path.to_string_lossy(),
         false,
@@ -195,7 +243,7 @@ pub fn example(
         false,
         model_override,
         access_pin,
-        super::inputs::InputBindings::Operator(&run_vars),
+        super::inputs::InputBindings::Rehearsal(&run_vars, &carry),
         resume_req.as_ref(),
         // No run journal: the example is staged to a TEMP file — `.nika/
         // traces/` belongs to workspace runs (the same drive underneath,
@@ -413,7 +461,8 @@ mod tests {
             crate::display::render::stream_summary(&view, &theme, &[])
         };
         let staged = "/tmp/nika-try-release-notes/release-notes.nika";
-        let confirm = try_answer_door(staged, "summarize", card(crate::demo::paused())).join("\n");
+        let confirm =
+            try_answer_door(staged, "summarize", "", card(crate::demo::paused())).join("\n");
         assert!(
             confirm.contains(
                 "answer: nika try release-notes --answer summarize=true  \
@@ -436,23 +485,82 @@ mod tests {
             );
             events
         };
-        let input = try_answer_door(staged, "approve", card(input_gate)).join("\n");
+        let input = try_answer_door(staged, "approve", "", card(input_gate)).join("\n");
         assert!(
             input.contains("answer: nika try release-notes --answer approve=\"your answer\""),
             "{input}"
         );
         assert!(!input.contains("FILE"), "{input}");
         let nested = "/tmp/nika-try-snippets-weekly-radar/snippets-weekly-radar.nika";
-        let nested = try_answer_door(nested, "summarize", card(crate::demo::paused())).join("\n");
+        let nested =
+            try_answer_door(nested, "summarize", "", card(crate::demo::paused())).join("\n");
         assert!(
             nested.contains("nika try snippets/weekly-radar --answer summarize=true"),
             "the slug the verb accepts, not the room's stem: {nested}"
         );
-        let owned = try_answer_door("gate.nika", "summarize", card(crate::demo::paused()));
+        let owned = try_answer_door("gate.nika", "summarize", "", card(crate::demo::paused()));
         assert_eq!(
             owned,
             card(crate::demo::paused()),
             "a workspace run keeps the run door"
+        );
+    }
+
+    /// Review round 1 · `nika try release-notes --model self --var
+    /// announce=true` paused on `approve`, and its door dropped both flags:
+    /// pasted, it reran on the mock seat with `announce` back to false. The
+    /// door carries the try verb's own flags — `self` as typed, never the
+    /// resolved seat.
+    #[test]
+    fn the_try_door_carries_the_rehearsal_flags() {
+        let carry = try_carry(
+            Some("self"),
+            None,
+            &["announce=true".to_owned()],
+            None,
+            (&[], None),
+        );
+        assert_eq!(carry, " --var announce=true --model self");
+        let theme = crate::Theme::new(false, false, false);
+        let mut view = crate::RunView::new();
+        for event in crate::demo::paused() {
+            view.apply(&event);
+        }
+        let card = crate::display::render::stream_summary(&view, &theme, &[]);
+        let door = try_answer_door(
+            "/tmp/nika-try-release-notes/release-notes.nika",
+            "summarize",
+            &carry,
+            card,
+        )
+        .join("\n");
+        assert!(
+            door.contains(
+                "answer: nika try release-notes --var announce=true --model self \
+                 --answer summarize=true"
+            ),
+            "{door}"
+        );
+        let every = try_carry(
+            Some("openai/gpt-5.2"),
+            Some("api"),
+            &["topic=two words".to_owned()],
+            Some(0.05),
+            (
+                &["first=yes".to_owned()],
+                Some(std::path::Path::new("t.ndjson")),
+            ),
+        );
+        assert_eq!(
+            every,
+            " --var 'topic=two words' --model openai/gpt-5.2 --access api \
+             --max-cost-usd 0.05 --resume t.ndjson --answer first=yes"
+        );
+        assert_eq!(try_carry(None, None, &[], None, (&[], None)), "");
+        assert_eq!(
+            super::super::epilogue::unsafe_to_paste(&format!("nika try x{every}")),
+            None,
+            "every carried word is paste-safe"
         );
     }
 

@@ -53,6 +53,9 @@ pub struct FoldSink<W: Write> {
     /// The explore teaching line (#1244) — set by the run verb, printed
     /// at the PLAIN close so a piped user learns the machine surfaces.
     explore: Option<String>,
+    /// The run's re-invocation flags (`--var` · `--model` …), for the
+    /// taught line a paused `nika try` room speaks (#1633).
+    resume_carry: String,
     /// Lines painted by the previous frame (to clear before the redraw).
     last_lines: usize,
     /// The spinner phase — advanced by the timer rider, read by every
@@ -170,6 +173,7 @@ impl<W: Write> FoldSink<W> {
             trace_recorded: true,
             source_path: None,
             explore: None,
+            resume_carry: String::new(),
             last_lines: 0,
             tick: 0,
             map: None,
@@ -221,6 +225,13 @@ impl<W: Write> FoldSink<W> {
     /// Pin the workflow path so the fruit card can detect a try room.
     pub fn set_source_path(&mut self, path: impl Into<String>) {
         self.source_path = Some(path.into());
+    }
+
+    /// The run's re-invocation carry, re-supplied by a paused try room's
+    /// door. A try room only runs under a rehearsal binding, whose carry is
+    /// the try verb's own flags (`InputBindings::Rehearsal`).
+    pub(super) fn set_resume_carry(&mut self, carry: &str) {
+        carry.clone_into(&mut self.resume_carry);
     }
 
     /// The folded view (the caller renders the FINAL frame + the failure
@@ -287,7 +298,9 @@ impl<W: Write> FoldSink<W> {
             self.view.paused_task.as_deref(),
             self.source_path.as_deref(),
         ) {
-            (Some(task), Some(path)) => super::example::try_answer_door(path, task, lines),
+            (Some(task), Some(path)) => {
+                super::example::try_answer_door(path, task, &self.resume_carry, lines)
+            }
             _ => lines,
         }
     }
@@ -545,24 +558,35 @@ mod tests {
     /// keeps the run door.
     #[test]
     fn a_paused_try_room_closes_on_the_try_door() {
-        let close = |path: &str| {
+        let close = |path: &str, carry: &str| {
             let mut buf = Vec::new();
             let mut sink =
                 FoldSink::new(&mut buf, Theme::new(false, true, false), RenderMode::Plain);
             sink.set_source_path(path);
+            sink.set_resume_carry(carry);
             for ev in demo::paused() {
                 sink.emit(ev);
             }
             sink.print_final();
             String::from_utf8(buf).expect("utf8")
         };
-        let staged = close("/tmp/nika-try-release-notes/release-notes.nika");
+        let room = "/tmp/nika-try-release-notes/release-notes.nika";
+        let staged = close(room, "");
         assert!(
             staged.contains("answer: nika try release-notes --answer summarize=true"),
             "{staged}"
         );
         assert!(!staged.contains("nika run --answer"), "{staged}");
-        let owned = close("gate.nika");
+        // Review round 1 · the rehearsal's own flags ride the door.
+        let carried = close(room, " --var announce=true --model self");
+        assert!(
+            carried.contains(
+                "answer: nika try release-notes --var announce=true --model self \
+                 --answer summarize=true"
+            ),
+            "{carried}"
+        );
+        let owned = close("gate.nika", " --var announce=true");
         assert!(
             owned.contains("answer: nika run --answer summarize=true FILE"),
             "{owned}"
