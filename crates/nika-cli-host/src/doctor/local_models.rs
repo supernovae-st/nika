@@ -71,35 +71,70 @@ mod tests {
         assert!(doc["local_model_probes"][0]["observation"]["protocol_compatible"].is_null());
     }
 
+    /// The `llamacpp` row after a sweep that saw `status`, whose route
+    /// answered as an API (`reachable`), or `None` for no HTTP answer.
+    fn swept(status: Option<u16>, reachable: Option<bool>) -> ProviderProbe {
+        let mut row = nika_providers::probe::collect_access_probes_env(
+            nika_providers::ProvidersConfig::new(),
+        )
+        .into_iter()
+        .find(|p| p.id == "llamacpp")
+        .expect("local row");
+        let mut listing = nika_providers::probe::ModelListing::new("observed");
+        listing.http_status = status;
+        listing.protocol_compatible = status.map(|_| false);
+        row.readiness.model_listing = Some(listing);
+        row.readiness.reachable = reachable;
+        row
+    }
+
     /// #1626 · `ok ping llamacpp -- listening on 127.0.0.1:8080` over a web
-    /// app: an open port is a candidate, never a model. The ping row is ✔
-    /// only when the engine answered an OpenAI-shaped model list; a surface
-    /// with no list to ask (a media plane) keeps the connect verdict.
+    /// app: an open port is a candidate, never a model — but only a page
+    /// that is not an API drops the ✔ (review round 1: Nika's own sidecar
+    /// has no list route, a key-protected engine refuses an unkeyed list, a
+    /// slow one times out, and each is still the engine answering).
     #[test]
-    fn an_open_port_is_an_ok_ping_only_with_a_model_list() {
-        use nika_providers::probe::ModelListing;
+    fn only_a_page_that_is_not_an_api_drops_the_ping() {
         let open = (
             "llamacpp".to_owned(),
             "127.0.0.1:8080".to_owned(),
             super::super::PingState::Reachable(0),
         );
-        let mut html = ModelListing::new("model-list response is not compatible");
-        html.protocol_compatible = Some(false);
-        html.http_status = Some(200);
-        let row = super::super::ping_finding(&open, Some(&html));
-        assert_eq!(row.level, Level::Warn);
+        let row = |provider: &ProviderProbe| super::super::ping_finding(&open, Some(provider));
+        let page = row(&swept(Some(200), Some(false)));
+        assert_eq!(page.level, Level::Warn);
         assert_eq!(
-            row.detail,
-            "llamacpp — 127.0.0.1:8080 accepts connections (0ms) but answers no model list \
-             (model-list response is not compatible) — not a model server"
+            page.detail,
+            "llamacpp — 127.0.0.1:8080 accepts connections (0ms) but answers a page, not an \
+             API (HTTP 200, not JSON) — not a model server"
         );
-        let mut listed = ModelListing::new("unused");
-        listed.protocol_compatible = Some(true);
-        listed.failure = None;
-        listed.models = vec!["fake-local-model".to_owned()];
-        let row = super::super::ping_finding(&open, Some(&listed));
-        assert_eq!(row.level, Level::Ok);
-        assert_eq!(row.detail, "llamacpp — listening on 127.0.0.1:8080 (0ms)");
+        for (status, reachable, detail) in [
+            (
+                Some(404),
+                Some(true),
+                "llamacpp — listening on 127.0.0.1:8080 (0ms) · no /v1/models route",
+            ),
+            (
+                Some(401),
+                Some(true),
+                "llamacpp — listening on 127.0.0.1:8080 (0ms) · key-protected",
+            ),
+            (
+                Some(403),
+                Some(true),
+                "llamacpp — listening on 127.0.0.1:8080 (0ms) · key-protected",
+            ),
+            (
+                Some(200),
+                Some(true),
+                "llamacpp — listening on 127.0.0.1:8080 (0ms)",
+            ),
+            (None, None, "llamacpp — listening on 127.0.0.1:8080 (0ms)"),
+        ] {
+            let shown = row(&swept(status, reachable));
+            assert_eq!(shown.level, Level::Ok, "{status:?}");
+            assert_eq!(shown.detail, detail, "{status:?}");
+        }
         let media = (
             "image-local".to_owned(),
             "localhost:8080".to_owned(),

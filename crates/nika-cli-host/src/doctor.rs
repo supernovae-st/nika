@@ -207,14 +207,12 @@ fn provider_findings(probe: &Probe, out: &mut Vec<Finding>) {
                 .filter_map(local_locus_finding),
         );
     }
-    out.extend(probe.local_pings.iter().map(|ping| {
-        let listing = probe
-            .providers
+    out.extend(
+        probe
+            .local_pings
             .iter()
-            .find(|p| p.id == ping.0)
-            .and_then(|p| p.readiness.model_listing.as_ref());
-        ping_finding(ping, listing)
-    }));
+            .map(|ping| ping_finding(ping, probe.providers.iter().find(|p| p.id == ping.0))),
+    );
     out.extend(probe.providers.iter().filter_map(local_models::finding));
 
     for p in cloud_rows {
@@ -1285,42 +1283,50 @@ fn local_finding(local_ids: &[&str], pinged: bool) -> Finding {
 }
 
 /// One rendered `--ping` line (✔ listening · ⚠ nothing there). A port that
-/// accepts is a candidate, not a model (#1626): when the sweep asked that
-/// engine for its model list and got no OpenAI-shaped JSON answer (a web
-/// app on `:8080`), the row says so instead of ✔. A surface with no list
-/// to ask (the media planes) keeps the connect verdict.
+/// accepts is a candidate, not a model (#1626), yet only an answer that is
+/// clearly not an API drops the ✔: the engine's model route answered a 2xx
+/// body that is not JSON (a web app on `:8080`), the reading the adoption
+/// ladder shares ([`crate::probe::answers_as_engine`]). A key-protected
+/// route (401 · 403) and an engine with no list route (404 · `nika model
+/// serve`) are named beside the ✔; a timeout, a transport error and a
+/// media plane keep the connect verdict.
 fn ping_finding(
     (id, addr, state): &(String, String, PingState),
-    listing: Option<&nika_providers::probe::ModelListing>,
+    provider: Option<&ProviderProbe>,
 ) -> Finding {
-    match state {
-        PingState::Reachable(ms) => match listing {
-            Some(listing) if listing.protocol_compatible != Some(true) => Finding {
-                level: Level::Warn,
-                label: "ping".to_owned(),
-                detail: format!(
-                    "{id} — {addr} accepts connections ({ms}ms) but answers no model list \
-                     ({}) — not a model server",
-                    listing
-                        .failure
-                        .as_deref()
-                        .unwrap_or("no compatible model list")
-                ),
-                fix: None,
-            },
-            _ => Finding {
-                level: Level::Ok,
-                label: "ping".to_owned(),
-                detail: format!("{id} — listening on {addr} ({ms}ms)"),
-                fix: None,
-            },
-        },
-        PingState::Unreachable => Finding {
+    let PingState::Reachable(ms) = state else {
+        return Finding {
             level: Level::Warn,
             label: "ping".to_owned(),
             detail: format!("{id} — nothing listening on {addr}"),
             fix: None,
-        },
+        };
+    };
+    let status = provider
+        .and_then(|p| p.readiness.model_listing.as_ref())
+        .and_then(|listing| listing.http_status);
+    if !crate::probe::answers_as_engine(provider) {
+        let answered = status.map_or_else(String::new, |s| format!(" (HTTP {s}, not JSON)"));
+        return Finding {
+            level: Level::Warn,
+            label: "ping".to_owned(),
+            detail: format!(
+                "{id} — {addr} accepts connections ({ms}ms) but answers a page, not an \
+                 API{answered} — not a model server"
+            ),
+            fix: None,
+        };
+    }
+    let route = match status {
+        Some(401 | 403) => " · key-protected",
+        Some(404) => " · no /v1/models route",
+        _ => "",
+    };
+    Finding {
+        level: Level::Ok,
+        label: "ping".to_owned(),
+        detail: format!("{id} — listening on {addr} ({ms}ms){route}"),
+        fix: None,
     }
 }
 

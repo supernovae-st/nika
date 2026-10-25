@@ -33,13 +33,19 @@ fn listing_of(status: u16, body: &[u8]) -> ModelListing {
 
 fn model_ids(body: &[u8]) -> Option<Vec<String>> {
     let json = crate::wire::bounded_json::parse(body).ok()?;
-    if json
-        .get("object")
-        .is_some_and(|v| v.as_str() != Some("list"))
-    {
+    let object = json.get("object");
+    if object.is_some_and(|v| v.as_str() != Some("list")) {
         return None;
     }
-    let rows = json.get("data")?.as_array()?;
+    // An engine with nothing pulled answers its list with `data: null`
+    // (Ollama, #1626): an empty list, never an incompatible one. Only a
+    // body that names itself a list earns it — a bare `{"data": null}`
+    // is the GraphQL error shape, not a model list.
+    let data = json.get("data")?;
+    if data.is_null() && object.is_some() {
+        return Some(Vec::new());
+    }
+    let rows = data.as_array()?;
     if rows.len() > 1024 {
         return None;
     }

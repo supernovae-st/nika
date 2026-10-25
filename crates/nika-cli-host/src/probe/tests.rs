@@ -226,6 +226,32 @@ fn adoption_ladder_climbs_one_rung_per_fact() {
         PingState::Reachable(3),
     )];
     assert_eq!(adoption_state(&reachable), AdoptionState::LocalReachable);
+    assert_eq!(
+        AdoptionState::LocalDetected.metric(&dead_ping),
+        "local probed · nothing listening"
+    );
+
+    // #1626 · a port that answers with a page, not an engine, is NO
+    // reachable engine — the `--ping` row's verdict is the ladder's (JSON
+    // `adoption_state` included), runs on record or not.
+    let mut page = reachable.clone();
+    page.providers[0].readiness.reachable = Some(false);
+    assert_eq!(adoption_state(&page), AdoptionState::LocalDetected);
+    assert_eq!(
+        AdoptionState::LocalDetected.metric(&page),
+        "local probed · no engine found"
+    );
+    let mut page_with_runs = page.clone();
+    page_with_runs.recorded_runs = 2;
+    assert_eq!(
+        adoption_state(&page_with_runs),
+        AdoptionState::LocalDetected
+    );
+    // An engine with no model list route (`nika model serve` · 404) still
+    // stands: it answered as an API.
+    let mut sidecar = reachable.clone();
+    sidecar.providers[0].readiness.reachable = Some(true);
+    assert_eq!(adoption_state(&sidecar), AdoptionState::LocalReachable);
 
     // RealReady — a live path AND runs on record (any lane earns
     // the path: a verified local endpoint, a configured cloud key,
