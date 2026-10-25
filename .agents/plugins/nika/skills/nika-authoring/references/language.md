@@ -154,7 +154,8 @@ Use a final `schema:` when downstream tasks need a typed result. A valid
 `nika:done` result proves the declared result shape, not that a promised
 artifact exists: check the artifact or downstream task outcome separately.
 
-For an offline refusal probe, `mock/text` deliberately answers in text even
+For a keyless refusal probe, `mock/text` deliberately answers in text even
 when tools are offered. With `nika:done` granted, expect budget exhaustion;
 `mock/echo` remains the ordinary tool-call rehearsal. Model overrides leave
-other task effects and per-task model pins unchanged.
+other task effects and per-task model pins unchanged: a fetch still reaches
+its host.
