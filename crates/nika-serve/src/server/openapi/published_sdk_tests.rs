@@ -9,9 +9,10 @@
 //! it, never a cancel it reports failed after the engine applied it.
 //!
 //! `published_sdk.json` holds that SDK's closed sets, read from its published `dist`
-//! (`@supernovae-st/nika@0.120.3`). It moves only when a newer SDK is published. The
-//! generation-2 compile outcome is not listed: that SDK refuses a `compile_version` other than 1
-//! with its typed compatibility error, before reading anything else.
+//! (`@supernovae-st/nika@0.123.1`). It moves only when a newer SDK is published. That SDK also
+//! reads the generation-2 compile outcome with the same checks: `CompileOutcomeV2` points at
+//! `CompileOutcome`'s own status, questions, diagnostics and check preview, so the
+//! `CompileOutcome` entries hold them, and only its own provenance is listed under its name.
 
 use serde_json::Value;
 

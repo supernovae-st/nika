@@ -1,7 +1,7 @@
 {
-  "sdk": "@supernovae-st/nika@0.120.3",
-  "read_from": "the published dist/index.js (REA audit, 12 Oct 2026): the keys and values each closed parser accepts",
-  "enforced_clocks": { "machineProtocolVersion": 1 },
+  "sdk": "@supernovae-st/nika@0.123.1",
+  "read_from": "the published dist/index.js (npm integrity sha512-Jm8vk5Pcq3lVTQFqiChQzZ8K4G1X+hnv8cLt5btVbE9pmjstkT/GfxEZ91b3FJGaEPHkNHy2DdeHpWvSy0B8wQ==, read 25 Oct 2026): the keys and values each closed parser accepts",
+  "enforced_clocks": { "machineProtocolVersion": 2 },
   "closed": [
     {
       "schema": "Job",
@@ -22,7 +22,7 @@
       "variant": "schedule",
       "keys": [
         "kind", "schedule_origin", "schedule_id", "schedule_revision", "slot_id", "decision",
-        "scheduled_for", "fired_at", "arm_generation"
+        "scheduled_for", "fired_at", "arm_generation", "missed_first", "missed_count"
       ]
     },
     { "schema": "JournalEvidence", "keys": ["status", "reason"] },
@@ -42,13 +42,22 @@
     { "schema": "JobOrigin", "variant": "schedule", "member": "decision", "values": ["scheduled", "catch_up"] },
     { "schema": "JobOrigin", "variant": "schedule", "member": "schedule_origin", "values": ["project", "api"] },
     { "schema": "CompileOutcome", "member": "status", "values": ["ready", "incomplete", "refused"] },
-    { "schema": "CompileOutcome", "member": "questions[].type", "values": ["text", "literal"] },
+    { "schema": "CompileOutcome", "member": "questions[].type", "values": ["text", "literal", "choice"] },
     {
       "schema": "CompileOutcome",
       "member": "diagnostics[].kind",
       "values": ["applied", "missed", "unknown", "requiresHuman", "refused"]
     },
     { "schema": "CompileOutcome", "member": "check_preview.scope", "values": ["sourceOnly"] },
-    { "schema": "CompileOutcome", "member": "provenance.cognition", "values": ["deterministicOnly"] }
+    {
+      "schema": "CompileOutcome",
+      "member": "provenance.cognition",
+      "values": ["deterministicOnly", "explicitProvider", "explicitDecision"]
+    },
+    {
+      "schema": "CompileOutcomeV2",
+      "member": "provenance.cognition",
+      "values": ["deterministicOnly", "explicitProvider", "explicitDecision"]
+    }
   ]
 }

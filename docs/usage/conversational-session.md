@@ -349,9 +349,10 @@ it recorded, and the path of its trace.
 
 Runs stay unsigned until this machine has a run-signing key. Run
 `NIKA_KEYCHAIN=off nika key init` once; later runs are sealed, and `/proof`
-and `nika trace verify` report `SEALED`. On an unsigned run, 0.123.0 suggests
-`nika sign`, which signs workflow files, not runs: `nika key init` is the step
-that seals them. The variable keeps the key in `~/.nika/keys/`, which scripts,
+and `nika trace verify` report `SEALED`. On an unsigned run, 0.123.1 points at
+`nika key init`: `/proof` and `nika trace verify` say that a run key makes later
+runs seal (0.123.0 suggested `nika sign`, which signs workflow files, not runs).
+The variable keeps the key in `~/.nika/keys/`, which scripts,
 the TypeScript SDK and `nika serve` read too. 0.123.0 never opens the macOS
 keychain; on a Linux desktop, a key minted from a terminal without the variable
 can sit in the Secret Service, and `nika key align` copies it to the files.
