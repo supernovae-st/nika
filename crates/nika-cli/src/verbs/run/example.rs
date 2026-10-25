@@ -68,6 +68,49 @@ pub(super) fn try_rehearsal_slug(path: &str) -> Option<&str> {
     (file.strip_suffix(".nika") == Some(stem)).then_some(stem)
 }
 
+/// The slug `nika try` takes back for a staged room: the room's stem folds
+/// a nested slug's `/` into `-` (`snippets/weekly-radar`), so the pack's
+/// own list maps it back. `None` when no shipped example stages that stem.
+fn try_command_slug(stem: &str) -> Option<String> {
+    if nika_pack::example(stem).is_some() {
+        return Some(stem.to_owned());
+    }
+    nika_pack::example_slugs()
+        .into_iter()
+        .find(|slug| slug.replace('/', "-") == stem)
+}
+
+/// #1633 · the paused card under `nika try`. The room and its run are
+/// discarded when the verb returns, so the card's `nika run --answer …
+/// FILE` names a file nobody can reach; `nika try <slug> --answer …`
+/// pre-seeds the gate on a fresh rehearsal, the form that finishes it
+/// (`nika try --help` · `--answer` without `--resume`). Rewrites exactly
+/// the two answer shapes the card speaks for `task`; any other line, and
+/// any run outside a try room, passes through unchanged.
+pub(super) fn try_answer_door(path: &str, task: &str, lines: Vec<String>) -> Vec<String> {
+    let Some(slug) = try_rehearsal_slug(path).and_then(try_command_slug) else {
+        return lines;
+    };
+    let doors = [
+        (
+            format!("nika run --answer {task}=true FILE"),
+            format!("nika try {slug} --answer {task}=true"),
+        ),
+        (
+            format!("nika run --answer {task}=\"your answer\" FILE"),
+            format!("nika try {slug} --answer {task}=\"your answer\""),
+        ),
+    ];
+    lines
+        .into_iter()
+        .map(|line| {
+            doors
+                .iter()
+                .fold(line, |line, (run, try_door)| line.replace(run, try_door))
+        })
+        .collect()
+}
+
 /// UX-3 · every try card: how to own the file.
 pub(super) fn try_own_file_line(slug: &str) -> String {
     format!("rehearsal · {slug}. explore authoring skeletons: nika compile --list")
@@ -352,6 +395,64 @@ mod tests {
         assert_eq!(
             try_own_file_line("competitor-radar"),
             "rehearsal · competitor-radar. explore authoring skeletons: nika compile --list"
+        );
+    }
+
+    /// #1633 · a paused rehearsal teaches the try door it can take: the
+    /// card's `nika run --answer … FILE` named a discarded room. Both
+    /// answer shapes move, a nested slug keeps its `/`, and a workspace
+    /// run keeps the run door.
+    #[test]
+    fn a_paused_try_rehearsal_answers_on_the_try_door() {
+        let theme = crate::Theme::new(false, false, false);
+        let card = |events: Vec<nika_event::Event>| {
+            let mut view = crate::RunView::new();
+            for event in events {
+                view.apply(&event);
+            }
+            crate::display::render::stream_summary(&view, &theme, &[])
+        };
+        let staged = "/tmp/nika-try-release-notes/release-notes.nika";
+        let confirm = try_answer_door(staged, "summarize", card(crate::demo::paused())).join("\n");
+        assert!(
+            confirm.contains(
+                "answer: nika try release-notes --answer summarize=true  \
+                 (boolean true/false, not yes)"
+            ),
+            "{confirm}"
+        );
+        assert!(
+            !confirm.contains("nika run --answer") && !confirm.contains("FILE"),
+            "{confirm}"
+        );
+        let input_gate = {
+            use nika_types::resource::{KeyValue, Value};
+            let mut events = crate::demo::paused();
+            events.pop();
+            events.push(
+                crate::demo::bare_event(nika_event::EventKind::WorkflowPaused, 4400)
+                    .with_field(KeyValue::new("task", Value::String("approve".to_owned())))
+                    .with_field(KeyValue::new("mode", Value::String("input".to_owned()))),
+            );
+            events
+        };
+        let input = try_answer_door(staged, "approve", card(input_gate)).join("\n");
+        assert!(
+            input.contains("answer: nika try release-notes --answer approve=\"your answer\""),
+            "{input}"
+        );
+        assert!(!input.contains("FILE"), "{input}");
+        let nested = "/tmp/nika-try-snippets-weekly-radar/snippets-weekly-radar.nika";
+        let nested = try_answer_door(nested, "summarize", card(crate::demo::paused())).join("\n");
+        assert!(
+            nested.contains("nika try snippets/weekly-radar --answer summarize=true"),
+            "the slug the verb accepts, not the room's stem: {nested}"
+        );
+        let owned = try_answer_door("gate.nika", "summarize", card(crate::demo::paused()));
+        assert_eq!(
+            owned,
+            card(crate::demo::paused()),
+            "a workspace run keeps the run door"
         );
     }
 
