@@ -198,14 +198,21 @@ fn closer_line(code: &str) -> &'static str {
         }
         // The exec floor (#605): check catches the literal argv (the SAME
         // predicate the run judges) — a `${{ }}` island is the RUN's verdict.
+        // #1592: the OS sandbox is named as `nika-runtime-laws`
+        // `select_command_sandbox` picks it (the seatbelt and landlock crates).
         "NIKA-SEC-001" => {
             "`nika check` catches a literal argv before a run (the same \
              floor predicate the run judges with); a templated command — \
              a `${{ }}` island — is judged at RUN. A confined child the \
-             OS denied is also this code: the refusal names the path when \
-             stderr carries it. Check the relevant `permits.fs.read` / \
-             `permits.fs.write` and OS access; an unknown operation stays \
-             unknown (a path on stderr is not proof a grant is missing)."
+             OS sandbox denied is also this code: `exec` runs inside the \
+             sandbox built from `permits:` — Seatbelt (`/usr/bin/sandbox-exec`) \
+             on macOS, bubblewrap (`/usr/bin/bwrap`) on Linux, the backend \
+             `nika doctor` names — and a non-zero exit whose stderr reports a \
+             denial is the sandbox's refusal, not the program's own failure. \
+             The refusal names the path when stderr carries it. Check the \
+             relevant `permits.fs.read` / `permits.fs.write` and OS access; an \
+             unknown operation stays unknown (a path on stderr is not proof a \
+             grant is missing)."
         }
         // #1396: check's own EXEC row says « a templated argv is the
         // RUN's verdict », and an exit status can never be a check-time
@@ -607,6 +614,28 @@ mod tests {
             "the confined-file closer checks authority, it does not prescribe a grant:\n{}",
             floor.text
         );
+    }
+
+    /// #1592 · a seatbelt refusal reads « seatbelt refused the confined
+    /// process (status 1) » at run, and the page it points at named no OS
+    /// sandbox. It names the two backends this binary selects, the doctor
+    /// row that reports them, and whose verdict a denied exit status is.
+    #[test]
+    fn the_sec_001_page_names_the_os_sandbox() {
+        let floor = run("NIKA-SEC-001");
+        assert_eq!(floor.code, exit::OK);
+        for fact in [
+            "Seatbelt (`/usr/bin/sandbox-exec`) on macOS",
+            "bubblewrap (`/usr/bin/bwrap`) on Linux",
+            "`nika doctor` names",
+            "the sandbox's refusal, not the program's own failure",
+        ] {
+            assert!(
+                floor.text.contains(fact),
+                "`{fact}` missing:\n{}",
+                floor.text
+            );
+        }
     }
 
     #[test]
