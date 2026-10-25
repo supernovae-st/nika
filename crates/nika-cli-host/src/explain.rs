@@ -183,8 +183,16 @@ fn closer_line(code: &str) -> &'static str {
         // `✔ PERMITS`, then every per-item read died SEC-004.
         "NIKA-SEC-004" => {
             "`nika check` catches the LITERAL shape before a run; a \
-             computed path (a glob result · an interpolated binding) is \
-             judged at RUN — a green PERMITS is not its promise."
+             computed path (a glob result · an interpolated binding) or a \
+             redirect hop is judged at RUN — a green PERMITS is not its \
+             promise."
+        }
+        // #1582: check refuses a literal floor target; the hop a redirect
+        // makes, and a name that RESOLVES into the floor, exist only at run.
+        "NIKA-SEC-005" => {
+            "`nika check` catches a literal loopback, private or metadata URL \
+             before a run; a redirect hop and a host that resolves into that \
+             space are judged at RUN."
         }
         // The wire refusals: check resolves the MODEL ID in this binary
         // but never dials the server — measured (gauntlet wave-4,
@@ -636,6 +644,42 @@ mod tests {
                 floor.text
             );
         }
+    }
+
+    /// #1582 · a `nika:fetch` 3xx onto another host died SEC-004 (or SEC-005
+    /// for an undeclared loopback name) at run, and neither page named a
+    /// redirect. Both now say the hop is held to the same boundary, and the
+    /// SEC-005 closer stops promising a check-time catch of a run-time hop.
+    #[test]
+    fn a_redirect_hop_is_held_to_the_same_boundary_on_both_pages() {
+        let boundary = run("NIKA-SEC-004");
+        assert!(
+            boundary
+                .text
+                .contains("A redirect is held to the same boundary")
+                && boundary.text.contains("reached by a redirect from")
+                && boundary.text.contains("redirect hop is judged at RUN"),
+            "{}",
+            boundary.text
+        );
+        let floor = run("NIKA-SEC-005");
+        assert_eq!(floor.code, exit::OK);
+        assert!(
+            floor.text.contains("A redirect is held to the same floor")
+                && floor
+                    .text
+                    .contains("a hop to a loopback name the file did not declare")
+                && floor
+                    .text
+                    .contains("a redirect hop and a host that resolves"),
+            "{}",
+            floor.text
+        );
+        assert!(
+            !floor.text.contains("catches this before a run ever starts"),
+            "a run-time hop is never a check-time promise:\n{}",
+            floor.text
+        );
     }
 
     #[test]

@@ -751,12 +751,29 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              tightest grant that covers the body is the whole point. \
              Never grant an absolute host path or a `..` climb to silence \
              a host-file read; keep the task inside the tree.\n\n  \
+             A redirect is held to the same boundary: `nika:fetch` follows a \
+             3xx itself and judges every hop as it judged the URL in the file, \
+             so a `Location` on a host outside `permits.net.http` is refused \
+             here and the finding names the hop (`reached by a redirect from \
+             …`). Grant that host only when the hop is the intended \
+             destination.\n\n  \
              And a green `check` was never this refusal's promise: check \
              judges the LITERAL shape — a computed path (a glob result · \
              an interpolated binding) is judged HERE, at run. Two tools \
              over one tree may need two grants (the walker wants the \
              directory · the reader wants the files: `[\"./dir\", \
              \"./dir/*\"]`).\n",
+        ),
+        // #1582: the hop a redirect makes is judged like the URL in the file.
+        "NIKA-SEC-005" => Some(
+            "  The SSRF floor is always on and `permits:` cannot widen it, \
+             with one carve-out: an exact loopback host declared in \
+             `permits.net.http` (`localhost` · `127.0.0.1` · `::1`, never a \
+             glob) clears the floor for that host only.\n\n  \
+             A redirect is held to the same floor: `nika:fetch` judges every \
+             hop, so a public URL whose 3xx points into loopback, private, \
+             link-local or metadata space is refused here, and so is a hop \
+             to a loopback name the file did not declare.\n",
         ),
         _ => None,
     }
