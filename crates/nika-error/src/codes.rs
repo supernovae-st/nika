@@ -673,10 +673,13 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
     });
     match code {
         "NIKA-VAR-005" => Some(EXPRESSION_HELP.as_str()),
+        // #1616: a generic shape code, so the lesson names the field shapes
+        // the finding most often points at — `permits.net` before `exec:`.
         "NIKA-PARSE-019" => Some(concat!(
-            "  The field's YAML shape is wrong. `tasks:` is a map keyed by task id.\n\n",
+            "  The field's YAML shape is wrong; the finding names the field to repair. `tasks:` is a map keyed by task id.\n\n",
+            "`permits.net` is a mapping with one key, `http:`, that lists exact host names (`https://` URLs included): `permits: { net: { http: [api.example.com] } }`. A bare list of hosts (`net: [api.example.com]`) is refused.\n\n",
             exec_body_help!(),
-            "\n\nAn `invoke:` tool id is `nika:<path>` or `mcp:<server>/<tool>` (one colon, a slash inside `mcp:`). The finding identifies the field to repair.\n",
+            "\n\nAn `invoke:` tool id is `nika:<path>` or `mcp:<server>/<tool>` (one colon, a slash inside `mcp:`).\n",
         )),
         "NIKA-INFER-004" => Some(
             "  A thinking model spent the `max_tokens` budget on its \
@@ -983,6 +986,27 @@ mod tests {
             "PARSE-019 must cite the invoke grammar check already prints: {help}"
         );
         assert!(help.contains("nika:<path>"), "{help}");
+    }
+
+    /// #1616 · `net: [host]` refuses PARSE-019 « `permits.net` must be a
+    /// YAML mapping », and the page taught only `tasks:` and `exec:`. The
+    /// lesson teaches the one shape the parser accepts (`http:` is the only
+    /// key of `permits.net` · `nika_vocab::keys::PERMITS_NET_KEYS`), and it
+    /// comes before the exec lesson.
+    #[test]
+    fn parse_019_teaches_the_permits_net_mapping_before_exec() {
+        let help = spec_contract_help("NIKA-PARSE-019").expect("teaches");
+        let net = help
+            .find("permits: { net: { http: [api.example.com] } }")
+            .expect("the accepted mapping is taught");
+        let exec = help
+            .find("exec: { command:")
+            .expect("the exec lesson stays");
+        assert!(net < exec, "permits.net leads the exec lesson: {help}");
+        assert!(
+            help.contains("`net: [api.example.com]`") && help.contains("refused"),
+            "the host-list reflex is named as refused: {help}"
+        );
     }
 
     /// B21 / B30: INFER-004 explain names the check finding (tiny cap
