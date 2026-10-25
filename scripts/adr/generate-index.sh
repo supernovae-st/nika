@@ -151,6 +151,7 @@ echo "Generated $INDEX_TOML (${#adr_files[@]} ADRs)"
     related_json="$(extract_array "related" "$frontmatter" | to_json_array)"
     requires_json="$(extract_array "requires" "$frontmatter" | to_json_array)"
     enables_json="$(extract_array "enables" "$frontmatter" | to_json_array)"
+    amends_json="$(extract_array "amends" "$frontmatter" | to_json_array)"
 
     [ $first_adr -eq 0 ] && echo "    ,"
     first_adr=0
@@ -169,7 +170,8 @@ echo "Generated $INDEX_TOML (${#adr_files[@]} ADRs)"
       "superseded_by": ${superseded_by_json},
       "related": ${related_json},
       "requires": ${requires_json},
-      "enables": ${enables_json}
+      "enables": ${enables_json},
+      "amends": ${amends_json}
     }
 ENTRY
   done
