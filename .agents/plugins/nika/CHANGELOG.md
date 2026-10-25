@@ -24,6 +24,10 @@ key `nika key init` mints seals a journal (the checklist asked for a run
 the README's « Say it once. Keep it as a file. » in place of the retired
 intent-as-code pitch.
 
+## 0.123.1 — 2026-10-25
+
+Lockstep on the engine wave.
+
 ## 0.123.0 — 2026-10-23
 
 Lockstep on the engine wave. From 0.109.0 to this release the kit's notes
