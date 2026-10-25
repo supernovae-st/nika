@@ -215,12 +215,14 @@ fn closer_line(code: &str) -> &'static str {
              OS sandbox denied is also this code: `exec` runs inside the \
              sandbox built from `permits:` — Seatbelt (`/usr/bin/sandbox-exec`) \
              on macOS, bubblewrap (`/usr/bin/bwrap`) on Linux, the backend \
-             `nika doctor` names — and a non-zero exit whose stderr reports a \
-             denial is the sandbox's refusal, not the program's own failure. \
-             The refusal names the path when stderr carries it. Check the \
-             relevant `permits.fs.read` / `permits.fs.write` and OS access; an \
-             unknown operation stays unknown (a path on stderr is not proof a \
-             grant is missing)."
+             `nika doctor` names. A non-zero exit whose stderr reports a denial \
+             is classified as the sandbox's refusal, but the engine reads only \
+             that stderr text: a program's own permission error (a file its OS \
+             permissions refuse, inside the grant) reads the same. The refusal \
+             names the path when stderr carries it. Check the relevant \
+             `permits.fs.read` / `permits.fs.write` and OS access, the file's \
+             own permissions included; an unknown operation stays unknown (a \
+             path on stderr is not proof a grant is missing)."
         }
         // #1396: check's own EXEC row says « a templated argv is the
         // RUN's verdict », and an exit status can never be a check-time
@@ -626,8 +628,12 @@ mod tests {
 
     /// #1592 · a seatbelt refusal reads « seatbelt refused the confined
     /// process (status 1) » at run, and the page it points at named no OS
-    /// sandbox. It names the two backends this binary selects, the doctor
-    /// row that reports them, and whose verdict a denied exit status is.
+    /// sandbox. It names the two backends this binary selects and the doctor
+    /// row that reports them. Review round 1: the engine classifies a denied
+    /// exit by its stderr text alone (`stderr_signals_confinement_denial`),
+    /// so a file the OS refuses inside the grant reads the same — the page
+    /// says « classified as », never « is », and sends the reader to the
+    /// file's own permissions too.
     #[test]
     fn the_sec_001_page_names_the_os_sandbox() {
         let floor = run("NIKA-SEC-001");
@@ -636,7 +642,10 @@ mod tests {
             "Seatbelt (`/usr/bin/sandbox-exec`) on macOS",
             "bubblewrap (`/usr/bin/bwrap`) on Linux",
             "`nika doctor` names",
-            "the sandbox's refusal, not the program's own failure",
+            "is classified as the sandbox's refusal",
+            "a program's own permission error",
+            "reads the same",
+            "the file's own permissions included",
         ] {
             assert!(
                 floor.text.contains(fact),
@@ -644,6 +653,11 @@ mod tests {
                 floor.text
             );
         }
+        assert!(
+            !floor.text.contains("not the program's own failure"),
+            "a stderr match is a classification, never proof:\n{}",
+            floor.text
+        );
     }
 
     /// #1582 · a `nika:fetch` 3xx onto another host died SEC-004 (or SEC-005
