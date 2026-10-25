@@ -67,7 +67,11 @@ the TypeScript SDK cover the API from an application.
 
 - `POST /v1/jobs/{id}/cancel` cancels a queued job (`200`, settled
   `cancelled`) or asks a running one to stop (`202`, settled later). A job
-  already settled or paused answers `200` with its record, unchanged.
+  already settled or paused answers `200` with its record, unchanged. A
+  running job gets a fixed 5-second grace to reach a wave boundary and
+  settle; past it the resident drops the run and the job settles
+  `interrupted`. A task inside one long step (an agent turn, a long wait)
+  usually outlasts the grace.
 - `/v1/jobs/{id}/artifacts` is not served (`404`).
 
 ## Files here

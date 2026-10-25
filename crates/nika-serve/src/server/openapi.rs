@@ -200,6 +200,11 @@ mod builder {
                 "CompileOutcome".to_owned(),
                 super::super::compile::schema::outcome(),
             );
+            named.insert("ScheduleFindings".to_owned(), schedule_findings_schema());
+            named.insert(
+                "SchedulePreconditionFailed".to_owned(),
+                schedule_precondition_schema(),
+            );
         }
         schemas
     }
@@ -548,6 +553,7 @@ mod builder {
                 "verdict": {"type": "string", "enum": ["unavailable", "ok", "sealed", "anchored", "replayed", "incomplete", "tampered", "broken", "unchained", "empty", "unreadable", "refused", "line-over-long", "unknown"]},
                 "reason": {"type": "string", "enum": ["run_not_terminal", "trace_journal_unavailable", "sealed", "unsealed", "forged", "buried", "unattributable", "writer_alive", "writer_dead", "writer_unknown", "buried_seal", "broken", "unchained", "empty", "unreadable", "refused", "line_over_long", "unknown"]},
                 "trace_id": {"type": "string", "minLength": 1},
+                "tier": {"type": "string", "enum": ["ok", "sealed", "anchored", "replayed", "broken", "line-over-long", "unchained", "empty", "unreadable", "refused", "buried-seal", "unknown"], "description": "The CLI's own `tier`, verbatim: the attained tier over an intact chain, or its refusal class. `verdict` is its projection; a forged seal still reads `ok` here with `exit` 2, so read `exit` and the legs, not a word alone."},
                 "verify_version": {"type": "integer", "minimum": 1},
                 "exit": {"type": "integer", "enum": [0, 2, 3, 5], "description": "The CLI's exit class: 0 the reported tier holds · 2 a forged or edited journal · 3 the environment (unchained · unreadable · a missing input) · 5 incomplete lifecycle evidence"},
                 "chain": {"type": "object", "additionalProperties": true, "description": "events · head · headline (intact · torn · incomplete) · liveness (alive · dead · unknown · null)"},
@@ -630,11 +636,51 @@ mod builder {
             },
             "put": {
                 "summary": "Create or revision-conditionally update one resident schedule",
-                "description": "Create requires If-None-Match: *. Update requires the exact ETag in If-Match. Identical lost-response retries are unchanged and retain the revision.",
+                "description": "Create requires If-None-Match: *. Update requires the exact ETag in If-Match. Identical lost-response retries are unchanged and retain the revision. A refused precondition answers 412 with the schedule's current revision (null when none exists). A definition the planner or the schedule validator refuses answers 422 with its findings; a malformed body, refused inputs or a refused workflow answer 422 with the error envelope.",
                 "parameters": [{"$ref": "#/components/parameters/IfNoneMatch"}, {"$ref": "#/components/parameters/IfMatch"}],
                 "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SchedulePut"}}}},
-                "responses": {"200": {"description": "Applied or unchanged", "headers": {"ETag": {"schema": {"type": "string"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ScheduleApply"}}}}, "401": error_ref(), "412": error_ref(), "413": error_ref(), "415": error_ref(), "422": error_ref(), "503": error_ref()}
+                "responses": {
+                    "200": {"description": "Applied or unchanged", "headers": {"ETag": {"schema": {"type": "string"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ScheduleApply"}}}},
+                    "401": error_ref(),
+                    "412": {"description": "Precondition refused; carries the current revision", "headers": {"ETag": {"schema": {"type": "string"}, "description": "The current revision, when one exists"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SchedulePreconditionFailed"}}}},
+                    "413": error_ref(), "415": error_ref(),
+                    "422": {"description": "Refused definition: its findings, or the error envelope", "content": {"application/json": {"schema": {"oneOf": [{"$ref": "#/components/schemas/ScheduleFindings"}, {"$ref": "#/components/schemas/Error"}]}}}},
+                    "503": error_ref(),
+                    "507": error_named("Durable schedule capacity exhausted")
+                }
             }
+        })
+    }
+
+    /// The 422 a refused schedule definition answers: the validator's or the planner's
+    /// findings, never the error envelope (the published SDK reads `findings` as written).
+    fn schedule_findings_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["findings"],
+            "properties": {"findings": {"type": "array", "minItems": 1, "items": {
+                "type": "object", "additionalProperties": false,
+                "required": ["code", "detail"],
+                "properties": {"code": {"type": "string", "minLength": 1}, "detail": {"type": "string"}}
+            }}}
+        })
+    }
+
+    /// The 412 a refused schedule precondition answers: the error envelope, plus the
+    /// schedule's current revision inside it (null when none exists).
+    fn schedule_precondition_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["error"],
+            "properties": {"error": {
+                "type": "object", "additionalProperties": false,
+                "required": ["code", "message", "currentRevision"],
+                "properties": {
+                    "code": {"type": "string", "const": "schedule_precondition_failed"},
+                    "message": {"type": "string"},
+                    "currentRevision": {"anyOf": [{"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, {"type": "null"}]}
+                }
+            }}
         })
     }
 
@@ -663,7 +709,8 @@ mod builder {
     fn workflow_metadata_path() -> Value {
         json!({"get": {
             "summary": "Workflow metadata without source bytes",
-            "parameters": [{"name": "name", "in": "path", "required": true, "schema": {"type": "string"}}],
+            "description": "`{name}` is a served name exactly as GET /v1/workflows lists it: a project-relative path that usually contains `/` (`workflows/daily.nika`). Send its `/` separators literally, as path separators: GET /v1/workflows/workflows/daily.nika. A served name uses only ASCII letters, digits, `.`, `_`, `-` and `/`, so no segment needs percent-encoding; an encoded separator (`%2F`) or any other escape is not decoded and answers 404.",
+            "parameters": [{"name": "name", "in": "path", "required": true, "description": "The served name, `/` separators sent literally (it spans several path segments)", "schema": {"type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*\\.nika$"}}],
             "responses": {"200": {"description": "Contained name", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowMetadata"}}}}, "401": error_ref(), "404": error_ref()}
         }})
     }
@@ -716,6 +763,7 @@ mod builder {
                 "202": {"description": "Created", "content": json_job()},
                 "200": {"description": "Idempotent replay", "content": json_job()},
                 "400": error_named("Invalid idempotency key"), "401": error_ref(),
+                "404": error_named("No workflow by that name under the served registry (by-name form)"),
                 "408": error_named("Request deadline"),
                 "409": error_named("Idempotency key already bound to another request"),
                 "413": error_named("Encoded body or decoded snapshot resource limit"),
@@ -734,7 +782,9 @@ mod builder {
             "requestBody": snapshot_request_body("CheckByName"),
             "responses": {
                 "200": {"description": "Compact snapshot validation acknowledgement, not the full engine check report", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SnapshotValidationAck"}}}},
-                "401": error_ref(), "408": error_named("Request deadline"),
+                "401": error_ref(),
+                "404": error_named("No workflow by that name under the served registry (by-name form)"),
+                "408": error_named("Request deadline"),
                 "413": error_named("Encoded body or decoded snapshot resource limit"),
                 "415": error_named("Content-Type or Content-Encoding refused"),
                 "422": error_named("Malformed, unsupported, tampered, or semantically refused snapshot")
@@ -774,7 +824,7 @@ mod builder {
     fn job_cancel_path() -> Value {
         json!({"post": {
             "summary": "Request cancellation or replay an ended observation",
-            "description": "A queued job cancels atomically before execution claims it. An active job receives the run-scoped cancellation signal and returns 202 until its execution owner settles: the result may be success, failure or cancellation; expired grace means interrupted, never an invented cancellation. A paused or final observation returns its existing result unchanged.",
+            "description": "A queued job cancels atomically before execution claims it. An active job receives the run-scoped cancellation signal and returns 202 until its execution owner settles: the result may be success, failure or cancellation. The grace is fixed at 5 seconds from the signal: a run that has not reached a wave boundary and settled by then is dropped and the job settles `interrupted`, never an invented cancellation. A task still inside one long step when the signal arrives (an agent turn, a long wait) typically outlasts the grace. A paused or final observation returns its existing result unchanged.",
             "parameters": [job_id_param()],
             "responses": {"200": {"description": "Cancelled before execution, or already ended observation", "content": json_job()}, "202": {"description": "Cancellation requested; execution has not yet settled", "content": json_job()}, "401": error_ref(), "404": error_ref(), "503": error_ref()}
         }})

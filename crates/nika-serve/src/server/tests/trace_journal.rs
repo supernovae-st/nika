@@ -192,9 +192,9 @@ async fn verify_route_reports_the_cli_verdict_for_the_jobs_journal() {
 }
 
 /// The seal the test holds the key to — custody stays out of the test.
-struct TestSeal {
-    secret: minisign::SecretKey,
-    public: String,
+pub(super) struct TestSeal {
+    pub(super) secret: minisign::SecretKey,
+    pub(super) public: String,
 }
 
 impl JournalSeal for TestSeal {
