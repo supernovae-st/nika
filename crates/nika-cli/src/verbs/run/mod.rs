@@ -1182,6 +1182,7 @@ async fn execute_fold_lane(
     if let Ok(mut f) = fold.lock() {
         f.set_trace_recorded(trace_recorded);
         f.set_source_path(file);
+        f.set_resume_carry(carry);
         if let Some(hint) = epilogue::explore_hint_line(theme, file) {
             f.set_explore_hint(hint);
         }

@@ -183,8 +183,16 @@ fn closer_line(code: &str) -> &'static str {
         // `✔ PERMITS`, then every per-item read died SEC-004.
         "NIKA-SEC-004" => {
             "`nika check` catches the LITERAL shape before a run; a \
-             computed path (a glob result · an interpolated binding) is \
-             judged at RUN — a green PERMITS is not its promise."
+             computed path (a glob result · an interpolated binding) or a \
+             redirect hop is judged at RUN — a green PERMITS is not its \
+             promise."
+        }
+        // #1582: check refuses a literal floor target; the hop a redirect
+        // makes, and a name that RESOLVES into the floor, exist only at run.
+        "NIKA-SEC-005" => {
+            "`nika check` catches a literal loopback, private or metadata URL \
+             before a run; a redirect hop and a host that resolves into that \
+             space are judged at RUN."
         }
         // The wire refusals: check resolves the MODEL ID in this binary
         // but never dials the server — measured (gauntlet wave-4,
@@ -198,14 +206,23 @@ fn closer_line(code: &str) -> &'static str {
         }
         // The exec floor (#605): check catches the literal argv (the SAME
         // predicate the run judges) — a `${{ }}` island is the RUN's verdict.
+        // #1592: the OS sandbox is named as `nika-runtime-laws`
+        // `select_command_sandbox` picks it (the seatbelt and landlock crates).
         "NIKA-SEC-001" => {
             "`nika check` catches a literal argv before a run (the same \
              floor predicate the run judges with); a templated command — \
              a `${{ }}` island — is judged at RUN. A confined child the \
-             OS denied is also this code: the refusal names the path when \
-             stderr carries it. Check the relevant `permits.fs.read` / \
-             `permits.fs.write` and OS access; an unknown operation stays \
-             unknown (a path on stderr is not proof a grant is missing)."
+             OS sandbox denied is also this code: `exec` runs inside the \
+             sandbox built from `permits:` — Seatbelt (`/usr/bin/sandbox-exec`) \
+             on macOS, bubblewrap (`/usr/bin/bwrap`) on Linux, the backend \
+             `nika doctor` names. A non-zero exit whose stderr reports a denial \
+             is classified as the sandbox's refusal, but the engine reads only \
+             that stderr text: a program's own permission error (a file its OS \
+             permissions refuse, inside the grant) reads the same. The refusal \
+             names the path when stderr carries it. Check the relevant \
+             `permits.fs.read` / `permits.fs.write` and OS access, the file's \
+             own permissions included; an unknown operation stays unknown (a \
+             path on stderr is not proof a grant is missing)."
         }
         // #1396: check's own EXEC row says « a templated argv is the
         // RUN's verdict », and an exit status can never be a check-time
@@ -265,14 +282,6 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              `nika run <file> --access claude-code` — any agentic CLI you're \
              signed into serves (its login is judged when the run starts · \
              `nika doctor` lists them)",
-        ),
-        // F4: the unresolved-vars class is fixable from the CLI.
-        "NIKA-VAR-001" => Some(
-            "an unbound `inputs:` entry is supplied on the CLI — `nika run <file> \
-             --var <key>=<value>` (repeatable) — or given a `default:` in its \
-             `inputs:` declaration. Other roots have other fixes: `config:` and \
-             `const:` resolve only from their own declared block, and `item` / \
-             `index` exist only inside a `for_each` task",
         ),
         // The high-traffic conformance codes teach the one obvious YAML
         // edit concretely (#145 P1 — the fix-form lives here, never in
@@ -352,7 +361,30 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              task typed `{ array: … }`, or a literal list), and comparisons \
              need both sides the same type",
         ),
-        _ => decide_fix_hint(code).or_else(|| run_decl_fix_hint(code)),
+        _ => reference_fix_hint(code)
+            .or_else(|| decide_fix_hint(code))
+            .or_else(|| run_decl_fix_hint(code)),
+    }
+}
+
+/// The unresolved-reference hint — split out of [`cli_fix_hint`] at the
+/// fn-length wall.
+fn reference_fix_hint(code: &str) -> Option<&'static str> {
+    match code {
+        // F4: the unresolved-vars class is fixable from the CLI. #1599: a
+        // task's result is the other common miss, and `config:` is a dead
+        // envelope key (PARSE-005), never a root to teach.
+        "NIKA-VAR-001" => Some(
+            "an unbound `inputs:` entry is supplied on the CLI — `nika run <file> \
+             --var <key>=<value>` (repeatable) — or given a `default:` in its \
+             `inputs:` declaration. A task's result is `tasks.<id>.output`, never \
+             a bare `<id>.output`: bind it in `with:` (`with: { page: \
+             \"${{ tasks.fetch.output }}\" }`, quoted inside a flow mapping) and \
+             read `${{ with.page }}` in the body. Other roots have other fixes: \
+             `const:` resolves only from its own declared block, and `item` / \
+             `index` exist only inside a `for_each` task",
+        ),
+        _ => None,
     }
 }
 
@@ -594,6 +626,76 @@ mod tests {
         );
     }
 
+    /// #1592 · a seatbelt refusal reads « seatbelt refused the confined
+    /// process (status 1) » at run, and the page it points at named no OS
+    /// sandbox. It names the two backends this binary selects and the doctor
+    /// row that reports them. Review round 1: the engine classifies a denied
+    /// exit by its stderr text alone (`stderr_signals_confinement_denial`),
+    /// so a file the OS refuses inside the grant reads the same — the page
+    /// says « classified as », never « is », and sends the reader to the
+    /// file's own permissions too.
+    #[test]
+    fn the_sec_001_page_names_the_os_sandbox() {
+        let floor = run("NIKA-SEC-001");
+        assert_eq!(floor.code, exit::OK);
+        for fact in [
+            "Seatbelt (`/usr/bin/sandbox-exec`) on macOS",
+            "bubblewrap (`/usr/bin/bwrap`) on Linux",
+            "`nika doctor` names",
+            "is classified as the sandbox's refusal",
+            "a program's own permission error",
+            "reads the same",
+            "the file's own permissions included",
+        ] {
+            assert!(
+                floor.text.contains(fact),
+                "`{fact}` missing:\n{}",
+                floor.text
+            );
+        }
+        assert!(
+            !floor.text.contains("not the program's own failure"),
+            "a stderr match is a classification, never proof:\n{}",
+            floor.text
+        );
+    }
+
+    /// #1582 · a `nika:fetch` 3xx onto another host died SEC-004 (or SEC-005
+    /// for an undeclared loopback name) at run, and neither page named a
+    /// redirect. Both now say the hop is held to the same boundary, and the
+    /// SEC-005 closer stops promising a check-time catch of a run-time hop.
+    #[test]
+    fn a_redirect_hop_is_held_to_the_same_boundary_on_both_pages() {
+        let boundary = run("NIKA-SEC-004");
+        assert!(
+            boundary
+                .text
+                .contains("A redirect is held to the same boundary")
+                && boundary.text.contains("reached by a redirect from")
+                && boundary.text.contains("redirect hop is judged at RUN"),
+            "{}",
+            boundary.text
+        );
+        let floor = run("NIKA-SEC-005");
+        assert_eq!(floor.code, exit::OK);
+        assert!(
+            floor.text.contains("A redirect is held to the same floor")
+                && floor
+                    .text
+                    .contains("a hop to a loopback name the file did not declare")
+                && floor
+                    .text
+                    .contains("a redirect hop and a host that resolves"),
+            "{}",
+            floor.text
+        );
+        assert!(
+            !floor.text.contains("catches this before a run ever starts"),
+            "a run-time hop is never a check-time promise:\n{}",
+            floor.text
+        );
+    }
+
     #[test]
     fn spec_conformance_codes_answer_from_the_canon() {
         // ONE voice: every code `nika check` emits is explainable.
@@ -738,6 +840,29 @@ mod tests {
         assert!(
             out.text.contains("default:"),
             "names the workflow-side fix too:\n{}",
+            out.text
+        );
+    }
+
+    /// #1599 · a bare `${{ fetch.output }}` is the other common VAR-001:
+    /// the page teaches the task-output form through `with:`, and never
+    /// the `config:` root the nine-key envelope refuses (PARSE-005).
+    #[test]
+    fn var001_teaches_the_task_output_form_and_no_dead_config_root() {
+        let out = run("NIKA-VAR-001");
+        assert_eq!(out.code, exit::OK);
+        assert!(
+            out.text.contains("`tasks.<id>.output`")
+                && out
+                    .text
+                    .contains("with: { page: \"${{ tasks.fetch.output }}\" }")
+                && out.text.contains("`${{ with.page }}`"),
+            "the task-output form, bound in with:, is taught:\n{}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("config:"),
+            "a dead envelope key is never taught as a root:\n{}",
             out.text
         );
     }

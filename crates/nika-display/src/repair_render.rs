@@ -124,8 +124,8 @@ pub fn summary(repairs: &[Repair], applied: usize, theme: Theme) -> String {
     if applied == 0 {
         let _ = writeln!(
             out,
-            " {} {}  no machine-applicable repairs (typed rename suggestions only \
-             — structural findings stay yours)",
+            " {} {}  no machine-applicable repairs (renames, `with:` hoists, retired \
+             forms — other findings stay yours)",
             theme.paint(Role::Dim, "○"),
             theme.paint(Role::Strong, "FIX"),
         );

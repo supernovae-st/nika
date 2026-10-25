@@ -996,6 +996,8 @@ mod tests {
         }
 
         /// `(group, cases, sha256)` captured from the pre-move code; never recomputed by the code under test.
+        /// The five `report/summary` rows were re-recorded once (#1601): the « nothing applied » line
+        /// names the repair families, and mapping that text back reproduces the pre-move hashes.
         const EXPECTED: &[(&str, usize, &str)] = &[
             (
                 "prepass/bare_exec",
@@ -1080,7 +1082,7 @@ mod tests {
             (
                 "report/summary",
                 4,
-                "17ca5d752c8a71c0d9b3f57c28fce17ef2801a422ecde74c6aaa489b0b80b1b8",
+                "469ee71e38b8e7edee2d4164ca5bd21fc5df481bc0df363fc700c62615f9bcc4",
             ),
             (
                 "report/refusals",
@@ -1095,7 +1097,7 @@ mod tests {
             (
                 "report/summary",
                 4,
-                "57c189e4302668abaff53eb63f101305c9ce41e9a4138b1af5b93274cde7b8d6",
+                "076ad81cb318f9c17b9e599100b3f1a768b2ea1cb091a70fa15eb961d8fa6e4b",
             ),
             (
                 "report/refusals",
@@ -1110,7 +1112,7 @@ mod tests {
             (
                 "report/summary",
                 4,
-                "6ba45aecd2f6d1a210f0cc7a19e7d4c952e7d8561e82e987acebd2a2927bf4a7",
+                "2a73221c814102b8586c0db99512a82b24b760ddcf6a796cfdc5f5d8e89f800e",
             ),
             (
                 "report/refusals",
@@ -1125,7 +1127,7 @@ mod tests {
             (
                 "report/summary",
                 4,
-                "13454e245428db99895291d32ac239f1bebd35b7e4ac123325526555cf2bea95",
+                "cb24ed78099ec2aaf8806eea98aa4654eb16b64a915f8b97ad7c82aa23b34c9d",
             ),
             (
                 "report/refusals",
@@ -1140,7 +1142,7 @@ mod tests {
             (
                 "report/summary",
                 4,
-                "eeee4d00ed48be913e88272fec6e0186f5f462e3454b107b4354dc29b0d834cf",
+                "421d5c54397d3cf78eab0aa09a5bfe47dc5d14e2208027e3ffec2ecbad0c842b",
             ),
         ];
 

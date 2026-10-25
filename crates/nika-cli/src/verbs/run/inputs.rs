@@ -31,12 +31,19 @@ pub(super) fn validated_var_overrides(
 pub(crate) enum InputBindings<'a> {
     Operator(&'a [String]),
     Literal(&'a std::collections::BTreeMap<String, serde_json::Value>),
+    /// A `nika try` rehearsal (#1633): the run's `--var` pairs, then the
+    /// try verb's own re-invocation flags. Its staged room is discarded
+    /// when the verb returns, so a taught line re-invokes `nika try` with
+    /// the operator's flags, never `nika run` on the room's file.
+    Rehearsal(&'a [String], &'a str),
 }
 
 impl InputBindings<'_> {
     pub(super) fn validate(self, wf: &RawWorkflow, machine: bool) -> Result<ValidatedInputs, u8> {
         match self {
-            Self::Operator(vars) => validated_var_overrides(vars, wf, machine),
+            Self::Operator(vars) | Self::Rehearsal(vars, _) => {
+                validated_var_overrides(vars, wf, machine)
+            }
             Self::Literal(values) => super::literal_inputs::validate(values, wf)
                 .map_err(|error| super::literal_inputs::refuse(&error, machine)),
         }
@@ -48,6 +55,9 @@ impl InputBindings<'_> {
             // Never place the payload in argv or reinterpret it as --var.
             // A separate resume invocation must resend the object on stdin.
             Self::Literal(_) => format!("{} --inputs-json -", epilogue::resume_carry(&[], model)),
+            // The try verb's flags as the operator typed them (`--model self`
+            // stays `self`): the resolved seat would read as the mock default.
+            Self::Rehearsal(_, carry) => carry.to_owned(),
         }
     }
 }

@@ -564,7 +564,10 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
              Strings are valid input and stay strings. If an object or array was \
              intended, pass the parsed value. \
              To use JSON file contents as an object or array, use `nika:read` first, then `nika:jq` \
-             with `expression: fromjson` before indexing the object or array.\n\n  \
+             with `expression: fromjson` before indexing the object or array. \
+             An `exec:` task's stdout is text as well: when the program prints JSON, declare \
+             `decode: json` on that `exec:` (`exec: { command: [...], decode: json }` · `jsonl` \
+             for one value per line) and its output is the parsed value.\n\n  \
              This code also covers argument, expression and output errors: \
              read the runtime message for the specific cause. The expression \
              must emit exactly one JSON value; wrap a stream in `[ ... ]`.\n",
@@ -673,10 +676,13 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
     });
     match code {
         "NIKA-VAR-005" => Some(EXPRESSION_HELP.as_str()),
+        // #1616: a generic shape code, so the lesson names the field shapes
+        // the finding most often points at — `permits.net` before `exec:`.
         "NIKA-PARSE-019" => Some(concat!(
-            "  The field's YAML shape is wrong. `tasks:` is a map keyed by task id.\n\n",
+            "  The field's YAML shape is wrong; the finding names the field to repair. `tasks:` is a map keyed by task id.\n\n",
+            "`permits.net` is a mapping with one key, `http:`, that lists exact host names: `permits: { net: { http: [api.example.com] } }`. List the host, not the URL; the `http:` key covers `https://` URLs too. A bare list of hosts (`net: [api.example.com]`) is refused.\n\n",
             exec_body_help!(),
-            "\n\nAn `invoke:` tool id is `nika:<path>` or `mcp:<server>/<tool>` (one colon, a slash inside `mcp:`). The finding identifies the field to repair.\n",
+            "\n\nAn `invoke:` tool id is `nika:<path>` or `mcp:<server>/<tool>` (one colon, a slash inside `mcp:`).\n",
         )),
         "NIKA-INFER-004" => Some(
             "  A thinking model spent the `max_tokens` budget on its \
@@ -748,12 +754,29 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              tightest grant that covers the body is the whole point. \
              Never grant an absolute host path or a `..` climb to silence \
              a host-file read; keep the task inside the tree.\n\n  \
+             A redirect is held to the same boundary: `nika:fetch` follows a \
+             3xx itself and judges every hop as it judged the URL in the file, \
+             so a `Location` on a host outside `permits.net.http` is refused \
+             here and the finding names the hop (`reached by a redirect from \
+             …`). Grant that host only when the hop is the intended \
+             destination.\n\n  \
              And a green `check` was never this refusal's promise: check \
              judges the LITERAL shape — a computed path (a glob result · \
              an interpolated binding) is judged HERE, at run. Two tools \
              over one tree may need two grants (the walker wants the \
              directory · the reader wants the files: `[\"./dir\", \
              \"./dir/*\"]`).\n",
+        ),
+        // #1582: the hop a redirect makes is judged like the URL in the file.
+        "NIKA-SEC-005" => Some(
+            "  The SSRF floor is always on and `permits:` cannot widen it, \
+             with one carve-out: an exact loopback host declared in \
+             `permits.net.http` (`localhost` · `127.0.0.1` · `::1`, never a \
+             glob) clears the floor for that host only.\n\n  \
+             A redirect is held to the same floor: `nika:fetch` judges every \
+             hop, so a public URL whose 3xx points into loopback, private, \
+             link-local or metadata space is refused here, and so is a hop \
+             to a loopback name the file did not declare.\n",
         ),
         _ => None,
     }
@@ -831,6 +854,26 @@ mod tests {
         assert!(yaml.contains("could not decode") && yaml.contains("format: yaml"));
         let unknown = namespace_help("NIKA-BUILTIN-VALIDATE-099", "docs").expect("namespace");
         assert!(unknown.contains("per-builtin runtime diagnostic"));
+    }
+
+    /// #1584 · an `exec:` that prints JSON hands `nika:jq` a string, and the
+    /// page named only `nika:read` + `fromjson`. The exec side has its own
+    /// explicit decoder (`decode:` · text · json · jsonl · bytes); the page
+    /// names it beside the file one.
+    #[test]
+    fn jq_001_names_the_exec_decoder_for_json_stdout() {
+        let jq = namespace_help("NIKA-BUILTIN-JQ-001", "docs").expect("jq");
+        assert!(
+            jq.contains("An `exec:` task's stdout is text as well")
+                && jq.contains("`exec: { command: [...], decode: json }`")
+                && jq.contains("`jsonl`"),
+            "{jq}"
+        );
+        let read = jq
+            .find("`nika:read` first")
+            .expect("the file decoder stays");
+        let exec = jq.find("decode: json").expect("the exec decoder");
+        assert!(read < exec, "{jq}");
     }
 
     #[test]
@@ -983,6 +1026,35 @@ mod tests {
             "PARSE-019 must cite the invoke grammar check already prints: {help}"
         );
         assert!(help.contains("nika:<path>"), "{help}");
+    }
+
+    /// #1616 · `net: [host]` refuses PARSE-019 « `permits.net` must be a
+    /// YAML mapping », and the page taught only `tasks:` and `exec:`. The
+    /// lesson teaches the one shape the parser accepts (`http:` is the only
+    /// key of `permits.net` · `nika_vocab::keys::PERMITS_NET_KEYS`), and it
+    /// comes before the exec lesson.
+    #[test]
+    fn parse_019_teaches_the_permits_net_mapping_before_exec() {
+        let help = spec_contract_help("NIKA-PARSE-019").expect("teaches");
+        let net = help
+            .find("permits: { net: { http: [api.example.com] } }")
+            .expect("the accepted mapping is taught");
+        let exec = help
+            .find("exec: { command:")
+            .expect("the exec lesson stays");
+        assert!(net < exec, "permits.net leads the exec lesson: {help}");
+        assert!(
+            help.contains("`net: [api.example.com]`") && help.contains("refused"),
+            "the host-list reflex is named as refused: {help}"
+        );
+        // Review round 1 · `http: ["https://api.example.com"]` is refused
+        // (SEC-004 beside DRIFT-001): the entry is the host, never the URL.
+        assert!(
+            help.contains("List the host, not the URL")
+                && help.contains("the `http:` key covers `https://` URLs too"),
+            "{help}"
+        );
+        assert!(!help.contains("URLs included"), "{help}");
     }
 
     /// B21 / B30: INFER-004 explain names the check finding (tiny cap

@@ -116,7 +116,10 @@ pub(super) fn fruit_notes(
         if !files.is_empty() {
             notes.push("rehearsal · file not kept".to_owned());
         }
-        notes.push(super::example::try_own_file_line(slug));
+        // The room's stem folds a nested slug's `/` (`snippets-weekly-radar`);
+        // the card names the slug `nika try` takes back.
+        let slug = super::example::try_command_slug(slug).unwrap_or_else(|| slug.to_owned());
+        notes.push(super::example::try_own_file_line(&slug));
     } else {
         for f in files.iter().take(3) {
             let size = std::fs::metadata(&f.path)
@@ -134,6 +137,10 @@ pub(super) fn fruit_notes(
             notes.push("wrote .nika/traces".to_owned());
             push_if_written(&mut notes, ".nika/quarantine");
             push_if_written(&mut notes, ".nika/inference-choice.json");
+            // #1651 · the card taught `trace outputs` and never the proof.
+            // Zero-arg, the verb judges the workspace's latest trace (this
+            // run's) and prints the head the `trace:` line names.
+            notes.push(VERIFY_NOTE.to_owned());
         }
     }
     // The model's last word — the answer SEEN, not narrated (bounded by
@@ -171,6 +178,10 @@ fn push_if_written(notes: &mut Vec<String>, path: &str) {
 /// Widest the `said` quote grows (display cells) — fits the verdict
 /// card's inner width beside its `said ` label.
 const SAID_CELLS: usize = 46;
+
+/// The verify door on a recorded run's card (#1651) — short enough that
+/// the card never widens for it.
+const VERIFY_NOTE: &str = "verify it: nika trace verify";
 
 /// `--task` (#1588): the scoped tasks' own results, keyed by id — the
 /// export the cut left empty (declared `outputs:` may read unscoped tasks).
@@ -373,6 +384,71 @@ mod tests {
         assert!(
             notes.iter().all(|n| n != "wrote .nika/traces"),
             "a try/no-journal run does not claim a trace: {notes:?}"
+        );
+    }
+
+    /// #1651 · the run card named `nika trace outputs` and never `nika trace
+    /// verify`, the proof the slogan sells. A recorded run lists the verify
+    /// door beside its trace; a run with no trace (or a discarded try room)
+    /// does not. The note never widens the card past its rows.
+    #[test]
+    fn a_recorded_run_names_the_verify_door_without_widening_the_card() {
+        let mut view = crate::RunView::new();
+        for event in crate::demo::success() {
+            view.apply(&event);
+        }
+        let notes = super::fruit_notes(&view, true, None);
+        let at = |note: &str| notes.iter().position(|n| n == note);
+        let (wrote, verify) = (at("wrote .nika/traces"), at("verify it: nika trace verify"));
+        assert!(
+            wrote.is_some() && verify.is_some() && wrote < verify,
+            "a recorded run lists its trace, then the door that judges it: {notes:?}"
+        );
+        assert!(
+            super::fruit_notes(&view, false, None)
+                .iter()
+                .all(|n| !n.contains("trace verify")),
+            "no recorded trace = no taught door"
+        );
+        assert!(
+            super::fruit_notes(&view, false, Some("competitor-radar"))
+                .iter()
+                .all(|n| !n.contains("trace verify")),
+            "a try room keeps no trace to verify"
+        );
+        let plain = crate::Theme::new(false, false, false);
+        let card = |notes: &[String]| crate::display::flow::verdict_card(&view, &plain, notes);
+        let without: Vec<String> = notes
+            .iter()
+            .filter(|n| !n.contains("trace verify"))
+            .cloned()
+            .collect();
+        let (with_door, bare) = (card(&notes), card(&without));
+        assert!(
+            with_door
+                .iter()
+                .any(|line| line.contains("verify it: nika trace verify")),
+            "the card carries the door: {with_door:?}"
+        );
+        let widths = |lines: &[String]| -> Vec<usize> {
+            lines.iter().map(|line| line.chars().count()).collect()
+        };
+        assert_eq!(
+            widths(&with_door)[0],
+            widths(&bare)[0],
+            "the card keeps its width: {with_door:?}"
+        );
+    }
+
+    /// Review round 1 · a nested slug's card named the room's folded stem
+    /// (`rehearsal · snippets-weekly-radar`), a slug `nika try` refuses.
+    #[test]
+    fn a_nested_try_card_names_the_slug_try_takes() {
+        let notes = super::fruit_notes(&said_view("\"ok.\""), false, Some("snippets-weekly-radar"));
+        assert!(
+            notes.iter().any(|n| n
+                == "rehearsal · snippets/weekly-radar. explore authoring skeletons: nika compile --list"),
+            "{notes:?}"
         );
     }
 

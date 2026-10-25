@@ -47,6 +47,27 @@ fn empty_compatible_listing_is_distinct_from_unknown_and_advertised_models() {
         );
     }
 }
+/// #1626 · Ollama with no model pulled answers `{"object":"list","data":null}`:
+/// a compatible, empty list (« no model advertised »), never an incompatible
+/// one. A bare `{"data":null}` names no list (the GraphQL error shape) and
+/// stays incompatible.
+#[test]
+fn a_null_list_is_an_empty_list_only_when_the_body_names_a_list() {
+    let pulled_nothing = listing_of(200, br#"{"object":"list","data":null}"#);
+    assert_eq!(pulled_nothing.protocol_compatible, Some(true));
+    assert_eq!(pulled_nothing.available(), Some(false));
+    assert!(pulled_nothing.models.is_empty());
+    assert_eq!(pulled_nothing.failure, None);
+    for body in [
+        r#"{"data":null}"#,
+        r#"{"data":null,"errors":[{"message":"x"}]}"#,
+    ] {
+        let got = listing_of(200, body.as_bytes());
+        assert_eq!(got.protocol_compatible, Some(false), "{body}");
+        assert_eq!(got.available(), None, "{body}");
+    }
+}
+
 #[test]
 fn cardinality_size_and_nested_duplicate_bounds_are_fail_closed() {
     let rows = vec![serde_json::json!({"id":"x"}); 1025];

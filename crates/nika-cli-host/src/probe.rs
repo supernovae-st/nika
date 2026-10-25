@@ -932,21 +932,23 @@ impl AdoptionState {
                         "{} pulled · unproven",
                         crate::text::count(probe.models.count, "model")
                     )
+                } else if probe
+                    .local_pings
+                    .iter()
+                    .any(|(_, _, state)| matches!(state, PingState::Reachable(_)))
+                {
+                    // A port answered, but with a page, not an engine (#1626).
+                    "local probed · no engine found".to_owned()
                 } else {
                     // The only remaining signal: a ping that found nothing.
                     "local probed · nothing listening".to_owned()
                 }
             }
             Self::LocalReachable => {
-                let hit = probe
-                    .local_pings
-                    .iter()
-                    .find_map(|(id, _, state)| match state {
-                        PingState::Reachable(ms) => {
-                            Some(format!("local reachable · {id} ({ms}ms)"))
-                        }
-                        PingState::Unreachable => None,
-                    });
+                let hit = probe.local_pings.iter().find_map(|ping| {
+                    standing_ping(probe, ping)
+                        .map(|ms| format!("local reachable · {} ({ms}ms)", ping.0))
+                });
                 hit.unwrap_or_else(|| "local reachable".to_owned())
             }
             Self::KeyPresent => {
@@ -974,7 +976,7 @@ impl AdoptionState {
                 let path = if probe
                     .local_pings
                     .iter()
-                    .any(|(_, _, s)| matches!(s, PingState::Reachable(_)))
+                    .any(|ping| standing_ping(probe, ping).is_some())
                 {
                     "endpoint answered"
                 } else if probe.census.harness_ready().is_empty() {
@@ -1016,10 +1018,12 @@ pub fn adoption_state(probe: &Probe) -> AdoptionState {
         .providers
         .iter()
         .any(|p| p.requires_key && p.key_present && key_auth_of(p).is_ready());
+    // #1626 · the `--ping` row's own verdict: a port that answers with a
+    // page, not an engine, is no reachable engine (one reading, two surfaces).
     let local_reachable = probe
         .local_pings
         .iter()
-        .any(|(_, _, state)| matches!(state, PingState::Reachable(_)));
+        .any(|ping| standing_ping(probe, ping).is_some());
     // R4 — a ready seat is a live path today: it earns RealReady beside
     // a key or a verified endpoint, and outranks a bare metered key
     // (the operator's own plan is the sovereign path).
@@ -1049,6 +1053,26 @@ pub fn adoption_state(probe: &Probe) -> AdoptionState {
         return AdoptionState::LocalDetected;
     }
     AdoptionState::Installed
+}
+
+/// Whether a pinged surface answers as an engine (#1626) — the one reading
+/// the `--ping` row and the adoption ladder share. Only a provider whose
+/// model route answered a page that is not an API (`reachable` false: a
+/// 2xx body that is not JSON) does not. An engine without a list route
+/// (404), a key-protected one (401 · 403), a timeout, and a media plane
+/// (no provider row, no route to ask) keep the connect verdict.
+#[must_use]
+pub(crate) fn answers_as_engine(provider: Option<&ProviderProbe>) -> bool {
+    provider.is_none_or(|p| p.readiness.reachable != Some(false))
+}
+
+/// The round trip of a `--ping` that stands as a reachable engine: the
+/// connect answered, and the surface answers as an engine.
+fn standing_ping(probe: &Probe, (id, _, state): &(String, String, PingState)) -> Option<u64> {
+    let PingState::Reachable(ms) = state else {
+        return None;
+    };
+    answers_as_engine(probe.providers.iter().find(|p| &p.id == id)).then_some(*ms)
 }
 
 /// Classify a cloud key for doctor (B19 / issue 1273): `sk-invalid` is

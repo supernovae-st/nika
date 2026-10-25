@@ -695,12 +695,7 @@ fn check_ref(
             }
         }
         NamespaceRef::Unknown(root) => {
-            // a typo'd NAMESPACE root (`inpts.x`) — suggest among the
-            // living roots (the dead `vars`/`env` refuse above).
-            const ROOTS: [&str; 9] = [
-                "config", "const", "index", "inputs", "item", "run", "secrets", "tasks", "with",
-            ];
-            let hint = nika_types::suggest::did_you_mean(root, ROOTS).map(str::to_owned);
+            let hint = unknown_root_hint(root, ctx, index);
             errors.push(unresolved(root, ctx, span, hint));
             // LAYERED with the unresolved refusal above (the oracle's
             // values layer emits BOTH): outside the three authorities +
@@ -820,6 +815,36 @@ fn unresolved(
         location: ctx.location.clone(),
         suggestion,
         span: Some(span),
+    }
+}
+
+/// The hint for an unknown root — split out of [`check_ref`] at the
+/// fn-length wall. A typo'd NAMESPACE root (`inpts.x`) is offered a
+/// living root (the dead `vars`/`env` refuse in `check_ref`; `config`
+/// died with the fourteen-key envelope, so it is never offered). A
+/// declared task id read as a root (`${{ fetch.output }}`) is answered
+/// with the task-output form instead (#1599).
+fn unknown_root_hint(root: &str, ctx: &ScanCtx<'_>, index: &WorkflowIndex<'_>) -> Option<String> {
+    const ROOTS: [&str; 8] = [
+        "const", "index", "inputs", "item", "run", "secrets", "tasks", "with",
+    ];
+    if index.task_ids.contains(root) {
+        return Some(task_output_form(root, ctx.task_rule));
+    }
+    nika_types::suggest::did_you_mean(root, ROOTS).map(str::to_owned)
+}
+
+/// The task-output form for a declared task id read as a root (#1599):
+/// prose the message renders, never a rename — on a body surface the
+/// repair is a new `with:` binding, which no splice can add.
+fn task_output_form(id: &str, rule: TaskRefRule) -> String {
+    match rule {
+        TaskRefRule::Body(_) => format!(
+            "`{id}` is a task: bind `tasks.{id}.output` in `with:` and read that binding here"
+        ),
+        TaskRefRule::Boundary | TaskRefRule::Resolution => {
+            format!("`{id}` is a task: its result is `tasks.{id}.output`")
+        }
     }
 }
 
@@ -976,6 +1001,59 @@ permits:
 "
         );
         assert_eq!(sole_rename(&root), ("rum".to_owned(), "run".to_owned()));
+    }
+
+    /// #1599 · `${{ fetch.output }}` names a declared task, not a root: the
+    /// finding teaches the task-output form for the surface it sits on
+    /// (prose, so `--fix` never splices it), and a typo'd root is never
+    /// offered the `config` root the envelope refuses.
+    #[test]
+    fn a_task_id_read_as_a_root_teaches_the_task_output_form() {
+        let yaml = format!(
+            "{HEADER}tasks:
+  fetch:
+    exec: {{ command: [echo, hi] }}
+  summarize:
+    exec: {{ command: [echo, \"${{{{ fetch.output }}}}\"] }}
+outputs:
+  word: ${{{{ fetch.output }}}}
+"
+        );
+        let errors = analyze_yaml(&yaml).expect_err("a task id is no root");
+        let messages: Vec<String> = errors
+            .iter()
+            .filter(|e| {
+                matches!(e, SchemaError::UnresolvedNamespaceRef { reference, .. } if reference == "fetch")
+            })
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(
+            messages,
+            [
+                "unresolved reference `fetch` in task `summarize` — `fetch` is a task: bind \
+                 `tasks.fetch.output` in `with:` and read that binding here",
+                "unresolved reference `fetch` in outputs — `fetch` is a task: its result is \
+                 `tasks.fetch.output`",
+            ],
+            "{errors:?}"
+        );
+        assert!(
+            errors.iter().all(|e| e.rename_repair().is_none()),
+            "the form is taught, never spliced: {errors:?}"
+        );
+        // `confi` sits one edit from the dead `config` root (the old list
+        // offered it), and the spell check leaves it alone.
+        let typo = format!(
+            "{HEADER}tasks:
+  t:
+    exec: {{ command: [echo, \"${{{{ confi.a }}}}\"] }}
+"
+        );
+        let errors = analyze_yaml(&typo).expect_err("an unknown root");
+        assert!(
+            errors.iter().all(|e| !e.to_string().contains("`config`")),
+            "the dead `config` root is never suggested: {errors:?}"
+        );
     }
 
     #[test]

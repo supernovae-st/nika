@@ -34,7 +34,11 @@ pub struct CheckArgs {
     /// Print an inferred `permits:` boundary.
     #[arg(long)]
     pub infer_permits: bool,
-    /// Apply typed rename repairs and re-audit.
+    /// Apply the machine-applicable repairs to the file, then re-audit.
+    ///
+    /// The repairs are near-miss renames (field · tool · arg · reference), `with:` hoists
+    /// (NIKA-VAR-021) and retired-form migrations (`needs:` · `depends_on` · `vars:` · a
+    /// string `exec:` …). Other findings stay yours.
     #[arg(long)]
     pub fix: bool,
     /// Fail when any `native-first` hint remains.
