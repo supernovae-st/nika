@@ -1041,10 +1041,12 @@ outputs:
             errors.iter().all(|e| e.rename_repair().is_none()),
             "the form is taught, never spliced: {errors:?}"
         );
+        // `confi` sits one edit from the dead `config` root (the old list
+        // offered it), and the spell check leaves it alone.
         let typo = format!(
             "{HEADER}tasks:
   t:
-    exec: {{ command: [echo, \"${{{{ confg.a }}}}\"] }}
+    exec: {{ command: [echo, \"${{{{ confi.a }}}}\"] }}
 "
         );
         let errors = analyze_yaml(&typo).expect_err("an unknown root");
