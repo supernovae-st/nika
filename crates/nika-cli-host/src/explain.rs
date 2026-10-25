@@ -266,14 +266,6 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              signed into serves (its login is judged when the run starts · \
              `nika doctor` lists them)",
         ),
-        // F4: the unresolved-vars class is fixable from the CLI.
-        "NIKA-VAR-001" => Some(
-            "an unbound `inputs:` entry is supplied on the CLI — `nika run <file> \
-             --var <key>=<value>` (repeatable) — or given a `default:` in its \
-             `inputs:` declaration. Other roots have other fixes: `config:` and \
-             `const:` resolve only from their own declared block, and `item` / \
-             `index` exist only inside a `for_each` task",
-        ),
         // The high-traffic conformance codes teach the one obvious YAML
         // edit concretely (#145 P1 — the fix-form lives here, never in
         // the canon row).
@@ -352,7 +344,30 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              task typed `{ array: … }`, or a literal list), and comparisons \
              need both sides the same type",
         ),
-        _ => decide_fix_hint(code).or_else(|| run_decl_fix_hint(code)),
+        _ => reference_fix_hint(code)
+            .or_else(|| decide_fix_hint(code))
+            .or_else(|| run_decl_fix_hint(code)),
+    }
+}
+
+/// The unresolved-reference hint — split out of [`cli_fix_hint`] at the
+/// fn-length wall.
+fn reference_fix_hint(code: &str) -> Option<&'static str> {
+    match code {
+        // F4: the unresolved-vars class is fixable from the CLI. #1599: a
+        // task's result is the other common miss, and `config:` is a dead
+        // envelope key (PARSE-005), never a root to teach.
+        "NIKA-VAR-001" => Some(
+            "an unbound `inputs:` entry is supplied on the CLI — `nika run <file> \
+             --var <key>=<value>` (repeatable) — or given a `default:` in its \
+             `inputs:` declaration. A task's result is `tasks.<id>.output`, never \
+             a bare `<id>.output`: bind it in `with:` (`with: { page: \
+             \"${{ tasks.fetch.output }}\" }`, quoted inside a flow mapping) and \
+             read `${{ with.page }}` in the body. Other roots have other fixes: \
+             `const:` resolves only from its own declared block, and `item` / \
+             `index` exist only inside a `for_each` task",
+        ),
+        _ => None,
     }
 }
 
@@ -738,6 +753,29 @@ mod tests {
         assert!(
             out.text.contains("default:"),
             "names the workflow-side fix too:\n{}",
+            out.text
+        );
+    }
+
+    /// #1599 · a bare `${{ fetch.output }}` is the other common VAR-001:
+    /// the page teaches the task-output form through `with:`, and never
+    /// the `config:` root the nine-key envelope refuses (PARSE-005).
+    #[test]
+    fn var001_teaches_the_task_output_form_and_no_dead_config_root() {
+        let out = run("NIKA-VAR-001");
+        assert_eq!(out.code, exit::OK);
+        assert!(
+            out.text.contains("`tasks.<id>.output`")
+                && out
+                    .text
+                    .contains("with: { page: \"${{ tasks.fetch.output }}\" }")
+                && out.text.contains("`${{ with.page }}`"),
+            "the task-output form, bound in with:, is taught:\n{}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("config:"),
+            "a dead envelope key is never taught as a root:\n{}",
             out.text
         );
     }
