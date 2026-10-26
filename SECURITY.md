@@ -82,12 +82,13 @@ Without a code `nika explain` resolves:
   otherwise), judges every permission it asks against `permits:` and journals
   each decision as `permit_checked`. A path is judged where the operating
   system lands, through every symlink and `..`; an ask for network access, for
-  a wider application sandbox or to approve one of the application's own MCP
-  tool calls always pauses for the operator, even under `permits.exec: true`. What the mode lets the application do without asking
+  a wider application sandbox, to run a command outside it (every command
+  Codex asks about in `read-only`) or to approve one of the application's own
+  MCP tool calls always pauses for the operator, even under
+  `permits.exec: true`. What the mode lets the application do without asking
   is outside `permits:`: Codex, for one, reads any file and writes the project,
   `/tmp` and `$TMPDIR` inside its own sandbox. An action Nika allows runs under
-  the application's own sandbox, and a Codex command admitted by
-  `permits.exec: true` that asked to leave that sandbox runs with none. `nika check`
+  the application's own sandbox. `nika check`
   states it on each such task (`[harness]`, `nika explain harness`);
   [docs/usage/harness-agents.md](docs/usage/harness-agents.md) lists it per
   seat. A report that a harness acted beyond what that page says it can is in
