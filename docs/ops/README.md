@@ -91,11 +91,13 @@ the TypeScript SDK cover the API from an application.
 
 Both artifact routes need a sealed journal. Create the resident's run key
 with `NIKA_KEYCHAIN=off nika key init`, which keeps it under `~/.nika/keys`.
-The routes verify the seal against the keys `nika trace verify` weighs:
-`~/.nika/keys/run-signing.pub` and the retired-key ledger. A journal left
-unsealed (no run key), or sealed with an explicit `NIKA_RUN_KEY_FILE` pair
-whose public half is not one of those keys, answers
-`409 artifact_journal_unverified`. The job must have settled:
+To keep it elsewhere, set both `NIKA_RUN_KEY_FILE` and `NIKA_RUN_PUB_FILE`
+to paths outside it, for `nika key init` and then for `nika serve`. The
+routes verify the seal against the keys `nika trace verify` weighs in the
+resident's environment, in the order the resident signs: that pair's public
+half, `~/.nika/keys/run-signing.pub`, then the retired-key ledger. A journal
+left unsealed (no run key) answers `409 artifact_journal_unverified`, as
+does one sealed with a key none of those hold. The job must have settled:
 a queued, running or paused job answers `409 job_not_settled`. One artifact
 is served up to 256 MiB; a larger one stays listed and its download answers
 `403 artifact_too_large`.

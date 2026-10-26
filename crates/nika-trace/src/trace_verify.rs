@@ -18,10 +18,11 @@
 //!   The ladder still judges the prefix; an otherwise-OK result exits
 //!   INCOMPLETE (5), never a claim that the runtime failed.
 //! - **SEALED** — the terminal `run_sealed` event's ed25519 signature
-//!   verifies against a custody-resolved key (`--key` ·
-//!   `~/.nika/keys/run-signing.pub` · the `retired.pub` ledger),
-//!   matched by the seal's `key_id` fingerprint. A re-written journal
-//!   now needs the key, not just write access.
+//!   verifies against a custody-resolved key (`--key` · the explicit
+//!   pair's `NIKA_RUN_PUB_FILE` · `~/.nika/keys/run-signing.pub` · the
+//!   `retired.pub` ledger: the signer's order after `--key`), matched by
+//!   the seal's `key_id` fingerprint. A re-written journal now needs the
+//!   key, not just write access.
 //! - **UNSEALED** — the chain is intact but the journal carries no
 //!   `run_sealed` frame (a keyless run · a run killed before its seal
 //!   · a journal cut after it): stated on its own line, never silent

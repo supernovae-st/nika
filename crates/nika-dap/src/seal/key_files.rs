@@ -58,6 +58,15 @@ pub(super) fn configured() -> Result<Option<KeyFiles>, String> {
     )
 }
 
+/// The public file of the explicit pair this process signs with, resolved
+/// by the signer's own [`configured`], so a verifier weighs the very pair a
+/// seal was minted from. A pair the signer refuses (one name alone, empty or
+/// aliased names) names no file: it seals nothing. Only the path is
+/// resolved here; the secret file is never opened.
+pub(super) fn configured_public() -> Option<PathBuf> {
+    configured().ok().flatten().map(|files| files.public)
+}
+
 fn select(
     secret: Result<String, VarError>,
     public: Result<String, VarError>,
