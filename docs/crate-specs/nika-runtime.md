@@ -460,7 +460,7 @@ projection does not promote a failed run or change its ledger.
 | NIKA-1701 | wave index out of bounds (checker/runtime contract breach) |
 | NIKA-1702 | unresolved `${{ }}` reference (silent-literal guard) |
 | NIKA-1703 | expression outside the v0 subset (when/render forms) |
-| NIKA-1707 | report's boundary lanes ≠ workflow bytes (run-start re-derivation of the pure permits-fit + trifecta subset · the fail-closed backstop for library embedders — a clean report over different bytes is not clean) |
+| NIKA-1707 | report's boundary lanes ≠ workflow bytes (run-start re-derivation of the pure permits-fit + trifecta subset, the trifecta over the child calls the report resolved (`CheckReport::composed_calls`) · the fail-closed backstop for library embedders — a clean report over different bytes is not clean) |
 | NIKA-1708 | a `required: true` input reached `run` with neither `default:` nor `--var` (the admission preflight · issue #603 — refuses BEFORE the prologue, zero events zero spend; the CLI gauntlet speaks the same constructor) |
 | NIKA-1712 | a value the run builds crossed the bound a rehearsal room put on it (`Runtime::with_value_bound` · dataflow's `ValueBound`): the room's bound, never the language's |
 
