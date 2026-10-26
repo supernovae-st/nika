@@ -260,6 +260,41 @@ fn channel_conflicts_and_inline_forms_refuse_without_consuming_stdin() {
     }
 }
 
+/// B-D7 · a `--var` refusal carries the slug the `--inputs-json` channel and
+/// the server already use, so a `--json` caller routes on `error.code`
+/// instead of parsing the sentence. Measured on 0.123.2: every one of these
+/// reached the caller as `code: null`.
+#[test]
+fn var_refusals_carry_the_same_codes_as_inputs_json() {
+    let source = "nika: var-codes\ninputs:\n  pages: {type: integer, default: 2}\npermits: {tools: ['nika:jq']}\ntasks:\n  echo:\n    invoke:\n      tool: nika:jq\n      args: {input: '${{ inputs.pages }}', expression: '.'}\noutputs:\n  value: '${{ tasks.echo.output }}'\n";
+    for (pair, code, sentence) in [
+        ("ghost=1", "unknown_input", "unknown input"),
+        ("pages=many", "input_type_mismatch", "pages"),
+        ("pages", "malformed", "KEY=VALUE"),
+    ] {
+        let args = ["run", "case.nika", "--no-gc", "--json", "--var", pair];
+        let (dir, out) = execute(source, &args, b"");
+        assert_eq!(out.status.code(), Some(3), "{pair} · {out:?}");
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert_eq!(
+            stdout.trim_end().lines().count(),
+            1,
+            "{pair} · one envelope line · {stdout}"
+        );
+        let frame = output_json(&out);
+        assert_eq!(frame["error"]["code"], code, "{pair} · {frame}");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains(sentence),
+            "{pair} · the sentence stays on stderr · {stderr}"
+        );
+        assert!(
+            !dir.path().join(".nika/traces").exists(),
+            "{pair} · no admitted trace"
+        );
+    }
+}
+
 #[test]
 fn operator_vars_still_resolve_explicit_environment_and_coerce_declared_types() {
     let source = WF.replace(

@@ -8,6 +8,7 @@
 pub(crate) use nika_cli_host::var_inputs::{ValidatedInputs, parse_var_overrides};
 
 use nika_schema::raw::RawWorkflow;
+use nika_service_execution::inputs::{BindingFault, check_bindings};
 
 use super::epilogue;
 
@@ -19,11 +20,35 @@ pub(super) fn validated_var_overrides(
     output_json: bool,
 ) -> Result<ValidatedInputs, u8> {
     let validated = parse_var_overrides(vars, wf)
-        .map_err(|message| epilogue::env_refusal(&message, output_json))?;
+        .map_err(|message| var_refusal(vars, wf, &message, output_json))?;
     if let Some(err) = nika_runtime::required_inputs_refusal(wf, &validated.values) {
         return Err(epilogue::env_refusal(&err.to_string(), output_json));
     }
     Ok(validated)
+}
+
+/// A `--var` refusal with the typed code the other input doors already use
+/// (`--inputs-json`, the server): the same per-pair law judges each pair
+/// alone, and the first faulted one names the code. The sentence and the
+/// exit stay the bind's own.
+fn var_refusal(vars: &[String], wf: &RawWorkflow, message: &str, machine: bool) -> u8 {
+    let fault = check_bindings(vars, wf)
+        .into_iter()
+        .find_map(|check| check.fault);
+    match fault {
+        Some(fault) => epilogue::typed_env_refusal(var_fault_code(fault), message, machine),
+        None => epilogue::env_refusal(message, machine),
+    }
+}
+
+/// The wire slug of a `--var` fault: the shared names for an undeclared key
+/// and a value its type refuses, the fault's own slug otherwise.
+fn var_fault_code(fault: BindingFault) -> &'static str {
+    match fault {
+        BindingFault::UnknownInput => "unknown_input",
+        BindingFault::TypeMismatch => "input_type_mismatch",
+        other => other.as_str(),
+    }
 }
 
 /// The input channel is selected once; resumed legs retain the same literal map.
