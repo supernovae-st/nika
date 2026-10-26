@@ -118,7 +118,9 @@ pub(crate) async fn run_on_harness(
     // B5 · the operator's bound verdict is CONSUMED by the first
     // out-of-grants ask it decides: the human answered ONE question, so
     // a second ask (or a different one on a nondeterministic replay)
-    // pauses again instead of riding a stale grant.
+    // pauses again instead of riding a stale grant. `GateAnswerSpent`
+    // carries the consumption past this attempt: a `retry:` replay of
+    // the task never receives the answer again.
     let mut gate_answer = input.gate_answer.clone();
 
     let mut stream = seat
@@ -333,7 +335,8 @@ fn asked(event: HarnessEvent) -> Option<(HarnessAskFacts, String, PermissionRepl
                 .with_command(command)
                 .with_network(escalation.network)
                 .with_widens(escalation.widens)
-                .with_mcp(escalation.mcp);
+                .with_mcp(escalation.mcp)
+                .with_escalated_command(escalation.escalated_command);
             Some((facts, question, reply))
         }
         _ => None,
@@ -342,8 +345,9 @@ fn asked(event: HarnessEvent) -> Option<(HarnessAskFacts, String, PermissionRepl
 
 /// The witness `gate` label for one ask — what the bridge judged, in
 /// one string (the MCP tool call · the network target · the widening ·
-/// the program · the paths · the kind): an auditor reads WHICH authority
-/// was exercised without re-parsing wire facts.
+/// a command run outside the sandbox · the program · the paths · the
+/// kind): an auditor reads WHICH authority was exercised without
+/// re-parsing wire facts.
 fn gate_label(facts: &HarnessAskFacts) -> String {
     if let Some(call) = &facts.mcp {
         return format!("mcp · {call}");
@@ -353,6 +357,9 @@ fn gate_label(facts: &HarnessAskFacts) -> String {
     }
     if let Some(widens) = &facts.widens {
         return format!("sandbox · {widens}");
+    }
+    if facts.escalated_command.is_some() {
+        return "sandbox · command".to_owned();
     }
     let kind = facts.kind.as_deref().unwrap_or("<undeclared>");
     match kind {
@@ -434,11 +441,12 @@ fn bridge_ask(
             reply.respond(PermissionDecision::AllowOnce);
         }
         HarnessGate::Outside { plane, why } => {
-            match gate_answer
-                .take()
-                .as_ref()
-                .and_then(serde_json::Value::as_bool)
-            {
+            let answer = gate_answer.take();
+            if answer.is_some() {
+                // Spent for the whole task: the runtime never re-arms it for a replay.
+                observer.on_event(&AgentEvent::GateAnswerSpent);
+            }
+            match answer.as_ref().and_then(serde_json::Value::as_bool) {
                 Some(true) => {
                     observer.on_event(&AgentEvent::PermissionJudged {
                         plane,
@@ -1017,6 +1025,10 @@ mod tests {
             .with_kind(Some("execute".to_owned()))
             .with_mcp(Some("server web".to_owned()));
         assert_eq!(gate_label(&mcp), "mcp · server web");
+        let unsandboxed = HarnessAskFacts::new()
+            .with_kind(Some("execute".to_owned()))
+            .with_escalated_command(Some("curl -sS https://example.com".to_owned()));
+        assert_eq!(gate_label(&unsandboxed), "sandbox · command");
     }
 
     /// The seat's Debug shows the cwd and never the backend (the

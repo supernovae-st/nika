@@ -24,15 +24,31 @@ every such task as a `[harness]` hint (`nika explain harness`).
   only as message text, which Nika does not read).
 - Nika offers the harness no file or terminal methods. A harness that calls one
   anyway gets an error, never a fake success, and the refusal is journaled.
+- Nika asks the harness to report a turn it could not complete as a failure
+  (the `sessionFailure` extension, which codex-acp and claude-agent-acp
+  implement). A rejected model or an exhausted retry limit then fails the task
+  with the harness's own error, instead of returning that error as the answer.
+  A failure the harness offers to retry is transient (`NIKA-1804`, so `retry:`
+  may replay the task); one that asks you to sign in again reads as an expired
+  sign-in; any other is a refusal (`NIKA-1805`). A harness without such a
+  report still returns its error as text, and Nika does not read answer text
+  to guess a failure.
 
 **On every permission the harness asks** (journaled as `permit_checked`):
 
 - Inside your `permits:` grants: allowed once, never "allow always".
-- Outside them: the run pauses with the harness's question verbatim
-  (`NIKA-1806`). Answer with `nika run --resume <trace> --answer <task>=true`
-  (or `false`). The harness is shut down at the pause; the resumed run starts
-  the task again in a new session, and your answer decides its first ask
-  outside the grants.
+- Outside them: the run pauses with the harness's question, followed by the
+  command it names unless the title shows it, and by the reason it gives
+  (`NIKA-1806`). The question is one line: control characters become spaces
+  and invisible ones (direction overrides, zero-width characters) are removed,
+  so the harness cannot rewrite or hide the line you answer. A title or
+  command over 2,000 bytes shows its beginning and its end around the number
+  of bytes left out and their SHA-256. Answer with
+  `nika run --resume <trace> --answer <task>=true` (or `false`). The harness
+  is shut down at the pause; the resumed run starts the task again in a new
+  session, and your answer decides its first ask outside the grants, once for
+  the task: an attempt that `retry:` replays never reuses it, so an ask outside
+  the grants there pauses again.
 - Paths are judged in your project's terms (`./out/**` matches the absolute path
   the harness names) and where the operating system will land: each path is
   walked from the root, component by component, through every symlink (a
@@ -44,6 +60,10 @@ every such task as a `[harness]` hint (`nika explain harness`).
   asks with a shell string (Codex, Claude Code) or without any command line
   (Gemini CLI) can only be admitted by `permits.exec: true`; otherwise the ask
   pauses for you.
+- In `read-only`, Codex runs ordinary commands in its sandbox without asking,
+  so a command it asks about asks to leave that sandbox, and Codex would run it
+  with no sandbox at all. Such an ask always pauses for you, `permits.exec:
+  true` included, with the command and Codex's reason in the question.
 - An ask for network access is never answered automatically, whatever
   `permits.exec` grants: a fetch, or a command the harness says needs the
   network (Codex: an http or https URL, a SOCKS target such as
@@ -62,7 +82,7 @@ Nika, so `permits:` does not bound it:
 
 | Seat (measured on) | Its default | Mode Nika holds | Still done without asking |
 |---|---|---|---|
-| `codex` (codex-acp 1.13.1, codex 0.156.1) | `agent`: Codex's own reviewer approves | `read-only`: every approval goes to Nika | reads any file; writes the project, `/tmp` and `$TMPDIR`; runs any program inside its own sandbox. This adapter has no read-only sandbox: **even with no `fs.write` grant, the project stays writable.** Network stays off unless it asks. |
+| `codex` (codex-acp 1.13.1, codex 0.156.1) | `agent`: Codex's own reviewer approves | `read-only`: every approval goes to Nika | reads any file; writes the project, `/tmp`, `$TMPDIR` and its own `~/.codex` (generated images, session logs, state); runs any program inside its own sandbox, and runs its tools through a JavaScript "code mode"; calls its configured MCP tools marked `readOnlyHint: true`, remote ones included, so a Codex MCP approval rarely reaches Nika; opens pages with its hosted web tool, even under `permits: {}`, so untrusted web content reaches the model; starts every configured MCP server when the session begins; applies your global `~/.codex/AGENTS.md` and your Codex plugins. This adapter has no read-only sandbox: **even with no `fs.write` grant, the project stays writable.** Network stays off for its commands unless it asks. |
 | `claude-code` (claude-agent-acp 0.81.1, Claude Code 2.1.280) | your `permissions.defaultMode` (`auto` lets a classifier decide) | `default` ("Manual"): edits and commands ask | reads files in the project; runs commands Claude Code classifies as read-only; fetches documentation hosts it pre-approves. `bypassPermissions` is withheld. |
 | `gemini-cli` (0.62.0) | `default`, or your `--approval-mode` / settings | `default` | reads files in the project (its file tools refuse paths outside it); runs shell commands it judges safe reads; Google web searches. |
 | `qwen-code`, `kimi-code`, `opencode`, `copilot`, `grok-build` | — | none: no mode is measured, so none is selected; a current mode that visibly approves on its own refuses the run | everything it does without asking. Nika judges only what it asks. |
@@ -75,12 +95,6 @@ On every seat:
   opens by itself: Codex keeps its sandboxed commands offline unless they ask,
   while a command Claude Code or Gemini CLI runs has the network the machine
   has.
-- In `read-only`, Codex runs ordinary commands in its sandbox without asking,
-  so a command it does ask about usually wants to run outside that sandbox. Its
-  ask does not say so: `permits.exec: true` admits it like any command, and
-  Codex then runs it with no sandbox at all. To keep such a command waiting for
-  you, leave `permits.exec` unset: a list of programs does the same, because it
-  never admits a command asked as a shell string, as Codex and Claude Code ask.
 - The harness's own configuration still applies: its permission rules, its
   hooks and the MCP servers it configures act without Nika's judgment unless
   they ask.
@@ -101,7 +115,11 @@ Each harness `agent:` task journals, in order:
 - one `permit_checked` per ask, with decision `allow`, `deny` (your answer) or
   `escalate` (paused for you). Its gate names what was judged: `mcp · <server
   or tool call>` for an MCP tool approval, `network · <target>` for a network
-  ask, `sandbox · <widening>` for a sandbox widening,
+  ask, `sandbox · <widening>` for a sandbox widening (its `why` names the
+  command the widening is for), `sandbox · command` for a Codex command that
+  asks to leave its sandbox (the command and the reason in its `why`, whole up
+  to 16 KiB, then its beginning and end around the bytes left out and their
+  SHA-256),
   otherwise the ask's kind with its program or paths (an unresolvable path
   reads `<unresolved>`). A run paused on that question still journals the
   task's decisions, just before its `workflow_paused` frame;

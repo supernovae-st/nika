@@ -131,7 +131,20 @@ only against a real harness is not CI-provable (instrument law).
 ## 6 · Authority bridge (P3.6 · confused-deputy-free · NIK-266)
 
 A harness runs its OWN tools: Nika serves it no filesystem and no terminal.
-`initialize` advertises no client capability (`clientCapabilities: {}`), and an
+`initialize` advertises no `fs` and no `terminal` capability; its
+`clientCapabilities._meta` carries one adapter extension, the Air
+`sessionFailure` (`jetbrains.air`, version 1, NIK-275) that codex-acp 1.13.1 and
+claude-agent-acp 0.81.1 both implement, so a turn the adapter could not complete
+(a rejected model, a retry limit exhausted on 429) is reported as a typed
+`sessionFailure` on the `session/prompt` result, and the client fails the call
+with the adapter's title. The adapter's actions classify it: `login`
+(`auth_required`) is the expired sign-in (`HarnessError::Unavailable`, in Nika's
+words), `retry` a transient session failure, any other a refusal; codex-acp offers
+`retry` on a 429 retry exhaustion and on a rejected model, whose 400 it reports as
+a `service` failure. This holds on `infer:` as on `agent:`. Without the extension
+codex-acp returns that error as answer text and `end_turn`, which the client cannot
+tell from an answer and never pattern-matches; claude-agent-acp rejects the prompt
+with a JSON-RPC error instead. An
 agent → client call such as `fs/write_text_file` or `terminal/create` is answered
 with a JSON-RPC error (`-32601`) and journaled as a `permit_checked` deny, never
 an empty success the agent would read as served. Nika's authority over an
@@ -162,7 +175,9 @@ or `current_mode_update` away from the held mode ends the session. The table is
 - outside every grant → the EXISTING pause (NIKA-1806 · exit 4 · question
   verbatim · `--resume --answer`): the ask is left unanswered and the session ends,
   its adapter's process group killed; `--resume --answer` runs the task again in a
-  new session, where the bound answer decides the first ask outside the grants ·
+  new session, where the bound answer decides the first ask outside the grants,
+  once for the task: the verb reports it spent (`AgentEvent::GateAnswerSpent`) and
+  the runtime never hands it to an attempt `retry:` replays, whose ask pauses ·
   `permit_checked escalate`, journaled before the `workflow_paused` frame although
   the paused task never settles; the human gate is never answered by the engine;
 - the paths an ask names are anchored on the session root (root-relative inside
@@ -179,6 +194,23 @@ or `current_mode_update` away from the held mode ends the session. The table is
 - a command is judged by its argv program against `permits.exec`; a shell-string
   command (codex-acp, claude-agent-acp) or an ask with no `rawInput` (gemini-cli)
   is admitted only by `exec: true` (the shell-form law's bridge twin);
+- on a seat whose held mode runs ordinary commands in its own sandbox unasked
+  (`HarnessBoundary::asked_command_leaves_sandbox`: codex-acp `read-only`), a command
+  ask with no other escalation asks to LEAVE that sandbox (`require_escalated`):
+  it is an escalation with `escalated_command` set to the command
+  (`rawInput.command`, a string or an argv) and the reason
+  (`_meta.permission.description`), judged on plane `exec` with gate
+  `sandbox · command`, never covered by a grant. Beside a sandbox widening, an
+  `execute` ask's `escalated_command` names the command the widening is for, so
+  its witness records what ran. The witness keeps the command whole up to 16 KiB,
+  then its head and tail around the bytes left out and their SHA-256;
+- the pause question is the toolCall title, then the command the ask names unless
+  the title shows it, then the request's reason, on one line: every run of
+  controls and whitespace becomes one space and invisible characters (direction
+  marks, overrides and isolates, zero-width characters, tags) are dropped, so a
+  title such as claude-agent-acp's, which is the model's own command, cannot
+  rewrite the operator's terminal. A title or command over 2,000 bytes shows its
+  head and tail around the bytes left out and their SHA-256;
 - an ask that reaches beyond its kind arrives as `HarnessEvent::EscalationAsked`
   and is judged before its kind, never answered within the grants (`exec: true`
   included): NETWORK access, read from every structured signal codex-acp 1.13.1
@@ -205,9 +237,10 @@ the held mode lets the harness do without asking (the table); an allowed action
 runs under the harness's own sandbox, not Nika's exec sandbox, so `permits.fs` and
 `permits.net` do not confine it, and the connections an allowed command opens by
 itself are not asks (Codex keeps sandboxed commands offline; Claude Code and
-Gemini CLI commands have the host's network); a Codex command ask in `read-only`
-usually requests to run outside its sandbox without saying so on the wire, so
-`exec: true` admits it and Codex runs it unsandboxed; the harness's own permission
+Gemini CLI commands have the host's network); what Codex does on its own (its MCP
+tools marked `readOnlyHint`, its hosted web tool, its `~/.codex`, the MCP servers it
+starts and the user's global `AGENTS.md` and plugins it applies, measured on
+2026-10-26); the harness's own permission
 rules, hooks and configured MCP servers
 act without Nika's judgment unless they ask; an unmeasured seat is judged on its
 asks alone. `NIKA-DRIFT-001` never calls the `permits.exec` or `permits.fs` grants

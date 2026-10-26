@@ -198,10 +198,13 @@ const ROWS: &[(&str, &str)] = &[
          of its own MCP tool calls always pauses, `permits.exec: true` included. What the mode lets the harness do WITHOUT asking stays \
          outside permits: (Codex reads any file and writes the project, /tmp and $TMPDIR in \
          its own sandbox); a command asked as a shell string is admitted only by \
-         `permits.exec: true`; an allowed command runs under the harness's sandbox, not \
-         Nika's, and a Codex command that asked to leave that sandbox runs with none; the \
-         harness's own permission rules, hooks and MCP servers still apply. A seat with no \
-         measured mode is judged on its asks alone",
+         `permits.exec: true`, and a command Codex asks about in `read-only` asks to leave \
+         its sandbox and always pauses; an allowed command runs under the harness's \
+         sandbox, not Nika's; Codex also calls its MCP tools marked readOnlyHint, opens \
+         pages with its hosted web tool, writes its own ~/.codex, starts its configured MCP \
+         servers and applies your global AGENTS.md and plugins, all unasked; the harness's \
+         own permission rules, hooks and MCP servers still apply. A seat with no measured \
+         mode is judged on its asks alone",
     ),
     (
         "run-clock",

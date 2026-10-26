@@ -261,6 +261,18 @@ where
         Ok(())
     }
 
+    /// Whether the held mode runs ordinary commands in the harness's own sandbox without asking,
+    /// so a command it asks about asks to leave that sandbox (NIK-274: codex-acp `read-only`).
+    /// Only a measured mode the client selected and read back says so.
+    pub(super) fn commands_escalate(&self) -> bool {
+        self.confined.is_some()
+            && self
+                .agent_name
+                .as_deref()
+                .and_then(HarnessBoundary::for_agent)
+                .is_some_and(|row| row.asked_command_leaves_sandbox)
+    }
+
     /// The session's own mode on an unmeasured adapter: observed, never selected, refused when
     /// it visibly approves actions on its own.
     fn unmeasured_mode(

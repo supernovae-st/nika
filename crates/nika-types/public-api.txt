@@ -639,7 +639,9 @@ pub fn nika_types::access::AccessRequirement::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessRequirement where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::access::HarnessBoundary
 pub nika_types::access::HarnessBoundary::agents: &'static [&'static str]
+pub nika_types::access::HarnessBoundary::asked_command_leaves_sandbox: bool
 pub nika_types::access::HarnessBoundary::fetches_unasked: core::option::Option<&'static str>
+pub nika_types::access::HarnessBoundary::loads_unasked: core::option::Option<&'static str>
 pub nika_types::access::HarnessBoundary::measured_on: &'static str
 pub nika_types::access::HarnessBoundary::read_only_mode: &'static str
 pub nika_types::access::HarnessBoundary::reads_unasked: &'static str
