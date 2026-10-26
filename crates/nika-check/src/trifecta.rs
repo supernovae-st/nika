@@ -103,7 +103,7 @@ pub fn scan_trifecta_composed(
 }
 
 /// The listed call a task stands for (a workflow call `calls` names).
-fn listed_call<'a>(
+pub(crate) fn listed_call<'a>(
     calls: &'a [ComposedCall],
     task_id: &str,
     action: &RawAction,

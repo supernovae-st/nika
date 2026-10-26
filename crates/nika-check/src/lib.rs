@@ -705,7 +705,7 @@ fn gated_scans(
     }
     (
         trifecta::scan_trifecta_composed(wf, edges, topo_waves, calls),
-        consent::scan_consent(wf, edges, topo_waves),
+        consent::scan_consent(wf, edges, topo_waves, calls),
         order::scan_order(wf, edges),
     )
 }

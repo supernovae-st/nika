@@ -790,7 +790,8 @@ tasks:
 "#;
 
 /// The same parent behind a blocking human gate that every path crosses, the
-/// write bound to the affirmative answer.
+/// call and the write bound to the affirmative answer (a refused confirm must
+/// not run the child's subprocess either · NIKA-SEC-014).
 const BANNER_PARENT_GATED: &str = r#"
 nika: banner-parent
 permits:
@@ -801,7 +802,8 @@ tasks:
   ask:
     invoke: { tool: nika:prompt, args: { message: "Write the banner and the note?" } }
   call:
-    after: { ask: success }
+    with: { go: "${{ tasks.ask.output }}" }
+    when: ${{ with.go == true }}
     invoke: { workflow: "./child.nika" }
     returns: { object: { text: string } }
   note:
@@ -917,7 +919,8 @@ tasks:
   ask:
     invoke: { tool: nika:prompt, args: { message: "Post the log?" } }
   call:
-    after: { ask: success }
+    with: { go: "${{ tasks.ask.output }}" }
+    when: ${{ with.go == true }}
     invoke: { workflow: "./child.nika" }
     returns: { object: { log: string } }
   ping:

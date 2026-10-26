@@ -136,6 +136,7 @@ fn a_pure_child_brings_nothing_in_and_holds_nothing() {
     let call = only(&found);
     assert_eq!(call.ingress, None);
     assert!(call.born.is_empty() && call.files.is_empty(), "{call:?}");
+    assert_eq!(call.effect, None, "an inference acts on nothing");
     assert_eq!(call.grants, Permits::new());
 }
 
@@ -167,6 +168,11 @@ fn a_child_writing_its_arguments_out_is_an_argument_egress() {
         Some("`./drop.nika` · task `leak` writes a file through `nika:write`")
     );
     assert!(call.born.is_empty(), "{call:?}");
+    assert_eq!(
+        call.effect.as_deref(),
+        Some("`./drop.nika` · task `leak` invokes `nika:write`"),
+        "the write acts, whatever content reaches it"
+    );
 }
 
 /// A child that saves what it brings in to a file arms its caller's file
@@ -247,6 +253,11 @@ fn the_witness_walks_down_to_a_grandchild() {
         call.grants.tools,
         Some(vec!["nika:fetch".to_owned()]),
         "the grandchild's need is held through the middle"
+    );
+    assert_eq!(
+        call.effect.as_deref(),
+        Some("`./middle.nika` → `./deep/leaf.nika` · task `page` invokes `nika:fetch`"),
+        "a fetch is a net effect, found below the middle"
     );
 }
 
@@ -338,6 +349,11 @@ fn an_unresolved_call_is_untrusted_everywhere() {
     assert_eq!(call.args, CallFlow::everywhere("unread"));
     assert_eq!(call.files.file, None);
     assert!(call.files.egress.is_some() && call.files.output.is_some());
+    assert_eq!(
+        call.effect.as_deref(),
+        Some("unread"),
+        "it may act (fail-closed)"
+    );
     assert_eq!(call.grants, Permits::new());
 }
 

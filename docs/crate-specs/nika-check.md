@@ -59,8 +59,12 @@ depend on without pulling the CLI:
   block, met with every block above it, keeps; `nika-dap`'s
   `NIKA-DRIFT-001` never names a held grant dead. The runtime trust gate
   re-derives the trifecta over the same calls, and counts a call its report
-  does not list as unresolved. A plain `check()` resolves no
-  call: its trifecta lane, like its composition and cost lanes, judges the
+  does not list as unresolved. `effect` names the first egress-capable task
+  of the closure, whatever content reaches it (an unresolved closure sets
+  it): the consent lane (`NIKA-SEC-014`) judges such a call as that task, so
+  a confirm gate in front of it must close every route on a refusal, as in
+  front of the inline task. A plain `check()` resolves no call: its
+  trifecta and consent lanes, like its composition and cost lanes, judge the
   caller's own tasks only.
 - **the file channel** (`file_channel`, inside the content-taint pass) —
   under a declared `fs.read`, a task that reads a file an earlier tainted

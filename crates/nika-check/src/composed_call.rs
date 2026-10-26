@@ -24,6 +24,11 @@
 //!   reaches an egress task. A blocking gate inside the closure is never
 //!   credited to the caller: the caller's own gate, upstream of the call,
 //!   clears it, as it clears the same tasks written inline.
+//! - **effect** (NEP-0020 · `NIKA-SEC-014`): the closure holds an
+//!   egress-capable task of the effect table, whatever content reaches it.
+//!   The consent lane judges the call as that task: a confirm gate in front
+//!   of it must close every route to it on a refusal, as in front of the
+//!   same task written inline.
 //! - **grants**: the entries of the caller's own `permits:` the call uses
 //!   or may use. The child runs inside the caller's boundary (laws 3/4:
 //!   `child ∩ parent` at check and at run), so these entries are
@@ -77,6 +82,13 @@ pub struct ComposedCall {
     /// is never set: the channel is already open.
     #[serde(default, skip_serializing_if = "CallFlow::is_empty")]
     pub files: CallFlow,
+    /// The first task, in the child or a workflow below it, that has an
+    /// effect (an egress-capable task of the effect table, whatever content
+    /// reaches it), or the workflow the check could not resolve. `None` when
+    /// nothing below can act: a refused confirm in front of the call then
+    /// triggers no effect (NEP-0020).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effect: Option<String>,
     /// The entries of the caller's own `permits:` this call uses or may use
     /// (spec 14 law 3): never dead while the call exists.
     pub grants: Permits,
@@ -98,6 +110,7 @@ impl ComposedCall {
                 file: None,
                 ..CallFlow::everywhere(why)
             },
+            effect: Some(why.to_owned()),
             grants: Permits::new(),
         }
     }
@@ -219,6 +232,8 @@ struct Reach {
     born: Flow,
     args: Flow,
     files: Flow,
+    /// The first task with an effect in task order (`None`: nothing acts).
+    effect: Option<Witness>,
     /// Every workflow below resolved.
     resolved: bool,
     /// The union of each workflow's inferred needs (`super::permits_infer`).
@@ -240,6 +255,7 @@ impl Reach {
                 file: None,
                 ..Flow::everywhere(why)
             },
+            effect: Some(Witness::here(why.to_owned())),
             resolved: false,
             needs: Permits::new(),
             opaque: Permits::new(),
@@ -255,6 +271,7 @@ impl Reach {
             born: self.born.render(target),
             args: self.args.render(target),
             files: self.files.render(target),
+            effect: self.effect.as_ref().map(|w| w.render(target)),
             grants: Permits::new(),
         }
     }
@@ -348,14 +365,22 @@ fn reach_of_file(
             if reach.ingress.is_none() {
                 reach.ingress = below.ingress.as_ref().map(|w| w.under(target));
             }
+            if reach.effect.is_none() {
+                reach.effect = below.effect.as_ref().map(|w| w.under(target));
+            }
             reach.resolved &= below.resolved;
             reach.needs = reach.needs.union(&below.needs);
             // A grandchild runs inside this child's boundary.
             let bound = below.opaque.intersect(declared.unwrap_or(&Permits::new()));
             reach.opaque = reach.opaque.union(&bound);
             nested.insert(task_id.clone(), (target.to_owned(), below));
-        } else if reach.ingress.is_none() {
-            reach.ingress = born_ingress(task_id, &task.value.action).map(Witness::here);
+        } else {
+            if reach.ingress.is_none() {
+                reach.ingress = born_ingress(task_id, &task.value.action).map(Witness::here);
+            }
+            if reach.effect.is_none() && crate::trifecta::egress_capable(&task.value.action) {
+                reach.effect = Some(Witness::here(egress_what(task_id, &task.value.action)));
+            }
         }
     }
     stack.pop();
@@ -523,6 +548,7 @@ fn own_reach(wf: &RawWorkflow, declared: Option<&Permits>) -> Reach {
         born: Flow::default(),
         args: Flow::default(),
         files: Flow::default(),
+        effect: None,
         resolved: true,
         needs: inferred.permits,
         opaque: declared.map_or_else(Permits::new, |d| faces_of(d, opaque)),

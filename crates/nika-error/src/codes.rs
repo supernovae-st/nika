@@ -801,6 +801,16 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              (`nika:read` · `nika:grep` · `nika:glob` · …) of a path that \
              write may have reached, carries it on.\n",
         ),
+        // NIK-273 follow-up: a child workflow call is an egress-capable task.
+        "NIKA-SEC-014" => Some(
+            "  A call to a child workflow counts as an egress-capable task \
+             when the child, or a workflow it calls, holds one (an `exec:`, \
+             a net or file-write builtin, an `mcp:` tool, an `agent:` whose \
+             `tools:` admit one), whatever content reaches it: the child \
+             runs inside this file's boundary. Every route from a confirm \
+             gate to the call must close on « no », as for the inline task. \
+             A child the check cannot read or resolve counts as acting.\n",
+        ),
         _ => None,
     }
 }
@@ -845,6 +855,21 @@ mod tests {
             trifecta.contains("a later builtin read") && trifecta.contains("`nika:read`"),
             "{trifecta}"
         );
+    }
+
+    /// NIK-273 follow-up: the consent lesson counts a child call as an
+    /// egress-capable task.
+    #[test]
+    fn the_composed_consent_is_taught() {
+        let consent = spec_contract_help("NIKA-SEC-014").expect("teaches");
+        for lesson in [
+            "A call to a child workflow counts as an egress-capable task",
+            "whatever content reaches it",
+            "must close on « no »",
+            "counts as acting",
+        ] {
+            assert!(consent.contains(lesson), "`{lesson}` missing: {consent}");
+        }
     }
 
     /// A value over a rehearsal room's bound teaches how to clear it, beside its cause.

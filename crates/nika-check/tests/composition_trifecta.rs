@@ -91,8 +91,9 @@ tasks:
         data: { note: "${{ with.note }}" }
 "#;
 
-/// The same parent with a blocking human gate upstream of both entries and
-/// the egress bound to the affirmative answer.
+/// The same parent with a blocking human gate upstream of both entries, and
+/// the call and the egress bound to the affirmative answer (the child acts:
+/// a refused confirm must not run it · NIKA-SEC-014).
 const PARENT_GATED: &str = r#"nika: parent
 permits:
   tools: ["nika:read", "nika:notify", "nika:prompt"{tools}]
@@ -102,7 +103,8 @@ tasks:
   ask:
     invoke: { tool: nika:prompt, args: { message: "Send the page and the note?" } }
   call:
-    after: { ask: success }
+    with: { go: "${{ tasks.ask.output }}" }
+    when: ${{ with.go == true }}
     invoke: { workflow: "{target}" }
     returns: { object: { text: string } }
   note:
