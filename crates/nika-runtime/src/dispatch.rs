@@ -66,6 +66,10 @@ pub(crate) struct FailedDispatch {
     pub cost_source: Option<String>,
     /// Why (part of) the incurred spend is NOT in `cost_usd`.
     pub cost_unpriced: Option<UnpricedReason>,
+    /// Calls made inside this leaf whose spend is not in `cost_usd` (an
+    /// agent's paid media tools · a child run's unpriced calls · C-D3): the
+    /// ledger counts each one.
+    pub unpriced_inner_calls: u32,
     /// F-P6 · the commit gate's binding evidence — `Fired` when the
     /// failure fired AFTER a passed gate (the judged bytes DID fire) ·
     /// `Refused` when the gate refused the fire (the finding). One field,
@@ -100,6 +104,7 @@ impl FailedDispatch {
             cost_usd: None,
             cost_source: None,
             cost_unpriced: None,
+            unpriced_inner_calls: 0,
             evidence: None,
             access: None,
             usage: None,
@@ -123,6 +128,7 @@ impl FailedDispatch {
             self.cost_unpriced.is_some(),
             self.usage.as_deref(),
         );
+        ledger.count_unpriced(self.unpriced_inner_calls);
         if let Some(c) = self.cost_usd {
             *failed_cost = Some(failed_cost.unwrap_or(0.0) + c);
         }
@@ -156,6 +162,10 @@ pub(crate) struct DispatchOk {
     /// Why (part of) this leaf's spend is NOT in `cost_usd` — the
     /// honest-absence WHY channel (`cost_unpriced` on the trace frame).
     pub cost_unpriced: Option<UnpricedReason>,
+    /// Calls made inside this leaf whose spend is not in `cost_usd` (an
+    /// agent's paid media tools · a child run's unpriced calls · C-D3): the
+    /// ledger counts each one beside the leaf's own.
+    pub unpriced_inner_calls: u32,
     /// F-P6 · the binding evidence of a FIRED exec/invoke step (the
     /// judged digest ≡ the fired digest) — `None` for the un-gated verbs
     /// (infer · agent) and for a `workflow:` call (the child's own trace
@@ -204,6 +214,7 @@ impl Dispatched {
                 cost_usd: None,
                 cost_source: None,
                 cost_unpriced: None,
+                unpriced_inner_calls: 0,
                 commit: None,
                 access: None,
                 usage: None,
@@ -232,6 +243,7 @@ impl Dispatched {
                 cost_usd,
                 cost_source,
                 cost_unpriced,
+                unpriced_inner_calls: 0,
                 commit: None,
                 access: None,
                 usage: None,
@@ -291,6 +303,21 @@ impl Dispatched {
             (failed.cost_usd, failed.cost_source, failed.cost_unpriced) = spend;
         }
         dispatched
+    }
+
+    /// Count the calls inside a failed leaf whose spend is outside every
+    /// figure (an agent's paid media tools · C-D3), one reason per call, and
+    /// name the first on the frame when the leaf's own spend is priced.
+    fn with_unpriced_inner_calls(
+        mut self,
+        spend: Option<&nika_types::cost::SpendOnFailure>,
+    ) -> Self {
+        let reasons = spend.map_or(&[][..], |spend| &spend.tools_unpriced[..]);
+        if let Err(failed) = &mut self.result {
+            failed.unpriced_inner_calls = u32::try_from(reasons.len()).unwrap_or(u32::MAX);
+            failed.cost_unpriced = failed.cost_unpriced.or(reasons.first().copied());
+        }
+        self
     }
 
     /// Carry a resolved replay veto without changing the error or its evidence.
@@ -1108,13 +1135,13 @@ where
                 let retry_forbidden = agent_buffer.block_connection_replay(&mut err);
                 let split = failed_usage_split(err.spend());
                 let spend = price_failed_spend(err.spend());
-                // A proven seat/access refusal carries the typed field.
-                // Tool, max-turns, and schema failures after a seat
-                // already ran do not — they are not a pin.
+                // A proven seat/access refusal carries the typed field; tool,
+                // max-turns and schema failures after a seat ran are not a pin.
                 let refused = seat.as_deref().and_then(|seat| {
                     verb_outcome::proven_seat_refusal(seat, &err, access.as_ref())
                 });
                 Dispatched::verb_err_spent(format!("agent · {lane_model}"), &err, spend)
+                    .with_unpriced_inner_calls(err.spend())
                     .with_operator_cancelled(matches!(
                         &err,
                         nika_verb_agent::VerbAgentError::OperatorStopped { .. }
@@ -1133,6 +1160,9 @@ where
         input.permits = scope.permits().cloned();
         input.gate_answer.clone_from(&ctx.gate_answer);
         input.stopped.clone_from(&ctx.stopped);
+        // C-D3 · the loop judges each paid media tool call against the run's
+        // remaining USD before its request, as the invoke dispatch guard does.
+        input.cost_remaining_usd = ctx.child_budget;
     }
 
     /// Parse the composer-resolved skill texts one agent action names

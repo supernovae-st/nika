@@ -1425,6 +1425,7 @@ fn dispatch_result(
             cost_usd,
             cost_source,
             cost_unpriced,
+            unpriced_inner_calls: _,
             commit: _,
             access,
             usage: _,

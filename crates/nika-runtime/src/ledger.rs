@@ -188,6 +188,24 @@ impl RunLedger {
             ok.cost_unpriced.is_some(),
             ok.usage.as_deref(),
         );
+        self.count_unpriced(ok.unpriced_inner_calls);
+    }
+
+    /// Count `calls` made inside one leaf whose spend is outside every
+    /// figure (C-D3 · an agent's paid media tools, a child run's unpriced
+    /// calls), so the settlement never reads `priced` while it holds them.
+    /// An agent leaf always carries its per-call split (the split branch of
+    /// [`Self::debit_observed`] ignores its own flag), and a child call sets
+    /// no own reason, so no call is counted twice.
+    pub(crate) fn count_unpriced(&self, calls: u32) {
+        if calls == 0 {
+            return;
+        }
+        let mut inner = match self.inner.lock() {
+            Ok(inner) => inner,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        inner.unpriced_calls = inner.unpriced_calls.saturating_add(calls);
     }
 
     /// Whether the budget has been crossed — the admission gates (wave

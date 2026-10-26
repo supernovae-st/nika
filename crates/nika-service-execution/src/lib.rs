@@ -1304,7 +1304,7 @@ impl ChildRunner for ServiceExecutionDriver {
             let def_hash = sha256_hex(source.as_bytes());
             let mut stamper = RunSeams::of(workflow.run.as_ref().map(|run| &run.value)).stamper();
             let run = runtime.run(stamper.as_mut(), trace.sink()).await;
-            let (ok, outputs, cost, failure) = child_run_parts(&run);
+            let (ok, outputs, (cost, unpriced_calls), failure) = child_run_parts(&run);
             let metadata = trace.metadata();
             let trace = Some(ChildRunSummary::new(
                 call.target.clone(),
@@ -1319,6 +1319,7 @@ impl ChildRunner for ServiceExecutionDriver {
                 ok,
                 outputs,
                 cost_usd: cost,
+                unpriced_calls,
                 trace,
                 failure,
                 // SKELETON (child-depth prompt pause), wired in the window: arm the child
@@ -1333,10 +1334,12 @@ impl ChildRunner for ServiceExecutionDriver {
     }
 }
 
+/// Whether the child succeeded, its outputs, its spend (metered USD and the
+/// count of calls outside it), and its first failure.
 type ChildRunParts = (
     bool,
     BTreeMap<String, Value>,
-    Option<f64>,
+    (Option<f64>, u32),
     Option<(String, String)>,
 );
 
@@ -1348,14 +1351,17 @@ fn child_run_parts(run: &Result<RunOutcome, RuntimeError>) -> ChildRunParts {
             (
                 ok,
                 outcome.outputs.clone(),
-                outcome.settlement.spend.total_cost_usd,
+                (
+                    outcome.settlement.spend.total_cost_usd,
+                    outcome.settlement.spend.unpriced_calls,
+                ),
                 failure,
             )
         }
         Err(error) => (
             false,
             BTreeMap::new(),
-            None,
+            (None, 0),
             Some((error.spec_code(), error.to_string())),
         ),
     }

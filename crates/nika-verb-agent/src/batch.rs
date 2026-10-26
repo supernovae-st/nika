@@ -6,6 +6,7 @@
 //! file cap when the effect memory (#1470) rode onto the resolve.
 
 use nika_kernel::ai::provider::ContentBlock;
+use nika_types::cost::UnpricedReason;
 
 use crate::guard::{EffectGate, Guard, turn_signature};
 use crate::intrinsic::ComposeOutcome;
@@ -48,12 +49,30 @@ impl Resolved {
     }
 }
 
+/// The loop's tool spend: the real USD its tools reported, and why each
+/// call that billed without reporting is outside it (C-D3 · a paid media
+/// call the catalog cannot price), one entry per call.
+#[derive(Default)]
+pub(crate) struct ToolSpend {
+    pub(crate) usd: f64,
+    pub(crate) unpriced: Vec<UnpricedReason>,
+}
+
+/// Fold one batch's spend into the loop's.
+impl std::ops::AddAssign for ToolSpend {
+    fn add_assign(&mut self, batch: Self) {
+        self.usd += batch.usd;
+        self.unpriced.extend(batch.unpriced);
+    }
+}
+
 /// What one dispatched batch produced (results + the guard's evidence).
 pub(crate) struct BatchOutcome {
     /// The tool-result blocks, in dispatch order.
     pub(crate) results: Vec<ContentBlock>,
-    /// Σ of the batch's tool-reported real spend (0.0 = none reported).
-    pub(crate) tools_cost_usd: f64,
+    /// The batch's tool spend: Σ of tool-reported real spend (0.0 = none
+    /// reported) and the paid calls that reported none.
+    pub(crate) tools: ToolSpend,
     /// Turn signature over actions + observations (see `guard`).
     pub(crate) signature: u64,
     /// A bounded digest of the observations, for the next routing query.
@@ -76,7 +95,7 @@ pub(crate) struct BatchFold {
     /// repair). Tracked separately from the per-block `is_error`.
     all_dispatch_errors: bool,
     had_dispatch: bool,
-    tools_cost_usd: f64,
+    tools: ToolSpend,
 }
 
 impl BatchFold {
@@ -87,7 +106,7 @@ impl BatchFold {
             sig_results: Vec::with_capacity(capacity),
             all_dispatch_errors: true,
             had_dispatch: false,
-            tools_cost_usd: 0.0,
+            tools: ToolSpend::default(),
         }
     }
 
@@ -103,7 +122,9 @@ impl BatchFold {
         router: &mut ToolRouter,
     ) {
         if let Some(cost) = r.cost_usd {
-            self.tools_cost_usd += cost;
+            self.tools.usd += cost;
+        } else if let Some(reason) = unpriced_paid_call(&r) {
+            self.tools.unpriced.push(reason);
         }
         // An intrinsic reports ComposeChecked; a real dispatch reports
         // ToolCompleted. They are NOT both — `nika:compose` is
@@ -166,10 +187,27 @@ impl BatchFold {
         BatchOutcome {
             signature: turn_signature(&self.sig_calls, &self.sig_results),
             results: self.results,
-            tools_cost_usd: self.tools_cost_usd,
+            tools: self.tools,
             observations_digest,
             // No real dispatch this turn (compose-only) ⇒ no error streak.
             all_errors: self.had_dispatch && self.all_dispatch_errors,
         }
     }
+}
+
+/// Why a dispatched call that returned without reporting spend billed
+/// outside the loop's figure (C-D3): a paid media call the catalog cannot
+/// price, or a priced one that reported nothing. A refused replay, a loop
+/// intrinsic and a call fed back as an error are not counted here.
+fn unpriced_paid_call(r: &Resolved) -> Option<UnpricedReason> {
+    let returned = matches!(
+        &r.block,
+        ContentBlock::ToolResult {
+            is_error: false,
+            ..
+        }
+    );
+    (returned && r.compose.is_none() && r.gate != EffectGate::Replay)
+        .then(|| nika_check::analyzer::media_spend_unpriced(&r.name, &r.args))
+        .flatten()
 }

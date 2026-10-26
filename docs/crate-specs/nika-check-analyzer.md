@@ -51,11 +51,16 @@ module reads and which reads none of them back:
   values, and it never rules on spend or authority
 - `builtin_floor` · the catalog's static reads the runtime's budget gates
   price with (`priced_builtin_floor`, `unpriced_cloud_seat`,
-  `media_call_provider`): what a workflow's priced `invoke:` tasks must
+  `media_call_provider`, `media_call_template`, `media_cap_refusal`,
+  `media_spend_unpriced`): what a workflow's priced `invoke:` tasks must
   spend on their cheapest path, whether a seat is a third-party cloud route
-  the catalog does not price, and which provider a paid media call bills
+  the catalog does not price, which provider a paid media call bills
   (explicit, or inferred from `model:` as the builtin infers it; a template
-  stays the run's to judge).
+  stays the run's to judge and is named as such), the verdict a cap owes a
+  rendered media call (unpriced, or a per-call floor above what is left),
+  and why a returned media call's absent spend is unpriced. The runtime's
+  dispatch guard and the `agent:` loop speak their refusals from that one
+  verdict.
   Descended verbatim from `nika-runtime`'s `admit.rs` (B9 phase C ·
   2026-09-28) so the runtime's 15k wall has room for the dispatch guard that
   shares them; the runtime keeps every refusal and its wording

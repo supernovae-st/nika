@@ -677,18 +677,33 @@ same guard, ledger and child budget (§3.8 · B11).
 
 Paid media (C-D3) follows the same two steps. `nika_check`'s
 `CostCeiling.media` lists each `nika:image_generate` / `nika:tts_generate`
-call whose literal provider bills, priced per call by the catalog
-(`nika_catalog::builtin_media_price`) or unpriced. Under a cap, the budget
-floor refuses an unpriced one before the prologue (`BudgetFloor`, NIKA-1709),
-seated on a harness or not: the call bills its own provider key. A provider
-only the run decides is judged after rendering and before the request
-(`admit::run_decided_media_refusal`, NIKA-1704): unpriced, or a priced floor
-above the remaining USD, refuses. A returned paid media call with no
+call that may bill, its own or a composed child's under the calling task:
+priced per call by the catalog (`nika_catalog::builtin_media_price`),
+unpriced, or decided at run (`run_decided`: a templated provider, or a paid
+media builtin an `agent:` whitelist and `permits.tools` let the model call). Under a
+cap, the budget floor refuses an unpriced literal one before the prologue
+(`BudgetFloor`, NIKA-1709), seated on a harness or not: the call bills its own
+provider key. A provider only the run decides is judged after rendering and
+before the request (`admit::run_decided_media_refusal`, NIKA-1704): unpriced,
+or a priced floor above the remaining USD, refuses. Both read one verdict,
+`nika_check::analyzer::media_cap_refusal`. An `agent:` receives the ledger's
+remaining USD at dispatch (`AgentInput::cost_remaining_usd`, a snapshot) and
+its loop judges each media tool call with that verdict before the request,
+feeding the refusal back to the model. A returned paid media call with no
 `cost_usd` carries `cost_unpriced` (`missing_catalog_price`, or
-`provider_did_not_report_usage` for a priced provider), so the ledger counts
-it and the settlement never reads `priced` while it holds unknown spend.
-Local, mock and keyless media stay unmetered. An `agent:` tool call reaches a
-media builtin outside this dispatch guard.
+`provider_did_not_report_usage` for a priced provider), from an `invoke:`
+task directly and from an agent's tools through `AgentOutput::tools_unpriced`
+(`SpendOnFailure::tools_unpriced` on failure); the ledger counts each one
+(`unpriced_inner_calls`), and a child run's `unpriced_calls` reach its
+parent's ledger the same way (`ChildOutcome::unpriced_calls`), so a
+settlement never reads `priced` while it holds unknown spend. Local, mock and
+keyless media stay unmetered.
+
+Known limits: a media builtin that fails after its provider request (a decode
+or format mismatch, an `output_dir` outside `fs.write` that only the run
+renders, a manifest write) returns an error, and the commit path records no
+spend for it; and a `local` media endpoint is operator configuration, which
+may point at a paid host, yet it stays unmetered like a local text model.
 
 ## Harness media receipt side channel
 

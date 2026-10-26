@@ -31,20 +31,27 @@ fn cost_composed_only(out: &mut String, report: &CheckReport, t: Theme) {
             )
         );
     } else {
-        let money = format!(
+        let mut money = format!(
             "${} – ${} worst-case output ceiling · {} · own inference $0.00",
             crate::vocab::usd(report.cost.min_path_total_usd),
             crate::vocab::usd(report.cost.bounded_total_usd),
             calls
         );
+        // A paid media call (its own, or a child's under its calling task)
+        // is outside that ceiling: named here and on its row (C-D3).
+        if let Some(media) = media_summary(report) {
+            money.push_str(" · ");
+            money.push_str(&media);
+        }
         let _ = writeln!(
             out,
             " {} {}     {}",
-            mark(t, true),
+            media_mark(t, unpriced_media(report) > 0),
             t.paint(Role::Strong, "COST"),
             money
         );
     }
+    cost_media_rows(out, report, t);
 }
 
 /// The COST arm for a workflow with NO own inference task — the `$0.00`
@@ -91,7 +98,8 @@ fn media_summary(report: &CheckReport) -> Option<String> {
     })
 }
 
-/// How many paid media calls have no catalog price.
+/// How many paid media calls the figure cannot price: no catalog price, or
+/// a provider only the run decides.
 fn unpriced_media(report: &CheckReport) -> usize {
     (report.cost.media.iter())
         .filter(|call| call.usd_per_call.is_none())
@@ -108,12 +116,27 @@ fn media_mark(t: Theme, unpriced: bool) -> String {
     }
 }
 
-/// One row per paid media call: its per-call catalog price, or UNPRICED
-/// with what an armed cap does with it (the run's own refusal, NIKA-1709).
+/// One row per paid media call: its per-call catalog price, UNPRICED with
+/// what an armed cap does with it (the run's own refusal, NIKA-1709), or
+/// DECIDED AT RUN for a provider only the run resolves (judged before its
+/// request, NIKA-1704).
 fn cost_media_rows(out: &mut String, report: &CheckReport, t: Theme) {
     for call in &report.cost.media {
         let callee = format!("{} · {}", call.tool, call.provider);
         match call.usd_per_call {
+            None if call.run_decided => {
+                let _ = writeln!(
+                    out,
+                    "   {}  {}  {} {}",
+                    call.task,
+                    t.paint(Role::Dim, &callee),
+                    t.paint(Role::Warn, "DECIDED AT RUN"),
+                    t.paint(
+                        Role::Dim,
+                        "— a cap refuses an unpriced provider before its request (NIKA-1704)"
+                    ),
+                );
+            }
             Some(usd) => {
                 let _ = writeln!(
                     out,
@@ -132,7 +155,7 @@ fn cost_media_rows(out: &mut String, report: &CheckReport, t: Theme) {
                     t.paint(Role::Warn, "UNPRICED"),
                     t.paint(
                         Role::Dim,
-                        "— no catalog price; --max-cost-usd refuses it (NIKA-1709)"
+                        "— no catalog price; any cost cap refuses it (NIKA-1709)"
                     ),
                 );
             }
@@ -399,6 +422,18 @@ mod tests {
             !text.contains('✔'),
             "an unpriced call never sits under a check mark: {text}"
         );
+        // The audited line quotes the figure and names what it leaves out.
+        let wf = nika_schema::parse(
+            "nika: speak\npermits: { tools: [\"nika:tts_generate\"] }\ntasks:\n  speak:\n    invoke: { tool: \"nika:tts_generate\", args: { provider: openai, text: hi, output_dir: ./out } }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let est = crate::check_render::est_clause(
+            &nika_check::check(&wf),
+            Theme::new(false, false, false),
+        );
+        assert!(est.ends_with("+ 1 unpriced paid media call"), "{est}");
     }
 
     /// The inference ceiling keeps its figure and stops hiding the media
@@ -417,6 +452,49 @@ mod tests {
             text.contains("nika:image_generate · xai") && text.contains("$0.0200 per call"),
             "{text}"
         );
+    }
+
+    /// A provider only the run decides is named, never a free `$0.00` under
+    /// a check mark: the run judges it before its request (NIKA-1704).
+    #[test]
+    fn a_run_decided_media_provider_is_named_never_a_free_zero() {
+        let text = media_card(
+            "nika: fan\ninputs:\n  who: { type: string, default: mock }\npermits: { tools: [\"nika:image_generate\"] }\ntasks:\n  draw:\n    invoke: { tool: \"nika:image_generate\", args: { provider: \"${{ inputs.who }}\", prompt: a star, output_dir: ./out } }\n",
+        );
+        assert!(!text.contains("$0.00") && !text.contains('✔'), "{text}");
+        assert!(
+            text.contains("DECIDED AT RUN") && text.contains("NIKA-1704"),
+            "{text}"
+        );
+    }
+
+    /// The composed-only layout (a child call, no own inference) names the
+    /// paid media beside its ceiling and drops its check mark while an
+    /// unpriced call is outside the figure.
+    #[test]
+    fn the_composed_only_layout_names_its_paid_media() {
+        let source = "nika: parent\npermits: { tools: [\"nika:tts_generate\"] }\ntasks:\n  call:\n    invoke: { workflow: ./child.nika }\n  speak:\n    invoke: { tool: \"nika:tts_generate\", args: { provider: openai, text: hi, output_dir: ./out } }\n";
+        let wf = nika_schema::parse(
+            source,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check_composed(&wf, "parent.nika", &mut |_| {
+            Ok("nika: child\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 100 }\n".to_owned())
+        });
+        assert!(!report.cost.composed.is_empty(), "the child is priced");
+        let mut text = String::new();
+        let layers = VerdictLayers::default();
+        cost(&mut text, &report, Theme::new(false, false, false), &layers);
+        assert!(text.contains("composed child call"), "{text}");
+        assert!(
+            text.contains("1 paid media call, 1 unpriced")
+                && text.contains("nika:tts_generate · openai")
+                && text.contains("UNPRICED"),
+            "{text}"
+        );
+        assert!(!text.contains('✔'), "{text}");
     }
 
     /// Local, mock and keyless media spend nothing: the card is unchanged.

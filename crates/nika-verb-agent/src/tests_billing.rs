@@ -97,3 +97,136 @@ async fn s80_failed_agent_preserves_completed_call_failed_call_and_known_tools()
     assert_eq!(spend.inference_calls[1], failed);
     assert_eq!(spend.tools_cost_usd, Some(0.25));
 }
+
+/// The refusal the loop fed back to the model on its last request.
+fn fed_back_error(r: &crate::tests::Rig) -> String {
+    let requests = r.provider.captured_requests();
+    let last = requests.last().expect("a request after the tool turn");
+    last.messages
+        .iter()
+        .flat_map(|m| m.content.iter())
+        .find_map(|block| match block {
+            ContentBlock::ToolResult {
+                content,
+                is_error: true,
+                ..
+            } => Some(content.clone()),
+            _ => None,
+        })
+        .expect("the refusal is fed back as an error result")
+}
+
+fn draw(provider: &str) -> InferResponse {
+    tool_use_response(
+        "c",
+        "nika:image_generate",
+        serde_json::json!({"provider": provider, "prompt": "a star", "output_dir": "./out"}),
+    )
+}
+
+/// C-D3 · under a cost cap, a paid media tool call the catalog cannot price
+/// is refused before its request and fed back (the model can pick another
+/// provider): the executor never sees it and nothing is billed. A priced
+/// call whose floor exceeds what is left is refused the same way.
+#[tokio::test]
+async fn a_capped_loop_refuses_paid_media_the_cap_cannot_bound() {
+    for (provider, remaining, why) in [
+        ("openai", 5.0, "no catalog price"),
+        ("gemini", 5.0, "no catalog price"),
+        ("xai", 0.01, "costs at least $0.020000"),
+    ] {
+        let r = rig(
+            MockProvider::new("mock")
+                .enqueue_response(draw(provider))
+                .enqueue_response(text_response("done")),
+            MockToolExecutor::new(),
+            vec![def("nika:image_generate")],
+        );
+        let mut input = AgentInput::new("draw");
+        input.tools = vec!["nika:image_generate".into()];
+        input.cost_remaining_usd = Some(remaining);
+        let out = r.verb.run(input).await.expect("the loop goes on");
+        assert!(
+            r.tools.captured_calls().is_empty(),
+            "{provider}: no request"
+        );
+        assert!(out.tools_unpriced.is_empty(), "{provider}: nothing billed");
+        let fed = fed_back_error(&r);
+        assert!(
+            fed.starts_with("NIKA-1704")
+                && fed.contains(&format!("`{provider}`"))
+                && fed.contains(why),
+            "{provider}: {fed}"
+        );
+    }
+}
+
+/// A cap leaves unmetered media and a priced call that fits untouched, and
+/// no cap judges nothing: the call reaches the executor.
+#[tokio::test]
+async fn a_loop_dispatches_media_the_cap_bounds_or_no_cap_at_all() {
+    for (provider, remaining) in [("mock", Some(0.0)), ("xai", Some(1.0)), ("openai", None)] {
+        let r = rig(
+            MockProvider::new("mock")
+                .enqueue_response(draw(provider))
+                .enqueue_response(text_response("done")),
+            MockToolExecutor::new().enqueue_ok(ToolResult::success("c", "{}")),
+            vec![def("nika:image_generate")],
+        );
+        let mut input = AgentInput::new("draw");
+        input.tools = vec!["nika:image_generate".into()];
+        input.cost_remaining_usd = remaining;
+        r.verb.run(input).await.expect("completes");
+        assert_eq!(r.tools.captured_calls().len(), 1, "{provider}: dispatched");
+    }
+}
+
+/// C-D3 · a returned paid media call that reported no spend is named as
+/// unpriced on the output, one entry per call, and on the failure spend of
+/// a loop that dies afterwards: the run never settles `priced` over it. A
+/// call that reported its `cost_usd` (xAI) is metered, never unpriced.
+#[tokio::test]
+async fn returned_unpriced_media_rides_the_output_and_the_failure_spend() {
+    use nika_types::cost::UnpricedReason;
+    let returned = |id: &str| {
+        ToolResult::success(id, "{}").with_structured(serde_json::json!({"provider": "openai"}))
+    };
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(draw("openai"))
+            .enqueue_response(tool_use_response(
+                "x",
+                "nika:image_generate",
+                serde_json::json!({"provider": "xai", "prompt": "a star", "output_dir": "./out"}),
+            ))
+            .enqueue_response(text_response("done")),
+        MockToolExecutor::new()
+            .enqueue_ok(returned("c"))
+            .enqueue_ok(
+                ToolResult::success("x", "{}")
+                    .with_structured(serde_json::json!({"cost_usd": 0.02})),
+            ),
+        vec![def("nika:image_generate")],
+    );
+    let mut input = AgentInput::new("draw twice");
+    input.tools = vec!["nika:image_generate".into()];
+    let out = r.verb.run(input).await.expect("completes");
+    assert_eq!(out.tools_unpriced, [UnpricedReason::MissingCatalogPrice]);
+    assert_eq!(out.tools_cost_usd, Some(0.02));
+
+    let error = ProviderError::Connection {
+        reason: "interrupted".into(),
+    };
+    let r = rig(
+        MockProvider::new("mock")
+            .enqueue_response(draw("openai"))
+            .enqueue_error(error),
+        MockToolExecutor::new().enqueue_ok(returned("c")),
+        vec![def("nika:image_generate")],
+    );
+    let mut input = AgentInput::new("draw then fail");
+    input.tools = vec!["nika:image_generate".into()];
+    let failed = r.verb.run(input).await.expect_err("the second turn fails");
+    let spend = failed.spend().expect("observed spend");
+    assert_eq!(spend.tools_unpriced, [UnpricedReason::MissingCatalogPrice]);
+}

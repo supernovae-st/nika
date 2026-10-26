@@ -103,21 +103,17 @@ fn tool_spend(
     Option<String>,
     Option<nika_types::cost::UnpricedReason>,
 ) {
-    use nika_types::cost::UnpricedReason;
     let tool = note.strip_prefix("invoke · ").unwrap_or(note);
     let cost_usd =
         (value.get("cost_usd").and_then(Value::as_f64)).filter(|c| c.is_finite() && *c >= 0.0);
     if cost_usd.is_some() {
         return (cost_usd, Some(tool.to_owned()), None);
     }
-    let unpriced = nika_check::analyzer::media_call_provider(tool, value).and_then(|provider| {
-        match nika_catalog::builtin_media_price(tool, provider) {
-            nika_catalog::MediaPrice::Unknown => Some(UnpricedReason::MissingCatalogPrice),
-            nika_catalog::MediaPrice::PerCall(_) => Some(UnpricedReason::ProviderDidNotReportUsage),
-            _ => None,
-        }
-    });
-    (None, None, unpriced)
+    (
+        None,
+        None,
+        nika_check::analyzer::media_spend_unpriced(tool, value),
+    )
 }
 
 /// The binding evidence of ONE fired step — the two digests, equal on an
@@ -209,6 +205,7 @@ impl super::Dispatched {
                 cost_usd: None,
                 cost_source: None,
                 cost_unpriced: None,
+                unpriced_inner_calls: 0,
                 evidence: Some(CommitEvidence::Refused(Box::new(divergence))),
                 access: None,
                 usage: None,

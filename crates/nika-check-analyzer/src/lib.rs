@@ -72,7 +72,10 @@ use nika_schema::raw::{RawTask, RawWorkflow};
 use nika_schema::source::Spanned;
 use nika_schema::types::AfterPredicate;
 
-pub use builtin_floor::{media_call_provider, priced_builtin_floor, unpriced_cloud_seat};
+pub use builtin_floor::{
+    media_call_provider, media_call_template, media_cap_refusal, media_spend_unpriced,
+    priced_builtin_floor, unpriced_cloud_seat,
+};
 pub use capacity::{CapacityFinding, capacity_findings};
 pub use edges::{Edge, EdgeKind, RecoveryRead, Route, SettledState, role_of_field, witness_routes};
 pub use rendered::{

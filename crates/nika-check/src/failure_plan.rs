@@ -51,7 +51,7 @@ pub(crate) fn collect(wf: &RawWorkflow, report: &CheckReport) -> Vec<FailurePlan
     let mut out = Vec::new();
     out.extend(passwd_reads(wf, report));
     out.extend(exec_cat_host(wf, report));
-    out.extend(priced_image(wf));
+    out.extend(priced_image(report));
     out.extend(unpriced_cloud(report));
     out.extend(unpriced_media(report));
     out
@@ -99,30 +99,24 @@ fn exec_cat_host(wf: &RawWorkflow, report: &CheckReport) -> Vec<FailurePlanEntry
         .collect()
 }
 
-fn priced_image(wf: &RawWorkflow) -> Vec<FailurePlanEntry> {
-    wf.tasks
+/// A paid-media call the catalog prices per call (`cost.media`, the one
+/// classification admission floors with: an explicit `provider:` or the one
+/// its `model:` names): a cap below its floor refuses before the request.
+fn priced_image(report: &CheckReport) -> Vec<FailurePlanEntry> {
+    report
+        .cost
+        .media
         .iter()
-        .filter_map(|t| {
-            let RawAction::Invoke(inv) = &t.value.action else {
-                return None;
-            };
-            let tool = inv.tool()?;
-            if tool.value != "nika:image_generate" {
-                return None;
-            }
-            let args = inv.args.as_ref()?;
-            let provider = args.value.get("provider").and_then(|v| v.as_str())?;
-            if provider.contains("${{") || provider == "mock" {
-                return None;
-            }
-            let floor = nika_catalog::builtin_provider_floor_usd("image_generate", provider)?;
+        .filter_map(|call| {
+            let floor = call.usd_per_call?;
             Some(FailurePlanEntry::new(
                 "priced_image_over_cap",
                 "NIKA-1709",
-                t.value.id.value.clone(),
+                call.task.clone(),
                 format!(
-                    "nika:image_generate on `{provider}` has catalog floor ${floor:.6} — \
-                     `--max-cost-usd` below that floor refuses NIKA-1709 before HTTP"
+                    "{} on `{}` has catalog floor ${floor:.6} — \
+                     `--max-cost-usd` below that floor refuses NIKA-1709 before HTTP",
+                    call.tool, call.provider
                 ),
             ))
         })
@@ -158,7 +152,7 @@ fn unpriced_media(report: &CheckReport) -> Vec<FailurePlanEntry> {
         .cost
         .media
         .iter()
-        .filter(|call| call.usd_per_call.is_none())
+        .filter(|call| call.usd_per_call.is_none() && !call.run_decided)
         .map(|call| {
             FailurePlanEntry::new(
                 "unpriced_media_cap",
@@ -368,6 +362,26 @@ mod tests {
         assert!(
             p.iter()
                 .any(|e| e.shape == "priced_image_over_cap" && e.code == "NIKA-1709"),
+            "{p:?}"
+        );
+    }
+
+    /// The priced floor reads the one media classification admission floors
+    /// with: an xAI call named by its `model:` is on the plan beside the one
+    /// that names `provider: xai` (both count at admission). A provider only
+    /// the run decides is on neither list: the run judges it.
+    #[test]
+    fn priced_image_follows_the_admission_classification() {
+        let p = plan(
+            "nika: grok\ninputs:\n  who: { type: string, default: xai }\npermits: { tools: [\"nika:image_generate\"], fs: { write: [\"./out/**\"] } }\ntasks:\n  a:\n    invoke: { tool: \"nika:image_generate\", args: { model: grok-imagine-image, prompt: x, output_dir: \"./out\" } }\n  b:\n    invoke: { tool: \"nika:image_generate\", args: { provider: xai, prompt: x, output_dir: \"./out\" } }\n  c:\n    invoke: { tool: \"nika:image_generate\", args: { provider: \"${{ inputs.who }}\", prompt: x, output_dir: \"./out\" } }\n",
+        );
+        let shapes: Vec<(&str, &str)> = (p.iter()).map(|e| (e.shape, e.task.as_str())).collect();
+        assert_eq!(
+            shapes,
+            [
+                ("priced_image_over_cap", "a"),
+                ("priced_image_over_cap", "b")
+            ],
             "{p:?}"
         );
     }

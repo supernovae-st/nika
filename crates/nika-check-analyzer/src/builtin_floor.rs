@@ -91,6 +91,67 @@ pub fn media_call_provider<'a>(tool: &str, args: &'a Value) -> Option<&'a str> {
     nika_catalog::builtin_media_provider(tool, provider, model)
 }
 
+/// The template a paid-media builtin call's provider is decided by, when
+/// only the run can resolve it: a templated `provider:`, or a templated
+/// `model:` the provider would be inferred from. `None` for a literal
+/// provider ([`media_call_provider`]), for arguments naming none, and for
+/// any other tool. The check lists such a call as decided at run; the run
+/// judges it before its request.
+#[must_use]
+pub fn media_call_template<'a>(tool: &str, args: &'a Value) -> Option<&'a str> {
+    let decider = match args.get("provider").and_then(Value::as_str) {
+        Some(provider) => provider,
+        None => args.get("model").and_then(Value::as_str)?,
+    };
+    // A named provider makes the catalog answer for a paid-media builtin only.
+    let paid_media = nika_catalog::builtin_media_provider(tool, Some(decider), None).is_some();
+    (paid_media && is_template(decider)).then_some(decider)
+}
+
+/// The paid-media call an armed cap must refuse before its request (C-D3),
+/// judged on arguments that are already rendered: the provider it bills,
+/// paired with `None` when the catalog cannot price that provider (no cap
+/// can bound it), or with the call's per-call floor (× its `n:`) when that
+/// floor exceeds `remaining_usd`. `None` when the call is not paid media,
+/// is unmetered, or fits. The runtime's dispatch guard and the `agent:`
+/// loop's tool calls speak their refusals from this one verdict.
+#[must_use]
+pub fn media_cap_refusal<'a>(
+    tool: &str,
+    args: &'a Value,
+    remaining_usd: f64,
+) -> Option<(&'a str, Option<f64>)> {
+    let provider = media_call_provider(tool, args)?;
+    match nika_catalog::builtin_media_price(tool, provider) {
+        nika_catalog::MediaPrice::Unknown => Some((provider, None)),
+        nika_catalog::MediaPrice::PerCall(per) => {
+            let floor = per * static_n(args);
+            (floor > remaining_usd).then_some((provider, Some(floor)))
+        }
+        _ => None,
+    }
+}
+
+/// Why a returned paid-media call that reported no usable `cost_usd` is
+/// absent from the spend (C-D3): the catalog has no price for the provider
+/// it billed (`missing_catalog_price`), or a priced provider did not report
+/// what it billed (`provider_did_not_report_usage`). `None` for local, mock
+/// and keyless media and for any other tool. `value` is the call's output or
+/// its arguments: both name the provider the way the builtin resolved it.
+#[must_use]
+pub fn media_spend_unpriced(tool: &str, value: &Value) -> Option<nika_types::cost::UnpricedReason> {
+    let provider = media_call_provider(tool, value)?;
+    match nika_catalog::builtin_media_price(tool, provider) {
+        nika_catalog::MediaPrice::Unknown => {
+            Some(nika_types::cost::UnpricedReason::MissingCatalogPrice)
+        }
+        nika_catalog::MediaPrice::PerCall(_) => {
+            Some(nika_types::cost::UnpricedReason::ProviderDidNotReportUsage)
+        }
+        _ => None,
+    }
+}
+
 fn is_template(s: &str) -> bool {
     s.contains("${{")
 }
@@ -118,5 +179,87 @@ fn static_iterations(task: &RawTask) -> f64 {
             reason = "non_exhaustive future variant — enum and runtime ship together"
         )]
         _ => unreachable!("unsupported for_each form"),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+    use serde_json::json;
+
+    use super::{media_call_template, media_cap_refusal, media_spend_unpriced};
+    use nika_types::cost::UnpricedReason;
+
+    #[test]
+    fn a_templated_paid_media_provider_is_decided_at_run() {
+        let image = "nika:image_generate";
+        let args = json!({ "provider": "${{ item }}", "prompt": "a star" });
+        assert_eq!(media_call_template(image, &args), Some("${{ item }}"));
+        let args = json!({ "model": "${{ inputs.model }}", "text": "hi" });
+        assert_eq!(
+            media_call_template("nika:tts_generate", &args),
+            Some("${{ inputs.model }}")
+        );
+        for args in [
+            json!({ "provider": "openai", "prompt": "a star" }),
+            json!({ "model": "gpt-image-1", "prompt": "a star" }),
+            json!({ "prompt": "a star" }),
+        ] {
+            assert_eq!(media_call_template(image, &args), None, "{args}");
+        }
+        let args = json!({ "provider": "${{ item }}" });
+        assert_eq!(
+            media_call_template("nika:image_fx", &args),
+            None,
+            "not a paid-media builtin"
+        );
+    }
+
+    #[test]
+    fn the_cap_refuses_unpriced_media_and_a_priced_floor_above_what_is_left() {
+        let image = "nika:image_generate";
+        let openai = json!({ "provider": "openai", "prompt": "a star" });
+        assert_eq!(
+            media_cap_refusal(image, &openai, 100.0),
+            Some(("openai", None))
+        );
+        let speech = json!({ "model": "eleven_multilingual_v2", "text": "hi" });
+        assert_eq!(
+            media_cap_refusal("nika:tts_generate", &speech, 100.0),
+            Some(("elevenlabs", None))
+        );
+        let xai = json!({ "provider": "xai", "prompt": "a star", "n": 3 });
+        assert_eq!(media_cap_refusal(image, &xai, 1.0), None, "$0.06 fits $1");
+        let refused = media_cap_refusal(image, &xai, 0.05).expect("$0.06 exceeds $0.05");
+        assert_eq!(refused.0, "xai");
+        let floor = refused.1.expect("a priced floor");
+        assert!((floor - 0.06).abs() < 1e-12, "{floor}");
+        for args in [
+            json!({ "provider": "mock", "prompt": "a star" }),
+            json!({ "provider": "local", "prompt": "a star" }),
+        ] {
+            assert_eq!(media_cap_refusal(image, &args, 0.0), None, "{args}");
+        }
+    }
+
+    #[test]
+    fn returned_paid_media_without_spend_names_why_it_is_unpriced() {
+        let image = "nika:image_generate";
+        assert_eq!(
+            media_spend_unpriced(image, &json!({ "provider": "gemini" })),
+            Some(UnpricedReason::MissingCatalogPrice)
+        );
+        assert_eq!(
+            media_spend_unpriced(image, &json!({ "provider": "xai" })),
+            Some(UnpricedReason::ProviderDidNotReportUsage)
+        );
+        assert_eq!(
+            media_spend_unpriced("nika:tts_generate", &json!({ "provider": "mock" })),
+            None
+        );
+        assert_eq!(
+            media_spend_unpriced("nika:fetch", &json!({ "provider": "openai" })),
+            None
+        );
     }
 }

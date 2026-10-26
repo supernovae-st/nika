@@ -536,16 +536,18 @@ pub(crate) fn run_decided_refusal(
 
 /// C-D3 · a paid media call the catalog does not price
 /// (`nika:image_generate` on openai/gemini · `nika:tts_generate` on
-/// openai/elevenlabs) is unknown spend: under a cap it refuses before the
-/// prologue, as an unpriced cloud model does (zero events, zero spend).
-/// Local, mock and keyless media never reach this list.
+/// openai/elevenlabs, its own or a composed child's) is unknown spend: under
+/// a cap it refuses before the prologue, as an unpriced cloud model does
+/// (zero events, zero spend). Local, mock and keyless media never reach this
+/// list; a provider only the run decides is judged before its request
+/// ([`run_decided_media_refusal`]).
 fn unpriced_media_cap_refusal(
     media: &[nika_check::MediaCost],
     budget: f64,
 ) -> Option<RuntimeError> {
     let calls: Vec<String> = media
         .iter()
-        .filter(|call| call.usd_per_call.is_none())
+        .filter(|call| call.usd_per_call.is_none() && !call.run_decided)
         .map(|call| {
             format!(
                 "task `{}` ({} on `{}`)",
@@ -559,12 +561,19 @@ fn unpriced_media_cap_refusal(
     Some(RuntimeError::BudgetFloor {
         message: format!(
             "refusing to start: no catalog price for {} — --max-cost-usd ${budget:.6} cannot \
-             bound unknown spend (`nika check` lists it UNPRICED under COST). Use a priced \
-             provider, `local` or `mock` for a rehearsal, or drop the cap.\n",
+             bound unknown spend (`nika check` lists it UNPRICED under COST). The cap comes from \
+             --max-cost-usd, the project `ceiling:` or a beat's `plafond:`. {MEDIA_CAP_REMEDY}\n",
             calls.join(", ")
         ),
     })
 }
+
+/// What a capped run can do instead of an unpriced paid media call, shared by
+/// the launch refusal and the pre-request guard: a beat is always capped, so
+/// "drop the cap" is not a remedy there.
+const MEDIA_CAP_REMEDY: &str = "Use a provider the catalog prices (images: `xai`; no speech \
+     provider has a catalog price yet) or `local` / `mock`. Only a run with no cap at all (never \
+     a beat) makes this call, and its settlement counts it unpriced.";
 
 /// C-D3 · the pre-request guard for a paid media call whose provider only the
 /// run decides (a templated `provider:`, or a templated `model:` it is
@@ -586,30 +595,19 @@ pub(crate) fn run_decided_media_refusal(
     {
         return None;
     }
-    let provider = nika_check::analyzer::media_call_provider(tool, rendered)?;
+    let (provider, floor) = nika_check::analyzer::media_cap_refusal(tool, rendered, remaining)?;
     let before = "refused before the media request";
-    match nika_catalog::builtin_media_price(tool, provider) {
-        nika_catalog::MediaPrice::Unknown => Some(format!(
-            "{before}: {tool} on `{provider}` has no catalog price, so --max-cost-usd cannot \
-             bound it"
-        )),
-        nika_catalog::MediaPrice::PerCall(per) => {
-            #[allow(clippy::cast_precision_loss)] // image `n:` is capped at 10
-            let n = rendered
-                .get("n")
-                .and_then(Value::as_u64)
-                .map_or(1.0, |n| n.max(1) as f64);
-            let floor = per * n;
-            (floor > remaining).then(|| {
-                format!(
-                    "{before}: {tool} on `{provider}` costs at least ${floor:.6}, above the \
-                     ${remaining:.6} left under --max-cost-usd (a snapshot at call time, never \
-                     a reservation)"
-                )
-            })
-        }
-        _ => None,
-    }
+    Some(match floor {
+        None => format!(
+            "{before}: {tool} on `{provider}` has no catalog price, so the run's cost cap \
+             cannot bound it. {MEDIA_CAP_REMEDY}"
+        ),
+        Some(floor) => format!(
+            "{before}: {tool} on `{provider}` costs at least ${floor:.6}, above the \
+             ${remaining:.6} left under the run's cost cap (a snapshot at call time, never a \
+             reservation)"
+        ),
+    })
 }
 
 /// B20 / issue 1297: `--max-cost-usd` cannot bound a cloud seat the

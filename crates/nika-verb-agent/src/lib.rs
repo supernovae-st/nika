@@ -133,7 +133,7 @@ use nika_types::blame::BlamePolarity;
 use nika_types::cost::SpendOnFailure;
 use nika_verb_invoke::{InvokeInput, InvokeVerb, VerbInvokeError};
 
-use crate::batch::{BatchFold, BatchOutcome, Resolved};
+use crate::batch::{BatchFold, BatchOutcome, Resolved, ToolSpend};
 use crate::guard::{Guard, GuardVerdict};
 use crate::request::{build_request, joined_text, opening_messages, routing_query, schema_request};
 use crate::router::ToolRouter;
@@ -426,7 +426,7 @@ where
         // this, the run ledger debits it, `--max-cost-usd` sees it.
         let mut usage_total = TokenUsage::default();
         let mut inference_calls = Vec::new();
-        let mut tools_cost_usd = 0.0_f64;
+        let mut tools = ToolSpend::default();
         let out = self
             .run_loop(
                 input,
@@ -435,7 +435,7 @@ where
                 run_start,
                 &mut usage_total,
                 &mut inference_calls,
-                &mut tools_cost_usd,
+                &mut tools,
             )
             .await;
         out.map(|out| (out.with_inference_calls(inference_calls.clone())).with_selection(receipt))
@@ -444,14 +444,15 @@ where
                     .spend()
                     .and_then(|spend| spend.tools_cost_usd)
                     .unwrap_or(0.0);
-                let tools_cost_usd = tools_cost_usd + reported_tools;
+                let tools_cost_usd = tools.usd + reported_tools;
                 e.with_spend(
                     SpendOnFailure::new(
                         usage_total,
                         (tools_cost_usd > 0.0).then_some(tools_cost_usd),
                         Some(model),
                     )
-                    .with_inference_calls(inference_calls),
+                    .with_inference_calls(inference_calls)
+                    .with_tools_unpriced(tools.unpriced),
                 )
             })
     }
@@ -471,7 +472,7 @@ where
         run_start: Option<ToolRunStart>,
         usage_total: &mut TokenUsage,
         inference_calls: &mut Vec<nika_types::cost::InferenceCall>,
-        tools_cost_usd: &mut f64,
+        tools: &mut ToolSpend,
     ) -> Result<AgentOutput, VerbAgentError> {
         let (whitelist, defs, model, budget) = armed;
         let (mut router, mut guard) = self.arm_loop(observer, model, defs);
@@ -541,7 +542,7 @@ where
                     continue;
                 }
                 TurnVerdict::Dispatch(tool_uses) => {
-                    *tools_cost_usd += self
+                    *tools += self
                         .dispatch_and_feed(
                             observer,
                             budget,
@@ -559,7 +560,7 @@ where
                 observer,
                 output,
                 (st.turns, st.total_tokens),
-                (usage_total.clone(), model.to_owned(), *tools_cost_usd),
+                (usage_total.clone(), model.to_owned(), std::mem::take(tools)),
             ));
         }
     }
@@ -584,13 +585,13 @@ where
         intelligence: (&mut ToolRouter, &mut Guard),
         st: &mut turn::LoopState,
         control: (&AgentInput, Option<ToolRunStart>),
-    ) -> Result<f64, VerbAgentError> {
+    ) -> Result<ToolSpend, VerbAgentError> {
         let (router, guard) = intelligence;
         budget.check(st.turns, &st.last_text)?;
         // All-whitelisted, non-sentinel tools · feed results back.
         st.messages
             .push(Message::new(Role::Assistant, response.content));
-        let (digest, batch_cost) = self
+        let (digest, batch_spend) = self
             .dispatch_turn(
                 observer,
                 st.turns,
@@ -603,7 +604,7 @@ where
             )
             .await?;
         st.last_observations = digest;
-        Ok(batch_cost)
+        Ok(batch_spend)
     }
 
     /// Validate + resolve one run's fixed parameters (params · whitelist ·
@@ -862,7 +863,7 @@ where
         messages: &mut Vec<Message>,
         last_text: &str,
         control: (&AgentInput, Option<ToolRunStart>),
-    ) -> Result<(String, f64), VerbAgentError> {
+    ) -> Result<(String, ToolSpend), VerbAgentError> {
         let batch = self
             .run_batch(observer, turn, tool_uses, router, guard, control)
             .await?;
@@ -906,7 +907,7 @@ where
             }
         }
         messages.push(Message::new(Role::User, content));
-        Ok((batch.observations_digest, batch.tools_cost_usd))
+        Ok((batch.observations_digest, batch.tools))
     }
 
     /// Dispatch one turn's validated tool batch — CONCURRENTLY, results
@@ -1128,6 +1129,14 @@ where
     ) -> Result<(ContentBlock, Option<f64>), VerbAgentError> {
         stop_if_requested(control.0)?;
         let (input, run_start, receipts) = control;
+        if let Some(refused) = media_cap_feedback(name, &args, input.cost_remaining_usd) {
+            let block = ContentBlock::ToolResult {
+                tool_use_id: id.to_owned(),
+                content: refused,
+                is_error: true,
+            };
+            return Ok((block, None));
+        }
         let mut call = InvokeInput::new(name);
         call.stopped = Some(receipts.clone());
         call.args = args;
@@ -1202,6 +1211,33 @@ where
     }
 }
 
+/// C-D3 · a paid media tool call meets the run's cost cap before its
+/// request, as an `invoke:` task does: under a cap (`remaining`, the run's
+/// USD left when the task dispatched · a snapshot, never a reservation), a
+/// provider the catalog cannot price, or a priced floor above what is left,
+/// is refused and fed back, so the model can pick another provider. Nothing
+/// is sent and nothing is billed. `None` without a cap or when the call fits.
+fn media_cap_feedback(
+    name: &str,
+    args: &serde_json::Value,
+    remaining: Option<f64>,
+) -> Option<String> {
+    let remaining = remaining?;
+    let (provider, floor) = nika_check::analyzer::media_cap_refusal(name, args, remaining)?;
+    let refused = "NIKA-1704 · refused before the media request, nothing was sent";
+    Some(match floor {
+        None => format!(
+            "{refused}: {name} on `{provider}` has no catalog price, so the run's cost cap \
+             cannot bound it. Use a provider the catalog prices (images: `xai`) or `local` / \
+             `mock`."
+        ),
+        Some(floor) => format!(
+            "{refused}: {name} on `{provider}` costs at least ${floor:.6}, above the \
+             ${remaining:.6} left under the run's cost cap."
+        ),
+    })
+}
+
 /// Read the loop's current limits without advancing its state or spending a repair.
 fn turn_context<'a>(
     input: &'a AgentInput,
@@ -1226,16 +1262,17 @@ fn finished(
     observer: &dyn AgentObserver,
     output: AgentOutput,
     turn_totals: (u32, u64),
-    spend: (TokenUsage, String, f64),
+    spend: (TokenUsage, String, ToolSpend),
 ) -> AgentOutput {
     let (turns, total_tokens) = turn_totals;
-    let (usage_total, model, tools_cost_usd) = spend;
+    let (usage_total, model, tools) = spend;
     observer.on_event(&AgentEvent::Finished {
         turns,
         total_tokens,
     });
     output
-        .with_tools_cost_usd((tools_cost_usd > 0.0).then_some(tools_cost_usd))
+        .with_tools_cost_usd((tools.usd > 0.0).then_some(tools.usd))
+        .with_tools_unpriced(tools.unpriced)
         .with_spend_identity(usage_total, model)
 }
 

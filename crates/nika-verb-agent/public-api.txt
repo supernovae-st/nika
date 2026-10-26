@@ -882,6 +882,7 @@ impl<T> nika_error::traits::AsAny for nika_verb_agent::config::AgentConfig where
 pub fn nika_verb_agent::config::AgentConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_verb_agent::AgentInput
 pub nika_verb_agent::AgentInput::cancel: core::option::Option<nika_types::cancel::CancelCtx>
+pub nika_verb_agent::AgentInput::cost_remaining_usd: core::option::Option<f64>
 pub nika_verb_agent::AgentInput::gate_answer: core::option::Option<serde_json::value::Value>
 pub nika_verb_agent::AgentInput::max_tokens_total: core::option::Option<u64>
 pub nika_verb_agent::AgentInput::max_turns: core::option::Option<u32>
@@ -939,6 +940,7 @@ pub nika_verb_agent::AgentOutput::output: nika_verb_agent::AgentValue
 pub nika_verb_agent::AgentOutput::selection: core::option::Option<nika_types::access::selection::SelectionEvidence>
 pub nika_verb_agent::AgentOutput::stop_reason: nika_kernel_runtime::agent::AgentStopReason
 pub nika_verb_agent::AgentOutput::tools_cost_usd: core::option::Option<f64>
+pub nika_verb_agent::AgentOutput::tools_unpriced: alloc::vec::Vec<nika_types::cost::UnpricedReason>
 pub nika_verb_agent::AgentOutput::total_tokens: u64
 pub nika_verb_agent::AgentOutput::turns: u32
 pub nika_verb_agent::AgentOutput::usage: nika_types::token_usage::TokenUsage
@@ -948,6 +950,7 @@ pub fn nika_verb_agent::AgentOutput::with_inference_calls(self, calls: alloc::ve
 pub fn nika_verb_agent::AgentOutput::with_selection(self, selection: core::option::Option<nika_types::access::selection::SelectionEvidence>) -> Self
 pub fn nika_verb_agent::AgentOutput::with_spend_identity(self, usage: nika_types::token_usage::TokenUsage, model_resolved: alloc::string::String) -> Self
 pub fn nika_verb_agent::AgentOutput::with_tools_cost_usd(self, cost: core::option::Option<f64>) -> Self
+pub fn nika_verb_agent::AgentOutput::with_tools_unpriced(self, unpriced: alloc::vec::Vec<nika_types::cost::UnpricedReason>) -> Self
 impl core::fmt::Debug for nika_verb_agent::AgentOutput
 pub fn nika_verb_agent::AgentOutput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_verb_agent::AgentOutput

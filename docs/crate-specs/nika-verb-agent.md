@@ -466,3 +466,21 @@ are decorated once at the existing failure seam. This does not newly account for
 a whole agent/task future dropped before returning an error: the runtime ledger
 still owns its existing debit and terminal rules. Unread iterations can remain
 cancelled, independently of physical-call facts. Child-workflow drain is unchanged.
+
+## Paid media under the run's cost cap (C-D3)
+
+`AgentInput::cost_remaining_usd` carries the run ledger's remaining USD when
+the task dispatched (a snapshot, never a reservation; absent without a cap).
+Before the native loop sends a whitelisted tool call to the invoke seam, it
+asks `nika_check::analyzer::media_cap_refusal` about that call's arguments: a
+paid media call (`nika:image_generate`, `nika:tts_generate`) whose provider
+the catalog cannot price, or whose per-call floor exceeds the remaining USD,
+is refused with a NIKA-1704 tool-error block fed back to the model. Nothing
+reaches the executor, so nothing bills; the model may choose a priced,
+`local` or `mock` provider. Without a cap the call runs. A returned paid media
+call that reported no `cost_usd` is named once per call in
+`AgentOutput::tools_unpriced` (`missing_catalog_price`, or
+`provider_did_not_report_usage` for a priced provider), and in
+`SpendOnFailure::tools_unpriced` when the loop fails afterwards, so the
+runtime ledger counts it. A failed or refused call bills nothing here. The
+harness path refuses a tool whitelist, so it never reaches a media builtin.

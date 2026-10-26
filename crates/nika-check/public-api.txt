@@ -1900,6 +1900,7 @@ impl<T> nika_error::traits::AsAny for nika_check::LiteralCredential where T: 'st
 pub fn nika_check::LiteralCredential::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::MediaCost
 pub nika_check::MediaCost::provider: alloc::string::String
+pub nika_check::MediaCost::run_decided: bool
 pub nika_check::MediaCost::task: alloc::string::String
 pub nika_check::MediaCost::tool: alloc::string::String
 pub nika_check::MediaCost::usd_per_call: core::option::Option<f64>
