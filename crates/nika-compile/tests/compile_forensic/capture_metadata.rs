@@ -466,8 +466,10 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 // ── Product parity with the reference ───────────────────────────────────────────────────────
 
 /// Reviewed prompt identities for [`three_calls`] under the unchanged legacy framing.
-/// Captured after the card's fan-out law reviewed on 2026-10-16: no `fail_fast: true` copied
-/// into every fan-out, a task reading a fan-out's output waits for it with `after:` (an empty
+/// Captured at nika-spec c5dcd97, whose vendored pack changes one line the System message
+/// quotes: the `etl-state` skeleton's fetch recovery says « the fetch failed », no longer
+/// « offline rehearsal » (#1605). Before it, after the card's fan-out law reviewed on
+/// 2026-10-16: no `fail_fast: true` copied into every fan-out, a task reading a fan-out's output waits for it with `after:` (an empty
 /// collection then ends the run with nothing to do), and `on_error: { skip: true }` keeps the
 /// other items of independent per-item work. Before it, the card line reviewed on 2026-10-15:
 /// `observed_world.last_run`, the failed
@@ -489,9 +491,9 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 /// calls. The assertions below independently compare the observer with the legacy framing over
 /// each exact request before checking these values.
 const REVIEWED_PROMPTS: [&str; 3] = [
-    "3080b173cda9e139508ff7ae151c75db652ea17c76af14b0a8fc05b775abaf2f",
-    "2043cc1fa269f267cb334f43420c819163dde7f8ffccc8da849689acdca0fc7c",
-    "c345f3dcfc16b088e6096c32baafc2a260cec8974379f78e0889dec80efd8de5",
+    "86a4d66851e1ff21f5e1e87518551f55a525291cc2f15d05d2f55613b54b1fce",
+    "6982fa8a9b9c988d90f2ba6050fbdc9bc73309feb1721b468eb7f35b2814f6e9",
+    "9ff57c4cbd5572a0eade260aa05102f380a78cb26f178502786e63073a8eabe7",
 ];
 /// Legacy response identities, unchanged by the new prompt conventions.
 const PRE_CHANGE_FRAMED: [&str; 3] = [
