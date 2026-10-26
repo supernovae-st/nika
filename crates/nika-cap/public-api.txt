@@ -406,6 +406,41 @@ impl<T> core::clone::CloneToUninit for nika_cap::JqSymbolKind where T: core::clo
 pub unsafe fn nika_cap::JqSymbolKind::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::JqSymbolKind
 pub fn nika_cap::JqSymbolKind::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cap::SlotPath
+pub nika_cap::SlotPath::Literal
+pub nika_cap::SlotPath::Literal::descends: bool
+pub nika_cap::SlotPath::Literal::path: alloc::string::String
+pub nika_cap::SlotPath::Unknown
+impl core::clone::Clone for nika_cap::SlotPath
+pub fn nika_cap::SlotPath::clone(&self) -> nika_cap::SlotPath
+impl core::cmp::Eq for nika_cap::SlotPath
+impl core::cmp::PartialEq for nika_cap::SlotPath
+pub fn nika_cap::SlotPath::eq(&self, other: &nika_cap::SlotPath) -> bool
+impl core::fmt::Debug for nika_cap::SlotPath
+pub fn nika_cap::SlotPath::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cap::SlotPath
+impl<T, U> core::convert::Into<U> for nika_cap::SlotPath where U: core::convert::From<T>
+pub fn nika_cap::SlotPath::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::SlotPath where U: core::convert::Into<T>
+pub type nika_cap::SlotPath::Error = core::convert::Infallible
+pub fn nika_cap::SlotPath::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::SlotPath where U: core::convert::TryFrom<T>
+pub type nika_cap::SlotPath::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::SlotPath::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::SlotPath where T: core::clone::Clone
+pub type nika_cap::SlotPath::Owned = T
+pub fn nika_cap::SlotPath::clone_into(&self, target: &mut T)
+pub fn nika_cap::SlotPath::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::SlotPath where T: 'static + ?core::marker::Sized
+pub fn nika_cap::SlotPath::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::SlotPath where T: ?core::marker::Sized
+pub fn nika_cap::SlotPath::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::SlotPath where T: ?core::marker::Sized
+pub fn nika_cap::SlotPath::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::SlotPath where T: core::clone::Clone
+pub unsafe fn nika_cap::SlotPath::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::SlotPath
+pub fn nika_cap::SlotPath::from(t: T) -> T
 #[non_exhaustive] pub struct nika_cap::CertEffects
 pub nika_cap::CertEffects::boundary_declared: bool
 pub nika_cap::CertEffects::escapes: usize
@@ -1042,6 +1077,7 @@ pub fn nika_cap::judge_harness_ask(facts: &nika_cap::HarnessAskFacts, permits: c
 pub fn nika_cap::lexically_normalize(path: &str) -> alloc::string::String
 pub fn nika_cap::path_leaves_workspace(path: &str) -> bool
 pub fn nika_cap::pure_internal_for_all_calls(tool: &str) -> bool
+pub fn nika_cap::read_slot_paths(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<nika_cap::SlotPath>
 pub fn nika_cap::required_fs_directions(tool: &str) -> core::option::Option<(bool, bool)>
 pub fn nika_cap::tool_grant_admits_ingress(grant: &str) -> bool
 pub fn nika_cap::trifecta_verdict(permits: &nika_cap::Permits, subjects: &[nika_cap::TrifectaSubject], witnesses: &[nika_cap::TaintWitness], topo_order: &[usize]) -> nika_cap::TrifectaVerdict
@@ -1049,3 +1085,4 @@ pub fn nika_cap::unbound_fs_args(tool: &str, args: core::option::Option<&serde_j
 pub fn nika_cap::withheld_jq_native(name: &str) -> core::option::Option<&'static nika_cap::WithheldNative>
 pub fn nika_cap::withheld_jq_policy_reason(name: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_cap::withheld_jq_reason(name: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_cap::write_slot_paths(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<nika_cap::SlotPath>

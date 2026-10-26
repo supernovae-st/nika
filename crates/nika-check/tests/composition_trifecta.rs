@@ -91,8 +91,9 @@ tasks:
         data: { note: "${{ with.note }}" }
 "#;
 
-/// The same parent with a blocking human gate upstream of both entries and
-/// the egress bound to the affirmative answer.
+/// The same parent with a blocking human gate upstream of both entries, and
+/// the call and the egress bound to the affirmative answer (the child acts:
+/// a refused confirm must not run it · NIKA-SEC-014).
 const PARENT_GATED: &str = r#"nika: parent
 permits:
   tools: ["nika:read", "nika:notify", "nika:prompt"{tools}]
@@ -102,7 +103,8 @@ tasks:
   ask:
     invoke: { tool: nika:prompt, args: { message: "Send the page and the note?" } }
   call:
-    after: { ask: success }
+    with: { go: "${{ tasks.ask.output }}" }
+    when: ${{ with.go == true }}
     invoke: { workflow: "{target}" }
     returns: { object: { text: string } }
   note:
@@ -620,13 +622,37 @@ tasks:
       args: { path: /srv/out/leak.txt, content: "page=${{ with.page }} note=${{ with.note }}" }
 "#;
     let report = composed(parent, &[("child-dropper.nika", CHILD_DROPPER)]);
-    refused_at(&report, "call", "call");
+    // The child's write is the sink the call stands for, and `pick` reads
+    // the file it wrote: `leak` is the second realized sink (NIK-273
+    // follow-up · a builtin read carries the file on), as inline.
+    assert_eq!(
+        sinks_of(&report),
+        vec![("call", Some("call")), ("leak", Some("call"))]
+    );
     let detail = &report.trifecta_findings[0].detail;
     assert!(
         detail.contains("task `page` is an `exec:`")
             && detail.contains("task `save` invokes `nika:write`"),
         "the child's ingress and its write are named: {detail}"
     );
+    let inline = parent.replace(
+        "  call:\n    invoke: { workflow: ./child-dropper.nika }\n  pick:\n    after: { call: success }\n",
+        "  page:\n    exec: { command: [\"echo\", \"untrusted page body\"] }\n  save:\n    with: { body: \"${{ tasks.page.output }}\" }\n    invoke: { tool: nika:write, args: { path: ./drop/page.txt, content: \"${{ with.body }}\" } }\n  pick:\n    after: { save: success }\n",
+    );
+    assert_eq!(
+        sinks_of(&check(&parsed(&inline))),
+        vec![("save", Some("page")), ("leak", Some("page"))],
+        "the inline twin"
+    );
+}
+
+/// Every SEC-009 sink with its source, in declaration order.
+fn sinks_of(report: &CheckReport) -> Vec<(&str, Option<&str>)> {
+    report
+        .trifecta_findings
+        .iter()
+        .map(|f| (f.task.as_str(), f.source.as_deref()))
+        .collect()
 }
 
 /// The file channel crosses the wall: a parent subprocess that reads the file
