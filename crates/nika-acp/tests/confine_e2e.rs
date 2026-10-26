@@ -23,6 +23,9 @@
 //! 6. the re-review's codex-acp MCP tool approvals (`_meta.is_mcp_tool_approval`, an `execute`
 //!    ask with no command, standalone or correlated to an earlier tool call) pause on the tools
 //!    plane even under `exec: true`, which answered them `allow_once`;
+//! 7. a turn Codex could not complete (NIK-275): the client advertises codex-acp's typed
+//!    `sessionFailure`, and the failure the adapter then reports fails the task; an adapter
+//!    without it still answers with the error text, which stands;
 //!
 //! and every decision is witnessed as a `PermissionJudged` (the `permit_checked` frame).
 
@@ -57,7 +60,10 @@ def config(mode):
                   "_meta": {"kind": "full_access"}}]}]
 
 init = recv()
-assert init["params"]["clientCapabilities"] == {}, init
+caps = init["params"]["clientCapabilities"]
+assert "fs" not in caps and "terminal" not in caps, init
+air = caps.get("_meta", {}).get("jetbrains", {}).get("air", {})
+typed = air.get("version", 0) >= 1 and "sessionFailure" in air.get("capabilities", [])
 send({"jsonrpc": "2.0", "id": init["id"], "result": {"protocolVersion": 1,
       "agentInfo": {"name": "@agentclientprotocol/codex-acp", "version": "1.13.1"}}})
 new = recv()
@@ -73,6 +79,21 @@ assert mode["params"] == {"sessionId": "s-confine", "configId": "mode", "value":
 send({"jsonrpc": "2.0", "id": mode["id"], "result": {"configOptions": config("read-only")}})
 prompt = recv()
 assert prompt["method"] == "session/prompt", prompt
+
+if scenario in ("failed-turn", "failed-turn-plain"):
+    message = "exceeded retry limit, last status: 429 Too Many Requests"
+    if scenario == "failed-turn" and typed:
+        failure = {"id": "turn-1:error", "revision": 1, "category": "limit",
+                   "severity": "error", "title": message, "actions": ["retry"]}
+        send({"jsonrpc": "2.0", "id": prompt["id"], "result": {"stopReason": "end_turn",
+              "usage": None, "_meta": {"jetbrains": {"air": {"version": 1,
+                                                             "sessionFailure": failure}}}}})
+    else:
+        send({"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "s-confine",
+              "update": {"sessionUpdate": "agent_message_chunk",
+                         "content": {"type": "text", "text": message + "\n\n"}}}})
+        send({"jsonrpc": "2.0", "id": prompt["id"], "result": {"stopReason": "end_turn"}})
+    sys.exit(0)
 
 REVIEW_ASKS = {
     "socks5": ({"toolCallId": "net-1", "kind": "execute", "status": "pending",
@@ -487,4 +508,44 @@ async fn an_mcp_tool_approval_pauses_under_exec_true() {
         );
         assert!(why.contains("permits.tools"), "{why}");
     }
+}
+
+/// 7 · a turn Codex could not complete (NIK-275, the gauntlet's 429 retry exhaustion): the
+/// failure codex-acp reports once the client advertised typed failures fails the task with
+/// the adapter's words, never an answer.
+#[tokio::test]
+async fn a_failed_codex_turn_fails_the_agent_task() {
+    let (verb, _world) = seated("failed-turn");
+    let mut input = AgentInput::new("answer");
+    input.permits = Some(writes_out());
+    let err = verb
+        .run_observed(input, &VecObserver::default())
+        .await
+        .expect_err("a failed turn fails the task");
+    let message = err.to_string();
+    assert!(
+        message.contains(
+            "the harness reported a failed turn (error · limit): exceeded retry limit, last \
+             status: 429 Too Many Requests"
+        ),
+        "{message}"
+    );
+}
+
+/// 7 · an adapter that knows no typed failure still answers with the error text and
+/// `end_turn`; Nika never reads answer text to guess a failure, so that answer stands (the
+/// documented limit).
+#[tokio::test]
+async fn without_typed_failures_the_error_text_still_reads_as_an_answer() {
+    let (verb, _world) = seated("failed-turn-plain");
+    let mut input = AgentInput::new("answer");
+    input.permits = Some(writes_out());
+    let out = verb
+        .run_observed(input, &VecObserver::default())
+        .await
+        .expect("the text reads as an answer");
+    assert_eq!(
+        text(&out),
+        "exceeded retry limit, last status: 429 Too Many Requests\n\n"
+    );
 }

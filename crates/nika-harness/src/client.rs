@@ -193,7 +193,7 @@ where
             wire::METHOD_INITIALIZE,
             &InitializeParams {
                 protocol_version: wire::PROTOCOL_V1,
-                client_capabilities: serde_json::json!({}),
+                client_capabilities: wire::client_capabilities(),
             },
         )
         .await?;
@@ -272,6 +272,10 @@ where
                         reason: e.to_string(),
                     })? {
                         Incoming::Response { id: ID_PROMPT, result } => {
+                            // NIK-275: a failed turn the adapter reports is never an answer.
+                            if let Some(failure) = wire::turn_failure(&result) {
+                                return Err(failure);
+                            }
                             let done: PromptResult = parse_payload(result, "session/prompt")?;
                             self.media.check_stop(&done.stop_reason)?;
                             if let Some(completion) = self.completion

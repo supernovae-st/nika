@@ -15,7 +15,7 @@
 //! `initialize` · `session/new` · `session/prompt` · `session/cancel` ·
 //! the `session/request_permission` response.
 
-use nika_kernel::ai::harness::HarnessEscalation;
+use nika_kernel::ai::harness::{HarnessError, HarnessEscalation};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -626,14 +626,83 @@ fn summarize(widening: &Value) -> String {
 
 /// At most [`MAX_SUMMARY`] bytes, cut on a character boundary.
 fn bounded(text: &str) -> String {
-    if text.len() <= MAX_SUMMARY {
+    bounded_to(text, MAX_SUMMARY)
+}
+
+/// At most `max` bytes, cut on a character boundary.
+fn bounded_to(text: &str, max: usize) -> String {
+    if text.len() <= max {
         return text.to_owned();
     }
-    let mut end = MAX_SUMMARY;
+    let mut end = max;
     while !text.is_char_boundary(end) {
         end -= 1;
     }
     format!("{}…", &text[..end])
+}
+
+/// `text` on one line: every control character (a newline, an escape) becomes a space, so a
+/// harness's words cannot reshape the line they are shown on.
+fn one_line(text: &str) -> String {
+    text.chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect::<String>()
+        .trim()
+        .to_owned()
+}
+
+// ─── Client capabilities and turn failures (NIK-275) ────────────────
+
+/// The most text a turn failure carries into the task's error.
+const MAX_FAILURE: usize = 1_000;
+
+/// The client capabilities a prompt session advertises on `initialize`: no `fs` and no
+/// `terminal` method (a harness runs its own tools, NIK-266), and one extension of
+/// codex-acp's, its Air `sessionFailure` (`_meta.jetbrains.air`, version 1). Without it,
+/// codex-acp 1.13.1 turns a failed turn (a 400 `model_not_found`, a retry limit exhausted on
+/// 429) into answer text and `end_turn`, which reads as an answer; with it, the failure rides
+/// the `session/prompt` result as a typed `sessionFailure` ([`turn_failure`]). Adapters that
+/// do not know the extension ignore it.
+#[must_use]
+pub(crate) fn client_capabilities() -> Value {
+    serde_json::json!({"_meta": {"jetbrains": {"air": {
+        "version": 1, "capabilities": ["sessionFailure"]}}}})
+}
+
+/// The failure a `session/prompt` result reports for its turn: codex-acp's Air
+/// `sessionFailure` under the result's `_meta`, which the adapter puts there only when the
+/// turn did not complete. `None` when the result carries none. The adapter's own words ride
+/// verbatim, on one line and bounded: its title (the error message), severity and category. A
+/// failure whose actions offer `retry` (a rate limit, a lost connection, an overloaded
+/// service) is a session death a retry may heal; any other (a bad request such as an unknown
+/// model, an exhausted quota, a policy denial, missing auth) is the harness's refusal.
+pub(crate) fn turn_failure(result: &Value) -> Option<HarnessError> {
+    let failure = result
+        .pointer("/_meta/jetbrains/air/sessionFailure")
+        .filter(|failure| !failure.is_null())?;
+    let word = |key: &str, absent: &str| {
+        failure
+            .get(key)
+            .and_then(Value::as_str)
+            .map(one_line)
+            .filter(|text| !text.is_empty())
+            .map_or_else(|| absent.to_owned(), |text| bounded_to(&text, MAX_FAILURE))
+    };
+    let reason = format!(
+        "the harness reported a failed turn ({} · {}): {}",
+        word("severity", "severity unstated"),
+        word("category", "category unstated"),
+        word("title", "no message")
+    );
+    let retry = failure
+        .get("actions")
+        .and_then(Value::as_array)
+        .is_some_and(|actions| actions.iter().any(|a| a.as_str() == Some("retry")));
+    Some(if retry {
+        HarnessError::Session { reason }
+    } else {
+        HarnessError::Refused { reason }
+    })
 }
 
 // ─── Wire error ─────────────────────────────────────────────────────
@@ -992,5 +1061,72 @@ mod tests {
             widens.len()
         );
         assert!(widens.ends_with('…'));
+    }
+
+    /// NIK-275 · the capability that makes codex-acp report a failed turn as a typed failure,
+    /// in the shape its `clientSupportsAirCapability` reads; no fs and no terminal method.
+    #[test]
+    fn the_client_advertises_typed_turn_failures_and_no_tool_method() {
+        let caps = client_capabilities();
+        assert_eq!(
+            caps.pointer("/_meta/jetbrains/air/version"),
+            Some(&serde_json::json!(1))
+        );
+        assert_eq!(
+            caps.pointer("/_meta/jetbrains/air/capabilities"),
+            Some(&serde_json::json!(["sessionFailure"]))
+        );
+        assert!(caps.get("fs").is_none() && caps.get("terminal").is_none());
+    }
+
+    /// NIK-275 · the two failures the gauntlet saw, as codex-acp 1.13.1 reports them once the
+    /// capability is advertised: a retry limit exhausted on 429 (`rate_limited`, retry offered)
+    /// is a session death; an unknown model (`bad_request`) is a refusal. A result without the
+    /// failure, or with a null one, is no failure.
+    #[test]
+    fn a_typed_turn_failure_is_an_error_in_the_adapters_words() {
+        let failed = |category: &str, title: &str, actions: serde_json::Value| {
+            serde_json::json!({"stopReason": "end_turn", "usage": null, "_meta": {
+                "quota": {"token_count": null, "model_usage": []},
+                "jetbrains": {"air": {"version": 1, "sessionFailure": {
+                    "id": "turn-1:error", "revision": 1, "category": category,
+                    "severity": "error", "title": title, "actions": actions}}}}})
+        };
+        let rate = failed(
+            "limit",
+            "exceeded retry limit, last status: 429 Too Many Requests",
+            serde_json::json!(["retry"]),
+        );
+        let Some(HarnessError::Session { reason }) = turn_failure(&rate) else {
+            panic!("a retryable failure is a session death");
+        };
+        assert_eq!(
+            reason,
+            "the harness reported a failed turn (error · limit): exceeded retry limit, last \
+             status: 429 Too Many Requests"
+        );
+        let unknown = failed(
+            "request",
+            "The 'gpt-6.1-sol' model is not supported\nwhen using Codex with a ChatGPT account.",
+            serde_json::json!([]),
+        );
+        let Some(HarnessError::Refused { reason }) = turn_failure(&unknown) else {
+            panic!("a bad request is a refusal");
+        };
+        assert!(
+            reason.contains("(error · request): The 'gpt-6.1-sol' model is not supported when")
+        );
+        assert!(turn_failure(&serde_json::json!({"stopReason": "end_turn"})).is_none());
+        let null = serde_json::json!({"stopReason": "end_turn",
+            "_meta": {"jetbrains": {"air": {"version": 1, "sessionFailure": null}}}});
+        assert!(turn_failure(&null).is_none());
+        let bare = serde_json::json!({"_meta": {"jetbrains": {"air": {"sessionFailure": {}}}}});
+        let Some(HarnessError::Refused { reason }) = turn_failure(&bare) else {
+            panic!("an unreadable failure still fails, never succeeds");
+        };
+        assert_eq!(
+            reason,
+            "the harness reported a failed turn (severity unstated · category unstated): no message"
+        );
     }
 }

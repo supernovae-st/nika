@@ -54,10 +54,15 @@ async fn handshake(
 ) {
     let init = read(reader).await;
     assert_eq!(init["method"], "initialize");
+    let caps = &init["params"]["clientCapabilities"];
+    assert!(
+        caps.get("fs").is_none() && caps.get("terminal").is_none(),
+        "no fs and no terminal capability is ever advertised: {caps}"
+    );
     assert_eq!(
-        init["params"]["clientCapabilities"],
-        json!({}),
-        "no fs and no terminal capability is ever advertised"
+        caps.pointer("/_meta/jetbrains/air/capabilities"),
+        Some(&json!(["sessionFailure"])),
+        "typed turn failures are asked for (NIK-275): {caps}"
     );
     write(
         writer,
