@@ -361,8 +361,12 @@ pub(crate) fn check_with(
     read: &mut dyn FnMut(&str) -> Result<String, String>,
     files: Option<&mut ChildFiles<'_, '_>>,
 ) -> CheckReport {
-    let mut report = check(wf);
-    report.composition = composition::scan_resolved_with(wf, root, read, files);
+    // The walk first: every lane of the check then judges the calls it
+    // resolved (the trifecta reads a child that brings untrusted content in
+    // as the ingress it is · NIK-273).
+    let resolved = composition::scan_resolved_with(wf, root, read, files);
+    let mut report = crate::check_calls(wf, resolved.calls);
+    report.composition = resolved.findings;
     // The composition COST half (spec 14 · the 2026-07-29 finding): every
     // resolvable child's ceiling folds into the parent's envelope — a
     // parent whose child alone explains `≤$X` stops printing `$0 model

@@ -84,6 +84,16 @@
 //! `schema:`, which a harness refuses) on a run that may seat it
 //! ([`scan_bridged`]). `permits.net` and `permits.tools` stay judged: the
 //! bridge never auto-answers a fetch and has no tools plane.
+//!
+//! The composition bridge (NIK-273): a child workflow runs inside its
+//! caller's boundary (spec 14 law 3), so a caller grant its child uses is
+//! load-bearing although no task of the caller uses it — removing the
+//! child's program was `NIKA-COMP-002`, removing the read its subprocess
+//! makes a refused run. A composed check lists, per call, the caller's
+//! entries the child closure uses or may use
+//! ([`nika_check::ComposedCall::grants`]); [`scan_composed`] never names
+//! those dead. A child call no composed check resolved may use any grant:
+//! the permits drift stays silent (no claim, never wrong).
 
 use std::collections::BTreeSet;
 
@@ -116,11 +126,45 @@ pub fn scan(wf: &RawWorkflow) -> Vec<String> {
 /// bridge-servable agent task may need (module doc · NIK-266).
 #[must_use]
 pub fn scan_bridged(wf: &RawWorkflow, bridged: bool) -> Vec<String> {
+    scan_composed(wf, bridged, &[])
+}
+
+/// [`scan_bridged`] over the child calls a composed check resolved
+/// (`CheckReport::composed_calls`): an entry a call holds is never dead. A
+/// child call `calls` does not list holds every grant (module doc).
+#[must_use]
+pub fn scan_composed(
+    wf: &RawWorkflow,
+    bridged: bool,
+    calls: &[nika_check::ComposedCall],
+) -> Vec<String> {
     let mut out = Vec::new();
     push_unused_declarations(wf, &UsedNames::collect(wf), &mut out);
-    push_unused_permits(wf, bridged, &mut out);
+    push_unused_permits(wf, bridged, &held_by_calls(wf, calls), &mut out);
     out.sort();
     out
+}
+
+/// The caller grants its child calls hold: each resolved call's
+/// `grants`, and the whole declared block for a call no composed check
+/// resolved.
+fn held_by_calls(wf: &RawWorkflow, calls: &[nika_check::ComposedCall]) -> Permits {
+    let declared = wf.permits.as_ref().map(|p| &p.value);
+    let mut held = Permits::new();
+    for task in &wf.tasks {
+        let RawAction::Invoke(invoke) = &task.value.action else {
+            continue;
+        };
+        if invoke.tool().is_some() {
+            continue;
+        }
+        let id = task.value.id.value.as_str();
+        held = match calls.iter().find(|c| c.task == id) {
+            Some(call) => held.union(&call.grants),
+            None => declared.map_or(held.clone(), |d| held.union(d)),
+        };
+    }
+    held
 }
 
 /// Whether the run declares an ACP access: `protocol: acp`, or a `via:` that
@@ -514,8 +558,9 @@ impl BodyUsage {
 }
 
 /// Declared `permits:` entries no task effect can use — per category,
-/// per entry where the used set is fully static.
-fn push_unused_permits(wf: &RawWorkflow, bridged: bool, out: &mut Vec<String>) {
+/// per entry where the used set is fully static. An entry a child call
+/// holds (`held`) is used.
+fn push_unused_permits(wf: &RawWorkflow, bridged: bool, held: &Permits, out: &mut Vec<String>) {
     let Some(permits) = wf.permits.as_ref().map(|p| &p.value) else {
         return;
     };
@@ -523,21 +568,21 @@ fn push_unused_permits(wf: &RawWorkflow, bridged: bool, out: &mut Vec<String>) {
     // A harness bridge may judge asks against exec and fs: no claim there.
     let bridge = bridged && usage.has_bridge_agent;
     if !bridge {
-        push_exec_drift(permits, &usage, out);
+        push_exec_drift(permits, &usage, held, out);
     }
-    push_tools_drift(permits, &usage, out);
-    push_net_drift(permits, &usage, out);
+    push_tools_drift(permits, &usage, held, out);
+    push_net_drift(permits, &usage, held, out);
     if !bridge {
-        push_fs_drift(permits, &usage, out);
+        push_fs_drift(permits, &usage, held, out);
     }
 }
 
 /// `exec:` — `true` is used by ANY exec task; a program allowlist is
 /// judged per entry. `exec: false` is a posture, not a grant — never drift.
-fn push_exec_drift(permits: &Permits, usage: &BodyUsage, out: &mut Vec<String>) {
+fn push_exec_drift(permits: &Permits, usage: &BodyUsage, held: &Permits, out: &mut Vec<String>) {
     match permits.exec.as_ref() {
         Some(ExecPermit::Any) => {
-            if !usage.has_exec {
+            if !usage.has_exec && !held.allows_exec() {
                 out.push(
                     "`permits.exec: true` grants shell reach no task uses — remove it \
                      (no `exec:` task exists)"
@@ -553,7 +598,7 @@ fn push_exec_drift(permits: &Permits, usage: &BodyUsage, out: &mut Vec<String>) 
                 return;
             };
             for program in list {
-                if !used.contains(program) {
+                if !used.contains(program) && !held.allows_program(program) {
                     out.push(format!(
                         "`permits.exec` entry `{program}` admits a program no task runs \
                          — remove the entry"
@@ -567,15 +612,18 @@ fn push_exec_drift(permits: &Permits, usage: &BodyUsage, out: &mut Vec<String>) 
 
 /// `tools:` — per entry, through the ONE glob matcher (`nika_cap`).
 /// Silent when an agent whitelist dispatches dynamically.
-fn push_tools_drift(permits: &Permits, usage: &BodyUsage, out: &mut Vec<String>) {
+fn push_tools_drift(permits: &Permits, usage: &BodyUsage, held: &Permits, out: &mut Vec<String>) {
     let Some(globs) = permits.tools.as_ref() else {
         return;
     };
     if usage.has_agent_whitelist {
         return;
     }
+    let held_tools = held.tools.as_deref().unwrap_or_default();
     for glob in globs {
-        if !usage.tools.iter().any(|t| nika_cap::glob_matches(glob, t)) {
+        if !usage.tools.iter().any(|t| nika_cap::glob_matches(glob, t))
+            && !held_tools.contains(glob)
+        {
             out.push(format!(
                 "`permits.tools` entry `{glob}` admits no tool the body invokes \
                  — remove the entry"
@@ -587,7 +635,7 @@ fn push_tools_drift(permits: &Permits, usage: &BodyUsage, out: &mut Vec<String>)
 /// `net.http:` — per entry through the ONE host matcher (the boundary's
 /// own). Floor-dead entries are skipped: the `NIKA-SEC-005` escape
 /// already names them (one voice, never twice).
-fn push_net_drift(permits: &Permits, usage: &BodyUsage, out: &mut Vec<String>) {
+fn push_net_drift(permits: &Permits, usage: &BodyUsage, held: &Permits, out: &mut Vec<String>) {
     let Some(net) = permits.net.as_ref() else {
         return;
     };
@@ -601,7 +649,7 @@ fn push_net_drift(permits: &Permits, usage: &BodyUsage, out: &mut Vec<String>) {
         let floor_dead = !entry.contains('*')
             && nika_types::net::host_is_blocked(entry)
             && !nika_types::net::is_exact_loopback_literal(entry);
-        if floor_dead {
+        if floor_dead || held.net.iter().any(|n| n.http.contains(entry)) {
             continue;
         }
         if !hosts
@@ -617,7 +665,7 @@ fn push_net_drift(permits: &Permits, usage: &BodyUsage, out: &mut Vec<String>) {
 }
 
 /// `fs.read`/`fs.write` — per entry per direction (`Permits::allows_path` over a single-entry boundary).
-fn push_fs_drift(permits: &Permits, usage: &BodyUsage, out: &mut Vec<String>) {
+fn push_fs_drift(permits: &Permits, usage: &BodyUsage, held: &Permits, out: &mut Vec<String>) {
     let Some(fs) = permits.fs.as_ref() else {
         return;
     };
@@ -627,8 +675,13 @@ fn push_fs_drift(permits: &Permits, usage: &BodyUsage, out: &mut Vec<String>) {
     let (Some(reads), Some(writes)) = (&usage.reads, &usage.writes) else {
         return; // a dynamic path hides the path sets — no claim
     };
+    let (held_read, held_write) = held
+        .fs
+        .as_ref()
+        .map_or((&[][..], &[][..]), |h| (&h.read[..], &h.write[..]));
     for entry in &fs.read {
-        if !reads.iter().any(|p| single_entry_admits(entry, p, false)) {
+        if !reads.iter().any(|p| single_entry_admits(entry, p, false)) && !held_read.contains(entry)
+        {
             out.push(format!(
                 "`permits.fs.read` entry `{entry}` matches no path the body reads \
                  — remove the entry"
@@ -636,7 +689,9 @@ fn push_fs_drift(permits: &Permits, usage: &BodyUsage, out: &mut Vec<String>) {
         }
     }
     for entry in &fs.write {
-        if !writes.iter().any(|p| single_entry_admits(entry, p, true)) {
+        if !writes.iter().any(|p| single_entry_admits(entry, p, true))
+            && !held_write.contains(entry)
+        {
             out.push(format!(
                 "`permits.fs.write` entry `{entry}` matches no path the body writes \
                  — remove the entry"
@@ -1348,6 +1403,93 @@ mod tests {
         assert!(
             !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
             "{advice:?}"
+        );
+    }
+
+    // ─── the composition bridge (NIK-273) ────────────────────────────
+
+    const LOG_CHILD: &str = "nika: log\npermits: { exec: [\"git\"], fs: { read: [\"./repo/**\"] } }\ntasks:\n  log:\n    exec: { command: [\"git\", \"-C\", \"./repo\", \"log\"] }\noutputs:\n  text: { value: \"${{ tasks.log.output }}\", type: string }\n";
+
+    /// A caller whose `git`, `./repo/**` and `docs.example.com` grants only
+    /// its child uses, beside a `nika:glob` grant nothing uses.
+    const CALLER: &str = "nika: caller\nconst: { spare: x }\npermits:\n  exec: [\"git\"]\n  fs: { read: [\"./repo/**\"] }\n  tools: [\"nika:jq\", \"nika:glob\"]\ntasks:\n  call:\n    invoke: { workflow: \"./log.nika\" }\n    returns: { object: { text: string } }\n  count:\n    with: { log: \"${{ tasks.call.output.text }}\" }\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ with.log }}\", expression: \"length\" } }\n";
+
+    fn composed_drift(caller: &str, child: &str) -> Vec<String> {
+        let wf = parse(caller, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+        let report = nika_check::check_composed(&wf, "caller.nika", &mut |path| match path {
+            "log.nika" => Ok(child.to_owned()),
+            other => Err(format!("no fixture for {other}")),
+        });
+        scan_composed(&wf, false, &report.composed_calls)
+    }
+
+    #[test]
+    fn a_grant_the_child_runs_on_is_never_dead() {
+        let advice = composed_drift(CALLER, LOG_CHILD);
+        assert!(
+            !advice
+                .iter()
+                .any(|a| a.contains("`git`") || a.contains("./repo/**")),
+            "the child's program and its subprocess's read are load-bearing: {advice:?}"
+        );
+        assert!(
+            advice.iter().any(|a| a.contains("`nika:glob`")),
+            "a grant nothing uses still drifts: {advice:?}"
+        );
+        assert!(
+            advice.iter().any(|a| a.contains("`const.spare`")),
+            "the declaration family is untouched: {advice:?}"
+        );
+    }
+
+    #[test]
+    fn a_child_call_no_composed_check_resolved_silences_the_permits_drift() {
+        let wf = parse(CALLER, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+        let advice = scan(&wf);
+        assert!(
+            !advice.iter().any(|a| a.contains("`permits.")),
+            "an unread child may use any grant: {advice:?}"
+        );
+        assert!(
+            advice.iter().any(|a| a.contains("`const.spare`")),
+            "{advice:?}"
+        );
+        // The same file with no child call is judged per entry, as before.
+        let flat = CALLER.replace(
+            "  call:\n    invoke: { workflow: \"./log.nika\" }\n    returns: { object: { text: string } }\n",
+            "",
+        )
+        .replace("\"${{ tasks.call.output.text }}\"", "\"x\"");
+        let advice = drifted(&flat);
+        assert!(
+            advice.iter().any(|a| a.contains("`git`")),
+            "no child, no hold: {advice:?}"
+        );
+    }
+
+    /// A child's subprocess reaches only what its own declared block grants
+    /// (it runs under `child ∩ parent`): a caller entry outside that block is
+    /// dead however opaque the subprocess is, and still drifts.
+    #[test]
+    fn a_grant_outside_the_childs_own_boundary_still_drifts() {
+        let caller = "nika: caller\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:glob\"]\n  net: { http: [\"unused.example.com\"] }\n  fs: { read: [\"./repo/**\", \"./secrets/**\"], write: [\"./out/**\"] }\ntasks:\n  call:\n    invoke: { workflow: \"./log.nika\" }\n    returns: { object: { text: string } }\noutputs:\n  log: ${{ tasks.call.output.text }}\n";
+        let advice = composed_drift(caller, LOG_CHILD);
+        for dead in [
+            "entry `./secrets/**`",
+            "entry `./out/**`",
+            "entry `unused.example.com`",
+            "entry `nika:glob`",
+        ] {
+            assert!(
+                advice.iter().any(|a| a.contains(dead)),
+                "`{dead}` is dead: {advice:?}"
+            );
+        }
+        assert!(
+            !advice
+                .iter()
+                .any(|a| a.contains("entry `git`") || a.contains("entry `./repo/**`")),
+            "the child's program and read are held: {advice:?}"
         );
     }
 }

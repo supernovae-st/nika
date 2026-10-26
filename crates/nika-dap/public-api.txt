@@ -2713,6 +2713,7 @@ pub const nika_dap::drift::DRIFT_CODE: &str
 pub fn nika_dap::drift::declares_harness_access(wf: &nika_schema::raw::workflow::RawWorkflow) -> bool
 pub fn nika_dap::drift::scan(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_dap::drift::scan_bridged(wf: &nika_schema::raw::workflow::RawWorkflow, bridged: bool) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_dap::drift::scan_composed(wf: &nika_schema::raw::workflow::RawWorkflow, bridged: bool, calls: &[nika_check::composed_call::ComposedCall]) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_dap::evidence
 #[non_exhaustive] pub enum nika_dap::evidence::PackError
 pub nika_dap::evidence::PackError::NotAJournal(alloc::string::String)

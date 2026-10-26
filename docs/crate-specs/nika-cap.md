@@ -240,7 +240,12 @@ bindings, the static checker and the compile verifier. It holds the
 runtime's corrections to jaq's std:
 
 - `scan(re; flags)` and `scan(re)` are global, as jq defines them (jaq-std
-  3.0.x yields the first match only).
+  3.0.x yields the first match only), and a match of a regex with capture
+  groups yields the array of the capture strings, as jq 1.7 does, where the
+  whole match was yielded before.
+- `IN(s)` and `IN(src; s)` are jq 1.7's membership tests, which jaq-std
+  3.0.x does not define: `IN(s)` holds when the input is one output of `s`,
+  `IN(src; s)` when one output of `src` is one output of `s`.
 - `tonumber` emits exactly one finite number. A number operand is kept; a
   text is read with `fromjson` and must hold one JSON number. Empty or
   whitespace-only text, several values, non-numbers, NaN, `Infinity`,
@@ -253,7 +258,11 @@ Named limits: `fromjson` is unchanged and still reads NaN, the infinities and
 overflowing decimals, and values a program computes (`infinite`, `1 / 0`,
 `pow(10; 400)`) are not guarded. A text that is not JSON fails with the
 reader's own message, which quotes the text; naming the field or column
-belongs to the programs the typed compiler emits.
+belongs to the programs the typed compiler emits. jaq leaves out a capture
+group that takes no part in a match, where jq yields `null` for it, so
+`scan` yields fewer captures for such a match (`"a ab" | [scan("a(b)?")]` is
+`["a",["b"]]` here and `[[null],["b"]]` in jq), and the whole match when no
+group took part.
 
 `JQ_STD_SHADOW_PROBES` (`src/jq_std_shadows_probes.json`) is data, not
 behaviour: `shadows` lists each definition the text defines (`name/arity`),

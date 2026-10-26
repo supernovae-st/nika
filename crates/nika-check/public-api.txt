@@ -123,6 +123,7 @@ pub const nika_check::slots::MARKER_OPEN: &str
 pub fn nika_check::slots::scan(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check::slots::SlotFinding>
 pub mod nika_check::trifecta
 pub fn nika_check::trifecta::scan_trifecta(wf: &nika_schema::raw::workflow::RawWorkflow, edges: &[nika_check_analyzer::edges::Edge], topo_waves: &[alloc::vec::Vec<usize>]) -> nika_cap::trifecta::TrifectaVerdict
+pub fn nika_check::trifecta::scan_trifecta_composed(wf: &nika_schema::raw::workflow::RawWorkflow, edges: &[nika_check_analyzer::edges::Edge], topo_waves: &[alloc::vec::Vec<usize>], calls: &[nika_check::ComposedCall]) -> nika_cap::trifecta::TrifectaVerdict
 #[non_exhaustive] pub enum nika_check::DataClassification
 pub nika_check::DataClassification::Internal
 pub nika_check::DataClassification::Regulated
@@ -672,6 +673,55 @@ impl<T> nika_error::traits::AsAny for nika_check::ByteSpan where T: 'static
 pub fn nika_check::ByteSpan::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_check::ByteSpan where T: core::marker::Copy
 pub fn nika_check::ByteSpan::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub struct nika_check::CallFlow
+pub nika_check::CallFlow::egress: core::option::Option<alloc::string::String>
+pub nika_check::CallFlow::file: core::option::Option<alloc::string::String>
+pub nika_check::CallFlow::output: core::option::Option<alloc::string::String>
+impl nika_check::CallFlow
+pub fn nika_check::CallFlow::is_empty(&self) -> bool
+impl core::clone::Clone for nika_check::CallFlow
+pub fn nika_check::CallFlow::clone(&self) -> nika_check::CallFlow
+impl core::cmp::Eq for nika_check::CallFlow
+impl core::cmp::PartialEq for nika_check::CallFlow
+pub fn nika_check::CallFlow::eq(&self, other: &nika_check::CallFlow) -> bool
+impl core::default::Default for nika_check::CallFlow
+pub fn nika_check::CallFlow::default() -> nika_check::CallFlow
+impl core::fmt::Debug for nika_check::CallFlow
+pub fn nika_check::CallFlow::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::CallFlow
+impl serde_core::ser::Serialize for nika_check::CallFlow
+pub fn nika_check::CallFlow::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::CallFlow
+impl<Q, K> equivalent::Equivalent<K> for nika_check::CallFlow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::CallFlow::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::CallFlow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::CallFlow::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::CallFlow where U: core::convert::From<T>
+pub fn nika_check::CallFlow::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::CallFlow where U: core::convert::Into<T>
+pub type nika_check::CallFlow::Error = core::convert::Infallible
+pub fn nika_check::CallFlow::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::CallFlow where U: core::convert::TryFrom<T>
+pub type nika_check::CallFlow::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::CallFlow::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::CallFlow where T: core::clone::Clone
+pub type nika_check::CallFlow::Owned = T
+pub fn nika_check::CallFlow::clone_into(&self, target: &mut T)
+pub fn nika_check::CallFlow::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::CallFlow where T: 'static + ?core::marker::Sized
+pub fn nika_check::CallFlow::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::CallFlow where T: ?core::marker::Sized
+pub fn nika_check::CallFlow::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::CallFlow where T: ?core::marker::Sized
+pub fn nika_check::CallFlow::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::CallFlow where T: core::clone::Clone
+pub unsafe fn nika_check::CallFlow::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::CallFlow
+pub fn nika_check::CallFlow::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::CallFlow where T: core::clone::Clone
+pub fn nika_check::CallFlow::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::CallFlow where T: 'static
+pub fn nika_check::CallFlow::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::CapabilityEscape
 pub nika_check::CapabilityEscape::category: &'static str
 pub nika_check::CapabilityEscape::detail: alloc::string::String
@@ -768,6 +818,7 @@ pub fn nika_check::CertTerm::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub nika_check::CheckReport::analysis: core::option::Option<nika_check::DagAnalysis>
 pub nika_check::CheckReport::capability_escapes: alloc::vec::Vec<nika_check::permits_fit::CapabilityEscape>
 pub nika_check::CheckReport::certificate: nika_check::RunCertificate
+pub nika_check::CheckReport::composed_calls: alloc::vec::Vec<nika_check::ComposedCall>
 pub nika_check::CheckReport::composition: alloc::vec::Vec<nika_check::CompositionFinding>
 pub nika_check::CheckReport::conformance: alloc::vec::Vec<nika_check::ConformanceViolation>
 pub nika_check::CheckReport::consent_findings: alloc::vec::Vec<nika_check::ConsentFinding>
@@ -840,6 +891,57 @@ impl<T> dyn_clone::DynClone for nika_check::CheckReport where T: core::clone::Cl
 pub fn nika_check::CheckReport::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::CheckReport where T: 'static
 pub fn nika_check::CheckReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::ComposedCall
+pub nika_check::ComposedCall::args: nika_check::CallFlow
+pub nika_check::ComposedCall::born: nika_check::CallFlow
+pub nika_check::ComposedCall::files: nika_check::CallFlow
+pub nika_check::ComposedCall::grants: nika_cap::permits::Permits
+pub nika_check::ComposedCall::ingress: core::option::Option<alloc::string::String>
+pub nika_check::ComposedCall::target: alloc::string::String
+pub nika_check::ComposedCall::task: alloc::string::String
+impl nika_check::ComposedCall
+pub fn nika_check::ComposedCall::unresolved(task: alloc::string::String, target: alloc::string::String, why: &str) -> Self
+impl core::clone::Clone for nika_check::ComposedCall
+pub fn nika_check::ComposedCall::clone(&self) -> nika_check::ComposedCall
+impl core::cmp::Eq for nika_check::ComposedCall
+impl core::cmp::PartialEq for nika_check::ComposedCall
+pub fn nika_check::ComposedCall::eq(&self, other: &nika_check::ComposedCall) -> bool
+impl core::fmt::Debug for nika_check::ComposedCall
+pub fn nika_check::ComposedCall::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::ComposedCall
+impl serde_core::ser::Serialize for nika_check::ComposedCall
+pub fn nika_check::ComposedCall::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::ComposedCall
+impl<Q, K> equivalent::Equivalent<K> for nika_check::ComposedCall where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::ComposedCall::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::ComposedCall where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::ComposedCall::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::ComposedCall where U: core::convert::From<T>
+pub fn nika_check::ComposedCall::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::ComposedCall where U: core::convert::Into<T>
+pub type nika_check::ComposedCall::Error = core::convert::Infallible
+pub fn nika_check::ComposedCall::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::ComposedCall where U: core::convert::TryFrom<T>
+pub type nika_check::ComposedCall::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::ComposedCall::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::ComposedCall where T: core::clone::Clone
+pub type nika_check::ComposedCall::Owned = T
+pub fn nika_check::ComposedCall::clone_into(&self, target: &mut T)
+pub fn nika_check::ComposedCall::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::ComposedCall where T: 'static + ?core::marker::Sized
+pub fn nika_check::ComposedCall::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::ComposedCall where T: ?core::marker::Sized
+pub fn nika_check::ComposedCall::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::ComposedCall where T: ?core::marker::Sized
+pub fn nika_check::ComposedCall::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::ComposedCall where T: core::clone::Clone
+pub unsafe fn nika_check::ComposedCall::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::ComposedCall
+pub fn nika_check::ComposedCall::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::ComposedCall where T: core::clone::Clone
+pub fn nika_check::ComposedCall::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::ComposedCall where T: 'static
+pub fn nika_check::ComposedCall::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::ComposedCost
 pub nika_check::ComposedCost::bounded_total_usd: f64
 pub nika_check::ComposedCost::has_unbounded: bool
