@@ -160,9 +160,11 @@ or `current_mode_update` away from the held mode ends the session. The table is
 - inside a grant → `allow_once` (`allow_always` NEVER · the GOOSE_MODE=auto
   anti-pattern · A-5) · `permit_checked allow`;
 - outside every grant → the EXISTING pause (NIKA-1806 · exit 4 · question
-  verbatim · `--resume --answer`), the harness hears `cancelled` · `permit_checked
-  escalate`, journaled before the `workflow_paused` frame although the paused task
-  never settles; the human gate is never answered by the engine;
+  verbatim · `--resume --answer`): the ask is left unanswered and the session ends,
+  its adapter's process group killed; `--resume --answer` runs the task again in a
+  new session, where the bound answer decides the first ask outside the grants ·
+  `permit_checked escalate`, journaled before the `workflow_paused` frame although
+  the paused task never settles; the human gate is never answered by the engine;
 - the paths an ask names are anchored on the session root (root-relative inside
   it, the vocabulary `permits.fs` is authored in; absolute outside it), and each
   path's physical identity is judged too (`nika_harness::client::anchor`): the raw
@@ -190,7 +192,12 @@ or `current_mode_update` away from the held mode ends the session. The table is
   `request_permissions` ask, claude-agent-acp's `dangerouslyDisableSandbox: true`),
   witnessed with gate `sandbox · <widening>`. claude-agent-acp's other Bash keys
   (`command`, `description`, `timeout`, `run_in_background`) and gemini-cli's
-  bare asks carry none of these and are judged as before.
+  bare asks carry none of these and are judged as before;
+- codex-acp's approval of its own MCP tool call (an `execute` ask with no command
+  and the request `_meta.is_mcp_tool_approval: true`) is an escalation judged on
+  plane `tools` with gate `mcp · <server or tool call>`, never answered by a grant
+  because `permits.tools` names the workflow's MCP tools, not the harness's
+  (claude-agent-acp and gemini-cli ask theirs as kind `other`, which pauses too).
 
 **What the bridge does not cover**, stated by `nika check` as the `[harness]`
 hint and in [docs/usage/harness-agents.md](../usage/harness-agents.md): whatever

@@ -30,7 +30,9 @@ every such task as a `[harness]` hint (`nika explain harness`).
 - Inside your `permits:` grants: allowed once, never "allow always".
 - Outside them: the run pauses with the harness's question verbatim
   (`NIKA-1806`). Answer with `nika run --resume <trace> --answer <task>=true`
-  (or `false`).
+  (or `false`). The harness is shut down at the pause; the resumed run starts
+  the task again in a new session, and your answer decides its first ask
+  outside the grants.
 - Paths are judged in your project's terms (`./out/**` matches the absolute path
   the harness names) and where the operating system will land: each path is
   walked from the root, component by component, through every symlink (a
@@ -50,6 +52,8 @@ every such task as a `[harness]` hint (`nika explain harness`).
 - A command that asks the harness to widen its own sandbox (Codex
   `additionalPermissions`, Claude Code `dangerouslyDisableSandbox`) pauses for
   you: no grant covers it, `permits.exec: true` included.
+- An MCP tool call the harness asks you to approve always pauses for you,
+  because `permits.tools` names your workflow's MCP tools, not the harness's.
 
 ## What `permits:` does not cover
 
@@ -74,8 +78,9 @@ On every seat:
 - In `read-only`, Codex runs ordinary commands in its sandbox without asking,
   so a command it does ask about usually wants to run outside that sandbox. Its
   ask does not say so: `permits.exec: true` admits it like any command, and
-  Codex then runs it with no sandbox at all. Leave `permits.exec` unset, or
-  name only the programs you expect, to keep such a command waiting for you.
+  Codex then runs it with no sandbox at all. To keep such a command waiting for
+  you, leave `permits.exec` unset: a list of programs does the same, because it
+  never admits a command asked as a shell string, as Codex and Claude Code ask.
 - The harness's own configuration still applies: its permission rules, its
   hooks and the MCP servers it configures act without Nika's judgment unless
   they ask.
@@ -94,8 +99,9 @@ Each harness `agent:` task journals, in order:
   harness's own mode was only observed),
   whose `why` states what the harness still does without asking;
 - one `permit_checked` per ask, with decision `allow`, `deny` (your answer) or
-  `escalate` (paused for you). Its gate names what was judged: `network ·
-  <target>` for a network ask, `sandbox · <widening>` for a sandbox widening,
+  `escalate` (paused for you). Its gate names what was judged: `mcp · <server
+  or tool call>` for an MCP tool approval, `network · <target>` for a network
+  ask, `sandbox · <widening>` for a sandbox widening,
   otherwise the ask's kind with its program or paths (an unresolvable path
   reads `<unresolved>`). A run paused on that question still journals the
   task's decisions, just before its `workflow_paused` frame;
