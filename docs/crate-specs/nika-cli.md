@@ -72,7 +72,10 @@ values retain runtime code `NIKA-1708`. Other codes are `invalid_inputs_channel`
 `input_channel_conflict`, `input_read_failed`, `inputs_too_large`,
 `invalid_inputs_utf8`, `invalid_inputs_json` (including duplicate keys),
 `invalid_inputs_root`, `unknown_input`, `invalid_input_type` and
-`input_type_mismatch`. No new NIKA error range is allocated.
+`input_type_mismatch`. No new NIKA error range is allocated. A `--var`
+refusal uses the same envelope and names the pair the shared per-pair law
+faults: `unknown_input`, `input_type_mismatch`, or that fault's own slug
+(`malformed`, `env_unset`, `env_undeclared_in_ci`, `env_name_missing`).
 
 `--sdk-identity` advertises `inputsLiteral`; HTTP retains `jobInputs`.
 The SDK must test capability presence before admission and handle early pipe

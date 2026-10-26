@@ -373,13 +373,13 @@ fn access_code_help(num: u16) -> &'static str {
             "The `--access` token is neither an access class (local · api · harness · oauth · mock) nor a known agentic CLI (claude-code · codex · copilot · gemini-cli · grok-build · kimi-code · opencode · qwen-code). `nika doctor` lists every path."
         }
         1803 => {
-            "That agentic CLI is not installed (or this nika was built without adapters). Install Claude Code, Codex, GitHub Copilot CLI, Gemini CLI, Grok Build, Kimi Code, OpenCode or Qwen Code, or choose an API key or a local engine instead (`nika doctor --verbose` lists them)."
+            "That agentic CLI is not installed (or this nika was built without adapters), or the app reported that its sign-in expired or was revoked. Install Claude Code, Codex, GitHub Copilot CLI, Gemini CLI, Grok Build, Kimi Code, OpenCode or Qwen Code, or sign in again in the app itself (nika never holds its credential), or choose an API key or a local engine instead (`nika doctor --verbose` lists them)."
         }
         1804 => {
-            "The harness session died mid-run (process exit or wire breakdown) — transient: retry, and if it repeats read the adapter's own logs."
+            "The harness session died mid-run (process exit or wire breakdown), or the harness reported a failed turn it offers to retry (a 429 rate limit or retry limit, a lost connection, an overloaded service, a provider error it cannot name). Transient: retry, and if it repeats read the adapter's own message and logs. A rejected model arrives as such a provider error, and a retry cannot heal it: choose a model the harness serves."
         }
         1805 => {
-            "The harness refused the request in its own words (its auth may be absent on ITS side, or the capability unsupported). Sign in to the harness itself — nika never holds its credential."
+            "The harness refused the request in its own words, or reported a failed turn it offers no retry for (an exhausted quota or budget, a full context, a bad request, a policy denial), or its auth is absent on ITS side. Read its message: wait for the quota, start a new session, fix the request, or sign in to the harness itself — nika never holds its credential."
         }
         1806 => {
             "The harness asked for an action the workflow's `permits:` grants do not cover, so the run PAUSED for a human answer (a gate question is never auto-answered). Resume with `nika run --resume <trace> --answer <task>=true` to grant it once, `=false` to deny — or widen the permits block."
@@ -886,6 +886,30 @@ mod tests {
         let help = run_code_help(1712);
         assert!(help.contains("crossed its room's bound"), "{help}");
         assert!(help.contains("Shrink the value this task builds"), "{help}");
+    }
+
+    /// NIK-275 · the harness codes the CLI points to name what the harness reported: a failed
+    /// turn with or without a retry, and an expired sign-in; a rejected model is never taught
+    /// as retryable.
+    #[test]
+    fn harness_codes_teach_a_reported_failed_turn() {
+        let session = access_code_help(1804);
+        assert!(
+            session.contains("reported a failed turn it offers to retry")
+                && session.contains("a retry cannot heal it"),
+            "{session}"
+        );
+        let refused = access_code_help(1805);
+        assert!(
+            refused.contains("a failed turn it offers no retry for"),
+            "{refused}"
+        );
+        let unavailable = access_code_help(1803);
+        assert!(
+            unavailable.contains("its sign-in expired or was revoked")
+                && unavailable.contains("sign in again in the app itself"),
+            "{unavailable}"
+        );
     }
 
     /// The one-voice namespace teaching both explain surfaces consume:

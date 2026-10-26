@@ -965,32 +965,32 @@ mod cascade_oracle {
         (
             "no_adapter/human",
             10,
-            "2555620c53c83ffc615c0e13bcc66be9042e19103ed83ef8000ee068a46c4635",
+            "16af3cefcb6c272a7997d4fc96d8b00a710b44fad4e82be3a4b98e271a389953",
         ),
         (
             "no_adapter/welcome",
             2,
-            "737b5aa2fdbc78e483898e495cdcb46138e944e06ca09e91f809ef07adf66ff4",
+            "031d30bafc2fcddafc5a728d148c942723d610f72e66f026e816c56a9b12bc46",
         ),
         (
             "no_adapter/human",
             10,
-            "403c2da7d437d44e723a614bba4e88630a4558c170ccb774002466a06c3ffea3",
+            "a3b70ca324df1d178264a32ce63804c42e4b9009a079c0c6a47559468941d9ce",
         ),
         (
             "no_adapter/welcome",
             2,
-            "b635f317d4604b056efc18b4580a17da72409e8c16fa570398974e1b706adbda",
+            "3941f590674e7a5914394faa1e8baaed861bbf0059b3fa4d04a4eb6f9f13da71",
         ),
         (
             "no_adapter/human",
             10,
-            "289977bfe34b0ddb6c9e6f9a74246fe8cd3c88d087180414d1c0056034045ecd",
+            "410130ad27a51dfbfecadae5c44c7c67b4a02858b462a3fac97b902d057157c5",
         ),
         (
             "no_adapter/welcome",
             2,
-            "b883def634b2f52b3e76bfcf2b41e71dfeb029a4ff576309a40aea2ff5b745c7",
+            "fee3bf7eeacf67413cc9e6e538b4e1264278154a8b865c1c0380709a8b946e9e",
         ),
         (
             "no_adapter/cascade",
@@ -1005,32 +1005,32 @@ mod cascade_oracle {
         (
             "keys64/human",
             10,
-            "e8ef8188dac0db9baca10009f25f4f49d11d2ed808837ecfa62f7d8112879eb0",
+            "eb057005edeb59947a874aab094e4f82c7f801f2ed55300365b97f38b22bdcd9",
         ),
         (
             "keys64/welcome",
             2,
-            "d202ce16993dc37bd065c8056c43ee4ad999aef5f6598edcf6def206e4f7b4bf",
+            "caaa20d72596d72dd3dc32671f72f76514d34372d46927736ffbe46564ff464d",
         ),
         (
             "keys64/human",
             10,
-            "85aec830d91fefa0721480e0217d7170e92b21879066007aa29e53fe7e275148",
+            "81bfbf0aab88b5f6e87c64cb5f19a597e8e4431ffeec7a3a48f1679d49987e5f",
         ),
         (
             "keys64/welcome",
             2,
-            "d3bed6296a6d40b82057f772ce3e7237890d91aa3e7ebe6b466cfec955df7f67",
+            "6c83c8e1b032e9786d3af737b4321d24ff0cbc254c0f7303e9d03b4e74cfc1b0",
         ),
         (
             "keys64/human",
             10,
-            "0352cf0759a5a6263d468fc3f276bdb5be1640e5f75071f24cf9daa188063160",
+            "9b884b1098df7baa11f15ce4b0536075cfd22df105cc1a4bc82b5cf403615c2b",
         ),
         (
             "keys64/welcome",
             2,
-            "a07cb54307cef2a576b88801046543e280b2ccbe08d90a7557b7257a2585a281",
+            "9296667797dc2b4f62c9c1cff53fb900fdba361241b79e7b6a40ff2c11c7c513",
         ),
         (
             "keys64/cascade",
@@ -1045,32 +1045,32 @@ mod cascade_oracle {
         (
             "seat_pulled32/human",
             10,
-            "2115607ce62e7d0a1f380751137ec7877862ce55d7b65d4da72d0baf49baa681",
+            "69e3e09fc7da5dbe8d740903755f1f4445565eafecfbf54d3443104c84a21f37",
         ),
         (
             "seat_pulled32/welcome",
             2,
-            "42803c7d6e05b1f8e3e08ce8c002c584eef91108e13caf67feb1896d0d31c98d",
+            "00aaa38ce2923af1f366a2587fd360f778ffc08960df83cdfafb5ee245f092a4",
         ),
         (
             "seat_pulled32/human",
             10,
-            "4797b3dbc357c65062c264f1fd913768c2d19526e0670f71d89043db93bcd71e",
+            "d93c6c4da3504e4ffa31b2a250948a433d5b25c366560f0706c279a0839d806d",
         ),
         (
             "seat_pulled32/welcome",
             2,
-            "04cd3b24525cd2cc0e58c4c35190141733dbdd45cab78c3c88bc4c8b75dacece",
+            "fde60c5e13374ff34ff2d1240cbcaa89fd7b57fce9cd9204edc26a56fa540703",
         ),
         (
             "seat_pulled32/human",
             10,
-            "ef891d7abab9d296a1f3c48360bc6efdf79e1a48195343b4b4c7ad31dad12b15",
+            "01a196444520d1d07e2c9cd8976d0e4a4989df3e32c11329e08a6f8b670cd519",
         ),
         (
             "seat_pulled32/welcome",
             2,
-            "1f6620302b0c8d8a73394f3a08f6cae35586ebabbdedd230a8cd15652ef7d092",
+            "fcc81be316faa3c3e8af206c3b07be9eca39541681a63ac29fde56c9e68fef74",
         ),
         (
             "seat_pulled32/cascade",
@@ -1093,4 +1093,21 @@ mod cascade_oracle {
             .collect();
         assert_eq!(groups(&cases), want);
     }
+}
+
+/// #1619 · nothing on this path dials the vendor, so the key rung says the
+/// variable is set and stops there: « ready now » promised a key no one had
+/// checked, and a revoked key answered 401 on the first paid call.
+#[test]
+fn a_key_rung_never_claims_a_checked_key() {
+    let row = KeyRow {
+        env: "OPENAI_API_KEY".to_owned(),
+        name: "Your OpenAI key".to_owned(),
+        model: "openai/gpt-5".to_owned(),
+    };
+    let rung = key_rung(Some(&row));
+    assert!(!rung.reason.contains("ready now"), "{}", rung.reason);
+    assert!(rung.reason.contains("OPENAI_API_KEY"), "{}", rung.reason);
+    assert!(rung.reason.contains("billed per run"), "{}", rung.reason);
+    assert!(rung.reason.contains("not checked"), "{}", rung.reason);
 }

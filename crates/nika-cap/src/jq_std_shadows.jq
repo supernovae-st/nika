@@ -7,9 +7,19 @@
 
 # jq defines scan as global (match(re; "g" + flags)). jaq-std 3.0.x omits the flag and yields the
 # first match only: a green check and a green run, every number wrong (the 2026-07-29 finding).
+# jq also yields the capture strings, not the whole match, when the regex has groups: each match
+# is [whole, group...], so a match longer than one entry has groups. jaq leaves out a group that
+# took no part in the match, where jq yields null for it: such a group is absent here.
 # This shadow retires the day a jaq release carries the correction.
-def scan(re; flags): matches(re; "g" + flags)[] | .[0].string;
+def scan(re; flags):
+  matches(re; "g" + flags)[]
+  | if length > 1 then .[1:] | map(.string) else .[0].string end;
 def scan(re): scan(re; "");
+
+# jq 1.7's membership tests, which jaq-std 3.0.x does not define: IN(s) holds when the input is
+# one of the outputs of s, IN(src; s) when one output of src is one output of s.
+def IN(s): any(s == .; .);
+def IN(src; s): any(src == s; .);
 
 # Each operand is one number, never the zero-or-many stream from fromjson.
 # Keep fromjson itself unchanged; an explicit try still owns its skip policy.

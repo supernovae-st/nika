@@ -348,9 +348,9 @@ fn a_harness_agent_task_is_told_its_boundary_and_keeps_its_bridged_grant() {
     assert!(
         out.contains(
             "[harness] an `agent:` task on codex runs in mode `read-only`: Nika judges each \
-             approval it asks (journaled permit_checked), but without asking it reads any file, \
-             writes anywhere in the project, /tmp and $TMPDIR (not only the fs.write paths), \
-             runs any program in its own sandbox"
+             approval it asks (journaled permit_checked), but without asking it reads any file; \
+             writes anywhere in the project, /tmp, $TMPDIR and its own ~/.codex (not only the \
+             fs.write paths); runs any program in its own sandbox"
         ) && out.contains("permits: does not bound that (`nika explain harness`)"),
         "the boundary is stated where the author reads: {out}"
     );

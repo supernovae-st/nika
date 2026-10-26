@@ -221,9 +221,10 @@ pub enum HarnessEvent {
     },
     /// An ask that reaches beyond its own kind (NIK-266): it opens network access (a fetch, or
     /// a command the harness says needs the network), asks the harness to widen its own
-    /// sandbox, or approves one of the harness's own MCP tool calls. The same reply lane as
-    /// [`Self::PermissionAsked`], but no grant answers it: only the operator does. A consumer that does not know this variant drops the reply,
-    /// which the harness hears as `cancelled` (fail-closed).
+    /// sandbox or to run a command outside it, or approves one of the harness's own MCP tool
+    /// calls. The same reply lane as [`Self::PermissionAsked`], but no grant answers it: only
+    /// the operator does. A consumer that does not know this variant drops the reply, which
+    /// the harness hears as `cancelled` (fail-closed).
     EscalationAsked {
         /// The harness's own description of the action.
         question: String,
@@ -285,6 +286,13 @@ pub struct HarnessEscalation {
     /// tool call it refers to. `permits.tools` names the workflow's MCP tools, not the
     /// harness's, so no grant covers it.
     pub mcp: Option<String>,
+    /// The command an escalating ask runs, as the harness spelled it, with the reason it gave
+    /// (NIK-274). Alone, the command IS the escalation: a seat whose held mode runs ordinary
+    /// commands sandboxed without asking (codex-acp `read-only`) asks only to run one outside
+    /// that sandbox, and an approved one runs with none. Beside [`Self::widens`], it is the
+    /// command the widened or disabled sandbox is asked for. No grant covers either, `exec:
+    /// true` included.
+    pub escalated_command: Option<String>,
 }
 
 impl HarnessEscalation {
@@ -315,10 +323,20 @@ impl HarnessEscalation {
         self
     }
 
+    /// The command an escalating ask runs, with its reason.
+    #[must_use]
+    pub fn with_escalated_command(mut self, command: impl Into<String>) -> Self {
+        self.escalated_command = Some(command.into());
+        self
+    }
+
     /// Whether the ask reaches nothing beyond its kind.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.network.is_none() && self.widens.is_none() && self.mcp.is_none()
+        self.network.is_none()
+            && self.widens.is_none()
+            && self.mcp.is_none()
+            && self.escalated_command.is_none()
     }
 }
 
@@ -665,6 +683,12 @@ mod tests {
         let mcp = HarnessEscalation::new().with_mcp("web");
         assert_eq!(mcp.mcp.as_deref(), Some("web"));
         assert!(mcp.network.is_none() && mcp.widens.is_none() && !mcp.is_empty());
+        let run = HarnessEscalation::new().with_escalated_command("curl -sS https://example.com");
+        assert_eq!(
+            run.escalated_command.as_deref(),
+            Some("curl -sS https://example.com")
+        );
+        assert!(run.mcp.is_none() && run.network.is_none() && !run.is_empty());
     }
 
     #[test]

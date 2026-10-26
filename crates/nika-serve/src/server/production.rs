@@ -732,8 +732,8 @@ pub fn seat_cost_review(
     Ok(Some(server.with_run_cost_ceiling(ceiling)))
 }
 
-const TOKEN_FILE_MINT: &str =
-    "umask 077 && openssl rand -hex 24 > .nika/serve.token && chmod 600 .nika/serve.token";
+const TOKEN_FILE_MINT: &str = "umask 077 && mkdir -p .nika && openssl rand -hex 24 > .nika/serve.token \
+     && chmod 600 .nika/serve.token";
 const TOKEN_FILE_RULE: &str = "32–512 visible ASCII bytes, mode 0600, never argv";
 
 fn token_file_refused(prefix: &str) -> String {

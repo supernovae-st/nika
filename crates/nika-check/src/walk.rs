@@ -15,7 +15,10 @@
 
 use std::collections::BTreeSet;
 
-use nika_schema::expression::{bare_task_refs, scan_templates, task_output_paths};
+use nika_check_analyzer::edges::group_members;
+use nika_schema::expression::{
+    NamespaceRef, bare_task_refs, expr_refs, scan_templates, task_output_paths,
+};
 use nika_schema::raw::RawWorkflow;
 
 // The static-value resolver descended to the analysis substrate
@@ -25,18 +28,35 @@ use nika_schema::raw::RawWorkflow;
 pub(crate) use nika_check_analyzer::{bare_static_ref, static_literal_of};
 
 /// Task ids whose output is referenced ANYWHERE (any `tasks.X.output…`
-/// chain in any island, or an envelope `outputs:` entry).
+/// chain in any island, or an envelope `outputs:` entry) — and every
+/// member of a group a `${{ group.<name> }}` fold reads. Membership is the
+/// DAG's own law (`edges::group_members`: the tasks that declare `group:
+/// <name>`), so the hint and the fold can never disagree about who is read.
 pub(crate) fn consumed_outputs(wf: &RawWorkflow) -> BTreeSet<String> {
     let mut consumed = BTreeSet::new();
+    let mut folded = BTreeSet::new();
     for_each_island_text(wf, &mut |text| {
         if let Ok(islands) = scan_templates(text) {
             for island in islands {
                 for (target, _) in task_output_paths(&island.expr) {
                     consumed.insert(target);
                 }
+                for reference in expr_refs(&island.expr) {
+                    if let NamespaceRef::Group(name) = reference {
+                        folded.insert(name);
+                    }
+                }
             }
         }
     });
+    let members = group_members(&wf.tasks);
+    for name in &folded {
+        for &index in members.get(name.as_str()).into_iter().flatten() {
+            if let Some(task) = wf.tasks.get(index) {
+                consumed.insert(task.value.id.value.clone());
+            }
+        }
+    }
     consumed
 }
 

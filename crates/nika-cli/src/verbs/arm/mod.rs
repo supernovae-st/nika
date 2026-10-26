@@ -275,6 +275,12 @@ pub fn run_at(start: &std::path::Path) -> VerbOutput {
     report(&registry, &path)
 }
 
+/// What every arming door says of a project file with no `arm:` entry (the
+/// report, `nika serve`): one sentence, so the two never word it apart.
+pub(crate) fn nothing_armed(path: &std::path::Path) -> String {
+    format!("nothing armed — {} carries no `arm:` entry", path.display())
+}
+
 /// The report — one receipt block per beat (status, blockers, unknowns,
 /// the proof line and the next slots), the same receipts `--json` prints.
 ///
@@ -287,10 +293,7 @@ fn report(registry: &ArmRegistry, path: &std::path::Path) -> VerbOutput {
     use std::fmt::Write as _;
 
     if registry.beat_count() == 0 {
-        return VerbOutput::ok(format!(
-            "nothing armed — {} carries no `arm:` entry",
-            path.display()
-        ));
+        return VerbOutput::ok(nothing_armed(path));
     }
 
     let root = path.parent().map_or_else(
