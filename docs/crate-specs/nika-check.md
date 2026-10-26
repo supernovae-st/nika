@@ -46,7 +46,8 @@ depend on without pulling the CLI:
   past the cap: fail-closed). The trifecta lane judges such a call as the
   ingress it stands for, so a parent refuses `NIKA-SEC-009` exactly as the
   inline form would, and a refusal names the child task behind the call;
-  the runtime trust gate re-derives the trifecta over the same calls. A plain `check()`
+  `nika-dap`'s `NIKA-DRIFT-001` never names a held grant dead; the runtime
+  trust gate re-derives the trifecta over the same calls. A plain `check()`
   resolves no call: its trifecta lane, like its composition and cost lanes,
   judges the caller's own tasks only.
 - **the conformance harness** (`tests/common`) — the Core, Deep, lint, runtime

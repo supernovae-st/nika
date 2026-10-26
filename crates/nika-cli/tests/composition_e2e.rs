@@ -865,3 +865,65 @@ fn a_gated_child_subprocess_runs_once_the_gate_is_answered() {
         "{written}"
     );
 }
+
+/// DRIFT-001 must never advise removing a grant the parent holds for its
+/// child: the child's program and the read its subprocess makes run inside
+/// the parent's boundary (spec 14 law 3). A grant nothing uses still drifts.
+#[test]
+fn drift_never_advises_removing_a_grant_the_child_runs_on() {
+    let dir = tmp_dir("comp-drift");
+    let child = r#"
+nika: log-child
+permits: { exec: ["git"], fs: { read: ["./repo/**"] } }
+tasks:
+  log:
+    exec: { command: ["git", "-C", "./repo", "log", "--oneline", "-3"] }
+outputs:
+  log: { value: "${{ tasks.log.output }}", type: string }
+"#;
+    let parent = r#"
+nika: log-parent
+permits:
+  exec: ["git"]
+  fs: { read: ["./repo/**"] }
+  tools: ["nika:prompt", "nika:notify", "nika:glob"]
+  net: { http: ["hooks.example.com"] }
+tasks:
+  ask:
+    invoke: { tool: nika:prompt, args: { message: "Post the log?" } }
+  call:
+    after: { ask: success }
+    invoke: { workflow: "./child.nika" }
+    returns: { object: { log: string } }
+  ping:
+    with:
+      go: ${{ tasks.ask.output }}
+      log: ${{ tasks.call.output.log }}
+    when: ${{ with.go == true }}
+    invoke:
+      tool: nika:notify
+      args: { channel: webhook, target: "https://hooks.example.com/hook", message: "${{ with.log }}" }
+"#;
+    write_fixture(&dir, "child.nika", child);
+    let pp = write_fixture(&dir, "parent.nika", parent);
+    let (code, text) = run_in(&dir, &["check", pp.to_str().expect("utf8"), "--json"]);
+    assert_eq!(code, 0, "{text}");
+    let report: serde_json::Value = serde_json::from_str(&text).expect("check --json");
+    let drift: Vec<&str> = report["hints"]
+        .as_array()
+        .expect("hints")
+        .iter()
+        .filter(|h| h["kind"] == "drift")
+        .filter_map(|h| h["advice"].as_str())
+        .collect();
+    assert!(
+        !drift
+            .iter()
+            .any(|a| a.contains("`git`") || a.contains("./repo/**")),
+        "the child's grants are not dead: {drift:?}"
+    );
+    assert!(
+        drift.iter().any(|a| a.contains("`nika:glob`")),
+        "an entry nothing uses still drifts: {drift:?}"
+    );
+}
