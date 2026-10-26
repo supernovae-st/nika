@@ -86,7 +86,7 @@ alone.
 | effecting `/v1/*` POST | no | yes | auth before parse; body limit; content type; idempotency before execution |
 | `POST /v1/compile` | no | no (native server: the seat's calls only) | auth before parse; its own 1 MiB body ceiling and per-field bounds; content type; bounded concurrency; returns authoring data only; generation 2 exists only under an explicit operator seat, bounded in calls, tokens, time, slots and kept rounds |
 | `GET /v1/jobs/{opaque-id}/artifacts` | no | no | Bearer auth before lookup; uniform unknown-id response; settled jobs only (409 `job_not_settled`); manifest read only from the job's journal, located by its receipt and judged sealed, intact and headed by the receipt's `chain_head` over the bytes read (409 otherwise); entries only for events that record a written byte stream with its SHA-256; no server path, no blob address; at most 1,024 entries and four concurrent journal verifications or pre-download hash passes (503) |
-| `GET /v1/jobs/{opaque-id}/artifacts/{name}` | no | no | everything the manifest requires; `{name}` is a manifest key, percent-decoded once and matched exactly, never resolved on the filesystem; a file only at a relative path inside the project and outside `.nika`, an agent image only as its blob under `.nika/blobs`, both opened below the held root refusing a link at every component; 256 MiB per artifact (403 `artifact_too_large` before a byte is read); the whole file hashed against the journal before the response starts (409 `artifact_changed`), each streamed chunk sent only when it hashes to the digest kept for it; streams hold no slot and are bounded by the connection limit; `nosniff`, `attachment`, `no-store` |
+| `GET /v1/jobs/{opaque-id}/artifacts/{name}` | no | no | everything the manifest requires; `{name}` is a manifest key, percent-decoded once and matched exactly, never resolved on the filesystem; a file only at a relative path inside the project and outside its `.nika` (refused by name in any ASCII case, and by device and inode under any other spelling the filesystem folds onto it), an agent image only as its blob under `.nika/blobs`, both opened below the held root refusing a link at every component; 256 MiB per artifact (403 `artifact_too_large` before a byte is read); the whole file hashed against the journal before the response starts (409 `artifact_changed`), each streamed chunk sent only when it hashes to the digest kept for it; streams hold no slot and are bounded by the connection limit; `nosniff`, `attachment`, `Content-Security-Policy: sandbox`, `no-store` |
 
 Adding a route cannot weaken this table. The OpenAPI document is a projection
 of the live routes, never a second authority.
@@ -294,7 +294,8 @@ transcript is claimed where no such test existed on that SHA.
   and never read, while a name sent with its `/` as `%2F` addresses its
   entry; a link in place of the file or of a directory on the way, a
   removed, truncated or edited file and an edited blob are
-  `artifact_changed`; an artifact over the bound stays listed and is refused
+  `artifact_changed`; a file recorded under a spelling the filesystem folds
+  onto the project's `.nika` is never listed; an artifact over the bound stays listed and is refused
   before a byte is read; a file changed while it streams never arrives
   whole, and a changed first chunk sends no byte; a real `nika:chart` run
   through the production backend lists and serves its SVG; every answer is

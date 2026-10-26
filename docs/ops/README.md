@@ -85,7 +85,9 @@ the TypeScript SDK cover the API from an application.
   `Content-Type`, `Content-Length` and `Nika-Artifact-Sha256`. The server
   refuses to serve bytes that no longer match the journal
   (`409 artifact_changed`), and stops a stream at the first chunk that
-  changed while it was being sent.
+  changed while it was being sent. A body shorter than its `Content-Length`
+  is an incomplete download, also left by a resident that stops mid-stream:
+  retry it, and a file that really changed then answers `409`.
 
 Both artifact routes need a sealed journal. Create the resident's run key
 with `NIKA_KEYCHAIN=off nika key init`, which keeps it under `~/.nika/keys`.

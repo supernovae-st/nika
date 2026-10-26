@@ -385,6 +385,7 @@ async fn download(
             "Nika-Artifact-Sha256",
             "Content-Disposition",
             "X-Content-Type-Options",
+            "Content-Security-Policy",
             "Cache-Control",
         ] {
             assert!(declared.get(name).is_some(), "{name} undeclared");
@@ -473,6 +474,7 @@ async fn a_settled_jobs_sealed_journal_lists_and_serves_its_artifacts() {
     );
     assert_eq!(header(&headers, "content-disposition"), Some("attachment"));
     assert_eq!(header(&headers, "x-content-type-options"), Some("nosniff"));
+    assert_eq!(header(&headers, "content-security-policy"), Some("sandbox"));
     assert_eq!(header(&headers, "cache-control"), Some("no-store"));
 
     let (status, headers, bytes) = download(&server, &document, &id, "agent_image/1.png").await;
@@ -895,6 +897,66 @@ async fn a_paused_job_has_no_artifacts_yet() {
     let (status, _, body) = exchange(&server, &get(&format!("/v1/jobs/{id}/artifacts"))).await;
     assert_eq!((status, code(&body).as_str()), (409, "job_not_settled"));
     assert_declared(&document, MANIFEST, 409, &body);
+    server.stop().await.expect("clean stop");
+}
+
+/// A file recorded under a spelling the filesystem folds onto the project's `.nika` (the
+/// KELVIN SIGN on a case-insensitive APFS volume, `.NiKa` in ASCII) is never served from it.
+/// The held root compares the directory's device and inode, so the verdict holds on any
+/// filesystem: listed only where that spelling is another directory, never the engine's state.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_spelling_that_reaches_dot_nika_is_never_served() {
+    use std::os::unix::fs::MetadataExt as _;
+    let world = TestWorld::new();
+    let key = test_key(&world);
+    let engine = world.workflows.join(".nika");
+    std::fs::create_dir_all(&engine).expect(".nika");
+    let kept = b"<svg>engine state</svg>".to_vec();
+    std::fs::write(engine.join("kelvin-state.svg"), &kept).expect("state file");
+    let kelvin = ".ni\u{212A}a";
+    let events = vec![
+        chart_saved("plot", &format!("./{kelvin}/kelvin-state.svg"), &kept),
+        chart_saved("plot", "./.NiKa/kelvin-state.svg", &kept),
+    ];
+    let run = Run {
+        seal: Some(&key),
+        weighed: Some(key.file.as_path()),
+        head: None,
+    };
+    let (server, id, _state) = run_settled(&world, events, run, limits()).await;
+    let document = served_document(&server).await;
+    let manifest = server
+        .request(&get(&format!("/v1/jobs/{id}/artifacts")))
+        .await
+        .json();
+    let names: Vec<String> = (manifest["artifacts"].as_array().expect("entries").iter())
+        .filter_map(|entry| entry["name"].as_str().map(str::to_owned))
+        .collect();
+    assert!(
+        !names
+            .iter()
+            .any(|name| name.to_ascii_lowercase().starts_with("file/.nika")),
+        "{names:?}"
+    );
+    let identity = |meta: std::fs::Metadata| (meta.dev(), meta.ino());
+    let folds = std::fs::metadata(world.workflows.join(kelvin))
+        .map(identity)
+        .ok()
+        == std::fs::metadata(&engine).map(identity).ok();
+    let listed = names.contains(&format!("file/{kelvin}/kelvin-state.svg"));
+    assert_eq!(
+        listed, !folds,
+        "listed only where it is another directory: {names:?}"
+    );
+    let (status, _, body) = download(
+        &server,
+        &document,
+        &id,
+        "file/.ni%E2%84%AAa/kelvin-state.svg",
+    )
+    .await;
+    assert_ne!(status, 200, "never the bytes kept under .nika");
+    assert_ne!(body, kept);
     server.stop().await.expect("clean stop");
 }
 

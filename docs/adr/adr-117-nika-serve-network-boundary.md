@@ -236,8 +236,11 @@ is added, and a client never names a path.
   `nika:image_fx`) on its own successful answer, or an `agent_image_observed` frame whose image
   the blob store kept. `nika:write` and `nika:edit` journal no digest, so their files are not
   artifacts.
-- **Confined.** A file qualifies only by a relative path inside the project and outside `.nika`
-  (in any case). An agent image is its blob under `.nika/blobs`. `{name}` is a key into the
+- **Confined.** A file qualifies only by a relative path inside the project and outside its
+  `.nika`. A first directory named `.nika` in any ASCII case is refused by name. One that the
+  filesystem resolves to the project's `.nika` under another spelling (a Unicode case-fold
+  alias on APFS) is refused by its device and inode, read through the held root. An agent image
+  is its blob under `.nika/blobs`. `{name}` is a key into the
   manifest, percent-decoded once and matched exactly, never a path. The server opens the
   recorded place below the project root it holds, through the owned-directory open, which
   refuses a symbolic link at every component.
@@ -250,7 +253,8 @@ is added, and a client never names a path.
   `artifact_changed`. While the bytes stream, each chunk is read again and sent only if it
   hashes to the digest kept for it. Every byte that leaves is therefore a byte of the recorded
   file. A file changed during the stream ends it before its `Content-Length`, and a changed file
-  is never served as the recorded one.
+  is never served as the recorded one. A stream also ends short when the server stops or cannot
+  read: a client retries a short body, and a file that really changed then answers 409.
 
 This discharges the artifact half of the follow-up "add typed cancellation and artifact
 authority before exposing those routes". It adds no upload, no deletion or retention policy, no

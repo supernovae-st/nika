@@ -12,8 +12,9 @@
 //!   `.nika/blobs` (`storage: stored`) with the sha256 of the bytes received.
 //!
 //! `nika:write` and `nika:edit` journal no hash of what they wrote, so their files are not
-//! artifacts. A file qualifies only by a relative path inside the project, outside `.nika`;
-//! its last journaled write wins. Every number and digest here is the journal's own; the
+//! artifacts. A file qualifies only by a relative path inside the project whose name is not
+//! `.nika` in any ASCII case; its last journaled write wins. The route then drops a file whose
+//! first directory the filesystem resolves to the project's `.nika` under another spelling. Every number and digest here is the journal's own; the
 //! download route reads the bytes and checks them against it.
 
 use std::collections::BTreeMap;
@@ -215,7 +216,9 @@ fn observed_image(event: &Event, ordinal: usize) -> Option<Artifact> {
 }
 
 /// `path` as a normalized project-relative path (`./out/a.png` → `out/a.png`), when it is
-/// one: relative, without `..`, outside `.nika` (in any case), within the path bound.
+/// one: relative, without `..`, not under a first directory named `.nika` in any ASCII case,
+/// within the path bound. Another spelling a filesystem folds onto `.nika` passes this name
+/// check; the route refuses it by the directory's identity.
 pub(super) fn contained(path: &str) -> Option<String> {
     if path.len() > MAX_PATH_BYTES || path.contains('\0') || path.contains('\\') {
         return None;

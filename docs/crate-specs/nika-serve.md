@@ -259,7 +259,8 @@ returns the manifest of a settled job (succeeded, failed, cancelled, interrupted
 `job_not_settled` otherwise): its receipt, the tier its journal attained, the download bound,
 and one entry per journal event that records a written byte stream with its SHA-256 (a
 `nika:chart`, `nika:image_generate`, `nika:tts_generate` or `nika:image_fx` file at a relative
-path inside the project and outside `.nika`, its last write winning; an image an agent's
+path inside the project and outside its `.nika` (by name in any ASCII case, and by device and
+inode under any spelling the filesystem folds onto it), its last write winning; an image an agent's
 harness sent, kept as a blob under `.nika/blobs`). The journal is the one the receipt names,
 read once within the verifier's bound and judged over those bytes: intact, sealed under a run
 key `nika trace verify` weighs, headed by the receipt's `chain_head` (409 `artifact_journal_unavailable` /

@@ -271,6 +271,7 @@ fn only_a_relative_path_inside_the_project_and_outside_dot_nika_qualifies() {
         "./.nika/blobs/64/x",
         ".NIKA/keys/run.svg",
         ".Nika/serve.token",
+        ".NiKa/case.svg",
         "",
         ".",
         "out\\a.png",
@@ -279,6 +280,12 @@ fn only_a_relative_path_inside_the_project_and_outside_dot_nika_qualifies() {
         assert_eq!(contained(refused), None, "{refused:?}");
     }
     assert_eq!(contained(&format!("out/{}", "a".repeat(5000))), None);
+    // A spelling only a case-insensitive filesystem folds onto `.nika` (the KELVIN SIGN) passes
+    // the name check; the route refuses it by the directory's device and inode.
+    assert_eq!(
+        contained("./.ni\u{212A}a/state.svg").as_deref(),
+        Some(".ni\u{212A}a/state.svg")
+    );
     let events = [
         completed(
             1,

@@ -1965,7 +1965,7 @@
     },
     "/v1/jobs/{id}/artifacts": {
       "get": {
-        "description": "Answers only for a settled job (succeeded, failed, cancelled, interrupted); an interrupted run never sealed its journal, so its job answers 409 `artifact_journal_unavailable`. The manifest is read from the journal the job's receipt names, judged by the one verifier `nika trace verify` runs: the chain must be intact, the seal must verify against a run key that verifier weighs on the server (`~/.nika/keys/run-signing.pub` or the retired-key ledger), and the head must be the receipt's `chain_head`. Each entry is one journal event that records a written byte stream with its SHA-256: a file a builtin saved (`nika:chart`, `nika:image_generate`, `nika:tts_generate`, `nika:image_fx`) at a relative path inside the project and outside `.nika`, its last write winning, or an image an agent's harness sent, kept under `.nika/blobs`. `nika:write` and `nika:edit` journal no hash of what they wrote, so their files are not listed. Every size and digest is the journal's; the download route checks the bytes against them. No filesystem path of the server is exposed.",
+        "description": "Answers only for a settled job (succeeded, failed, cancelled, interrupted); an interrupted run never sealed its journal, so its job answers 409 `artifact_journal_unavailable`. The manifest is read from the journal the job's receipt names, judged by the one verifier `nika trace verify` runs: the chain must be intact, the seal must verify against a run key that verifier weighs on the server (`~/.nika/keys/run-signing.pub` or the retired-key ledger), and the head must be the receipt's `chain_head`. Each entry is one journal event that records a written byte stream with its SHA-256: a file a builtin saved (`nika:chart`, `nika:image_generate`, `nika:tts_generate`, `nika:image_fx`) at a relative path inside the project and outside its `.nika` (refused by name in any ASCII case, and by device and inode under any other spelling the filesystem folds onto it), its last write winning, or an image an agent's harness sent, kept under `.nika/blobs`. `nika:write` and `nika:edit` journal no hash of what they wrote, so their files are not listed. Every size and digest is the journal's; the download route checks the bytes against them. No filesystem path of the server is exposed.",
         "parameters": [
           {
             "in": "path",
@@ -2054,7 +2054,7 @@
     },
     "/v1/jobs/{id}/artifacts/{name}": {
       "get": {
-        "description": "`{name}` is an entry's `name` from GET /v1/jobs/{id}/artifacts, never a filesystem path. Every name contains `/` (`file/out/report.pdf`, `agent_image/1.png`): send it with its `/` literal or percent-encoded (`%2F`), as one path parameter. The rest of the path is percent-decoded once and matched exactly against the manifest's names; an escape that is not two hexadecimal digits, bytes that are not UTF-8 or NUL match no entry. The server opens the recorded place below the project root it holds, refusing a symbolic link at any component, and reads every byte against the recorded size and SHA-256 before the response starts (409 `artifact_changed` on a mismatch), keeping the SHA-256 of each 256 KiB chunk. While the bytes stream, each chunk is read again and sent only if it hashes to the digest kept for it: every byte that leaves is a byte of the recorded file, and a file changed during the stream ends it before its `Content-Length`. The bound is `max_artifact_bytes`; a larger artifact stays listed and is refused 403. At most 4 journal verifications and pre-download hash passes run at once (`artifact_capacity` otherwise); a stream holds no slot once its bytes start, is bounded by the connection limit, and is not bounded by the request deadline.",
+        "description": "`{name}` is an entry's `name` from GET /v1/jobs/{id}/artifacts, never a filesystem path. Every name contains `/` (`file/out/report.pdf`, `agent_image/1.png`): send it with its `/` literal or percent-encoded (`%2F`), as one path parameter. The rest of the path is percent-decoded once and matched exactly against the manifest's names; an escape that is not two hexadecimal digits, bytes that are not UTF-8 or NUL match no entry. The server opens the recorded place below the project root it holds, refusing a symbolic link at any component, and reads every byte against the recorded size and SHA-256 before the response starts (409 `artifact_changed` on a mismatch), keeping the SHA-256 of each 256 KiB chunk. While the bytes stream, each chunk is read again and sent only if it hashes to the digest kept for it: every byte that leaves is a byte of the recorded file, and a file changed during the stream ends it before its `Content-Length`. A stream also ends short when the server stops or cannot read the file: retry a short body, and a file that really changed then answers 409 `artifact_changed`. The bound is `max_artifact_bytes`; a larger artifact stays listed and is refused 403. At most 4 journal verifications and pre-download hash passes run at once (`artifact_capacity` otherwise); a stream holds no slot once its bytes start, is bounded by the connection limit, and is not bounded by the request deadline.",
         "parameters": [
           {
             "in": "path",
@@ -2106,6 +2106,12 @@
                 "schema": {
                   "minimum": 0,
                   "type": "integer"
+                }
+              },
+              "Content-Security-Policy": {
+                "schema": {
+                  "const": "sandbox",
+                  "type": "string"
                 }
               },
               "Nika-Artifact-Sha256": {

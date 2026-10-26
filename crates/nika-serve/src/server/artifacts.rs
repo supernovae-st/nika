@@ -16,6 +16,7 @@ mod journal;
 mod manifest;
 mod stream;
 
+use std::collections::BTreeMap;
 use std::path::Path;
 #[cfg(test)]
 use std::path::PathBuf;
@@ -23,10 +24,11 @@ use std::sync::Arc;
 
 use http_body_util::BodyExt as _;
 use hyper::header::{
-    CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE, HeaderName, HeaderValue,
-    X_CONTENT_TYPE_OPTIONS,
+    CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_SECURITY_POLICY, CONTENT_TYPE,
+    HeaderName, HeaderValue, X_CONTENT_TYPE_OPTIONS,
 };
 use hyper::{Response, StatusCode};
+use nika_fs::OwnedDir;
 use serde::Serialize;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, TryAcquireError};
 
@@ -239,11 +241,12 @@ async fn judged(
     let key = state.artifacts.key.get().cloned();
     #[cfg(not(test))]
     let key = None;
+    let project = Arc::clone(&state.project);
     // The slot lives inside the blocking closure: a request its deadline drops cannot free a
     // slot whose journal is still being judged.
     let held = tokio::task::spawn_blocking(move || {
         let verified = journal::hold(&dir, &receipt, key).map(|held| Verified {
-            artifacts: manifest::derive(&held.events),
+            artifacts: outside_engine_state(&project, manifest::derive(&held.events)),
             verdict: held.verdict,
             receipt,
         });
@@ -258,6 +261,44 @@ async fn judged(
             Err(ApiError::internal().into_response())
         }
     }
+}
+
+/// `artifacts` without the files whose first directory is the project's own `.nika`, however
+/// it is spelled: the name check refuses `.nika` in any ASCII case, but a case-insensitive
+/// filesystem also folds other spellings onto it (`.ni\u{212A}a`, with the KELVIN SIGN, on
+/// APFS; an ignorable code point on HFS+). The held root decides, by device and inode, never
+/// the name alone (blocking · the fs).
+fn outside_engine_state(project: &OwnedDir, artifacts: Vec<Artifact>) -> Vec<Artifact> {
+    let Some(engine) = directory_identity(project, ".nika") else {
+        // No `.nika` here: no spelling can reach it.
+        return artifacts;
+    };
+    let mut verdicts: BTreeMap<String, bool> = BTreeMap::new();
+    artifacts
+        .into_iter()
+        .filter(|artifact| {
+            let Some((first, _)) = artifact.path().and_then(|path| path.split_once('/')) else {
+                // A blob, or a file at the project root: never under `.nika` by a file path.
+                return true;
+            };
+            *verdicts
+                .entry(first.to_owned())
+                .or_insert_with(|| directory_identity(project, first) != Some(engine))
+        })
+        .collect()
+}
+
+/// The device and inode of the directory `name` directly below the held root, opened without
+/// following a link; `None` when it is not one.
+fn directory_identity(project: &OwnedDir, name: &str) -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt as _;
+    let meta = project
+        .open_below(&[name])
+        .ok()?
+        .as_file()
+        .metadata()
+        .ok()?;
+    Some((meta.dev(), meta.ino()))
 }
 
 /// The 200 of a download: the recorded type, length and digest, then the verified stream.
@@ -278,6 +319,7 @@ fn streamed(
     }
     headers.insert(CONTENT_DISPOSITION, HeaderValue::from_static("attachment"));
     headers.insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    headers.insert(CONTENT_SECURITY_POLICY, HeaderValue::from_static("sandbox"));
     headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
     response
 }
