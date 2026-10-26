@@ -7,10 +7,14 @@
 //! The engine starts the program ITSELF, as part of the builtin: it is
 //! never the workflow's `exec:` — no `permits.exec` is required or
 //! consulted, the program is fixed by the composition root (never workflow
-//! data), and the text rides standard input (never the argument vector).
-//! Each start is journaled as the builtin's own effect: one
-//! `permit_checked` frame with `plane: builtin` (spec 17). The audio still
-//! lands under `output_dir:` through the ordinary boundary-gated save.
+//! data), and the text rides standard input (never the argument vector) as
+//! TEXT: both programs read `[[` as markup (`say`'s embedded commands such
+//! as `[[volm 0]]` · `espeak-ng`'s phonemes), so every `[[` is broken by a
+//! space first — workflow data never drives the synthesizer. The audio is
+//! capped at 64 MiB on both paths. Each start is journaled as the builtin's
+//! own effect: one `permit_checked` frame with `plane: builtin` (spec 17).
+//! The audio still lands under `output_dir:` through the ordinary
+//! boundary-gated save.
 //!
 //! `say` cannot write to a pipe (it seeks back to finish the header), so it
 //! writes a WAV into an engine scratch file the composition root chose; the
@@ -27,7 +31,7 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 
-use nika_kernel::io::fs::{FsReadDyn, FsWriteDyn};
+use nika_kernel::io::fs::{FsMetaDyn, FsReadDyn, FsWriteDyn};
 use nika_kernel::process::{ShellCommand, ShellError, ShellResult, ShellRunDyn};
 
 use crate::BuiltinFailure;
@@ -43,6 +47,9 @@ const SAY_DATA_FORMAT: &str = "--data-format=LEI16@22050";
 const DEFAULT_WPM: u32 = 175;
 /// How much of the synthesizer's stderr a failure carries.
 const STDERR_CAP: usize = 400;
+/// The most audio one call keeps: the exec runner's per-stream capture cap,
+/// so `say`'s scratch file and `espeak-ng`'s stream share one bound.
+const MAX_AUDIO_BYTES: u64 = 64 * 1024 * 1024;
 
 /// The future a [`SpeechRunner`] returns (boxed: the seam is object-safe).
 pub type SpeechFuture<'a> =
@@ -152,7 +159,7 @@ impl fmt::Debug for SystemVoice {
 
 /// Speak `args.text` with the host synthesizer. `fs` reads back (and
 /// removes) `say`'s scratch file — engine scratch, never a workflow path.
-pub(crate) async fn generate<F: FsReadDyn + FsWriteDyn>(
+pub(crate) async fn generate<F: FsReadDyn + FsWriteDyn + FsMetaDyn>(
     fs: &F,
     voice: Option<&SystemVoice>,
     args: &TtsArgs,
@@ -193,7 +200,7 @@ pub(crate) async fn generate<F: FsReadDyn + FsWriteDyn>(
 
 /// `say -o <scratch> --file-format=WAVE --data-format=LEI16@22050 [-v] [-r]`,
 /// the text on stdin; the WAV is read back and the scratch removed.
-async fn say<F: FsReadDyn + FsWriteDyn>(
+async fn say<F: FsReadDyn + FsWriteDyn + FsMetaDyn>(
     fs: &F,
     runner: &dyn SpeechRunner,
     program: &Path,
@@ -215,22 +222,64 @@ async fn say<F: FsReadDyn + FsWriteDyn>(
     if args.speed_explicit {
         command = command.arg("-r").arg(words_per_minute(args).to_string());
     }
-    command.stdin = Some(args.text.clone());
+    command.stdin = Some(plain_text(&args.text));
     command.timeout = Some(args.timeout);
     witness(program, "synthesize the speech into an engine scratch file");
     let ran = run(runner, command, program).await;
     let read = match ran {
-        Ok(()) => fs.read(&scratch).await.map_err(|e| {
-            BuiltinFailure::new(
-                C_NO_AUDIO,
-                format!("the synthesizer exited 0 but left no audio file ({e})"),
-            )
-        }),
+        Ok(()) => read_scratch(fs, &scratch).await,
         Err(failure) => Err(failure),
     };
     // Best effort: the scratch never outlives the call (absent on failure).
     let _ = fs.remove_file(&scratch).await;
-    Ok(read?.to_vec())
+    read
+}
+
+/// Read `say`'s scratch WAV back, measured FIRST: an over-cap file is
+/// refused before a byte of it is loaded.
+async fn read_scratch<F: FsReadDyn + FsMetaDyn>(
+    fs: &F,
+    scratch: &Path,
+) -> Result<Vec<u8>, BuiltinFailure> {
+    let no_audio = |e: nika_kernel::io::fs::FsError| {
+        BuiltinFailure::new(
+            C_NO_AUDIO,
+            format!("the synthesizer exited 0 but left no audio file ({e})"),
+        )
+    };
+    within_cap(fs.metadata(scratch).await.map_err(no_audio)?.len)?;
+    Ok(fs.read(scratch).await.map_err(no_audio)?.to_vec())
+}
+
+/// The audio bound both paths share — never transient: the same text makes
+/// the same audio.
+fn within_cap(size: u64) -> Result<(), BuiltinFailure> {
+    if size <= MAX_AUDIO_BYTES {
+        return Ok(());
+    }
+    Err(BuiltinFailure::new(
+        C_REQUEST,
+        format!(
+            "the host synthesizer produced {size} bytes of audio (cap {MAX_AUDIO_BYTES}) — \
+             shorten `text:` or split the script across tasks"
+        ),
+    ))
+}
+
+/// The text as TEXT: a space between every two adjacent `[`, so neither
+/// program ever sees the `[[` that opens its markup (`say`'s embedded speech
+/// commands · `espeak-ng`'s phoneme input). Everything else is untouched.
+fn plain_text(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 8);
+    let mut after_bracket = false;
+    for c in text.chars() {
+        if c == '[' && after_bracket {
+            out.push(' ');
+        }
+        out.push(c);
+        after_bracket = c == '[';
+    }
+    out
 }
 
 /// `espeak-ng --stdout --stdin [-v] [-s]`, the WAV captured from stdout.
@@ -248,7 +297,7 @@ async fn espeak(
     if args.speed_explicit {
         command = command.arg("-s").arg(words_per_minute(args).to_string());
     }
-    command.stdin = Some(args.text.clone());
+    command.stdin = Some(plain_text(&args.text));
     command.timeout = Some(args.timeout);
     witness(program, "synthesize the speech onto its standard output");
     let result = runner
@@ -256,7 +305,9 @@ async fn espeak(
         .await
         .map_err(|e| shell_failure(&e, program))?;
     exit_ok(&result, program)?;
-    Ok(result.stdout_octets().to_vec())
+    let audio = result.stdout_octets();
+    within_cap(u64::try_from(audio.len()).unwrap_or(u64::MAX))?;
+    Ok(audio.to_vec())
 }
 
 /// Refuse a voice the host does not have — `say` would read the text with
@@ -382,6 +433,13 @@ fn shell_failure(e: &ShellError, program: &Path) -> BuiltinFailure {
             format!("the host synthesizer timed out after {duration_ms} ms"),
         )
         .with_transient(true),
+        ShellError::OutputTooLarge { limit_bytes, .. } => BuiltinFailure::new(
+            C_REQUEST,
+            format!(
+                "the host synthesizer's audio exceeded the {limit_bytes}-byte cap — shorten \
+                 `text:` or split the script across tasks"
+            ),
+        ),
         other => BuiltinFailure::new(
             C_REQUEST,
             format!(

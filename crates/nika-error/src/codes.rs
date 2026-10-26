@@ -646,7 +646,8 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
              `NIKA_ELEVENLABS_API_KEY` · `ELEVENLABS_API_KEY`), an unwired TTS plane, \
              or `provider: system` on a host with no synthesizer. The keyless \
              `system` voice speaks through macOS `/usr/bin/say` or Linux \
-             `espeak-ng` found on the engine's PATH — the engine starts it itself, \
+             `espeak-ng` found in an absolute directory of the engine's PATH — the \
+             engine starts it itself, \
              no `permits.exec` needed — and refuses here, naming what is missing, \
              rather than falling back to another provider.\n\n  \
              exits (pick one):\n    \

@@ -32,7 +32,7 @@ pub use system::{SpeechFuture, SpeechRunner, SystemSynth, SystemVoice};
 use std::path::Path;
 
 use nika_kernel::io::clock::ClockDyn;
-use nika_kernel::io::fs::{FsReadDyn, FsWriteDyn};
+use nika_kernel::io::fs::{FsMetaDyn, FsReadDyn, FsWriteDyn};
 use nika_kernel::io::http::HttpPostDyn;
 use nika_kernel::secret::Secret;
 
@@ -116,7 +116,7 @@ pub(crate) async fn generate<F, H, C, Em>(
     raw_args: &Args,
 ) -> BuiltinOutcome
 where
-    F: FsReadDyn + FsWriteDyn,
+    F: FsReadDyn + FsWriteDyn + FsMetaDyn,
     H: HttpPostDyn,
     C: ClockDyn,
     Em: Emitter,
@@ -142,7 +142,7 @@ async fn run<F, H, C, Em>(
     raw_args: &Args,
 ) -> BuiltinOutcome
 where
-    F: FsReadDyn + FsWriteDyn,
+    F: FsReadDyn + FsWriteDyn + FsMetaDyn,
     H: HttpPostDyn,
     C: ClockDyn,
     Em: Emitter,

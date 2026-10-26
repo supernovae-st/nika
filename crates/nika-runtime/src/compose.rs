@@ -459,9 +459,10 @@ fn tts_keys_from_env() -> TtsKeys {
 /// The host synthesizer behind `nika:tts_generate`'s `system` provider — the
 /// composition root's one probe of the host (the builtin never reads the
 /// environment): macOS `/usr/bin/say` (its WAV lands in the engine's temp
-/// dir, read back and removed by the builtin), Linux `espeak-ng` found on
-/// the engine's `PATH`. Anything else, or a missing program, is an
-/// `Unavailable` whose text names what is missing — a `system` call then
+/// dir, read back and removed by the builtin), Linux `espeak-ng` found in an
+/// absolute directory of the engine's `PATH`. Anything else, or a missing
+/// program, is an `Unavailable` whose text names what is missing — a
+/// `system` call then
 /// refuses `NIKA-BUILTIN-TTS_GENERATE-002`, never falls back.
 fn system_synth_of_host() -> SystemSynth {
     if cfg!(target_os = "macos") {
@@ -495,9 +496,13 @@ fn host_system_voice() -> SystemVoice {
     SystemVoice::new(Arc::new(TokioShell::new()), system_synth_of_host())
 }
 
-/// The first `name` on a `PATH` value that is a regular file.
+/// The first `name` in an ABSOLUTE directory of a `PATH` value that is a
+/// regular file. An empty, `.` or other relative entry is skipped: it
+/// resolves against the working directory, where a workflow could plant the
+/// program the builtin starts with no `permits.exec`.
 fn program_on_path(path: &str, name: &str) -> Option<std::path::PathBuf> {
     std::env::split_paths(path)
+        .filter(|dir| dir.is_absolute())
         .map(|dir| dir.join(name))
         .find(|candidate| candidate.is_file())
 }
@@ -1026,6 +1031,37 @@ pub fn simulated_runtime(
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+
+    /// The engine-fixed synthesizer is found on ABSOLUTE `PATH` entries only:
+    /// an empty, `.` or other relative entry resolves against the working
+    /// directory, where a workflow could plant a program the builtin would
+    /// then start with no `permits.exec`.
+    #[test]
+    fn the_system_voice_never_resolves_a_relative_path_entry() {
+        let dir = std::env::temp_dir().join(format!("nika-path-probe-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("probe dir");
+        let program = dir.join("espeak-ng");
+        std::fs::write(&program, b"#!/bin/sh\n").expect("probe program");
+        let found = |path: &str| program_on_path(path, "espeak-ng");
+        assert_eq!(found(&dir.display().to_string()), Some(program.clone()));
+        // The same directory, spelled relative to the working directory.
+        let cwd = std::env::current_dir().expect("cwd");
+        let mut relative = std::path::PathBuf::new();
+        for _ in 1..cwd.components().count() {
+            relative.push("..");
+        }
+        relative.push(dir.strip_prefix("/").expect("an absolute temp dir"));
+        assert!(relative.join("espeak-ng").is_file(), "the probe resolves");
+        let relative = relative.display().to_string();
+        assert_eq!(found(&relative), None, "a relative entry is never searched");
+        assert_eq!(found(""), None);
+        assert_eq!(
+            found(&format!("{relative}::.:{}", dir.display())),
+            Some(program),
+            "the first ABSOLUTE entry holding the program"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn local_base_url_normalization_mirrors_the_ollama_client() {

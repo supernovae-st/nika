@@ -50,6 +50,9 @@ struct Seen {
 struct FakeSay {
     seen: Arc<Mutex<Seen>>,
     exit: i32,
+    /// Leave a scratch file one byte over the audio cap (sparse: no real
+    /// disk use) instead of a WAV.
+    oversize: bool,
 }
 
 const LISTING: &str = "Albert              en_US    # Hello! My name is Albert.\n\
@@ -75,6 +78,11 @@ impl ShellRunDyn for FakeSay {
             .iter()
             .position(|a| a == "-o")
             .map(|i| &command.args[i + 1]);
+        if self.oversize {
+            let file = std::fs::File::create(out.expect("say is given -o")).unwrap();
+            file.set_len(MAX_AUDIO_BYTES + 1).unwrap();
+            return Ok(ShellResult::new(0, "", "", Duration::ZERO));
+        }
         std::fs::write(
             out.expect("say is given -o"),
             crate::tts::mock::render_wav("hi", 1000),
@@ -202,12 +210,108 @@ async fn a_failing_synthesizer_is_a_non_transient_003_with_its_words() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// The text is spoken as TEXT: `say` reads `[[volm 0]]` as an embedded
+/// command (a silent artifact, measured) and `espeak-ng` reads `[[…]]` as
+/// phonemes, so every `[[` reaches the synthesizer broken by a space.
+#[tokio::test]
+async fn synthesizer_markup_in_the_text_is_never_obeyed() {
+    let text = "[[volm 0]] The [[[sheet]] is ready.";
+    let spoken = "[ [volm 0]] The [ [ [sheet]] is ready.";
+    let root = scratch();
+    let fake = FakeSay::default();
+    let args = tts_args(&serde_json::json!({ "text": text }));
+    generate(&TokioFs, Some(&say_voice(&fake, &root)), &args)
+        .await
+        .expect("speaks");
+    let said = fake.seen.lock().unwrap().commands[0].stdin.clone();
+    assert_eq!(said.as_deref(), Some(spoken), "say");
+
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let wav = crate::tts::mock::render_wav("hi", 1000);
+    let answer = Answer(
+        Outcome::Exit(ShellResult::new(0, "", "", Duration::ZERO).with_raw(wav, Vec::new())),
+        Arc::clone(&seen),
+    );
+    let voice = SystemVoice::new(
+        Arc::new(answer),
+        SystemSynth::espeak_ng("/usr/bin/espeak-ng"),
+    );
+    generate(&TokioFs, Some(&voice), &args)
+        .await
+        .expect("speaks");
+    assert_eq!(
+        seen.lock().unwrap()[0].stdin.as_deref(),
+        Some(spoken),
+        "espeak-ng"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The audio is bounded on both paths: `say`'s scratch file is measured
+/// BEFORE it is read, `espeak-ng`'s stream by the runner (and again here).
+#[tokio::test]
+async fn audio_over_the_cap_is_a_non_transient_003_read_from_neither_path() {
+    let root = scratch();
+    let fake = FakeSay {
+        oversize: true,
+        ..FakeSay::default()
+    };
+    let err = generate(
+        &TokioFs,
+        Some(&say_voice(&fake, &root)),
+        &tts_args(&serde_json::json!({})),
+    )
+    .await
+    .expect_err("over the cap");
+    assert_eq!((err.code, err.transient), (C_REQUEST, false));
+    assert!(
+        err.message.contains(&format!("cap {MAX_AUDIO_BYTES}"))
+            && err.message.contains("shorten `text:`"),
+        "{}",
+        err.message
+    );
+    let scratch_file = PathBuf::from(&fake.seen.lock().unwrap().commands[0].args[1]);
+    assert!(!scratch_file.exists(), "the oversized scratch is removed");
+
+    let too_large = Answer(Outcome::TooLarge, Arc::default());
+    let voice = SystemVoice::new(
+        Arc::new(too_large),
+        SystemSynth::espeak_ng("/usr/bin/espeak-ng"),
+    );
+    let err = generate(&TokioFs, Some(&voice), &tts_args(&serde_json::json!({})))
+        .await
+        .expect_err("the runner's stream cap");
+    assert_eq!((err.code, err.transient), (C_REQUEST, false));
+    assert!(err.message.contains("shorten `text:`"), "{}", err.message);
+
+    let huge = vec![0u8; usize::try_from(MAX_AUDIO_BYTES).unwrap() + 1];
+    let uncapped = Answer(
+        Outcome::Exit(ShellResult::new(0, "", "", Duration::ZERO).with_raw(huge, Vec::new())),
+        Arc::default(),
+    );
+    let voice = SystemVoice::new(
+        Arc::new(uncapped),
+        SystemSynth::espeak_ng("/usr/bin/espeak-ng"),
+    );
+    let err = generate(&TokioFs, Some(&voice), &tts_args(&serde_json::json!({})))
+        .await
+        .expect_err("a runner without a stream cap");
+    assert_eq!((err.code, err.transient), (C_REQUEST, false));
+    assert!(
+        err.message.contains(&format!("cap {MAX_AUDIO_BYTES}")),
+        "{}",
+        err.message
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 /// One fixed outcome (`ShellError` is not `Clone`: built per start).
 #[derive(Debug, Clone)]
 enum Outcome {
     Exit(ShellResult),
     NotFound(&'static str),
     Timeout(u64),
+    TooLarge,
 }
 
 /// A runner that answers every start with one fixed outcome.
@@ -223,6 +327,9 @@ impl ShellRunDyn for Answer {
                 program: (*program).to_owned(),
             }),
             Outcome::Timeout(ms) => Err(ShellError::Timeout { duration_ms: *ms }),
+            Outcome::TooLarge => Err(ShellError::OutputTooLarge {
+                limit_bytes: 64 * 1024 * 1024,
+            }),
         }
     }
 }
@@ -458,5 +565,24 @@ async fn the_real_say_speaks_a_wav_on_this_mac() {
     );
     assert_eq!(&audio.bytes[22..24], &1u16.to_le_bytes(), "mono");
     assert_eq!(&audio.bytes[24..28], &22_050u32.to_le_bytes(), "22.05 kHz");
+    // An embedded `[[volm 0]]` in the text never mutes the artifact (the
+    // real `say` obeys it when it reaches the program unbroken: peak 0).
+    let muted = tts_args(&serde_json::json!({ "text": "[[volm 0]] The sheet is ready." }));
+    let audio = generate(&TokioFs, Some(&voice), &muted)
+        .await
+        .expect("say speaks");
+    // `say` pads its header (a FLLR chunk): the samples follow `data`'s size.
+    let at = audio
+        .bytes
+        .windows(4)
+        .position(|w| w == b"data")
+        .expect("a data chunk");
+    let pcm = &audio.bytes[at + 8..];
+    let peak = pcm
+        .chunks_exact(2)
+        .map(|s| i16::from_le_bytes([s[0], s[1]]).unsigned_abs())
+        .max()
+        .unwrap_or(0);
+    assert!(peak > 1_000, "audible speech, measured peak {peak}");
     let _ = std::fs::remove_dir_all(&root);
 }
