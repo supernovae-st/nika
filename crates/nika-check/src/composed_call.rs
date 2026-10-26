@@ -14,10 +14,11 @@
 //!   same content-flow pass the caller runs, once per entry
 //!   ([`super::content_flow::Entry`]): content the closure brings in itself
 //!   (`born`), the call's arguments (`args`), and the files a tainted writer
-//!   left before the call (`files`, read by an `exec:` of the closure). Each
+//!   left before the call (`files`, read by an `exec:` or a builtin read of
+//!   the closure, whatever the path). Each
 //!   may reach the call's OUTPUT (the child's `outputs:`), an EGRESS task
 //!   (the effect table's egress-capable tasks, the caller's legs deciding
-//!   the trifecta), or a FILE (a writer: the channel a later `exec:` reads).
+//!   the trifecta), or a FILE (a writer: the channel a later reader reads).
 //!   The trifecta lane judges the call as the tasks it stands for: a source
 //!   when born content reaches its output or a file, a sink when content
 //!   reaches an egress task. A blocking gate inside the closure is never
@@ -72,8 +73,8 @@ pub struct ComposedCall {
     #[serde(default, skip_serializing_if = "CallFlow::is_empty")]
     pub args: CallFlow,
     /// Where a file written with untrusted content before the call goes,
-    /// once an `exec:` of the closure reads it. Its `file` is never set:
-    /// the channel is already open.
+    /// once an `exec:` or a builtin read of the closure reads it. Its `file`
+    /// is never set: the channel is already open.
     #[serde(default, skip_serializing_if = "CallFlow::is_empty")]
     pub files: CallFlow,
     /// The entries of the caller's own `permits:` this call uses or may use
@@ -445,7 +446,7 @@ impl Judged<'_> {
         }
         if origin == FILES_ORIGIN {
             return Witness::here(format!(
-                "output `{name}` carries a file an `exec:` read after an earlier write"
+                "output `{name}` carries a file read after an earlier write"
             ));
         }
         if let Some((target, below)) = self.nested.get(origin)

@@ -202,6 +202,30 @@ fn a_child_subprocess_reads_the_files_a_caller_left() {
     assert!(only(&pure).files.is_empty(), "no subprocess reads a file");
 }
 
+/// A builtin read of the child reads the files a caller's writer left, as
+/// its subprocess does (NIK-273 follow-up): the file entry reaches the
+/// output and the egress that read feeds, and a child with no file read
+/// stays closed to it.
+#[test]
+fn a_child_builtin_read_sees_the_files_a_caller_left() {
+    let pick = "nika: pick\npermits: { tools: [\"nika:read\", \"nika:notify\"], net: { http: [\"hooks.example.com\"] }, fs: { read: [\"./drop/**\"] } }\ntasks:\n  pick:\n    invoke: { tool: \"nika:read\", args: { path: \"./drop/page.txt\" } }\n  ping:\n    with: { page: \"${{ tasks.pick.output }}\" }\n    invoke: { tool: \"nika:notify\", args: { channel: webhook, target: \"https://hooks.example.com/hook\", message: \"${{ with.page }}\" } }\noutputs:\n  page: { value: \"${{ tasks.pick.output }}\", type: string }\n";
+    let found = calls("./pick.nika", &[("pick.nika", pick)]);
+    let call = only(&found);
+    assert_eq!(
+        call.files.egress.as_deref(),
+        Some("`./pick.nika` · task `ping` invokes `nika:notify`")
+    );
+    assert!(call.files.output.is_some(), "{call:?}");
+    assert_eq!(call.files.file, None, "the channel is already open");
+    assert_eq!(
+        call.ingress, None,
+        "a file read brings nothing in by itself"
+    );
+    let notify = "nika: tell\npermits: { tools: [\"nika:notify\"], net: { http: [\"hooks.example.com\"] } }\ntasks:\n  ping:\n    invoke: { tool: \"nika:notify\", args: { channel: webhook, target: \"https://hooks.example.com/hook\", message: \"done\" } }\n";
+    let closed = calls("./tell.nika", &[("tell.nika", notify)]);
+    assert!(only(&closed).files.is_empty(), "no task reads a file");
+}
+
 #[test]
 fn the_witness_walks_down_to_a_grandchild() {
     let middle = "nika: middle\npermits: { tools: [\"nika:fetch\"], net: { http: [\"docs.example.com\"] } }\ntasks:\n  inner:\n    invoke: { workflow: \"./deep/leaf.nika\" }\n    returns: { object: { text: string } }\noutputs:\n  text: { value: \"${{ tasks.inner.output.text }}\", type: string }\n";

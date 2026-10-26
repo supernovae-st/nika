@@ -281,6 +281,15 @@ general lexical normalization, filesystem resolution or a permits query. The hel
 not independently enumerate the chart's derived `.vl.json` sibling; its existing derivation
 remains `chart_vl_sibling`. Findings name rules/slots without repeating proposed path values.
 
+`read_slot_paths(tool, args)` and `write_slot_paths(tool, args)` project the same slot list
+(one private enumerator feeds all three) onto where one call may read or write a file:
+each present slot becomes a `SlotPath::Literal { path, descends }` (a glob pattern as its
+walk root, descending; `grep.path` and an `output_dir` descend), and a template, a
+non-string, an empty string or a malformed read container becomes `SlotPath::Unknown`.
+The write side adds the chart's `.vl.json` sibling. The content-taint pass of `nika-check`
+reads them for its file channel: a builtin read of a path an earlier tainted write may have
+reached carries that content on (NIK-273 follow-up). Neither grants authority.
+
 Before fills, the Sketch door in `nika-compile-cognition` uses `required_fs_directions` to
 check unconditional read/write reach and `unbound_fs_args` to check graph-derived filesystem
 arguments. After fills, it checks present recognized filesystem arguments again before

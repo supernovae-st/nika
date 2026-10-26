@@ -788,14 +788,18 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              `agent:` whose `tools:` admit one) reaches its outputs or a file \
              it writes. It is an egress task when untrusted content reaches an \
              egress task inside it: content the child brings in, the call's \
-             arguments, or a file written before the call that a child \
-             `exec:` reads. The parent then needs a blocking `nika:prompt` of \
+             arguments, or a file written before the call that a child task \
+             reads. The parent then needs a blocking `nika:prompt` of \
              its own upstream of the call, as for the inline form; a gate \
              inside the child is not credited to the caller. A child the \
              check cannot read or resolve counts as such a source and such an \
              egress task. `nika check <file>` and `nika run` read the \
              children; a check of the source alone (an editor, the MCP \
-             `nika_check` tool) judges the parent's own tasks only.\n",
+             `nika_check` tool) judges the parent's own tasks only.\n\n  \
+             A file carries untrusted content too: once a task writes some \
+             to a file, a later `exec:`, or a later builtin read \
+             (`nika:read` · `nika:grep` · `nika:glob` · …) of a path that \
+             write may have reached, carries it on.\n",
         ),
         _ => None,
     }
@@ -830,6 +834,17 @@ mod tests {
         ] {
             assert!(help.contains(lesson), "`{lesson}` missing: {help}");
         }
+    }
+
+    /// NIK-273 follow-up: the trifecta lesson names the builtin readers of
+    /// the file channel.
+    #[test]
+    fn the_file_channel_is_taught() {
+        let trifecta = spec_contract_help("NIKA-SEC-009").expect("teaches");
+        assert!(
+            trifecta.contains("a later builtin read") && trifecta.contains("`nika:read`"),
+            "{trifecta}"
+        );
     }
 
     /// A value over a rehearsal room's bound teaches how to clear it, beside its cause.

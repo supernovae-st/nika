@@ -42,7 +42,8 @@ depend on without pulling the CLI:
   ingress), and where three kinds of content entering it go (`CallFlow`, by
   the same content-flow pass run over the child): what it brings in (`born`),
   the call's arguments (`args`), and a file a tainted writer left before the
-  call (`files`, read by an `exec:` of the closure). Each may reach the
+  call (`files`, read by an `exec:` or a builtin read of the closure, whatever
+  the path). Each may reach the
   call's output, an egress task of the closure, or a file. The trifecta lane
   judges the call as the tasks it stands for: a source when born content
   reaches its output or a file, a sink when content reaches an egress task.
@@ -60,6 +61,16 @@ depend on without pulling the CLI:
   re-derives the trifecta over the same calls. A plain `check()` resolves no
   call: its trifecta lane, like its composition and cost lanes, judges the
   caller's own tasks only.
+- **the file channel** (`file_channel`, inside the content-taint pass) —
+  under a declared `fs.read`, a task that reads a file an earlier tainted
+  write left carries that content on: an `exec:` whatever the file, a
+  builtin read (nika-cap's read slots: `nika:read`, `nika:grep`,
+  `nika:glob`, `nika:edit`, a `decide` bundle, `image_fx`/`chart`/
+  `image_generate` inputs, a `fetch` multipart part) when its path may be
+  one the write reached. Paths compare lexically (folded, ASCII case-blind);
+  a template, a subprocess, a server or a child closure may reach any path,
+  and two paths from different anchors meet when one ends with the other.
+  Run order is the pass's sweep order, as for the `exec:` reader.
 - **the conformance harness** (`tests/common`) — the Core, Deep, lint, runtime
   and stdlib fixture levels from the checkout pinned by `SPEC_PIN`. Core and
   Deep verdicts now include the Agent Skill resolution lane through the same

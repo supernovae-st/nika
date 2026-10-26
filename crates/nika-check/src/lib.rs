@@ -137,6 +137,7 @@ mod exec_floor;
 #[cfg(test)]
 mod exec_read_path;
 mod failure_plan;
+mod file_channel;
 mod findings;
 mod flow;
 mod hints;
