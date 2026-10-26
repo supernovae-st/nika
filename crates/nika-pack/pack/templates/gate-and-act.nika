@@ -22,7 +22,7 @@
 #   environment and a live source in `const.source_url` — then delete the
 #   `on_error:` so a dead source is loud.
 #
-# Run · nika run <file>          # offline rehearsal · the gate stays closed
+# Run · nika run <file>          # rehearsal · the fetch fails, the gate stays closed
 nika: gate-and-act-template       # SLOT: kebab-case workflow id
 
 const:
@@ -58,8 +58,9 @@ tasks:
     extract:
       value: ".value"               # SLOT: the jq path to the watched field
     on_error:
-      # Offline rehearsal · a sample UNDER the threshold — the gate stays
-      # closed, the skeleton runs green before you wire the real source.
+      # Rehearsal stand-in · the placeholder host resolves nowhere, so a sample
+      # UNDER the threshold takes over — the gate stays closed, the skeleton
+      # runs green before you wire the real source.
       recover: { value: 42 }
 
   act:

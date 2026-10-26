@@ -15,7 +15,7 @@ foundation:
   - file: examples/04-schema-retry.nika
     sha256_16: 4ce1e8127adb20e4
   - file: examples/05-fetch-chain.nika
-    sha256_16: f6b903bf6092ff44
+    sha256_16: 1dda21a946c8ffd3
   - file: examples/06-code-review.nika
     sha256_16: af13f7e30c8f0a8c
   - file: examples/07-for-each-locales.nika
@@ -60,37 +60,37 @@ foundation:
     sha256_16: fdf06a683a40cbce
 templates:
   - file: templates/agent-loop.nika
-    sha256_16: a355013cb4d5f144
+    sha256_16: 23dea44414ecd5af
   - file: templates/aggregate-by-key.nika
     sha256_16: 714a78d386265c64
   - file: templates/api-upload-and-create.nika
-    sha256_16: 8eabba636cbba999
+    sha256_16: 07e3420faa3e3b66
   - file: templates/bounded-batch.nika
     sha256_16: 63d0337fd5d8b6bb
   - file: templates/chain.nika
-    sha256_16: e03c1d34e9835398
+    sha256_16: ebafd16b1a07dd5e
   - file: templates/classify-and-route.nika
-    sha256_16: b02ea97f75440dc3
+    sha256_16: d0377b4be6914358
   - file: templates/corpus-qa.nika
-    sha256_16: e8bcd9ae974ea5a7
+    sha256_16: 9d925b57a2674c1f
   - file: templates/deduplicate-records.nika
     sha256_16: 101c3cc378e078d5
   - file: templates/docker-report.nika
-    sha256_16: 2654593e79d1368b
+    sha256_16: 5a1102ddb18ad3bb
   - file: templates/document-to-fields.nika
-    sha256_16: d73f0ad57c0ffe7d
+    sha256_16: 678b9022aece4812
   - file: templates/etl-state.nika
-    sha256_16: d7f6795d4124c091
+    sha256_16: fa9ec6f1cef97cdf
   - file: templates/evaluate-and-optimize.nika
-    sha256_16: 442a3f089782f958
+    sha256_16: 0d067319946465f6
   - file: templates/fanout.nika
-    sha256_16: e9659cb4fa9509f5
+    sha256_16: dba02e54950ed55d
   - file: templates/gate-and-act.nika
-    sha256_16: 7e5da4d28a5d9cb0
+    sha256_16: c06da4c4c44cc790
   - file: templates/human-gated-ship.nika
     sha256_16: ea79920ec5520013
   - file: templates/media-asset-pack.nika
-    sha256_16: 21ab70995e8c758e
+    sha256_16: 69acd594f89c8683
   - file: templates/parallel-review.nika
     sha256_16: 42fb12841cf4d6b3
   - file: templates/project-public-fields.nika
@@ -102,7 +102,7 @@ templates:
   - file: templates/validate-records.nika
     sha256_16: 9ba6e1415af8bf5f
   - file: templates/website-brief.nika
-    sha256_16: 54cf52281dedaa5d
+    sha256_16: ed078b0ea5c69077
 showcase:
   - file: examples/bookmark-triage.nika
     name: bookmark-triage
@@ -111,7 +111,7 @@ showcase:
   - file: examples/ceo-monday-brief.nika
     name: ceo-monday-brief
     constructs: [extract, local_model, on_error, outputs, secrets, typed_inputs, when, with]
-    sha256_16: 840b2894bc45195f
+    sha256_16: c848ab426a0a1050
   - file: examples/competitor-radar.nika
     name: competitor-radar
     constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, retry, timeout, typed_inputs, when, with]
@@ -147,15 +147,15 @@ showcase:
   - file: examples/incident-war-room.nika
     name: incident-war-room
     constructs: [local_model, on_error, outputs, retry, schema, secrets, typed_inputs, when, with]
-    sha256_16: f4888de2af2310ed
+    sha256_16: 21c99e16a95af7eb
   - file: examples/invoice-chaser.nika
     name: invoice-chaser
     constructs: [local_model, outputs, when, with]
-    sha256_16: 42693a6d66bb46e4
+    sha256_16: 346382218b89663a
   - file: examples/localization-factory.nika
     name: localization-factory
     constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, with]
-    sha256_16: 2a425dcbb53364bf
+    sha256_16: db85f860ff4ed46e
   - file: examples/meeting-actions.nika
     name: meeting-actions
     constructs: [local_model, outputs, schema, typed_inputs, with]
@@ -163,7 +163,7 @@ showcase:
   - file: examples/model-bench.nika
     name: model-bench
     constructs: [outputs, with]
-    sha256_16: 8e38fd226ef07593
+    sha256_16: 1f0b438583f42852
   - file: examples/og-images.nika
     name: og-images
     constructs: [outputs]
@@ -171,15 +171,15 @@ showcase:
   - file: examples/pr-review-fanout.nika
     name: pr-review-fanout
     constructs: [agent_tools, fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, when, with]
-    sha256_16: 8d62bcca0cb5f59e
+    sha256_16: 09a5dd34c2e2e96e
   - file: examples/price-watch.nika
     name: price-watch
     constructs: [extract, on_error, outputs, secrets, when, with]
-    sha256_16: 9a16ba306cd0cfc2
+    sha256_16: 558f6a3a8dde662d
   - file: examples/release-notes.nika
     name: release-notes
     constructs: [local_model, on_error, outputs, schema, secrets, typed_inputs, when, with]
-    sha256_16: ffe7ca04cfaa4c83
+    sha256_16: 1e179c7ac0571dab
   - file: examples/release-radar.nika
     name: release-radar
     constructs: [extract, local_model, on_error, outputs, when, with]
@@ -203,15 +203,15 @@ showcase:
   - file: examples/social-repurpose.nika
     name: social-repurpose
     constructs: [local_model, outputs, with]
-    sha256_16: 63e47fe91e083cd0
+    sha256_16: 8519e2f8d7f6fe52
   - file: examples/standup-digest.nika
     name: standup-digest
     constructs: [local_model, on_error, outputs, with]
-    sha256_16: ea5544a01491be55
+    sha256_16: 80a8a71d2d893efa
   - file: examples/support-triage.nika
     name: support-triage
     constructs: [local_model, outputs, schema, secrets, when, with]
-    sha256_16: c0b5415a170bb026
+    sha256_16: e0aec8779d8c38dd
   - file: examples/transcript-shownotes.nika
     name: transcript-shownotes
     constructs: [local_model, outputs, schema, with]

@@ -33,7 +33,7 @@
 #   `on_error:` block, so that an unset key is loud too (a rejected key already
 #   is: the block only forgives the not-configured case).
 #
-# Run · nika run <file>          # offline rehearsal · no key exported
+# Run · nika run <file>          # rehearsal · no key exported, so nothing is sent
 nika: api-upload-and-create-template       # SLOT: kebab-case workflow id
 
 const:
@@ -81,7 +81,7 @@ tasks:
         mode: jq
         jq: "{ id: .id, url: .url }"   # SLOT: the fields downstream needs
     on_error:
-      # Offline rehearsal, NARROWED to the one thing it may forgive: the key is
+      # The rehearsal, NARROWED to the one thing it may forgive: the key is
       # not configured. A `secrets:` entry whose env var is unset fails
       # NIKA-VAR-001 before any byte leaves (measured on 0.118.7 · the run
       # settles « 1 recovered » on that code) — that absence IS the rehearsal

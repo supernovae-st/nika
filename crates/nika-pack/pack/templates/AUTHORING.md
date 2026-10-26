@@ -110,7 +110,7 @@ its reasoning from the task's `max_tokens`. A small cap, such as an
 example's 512, can leave no visible answer (`NIKA-INFER-004`): give such a
 seat 16,384, or a low `run.reasoning.effort` its route documents. Every
 template and example states that room above a cap of 4,096 or less; the
-cap itself stays sized for the file's own offline seat.
+cap itself stays sized for the file's own local or mock seat.
 
 **Extract facts, then the law.** A model may produce closed, cited
 semantic *facts*. Scoring, routing, publish/abstain is `nika:jq` or

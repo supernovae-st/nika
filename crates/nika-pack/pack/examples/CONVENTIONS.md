@@ -220,7 +220,7 @@ permits:
 That comment is the canonical wording. Copy it.
 
 Because this failure is invisible to `check` and only fires when the gate
-actually opens, a workflow whose alert path is closed on the offline
+actually opens, a workflow whose alert path is closed on the
 rehearsal will look green forever and die the first day it has something
 real to say.
 
@@ -373,7 +373,7 @@ A comment here is a claim, and claims are the thing that propagates. The bar:
 The measured example of the failure mode: a repair shipped the comment
 *"the webhook is NOT listed here: its host is inside the secret, and the
 `egress:` above (host_from_self) is what sanctions that one send."* The spec
-says the opposite. The file was green, the gate never opened on the offline
+says the opposite. The file was green, the gate never opened on the
 rehearsal, and the comment taught a wrong model to everyone who copied it.
 
 If you are about to explain a mechanism, run it first.

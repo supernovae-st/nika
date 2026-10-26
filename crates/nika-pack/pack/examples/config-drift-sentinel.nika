@@ -22,13 +22,13 @@
 #     paragraph about it
 #   - severity triage in jq · every drift is RECORDED, only paging drift is
 #     SENT · a sentinel that pages for a log-level change gets muted
-#   - `on_error: recover:` twice, for two different jobs · an honest offline
-#     rehearsal on the fetch, and a degraded-but-present alert text when the
+#   - `on_error: recover:` twice, for two different jobs · an honest stand-in
+#     when the fetch fails, and a degraded-but-present alert text when the
 #     model is down
 #
 # Needs · nothing to rehearse. The default endpoint is a placeholder that
-#   resolves nowhere, so the fetch takes its `recover:` value and the whole
-#   pipeline runs offline against the committed baseline.
+#   resolves nowhere, so the fetch fails, takes its `recover:` value, and the
+#   rest of the pipeline runs against the committed baseline.
 #   To watch prod for real: `--var config_url=https://your-endpoint`, the
 #   matching host in `permits.net.http`, and ONCALL_WEBHOOK_URL set to a
 #   webhook on `hooks.slack.com`.

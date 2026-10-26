@@ -8,8 +8,10 @@
 # that announces on every rehearsal is a workflow people stop running.
 #
 # Demonstrates ·
-#   - `exec:` + `on_error: recover:` · a missing tag degrades to a sample log
-#     instead of killing the run — the honest dry run for a git-shaped job
+#   - `exec:` + `on_error: recover:` · an unreadable history recovers a value
+#     that NAMES the failure, and the notes close on it: a recovered value
+#     never stands in for commits. The sample log is a rehearsal you ask for
+#     (`--var rehearse=true`), and a rehearsal never pings the team
 #   - `infer.schema:` · headline/breaking/body as a typed object
 #   - the copy-then-edit idiom · read YOUR changelog, write the working copy
 #     under out/, THEN `nika:edit` that copy in place — an in-place builtin
@@ -18,19 +20,26 @@
 #   - `nika:notify` gated on an input · `--var announce=true` to really send
 #   - `egress:` + `permits.net.http` · the two halves of a webhook send
 #
-# ONE HONEST HINT · [headless-prompt] the gate declares no `default:` on
-#   purpose — a `default:` would disarm the human decision this file exists
-#   to gate (templates/etl-state measures what that flips).
+# THE GATE HAS NO `default:` on purpose · a `default:` would disarm the
+#   human decision this file exists to gate (templates/etl-state measures
+#   what that flips). Every task that reads, writes or sends consumes the
+#   answer itself (`with.go == true`), so `nika check` can prove that a
+#   « no » closes it.
 #
 # Run · nika run examples/release-notes.nika
 #   Runs green anywhere ollama serves qwen3.5:4b (or with `--model
-#   mock/echo` · zero key): outside a repo carrying that tag the `recover:`
-#   sample log takes over, and the changelog it edits is the copy it made
-#   under out/ from the sample that ships with the repo.
+#   mock/echo` · zero key). Where git cannot be read (no such tag, not a
+#   repo, or the macOS sandbox refusing git inside this boundary), `history`
+#   recovers a notice that says so, and `notes`, `changelog` and `announce`
+#   close on it: no release notes for commits that never happened.
 #   Asks once before it starts · the NEP-0002 human gate. Non-interactive ·
 #   --answer approve=true.
+#   Rehearse the whole chain on the sample log in `const:` ·
+#   --var rehearse=true (the changelog it edits is the copy it made under
+#   out/ from the sample that ships with the repo; nothing is announced).
 #   To really ping · --var announce=true and export TEAM_WEBHOOK_URL.
-#   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
+#   Mock rehearsal (zero key, deterministic) · add `--model mock/echo`. It
+#   replaces the model, not the network: `--var announce=true` still pings.
 
 nika: release-notes
 
@@ -44,11 +53,21 @@ inputs:
     type: bool
     default: false
     description: "Actually send the team ping (needs TEAM_WEBHOOK_URL)"
+  rehearse:
+    type: bool
+    default: false
+    description: "Draft from const.sample_log instead of git: a rehearsal, never announced"
 
 const:
   since_tag: "v0.80.0"
   changelog_src: "examples/fixtures/CHANGELOG.md" # point this at YOUR CHANGELOG.md
   changelog_out: "out/CHANGELOG.md"                        # the working copy this run edits
+  # The rehearsal log · read only under --var rehearse=true, never as a
+  # stand-in for a history git could not give.
+  sample_log: |
+    a1b2c3d feat(api): pagination cursors on every list endpoint
+    d4e5f6a fix(auth): refresh tokens no longer rotate on read
+    7g8h9i0 refactor(store): drop the legacy write path
 
 secrets:
   team_webhook:
@@ -103,23 +122,27 @@ tasks:
     exec:
       command: ["git", "log", "${{ const.since_tag }}..HEAD", "--oneline", "--no-merges"]
     on_error:
-      # No such tag here (or not a repo at all) → a sample log takes over and
-      # the rest of the chain is exercised exactly as it would be on the day.
-      recover: |
-        a1b2c3d feat(api): pagination cursors on every list endpoint
-        d4e5f6a fix(auth): refresh tokens no longer rotate on read
-        7g8h9i0 refactor(store): drop the legacy write path
+      # No such tag, not a repo, or a refused command (the macOS sandbox
+      # refuses git inside this boundary): the value NAMES the failure. A
+      # stand-in log here would be drafted by `notes`, written by `changelog`
+      # and announced to the team as commits that never happened.
+      recover: "git history unavailable: the command failed or was refused. No commit facts were collected."
 
   notes:
     with:
-      history: ${{ tasks.history.output }}
-    when: ${{ with.history != null && size(with.history) > 0 }}  # a refused gate skips history (null) · an empty log has nothing to draft either
+      # The log the notes are drafted from: git's own, or the rehearsal
+      # sample when you ask for it. A refused gate skips `history` (null),
+      # and the binding stays null, so the « no » still closes this task.
+      # Quoted · the ternary's ` : ` would otherwise end a YAML key.
+      log: '${{ tasks.history.output != null && inputs.rehearse == true ? const.sample_log : tasks.history.output }}'
+    # a refused gate (null) · an empty log · or the notice that git could not be read: nothing to draft
+    when: ${{ with.log != null && size(with.log) > 0 && !with.log.startsWith('git history unavailable') }}
     infer:
       # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 3000                 # think block + the notes JSON
       prompt: |
         Write release notes from these commits ·
-        ${{ with.history }}
+        ${{ with.log }}
         Tone · plain, direct, no marketing fluff.
       schema:
         type: object
@@ -144,8 +167,9 @@ tasks:
 
   copy:
     with:
+      go: ${{ tasks.approve.output }}
       existing: ${{ tasks.existing.output }}
-    when: ${{ with.existing != null && size(with.existing) > 0 }}  # a refused gate skips the read (null) · an empty file has nothing to copy
+    when: ${{ with.go == true && with.existing != null && size(with.existing) > 0 }}  # « no » at the gate · or an empty file: nothing to copy
     invoke:
       tool: "nika:write"
       args:
@@ -154,10 +178,14 @@ tasks:
         create_dirs: true
         overwrite: true
 
+  # The whole `notes` value crosses, and is tested, before a field of it is
+  # read: a skipped `notes` reads null, and stepping into null would fail
+  # this task instead of closing it.
   changelog:
     with:
-      notes_headline: ${{ tasks.notes.output.headline }}
-      notes_body: ${{ tasks.notes.output.body }}
+      go: ${{ tasks.approve.output }}
+      notes: ${{ tasks.notes.output }}
+    when: ${{ with.go == true && with.notes != null }}  # no notes drafted · nothing to write
     after:
       copy: success              # state, no data · the anchor is on disk before we edit
     invoke:
@@ -169,14 +197,16 @@ tasks:
         replace: |
           # Changelog
 
-          ## ${{ const.since_tag }}..HEAD · ${{ with.notes_headline }}
+          ## ${{ const.since_tag }}..HEAD · ${{ with.notes.headline }}
 
-          ${{ with.notes_body }}
+          ${{ with.notes.body }}
 
   announce:
     with:
-      notes_headline: ${{ tasks.notes.output.headline }}
-    when: ${{ inputs.announce == true }}   # OFF by default · a rehearsal must not ping the team
+      go: ${{ tasks.approve.output }}
+      notes: ${{ tasks.notes.output }}
+    # OFF by default, and never for a rehearsal: the team hears about real commits only
+    when: ${{ with.go == true && inputs.announce == true && inputs.rehearse == false && with.notes != null }}
     after:
       changelog: success
     invoke:
@@ -184,7 +214,7 @@ tasks:
       args:
         channel: webhook
         target: "${{ secrets.team_webhook }}"
-        message: "Release notes ready · ${{ with.notes_headline }}"
+        message: "Release notes ready · ${{ with.notes.headline }}"
         severity: info
 
 outputs:
