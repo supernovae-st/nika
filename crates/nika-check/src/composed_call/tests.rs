@@ -354,6 +354,7 @@ fn an_unresolved_call_is_untrusted_everywhere() {
         Some("unread"),
         "it may act (fail-closed)"
     );
+    assert!(!call.effect_conditional, "and its act is not advisory");
     assert_eq!(call.grants, Permits::new());
 }
 

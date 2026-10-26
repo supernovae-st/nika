@@ -806,12 +806,16 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
         // NIK-273 follow-up: a child workflow call is an egress-capable task.
         "NIKA-SEC-014" => Some(
             "  A call to a child workflow counts as an egress-capable task \
-             when the child, or a workflow it calls, holds one (an `exec:`, \
-             a net or file-write builtin, an `mcp:` tool, an `agent:` whose \
-             `tools:` admit one), whatever content reaches it: the child \
-             runs inside this file's boundary. Every route from a confirm \
-             gate to the call must close on « no », as for the inline task. \
-             A child the check cannot read or resolve counts as acting.\n",
+             when the child, or a workflow it calls, reaches one (an \
+             `exec:`, a net or file-write builtin, an `mcp:` tool, an \
+             `agent:` whose `tools:` admit one), whatever content reaches \
+             it: the child runs inside this file's boundary. Every route \
+             from a confirm gate to the call must close on « no », as for \
+             the inline task. A confirm gate inside the child owns the \
+             effect behind it. A child gate the check cannot decide from \
+             the caller (a `when:` on an input) earns the advisory hint, \
+             not the refusal. A child the check cannot read or resolve \
+             counts as acting.\n",
         ),
         _ => None,
     }
@@ -868,6 +872,8 @@ mod tests {
             "A call to a child workflow counts as an egress-capable task",
             "whatever content reaches it",
             "must close on « no »",
+            "A confirm gate inside the child owns",
+            "earns the advisory hint",
             "counts as acting",
         ] {
             assert!(consent.contains(lesson), "`{lesson}` missing: {consent}");

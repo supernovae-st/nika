@@ -129,13 +129,55 @@ struct Routes {
     /// their pass-set admits `skipped`. Its cleanup unit is not one of them
     /// — a producer that never ran unwinds nothing (spec 03 §unwind).
     value_on_skip: Vec<Vec<usize>>,
-    /// The tasks a refusal must not reach: the egress-capable ones, and the
-    /// calls whose closure acts.
-    sinks: Vec<bool>,
+    /// What each task does for the law: the egress-capable ones act, and a
+    /// call acts as its closure's effect ([`Sink::of_call`]).
+    sinks: Vec<Sink>,
+}
+
+/// What one task does for the consent law.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Sink {
+    /// No effect.
+    Inert,
+    /// An effect its verb fires whenever the task runs.
+    Proven,
+    /// An effect behind a gate of a child closure the check cannot decide
+    /// from the caller: a refusal reaching it is the advisory, never the
+    /// blocking row.
+    Unproven,
+}
+
+impl Sink {
+    /// A task of `wf`, a listed call standing for its closure.
+    fn of_task(task: &RawTask, calls: &[ComposedCall]) -> Self {
+        if let Some(call) = crate::trifecta::listed_call(calls, &task.id.value, &task.action) {
+            return Self::of_call(call);
+        }
+        if crate::trifecta::egress_capable(&task.action) {
+            Self::Proven
+        } else {
+            Self::Inert
+        }
+    }
+
+    /// A call acts as the effect its closure reaches from its entry
+    /// ([`crate::ComposedCall::effect`]).
+    fn of_call(call: &ComposedCall) -> Self {
+        Self::of_closure(call.effect.is_some(), call.effect_conditional)
+    }
+
+    /// A closure that `acts`, `conditional` or not.
+    pub(crate) fn of_closure(acts: bool, conditional: bool) -> Self {
+        match (acts, conditional) {
+            (false, _) => Self::Inert,
+            (true, false) => Self::Proven,
+            (true, true) => Self::Unproven,
+        }
+    }
 }
 
 impl Routes {
-    fn of(wf: &RawWorkflow, edges: &[Edge], calls: &[ComposedCall]) -> Self {
+    fn of(wf: &RawWorkflow, edges: &[Edge], sinks: Vec<Sink>) -> Self {
         let tasks = wf.tasks.len();
         let mut children: Vec<Vec<usize>> = vec![Vec::new(); tasks];
         let mut value_on_skip: Vec<Vec<usize>> = vec![Vec::new(); tasks];
@@ -155,22 +197,73 @@ impl Routes {
                 value_on_skip[e.from].push(e.to);
             }
         }
-        let sinks = wf
-            .tasks
-            .iter()
-            .map(|t| {
-                let task = &t.value;
-                crate::trifecta::egress_capable(&task.action)
-                    || crate::trifecta::listed_call(calls, &task.id.value, &task.action)
-                        .is_some_and(|call| call.effect.is_some())
-            })
-            .collect();
         Self {
             children,
             value_on_skip,
             sinks,
         }
     }
+}
+
+/// The first effect a run of the closure `wf` reaches from its entry, as a
+/// caller's refused confirm in front of the call sees it: `(task, proven)`.
+/// `sinks[n]` is what task `n` does. A route ends at a confirm gate of `wf`
+/// (the nearest gate owns its closure); any other gate not proven open
+/// once no answer is known (a `when:` on the inputs a caller may bind to
+/// its answer included) leaves what it reaches unproven. A proven effect
+/// wins over an unproven one, then task order. `None`: no route reaches
+/// an effect.
+pub(crate) fn closure_effect(
+    wf: &RawWorkflow,
+    edges: &[Edge],
+    sinks: Vec<Sink>,
+) -> Option<(usize, bool)> {
+    let routes = Routes::of(wf, edges, sinks);
+    let mut entered = vec![false; wf.tasks.len()];
+    for e in edges {
+        entered[e.to] = true;
+    }
+    let mut queue: VecDeque<(usize, bool)> = entered
+        .iter()
+        .enumerate()
+        .filter(|(_, has_edge)| !**has_edge)
+        .map(|(n, _)| (n, false))
+        .collect();
+    let mut seen: BTreeSet<(usize, bool)> = BTreeSet::new();
+    let mut found: Option<(usize, bool)> = None;
+    while let Some((n, tainted)) = queue.pop_front() {
+        // A clean visit dominates a tainted one.
+        if seen.contains(&(n, false)) || !seen.insert((n, tainted)) {
+            continue;
+        }
+        let t = &wf.tasks[n].value;
+        if is_confirm_prompt(t) {
+            continue;
+        }
+        // No caller gate is named inside the closure: only its own
+        // literals decide.
+        let verdict = gate_verdict(t, "");
+        let open = verdict == Gate::Open;
+        let proven = match routes.sinks[n] {
+            Sink::Inert => None,
+            Sink::Proven => Some(open && !tainted),
+            Sink::Unproven => Some(false),
+        };
+        if let Some(proven) = proven {
+            let better =
+                found.is_none_or(|(at, was)| (proven && !was) || (proven == was && n < at));
+            if better {
+                found = Some((n, proven));
+            }
+        }
+        let next = if verdict == Gate::Closed {
+            &routes.value_on_skip[n]
+        } else {
+            &routes.children[n]
+        };
+        queue.extend(next.iter().map(|&c| (c, tainted || !open)));
+    }
+    found
 }
 
 /// What the walks accumulate across every prompt of the workflow.
@@ -202,7 +295,12 @@ pub(crate) fn scan_consent(
     if wf.tasks.len() > crate::analysis::ANALYSIS_TASK_CAP {
         return scan;
     }
-    let routes = Routes::of(wf, edges, calls);
+    let sinks = wf
+        .tasks
+        .iter()
+        .map(|t| Sink::of_task(&t.value, calls))
+        .collect();
+    let routes = Routes::of(wf, edges, sinks);
     let mut verdicts = Verdicts::default();
     for (idx, task) in wf.tasks.iter().enumerate() {
         if is_confirm_prompt(&task.value) {
@@ -298,9 +396,9 @@ fn walk_refusal(
         // Open = proven TRUE under the refusal; anything else is the
         // undecidable gate — the defect is unproven from here on.
         let open = verdict == Gate::Open;
-        if routes.sinks[n] {
+        if routes.sinks[n] != Sink::Inert {
             let pair = (prompt.to_owned(), t.id.value.clone());
-            if open && !tainted && witnessed {
+            if open && !tainted && witnessed && routes.sinks[n] == Sink::Proven {
                 // The plainest witness wins whatever the walk order:
                 // `None` (no closed gate crossed) sorts first.
                 let via = skipped.map(|s| wf.tasks[s].value.id.value.clone());
@@ -1272,6 +1370,88 @@ mod tests {
         let r = composed(&closed, &[("child-send.nika", CHILD_SEND)]);
         assert!(r.consent_findings.is_empty(), "{:?}", r.consent_findings);
         assert!(r.is_clean(), "{:?}", r.findings);
+    }
+
+    /// The caller of `tell.nika`: `ask`, then the call on a bare `after:`,
+    /// handing the answer down as `go`.
+    const ASK_THEN_TELL: &str = "nika: p\npermits: { tools: [\"nika:prompt\", \"nika:notify\"], net: { http: [\"hooks.example.com\"] } }\ntasks:\n  ask:\n    invoke: { tool: nika:prompt, args: { message: \"Announce?\" } }\n  tell:\n    after: { ask: success }\n    with: { go: \"${{ tasks.ask.output }}\" }\n    invoke: { workflow: ./tell.nika, args: { go: \"${{ with.go }}\" } }\n";
+
+    /// `tell.nika` with one notify task whose head is `head`.
+    fn tell(head: &str) -> String {
+        format!(
+            "nika: tell\npermits: {{ tools: [\"nika:prompt\", \"nika:notify\"], net: {{ http: [\"hooks.example.com\"] }} }}\ninputs:\n  go: {{ type: bool, default: false }}\ntasks:\n{head}    invoke: {{ tool: \"nika:notify\", args: {{ channel: webhook, target: \"https://hooks.example.com/hook\", message: \"deployed\" }} }}\n"
+        )
+    }
+
+    /// A confirm gate inside the child is the nearest gate: it owns the
+    /// closure of its effect, as the same tasks written inline (NIK-273
+    /// review). The caller's gate is neither refused nor advised.
+    #[test]
+    fn a_confirm_gate_inside_the_child_owns_its_effect() {
+        let child = tell(
+            "  sure:\n    invoke: { tool: nika:prompt, args: { message: \"Really?\" } }\n  ping:\n    with: { go: \"${{ tasks.sure.output }}\" }\n    when: \"${{ with.go == true }}\"\n",
+        );
+        let r = composed(ASK_THEN_TELL, &[("tell.nika", child.as_str())]);
+        assert!(r.consent_findings.is_empty(), "{:?}", r.consent_findings);
+        assert!(consent_hints(&r).is_empty(), "{:?}", r.hints);
+        let call = &r.composed_calls[0];
+        assert_eq!(call.effect, None, "behind the child's own gate");
+    }
+
+    /// A child gate the check cannot decide from the caller (a `when:` on
+    /// an input the caller may bind to its answer, directly or through a
+    /// `with:`) leaves the effect UNPROVEN: the advisory hint, never the
+    /// refusal (spec 10: no false red · NIK-273 review).
+    #[test]
+    fn a_child_gate_on_its_inputs_is_advised_not_refused() {
+        for head in [
+            "  ping:\n    when: \"${{ inputs.go == true }}\"\n",
+            "  ping:\n    with: { go: \"${{ inputs.go }}\" }\n    when: \"${{ with.go == true }}\"\n",
+        ] {
+            let child = tell(head);
+            let r = composed(ASK_THEN_TELL, &[("tell.nika", child.as_str())]);
+            assert!(
+                r.consent_findings.is_empty(),
+                "{head}: {:?}",
+                r.consent_findings
+            );
+            assert_eq!(consent_hints(&r), ["tell"], "{head}: {:?}", r.hints);
+            assert!(r.is_clean(), "{head}: {:?}", r.findings);
+            let call = &r.composed_calls[0];
+            assert!(call.effect.is_some() && call.effect_conditional, "{call:?}");
+        }
+    }
+
+    /// A grandchild holds the effect: an unconditional chain down to it is
+    /// the proven route; a gate the check cannot decide on the way down is
+    /// the advisory.
+    #[test]
+    fn a_grandchild_effect_is_judged_through_the_chain() {
+        let relay = |head: &str| {
+            format!(
+                "nika: relay\npermits: {{ tools: [\"nika:notify\"], net: {{ http: [\"hooks.example.com\"] }} }}\ninputs:\n  go: {{ type: bool, default: false }}\ntasks:\n{head}    invoke: {{ workflow: ./grand.nika }}\n"
+            )
+        };
+        let grand = tell("  ping:\n");
+        let plain = relay("  down:\n");
+        let r = composed(
+            ASK_THEN_TELL,
+            &[
+                ("tell.nika", plain.as_str()),
+                ("grand.nika", grand.as_str()),
+            ],
+        );
+        assert_eq!(pairs(&r), [("ask", "tell")], "{:?}", r.consent_findings);
+        let gated = relay("  down:\n    when: \"${{ inputs.go == true }}\"\n");
+        let r = composed(
+            ASK_THEN_TELL,
+            &[
+                ("tell.nika", gated.as_str()),
+                ("grand.nika", grand.as_str()),
+            ],
+        );
+        assert!(r.consent_findings.is_empty(), "{:?}", r.consent_findings);
+        assert_eq!(consent_hints(&r), ["tell"], "{:?}", r.hints);
     }
 
     /// The law counts the effect, not the content: a child whose notify
