@@ -228,8 +228,10 @@ is added, and a client never names a path.
   by its execution and trace identity under the backend's journal directory. It is read once
   within the verifier's bound, and those same bytes are judged by the verifier
   `nika trace verify` runs. It is served only when the chain is intact, the seal verifies
-  against a run key that verifier weighs (`~/.nika/keys/run-signing.pub` or the retired-key
-  ledger), and the head is the receipt's `chain_head`. Otherwise the
+  against a run key that verifier weighs in the resident's environment, in the order the
+  resident signs (the public half of an explicit `NIKA_RUN_KEY_FILE` · `NIKA_RUN_PUB_FILE` pair,
+  `~/.nika/keys/run-signing.pub`, the retired-key ledger), and the head is the receipt's
+  `chain_head`. Otherwise the
   routes answer 409 `artifact_journal_unavailable` or `artifact_journal_unverified`. An entry
   exists only for an event that records a written byte stream with its SHA-256: a file-saving
   builtin's `task_completed` frame (`nika:chart`, `nika:image_generate`, `nika:tts_generate`,

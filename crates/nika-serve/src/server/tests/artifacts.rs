@@ -1041,20 +1041,9 @@ async fn an_empty_artifact_and_one_past_the_listed_bound_are_served() {
     server.stop().await.expect("clean stop");
 }
 
-/// The production backend's own journal: a `nika:chart` run's frame is the shape the door
-/// reads, the seal its custody seam mints verifies, and the served SVG is the file on disk.
-#[tokio::test(flavor = "multi_thread")]
-async fn a_real_chart_run_lists_and_serves_its_svg() {
-    let world = TestWorld::new();
-    let key = test_key(&world);
-    std::fs::write(world.workflows.join("chart.nika"), CHART_WORKFLOW).expect("workflow");
-    let backend = Arc::new(
-        ResidentExecutionBackend::new(&world.workflows).with_journal_seal(Arc::new(TestSeal {
-            secret: key.secret.clone(),
-            public: key.public.clone(),
-        })),
-    );
-    let long = ServerLimits::new(
+/// The production driver's limits: a real run, not the scripted 2 s mock.
+fn real_run_limits() -> ServerLimits {
+    ServerLimits::new(
         1024,
         Duration::from_secs(2),
         Duration::from_secs(30),
@@ -1063,9 +1052,11 @@ async fn a_real_chart_run_lists_and_serves_its_svg() {
         16,
         64,
         32,
-    );
-    let server = start(&world, backend, long, Some(&key.file)).await;
-    let document = served_document(&server).await;
+    )
+}
+
+/// Admit `chart.nika` and wait for its job to settle: the job id, once it succeeded.
+async fn run_chart(server: &TestServer) -> String {
     let created = server
         .request(&post_request(
             r#"{"workflow":"chart.nika"}"#,
@@ -1090,6 +1081,25 @@ async fn a_real_chart_run_lists_and_serves_its_svg() {
         tokio::time::sleep(Duration::from_millis(25)).await;
     }
     assert_eq!(status, "succeeded");
+    id
+}
+
+/// The production backend's own journal: a `nika:chart` run's frame is the shape the door
+/// reads, the seal its custody seam mints verifies, and the served SVG is the file on disk.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_real_chart_run_lists_and_serves_its_svg() {
+    let world = TestWorld::new();
+    let key = test_key(&world);
+    std::fs::write(world.workflows.join("chart.nika"), CHART_WORKFLOW).expect("workflow");
+    let backend = Arc::new(
+        ResidentExecutionBackend::new(&world.workflows).with_journal_seal(Arc::new(TestSeal {
+            secret: key.secret.clone(),
+            public: key.public.clone(),
+        })),
+    );
+    let server = start(&world, backend, real_run_limits(), Some(&key.file)).await;
+    let document = served_document(&server).await;
+    let id = run_chart(&server).await;
     let written = std::fs::read(world.workflows.join("out/totals.svg")).expect("the chart");
     let (code_, _, body) = exchange(&server, &get(&format!("/v1/jobs/{id}/artifacts"))).await;
     assert_eq!(code_, 200, "{}", String::from_utf8_lossy(&body));
@@ -1102,6 +1112,168 @@ async fn a_real_chart_run_lists_and_serves_its_svg() {
     assert_eq!(entry["size"], written.len());
     assert_eq!(entry["sha256"], hex(&written));
     assert_eq!(manifest["artifacts"].as_array().map(Vec::len), Some(1));
+    let (status, headers, bytes) = download(&server, &document, &id, "file/out/totals.svg").await;
+    assert_eq!(status, 200, "{headers}");
+    assert_eq!(bytes, written);
+    server.stop().await.expect("clean stop");
+}
+
+/// A run key pair as `nika key init` leaves it: a 0600 secret file, its public half beside it.
+#[cfg(unix)]
+struct PairFiles {
+    secret: PathBuf,
+    public: PathBuf,
+    /// The fingerprint a seal minted with this pair names.
+    key_id: String,
+}
+
+#[cfg(unix)]
+fn write_pair(dir: &Path, secret: &str, public: &str) -> PairFiles {
+    use std::os::unix::fs::PermissionsExt as _;
+    std::fs::create_dir_all(dir).expect("key directory");
+    let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("run key");
+    let boxed = pair.pk.to_box().expect("public box").to_string();
+    let (secret, public) = (dir.join(secret), dir.join(public));
+    let sealed = pair.sk.to_box(None).expect("secret box").to_string();
+    std::fs::write(&secret, sealed).expect("secret file");
+    std::fs::set_permissions(&secret, std::fs::Permissions::from_mode(0o600)).expect("0600");
+    std::fs::write(&public, &boxed).expect("public file");
+    PairFiles {
+        secret,
+        public,
+        key_id: nika_dap::seal::fingerprint(boxed.trim()),
+    }
+}
+
+/// NIK-271 · the resident's own custody, end to end: a job the production custody seam seals
+/// with an explicit `NIKA_RUN_KEY_FILE` · `NIKA_RUN_PUB_FILE` pair kept outside
+/// `~/.nika/keys` is attributed by both routes, the door weighing its keys as
+/// `nika trace verify` does (no test key): the trace verdict is sealed under
+/// `NIKA_RUN_PUB_FILE`, the manifest lists the chart and the download serves it, and no server
+/// path crosses. The default custody under `~/.nika/keys` answers as before. Custody is process
+/// configuration, so each case runs in a child process with its own environment.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_sealed_by_the_residents_custody_is_attributed_by_both_routes() {
+    const CHILD: &str = "NIKA_TEST_RESIDENT_CUSTODY";
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the case a parent test hands its own child process, never a secret"
+    )]
+    let case = std::env::var(CHILD);
+    if let Ok(case) = case {
+        let (key_id, rest) = case.split_once('\n').expect("a key id");
+        let (source, hidden) = rest
+            .split_once('\n')
+            .expect("its source, a path never sent");
+        return attributed_by_both_routes(key_id, source, hidden).await;
+    }
+    let room = tempfile::tempdir().expect("room");
+    // An explicit pair outside ~/.nika/keys, under a home that holds no key.
+    let bare = room.path().join("bare-home");
+    std::fs::create_dir_all(&bare).expect("home");
+    let explicit = write_pair(&room.path().join("etc-nika"), "run.key", "run.pub");
+    // The default custody: the 0600 pair under ~/.nika/keys, no pair named.
+    let home = room.path().join("home");
+    let default = write_pair(
+        &home.join(".nika/keys"),
+        "run-signing.key",
+        "run-signing.pub",
+    );
+    let cases = [
+        (
+            home.clone(),
+            None,
+            format!(
+                "{}\n~/.nika/keys/run-signing.pub\n{}",
+                default.key_id,
+                home.display()
+            ),
+        ),
+        (
+            bare,
+            Some((explicit.secret, explicit.public.clone())),
+            format!(
+                "{}\nNIKA_RUN_PUB_FILE\n{}",
+                explicit.key_id,
+                explicit.public.display()
+            ),
+        ),
+    ];
+    for (home, pair, case) in cases {
+        #[expect(
+            clippy::disallowed_types,
+            reason = "test-only self subprocess isolates custody configuration from parallel tests"
+        )]
+        let mut child = std::process::Command::new(std::env::current_exe().expect("test binary"));
+        child
+            .args([
+                "--exact",
+                "server::tests::artifacts::a_job_sealed_by_the_residents_custody_is_attributed_by_both_routes",
+            ])
+            .env(CHILD, &case)
+            .env("HOME", &home)
+            .env("NIKA_KEYCHAIN", "off")
+            .env("NIKA_RUN_KEY_PASSWORD", "")
+            .env_remove("USERPROFILE")
+            .env_remove("NIKA_RUN_KEY_FILE")
+            .env_remove("NIKA_RUN_PUB_FILE");
+        if let Some((secret, public)) = pair {
+            child
+                .env("NIKA_RUN_KEY_FILE", secret)
+                .env("NIKA_RUN_PUB_FILE", public);
+        }
+        let output = tokio::task::spawn_blocking(move || child.output())
+            .await
+            .expect("joined")
+            .expect("the child runs");
+        let said = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            output.status.success() && said.contains("1 passed"),
+            "{case}\n{said}"
+        );
+    }
+}
+
+/// The child's half: the production backend seals through its custody seam, and the door
+/// weighs only what `nika trace verify` weighs on this host.
+#[cfg(unix)]
+async fn attributed_by_both_routes(key_id: &str, source: &str, hidden: &str) {
+    let world = TestWorld::new();
+    std::fs::write(world.workflows.join("chart.nika"), CHART_WORKFLOW).expect("workflow");
+    let backend = Arc::new(ResidentExecutionBackend::new(&world.workflows));
+    let server = start(&world, backend, real_run_limits(), None).await;
+    let document = served_document(&server).await;
+    let id = run_chart(&server).await;
+    let verdict = server
+        .request(&get(&format!("/v1/jobs/{id}/trace/verify")))
+        .await;
+    assert_eq!(verdict.status, 200, "{}", verdict.body);
+    assert!(!verdict.body.contains(hidden), "{}", verdict.body);
+    let verdict = verdict.json();
+    assert_eq!(
+        (&verdict["verdict"], &verdict["reason"], &verdict["exit"]),
+        (&json!("sealed"), &json!("sealed"), &json!(0)),
+        "{verdict}"
+    );
+    assert_eq!(
+        verdict["seal"],
+        json!({"tier": "sealed", "key_id": key_id, "source": source}),
+        "{verdict}"
+    );
+    let written = std::fs::read(world.workflows.join("out/totals.svg")).expect("the chart");
+    let (status, _, body) = exchange(&server, &get(&format!("/v1/jobs/{id}/artifacts"))).await;
+    assert_eq!(status, 200, "{}", String::from_utf8_lossy(&body));
+    assert_declared(&document, MANIFEST, 200, &body);
+    let manifest: Value = serde_json::from_slice(&body).expect("manifest");
+    assert_eq!(manifest["verdict"], "sealed", "{manifest}");
+    assert_eq!(manifest["artifacts"].as_array().map(Vec::len), Some(1));
+    assert_eq!(manifest["artifacts"][0]["name"], "file/out/totals.svg");
+    assert_eq!(manifest["artifacts"][0]["sha256"], hex(&written));
     let (status, headers, bytes) = download(&server, &document, &id, "file/out/totals.svg").await;
     assert_eq!(status, 200, "{headers}");
     assert_eq!(bytes, written);

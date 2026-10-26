@@ -51,7 +51,8 @@
 //! the item's modification date) so those builds can compare while the item
 //! is unchanged. `nika key init|trust|rotate|align` manages the lifecycle;
 //! an absent key keeps the journal unsigned and says so — sealing is
-//! additive, never a gate.
+//! additive, never a gate. A verifier weighs the public halves in this same
+//! order, the keychain aside ([`candidate_pubkeys`]).
 
 use std::fmt::Write as _;
 use std::io::{Cursor, Write as IoWrite};
@@ -1328,10 +1329,14 @@ fn hex_lower(bytes: &[u8]) -> String {
 }
 
 /// The candidate public keys for the SEALED verify tier, in pick
-/// order: an explicit key file first (the `--key` voice), then the
-/// custody default, then every line of the retired ledger (rotation
-/// keeps old journals verifiable). Each entry is `(public box, source
-/// label)` — the source rides into the tier's report line.
+/// order: an explicit key file first (the `--key` voice), then the keys
+/// this process signs with, in the order the signer takes them (the public
+/// half of the explicit `NIKA_RUN_KEY_FILE` · `NIKA_RUN_PUB_FILE` pair,
+/// then the custody default), then every line of the retired ledger
+/// (rotation keeps old journals verifiable). The keychain is not weighed.
+/// Each entry is `(public box, source label)` — the source rides into the
+/// tier's report line; the pair's label is its variable's name, so a door
+/// serving the report never carries the file's path.
 ///
 /// # Errors
 ///
@@ -1346,6 +1351,13 @@ pub fn candidate_pubkeys(key_file: Option<&Path>) -> Result<Vec<(String, String)
         let text = (read.and_then(|t| t.ok_or_else(|| "no such file".to_owned())))
             .map_err(|e| format!("cannot read --key {}: {e}", path.display()))?;
         extend_candidate_pubkeys(&mut out, &text, &path.display().to_string());
+    }
+    if let Some(path) = key_files::configured_public() {
+        let text = crate::anchor::read_owned(&path, KEY_FILE_CAP)
+            .map_err(|e| format!("cannot read {EXPLICIT_PUBLIC}: {e}"))?;
+        if let Some(text) = text {
+            extend_candidate_pubkeys(&mut out, &text, EXPLICIT_PUBLIC);
+        }
     }
     for name in ["run-signing.pub", "retired.pub"] {
         let Some(path) = keys_path(name) else {
@@ -1365,6 +1377,9 @@ pub fn candidate_pubkeys(key_file: Option<&Path>) -> Result<Vec<(String, String)
     Ok(out)
 }
 
+/// The source label of the explicit pair's public half: the variable naming
+/// it, never its path.
+const EXPLICIT_PUBLIC: &str = "NIKA_RUN_PUB_FILE";
 /// A custody file's byte cap (a public box is ~150 bytes; more is refused).
 const KEY_FILE_CAP: u64 = 64 * 1024;
 /// The most candidate keys one verify weighs (more is refused, never cut).
