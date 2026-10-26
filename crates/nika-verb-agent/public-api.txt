@@ -544,6 +544,7 @@ pub nika_verb_agent::AgentEvent::EffectReplayRefused::turn: u32
 pub nika_verb_agent::AgentEvent::Finished
 pub nika_verb_agent::AgentEvent::Finished::total_tokens: u64
 pub nika_verb_agent::AgentEvent::Finished::turns: u32
+pub nika_verb_agent::AgentEvent::GateAnswerSpent
 pub nika_verb_agent::AgentEvent::HarnessImageActivity
 pub nika_verb_agent::AgentEvent::HarnessImageActivity::tool_call_id: alloc::string::String
 pub nika_verb_agent::AgentEvent::HarnessImageObserved
