@@ -392,8 +392,9 @@ enum Turn {
     Answers,
     /// Its turn fails: codex-acp 1.13.1 reports a typed `sessionFailure` on the prompt result
     /// when the client advertised the capability, else the error as answer text. `retry` is
-    /// the 429 retry exhaustion of the gauntlet, otherwise an unknown model (`bad_request`);
-    /// `typed: false` is an adapter that knows no typed failure at all.
+    /// the 429 retry exhaustion of the gauntlet (retry offered), otherwise an exhausted usage
+    /// quota (`quota_exhausted`, no retry); `typed: false` is an adapter that knows no typed
+    /// failure at all.
     Fails { retry: bool, typed: bool },
 }
 
@@ -483,11 +484,7 @@ async fn codex_turn_end(w: &mut Writer, turn: Turn, typed_failures: bool) -> Val
             "limit",
             json!(["retry"]),
         ),
-        Turn::Fails { retry: false, .. } => (
-            "The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account.",
-            "request",
-            json!([]),
-        ),
+        Turn::Fails { retry: false, .. } => ("usage limit reached", "limit", json!([])),
     };
     if matches!(turn, Turn::Fails { typed: true, .. }) && typed_failures {
         return json!({"stopReason":"end_turn","usage":null,"_meta":{
@@ -692,7 +689,7 @@ async fn the_codex_profile_admits_only_codex_acp() {
 /// NIK-275 · an `infer:` turn Codex could not complete is never an answer: the client
 /// advertises codex-acp's typed `sessionFailure`, and the failure the adapter then reports on
 /// the prompt result fails the call with the adapter's words. The gauntlet's 429 retry
-/// exhaustion (retry offered) is a session death; its unknown model is a refusal.
+/// exhaustion (retry offered) is a session death; an exhausted quota (no retry) a refusal.
 #[tokio::test]
 async fn a_failed_codex_turn_fails_the_infer_with_the_adapters_error() {
     let (result, seen) = codex_one_shot_ending(
@@ -727,12 +724,12 @@ async fn a_failed_codex_turn_fails_the_infer_with_the_adapters_error() {
     .await;
     match result {
         Err(HarnessError::Refused { reason }) => {
-            assert!(
-                reason.contains("(error · request): The 'gpt-6.1-sol' model"),
-                "{reason}"
+            assert_eq!(
+                reason,
+                "the harness reported a failed turn (error · limit): usage limit reached"
             );
         }
-        other => panic!("an unknown model must refuse the infer: {other:?}"),
+        other => panic!("an exhausted quota must refuse the infer: {other:?}"),
     }
 }
 

@@ -137,7 +137,9 @@ A harness runs its OWN tools: Nika serves it no filesystem and no terminal.
 not complete (a rejected model, a retry limit exhausted on 429) is reported as a
 typed `sessionFailure` on the `session/prompt` result, and the client fails the
 call with the adapter's title (a `retry` action makes it a transient session
-failure, any other a refusal), on `infer:` as on `agent:`. Without the extension
+failure, any other a refusal; codex-acp 1.13.1 offers `retry` on a 429 retry
+exhaustion and on a rejected model, whose 400 it reports as a `service` failure),
+on `infer:` as on `agent:`. Without the extension
 codex-acp returns that error as answer text and `end_turn`, which the client cannot
 tell from an answer and never pattern-matches. An
 agent → client call such as `fs/write_text_file` or `terminal/create` is answered

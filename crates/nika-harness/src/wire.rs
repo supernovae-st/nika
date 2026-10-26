@@ -734,10 +734,12 @@ pub(crate) fn client_capabilities() -> Value {
 /// The failure a `session/prompt` result reports for its turn: codex-acp's Air
 /// `sessionFailure` under the result's `_meta`, which the adapter puts there only when the
 /// turn did not complete. `None` when the result carries none. The adapter's own words ride
-/// verbatim, on one line and bounded: its title (the error message), severity and category. A
-/// failure whose actions offer `retry` (a rate limit, a lost connection, an overloaded
-/// service) is a session death a retry may heal; any other (a bad request such as an unknown
-/// model, an exhausted quota, a policy denial, missing auth) is the harness's refusal.
+/// verbatim, on one line and bounded: its title (the error message), severity and category.
+/// The classification is the adapter's, never read from the title: a failure whose actions
+/// offer `retry` is a session death a retry may heal (codex-acp 1.13.1 offers it on a 429
+/// rate limit, a lost connection, an overloaded service and any provider error it cannot
+/// name, which is how a 400 `model_not_found` arrives); any other (an exhausted quota, a bad
+/// request, a policy denial, missing auth) is the harness's refusal.
 pub(crate) fn turn_failure(result: &Value) -> Option<HarnessError> {
     let failure = result
         .pointer("/_meta/jetbrains/air/sessionFailure")
@@ -1198,9 +1200,13 @@ mod tests {
     }
 
     /// NIK-275 · the two failures the gauntlet saw, as codex-acp 1.13.1 reports them once the
-    /// capability is advertised: a retry limit exhausted on 429 (`rate_limited`, retry offered)
-    /// is a session death; an unknown model (`bad_request`) is a refusal. A result without the
-    /// failure, or with a null one, is no failure.
+    /// capability is advertised: a retry limit exhausted on 429 (codex error
+    /// `responseTooManyFailedAttempts` with HTTP 429, so `rate_limited`: category `limit`,
+    /// retry offered) and a rejected model (a 400 `model_not_found` that arrives as codex error
+    /// `other`, so `provider_error`: category `service`, retry offered, measured with real
+    /// Codex) are both session deaths, as the adapter's actions say; a failure that offers no
+    /// retry (an exhausted quota, a bad request) is a refusal. A result without the failure,
+    /// or with a null one, is no failure.
     #[test]
     fn a_typed_turn_failure_is_an_error_in_the_adapters_words() {
         let failed = |category: &str, title: &str, actions: serde_json::Value| {
@@ -1223,16 +1229,39 @@ mod tests {
             "the harness reported a failed turn (error · limit): exceeded retry limit, last \
              status: 429 Too Many Requests"
         );
-        let unknown = failed(
+        let rejected_model = "{\"type\":\"error\",\"status\":400,\"error\":{\"type\":\
+                              \"invalid_request_error\",\"message\":\"The 'gpt-6.1-sol' model \
+                              is not supported when using Codex with a ChatGPT account.\",\
+                              \"code\":\"model_not_found\"}}";
+        let model = failed("service", rejected_model, serde_json::json!(["retry"]));
+        let Some(HarnessError::Session { reason }) = turn_failure(&model) else {
+            panic!("the adapter offers retry on a rejected model: a session death");
+        };
+        assert_eq!(
+            reason,
+            format!("the harness reported a failed turn (error · service): {rejected_model}")
+        );
+        let refused = failed(
             "request",
-            "The 'gpt-6.1-sol' model is not supported\nwhen using Codex with a ChatGPT account.",
+            "The request was rejected\nby the provider.",
             serde_json::json!([]),
         );
-        let Some(HarnessError::Refused { reason }) = turn_failure(&unknown) else {
-            panic!("a bad request is a refusal");
+        let Some(HarnessError::Refused { reason }) = turn_failure(&refused) else {
+            panic!("a failure that offers no retry is a refusal");
         };
+        assert_eq!(
+            reason,
+            "the harness reported a failed turn (error · request): The request was rejected by \
+             the provider."
+        );
+        let context = failed(
+            "limit",
+            "context window exceeded",
+            serde_json::json!(["new_session"]),
+        );
         assert!(
-            reason.contains("(error · request): The 'gpt-6.1-sol' model is not supported when")
+            matches!(turn_failure(&context), Some(HarnessError::Refused { .. })),
+            "only `retry` makes a failure transient"
         );
         assert!(turn_failure(&serde_json::json!({"stopReason": "end_turn"})).is_none());
         let null = serde_json::json!({"stopReason": "end_turn",

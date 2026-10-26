@@ -23,9 +23,10 @@
 //! 6. the re-review's codex-acp MCP tool approvals (`_meta.is_mcp_tool_approval`, an `execute`
 //!    ask with no command, standalone or correlated to an earlier tool call) pause on the tools
 //!    plane even under `exec: true`, which answered them `allow_once`;
-//! 7. a turn Codex could not complete (NIK-275): the client advertises codex-acp's typed
-//!    `sessionFailure`, and the failure the adapter then reports fails the task; an adapter
-//!    without it still answers with the error text, which stands;
+//! 7. a turn Codex could not complete (NIK-275: a retry limit exhausted on 429, a rejected
+//!    model): the client advertises codex-acp's typed `sessionFailure`, and the failure the
+//!    adapter then reports fails the task; an adapter without it still answers with the error
+//!    text, which stands;
 //! 8. the gauntlet's escalated command (NIK-274): in `read-only` a Codex command ask asks to
 //!    leave Codex's sandbox, so it pauses even under `exec: true`, its command and reason in
 //!    the question and the witness;
@@ -38,6 +39,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use nika_harness::seat_from_lookup;
+use nika_kernel::prelude::NikaErrorCode as _;
 use nika_verb_agent::{AgentEvent, AgentInput, AgentObserver, AgentVerb};
 
 const CODEX_LIKE: &str = r#"
@@ -83,10 +85,19 @@ send({"jsonrpc": "2.0", "id": mode["id"], "result": {"configOptions": config("re
 prompt = recv()
 assert prompt["method"] == "session/prompt", prompt
 
-if scenario in ("failed-turn", "failed-turn-plain"):
-    message = "exceeded retry limit, last status: 429 Too Many Requests"
-    if scenario == "failed-turn" and typed:
-        failure = {"id": "turn-1:error", "revision": 1, "category": "limit",
+REJECTED_MODEL = json.dumps({"type": "error", "status": 400, "error": {
+    "type": "invalid_request_error",
+    "message": "The 'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account.",
+    "code": "model_not_found"}}, separators=(",", ":"))
+FAILED_TURNS = {
+    "failed-turn": ("exceeded retry limit, last status: 429 Too Many Requests", "limit"),
+    "failed-turn-plain": ("exceeded retry limit, last status: 429 Too Many Requests", "limit"),
+    "failed-model": (REJECTED_MODEL, "service"),
+}
+if scenario in FAILED_TURNS:
+    message, category = FAILED_TURNS[scenario]
+    if scenario != "failed-turn-plain" and typed:
+        failure = {"id": "turn-1:error", "revision": 1, "category": category,
                    "severity": "error", "title": message, "actions": ["retry"]}
         send({"jsonrpc": "2.0", "id": prompt["id"], "result": {"stopReason": "end_turn",
               "usage": None, "_meta": {"jetbrains": {"air": {"version": 1,
@@ -570,6 +581,34 @@ async fn a_failed_codex_turn_fails_the_agent_task() {
         ),
         "{message}"
     );
+    assert!(err.is_transient(), "codex-acp offers retry on a 429: {err}");
+}
+
+/// 7 · the gauntlet's rejected model (NIK-275, an `agent:` turn whose 400 `model_not_found`
+/// settled succeeded), in the shape real codex-acp 1.13.1 reported it once the capability was
+/// advertised: codex error `other`, so a `service` failure offering retry, its title the
+/// provider's JSON error. The task fails with those words; following the adapter's actions,
+/// it is a transient session failure.
+#[tokio::test]
+async fn a_rejected_codex_model_fails_the_agent_task() {
+    let (verb, _world) = seated("failed-model");
+    let mut input = AgentInput::new("answer");
+    input.permits = Some(writes_out());
+    let err = verb
+        .run_observed(input, &VecObserver::default())
+        .await
+        .expect_err("a rejected model fails the task");
+    let message = err.to_string();
+    assert!(
+        message.contains(
+            "the harness reported a failed turn (error · service): {\"type\":\"error\",\
+             \"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The \
+             'gpt-6.1-sol' model is not supported when using Codex with a ChatGPT account.\",\
+             \"code\":\"model_not_found\"}}"
+        ),
+        "{message}"
+    );
+    assert!(err.is_transient(), "codex-acp offers retry on it: {err}");
 }
 
 /// 7 · an adapter that knows no typed failure still answers with the error text and
