@@ -131,6 +131,17 @@ pub fn judge_harness_ask(facts: &HarnessAskFacts, permits: Option<&Permits>) -> 
             plane: "agent",
             why: "a think ask declares no effect reach".to_owned(),
         },
+        // An execute ask that names a URL asks for NETWORK access for a
+        // command (codex-acp's network approval: `rawInput.url` beside the
+        // command, NIK-266): the net plane judges it, never the program
+        // allowlist — a listed program must not carry a socket out.
+        Some("execute") if facts.url.is_some() => HarnessGate::Outside {
+            plane: "net",
+            why: "an execute ask that opens network access is judged on the net plane, \
+                  never by its program — never auto-judged (no shared host parser at L0); \
+                  the operator answers with the URL in view"
+                .to_owned(),
+        },
         Some("execute") => judge_execute(facts, permits),
         Some("read" | "search") => judge_fs(facts, permits, false),
         Some("edit" | "delete" | "move") => judge_fs(facts, permits, true),
@@ -362,6 +373,30 @@ mod tests {
         };
         assert_eq!(plane, "net");
         assert!(why.contains("operator"), "{why}");
+    }
+
+    /// NIK-266 · codex-acp asks network access for a command as an
+    /// `execute` carrying `rawInput.url`: a granted program must not admit
+    /// the socket — the net plane judges it, outside like every fetch.
+    #[test]
+    fn an_execute_that_opens_the_network_is_a_net_ask_never_an_exec_grant() {
+        let mut f = facts("execute");
+        f.command = vec!["git".to_owned(), "push".to_owned()];
+        f.url = Some("https://github.com".to_owned());
+        for permits in [permits_exec_git(), permits_exec_any(), permits_fs()] {
+            let v = judge_harness_ask(&f, Some(&permits));
+            let HarnessGate::Outside { plane, why } = v else {
+                panic!("a network execute is never inside an exec grant, got {v:?}");
+            };
+            assert_eq!(plane, "net");
+            assert!(why.contains("net plane"), "{why}");
+        }
+        // The same argv without a URL stays the exec plane's to judge.
+        f.url = None;
+        assert!(matches!(
+            judge_harness_ask(&f, Some(&permits_exec_git())),
+            HarnessGate::Inside { plane: "exec", .. }
+        ));
     }
 
     #[test]

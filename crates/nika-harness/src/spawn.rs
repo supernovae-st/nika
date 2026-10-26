@@ -532,21 +532,22 @@ impl SpawnedHarness {
     }
 
     /// Spawn the adapter child — piped stdio · composed env ·
-    /// kill-on-drop (a harness never outlives the task that asked).
+    /// kill-on-drop (a harness never outlives the task that asked) ·
+    /// rooted at `cwd`, the session root (`session/new.cwd`).
     fn spawn_child(
         &self,
-        cwd: Option<&std::path::Path>,
+        cwd: &std::path::Path,
+        group: bool,
         profile_env: &[(String, String)],
     ) -> Result<tokio::process::Child, HarnessError> {
         let parent: BTreeMap<String, String> = std::env::vars().collect();
         let env = compose_env(&parent, &self.adapter.passthrough_env);
         let mut cmd = tokio::process::Command::new(&self.adapter.command);
-        // NOTE (review 2026-08-06): the child deliberately inherits the
-        // ENGINE's cwd — the task's `cwd` is a SESSION-scoped logical
-        // root carried on the wire (`session/new.cwd`), not a process
-        // cwd. An adapter that resolved paths against its OS cwd would
-        // escape the intended root; the sandbox backing at B5 is what
-        // enforces that, never this spawn.
+        // The process starts in the SAME root the wire names (NIK-266): an
+        // adapter, or a tool it spawns, that resolves a path against its OS
+        // cwd lands in the session root, never in the engine's own launch or
+        // service directory. This places the process; it confines nothing —
+        // what the session may reach is the mode and the permission bridge.
         cmd.args(&self.adapter.args)
             .env_clear()
             .envs(&env)
@@ -554,12 +555,14 @@ impl SpawnedHarness {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
-            .kill_on_drop(true);
-        if let Some(cwd) = cwd {
-            cmd.current_dir(cwd);
-            #[cfg(unix)]
+            .kill_on_drop(true)
+            .current_dir(cwd);
+        #[cfg(unix)]
+        if group {
             cmd.process_group(0);
         }
+        #[cfg(not(unix))]
+        let _ = group;
         cmd.spawn().map_err(|e| HarnessError::Unavailable {
             reason: format!(
                 "adapter `{}`: cannot spawn `{}`: {e}",
@@ -898,8 +901,7 @@ impl SpawnedHarness {
         }
         let generic = std::time::Duration::from_secs(crate::IDLE_TIMEOUT_SECS);
         let idle = (call.as_ref()).map_or(generic, |(deadline, _)| deadline.allowance());
-        let mut child =
-            self.spawn_child(self.completion.map(|_| request.cwd.as_path()), &profile_env)?;
+        let mut child = self.spawn_child(&request.cwd, self.completion.is_some(), &profile_env)?;
         let stdout = child.stdout.take().ok_or_else(|| HarnessError::Session {
             reason: "the child's stdout was not piped".to_owned(),
         })?;
@@ -1284,7 +1286,8 @@ else:
         let adapter =
             HarnessAdapter::new("ghost", "/nonexistent/ghost-bin-2026").expect("id is fine");
         let spawned = SpawnedHarness::new(adapter);
-        let err = spawned.spawn_child(None, &[]).expect_err("no such binary");
+        let err =
+            (spawned.spawn_child(&std::env::temp_dir(), false, &[])).expect_err("no such binary");
         let HarnessError::Unavailable { reason } = &err else {
             panic!("an absent binary is Unavailable, got {err:?}");
         };

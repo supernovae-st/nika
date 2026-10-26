@@ -91,6 +91,26 @@ pub fn response_line(id: &Value, result: &impl Serialize) -> Result<String, Wire
     serde_json::to_string(&frame).map_err(WireError::from)
 }
 
+/// JSON-RPC 2.0 `Method not found`: the code a client answers for a method it
+/// does not offer.
+pub const METHOD_NOT_FOUND: i64 = -32601;
+
+/// Render one outgoing ERROR RESPONSE line (refusing an agent → client
+/// request, NIK-266): an empty RESULT would tell the agent the call
+/// succeeded — a `fs/write_text_file` answered `{}` reads as written.
+///
+/// # Errors
+///
+/// Serialization failed (never, for these primitive fields).
+pub fn error_line(id: &Value, code: i64, message: &str) -> Result<String, WireError> {
+    let frame = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": {"code": code, "message": message},
+    });
+    serde_json::to_string(&frame).map_err(WireError::from)
+}
+
 /// One parsed incoming line, classified by envelope shape.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]

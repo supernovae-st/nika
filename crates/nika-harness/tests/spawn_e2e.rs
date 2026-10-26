@@ -162,14 +162,15 @@ async fn session_meta_of(id: &str) -> serde_json::Value {
 }
 
 /// The `agent:` seat of a Claude Code adapter opens each session asking to see the agent's
-/// thinking summary, and asks nothing else: its own loop, tools and settings stay the agent's.
-/// A Codex agent session sends no options at all.
+/// thinking summary and withholding the bypass mode (NIK-266), and asks nothing else: its own
+/// loop, tools and settings stay the agent's. A Codex agent session sends no options at all.
 #[tokio::test]
 async fn a_claude_code_agent_session_asks_to_see_its_thinking() {
     let shown = serde_json::json!({"type": "adaptive", "display": "summarized"});
     assert_eq!(
         session_meta_of("claude-code").await,
-        serde_json::json!({"claudeCode": {"options": {"thinking": shown}}})
+        serde_json::json!({"claudeCode": {"options": {
+            "allowDangerouslySkipPermissions": false, "thinking": shown}}})
     );
     assert_eq!(session_meta_of("codex").await, serde_json::Value::Null);
 }

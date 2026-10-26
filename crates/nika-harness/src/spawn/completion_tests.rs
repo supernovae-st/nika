@@ -140,8 +140,9 @@ async fn the_spawned_transport_is_bounded_by_the_call_allowance() {
 }
 
 /// What a seat sends with `session/new` follows its adapter and role: a Claude Code one-shot its
-/// audited profile, its thinking shown; a Claude Code agent session its thinking shown and no
-/// other option, its own loop untouched; a Codex seat, one-shot or agent, nothing.
+/// audited profile, its thinking shown; a Claude Code agent session its thinking shown and the
+/// bypass mode withheld (NIK-266), its own loop untouched; a Codex seat, one-shot or agent,
+/// nothing.
 #[test]
 fn a_seat_sends_its_profile_or_its_agent_options() {
     let seat = |id: &str| SpawnedHarness::new(HarnessAdapter::new(id, "python3").expect("id"));
@@ -156,7 +157,8 @@ fn a_seat_sends_its_profile_or_its_agent_options() {
         .expect("a Claude Code agent session sends options");
     assert_eq!(
         agent,
-        serde_json::json!({"claudeCode": {"options": {"thinking": shown}}})
+        serde_json::json!({"claudeCode": {"options": {
+            "allowDangerouslySkipPermissions": false, "thinking": shown}}})
     );
     let one_shot = claude
         .for_completion(Completion::Authoring)

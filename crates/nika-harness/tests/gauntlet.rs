@@ -137,6 +137,32 @@ send({"jsonrpc":"2.0","id":new["id"],"result":{"sessionId":"s-g"}})
 prompt = recv()
 "#;
 
+/// NIK-266 · the adapter PROCESS starts in the session root the wire names, never in the
+/// engine's own directory: an adapter, or a tool it spawns, that resolves a path against its
+/// OS cwd lands in the project (the test process runs from the crate directory).
+#[tokio::test]
+async fn g0_the_adapter_process_starts_in_the_session_root() {
+    let (a, _g) = agent(
+        "cwd",
+        &format!(
+            "{HANDSHAKE}\nimport os\n\
+             send({{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{{\
+             \"sessionId\":\"s-g\",\"update\":{{\"sessionUpdate\":\"agent_message_chunk\",\
+             \"content\":{{\"type\":\"text\",\"text\":os.getcwd()}}}}}}}})\n\
+             send({{\"jsonrpc\":\"2.0\",\"id\":prompt[\"id\"],\"result\":{{\"stopReason\":\"end_turn\"}}}})\n"
+        ),
+    );
+    let (_, output, error) = drain(a).await;
+    assert!(error.is_none(), "{error:?}");
+    let root = std::fs::canonicalize("/tmp").expect("the session root exists");
+    assert_ne!(std::env::current_dir().expect("cwd"), root);
+    assert_eq!(
+        output.as_deref(),
+        Some(root.to_string_lossy().as_ref()),
+        "the child's own cwd is the session root"
+    );
+}
+
 #[tokio::test]
 async fn g1_an_agent_that_dies_after_the_handshake_is_a_session_death() {
     let (a, _g) = agent("die", &format!("{HANDSHAKE}\nsys.exit(0)\n"));

@@ -27,8 +27,8 @@ use std::sync::Arc;
 
 use nika_cap::{HarnessAskFacts, HarnessGate, judge_harness_ask};
 use nika_kernel::ai::harness::{
-    DynAgentBackend, HarnessError, HarnessEvent, HarnessRequest, PermissionDecision,
-    PermissionReply,
+    DynAgentBackend, HarnessConfinement, HarnessError, HarnessEvent, HarnessRequest,
+    PermissionDecision, PermissionReply,
 };
 use nika_kernel::runtime::agent::AgentStopReason;
 
@@ -158,6 +158,16 @@ pub(crate) async fn run_on_harness(
                     observer,
                 )?;
             }
+            Some(Ok(HarnessEvent::SessionConfined {
+                mode,
+                selected,
+                unasked,
+            })) => {
+                observer.on_event(&confinement_witness(mode.as_deref(), selected, unasked));
+            }
+            Some(Ok(HarnessEvent::ClientCallRefused { method })) => {
+                observer.on_event(&refused_call_witness(method));
+            }
             Some(Ok(HarnessEvent::ImageActivityObserved { tool_call_id })) => {
                 observer.on_event(&AgentEvent::HarnessImageActivity { tool_call_id });
             }
@@ -191,11 +201,13 @@ pub(crate) async fn run_on_harness(
 }
 
 /// The delegated session's request: the prompt, the system, the model the lane resolved,
-/// and the authored effort — which the session applies through its own option and reads
-/// back before the prompt, or refuses (typed, under the declaration).
+/// the authored effort — which the session applies through its own option and reads
+/// back before the prompt, or refuses (typed, under the declaration) — and the
+/// confinement the workflow's `permits:` require of the session's own mode (NIK-266).
 fn session_request(seat: &HarnessSeat, input: &AgentInput) -> HarnessRequest {
     let mut request = HarnessRequest::new(input.prompt.clone(), seat.cwd.clone())
-        .with_requested_effort(input.requirement.as_ref().and_then(|r| r.effort.clone()));
+        .with_requested_effort(input.requirement.as_ref().and_then(|r| r.effort.clone()))
+        .with_confinement(confinement_for(input.permits.as_ref()));
     if let Some(system) = &input.system {
         request = request.with_system(system.clone());
     }
@@ -203,6 +215,68 @@ fn session_request(seat: &HarnessSeat, input: &AgentInput) -> HarnessRequest {
         request = request.with_requested_model(model.clone());
     }
     request
+}
+
+/// The most restrictive confinement the declared boundary allows (NIK-266): no
+/// `permits.fs.write` grant (an absent block is zero authority, F-O8) holds the
+/// session read-only; a write grant admits a workspace-write mode. Neither ever
+/// admits a mode that approves on its own — the client selects only measured
+/// modes whose every approval reaches the bridge.
+pub(crate) fn confinement_for(permits: Option<&nika_schema::types::Permits>) -> HarnessConfinement {
+    let writes = permits
+        .and_then(|p| p.fs.as_ref())
+        .is_some_and(|fs| !fs.write.is_empty());
+    if writes {
+        HarnessConfinement::WorkspaceWrite
+    } else {
+        HarnessConfinement::ReadOnly
+    }
+}
+
+/// The session's confinement as the NEP-0007 witness frame (`permit_checked`,
+/// plane `agent`), journaled before any ask: WHICH mode the harness runs under
+/// and what it still does without asking. `confine` when the client selected a
+/// measured mode and read it back; `unmeasured` when only the harness's own
+/// mode could be observed — the residual then names that nothing is selected.
+fn confinement_witness(mode: Option<&str>, selected: bool, unasked: String) -> AgentEvent {
+    AgentEvent::PermissionJudged {
+        plane: "agent",
+        gate: format!("session mode · {}", mode.unwrap_or("<none advertised>")),
+        decision: if selected { "confine" } else { "unmeasured" },
+        why: unasked,
+    }
+}
+
+/// A client call the harness made that this client refused: a method it does not
+/// offer (no fs and no terminal capability is ever advertised), or a permission
+/// asked before the session was confined. Witnessed as a deny on the plane it
+/// would have exercised.
+fn refused_call_witness(method: String) -> AgentEvent {
+    if method == "session/request_permission" {
+        return AgentEvent::PermissionJudged {
+            plane: "agent",
+            gate: method,
+            decision: "deny",
+            why: "a permission asked before the prompt is answered `cancelled`: nothing is \
+                  granted before the session holds its confinement"
+                .to_owned(),
+        };
+    }
+    let plane = if method.starts_with("fs/") {
+        "fs"
+    } else if method.starts_with("terminal/") {
+        "exec"
+    } else {
+        "agent"
+    };
+    AgentEvent::PermissionJudged {
+        plane,
+        gate: method,
+        decision: "deny",
+        why: "Nika offers the harness no client fs or terminal method: the call is refused \
+              on the wire (JSON-RPC method not found), never served"
+            .to_owned(),
+    }
 }
 
 /// Persist only bytes received on the wire. The receipt is published BEFORE the
@@ -710,6 +784,158 @@ mod tests {
             tape: Mutex::new(tape),
         };
         HarnessSeat::new(Arc::new(backend), "/tmp")
+    }
+
+    /// NIK-266 · the declared write grants decide the confinement: no
+    /// `fs.write` (or no permits at all, zero authority) holds the session
+    /// read-only; any write grant admits workspace-write — never more.
+    #[test]
+    fn the_confinement_follows_the_declared_write_grants() {
+        use nika_schema::types::{ExecPermit, FsPermits, Permits};
+        let mut exec_only = Permits::new();
+        exec_only.exec = Some(ExecPermit::Any);
+        let mut reads = Permits::new();
+        reads.fs = Some(FsPermits::new(vec!["src/**".to_owned()], Vec::new()));
+        let mut writes = Permits::new();
+        writes.fs = Some(FsPermits::new(Vec::new(), vec!["out/**".to_owned()]));
+        for (permits, expected) in [
+            (None, HarnessConfinement::ReadOnly),
+            (Some(Permits::new()), HarnessConfinement::ReadOnly),
+            (Some(exec_only), HarnessConfinement::ReadOnly),
+            (Some(reads), HarnessConfinement::ReadOnly),
+            (Some(writes), HarnessConfinement::WorkspaceWrite),
+        ] {
+            assert_eq!(confinement_for(permits.as_ref()), expected, "{permits:?}");
+        }
+    }
+
+    /// A backend recording every request it receives, then completing.
+    struct RecordingBackend(Mutex<Vec<HarnessRequest>>);
+
+    impl DynAgentBackend for RecordingBackend {
+        fn run_agent_boxed(
+            &self,
+            request: HarnessRequest,
+        ) -> Pin<Box<dyn Future<Output = Result<HarnessEventStream, HarnessError>> + Send + '_>>
+        {
+            self.0.lock().expect("requests").push(request);
+            let tape = vec![completed("done")];
+            Box::pin(async move { Ok(Box::pin(TapeStream { tape }) as HarnessEventStream) })
+        }
+    }
+
+    /// NIK-266 · the session the verb opens is rooted at the seat (the
+    /// admitted project) and REQUIRES the confinement its permits project —
+    /// the old request carried no confinement at all, so the harness kept
+    /// whatever self-approving mode it started in.
+    #[tokio::test]
+    async fn the_session_request_carries_the_seat_root_and_the_confinement() {
+        let backend = Arc::new(RecordingBackend(Mutex::new(Vec::new())));
+        let seat = HarnessSeat::new(backend.clone(), "/work/project");
+        let mut input = AgentInput::new("go");
+        input.permits = Some({
+            let mut p = nika_schema::types::Permits::new();
+            p.fs = Some(nika_schema::types::FsPermits::new(
+                Vec::new(),
+                vec!["./out/report.md".to_owned()],
+            ));
+            p
+        });
+        run_on_harness(&seat, input, &crate::NoopObserver)
+            .await
+            .expect("completes");
+        run_on_harness(&seat, AgentInput::new("go"), &crate::NoopObserver)
+            .await
+            .expect("completes");
+        let requests = backend.0.lock().expect("requests");
+        let seen: Vec<_> = requests
+            .iter()
+            .map(|r| (r.cwd.clone(), r.confinement))
+            .collect();
+        assert_eq!(
+            seen,
+            [
+                (
+                    std::path::PathBuf::from("/work/project"),
+                    Some(HarnessConfinement::WorkspaceWrite)
+                ),
+                (
+                    std::path::PathBuf::from("/work/project"),
+                    Some(HarnessConfinement::ReadOnly)
+                ),
+            ]
+        );
+    }
+
+    /// NIK-266 · the confinement the session settled and a client method it
+    /// was refused both ride the `permit_checked` witness, BEFORE the outcome.
+    #[tokio::test]
+    async fn the_session_confinement_and_a_refused_client_call_are_witnessed() {
+        let seat = seat_with(vec![
+            HarnessEvent::SessionConfined {
+                mode: Some("read-only".to_owned()),
+                selected: true,
+                unasked: "reads any file without asking".to_owned(),
+            },
+            HarnessEvent::ClientCallRefused {
+                method: "fs/write_text_file".to_owned(),
+            },
+            HarnessEvent::ClientCallRefused {
+                method: "terminal/create".to_owned(),
+            },
+            HarnessEvent::ClientCallRefused {
+                method: "session/request_permission".to_owned(),
+            },
+            HarnessEvent::SessionConfined {
+                mode: None,
+                selected: false,
+                unasked: "no mode to select".to_owned(),
+            },
+            completed("done"),
+        ]);
+        let observer = VecObserver::default();
+        run_on_harness(&seat, AgentInput::new("go"), &observer)
+            .await
+            .expect("completes");
+        let judged: Vec<(&str, String, &str, String)> = observer
+            .0
+            .lock()
+            .expect("observer")
+            .iter()
+            .filter_map(|e| match e {
+                AgentEvent::PermissionJudged {
+                    plane,
+                    gate,
+                    decision,
+                    why,
+                } => Some((*plane, gate.clone(), *decision, why.clone())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(judged.len(), 5, "{judged:?}");
+        assert_eq!(
+            (judged[0].0, judged[0].1.as_str(), judged[0].2),
+            ("agent", "session mode · read-only", "confine")
+        );
+        assert_eq!(judged[0].3, "reads any file without asking");
+        assert_eq!(
+            (judged[1].0, judged[1].1.as_str(), judged[1].2),
+            ("fs", "fs/write_text_file", "deny")
+        );
+        assert!(judged[1].3.contains("never served"), "{}", judged[1].3);
+        assert_eq!(
+            (judged[2].0, judged[2].1.as_str(), judged[2].2),
+            ("exec", "terminal/create", "deny")
+        );
+        assert_eq!(
+            (judged[3].0, judged[3].1.as_str(), judged[3].2),
+            ("agent", "session/request_permission", "deny")
+        );
+        assert!(judged[3].3.contains("before the prompt"), "{}", judged[3].3);
+        assert_eq!(
+            (judged[4].0, judged[4].1.as_str(), judged[4].2),
+            ("agent", "session mode · <none advertised>", "unmeasured")
+        );
     }
 
     /// The witness label names WHAT was judged (mutation-killers for

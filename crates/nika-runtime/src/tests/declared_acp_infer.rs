@@ -135,8 +135,10 @@ fn select(id: &str, category: &str, current: &str, values: &[&str]) -> Value {
         "options":values.iter().map(|v| json!({"value":v,"name":v})).collect::<Vec<_>>()})
 }
 
-/// claude-agent-acp 0.81.1: `max` is offered only once opus is selected.
-fn claude(model: &str, effort: &str) -> Value {
+/// claude-agent-acp 0.81.1: `max` is offered only once opus is selected; its mode option opens
+/// on the user's `permissions.defaultMode` (`auto` here, a classifier that approves for the
+/// client), which an agent session must leave for `default` before its prompt (NIK-266).
+fn claude(model: &str, effort: &str, mode: &str) -> Value {
     let efforts: &[&str] = if model == "claude-opus-5-5" {
         &["default", "low", "medium", "high", "xhigh", "max"]
     } else {
@@ -149,7 +151,13 @@ fn claude(model: &str, effort: &str) -> Value {
             model,
             &["default", "claude-opus-5-5", "claude-sonnet-5"]
         ),
-        select("effort", "thought_level", effort, efforts)
+        select("effort", "thought_level", effort, efforts),
+        select(
+            "mode",
+            "mode",
+            mode,
+            &["default", "acceptEdits", "plan", "auto"]
+        )
     ])
 }
 
@@ -159,25 +167,31 @@ async fn claude_peer(
     answer: &'static str,
     seen: Arc<Mutex<Vec<Value>>>,
 ) {
-    let mut model = "default".to_owned();
+    let (mut model, mut effort, mut mode) = (
+        "default".to_owned(),
+        "default".to_owned(),
+        "auto".to_owned(),
+    );
     while let Some(request) = read(&mut r).await {
         seen.lock().expect("seen").push(request.clone());
         let result = match request["method"].as_str() {
             Some("initialize") => json!({"protocolVersion":1,"agentInfo":
                 {"name":"@agentclientprotocol/claude-agent-acp","version":"0.81.1"}}),
             Some("session/new") => {
-                json!({"sessionId":"s-claude","configOptions":claude("default","default")})
-            }
-            Some("session/set_config_option") if request["params"]["configId"] == "model" => {
-                request["params"]["value"]
-                    .as_str()
-                    .expect("value")
-                    .clone_into(&mut model);
-                json!({"configOptions":claude(&model, "default")})
+                json!({"sessionId":"s-claude","configOptions":claude(&model, &effort, &mode)})
             }
             Some("session/set_config_option") => {
-                let effort = request["params"]["value"].as_str().expect("value");
-                json!({"configOptions":claude(&model, effort)})
+                let value = request["params"]["value"]
+                    .as_str()
+                    .expect("value")
+                    .to_owned();
+                match request["params"]["configId"].as_str() {
+                    Some("model") => model = value,
+                    Some("effort") => effort = value,
+                    Some("mode") => mode = value,
+                    other => panic!("unexpected option {other:?}"),
+                }
+                json!({"configOptions":claude(&model, &effort, &mode)})
             }
             Some("session/prompt") => {
                 let chunk = json!({"jsonrpc":"2.0","method":"session/update","params":{
@@ -354,7 +368,20 @@ async fn one_declaration_serves_infer_and_agent_over_acp() {
         1
     );
     let agent = seat.seen();
-    assert_eq!(methods(&agent), configured, "agent: {agent:?}");
+    // The agent session is also confined: `auto` is left for `default`, read back (NIK-266).
+    let confined = [
+        "initialize",
+        "session/new",
+        "session/set_config_option",
+        "session/set_config_option",
+        "session/set_config_option",
+        "session/prompt",
+    ];
+    assert_eq!(methods(&agent), confined, "agent: {agent:?}");
+    assert_eq!(
+        agent[4]["params"],
+        json!({"sessionId":"s-claude","configId":"mode","value":"default"})
+    );
     assert!(
         agent[1]["params"].get("_meta").is_none(),
         "the agent session keeps its own loop"
@@ -399,7 +426,7 @@ async fn one_declaration_serves_infer_and_agent_over_acp() {
         );
     }
     assert!(
-        agent[4]["params"]["prompt"][0]["text"]
+        agent[5]["params"]["prompt"][0]["text"]
             .as_str()
             .is_some_and(|prompt| prompt.contains("three invariants")),
         "the agent read the infer answer: {agent:?}"

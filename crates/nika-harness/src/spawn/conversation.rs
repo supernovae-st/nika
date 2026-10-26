@@ -63,7 +63,7 @@ impl SpawnedHarness {
         let scratch = tempfile::tempdir().map_err(|_| HarnessError::Unavailable {
             reason: "ACP conversation cannot create its scratch directory".to_owned(),
         })?;
-        let mut child = self.spawn_child(Some(scratch.path()), &profile_env)?;
+        let mut child = self.spawn_child(scratch.path(), true, &profile_env)?;
         let unpiped = |pipe: &str| HarnessError::Session {
             reason: format!("the child's {pipe} was not piped"),
         };

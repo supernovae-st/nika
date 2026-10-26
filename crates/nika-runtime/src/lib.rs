@@ -1356,6 +1356,7 @@ where
                 )
                 .or_else(|| pause::harness_gate_block(&finish, wf))
             {
+                agent_events::emit_paused_decisions(&finish, stamper, sink);
                 paused = Some(p);
                 continue;
             }
