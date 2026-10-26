@@ -169,6 +169,7 @@ fn map_fx_error(e: FxError) -> BuiltinFailure {
         )
         .with_details(json!({ "pixels": pixels, "max": max })),
         FxError::Encode(m) => fail(C_SAVE, m),
+        FxError::Cap(m) => fail(C_BUDGET, m),
         _ => fail(C_DECODE, format!("unmapped fx error: {e}")),
     }
 }

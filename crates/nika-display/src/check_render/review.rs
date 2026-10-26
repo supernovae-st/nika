@@ -95,6 +95,7 @@ fn builtin_face(tool: &str) -> String {
         "nika:chart" => "draws a chart",
         "nika:image_generate" => "generates an image",
         "nika:image_fx" => "transforms an image",
+        "nika:image_compose" => "composes images into one",
         "nika:tts_generate" => "speaks text aloud",
         _ => tool,
     }

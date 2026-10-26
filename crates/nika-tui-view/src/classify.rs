@@ -434,7 +434,7 @@ pub fn for_builtin(name: &str) -> Option<Format> {
     let bare = name.strip_prefix("nika:").unwrap_or(name);
     Some(match bare {
         "chart" => Format::Svg,
-        "image_generate" | "image_fx" => Format::Png,
+        "image_generate" | "image_fx" | "image_compose" => Format::Png,
         "tts_generate" => Format::Mp3,
         "json_diff" => Format::JsonPatch,
         "fetch" => Format::Markdown,
@@ -542,7 +542,7 @@ mod tests {
     #[test]
     fn every_builtin_the_catalog_ships_has_a_viewer() {
         let names = nika_session::guard::builtin_names();
-        assert_eq!(names.len(), 29, "the catalog grew or shrank: map it here");
+        assert_eq!(names.len(), 30, "the catalog grew or shrank: map it here");
         for name in &names {
             assert!(
                 for_builtin(name).is_some(),

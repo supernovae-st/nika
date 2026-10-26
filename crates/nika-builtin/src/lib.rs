@@ -44,6 +44,7 @@ pub mod decide;
 pub mod defs;
 pub mod file;
 pub mod image;
+pub(crate) mod image_compose;
 pub mod image_fx;
 pub mod inspect;
 pub(crate) mod judged_fs;
@@ -462,7 +463,7 @@ where
             // resolve_multipart · the judged fs pins each file read).
             "fetch" => Ok(self.route_fetch(args, jq_clock, deadline).await),
             "notify" => Ok(net::notify(self.http.as_ref(), args).await),
-            // media 3 — provider calls ride dedicated planes (const endpoints);
+            // media 5 — provider calls ride dedicated planes (const endpoints);
             // saves gate each final path on the permits.fs boundary before I/O.
             "image_generate" => Ok(image::generate(
                 self.fs.as_ref(),
@@ -477,6 +478,7 @@ where
             "tts_generate" => Ok(self.route_tts(args).await),
             "chart" => Ok(self.guarded_chart(args).await),
             "image_fx" => Ok(self.route_image_fx(args).await),
+            "image_compose" => Ok(self.route_image_compose(args).await),
             // introspection 2
             "compose" => Ok(core_tools::compose()),
             "inspect" => Ok(inspect::inspect(self.workflow.as_ref(), args)),
@@ -515,6 +517,21 @@ where
     async fn route_image_fx(&self, args: &Args) -> BuiltinOutcome {
         image_fx::run(
             self.fs.as_ref(),
+            self.emitter.as_ref(),
+            &self.fs_boundary,
+            args,
+        )
+        .await
+    }
+
+    /// The `nika:image_compose` plumbing (pure delegation): every input read
+    /// is gated on the permits.fs boundary and rides the judged fs (the
+    /// at-open re-judgment · the final-component pin); the `out:` artifact
+    /// write and its idempotence read keep the raw fs (the chart precedent).
+    async fn route_image_compose(&self, args: &Args) -> BuiltinOutcome {
+        image_compose::run(
+            self.fs.as_ref(),
+            &self.judged(),
             self.emitter.as_ref(),
             &self.fs_boundary,
             args,
@@ -1075,10 +1092,11 @@ mod tests {
             let outcome = rig.execute(call(&def.name, serde_json::json!({}))).await;
             assert!(outcome.is_ok(), "{} must route (got {outcome:?})", def.name);
         }
-        // …and the count is the canonical 29 (stdlib v0.1 · +compose per
+        // …and the count is the canonical 30 (stdlib v0.1 · +compose per
         // ADR-096 · +image_generate stdlib §Media · +tts_generate §Audio ·
-        // +decide spec 11 W-DEC · +remove_file §nika:remove_file).
-        assert_eq!(tool_defs().len(), 29);
+        // +decide spec 11 W-DEC · +remove_file §nika:remove_file ·
+        // +image_compose §Media #5).
+        assert_eq!(tool_defs().len(), 30);
     }
 
     #[tokio::test]
@@ -1138,7 +1156,7 @@ mod tests {
         let defs = ToolDefinitionProviderDyn::tool_defs(&rig())
             .await
             .expect("enumerates");
-        assert_eq!(defs.len(), 29);
+        assert_eq!(defs.len(), 30);
         assert!(defs.iter().all(|d| d.name.starts_with(NAMESPACE)));
         assert!(defs.iter().all(|d| !d.description.is_empty()));
         assert!(
