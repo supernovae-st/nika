@@ -448,17 +448,17 @@ pub(crate) fn gate(preview: &str, request: &Value) -> Option<CommitGate> {
 /// Why an engine builtin's spend is absent from `cost_usd`, when it says
 /// (`cost_unpriced` beside a null `cost_usd` · the `nika:tts_generate`
 /// `system` voice reports `local_model`: local compute is unpriced, never
-/// free). Only an ENGINE builtin (`nika:`) speaks into the run's ledger, only
-/// with no priced spend, and only in the closed vocabulary — an MCP
-/// server's output never labels the ledger, and an unknown word is no claim.
+/// free). Only the ONE builtin that produces the field speaks into the run's
+/// ledger, only with no priced spend, and only in the closed vocabulary — a
+/// data-shaped builtin (`nika:jq` can emit any key) or an MCP server's output
+/// never labels the ledger, and an unknown word is no claim.
 fn builtin_unpriced(note: &str, value: &Value, cost_usd: Option<f64>) -> Option<UnpricedReason> {
     let tool = note.trim_start_matches("invoke · ");
-    if cost_usd.is_some() || !tool.starts_with("nika:") {
+    if cost_usd.is_some() || tool != "nika:tts_generate" {
         return None;
     }
     match value.get("cost_unpriced")?.as_str()? {
         "local_model" => Some(UnpricedReason::LocalModel),
-        "mock_provider" => Some(UnpricedReason::MockProvider),
         _ => None,
     }
 }
@@ -495,6 +495,15 @@ mod unpriced_tests {
             builtin_unpriced("invoke · nika:jq", &json!([1]), None),
             None
         );
+        // A data-shaped builtin can emit any key: its output is workflow
+        // data, never a word in the run's ledger.
+        for tool in ["nika:jq", "nika:json_merge_patch", "nika:fetch"] {
+            assert_eq!(
+                builtin_unpriced(&format!("invoke · {tool}"), &system, None),
+                None,
+                "{tool}"
+            );
+        }
     }
 }
 
