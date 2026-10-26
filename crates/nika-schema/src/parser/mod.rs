@@ -28,6 +28,7 @@ mod position;
 pub(super) use position::{CharToByte, yaml_span_to_span};
 mod retired;
 mod run_access;
+mod scalar_body;
 pub(crate) mod tasks;
 #[cfg(test)]
 mod teaching_tests;
@@ -35,6 +36,8 @@ mod teaching_tests;
 mod type_sweep;
 mod value;
 pub(crate) mod verbs;
+mod yaml_error;
+use yaml_error::scanner_refusal;
 
 use marked_yaml::types::MarkedMappingNode;
 use marked_yaml::{LoadError, LoaderOptions, Span as YamlSpan, parse_yaml_with_options};
@@ -224,65 +227,6 @@ fn load_error_to_schema(
             },
             None => scanner_refusal(&other, yaml, file_id, char_to_byte),
         },
-    }
-}
-
-/// A loader refusal at the site the scanner stopped at: the span every other
-/// PARSE code carries, so the frame and `--json` name the line, plus its usual
-/// cause when the line shows one (#1608).
-fn scanner_refusal(
-    err: &LoadError,
-    yaml: &str,
-    file_id: FileId,
-    char_to_byte: &CharToByte,
-) -> SchemaError {
-    let marker = load_error_marker(err);
-    let raw = err.to_string();
-    let cause = marker.and_then(|m| yaml_syntax_cause(&raw, yaml, m.line()));
-    SchemaError::YamlSyntax {
-        message: match cause {
-            Some(cause) => format!("{raw} — {cause}"),
-            None => raw,
-        },
-        span: marker.map(|m| Span::point(file_id, ByteOffset::new(char_to_byte.marker(m)))),
-    }
-}
-
-/// The position a loader refusal names; a duplicate key carries its own span instead.
-fn load_error_marker(err: &LoadError) -> Option<&marked_yaml::Marker> {
-    match err {
-        LoadError::TopLevelMustBeMapping(m)
-        | LoadError::TopLevelMustBeSequence(m)
-        | LoadError::UnexpectedAnchor(m)
-        | LoadError::MappingKeyMustBeScalar(m)
-        | LoadError::UnexpectedTag(m)
-        | LoadError::ScanError(m, _) => Some(m),
-        LoadError::DuplicateKey(_) => None,
-    }
-}
-
-/// The cause behind the two YAML errors a newcomer meets most (#1608), read on the line
-/// (1-based) the scanner stopped at: a `: ` inside a plain value, and an unquoted
-/// `${{ … }}` inside a flow mapping. `None` when the line shows neither.
-fn yaml_syntax_cause(raw: &str, yaml: &str, line: usize) -> Option<&'static str> {
-    let text = yaml.lines().nth(line.checked_sub(1)?)?;
-    let value_holds_a_colon = text
-        .trim_start()
-        .trim_start_matches("- ")
-        .split_once(": ")
-        .is_some_and(|(_, value)| value.contains(": "));
-    if raw.contains("mapping values are not allowed") && value_holds_a_colon {
-        Some(
-            "a plain value cannot contain `: `, so quote the whole value \
-             (`key: \"Note: …\"`) or write it as a block scalar after `key: |`",
-        )
-    } else if raw.contains("flow mapping") && text.contains("${{") {
-        Some(
-            "inside a flow mapping `{ … }` an expression must be quoted: \
-             `{ prompt: \"${{ … }}\" }`",
-        )
-    } else {
-        None
     }
 }
 

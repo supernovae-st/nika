@@ -85,25 +85,46 @@ fn parse_typed_block(
 }
 
 /// The typed form an untyped entry most likely meant (#1600): its `default:`
-/// (or the bare scalar it is) kept, the primitive read from that value.
+/// (or the bare scalar it is) kept, the type read from that value. A list
+/// default is the `{ array: <T> }` form, its element type named when every
+/// element shares one primitive; a mapping default is the `{ object: … }`
+/// form; a `null` or absent default names no type it cannot know.
 fn typed_skeleton(cx: &Cx<'_>, name: &str, value: &Node) -> String {
     let default = match value {
         Node::Mapping(entry) => entry.get_node("default"),
         Node::Scalar(_) => Some(value),
         Node::Sequence(_) => None,
     }
-    .and_then(|node| json_value(cx, node).ok())
-    .filter(|d| !d.is_array() && !d.is_object() && !d.is_null());
-    let primitive = match &default {
-        Some(serde_json::Value::Bool(_)) => Primitive::Bool,
-        Some(serde_json::Value::Number(n)) if n.is_i64() || n.is_u64() => Primitive::Integer,
-        Some(serde_json::Value::Number(_)) => Primitive::Number,
-        _ => Primitive::String,
+    .and_then(|node| json_value(cx, node).ok());
+    let ty = match &default {
+        Some(serde_json::Value::Array(items)) => {
+            let mut prims = items.iter().map(scalar_primitive);
+            let first = prims.next().flatten();
+            match first {
+                Some(p) if prims.all(|q| q == Some(p)) => format!("{{ array: {} }}", p.as_str()),
+                _ => "{ array: <T> }".to_owned(),
+            }
+        }
+        Some(serde_json::Value::Object(_)) => "{ object: { field: <T> } }".to_owned(),
+        Some(d) => scalar_primitive(d).map_or_else(|| "<T>".to_owned(), |p| p.as_str().to_owned()),
+        None => "<T>".to_owned(),
     };
-    let ty = primitive.as_str();
     match default {
         Some(d) => format!("{name}: {{ type: {ty}, default: {d} }}"),
         None => format!("{name}: {{ type: {ty} }}"),
+    }
+}
+
+/// The primitive a scalar JSON value reads as; `None` for `null`, a list or a mapping.
+fn scalar_primitive(value: &serde_json::Value) -> Option<Primitive> {
+    match value {
+        serde_json::Value::Bool(_) => Some(Primitive::Bool),
+        serde_json::Value::Number(n) if n.is_i64() || n.is_u64() => Some(Primitive::Integer),
+        serde_json::Value::Number(_) => Some(Primitive::Number),
+        serde_json::Value::String(_) => Some(Primitive::String),
+        serde_json::Value::Null | serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+            None
+        }
     }
 }
 

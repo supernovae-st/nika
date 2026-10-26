@@ -129,3 +129,163 @@ fn a_bare_expression_in_a_flow_mapping_teaches_quoting_it() {
         "{message}"
     );
 }
+
+/// A taught skeleton must be one the parser accepts as written: a bare builtin
+/// is reflected under its `nika:` prefix, an `mcp:` reference as written, and
+/// any other bare word gets the placeholder rather than a refused `tool:`.
+#[test]
+fn a_scalar_invoke_teaches_a_tool_reference_the_parser_accepts() {
+    for (target, skeleton) in [
+        ("fetch", "invoke: { tool: nika:fetch, args: {"),
+        ("nika:jq", "invoke: { tool: nika:jq, args: {"),
+        (
+            "mcp:docs/search",
+            "invoke: { tool: mcp:docs/search, args: {",
+        ),
+        ("zzz", "invoke: { tool: nika:<name>, args: {"),
+    ] {
+        let message =
+            refusal(&format!("nika: p\ntasks:\n  a:\n    invoke: {target}\n")).to_string();
+        assert!(message.contains(skeleton), "`invoke: {target}` → {message}");
+    }
+    // Followed as written, the taught builtin call parses.
+    parse(
+        "nika: p\ntasks:\n  a:\n    invoke: { tool: nika:fetch, args: { url: \"https://example.com\" } }\n",
+        FileId::new(0),
+        ParseMode::Strict,
+    )
+    .unwrap_or_else(|err| panic!("the taught form must parse: {err}"));
+}
+
+/// A list or mapping default names its container form, never a primitive it is not, and keeps
+/// the default; a `null` default names no type it cannot know.
+#[test]
+fn an_untyped_container_input_teaches_its_container_form() {
+    for (entry, skeleton) in [
+        (
+            "tags: {default: [a, b]}",
+            "tags: { type: { array: string }, default: [\"a\",\"b\"] }",
+        ),
+        (
+            "mixed: {default: [1, a]}",
+            "mixed: { type: { array: <T> }, default: [1,\"a\"] }",
+        ),
+        (
+            "conf: {default: {k: v}}",
+            "conf: { type: { object: { field: <T> } }, default: {\"k\":\"v\"} }",
+        ),
+        (
+            "none: {default: null}",
+            "none: { type: <T>, default: null }",
+        ),
+    ] {
+        let message = refusal(&format!(
+            "nika: p\ninputs:\n  {entry}\ntasks:\n  a:\n    exec: {{ command: [\"true\"] }}\n"
+        ))
+        .to_string();
+        assert!(message.contains(skeleton), "`{entry}` → {message}");
+    }
+}
+
+/// The roster an untyped input is taught is the one the type grammar's own refusal prints, so
+/// a primitive added to the grammar cannot be missing from this teaching.
+#[test]
+fn the_taught_roster_is_the_type_grammars_own() {
+    let roster = crate::parser::envelope_values::primitive_roster().join(" · ");
+    let refusal = nika_types::types::parse_type(
+        &serde_json::json!("zzzzzz"),
+        &std::collections::BTreeSet::new(),
+        "t",
+    )
+    .map(|_| ())
+    .err()
+    .map(|err| err.detail)
+    .unwrap_or_default();
+    assert!(
+        refusal.contains(&format!("the primitives are {roster};")),
+        "taught `{roster}` but the grammar says: {refusal}"
+    );
+}
+
+/// A builtin task key is recognized with its `nika:` prefix too.
+#[test]
+fn a_prefixed_builtin_task_key_teaches_the_invoke_call() {
+    let message =
+        refusal("nika: p\ntasks:\n  a:\n    nika:fetch: {url: \"https://example.com\"}\n")
+            .to_string();
+    assert!(
+        message.contains("invoke: { tool: nika:fetch, args: { url: … } }"),
+        "{message}"
+    );
+}
+
+/// The colon cause names both readings of `outer: inner: rest`: a value to quote, and a key
+/// that meant to nest. A flow mapping whose expression is already quoted is not told to quote
+/// it.
+#[test]
+fn a_yaml_cause_names_what_the_line_shows_and_nothing_else() {
+    let nested =
+        refusal("nika: p\nmodel: mock/echo\ntasks:\n  a:\n    infer: prompt: hi\n").to_string();
+    assert!(
+        nested.contains("quote the whole value")
+            && nested.contains(
+                "if `prompt:` is a key of its own, put it on its own line, indented under `infer:`"
+            ),
+        "{nested}"
+    );
+    let sentence = refusal(
+        "nika: p\nmodel: mock/echo\ntasks:\n  a:\n    infer:\n      prompt: a long note here: with a colon\n",
+    )
+    .to_string();
+    assert!(
+        sentence.contains("quote the whole value") && !sentence.contains("is a key of its own"),
+        "{sentence}"
+    );
+    let quoted = refusal(
+        "nika: p\nmodel: mock/echo\ninputs:\n  t: {type: string, default: x}\ntasks:\n  a:\n    infer: {prompt: \"${{ inputs.t }}\", system: a: b}\n",
+    )
+    .to_string();
+    assert!(!quoted.contains("an expression must be quoted"), "{quoted}");
+    let in_text = refusal(
+        "nika: p\nmodel: mock/echo\ninputs:\n  t: {type: string, default: x}\ntasks:\n  a:\n    infer: {prompt: \"say ${{ inputs.t }}\", system: a: b}\n",
+    )
+    .to_string();
+    assert!(
+        !in_text.contains("an expression must be quoted"),
+        "{in_text}"
+    );
+    let single = refusal(
+        "nika: p\nmodel: mock/echo\ninputs:\n  t: {type: string, default: x}\ntasks:\n  a:\n    infer: {prompt: 'it''s ${{ inputs.t }}', system: a: b}\n",
+    )
+    .to_string();
+    assert!(!single.contains("an expression must be quoted"), "{single}");
+    // Unquoted, the same expression is told to be quoted.
+    let bare = refusal(
+        "nika: p\nmodel: mock/echo\ninputs:\n  t: {type: string, default: x}\ntasks:\n  a:\n    infer: {system: 'it''s', prompt: ${{ inputs.t }}}\n",
+    )
+    .to_string();
+    assert!(bare.contains("an expression must be quoted"), "{bare}");
+}
+
+/// A scanner that ran out of input names the stream end; the frame names where the content
+/// ended (the place the missing closer belongs), never a blank line past it, and the cause
+/// says the file ended there.
+#[test]
+fn a_refusal_at_the_end_of_the_file_frames_the_last_content() {
+    for source in [
+        "nika: p\nmodel: mock/echo\ntasks:\n  a:\n    infer: {prompt: \"hi\"\n\n\n",
+        "nika: p\nmodel: mock/echo\ntasks:\n  a:\n    infer: {prompt: \"hi\", max_tokens: 10",
+    ] {
+        let err = refusal(source);
+        assert_eq!(span_line(source, &err), 5, "{source:?} → {err:?}");
+        let start = err.span().map_or(usize::MAX, |span| {
+            usize::try_from(span.start.0).unwrap_or(usize::MAX)
+        });
+        assert_eq!(start, source.trim_end().len(), "{source:?} → {err:?}");
+        let message = err.to_string();
+        assert!(
+            message.contains("the file ends inside an open `{ … }`: close it with `}`"),
+            "{message}"
+        );
+    }
+}

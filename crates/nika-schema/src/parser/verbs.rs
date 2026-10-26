@@ -19,6 +19,7 @@ use crate::source::Spanned;
 use crate::types::{CaptureMode, DecodeMode};
 
 use super::envelope::parse_string_map;
+use super::scalar_body::scalar_body_teaching;
 use super::value::json_value;
 use super::{Cx, refuse_ambiguous_plain_scalar, tasks::parse_string_list};
 
@@ -124,54 +125,6 @@ pub(super) fn parse_verb(
         "invoke" => parse_invoke_body(cx, body).map(RawAction::Invoke),
         _ => parse_agent_body(cx, body).map(|a| RawAction::Agent(Box::new(a))),
     }
-}
-
-/// The longest authored text a refusal reflects back before eliding it.
-const REFLECTED_CHARS: usize = 60;
-
-/// A non-mapping `infer:` · `invoke:` · `agent:` body, refused with the one-line skeleton of
-/// its mapping (#1600): an authored scalar is reflected into the field it most likely meant.
-fn scalar_body_teaching(verb: &str, scalar: Option<&str>) -> String {
-    let skeleton = match (verb, scalar.map(str::trim)) {
-        ("invoke", Some(target)) if names_a_workflow(target) => {
-            format!("`invoke: {{ workflow: {target} }}` (a child workflow)")
-        }
-        ("invoke", Some(tool)) if !tool.is_empty() && !tool.contains(char::is_whitespace) => {
-            format!(
-                "`invoke: {{ tool: {tool}, args: {{ … }} }}` (a tool), or \
-                 `invoke: {{ workflow: ./child.nika }}` (a child workflow)"
-            )
-        }
-        ("invoke", _) => "`invoke: { tool: nika:<name>, args: { … } }` (a tool), or \
-                          `invoke: { workflow: ./child.nika }` (a child workflow)"
-            .to_owned(),
-        (_, Some(text)) if !text.is_empty() => {
-            format!("`{verb}: {{ prompt: {} }}`", reflected(text))
-        }
-        _ => format!("`{verb}: {{ prompt: \"…\" }}`"),
-    };
-    format!("`{verb}:` body must be a YAML mapping — write {skeleton}")
-}
-
-/// A child workflow's target: a `.nika` path or a pinned `registry:` reference.
-fn names_a_workflow(target: &str) -> bool {
-    target.starts_with("registry:")
-        || std::path::Path::new(target)
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("nika"))
-}
-
-/// `text` as a double-quoted YAML scalar, elided past [`REFLECTED_CHARS`].
-fn reflected(text: &str) -> String {
-    let shown: String = if text.chars().count() > REFLECTED_CHARS {
-        text.chars()
-            .take(REFLECTED_CHARS - 1)
-            .chain(std::iter::once('…'))
-            .collect()
-    } else {
-        text.to_owned()
-    };
-    serde_json::to_string(&shown).unwrap_or_else(|_| "\"…\"".to_owned())
 }
 
 /// Parse `infer:` — single LLM call.
