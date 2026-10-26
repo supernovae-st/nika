@@ -112,6 +112,30 @@ pub struct CostCeiling {
     /// never loads files, so the pure half stays child-blind BY DESIGN).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub composed: Vec<ComposedCost>,
+    /// Paid-media builtin calls, the spend the token envelope above does not
+    /// price: each one priced per call by the catalog, or unpriced. Never
+    /// folded into the totals; `--max-cost-usd` refuses an unpriced one.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub media: Vec<MediaCost>,
+}
+
+/// One paid-media builtin call (`nika:image_generate` · `nika:tts_generate`
+/// on a provider that bills). Priced per call when the catalog carries a
+/// rate, unpriced otherwise: never a free call. Local, mock and keyless
+/// providers are not listed. Only a literal provider is judged here; a
+/// templated one is judged by the run before its request.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[non_exhaustive]
+pub struct MediaCost {
+    /// The calling task's id.
+    pub task: String,
+    /// The builtin as written (`nika:image_generate` · `nika:tts_generate`).
+    pub tool: String,
+    /// The provider the call bills (explicit, or inferred from `model:`).
+    pub provider: String,
+    /// The catalog's USD per call, before `n:` · `None` = no catalog price:
+    /// the spend is real and unknown, and a cap cannot bound it.
+    pub usd_per_call: Option<f64>,
 }
 
 /// One composed child's priced contribution — the call's task/target and
@@ -291,7 +315,39 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
         min_path_total_usd,
         has_unbounded,
         composed: Vec::new(),
+        media: media_costs(wf),
     }
+}
+
+/// The paid-media builtin calls of `wf` ([`MediaCost`]): a literal provider
+/// that bills, on a task that can run (a literal empty `for_each` never
+/// does: a proven zero is not an unknown).
+fn media_costs(wf: &RawWorkflow) -> Vec<MediaCost> {
+    wf.tasks
+        .iter()
+        .filter_map(|task| {
+            let task = &task.value;
+            let RawAction::Invoke(invoke) = &task.action else {
+                return None;
+            };
+            let (tool, args) = (invoke.tool()?, invoke.args.as_ref()?);
+            let provider = nika_check_analyzer::media_call_provider(&tool.value, &args.value)?;
+            let usd_per_call = match nika_catalog::builtin_media_price(&tool.value, provider) {
+                nika_catalog::MediaPrice::PerCall(usd) => Some(usd),
+                nika_catalog::MediaPrice::Unknown => None,
+                _ => return None,
+            };
+            if iteration_count(wf, task) == Some(0) {
+                return None;
+            }
+            Some(MediaCost {
+                task: task.id.value.clone(),
+                tool: tool.value.clone(),
+                provider: provider.to_owned(),
+                usd_per_call,
+            })
+        })
+        .collect()
 }
 
 /// A task's `for_each` fan-out multiplier — the count the pricing arm
@@ -374,6 +430,72 @@ mod tests {
 
     fn ceiling_of(yaml: &str) -> CostCeiling {
         ceiling(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    /// C-D3 · the envelope names every paid media call outside the token
+    /// ceiling: priced per call from the catalog (xAI), unpriced otherwise
+    /// (openai/gemini images · openai/elevenlabs speech). Local, mock,
+    /// keyless and image-processing work is not paid media; a templated
+    /// provider is the run's to judge; a literal empty fan never calls.
+    #[test]
+    fn paid_media_calls_ride_the_envelope_priced_or_unpriced() {
+        let c = ceiling_of(
+            "\
+nika: media
+inputs:
+  voice: { type: string, default: openai }
+permits: { tools: [\"nika:image_generate\", \"nika:tts_generate\", \"nika:image_fx\"] }
+tasks:
+  speak:
+    invoke: { tool: \"nika:tts_generate\", args: { provider: openai, text: hi, output_dir: ./out } }
+  narrate:
+    invoke: { tool: \"nika:tts_generate\", args: { model: eleven_multilingual_v2, text: hi, output_dir: ./out } }
+  cover:
+    invoke: { tool: \"nika:image_generate\", args: { model: gpt-image-1-mini, prompt: a star, output_dir: ./out } }
+  banner:
+    invoke: { tool: \"nika:image_generate\", args: { provider: xai, prompt: a star, output_dir: ./out } }
+  draft:
+    invoke: { tool: \"nika:image_generate\", args: { provider: mock, prompt: a star, output_dir: ./out } }
+  local:
+    invoke: { tool: \"nika:tts_generate\", args: { provider: local, text: hi, output_dir: ./out } }
+  chosen:
+    invoke: { tool: \"nika:tts_generate\", args: { provider: \"${{ inputs.voice }}\", text: hi, output_dir: ./out } }
+  none:
+    for_each: { items: [] }
+    invoke: { tool: \"nika:tts_generate\", args: { provider: openai, text: hi, output_dir: ./out } }
+  halftone:
+    invoke: { tool: \"nika:image_fx\", args: { input: ./out/a.png, effect: halftone, output: ./out/b.png } }
+",
+        );
+        let media: Vec<(&str, &str, &str, Option<f64>)> = c
+            .media
+            .iter()
+            .map(|m| {
+                (
+                    m.task.as_str(),
+                    m.tool.as_str(),
+                    m.provider.as_str(),
+                    m.usd_per_call,
+                )
+            })
+            .collect();
+        assert_eq!(
+            media,
+            [
+                ("speak", "nika:tts_generate", "openai", None),
+                ("narrate", "nika:tts_generate", "elevenlabs", None),
+                ("cover", "nika:image_generate", "openai", None),
+                ("banner", "nika:image_generate", "xai", Some(0.02)),
+            ]
+        );
+        assert!(c.tasks.is_empty(), "media never joins the token rows");
+        assert_eq!(
+            c.bounded_total_usd, 0.0,
+            "media never folds into the totals"
+        );
+        let json = serde_json::to_value(&c).expect("cost json");
+        assert_eq!(json["media"][0]["usd_per_call"], serde_json::Value::Null);
+        assert_eq!(json["media"][3]["usd_per_call"], 0.02);
     }
 
     #[test]

@@ -55,22 +55,89 @@ fn cost_empty_arm(out: &mut String, report: &CheckReport, t: Theme) {
     if !report.cost.composed.is_empty() {
         return cost_composed_only(out, report, t);
     }
+    // An `exec:` runs an arbitrary program, and the programs authors
+    // reach for first are billed LLM CLIs; an `mcp:` call is a third
+    // party's meter. Measured 2026-07-29: a lone
+    // `exec: ["claude", "-p", "write a novel"]` printed
+    // `✔ COST no inference tasks · $0.00` and
+    // `✔ audited · est ≤$0.0000`. A paid media call is a provider's meter
+    // too (C-D3): it is counted here and named on its own row.
+    let summary = match media_summary(report) {
+        Some(media) => format!("no infer/agent tasks · {media} · exec + mcp spend unpriced"),
+        None => "no infer/agent tasks · $0.00 · exec + mcp spend unpriced".to_owned(),
+    };
+    let unpriced = unpriced_media(report) > 0;
     let _ = writeln!(
         out,
         " {} {}     {}",
-        mark(t, true),
+        media_mark(t, unpriced),
         t.paint(Role::Strong, "COST"),
-        // An `exec:` runs an arbitrary program, and the programs authors
-        // reach for first are billed LLM CLIs; an `mcp:` call is a third
-        // party's meter. Measured 2026-07-29: a lone
-        // `exec: ["claude", "-p", "write a novel"]` printed
-        // `✔ COST no inference tasks · $0.00` and
-        // `✔ audited · est ≤$0.0000`.
-        t.paint(
-            Role::Dim,
-            "no infer/agent tasks · $0.00 · exec + mcp spend unpriced"
-        )
+        t.paint(if unpriced { Role::Warn } else { Role::Dim }, &summary)
     );
+    cost_media_rows(out, report, t);
+}
+
+/// The paid media calls this workflow makes, unpriced ones first:
+/// `None` when it makes none.
+fn media_summary(report: &CheckReport) -> Option<String> {
+    let calls = report.cost.media.len();
+    if calls == 0 {
+        return None;
+    }
+    let counted = crate::vocab::count(calls, "paid media call");
+    Some(match unpriced_media(report) {
+        0 => format!("{counted} at catalog per-call prices"),
+        unpriced => format!("{counted}, {unpriced} unpriced"),
+    })
+}
+
+/// How many paid media calls have no catalog price.
+fn unpriced_media(report: &CheckReport) -> usize {
+    (report.cost.media.iter())
+        .filter(|call| call.usd_per_call.is_none())
+        .count()
+}
+
+/// The COST mark: a warning while an unpriced media call hides from the
+/// figure beside it (spend-honesty law 1), else the ordinary check mark.
+fn media_mark(t: Theme, unpriced: bool) -> String {
+    if unpriced {
+        t.paint(Role::Warn, if t.ascii { "! " } else { "⚠ " })
+    } else {
+        mark(t, true)
+    }
+}
+
+/// One row per paid media call: its per-call catalog price, or UNPRICED
+/// with what an armed cap does with it (the run's own refusal, NIKA-1709).
+fn cost_media_rows(out: &mut String, report: &CheckReport, t: Theme) {
+    for call in &report.cost.media {
+        let callee = format!("{} · {}", call.tool, call.provider);
+        match call.usd_per_call {
+            Some(usd) => {
+                let _ = writeln!(
+                    out,
+                    "   {}  {}  ${} per call",
+                    call.task,
+                    t.paint(Role::Dim, &callee),
+                    crate::vocab::usd(usd),
+                );
+            }
+            None => {
+                let _ = writeln!(
+                    out,
+                    "   {}  {}  {} {}",
+                    call.task,
+                    t.paint(Role::Dim, &callee),
+                    t.paint(Role::Warn, "UNPRICED"),
+                    t.paint(
+                        Role::Dim,
+                        "— no catalog price; --max-cost-usd refuses it (NIKA-1709)"
+                    ),
+                );
+            }
+        }
+    }
 }
 
 /// The per-task rows of [`cost()`] — a priced row at its cap, or the
@@ -169,6 +236,7 @@ pub(super) fn cost(out: &mut String, report: &CheckReport, t: Theme, layers: &Ve
     // (`min_path_total_usd` bounds nothing from below · measured 126× the
     // other way). Same decision as there: claim neither bound, show the
     // only true number (the priced portion), and name the uncapped tasks.
+    let media_unpriced = unpriced_media(report);
     let (cost_mark, money, bound) = if report.cost.has_unbounded {
         (
             t.paint(Role::Warn, if t.ascii { "! " } else { "⚠ " }),
@@ -183,7 +251,7 @@ pub(super) fn cost(out: &mut String, report: &CheckReport, t: Theme, layers: &Ve
         )
     } else {
         (
-            mark(t, true),
+            media_mark(t, media_unpriced > 0),
             format!(
                 "${} – ${}",
                 crate::vocab::usd(report.cost.min_path_total_usd),
@@ -223,17 +291,26 @@ pub(super) fn cost(out: &mut String, report: &CheckReport, t: Theme, layers: &Ve
         " {cost_mark} {}     {} {bound} {}",
         t.paint(Role::Strong, "COST"),
         t.paint(Role::Strong, &money),
-        // `exec` + `mcp` join `prompts` in the unpriced list for the same
-        // reason the empty-cost branch above names them: this ceiling
-        // sums `infer:`/`agent:` output tokens, so a workflow that mixes
-        // an `infer:` with an `exec:` gets a ceiling with the exec's whole
-        // bill missing — and the ✔ does not say so.
-        t.paint(
-            Role::Dim,
-            &format!("· prompts, exec + mcp unpriced · prices {}", snap.as_of)
-        ),
+        t.paint(Role::Dim, &unpriced_trailer(media_unpriced, snap.as_of)),
     );
     cost_task_rows(out, report, t);
+    cost_media_rows(out, report, t);
+}
+
+/// What the inference ceiling leaves out, with the price table's date.
+/// `exec` + `mcp` join `prompts` in the unpriced list for the same reason
+/// the empty-cost branch names them: this ceiling sums `infer:`/`agent:`
+/// output tokens, so a workflow that mixes an `infer:` with an `exec:` gets
+/// a ceiling with the exec's whole bill missing — and the ✔ does not say
+/// so. An unpriced paid media call is counted beside them (C-D3).
+fn unpriced_trailer(media_unpriced: usize, as_of: &str) -> String {
+    match media_unpriced {
+        0 => format!("· prompts, exec + mcp unpriced · prices {as_of}"),
+        n => format!(
+            "· prompts, exec, mcp + {} unpriced · prices {as_of}",
+            crate::vocab::count(n, "paid media call"),
+        ),
+    }
 }
 
 /// The tasks whose route bills reasoning beyond `max_tokens`, named, when there are any.
@@ -285,5 +362,73 @@ mod tests {
                 "{text}"
             );
         }
+    }
+
+    fn media_card(source: &str) -> String {
+        let wf = nika_schema::parse(
+            source,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check(&wf);
+        let mut text = String::new();
+        let layers = VerdictLayers::default();
+        cost(&mut text, &report, Theme::new(false, false, false), &layers);
+        text
+    }
+
+    /// C-D3 · a workflow whose only spend is a paid speech call used to print
+    /// `✔ COST no infer/agent tasks · $0.00`: the card now names the call as
+    /// unpriced, as the run that would refuse it under a cap does.
+    #[test]
+    fn an_unpriced_media_call_is_named_never_a_free_zero() {
+        let text = media_card(
+            "nika: speak\npermits: { tools: [\"nika:tts_generate\"] }\ntasks:\n  speak:\n    invoke: { tool: \"nika:tts_generate\", args: { provider: openai, text: hi, output_dir: ./out } }\n",
+        );
+        assert!(!text.contains("$0.00"), "{text}");
+        assert!(
+            text.contains("1 paid media call, 1 unpriced")
+                && text.contains("speak")
+                && text.contains("nika:tts_generate · openai")
+                && text.contains("UNPRICED")
+                && text.contains("NIKA-1709"),
+            "{text}"
+        );
+        assert!(
+            !text.contains('✔'),
+            "an unpriced call never sits under a check mark: {text}"
+        );
+    }
+
+    /// The inference ceiling keeps its figure and stops hiding the media
+    /// call beside it; a priced (xAI) call rides at its catalog rate.
+    #[test]
+    fn media_rows_join_the_inference_ceiling() {
+        let text = media_card(
+            "nika: mixed\nmodel: anthropic/claude-sonnet-4-6\npermits: { tools: [\"nika:image_generate\"] }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 100 }\n  cover:\n    invoke: { tool: \"nika:image_generate\", args: { model: gpt-image-1-mini, prompt: a star, output_dir: ./out } }\n  banner:\n    invoke: { tool: \"nika:image_generate\", args: { provider: xai, prompt: a star, output_dir: ./out } }\n",
+        );
+        assert!(text.contains("1 paid media call unpriced"), "{text}");
+        assert!(
+            text.contains("nika:image_generate · openai") && text.contains("UNPRICED"),
+            "{text}"
+        );
+        assert!(
+            text.contains("nika:image_generate · xai") && text.contains("$0.0200 per call"),
+            "{text}"
+        );
+    }
+
+    /// Local, mock and keyless media spend nothing: the card is unchanged.
+    #[test]
+    fn unmetered_media_keeps_the_zero_line() {
+        let text = media_card(
+            "nika: draft\npermits: { tools: [\"nika:image_generate\"] }\ntasks:\n  draft:\n    invoke: { tool: \"nika:image_generate\", args: { provider: mock, prompt: a star, output_dir: ./out } }\n",
+        );
+        assert!(
+            text.contains("no infer/agent tasks · $0.00 · exec + mcp spend unpriced"),
+            "{text}"
+        );
+        assert!(!text.contains("paid media"), "{text}");
     }
 }

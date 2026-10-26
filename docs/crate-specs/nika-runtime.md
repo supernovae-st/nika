@@ -675,6 +675,21 @@ ledger. Internal retries (schema re-asks, provider re-sends) are judged once
 and counted on the ledger as they happen. The `unwind` cleanup lane meets the
 same guard, ledger and child budget (§3.8 · B11).
 
+Paid media (C-D3) follows the same two steps. `nika_check`'s
+`CostCeiling.media` lists each `nika:image_generate` / `nika:tts_generate`
+call whose literal provider bills, priced per call by the catalog
+(`nika_catalog::builtin_media_price`) or unpriced. Under a cap, the budget
+floor refuses an unpriced one before the prologue (`BudgetFloor`, NIKA-1709),
+seated on a harness or not: the call bills its own provider key. A provider
+only the run decides is judged after rendering and before the request
+(`admit::run_decided_media_refusal`, NIKA-1704): unpriced, or a priced floor
+above the remaining USD, refuses. A returned paid media call with no
+`cost_usd` carries `cost_unpriced` (`missing_catalog_price`, or
+`provider_did_not_report_usage` for a priced provider), so the ledger counts
+it and the settlement never reads `priced` while it holds unknown spend.
+Local, mock and keyless media stay unmetered. An `agent:` tool call reaches a
+media builtin outside this dispatch guard.
+
 ## Harness media receipt side channel
 
 `TaskRecord.harness_media` records image observations with their existing agent

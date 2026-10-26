@@ -755,6 +755,13 @@ where
         if let Some(denial) = permits::check_fetch_sink(inert, &note, &tool, &args, witness) {
             return denial;
         }
+        // C-D3 · a paid media call whose provider only the run decides is
+        // judged before its request, as a run-decided seat is (NIKA-1704).
+        if let Some(why) =
+            crate::admit::run_decided_media_refusal(&tool, (raw_args, &args), ctx.child_budget)
+        {
+            return Dispatched::comp_refusal(&note, "NIKA-1704", why).with_retry_forbidden(true);
+        }
         // F-O1 PR-2 · the mcp border re-gate (NEP-0004 law 2): the grant
         // of the tool IS the boundary, and a tainted path/host in its args
         // slipped through — the resolved value is canonicalized then

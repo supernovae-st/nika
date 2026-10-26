@@ -50,9 +50,12 @@ module reads and which reads none of them back:
   declared default's). Pure, like the rest of this plane: it resolves
   values, and it never rules on spend or authority
 - `builtin_floor` · the catalog's static reads the runtime's budget gates
-  price with (`priced_builtin_floor`, `unpriced_cloud_seat`): what a
-  workflow's priced `invoke:` tasks must spend on their cheapest path, and
-  whether a seat is a third-party cloud route the catalog does not price.
+  price with (`priced_builtin_floor`, `unpriced_cloud_seat`,
+  `media_call_provider`): what a workflow's priced `invoke:` tasks must
+  spend on their cheapest path, whether a seat is a third-party cloud route
+  the catalog does not price, and which provider a paid media call bills
+  (explicit, or inferred from `model:` as the builtin infers it; a template
+  stays the run's to judge).
   Descended verbatim from `nika-runtime`'s `admit.rs` (B9 phase C ·
   2026-09-28) so the runtime's 15k wall has room for the dispatch guard that
   shares them; the runtime keeps every refusal and its wording

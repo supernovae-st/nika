@@ -1288,6 +1288,45 @@ pub fn nika_catalog::json_mode::ParseJsonModeError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::json_mode::ParseJsonModeError where T: 'static
 pub fn nika_catalog::json_mode::ParseJsonModeError::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_catalog::lookup
+#[non_exhaustive] pub enum nika_catalog::lookup::MediaPrice
+pub nika_catalog::lookup::MediaPrice::PerCall(f64)
+pub nika_catalog::lookup::MediaPrice::Unknown
+pub nika_catalog::lookup::MediaPrice::Unmetered
+impl core::clone::Clone for nika_catalog::MediaPrice
+pub fn nika_catalog::MediaPrice::clone(&self) -> nika_catalog::MediaPrice
+impl core::cmp::PartialEq for nika_catalog::MediaPrice
+pub fn nika_catalog::MediaPrice::eq(&self, other: &nika_catalog::MediaPrice) -> bool
+impl core::fmt::Debug for nika_catalog::MediaPrice
+pub fn nika_catalog::MediaPrice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::MediaPrice
+impl core::marker::StructuralPartialEq for nika_catalog::MediaPrice
+impl<D> owo_colors::OwoColorize for nika_catalog::MediaPrice
+impl<T, U> core::convert::Into<U> for nika_catalog::MediaPrice where U: core::convert::From<T>
+pub fn nika_catalog::MediaPrice::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::MediaPrice where U: core::convert::Into<T>
+pub type nika_catalog::MediaPrice::Error = core::convert::Infallible
+pub fn nika_catalog::MediaPrice::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::MediaPrice where U: core::convert::TryFrom<T>
+pub type nika_catalog::MediaPrice::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::MediaPrice::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::MediaPrice where T: core::clone::Clone
+pub type nika_catalog::MediaPrice::Owned = T
+pub fn nika_catalog::MediaPrice::clone_into(&self, target: &mut T)
+pub fn nika_catalog::MediaPrice::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::MediaPrice where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::MediaPrice::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::MediaPrice where T: ?core::marker::Sized
+pub fn nika_catalog::MediaPrice::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::MediaPrice where T: ?core::marker::Sized
+pub fn nika_catalog::MediaPrice::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::MediaPrice where T: core::clone::Clone
+pub unsafe fn nika_catalog::MediaPrice::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::MediaPrice
+pub fn nika_catalog::MediaPrice::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::MediaPrice where T: 'static
+pub fn nika_catalog::MediaPrice::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_catalog::lookup::builtin_media_price(tool: &str, provider: &str) -> nika_catalog::MediaPrice
+pub fn nika_catalog::lookup::builtin_media_provider<'a>(tool: &str, provider: core::option::Option<&'a str>, model: core::option::Option<&str>) -> core::option::Option<&'a str>
 pub fn nika_catalog::lookup::builtin_provider_floor_usd(tool: &str, provider: &str) -> core::option::Option<f64>
 pub fn nika_catalog::lookup::estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
 pub fn nika_catalog::lookup::estimate_cost_for(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
@@ -8006,6 +8045,43 @@ impl<T> core::convert::From<T> for nika_catalog::mcp_server::McpPricing
 pub fn nika_catalog::mcp_server::McpPricing::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::mcp_server::McpPricing where T: 'static
 pub fn nika_catalog::mcp_server::McpPricing::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_catalog::MediaPrice
+pub nika_catalog::MediaPrice::PerCall(f64)
+pub nika_catalog::MediaPrice::Unknown
+pub nika_catalog::MediaPrice::Unmetered
+impl core::clone::Clone for nika_catalog::MediaPrice
+pub fn nika_catalog::MediaPrice::clone(&self) -> nika_catalog::MediaPrice
+impl core::cmp::PartialEq for nika_catalog::MediaPrice
+pub fn nika_catalog::MediaPrice::eq(&self, other: &nika_catalog::MediaPrice) -> bool
+impl core::fmt::Debug for nika_catalog::MediaPrice
+pub fn nika_catalog::MediaPrice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::MediaPrice
+impl core::marker::StructuralPartialEq for nika_catalog::MediaPrice
+impl<D> owo_colors::OwoColorize for nika_catalog::MediaPrice
+impl<T, U> core::convert::Into<U> for nika_catalog::MediaPrice where U: core::convert::From<T>
+pub fn nika_catalog::MediaPrice::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::MediaPrice where U: core::convert::Into<T>
+pub type nika_catalog::MediaPrice::Error = core::convert::Infallible
+pub fn nika_catalog::MediaPrice::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::MediaPrice where U: core::convert::TryFrom<T>
+pub type nika_catalog::MediaPrice::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::MediaPrice::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::MediaPrice where T: core::clone::Clone
+pub type nika_catalog::MediaPrice::Owned = T
+pub fn nika_catalog::MediaPrice::clone_into(&self, target: &mut T)
+pub fn nika_catalog::MediaPrice::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::MediaPrice where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::MediaPrice::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::MediaPrice where T: ?core::marker::Sized
+pub fn nika_catalog::MediaPrice::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::MediaPrice where T: ?core::marker::Sized
+pub fn nika_catalog::MediaPrice::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::MediaPrice where T: core::clone::Clone
+pub unsafe fn nika_catalog::MediaPrice::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::MediaPrice
+pub fn nika_catalog::MediaPrice::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::MediaPrice where T: 'static
+pub fn nika_catalog::MediaPrice::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_catalog::Modality
 pub nika_catalog::Modality::Audio
 pub nika_catalog::Modality::Embedding
@@ -10039,6 +10115,8 @@ pub fn nika_catalog::all_mcp_servers() -> &'static [nika_catalog::mcp_server::Mc
 pub fn nika_catalog::all_pricing() -> &'static [nika_catalog::model::ModelPricing]
 pub fn nika_catalog::all_providers() -> &'static [nika_catalog::provider::Provider]
 pub fn nika_catalog::all_transforms() -> &'static [nika_catalog::transform::TransformDef]
+pub fn nika_catalog::builtin_media_price(tool: &str, provider: &str) -> nika_catalog::MediaPrice
+pub fn nika_catalog::builtin_media_provider<'a>(tool: &str, provider: core::option::Option<&'a str>, model: core::option::Option<&str>) -> core::option::Option<&'a str>
 pub fn nika_catalog::builtin_provider_floor_usd(tool: &str, provider: &str) -> core::option::Option<f64>
 pub fn nika_catalog::estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
 pub fn nika_catalog::estimate_cost_for(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>

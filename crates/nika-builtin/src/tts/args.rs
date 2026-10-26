@@ -286,4 +286,36 @@ mod tests {
         let l = parse(&base(serde_json::json!({ "provider": "local" }))).expect("valid");
         assert_eq!(l.timeout.as_millis(), 300_000);
     }
+
+    /// C-D3 · the catalog resolves the provider a speech call bills as this
+    /// parser does, so a cap can never miss a paid voice.
+    #[test]
+    fn the_catalog_media_provider_matches_this_parser() {
+        for model in [
+            "eleven_multilingual_v2",
+            "gpt-4o-mini-tts",
+            "tts-1-hd",
+            "mock-tts-1",
+            "kokoro",
+        ] {
+            let mut m = base(serde_json::json!({ "model": model }));
+            m.remove("provider");
+            let parsed = parse(&m).ok().map(|a| a.provider.id());
+            assert_eq!(
+                nika_catalog::builtin_media_provider("nika:tts_generate", None, Some(model)),
+                parsed,
+                "model {model}"
+            );
+        }
+        for provider in ["local", "openai", "elevenlabs", "mock"] {
+            let parsed = parse(&base(serde_json::json!({ "provider": provider })))
+                .map(|a| a.provider.id())
+                .ok();
+            assert_eq!(
+                nika_catalog::builtin_media_provider("nika:tts_generate", Some(provider), None),
+                parsed,
+                "provider {provider}"
+            );
+        }
+    }
 }

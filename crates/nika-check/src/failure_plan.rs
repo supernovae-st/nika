@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `failure_plan[]` — the four P0 shapes a run would refuse, named on
+//! `failure_plan[]` — the P0 shapes a run would refuse, named on
 //! the check JSON so an agent does not have to rediscover them at the
 //! wire (I05). Additive: `report_version` stays 1.
 
@@ -15,7 +15,8 @@ use crate::CheckReport;
 #[non_exhaustive]
 pub struct FailurePlanEntry {
     /// Closed slug: `host_passwd_read` · `exec_cat_host` ·
-    /// `priced_image_over_cap` · `unpriced_cloud_cap`. The historical
+    /// `priced_image_over_cap` · `unpriced_cloud_cap` ·
+    /// `unpriced_media_cap`. The historical
     /// `host_passwd_read` slug covers confirmed read/write fs refusals.
     pub shape: &'static str,
     /// The wire code the run would stamp.
@@ -44,7 +45,7 @@ impl FailurePlanEntry {
     }
 }
 
-/// Project the four P0 shapes off the judged workflow + report.
+/// Project the P0 shapes off the judged workflow + report.
 #[must_use]
 pub(crate) fn collect(wf: &RawWorkflow, report: &CheckReport) -> Vec<FailurePlanEntry> {
     let mut out = Vec::new();
@@ -52,6 +53,7 @@ pub(crate) fn collect(wf: &RawWorkflow, report: &CheckReport) -> Vec<FailurePlan
     out.extend(exec_cat_host(wf, report));
     out.extend(priced_image(wf));
     out.extend(unpriced_cloud(report));
+    out.extend(unpriced_media(report));
     out
 }
 
@@ -142,6 +144,30 @@ fn unpriced_cloud(report: &CheckReport) -> Vec<FailurePlanEntry> {
                     "cloud model `{}` is unpriced — `--max-cost-usd` cannot bound unknown spend \
                      (NIKA-1709 before infer HTTP)",
                     ep.model
+                ),
+            )
+        })
+        .collect()
+}
+
+/// A paid-media call with no catalog price (`cost.media`): any
+/// `--max-cost-usd` refuses the run before its request, as it refuses an
+/// unpriced cloud model.
+fn unpriced_media(report: &CheckReport) -> Vec<FailurePlanEntry> {
+    report
+        .cost
+        .media
+        .iter()
+        .filter(|call| call.usd_per_call.is_none())
+        .map(|call| {
+            FailurePlanEntry::new(
+                "unpriced_media_cap",
+                "NIKA-1709",
+                call.task.clone(),
+                format!(
+                    "{} on `{}` has no catalog price — `--max-cost-usd` cannot bound unknown \
+                     spend (NIKA-1709 before the media request)",
+                    call.tool, call.provider
                 ),
             )
         })
@@ -364,5 +390,56 @@ mod tests {
             "nika: ok\nmodel: mock/echo\npermits: {}\ntasks:\n  ping:\n    infer: { prompt: hi, max_tokens: 16 }\n",
         );
         assert!(p.is_empty(), "mock is a proven zero: {p:?}");
+    }
+
+    /// C-D3 · a paid media call the catalog cannot price is on the plan as the
+    /// same NIKA-1709 refusal an unpriced cloud model carries; a priced (xAI),
+    /// mock, local or keyless call is not an unpriced one.
+    #[test]
+    fn unpriced_media_is_on_the_plan_and_unmetered_media_is_not() {
+        fn unpriced(p: &[FailurePlanEntry]) -> Vec<(&str, &str)> {
+            p.iter()
+                .filter(|e| e.shape == "unpriced_media_cap")
+                .map(|e| (e.code.as_str(), e.task.as_str()))
+                .collect()
+        }
+        let media = |tool: &str, args: &str| {
+            plan(&format!(
+                "nika: c-d3\npermits: {{ tools: [\"{tool}\"], fs: {{ write: [\"./out/**\"] }} }}\ntasks:\n  speak:\n    invoke: {{ tool: \"{tool}\", args: {{ {args}, output_dir: \"./out\" }} }}\n"
+            ))
+        };
+        for (tool, args) in [
+            ("nika:tts_generate", "provider: openai, text: hi"),
+            ("nika:tts_generate", "provider: elevenlabs, text: hi"),
+            ("nika:tts_generate", "model: gpt-4o-mini-tts, text: hi"),
+            ("nika:image_generate", "provider: openai, prompt: a star"),
+            (
+                "nika:image_generate",
+                "model: gemini-3.1-flash-image, prompt: a star",
+            ),
+        ] {
+            let p = media(tool, args);
+            assert_eq!(
+                unpriced(&p),
+                [("NIKA-1709", "speak")],
+                "{tool} {{ {args} }}: {p:?}"
+            );
+            assert!(
+                p.iter()
+                    .any(|e| e.shape == "unpriced_media_cap"
+                        && e.message.contains("no catalog price")),
+                "{p:?}"
+            );
+        }
+        for (tool, args) in [
+            ("nika:image_generate", "provider: xai, prompt: a star"),
+            ("nika:image_generate", "provider: mock, prompt: a star"),
+            ("nika:image_generate", "provider: local, prompt: a star"),
+            ("nika:tts_generate", "provider: mock, text: hi"),
+            ("nika:tts_generate", "provider: local, text: hi"),
+        ] {
+            let p = media(tool, args);
+            assert!(unpriced(&p).is_empty(), "{tool} {{ {args} }}: {p:?}");
+        }
     }
 }

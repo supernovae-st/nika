@@ -61,7 +61,7 @@ fn invoke_static_floor(task: &RawTask) -> f64 {
     let Some(args) = inv.args.as_ref() else {
         return 0.0;
     };
-    let Some(provider) = static_provider(&args.value) else {
+    let Some(provider) = media_call_provider(&tool.value, &args.value) else {
         return 0.0;
     };
     let Some(per) = nika_catalog::builtin_provider_floor_usd(&tool.value, provider) else {
@@ -70,17 +70,29 @@ fn invoke_static_floor(task: &RawTask) -> f64 {
     per * static_n(&args.value) * static_iterations(task)
 }
 
-fn static_provider(args: &Value) -> Option<&str> {
-    if let Some(provider) = args.get("provider").and_then(Value::as_str) {
-        return static_literal(provider);
+/// The provider a paid-media builtin call (`nika:image_generate` ·
+/// `nika:tts_generate`) bills, read from its arguments the way the builtin
+/// reads them ([`nika_catalog::builtin_media_provider`]): the explicit
+/// `provider:`, else the one its `model:` prefix names. `None` for any other
+/// tool, when the arguments name no provider, or when the provider (or the
+/// model it would be inferred from) is a template: only the run decides it.
+/// The same law judges a literal at check and a rendered call at dispatch.
+#[must_use]
+pub fn media_call_provider<'a>(tool: &str, args: &'a Value) -> Option<&'a str> {
+    let provider = args.get("provider").and_then(Value::as_str);
+    let model = args.get("model").and_then(Value::as_str);
+    let templated = match provider {
+        Some(provider) => is_template(provider),
+        None => model.is_some_and(is_template),
+    };
+    if templated {
+        return None;
     }
-    let model = args.get("model").and_then(Value::as_str)?;
-    let model = static_literal(model)?;
-    model.contains("grok-imagine").then_some("xai")
+    nika_catalog::builtin_media_provider(tool, provider, model)
 }
 
-fn static_literal(s: &str) -> Option<&str> {
-    (!s.contains("${{")).then_some(s)
+fn is_template(s: &str) -> bool {
+    s.contains("${{")
 }
 
 fn static_n(args: &Value) -> f64 {

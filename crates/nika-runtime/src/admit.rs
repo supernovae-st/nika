@@ -356,6 +356,11 @@ pub fn budget_floor_refusal_remaining(
         return Some(err);
     }
     let cost = remaining_cost(&effective.cost, settled);
+    // A paid media call bills its provider's key on any access, a harness
+    // seat included: the seat never bounds it.
+    if let Some(err) = unpriced_media_cap_refusal(&cost.media, budget) {
+        return Some(err);
+    }
     if !seated_on_harness && let Some(message) = cost.zero_budget_refusal(budget) {
         return Some(RuntimeError::BudgetFloor { message });
     }
@@ -380,6 +385,7 @@ pub fn remaining_cost<'c>(
     let mut rest = cost.clone();
     rest.tasks.retain(|task| !settled.contains(&task.task));
     rest.composed.retain(|call| !settled.contains(&call.task));
+    rest.media.retain(|call| !settled.contains(&call.task));
     let tasks: f64 = rest.tasks.iter().filter_map(|task| task.min_path_usd).sum();
     let composed: f64 = rest
         .composed
@@ -526,6 +532,84 @@ pub(crate) fn run_decided_refusal(
          --max-cost-usd (a snapshot at call time, never a reservation)"
     );
     (floor > remaining).then_some(("NIKA-1704", why))
+}
+
+/// C-D3 · a paid media call the catalog does not price
+/// (`nika:image_generate` on openai/gemini · `nika:tts_generate` on
+/// openai/elevenlabs) is unknown spend: under a cap it refuses before the
+/// prologue, as an unpriced cloud model does (zero events, zero spend).
+/// Local, mock and keyless media never reach this list.
+fn unpriced_media_cap_refusal(
+    media: &[nika_check::MediaCost],
+    budget: f64,
+) -> Option<RuntimeError> {
+    let calls: Vec<String> = media
+        .iter()
+        .filter(|call| call.usd_per_call.is_none())
+        .map(|call| {
+            format!(
+                "task `{}` ({} on `{}`)",
+                call.task, call.tool, call.provider
+            )
+        })
+        .collect();
+    if calls.is_empty() {
+        return None;
+    }
+    Some(RuntimeError::BudgetFloor {
+        message: format!(
+            "refusing to start: no catalog price for {} — --max-cost-usd ${budget:.6} cannot \
+             bound unknown spend (`nika check` lists it UNPRICED under COST). Use a priced \
+             provider, `local` or `mock` for a rehearsal, or drop the cap.\n",
+            calls.join(", ")
+        ),
+    })
+}
+
+/// C-D3 · the pre-request guard for a paid media call whose provider only the
+/// run decides (a templated `provider:`, or a templated `model:` it is
+/// inferred from), which the launch gates could not judge. Dispatch calls it
+/// with the rendered arguments before any request. Under a cap (`remaining`:
+/// the ledger at call time, a snapshot, never a reservation), a provider the
+/// catalog cannot price refuses, and a priced one whose floor exceeds what is
+/// left refuses too, with the run-decided seat's code (NIKA-1704). A literal
+/// provider was judged at launch and passes here untouched.
+pub(crate) fn run_decided_media_refusal(
+    tool: &str,
+    (raw, rendered): (Option<&Value>, &Value),
+    remaining: Option<f64>,
+) -> Option<String> {
+    let remaining = remaining?;
+    if raw
+        .and_then(|raw| nika_check::analyzer::media_call_provider(tool, raw))
+        .is_some()
+    {
+        return None;
+    }
+    let provider = nika_check::analyzer::media_call_provider(tool, rendered)?;
+    let before = "refused before the media request";
+    match nika_catalog::builtin_media_price(tool, provider) {
+        nika_catalog::MediaPrice::Unknown => Some(format!(
+            "{before}: {tool} on `{provider}` has no catalog price, so --max-cost-usd cannot \
+             bound it"
+        )),
+        nika_catalog::MediaPrice::PerCall(per) => {
+            #[allow(clippy::cast_precision_loss)] // image `n:` is capped at 10
+            let n = rendered
+                .get("n")
+                .and_then(Value::as_u64)
+                .map_or(1.0, |n| n.max(1) as f64);
+            let floor = per * n;
+            (floor > remaining).then(|| {
+                format!(
+                    "{before}: {tool} on `{provider}` costs at least ${floor:.6}, above the \
+                     ${remaining:.6} left under --max-cost-usd (a snapshot at call time, never \
+                     a reservation)"
+                )
+            })
+        }
+        _ => None,
+    }
 }
 
 /// B20 / issue 1297: `--max-cost-usd` cannot bound a cloud seat the

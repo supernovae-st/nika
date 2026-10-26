@@ -30,6 +30,10 @@ the engine/spec identity that produced the report.
   execution stops new admissions; already-started calls finish and count.
   A concurrent wave can overshoot, and unpriced work has no measured USD
   bound. Choose concurrency and model limits with that exposure in mind.
+  Under a cap, a paid media call the catalog cannot price (openai or gemini
+  images, openai or elevenlabs speech) is refused before its request, like
+  an unpriced cloud model: use a priced provider, `local` or `mock`, or run
+  without the cap and read the settlement's `unpriced` count.
 - A local model is **unpriced compute, not free** — say "unpriced",
   never "$0".
 

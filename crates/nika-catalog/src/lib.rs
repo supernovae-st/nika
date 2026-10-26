@@ -72,7 +72,8 @@ pub use lookup::find_embedding;
 pub use lookup::model_capabilities;
 #[cfg(feature = "builtins-transforms")]
 pub use lookup::{
-    builtin_provider_floor_usd, find_builtin, find_transform, is_known_builtin, is_known_transform,
+    MediaPrice, builtin_media_price, builtin_media_provider, builtin_provider_floor_usd,
+    find_builtin, find_transform, is_known_builtin, is_known_transform,
 };
 #[cfg(feature = "pricing")]
 pub use lookup::{

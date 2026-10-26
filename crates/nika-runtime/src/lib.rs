@@ -62,6 +62,8 @@ mod emit_items;
 mod emit_task;
 pub(crate) mod harness_seat;
 mod ledger;
+#[cfg(test)]
+mod media_cost_tests;
 mod pause;
 /// The proof layer (spec 15) — re-exported whole from the standalone
 /// `nika-proof` crate (L0 · the 15k crate-size split), so every

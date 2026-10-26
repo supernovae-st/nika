@@ -86,6 +86,40 @@ pub(super) fn stamp_mock_media_rehearsal(note: &str, value: &mut Value) -> Optio
     Some(msg)
 }
 
+/// A returned tool call's spend for the run ledger: its self-reported REAL
+/// spend (a top-level finite, non-negative `cost_usd` in its structured
+/// output · absent or invalid stays absent, never a guess), the attribution
+/// key that spend folds under (the tool id), and why a paid media call's
+/// spend is absent (C-D3): the catalog has no price for the provider it
+/// called (`missing_catalog_price`), or a priced provider did not report
+/// what it billed (`provider_did_not_report_usage`). The provider is read
+/// off the tool's own output, which names the one it called; local, mock,
+/// keyless and every other tool's absent spend stays unmetered.
+fn tool_spend(
+    note: &str,
+    value: &Value,
+) -> (
+    Option<f64>,
+    Option<String>,
+    Option<nika_types::cost::UnpricedReason>,
+) {
+    use nika_types::cost::UnpricedReason;
+    let tool = note.strip_prefix("invoke · ").unwrap_or(note);
+    let cost_usd =
+        (value.get("cost_usd").and_then(Value::as_f64)).filter(|c| c.is_finite() && *c >= 0.0);
+    if cost_usd.is_some() {
+        return (cost_usd, Some(tool.to_owned()), None);
+    }
+    let unpriced = nika_check::analyzer::media_call_provider(tool, value).and_then(|provider| {
+        match nika_catalog::builtin_media_price(tool, provider) {
+            nika_catalog::MediaPrice::Unknown => Some(UnpricedReason::MissingCatalogPrice),
+            nika_catalog::MediaPrice::PerCall(_) => Some(UnpricedReason::ProviderDidNotReportUsage),
+            _ => None,
+        }
+    });
+    (None, None, unpriced)
+}
+
 /// The binding evidence of ONE fired step — the two digests, equal on an
 /// honest fire. Rides the terminal frame as `preview_digest` +
 /// `commit_digest`.
@@ -239,17 +273,9 @@ where
                                 None => said,
                             });
                         }
-                        // A tool's self-reported REAL spend (top-level numeric
-                        // `cost_usd` in its structured output) is metered into
-                        // the run ledger — absent/invalid → unmetered, never a
-                        // guess (the honest-absence channel).
-                        let cost_usd = value
-                            .get("cost_usd")
-                            .and_then(Value::as_f64)
-                            .filter(|c| c.is_finite() && *c >= 0.0);
-                        let cost_source = cost_usd
-                            .is_some()
-                            .then(|| note.trim_start_matches("invoke · ").to_owned());
+                        // The tool's self-reported spend, its attribution, and
+                        // why a paid media call's spend is absent ([`tool_spend`]).
+                        let (cost_usd, cost_source, cost_unpriced) = tool_spend(&note, &value);
                         // Judge the final task value before publishing success.
                         // The call already fired: a contract rejection keeps its
                         // spend and attestation, and follows the ordinary typed
@@ -261,6 +287,7 @@ where
                             if let Err(failed) = &mut rejected.result {
                                 failed.cost_usd = cost_usd;
                                 failed.cost_source = cost_source;
+                                failed.cost_unpriced = cost_unpriced;
                             }
                             return rejected
                                 .with_commit(attestation)
@@ -273,7 +300,7 @@ where
                             warning,
                             cost_usd,
                             cost_source,
-                            None,
+                            cost_unpriced,
                         )
                         .with_commit(attestation)
                     }
