@@ -186,8 +186,8 @@ impl HarnessBoundary {
 /// What holds on EVERY harness seat, measured or not (NIK-266): the residual beside each row.
 pub const HARNESS_SHARED_RESIDUAL: &str = "A command asked as a shell string is admitted only \
      by `permits.exec: true`, otherwise it pauses for the operator. An ask for network access \
-     (a fetch, or a command the harness says needs the network) or for a wider harness sandbox \
-     always pauses. An action Nika allows once runs under the harness's own sandbox, not Nika's \
+     (a fetch, or a command the harness says needs the network), for a wider harness sandbox \
+     or to approve one of the harness's own MCP tool calls always pauses. An action Nika allows once runs under the harness's own sandbox, not Nika's \
      exec sandbox, so permits.fs and permits.net do not confine it: an allowed command opens \
      whatever connections that sandbox lets it, and an approved escalated Codex command runs \
      with no sandbox at all. The harness's own settings (its permission rules, hooks and MCP \

@@ -20,6 +20,9 @@
 //!    SOCKS network approval, which carries no `rawInput.url`; a command asking the harness to
 //!    widen its own sandbox (`additionalPermissions`); an edit whose `..` steps back out of a
 //!    symlinked directory, judged where the OS would write it;
+//! 6. the re-review's codex-acp MCP tool approvals (`_meta.is_mcp_tool_approval`, an `execute`
+//!    ask with no command, standalone or correlated to an earlier tool call) pause on the tools
+//!    plane even under `exec: true`, which answered them `allow_once`;
 //!
 //! and every decision is witnessed as a `PermissionJudged` (the `permit_checked` frame).
 
@@ -86,6 +89,15 @@ REVIEW_ASKS = {
                "locations": [{"path": "/"}]}, None),
     "dotdot": ({"toolCallId": "edit-2", "kind": "edit", "status": "pending", "title": "Edit files",
                 "locations": [{"path": cwd + "/out/link/../escaped.md"}]}, None),
+    "mcp-correlated": ({"toolCallId": "mcp-call-1", "kind": "execute", "status": "pending"},
+                       {"is_mcp_tool_approval": True}),
+    "mcp-standalone": ({"toolCallId": "mcp-2", "kind": "execute", "status": "pending",
+                        "title": "MCP tool call approval",
+                        "content": [{"type": "content", "content": {"type": "text",
+                                     "text": "Allow tool `fetch` on server `web` to run?"}}],
+                        "rawInput": {"serverName": "web", "schema": None,
+                                     "description": "Allow tool `fetch` on server `web` to run?"}},
+                       {"is_mcp_tool_approval": True}),
 }
 
 if scenario in REVIEW_ASKS:
@@ -443,4 +455,36 @@ async fn a_parent_step_out_of_a_symlinked_directory_pauses() {
         ]
     );
     assert!(!escaped.exists(), "nothing was written outside");
+}
+
+/// 6 · codex-acp's MCP tool approvals, correlated (no title, no input: only the tool call it
+/// announced) and standalone (its server named): judged on the tools plane, never answered by
+/// `exec: true` or any `permits.tools` id, so the run pauses.
+#[tokio::test]
+async fn an_mcp_tool_approval_pauses_under_exec_true() {
+    for (scenario, question, gate) in [
+        (
+            "mcp-correlated",
+            "the harness asked to approve its MCP tool call (tool call mcp-call-1)",
+            "mcp · tool call mcp-call-1",
+        ),
+        (
+            "mcp-standalone",
+            "MCP tool call approval",
+            "mcp · server web",
+        ),
+    ] {
+        let Paused {
+            error, seen, why, ..
+        } = paused(scenario, |_| {}).await;
+        assert_eq!(error, format!("harness gate: {question}"));
+        assert_eq!(
+            seen,
+            [
+                ("agent", "session mode · read-only".to_owned(), "confine"),
+                ("tools", gate.to_owned(), "escalate"),
+            ]
+        );
+        assert!(why.contains("permits.tools"), "{why}");
+    }
 }

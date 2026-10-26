@@ -393,20 +393,28 @@ where
         // typed payload drops it (NIK-266).
         let meta = params.get("_meta").cloned();
         let ask: PermissionRequestIn = parse_payload(params, "session/request_permission")?;
+        // NIK-266: network access, a wider harness sandbox or one of the harness's own MCP tool
+        // calls, from every signal the ask carries.
+        let escalation = wire::ask_escalation(&ask.tool_call, meta.as_ref());
+        // The harness's own words; an ask that carries none (codex-acp's correlated MCP
+        // approval) is named from what it approves.
         let question = ask
             .tool_call
             .get("title")
             .and_then(Value::as_str)
             .map_or_else(
-                || "the harness asked to perform an action".to_owned(),
+                || match &escalation.mcp {
+                    Some(call) => {
+                        format!("the harness asked to approve its MCP tool call ({call})")
+                    }
+                    None => "the harness asked to perform an action".to_owned(),
+                },
                 str::to_owned,
             );
         // B5: the judgeable facts ride beside the question (kind ·
         // locations · command · url — the wire's own words, absent when
         // the agent did not speak them).
         let (kind, locations, command, url) = wire::ask_facts(&ask.tool_call);
-        // NIK-266: network access or a wider harness sandbox, from every signal the ask carries.
-        let escalation = wire::ask_escalation(&ask.tool_call, meta.as_ref());
         // NIK-266: in the workflow's vocabulary — root-relative inside the session root,
         // absolute outside, plus each path's physical identity when a link or `..` moves it.
         let locations = anchor::anchor(locations, root).await;

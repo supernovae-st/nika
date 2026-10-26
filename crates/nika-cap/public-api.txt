@@ -492,6 +492,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_cap::FsPermits where T: for<'d
 pub nika_cap::HarnessAskFacts::command: alloc::vec::Vec<alloc::string::String>
 pub nika_cap::HarnessAskFacts::kind: core::option::Option<alloc::string::String>
 pub nika_cap::HarnessAskFacts::locations: alloc::vec::Vec<alloc::string::String>
+pub nika_cap::HarnessAskFacts::mcp: core::option::Option<alloc::string::String>
 pub nika_cap::HarnessAskFacts::network: core::option::Option<alloc::string::String>
 pub nika_cap::HarnessAskFacts::url: core::option::Option<alloc::string::String>
 pub nika_cap::HarnessAskFacts::widens: core::option::Option<alloc::string::String>
@@ -500,6 +501,7 @@ pub fn nika_cap::HarnessAskFacts::new() -> Self
 pub fn nika_cap::HarnessAskFacts::with_command(self, command: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_cap::HarnessAskFacts::with_kind(self, kind: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_cap::HarnessAskFacts::with_locations(self, locations: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_cap::HarnessAskFacts::with_mcp(self, mcp: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_cap::HarnessAskFacts::with_network(self, network: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_cap::HarnessAskFacts::with_url(self, url: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_cap::HarnessAskFacts::with_widens(self, widens: core::option::Option<alloc::string::String>) -> Self

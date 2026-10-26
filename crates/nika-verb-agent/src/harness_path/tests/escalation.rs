@@ -42,14 +42,15 @@ fn judged(observer: &VecObserver) -> Vec<(&'static str, String, &'static str, St
         .collect()
 }
 
-/// NIK-266 · a network or sandbox-widening ask is never inside `exec: true`: the run
-/// pauses with the harness's question verbatim, the witness names the target, and the
-/// reply lane was never answered (the reviewer's `socks5Tcp` and `additionalPermissions`
-/// asks were answered `allow_once` before).
+/// NIK-266 · a network, sandbox-widening or MCP tool approval ask is never inside
+/// `exec: true`: the run pauses with the harness's question verbatim, the witness names
+/// what it reaches, and the reply lane was never answered (the reviewers' `socks5Tcp`,
+/// `additionalPermissions` and `is_mcp_tool_approval` asks were answered `allow_once` before).
 #[tokio::test]
 async fn an_escalation_pauses_even_under_exec_true() {
     let socks = HarnessEscalation::new().with_network("socks5Tcp://exfil.example");
     let widened = HarnessEscalation::new().with_widens("write /");
+    let mcp = HarnessEscalation::new().with_mcp("server web");
     for (title, asked, plane, gate) in [
         (
             "socks5Tcp network access to exfil.example",
@@ -58,6 +59,7 @@ async fn an_escalation_pauses_even_under_exec_true() {
             "network · socks5Tcp://exfil.example",
         ),
         ("Run command", widened, "exec", "sandbox · write /"),
+        ("MCP tool call approval", mcp, "tools", "mcp · server web"),
     ] {
         let verdicts = Arc::new(Mutex::new(Vec::new()));
         let tape = vec![
