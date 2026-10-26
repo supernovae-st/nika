@@ -68,6 +68,21 @@ impl Written {
             spots: vec![Spot::Anywhere],
         }
     }
+
+    /// The part of this write the check can locate (its lexical spots),
+    /// `None` when it can locate none.
+    pub(super) fn located(&self) -> Option<Self> {
+        let spots: Vec<Spot> = self
+            .spots
+            .iter()
+            .filter(|spot| matches!(spot, Spot::At { .. }))
+            .cloned()
+            .collect();
+        (!spots.is_empty()).then(|| Self {
+            origin: self.origin.clone(),
+            spots,
+        })
+    }
 }
 
 /// The places a builtin invoke reads files (nika-cap's read slots),

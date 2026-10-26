@@ -78,10 +78,13 @@ depend on without pulling the CLI:
   read slots: `nika:read`, `nika:grep` and its default root, `nika:glob`,
   `nika:edit`, a `decide` bundle, `image_fx`/`chart`/`image_generate`
   inputs, a `fetch` multipart part) when its path may be one the write
-  reached, whatever the order (a file outlives the run order: a read
-  beside the writer or before it reads it in this run or the next; the
-  pass sweeps until the writers settle). A call whose closure reads files
-  meets any tainted write of its caller. Paths compare lexically (folded,
+  reached, whatever the order when the write's path is literal (a file
+  outlives the run order: a read beside the writer or before it reads it
+  in this run or the next; the pass sweeps until the writers settle). A
+  write the check cannot locate (a templated path, a subprocess, a server,
+  a child closure) meets only later reads, as an `exec:` reader does. A
+  call whose closure reads files meets an earlier tainted write of its
+  caller, as an `exec:` does. Paths compare lexically (folded,
   ASCII case-blind, a segment past ASCII may be any segment, `/private/tmp`
   `/var` `/etc` are their firmlinks); a template, a subprocess, a server or
   a child closure may reach any path. Only `/` sits at a known place: a

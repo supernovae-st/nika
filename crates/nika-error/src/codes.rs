@@ -799,9 +799,9 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              A file carries untrusted content too: once a task writes some \
              to a file, a later `exec:`, or a builtin read (`nika:read` · \
              `nika:grep` · `nika:glob` · …) of a path that write may have \
-             reached, carries it on. The builtin read counts wherever it \
-             runs: beside the writer, or before it (the next run reads the \
-             file).\n",
+             reached, carries it on. When the write's path is literal, \
+             the builtin read counts wherever it runs: beside the writer, \
+             or before it (the next run reads the file).\n",
         ),
         // NIK-273 follow-up: a child workflow call is an egress-capable task.
         "NIKA-SEC-014" => Some(

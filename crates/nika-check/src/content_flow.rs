@@ -100,12 +100,16 @@ pub(super) struct ContentFlow {
 ///
 /// A file outlives the run order: a reader in its writer's wave runs
 /// beside it (a retry waits for the file), and a reader the order puts
-/// first reads what the previous run left. So a builtin read, and a call
-/// whose closure reads files, meet every tainted write of the workflow,
-/// earlier or not (NIK-273 review): each sweep reads the writes the one
-/// before found. A write only adds taint, so the writers settle within one
-/// sweep per writer. An `exec:` reads what it likes, so only a writer
-/// earlier in the sweep arms it.
+/// first reads what the previous run left. So a builtin read meets every
+/// tainted write the check can locate (a literal path), earlier or not
+/// (NIK-273 review): each sweep reads the located writes the one before
+/// found. A write only adds taint, so the writers settle within one sweep
+/// per writer. A write the
+/// check cannot locate (a templated path · a subprocess · a server · a
+/// child closure) meets only later reads, as before: whatever the order,
+/// it would meet every read of the workflow. An `exec:` reads what it
+/// likes, so only a writer earlier in the sweep arms it, and so for a
+/// call whose closure reads files (its reads are not told apart).
 pub(super) fn analyze_content_flow(
     wf: &RawWorkflow,
     waves: &[Vec<usize>],
@@ -114,15 +118,17 @@ pub(super) fn analyze_content_flow(
     let mut known: Vec<Written> = Vec::new();
     loop {
         let (flow, written) = sweep(wf, waves, sources, &known);
-        if written.len() <= known.len() {
+        let located: Vec<Written> = written.iter().filter_map(Written::located).collect();
+        if located.len() <= known.len() {
             return flow;
         }
-        known = written;
+        known = located;
     }
 }
 
-/// One sweep in run order. `known`: every tainted write the previous sweep
-/// found. Returns the flow and every tainted write this sweep found.
+/// One sweep in run order. `known`: every located tainted write the
+/// previous sweep found. Returns the flow and every tainted write this
+/// sweep found.
 fn sweep(
     wf: &RawWorkflow,
     waves: &[Vec<usize>],
@@ -226,7 +232,8 @@ struct Reached {
 }
 
 /// The pass's view at one task: which content it follows, the file
-/// channel so far, and every tainted write the previous sweep found.
+/// channel so far, and every located tainted write the previous sweep
+/// found.
 struct Lens<'a> {
     follows_born: bool,
     fs_read_declared: bool,
@@ -265,8 +272,9 @@ impl Lens<'_> {
     }
 
     /// The origin a task reads through the file channel: an `exec:` reads
-    /// what the first earlier tainted writer left, a builtin read what any
-    /// writer of a path it reads left (an earlier one named first).
+    /// what the first earlier tainted writer left, a builtin read what an
+    /// earlier writer of a path it reads left, or a located writer of it
+    /// in any order.
     fn file_read(&self, action: &RawAction) -> Option<String> {
         if !self.fs_read_declared {
             return None;
@@ -281,16 +289,15 @@ impl Lens<'_> {
     }
 
     /// A listed workflow call, through what its closure does with each
-    /// entry: the call's arguments (`arrived`), the channel a tainted
+    /// entry: the call's arguments (`arrived`), the channel an earlier
     /// writer armed (when a task of the closure reads files, whatever the
-    /// path and the order: the closure's reads are not compared across the
-    /// call), and what the closure brings in itself (the call's own id is
-    /// that origin).
+    /// path: the closure's reads, an `exec:` among them, are compared
+    /// neither by path nor by order across the call), and what the closure
+    /// brings in itself (the call's own id is that origin).
     fn call(&self, task_id: &str, call: &ComposedCall, arrived: Option<String>) -> Reached {
         let file = self
             .channel
             .first()
-            .or_else(|| self.known.first())
             .filter(|_| self.fs_read_declared && !call.files.is_empty())
             .map(|w| w.origin.clone());
         let own = || Some(task_id.to_owned());
