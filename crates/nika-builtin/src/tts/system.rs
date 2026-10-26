@@ -200,9 +200,10 @@ async fn say<F: FsReadDyn + FsWriteDyn>(
     scratch_dir: &Path,
     args: &TtsArgs,
 ) -> Result<Vec<u8>, BuiltinFailure> {
-    // seam-bypass-ok: a scratch file name needs uniqueness across concurrent
-    // calls, never a reproducible id — it never reaches the artifact.
-    let scratch = scratch_dir.join(format!("nika-tts-{}.wav", uuid::Uuid::new_v4()));
+    // A scratch file name needs uniqueness across concurrent calls, never a
+    // reproducible id: it never reaches the artifact.
+    let unique = uuid::Uuid::new_v4(); // seam-bypass-ok: scratch-name uniqueness only
+    let scratch = scratch_dir.join(format!("nika-tts-{unique}.wav"));
     let mut command = ShellCommand::new(program.to_string_lossy())
         .arg("-o")
         .arg(scratch.to_string_lossy())
