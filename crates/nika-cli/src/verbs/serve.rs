@@ -82,6 +82,16 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
         ));
     }
     let (path, registry) = arm::load(&cwd).map_err(|out| fail(out.text))?;
+    // #1649 · a registry with no beat fires nothing, ever: a rehearsal of it
+    // says so and returns, and the resident says it once and keeps watching
+    // `nika.yaml` (arming it later still takes effect on the next reload).
+    if registry.beat_count() == 0 && http.is_none() {
+        let unarmed = unarmed_teaching(&path);
+        if args.once || args.dry {
+            return Ok(VerbOutput::ok(unarmed));
+        }
+        eprintln!("{unarmed}");
+    }
     let root = path
         .parent()
         .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
@@ -107,6 +117,21 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
         nika_serve::serve_resident_process(&root, state_root, http).map_err(fail)?;
     }
     Ok(VerbOutput::ok(String::new()))
+}
+
+/// The token recipe `nika serve --bind` and `nika doctor` teach.
+const SERVE_TOKEN_MINT: &str =
+    "umask 077 && openssl rand -hex 24 > .nika/serve.token && chmod 600 .nika/serve.token";
+
+/// The empty registry, in the arming doors' own sentence, then the door that
+/// serves workflows with no beat at all: the HTTP listener and its token.
+fn unarmed_teaching(path: &Path) -> String {
+    format!(
+        "{}\n  workflows run on demand over HTTP: nika serve --bind 127.0.0.1:<port> \
+         --workflows workflows --token-file .nika/serve.token\n  mint the token first: \
+         {SERVE_TOKEN_MINT}",
+        arm::nothing_armed(path)
+    )
 }
 
 #[cfg(test)]

@@ -101,3 +101,33 @@ fn cost_review_and_run_cost_ceiling_are_explicit_listener_options() {
         Ok(None)
     ));
 }
+
+/// #1649 · a project that arms nothing says so: `--once` and `--dry` are
+/// rehearsals of nothing and exit 0 at once, naming the empty registry and
+/// the HTTP door that serves workflows without a beat. Measured on 0.123.2
+/// after `nika init --yes`: `--once` exited 0 in silence and `--dry` never
+/// returned.
+#[test]
+fn an_unarmed_project_says_so_and_rehearsals_exit() {
+    let dir = project("unarmed", "nika: proj\n");
+    let _lease = crate::cwd::enter(dir.path()).expect("enter the unarmed project");
+    for (once, dry) in [(true, false), (false, true)] {
+        let (sent, received) = std::sync::mpsc::channel();
+        // A thread with a deadline: on the broken path `--dry` never returns.
+        std::thread::Builder::new()
+            .name("unarmed-rehearsal".to_owned())
+            .spawn(move || {
+                let mut args = serve_args();
+                args.once = once;
+                args.dry = dry;
+                let _ = sent.send(run(&args));
+            })
+            .expect("spawn the rehearsal");
+        let out = received
+            .recv_timeout(std::time::Duration::from_secs(10))
+            .unwrap_or_else(|_| panic!("once={once} dry={dry} · a rehearsal of nothing returns"));
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(out.text.contains("nothing armed"), "{}", out.text);
+        assert!(out.text.contains("--bind"), "{}", out.text);
+    }
+}
