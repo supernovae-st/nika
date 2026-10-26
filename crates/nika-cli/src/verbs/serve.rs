@@ -119,9 +119,10 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
     Ok(VerbOutput::ok(String::new()))
 }
 
-/// The token recipe `nika serve --bind` and `nika doctor` teach.
-const SERVE_TOKEN_MINT: &str =
-    "umask 077 && openssl rand -hex 24 > .nika/serve.token && chmod 600 .nika/serve.token";
+/// The token recipe `nika serve --bind` and `nika doctor` teach. It creates
+/// `.nika/` first: a project fresh from `nika init` has none yet.
+const SERVE_TOKEN_MINT: &str = "umask 077 && mkdir -p .nika && openssl rand -hex 24 > .nika/serve.token \
+     && chmod 600 .nika/serve.token";
 
 /// The empty registry, in the arming doors' own sentence, then the door that
 /// serves workflows with no beat at all: the HTTP listener and its token.

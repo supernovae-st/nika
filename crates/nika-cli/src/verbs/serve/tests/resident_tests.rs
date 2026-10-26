@@ -129,5 +129,18 @@ fn an_unarmed_project_says_so_and_rehearsals_exit() {
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(out.text.contains("nothing armed"), "{}", out.text);
         assert!(out.text.contains("--bind"), "{}", out.text);
+        // A fresh project has no `.nika/` yet: the recipe creates it before
+        // it writes the token there, or the pasted line fails.
+        let mkdir = out.text.find("mkdir -p .nika &&");
+        let write = out.text.find("> .nika/serve.token");
+        assert!(
+            matches!((mkdir, write), (Some(m), Some(w)) if m < w),
+            "the recipe creates `.nika/` before writing into it · {}",
+            out.text
+        );
+        assert!(
+            !dir.path().join(".nika").exists(),
+            "the rehearsal itself creates nothing"
+        );
     }
 }
