@@ -42,7 +42,7 @@ The `.output` shape depends on the verb (know this before you bind downstream) �
 | `infer:` | the model's reply · **string** | `schema:` set → **object** matching it |
 | `exec:` | **stdout string** (default) | `capture: structured` → `{ stdout, stderr, exit_code }` |
 | `invoke:` | the **tool's response** (tool-defined · string · object · or bytes) | per builtin / MCP tool schema · bytes are tool-determined (MCP image content · binary read) · flow opaquely · see 04 §value rendering |
-| `agent:` | the loop's **final message** · string | `schema:` set → **object** matching it |
+| `agent:` | the loop's **final message** · string | `schema:` set → **object** matching it · `images:` set → `{ message, images }` ([§Harness images](#harness-images--images-normative)) |
 
 ---
 
@@ -218,8 +218,12 @@ all four properties for that adapter and this task:
 1. `single_turn` — one request produces one terminal answer;
 2. `no_implicit_tools` — an accepted answer contains no tool, command, file,
    network, or permission event;
-3. `structured_output` — the adapter's level is at least the task's need
-   (plain text, JSON, or JSON Schema);
+3. `structured_output` — the task's need (plain text, JSON, or JSON Schema)
+   is met, by the adapter's own level or, for JSON and JSON Schema, by the
+   engine validating the terminal answer under the `schema` law of
+   [§Conformance](#conformance): the answer that does not validate is never
+   the task output (`NIKA-INFER-002`), and each repair the engine spends is a
+   new request that meets all four properties again;
 4. `model_identity` — the requested model identity is observable at command
    construction and is recorded without being relabelled as the model that
    answered.
@@ -471,6 +475,7 @@ research:
 | `max_tokens_total` | no | integer | Cumulative token budget · default engine-configurable |
 | `temperature` | no | number 0-2 | Sampling temperature |
 | `schema` | no | object, or `{ file: <path> }` | raw JSON Schema, inline or kept in a project file ([§Project files](#project-files---file--normative)) · validates the agent's **final message** as structured output (same contract as `infer.schema:` · the out-of-core hatch — the typed door is `returns:` · [09](./09-types.md)) · `.output` becomes the matching object |
+| `images` | no | object | `{ save?: <path> }` · makes the images an agent application delivered during its turn a value of the task, and with `save:` writes them in the project ([§Harness images](#harness-images--images-normative)) · a task that runs on a seat (`run.access.protocol: acp`) only · `.output` becomes `{ message, images }` |
 
 ### Loop semantics
 
@@ -654,6 +659,60 @@ task's resume identity: editing a `SKILL.md` re-runs the task (the same
 law as an edited prompt — a resume never serves output produced under a
 different skill).
 
+### Harness images · `images:` (normative)
+
+An `agent:` task that runs on an agent application's seat
+(`run.access.protocol: acp` · [01 §run](./01-envelope.md)) can receive the
+images the application generates during its turn. `images:` makes those images
+a value of the task, and `save:` writes them in the project, so a later task
+reads the file the engine wrote instead of asking the application to copy one ·
+
+```yaml
+banner:
+    agent:
+      prompt: "Draw a 16:9 release banner for ${{ inputs.product }}, no text"
+      images:
+        save: "./out/release/banner.png"     # optional · the engine writes the received bytes
+halftone:
+    with:
+      banner: ${{ tasks.banner.output.images[0].path }}
+    invoke:
+      tool: "nika:image_fx"
+      args: { input: "${{ with.banner }}", out: "./out/release/banner-halftone.png", ops: [{ halftone: {} }] }
+```
+
+- **The value.** With `images:` set, `.output` is the object
+  `{ message, images }`. `message` holds what `.output` holds without
+  `images:` (the final message, or the object matching `schema:`). `images`
+  lists the images in the order the session delivered them, each
+  `{ index, path, sha256, size_bytes, mime_type, width, height }`: `index`
+  counts from 0, `path` is the project-relative path the engine wrote (`null`
+  without `save:`), `sha256` digests the bytes received, and `width` and
+  `height` come from the image header.
+- **This session's bytes only.** An entry is an image whose bytes the engine
+  received on this task's own session, during this attempt. An update
+  addressed to another session is never this task's. A path the application
+  reports (where it says it saved a copy, a folder of generated images that
+  other sessions share) is a claim: the engine never opens it, never lists it
+  as a value and never saves from it.
+- **`save:`** · a path, `${{ }}` allowed. The engine writes the first image's
+  received bytes at that path, and image *n* (*n* ≥ 2) at the path with `-n`
+  inserted before its extension. Each final path is judged against
+  `permits.fs.write` before any byte is written: `NIKA-AUTH-006` under an
+  absent block, `NIKA-SEC-004` outside a declared one, at check for a literal
+  path and at run for a rendered one. A write replaces an existing file
+  atomically. A task whose session delivered no image bytes fails
+  `NIKA-AGENT-007`: the declared file is never left unwritten behind a
+  success.
+- **A seat's field.** On a route without a seat (the engine's own loop over an
+  API or local model) `images:` is refused before the first request, and
+  `check` says so for the route it resolves: that loop's images are its tools'
+  outputs (`nika:image_generate`).
+- **Evidence.** Every received image keeps its trace observation
+  ([17 §Harness image observations](./17-trace.md#harness-image-observations-additive));
+  a saved one also records there the project-relative `saved_path`, so a run's
+  artifact list carries the file with the digest of the bytes received.
+
 ### Conformance
 
 The engine MUST ·
@@ -663,6 +722,7 @@ The engine MUST ·
 - Detect the `nika:done` completion sentinel and exit gracefully
 - Return the final model response as task output
 - Resolve `skills:` at compose time · judge every path against the declared `permits.fs.read` boundary BEFORE opening it (`NIKA-AUTH-006` under an absent block · `NIKA-SEC-004` outside a declared one) · inject the `## Skills` section in source order exactly as specified above · fail statically (`NIKA-AGENT-003`/`NIKA-AGENT-004`) on a missing or invalid skill file — never start a run with a half-composed context
+- Under `images:` · make the images received on the task's own session, and only those, the `images` list of `.output` · never open a path the application reports · write each received image at its `save:` path inside `permits.fs.write` before the task succeeds, or fail `NIKA-AGENT-007` when none was received · refuse `images:` on a route without a seat before the first request
 
 ---
 

@@ -857,6 +857,18 @@
         "schema": {
           "description": "JSON Schema · the contract the agent's FINAL message must satisfy, inline or the schema of a project file. The out-of-core hatch; the typed door is task-level `returns:` (both on one task is NIKA-TYPE-003).",
           "$ref": "#/$defs/schemaContract"
+        },
+        "images": {
+          "description": "The images an agent application delivers during its turn, as a value of the task: `.output` becomes `{ message, images }`, each image `{ index, path, sha256, size_bytes, mime_type, width, height }`. Only bytes received on this task's own session count; a path the application reports is never opened. A task that runs on a seat (`run.access.protocol: acp`) only (spec/02-verbs.md §Harness images).",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "save": {
+              "description": "Where the engine writes the received bytes: the first image at this path, image n (n >= 2) with `-n` before its extension. Judged against `permits.fs.write` before any byte is written; `${{ }}` allowed. No image received fails NIKA-AGENT-007.",
+              "type": "string",
+              "minLength": 1
+            }
+          }
         }
       }
     },
