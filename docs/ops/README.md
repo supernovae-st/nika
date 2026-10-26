@@ -74,7 +74,8 @@ the TypeScript SDK cover the API from an application.
   usually outlasts the grace.
 - `GET /v1/jobs/{id}/artifacts` lists what a settled job's journal records
   as its artifacts: the files `nika:chart`, `nika:image_generate`,
-  `nika:tts_generate` and `nika:image_fx` saved inside the project, and the
+  `nika:tts_generate`, `nika:image_fx` and `nika:image_compose` saved inside
+  the project, and the
   images an agent's harness sent. Each entry has a `name`, `kind`, `size`,
   `sha256` and `mime`, and the manifest carries the job's `receipt`. Files
   written by `nika:write` or `nika:edit` are not listed, because their
