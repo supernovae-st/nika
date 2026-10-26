@@ -58,7 +58,8 @@ depend on without pulling the CLI:
   an agent whitelist · a harness-servable agent) the entries its own declared
   block, met with every block above it, keeps; `nika-dap`'s
   `NIKA-DRIFT-001` never names a held grant dead. The runtime trust gate
-  re-derives the trifecta over the same calls. A plain `check()` resolves no
+  re-derives the trifecta over the same calls, and counts a call its report
+  does not list as unresolved. A plain `check()` resolves no
   call: its trifecta lane, like its composition and cost lanes, judges the
   caller's own tasks only.
 - **the file channel** (`file_channel`, inside the content-taint pass) —

@@ -866,6 +866,31 @@ fn a_gated_child_subprocess_runs_once_the_gate_is_answered() {
     );
 }
 
+/// `nika run --task` re-checks the cone it keeps. The trust gate counts a
+/// call its report did not resolve as untrusted, so the scoped report keeps
+/// the resolved child calls: the gated composition still runs, with no false
+/// NIKA-1707 (NIK-273 follow-up).
+#[test]
+fn a_task_scoped_run_keeps_the_resolved_child_calls() {
+    let dir = tmp_dir("comp-trifecta-scoped");
+    write_fixture(&dir, "child.nika", BANNER_CHILD);
+    write_fixture(&dir, "note.txt", "a private note");
+    std::fs::create_dir_all(dir.join("out")).expect("out dir");
+    let parent = write_fixture(&dir, "parent.nika", BANNER_PARENT_GATED);
+    let parent = parent.to_str().expect("utf8");
+    let (code, text) = run_in(
+        &dir,
+        &["run", parent, "--task", "leak", "--answer", "ask=true"],
+    );
+    assert_eq!(code, 0, "the scoped run settles green:\n{text}");
+    assert!(!text.contains("NIKA-1707"), "{text}");
+    let written = std::fs::read_to_string(dir.join("out").join("leak.txt")).expect("written");
+    assert!(
+        written.contains("a subprocess banner") && written.contains("a private note"),
+        "{written}"
+    );
+}
+
 /// DRIFT-001 must never advise removing a grant the parent holds for its
 /// child: the child's program and the read its subprocess makes run inside
 /// the parent's boundary (spec 14 law 3). A grant nothing uses still drifts.
