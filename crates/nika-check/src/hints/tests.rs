@@ -1016,6 +1016,18 @@ fn jq_as_map_ignores_a_binding_inside_the_map_body() {
         ("map(. as $r | {n: ($r.a | length)})", false),
         (". as $c | map(.n)", true),
         (". as $c | { out: (map(.n)) }", true),
+        // The binding's scope ends at the map body's `)`: a later map maps
+        // the first map's output, which is what its author meant.
+        ("map(. as $r | {n: ($r.a | length)}) | map(.n)", false),
+        ("map(. as $r | {n: $r.a}) | map(select(.n > 0))", false),
+        ("(. as $c | $c) | map(.n)", false),
+        // A binding still in scope keeps the hint, whatever came before it,
+        // and a bracket inside a string closes nothing.
+        ("map(. as $r | $r) | . as $c | map(.n)", true),
+        (". as $c | \"a)\" as $s | map(.n)", true),
+        // An explicit map keeps its brackets, so the scope still closes there.
+        (". as $c | ($c | map(.n)) | length", false),
+        ("map(. as $r | ($r.items | map(.x))) | map(length)", false),
     ];
     for (expr, want_hint) in cases {
         let yaml = format!(

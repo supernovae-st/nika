@@ -42,9 +42,10 @@ pub(super) fn push_jq_as_map_hint(hints: &mut Vec<Hint>, id: &str, a: &RawInvoke
 
 /// `. as $c | map(...)` maps the *current* value. `($c | map(...))` is
 /// the one-way. A one-liner used to slip past the line-start detector.
-/// Only a bare `map(` AFTER the first dot binding counts: a binding inside
-/// a map body (`map(. as $r | ...)`) binds each element, and the map that
-/// encloses it maps exactly what its author meant (measured on 0.123.2).
+/// Only a bare `map(` inside a dot binding's scope counts: a binding inside
+/// a map body (`map(. as $r | ...)`) binds each element and its scope ends
+/// at that body's `)`, so neither the map that encloses it nor a later map
+/// that maps its output is in question (measured on 0.123.2).
 fn jq_maps_the_current_after_bind(expr: &str) -> bool {
     // The DOT binding is what puts the current value in question, so it stays
     // the trigger: no `. as $name`, no hint.
@@ -55,25 +56,64 @@ fn jq_maps_the_current_after_bind(expr: &str) -> bool {
     // bindings (`($entries | map(...)) as $rows | ($rows | map(...))`) already
     // does exactly what the advice prescribes, and stripping only the
     // dot-bound name reported it as a defect (measured 2026-08-19).
+    // Each erased map keeps its opening brackets, so a binding's scope still
+    // closes where the expression closes it.
     let mut rest = squash_ws(expr);
     for name in &all_bound_jq_names(expr) {
-        rest = rest.replace(&format!("(${name} | map("), "");
-        rest = rest.replace(&format!("(${name}|map("), "");
+        rest = rest.replace(&format!("(${name} | map("), "((");
+        rest = rest.replace(&format!("(${name}|map("), "((");
     }
     // A map piped from a field access on the current value (`.paths | map(`)
     // re-navigates, so map receives that array — the same class as a map
     // piped from a bound name (issue 1038 remainder).
     rest = erase_field_piped_maps(&rest);
-    rest.find(". as $")
-        .and_then(|at| rest.get(at..))
-        .is_some_and(|after_bind| after_bind.contains("map("))
+    rest.match_indices(". as $")
+        .filter_map(|(at, _)| rest.get(at..))
+        .any(scope_holds_a_bare_map)
 }
 
-/// Drop `.IDENT | map(` / `(.IDENT | map(` so a remaining `map(` is bare.
+/// Whether a bare `map(` follows a binding before its scope ends: the `)`,
+/// `]` or `}` that closes the construct the binding sits in. Brackets inside
+/// a string literal neither open nor close anything.
+fn scope_holds_a_bare_map(from_bind: &str) -> bool {
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut chars = from_bind.char_indices();
+    while let Some((at, c)) = chars.next() {
+        match c {
+            '\\' if in_string => {
+                chars.next();
+            }
+            '"' => in_string = !in_string,
+            _ if in_string => {}
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => match depth.checked_sub(1) {
+                Some(inner) => depth = inner,
+                None => return false,
+            },
+            'm' if from_bind
+                .get(at..)
+                .is_some_and(|tail| tail.starts_with("map(")) =>
+            {
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Drop `.IDENT | map(` / `(.IDENT | map(` so a remaining `map(` is bare,
+/// keeping the opening brackets the dropped text held.
 fn erase_field_piped_maps(s: &str) -> String {
     let mut rest = s.to_owned();
     while let Some((start, end)) = find_field_piped_map(&rest) {
-        rest.replace_range(start..end, "");
+        let opens = if rest.get(start..).is_some_and(|t| t.starts_with('(')) {
+            "(("
+        } else {
+            "("
+        };
+        rest.replace_range(start..end, opens);
     }
     rest
 }
