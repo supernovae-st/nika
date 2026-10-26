@@ -5,7 +5,7 @@
 //! firing from the headers before any inflate.
 
 use super::*;
-use crate::codec::png::{encode, encode_samples, header_only};
+use crate::codec::png::{dual_ihdr, encode, encode_samples, header_only};
 
 /// A `w × h` RGB PNG painted one flat colour.
 fn flat(w: usize, h: usize, rgb: [u8; 3]) -> Vec<u8> {
@@ -428,6 +428,35 @@ fn caps_fire_from_the_headers_before_any_inflate() {
         compose(&[&dot, &dot], &cells),
         Err(FxError::Budget { .. })
     ));
+}
+
+#[test]
+fn an_input_over_the_side_cap_is_a_cap_even_inside_the_pixel_budget() {
+    // 20000x1 is far under 2^26 pixels: only the per-side cap can refuse it,
+    // and the stdlib files that cap under `-005`, never a corrupt input.
+    for (w, h) in [(20_000, 1), (1, 16_385)] {
+        let claim = header_only(w, h);
+        let r = compose(&[&claim], &ComposeArgs::new());
+        assert!(
+            matches!(&r, Err(FxError::Cap(m))
+                if m.starts_with("inputs[0]:") && m.contains(&format!("{w}x{h}"))),
+            "{r:?}"
+        );
+    }
+}
+
+#[test]
+fn a_second_ihdr_cannot_smuggle_pixels_past_the_summed_budget() {
+    // The header gate reads 1x1; the decoder must never paint the 64x64 a
+    // second IHDR claims (five such inputs would be 5x the gated total).
+    let smuggler = dual_ihdr((1, 1), (64, 64));
+    let r = compose(&[&smuggler, &smuggler], &args(Layout::Row, Scale::None));
+    assert!(
+        matches!(&r, Err(FxError::Decode(m))
+            if m.starts_with("inputs[0]:") && m.contains("second IHDR")),
+        "{:?}",
+        r.map(|o| (o.width, o.height))
+    );
 }
 
 #[test]

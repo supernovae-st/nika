@@ -8,8 +8,10 @@
   bytes and args give the same PNG bytes, the `image_compose/v1` recipe rides
   the tEXt chunk, and the output carries path, sha256, width and height,
   never bytes. Every input is an `fs.read` that `nika check` judges, infers
-  and counts as a use, and `out:` an `fs.write`; caps on input count, summed
-  input pixels and canvas size fail `NIKA-BUILTIN-IMAGE_COMPOSE-005` from the
-  PNG headers before any decompression, and each of the six codes has its
+  and counts as a use, and `out:` an `fs.write`; caps on each input's side,
+  the summed input pixels, each scaled `fit`/`fill` box and the canvas fail
+  `NIKA-BUILTIN-IMAGE_COMPOSE-005` from the PNG headers before any
+  decompression (an input count outside 1..=64 is an argument, `-001`), an
+  input with a second IHDR is `-004`, and each of the six codes has its
   `nika explain` lesson. A contact sheet no longer needs `exec magick
   montage`.

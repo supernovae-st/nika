@@ -353,10 +353,11 @@ fn extent(sizes: &[u64], gap: u32, padding: u32) -> u64 {
 ///
 /// # Errors
 /// `FxError::Args` (see [`grid`]) · `FxError::UnsupportedFormat` /
-/// `FxError::Decode` (an input, named by its index) · `FxError::Budget`
-/// (the summed input pixels, a scaled box or the canvas over 2^26 pixels) ·
-/// `FxError::Cap` (a canvas or scaled-box side over 16384) — every size is
-/// judged before any decompression or canvas allocation.
+/// `FxError::Decode` (an input, named by its index · a second IHDR) ·
+/// `FxError::Budget` (the summed input pixels, a scaled box or the canvas
+/// over 2^26 pixels) · `FxError::Cap` (an input, canvas or scaled-box side
+/// over 16384) — every size is judged before any decompression or canvas
+/// allocation.
 pub fn compose(inputs: &[&[u8]], args: &ComposeArgs) -> Result<ComposeOutput, FxError> {
     let (cols, rows) = grid(args, inputs.len())?;
     // 1 · the headers: every input's size and format, and the summed pixel
@@ -411,6 +412,13 @@ pub fn compose(inputs: &[&[u8]], args: &ComposeArgs) -> Result<ComposeOutput, Fx
     // 4 · paint each input into its cell, row-major, centered.
     for (i, bytes) in inputs.iter().enumerate() {
         let (rgb, alpha) = png::decode_with_alpha(bytes).map_err(|e| at_input(i, e))?;
+        // The budget judged the header's size: paint nothing else.
+        if (rgb.w, rgb.h) != (dims[i].0 as usize, dims[i].1 as usize) {
+            return Err(FxError::Decode(format!(
+                "inputs[{i}]: decoded {}x{} but the header judged {}x{}",
+                rgb.w, rgb.h, dims[i].0, dims[i].1
+            )));
+        }
         let flat = flatten(rgb, alpha.as_deref(), bg);
         let tile = scale_into(&flat, placed[i])?;
         let (c, r) = (i % cols as usize, i / cols as usize);

@@ -80,7 +80,9 @@ fn parse_ihdr(body: &[u8]) -> Result<Ihdr, FxError> {
         });
     }
     if w > MAX_DIMENSION || h > MAX_DIMENSION {
-        return Err(FxError::Decode(format!(
+        // A size cap (the stdlib's `-005` for both media builtins), never a
+        // corrupt file: the bytes are well-formed, only too large.
+        return Err(FxError::Cap(format!(
             "dimension {w}x{h} exceeds the {MAX_DIMENSION} per-side cap"
         )));
     }
@@ -127,8 +129,9 @@ fn parse_ihdr(body: &[u8]) -> Result<Ihdr, FxError> {
 ///
 /// # Errors
 /// `FxError::UnsupportedFormat` (not a PNG we accept) · `FxError::Decode`
-/// (no leading IHDR · CRC mismatch · zero or over-cap dimensions) ·
-/// `FxError::Budget` (this one image's pixels exceed [`MAX_PIXELS`]).
+/// (no leading IHDR · CRC mismatch · zero dimensions) · `FxError::Cap` (a
+/// side over [`MAX_DIMENSION`]) · `FxError::Budget` (this one image's
+/// pixels exceed [`MAX_PIXELS`]).
 pub fn header(data: &[u8]) -> Result<(u32, u32), FxError> {
     if data.len() < 8 || data[..8] != SIG {
         return Err(FxError::UnsupportedFormat(
@@ -157,8 +160,9 @@ pub fn header(data: &[u8]) -> Result<(u32, u32), FxError> {
 ///
 /// # Errors
 /// `FxError::UnsupportedFormat` (not a PNG we accept) · `FxError::Decode`
-/// (structural corruption · CRC/Adler) · `FxError::Budget` (pixel budget,
-/// gated from IHDR before any inflate).
+/// (structural corruption · CRC/Adler · an IHDR that is not the one first
+/// chunk) · `FxError::Cap` (a side over [`MAX_DIMENSION`]) ·
+/// `FxError::Budget` (pixel budget, gated from IHDR before any inflate).
 pub fn decode(data: &[u8]) -> Result<PixBuf, FxError> {
     decode_planes(data).map(|(rgb, _alpha)| rgb)
 }
@@ -212,7 +216,18 @@ fn decode_planes(data: &[u8]) -> Result<(PixBuf, Option<Vec<u8>>), FxError> {
                 String::from_utf8_lossy(ty)
             )));
         }
+        // Exactly one IHDR, and it is the first chunk (PNG-3 §5.6): the
+        // size [`header`] judged is then the size decoded — a second IHDR
+        // can never smuggle a larger image past a caller's pixel gate.
+        if ihdr.is_none() && ty != b"IHDR" {
+            return Err(FxError::Decode("IHDR must be the first chunk".into()));
+        }
         match ty {
+            b"IHDR" if ihdr.is_some() => {
+                return Err(FxError::Decode(
+                    "a second IHDR chunk (a PNG carries exactly one)".into(),
+                ));
+            }
             b"IHDR" => ihdr = Some(parse_ihdr(body)?),
             b"IDAT" => idat.extend_from_slice(body),
             b"IEND" => break,
@@ -492,6 +507,29 @@ pub(crate) fn header_only(w: u32, h: u32) -> Vec<u8> {
     out
 }
 
+/// Test-only: a hostile PNG whose leading IHDR claims `first` while a
+/// SECOND IHDR claims `second`, with an all-black RGB IDAT sized for
+/// `second` — the shape that would smuggle `second`'s pixels past a gate
+/// that judged `first` from the header.
+#[cfg(test)]
+pub(crate) fn dual_ihdr(first: (u32, u32), second: (u32, u32)) -> Vec<u8> {
+    let ihdr = |(w, h): (u32, u32)| {
+        let mut body = Vec::with_capacity(13);
+        body.extend_from_slice(&w.to_be_bytes());
+        body.extend_from_slice(&h.to_be_bytes());
+        body.extend_from_slice(&[8, 2, 0, 0, 0]);
+        body
+    };
+    let raw = vec![0u8; second.1 as usize * (second.0 as usize * 3 + 1)];
+    let mut out = Vec::new();
+    out.extend_from_slice(&SIG);
+    chunk(&mut out, *b"IHDR", &ihdr(first));
+    chunk(&mut out, *b"IHDR", &ihdr(second));
+    chunk(&mut out, *b"IDAT", &zlib_fixed_rle(&raw));
+    chunk(&mut out, *b"IEND", &[]);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -523,6 +561,45 @@ mod tests {
             header(&header_only(16_384, 8_192)),
             Err(FxError::Budget { .. })
         ));
+        // Over the per-side cap yet inside the pixel budget: a size cap
+        // (the stdlib's `-005`), never a corrupt file (`-004`) — from the
+        // header and from a decode alike.
+        for (w, h) in [(20_000, 1), (1, 16_385)] {
+            let claim = header_only(w, h);
+            let side = format!("{w}x{h}");
+            assert!(
+                matches!(header(&claim), Err(FxError::Cap(m)) if m.contains(&side)),
+                "{side}: {:?}",
+                header(&claim)
+            );
+            assert!(
+                matches!(decode(&claim), Err(FxError::Cap(m)) if m.contains(&side)),
+                "{side}"
+            );
+        }
+    }
+
+    #[test]
+    fn decode_reads_only_the_one_leading_ihdr_the_header_judged() {
+        // A second IHDR would make the decoded size differ from the size a
+        // header gate judged (a 1x1 claim smuggling 64x64 pixels).
+        let twice = dual_ihdr((1, 1), (64, 64));
+        assert_eq!(header(&twice), Ok((1, 1)));
+        assert!(
+            matches!(decode(&twice), Err(FxError::Decode(m)) if m.contains("second IHDR")),
+            "{:?}",
+            decode(&twice).map(|p| (p.w, p.h))
+        );
+        // IHDR after another chunk: PNG-3 puts it first, and so does decode.
+        let good = encode(&test_img(), None);
+        let mut late = SIG.to_vec();
+        chunk(&mut late, *b"tEXt", b"k\0v");
+        late.extend_from_slice(&good[8..]);
+        assert!(
+            matches!(decode(&late), Err(FxError::Decode(m)) if m.contains("first chunk")),
+            "{:?}",
+            decode(&late).map(|p| (p.w, p.h))
+        );
     }
 
     #[test]

@@ -22,9 +22,10 @@ pub enum FxError {
     Decode(String),
     /// Decoded-pixel budget exceeded — bounded BEFORE inflate from IHDR.
     Budget { pixels: u64, max: u64 },
-    /// A composition size cap exceeded (a canvas or scaled-box side over
-    /// the per-side cap) — judged from the headers and the args before any
-    /// allocation. The pixel totals stay [`FxError::Budget`].
+    /// A per-side size cap exceeded (an input, a composition canvas or a
+    /// scaled box over 16384 on a side) — judged from the headers and the
+    /// args before any allocation. The pixel totals stay
+    /// [`FxError::Budget`].
     Cap(String),
     /// Internal encode failure (should not happen on valid pipelines).
     Encode(String),

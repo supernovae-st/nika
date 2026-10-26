@@ -697,8 +697,9 @@ fn image_compose_help(num: &str) -> Option<&'static str> {
         }
         "004" => {
             "  An input is a PNG whose bytes are corrupt — a chunk CRC, the zlib \
-             stream or a filter does not hold (the message names its index). The \
-             file was cut short or damaged; re-produce it.\n"
+             stream or a filter does not hold, or its IHDR is not the one first \
+             chunk (the message names its index). The file was cut short or \
+             damaged; re-produce it.\n"
         }
         "005" => {
             "  A size cap: the summed input pixels over 2^26, an input over 16384 per \

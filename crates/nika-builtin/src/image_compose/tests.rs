@@ -322,6 +322,21 @@ async fn caps_are_a_coded_005_judged_from_the_headers() {
         "a 20000-wide canvas"
     );
     assert!(r.content.contains("20000x1"), "{}", r.content);
+    // ONE input over the per-side cap, far inside the pixel budget: still
+    // the cap code, never `-004` (a corrupt file to re-produce).
+    std::fs::write(root.join("fx/wide.png"), header_only(20_000, 1)).unwrap();
+    let r = call(
+        &d,
+        json!({ "inputs": [p(&root, "fx/wide.png")], "out": p(&root, "out/c.png") }),
+    )
+    .await;
+    assert_eq!(
+        code(&r),
+        "NIKA-BUILTIN-IMAGE_COMPOSE-005",
+        "an input over 16384 per side: {}",
+        r.content
+    );
+    assert!(r.content.contains("inputs[0]"), "{}", r.content);
     let _ = std::fs::remove_dir_all(&root);
 }
 

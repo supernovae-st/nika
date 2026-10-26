@@ -73,11 +73,15 @@ geometry, the `resize` op's linear-light ladder for every scaled box, the recipe
 - **Never panics** on hostile bytes — 10k-case seeded byte-mangling fuzz + typed
   rejects; no `.unwrap()`/`.expect()`/indexing in `src/` (lint-enforced).
 - Pixel work runs on the blocking pool in the wiring (the jq precedent).
-- **Composition caps** — 1..=64 inputs · the SUM of the inputs' pixels ≤2²⁶ · the
-  canvas (and a `fill` cover box) ≤16384 per side and ≤2²⁶ pixels — all judged
-  from the IHDRs and the args before any decompression or canvas allocation
-  (golden tests feed header-only PNGs: a cap that fired after an inflate would
-  fail `Decode` instead).
+- **Composition caps** — 1..=64 inputs (an argument, `FxError::Args`) · each input
+  ≤16384 per side (`FxError::Cap`, for `image_fx` too) · the SUM of the inputs'
+  pixels ≤2²⁶ · the canvas (and a `fill` cover box) ≤16384 per side and ≤2²⁶
+  pixels — all judged from the IHDRs and the args before any decompression or
+  canvas allocation (golden tests feed header-only PNGs: a cap that fired after an
+  inflate would fail `Decode` instead).
+- **One IHDR, first** — `decode` refuses an IHDR that is not the first chunk or a
+  second IHDR (`FxError::Decode`), so the size `header` judged is the size decoded;
+  `compose` also refuses a decoded size that differs from its header.
 
 ## 5. The op vocabulary (v1 · closed · `#[non_exhaustive]`)
 
