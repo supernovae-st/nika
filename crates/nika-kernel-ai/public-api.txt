@@ -697,6 +697,7 @@ pub nika_kernel_ai::harness::HarnessImage::data: core::option::Option<bytes::byt
 pub nika_kernel_ai::harness::HarnessImage::mime_type: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessImage::received_bytes: core::option::Option<u64>
 pub nika_kernel_ai::harness::HarnessImage::reported_saved_path: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessImage::saved_path: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessImage::sha256: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessImage::storage_failure: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessImage::stored_blob: core::option::Option<nika_kernel_core::io::blob::BlobMetadata>
@@ -780,9 +781,48 @@ impl<T> core::convert::From<T> for nika_kernel_ai::harness::HarnessOutcome
 pub fn nika_kernel_ai::harness::HarnessOutcome::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_ai::harness::HarnessOutcome where T: 'static
 pub fn nika_kernel_ai::harness::HarnessOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_ai::harness::HarnessPromptImage
+pub nika_kernel_ai::harness::HarnessPromptImage::data: alloc::string::String
+pub nika_kernel_ai::harness::HarnessPromptImage::mime_type: alloc::string::String
+impl nika_kernel_ai::harness::HarnessPromptImage
+pub fn nika_kernel_ai::harness::HarnessPromptImage::new(mime_type: impl core::convert::Into<alloc::string::String>, data: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_ai::harness::HarnessPromptImage
+pub fn nika_kernel_ai::harness::HarnessPromptImage::clone(&self) -> nika_kernel_ai::harness::HarnessPromptImage
+impl core::cmp::Eq for nika_kernel_ai::harness::HarnessPromptImage
+impl core::cmp::PartialEq for nika_kernel_ai::harness::HarnessPromptImage
+pub fn nika_kernel_ai::harness::HarnessPromptImage::eq(&self, other: &nika_kernel_ai::harness::HarnessPromptImage) -> bool
+impl core::fmt::Debug for nika_kernel_ai::harness::HarnessPromptImage
+pub fn nika_kernel_ai::harness::HarnessPromptImage::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::harness::HarnessPromptImage
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::harness::HarnessPromptImage
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::harness::HarnessPromptImage where U: core::convert::From<T>
+pub fn nika_kernel_ai::harness::HarnessPromptImage::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::harness::HarnessPromptImage where U: core::convert::Into<T>
+pub type nika_kernel_ai::harness::HarnessPromptImage::Error = core::convert::Infallible
+pub fn nika_kernel_ai::harness::HarnessPromptImage::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::harness::HarnessPromptImage where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::harness::HarnessPromptImage::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::harness::HarnessPromptImage::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::harness::HarnessPromptImage where T: core::clone::Clone
+pub type nika_kernel_ai::harness::HarnessPromptImage::Owned = T
+pub fn nika_kernel_ai::harness::HarnessPromptImage::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::harness::HarnessPromptImage::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::harness::HarnessPromptImage where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::harness::HarnessPromptImage::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::harness::HarnessPromptImage where T: ?core::marker::Sized
+pub fn nika_kernel_ai::harness::HarnessPromptImage::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::harness::HarnessPromptImage where T: ?core::marker::Sized
+pub fn nika_kernel_ai::harness::HarnessPromptImage::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::harness::HarnessPromptImage where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::harness::HarnessPromptImage::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::harness::HarnessPromptImage
+pub fn nika_kernel_ai::harness::HarnessPromptImage::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::harness::HarnessPromptImage where T: 'static
+pub fn nika_kernel_ai::harness::HarnessPromptImage::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_ai::harness::HarnessRequest
 pub nika_kernel_ai::harness::HarnessRequest::confinement: core::option::Option<nika_kernel_ai::harness::HarnessConfinement>
 pub nika_kernel_ai::harness::HarnessRequest::cwd: std::path::PathBuf
+pub nika_kernel_ai::harness::HarnessRequest::images: alloc::vec::Vec<nika_kernel_ai::harness::HarnessPromptImage>
 pub nika_kernel_ai::harness::HarnessRequest::prompt: alloc::string::String
 pub nika_kernel_ai::harness::HarnessRequest::requested_effort: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessRequest::requested_mode: core::option::Option<alloc::string::String>
@@ -791,6 +831,7 @@ pub nika_kernel_ai::harness::HarnessRequest::system: core::option::Option<alloc:
 impl nika_kernel_ai::harness::HarnessRequest
 pub fn nika_kernel_ai::harness::HarnessRequest::new(prompt: impl core::convert::Into<alloc::string::String>, cwd: impl core::convert::Into<std::path::PathBuf>) -> Self
 pub fn nika_kernel_ai::harness::HarnessRequest::with_confinement(self, confinement: nika_kernel_ai::harness::HarnessConfinement) -> Self
+pub fn nika_kernel_ai::harness::HarnessRequest::with_images(self, images: alloc::vec::Vec<nika_kernel_ai::harness::HarnessPromptImage>) -> Self
 pub fn nika_kernel_ai::harness::HarnessRequest::with_requested_effort(self, effort: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_kernel_ai::harness::HarnessRequest::with_requested_mode(self, mode: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_ai::harness::HarnessRequest::with_requested_model(self, model: impl core::convert::Into<alloc::string::String>) -> Self

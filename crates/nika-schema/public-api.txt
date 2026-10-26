@@ -1442,6 +1442,7 @@ pub fn nika_schema::raw::action::ProjectFileRef::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::ProjectFileRef where T: 'static
 pub fn nika_schema::raw::action::ProjectFileRef::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::action::RawAgentAction
+pub nika_schema::raw::action::RawAgentAction::images: core::option::Option<nika_source::span::Spanned<nika_schema::raw::action::RawAgentImages>>
 pub nika_schema::raw::action::RawAgentAction::max_tokens_total: core::option::Option<nika_source::span::Spanned<u64>>
 pub nika_schema::raw::action::RawAgentAction::max_turns: core::option::Option<nika_source::span::Spanned<u32>>
 pub nika_schema::raw::action::RawAgentAction::model: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
@@ -1485,6 +1486,42 @@ impl<T> core::convert::From<T> for nika_schema::raw::action::RawAgentAction
 pub fn nika_schema::raw::action::RawAgentAction::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawAgentAction where T: 'static
 pub fn nika_schema::raw::action::RawAgentAction::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::raw::action::RawAgentImages
+pub nika_schema::raw::action::RawAgentImages::save: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+impl nika_schema::raw::action::RawAgentImages
+pub fn nika_schema::raw::action::RawAgentImages::new() -> Self
+pub fn nika_schema::raw::action::RawAgentImages::saved_at(save: nika_source::span::Spanned<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_schema::raw::action::RawAgentImages
+pub fn nika_schema::raw::action::RawAgentImages::clone(&self) -> nika_schema::raw::action::RawAgentImages
+impl core::default::Default for nika_schema::raw::action::RawAgentImages
+pub fn nika_schema::raw::action::RawAgentImages::default() -> nika_schema::raw::action::RawAgentImages
+impl core::fmt::Debug for nika_schema::raw::action::RawAgentImages
+pub fn nika_schema::raw::action::RawAgentImages::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_schema::raw::action::RawAgentImages
+impl<T, U> core::convert::Into<U> for nika_schema::raw::action::RawAgentImages where U: core::convert::From<T>
+pub fn nika_schema::raw::action::RawAgentImages::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::raw::action::RawAgentImages where U: core::convert::Into<T>
+pub type nika_schema::raw::action::RawAgentImages::Error = core::convert::Infallible
+pub fn nika_schema::raw::action::RawAgentImages::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::raw::action::RawAgentImages where U: core::convert::TryFrom<T>
+pub type nika_schema::raw::action::RawAgentImages::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::raw::action::RawAgentImages::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::raw::action::RawAgentImages where T: core::clone::Clone
+pub type nika_schema::raw::action::RawAgentImages::Owned = T
+pub fn nika_schema::raw::action::RawAgentImages::clone_into(&self, target: &mut T)
+pub fn nika_schema::raw::action::RawAgentImages::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::raw::action::RawAgentImages where T: 'static + ?core::marker::Sized
+pub fn nika_schema::raw::action::RawAgentImages::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::raw::action::RawAgentImages where T: ?core::marker::Sized
+pub fn nika_schema::raw::action::RawAgentImages::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::raw::action::RawAgentImages where T: ?core::marker::Sized
+pub fn nika_schema::raw::action::RawAgentImages::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::raw::action::RawAgentImages where T: core::clone::Clone
+pub unsafe fn nika_schema::raw::action::RawAgentImages::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::raw::action::RawAgentImages
+pub fn nika_schema::raw::action::RawAgentImages::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawAgentImages where T: 'static
+pub fn nika_schema::raw::action::RawAgentImages::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::action::RawExecAction
 pub nika_schema::raw::action::RawExecAction::capture: core::option::Option<nika_source::span::Spanned<nika_vocab::capture::CaptureMode>>
 pub nika_schema::raw::action::RawExecAction::command: nika_schema::raw::action::RawCommand
@@ -2144,6 +2181,7 @@ pub fn nika_schema::raw::action::ProjectFileRef::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::ProjectFileRef where T: 'static
 pub fn nika_schema::raw::action::ProjectFileRef::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::RawAgentAction
+pub nika_schema::raw::RawAgentAction::images: core::option::Option<nika_source::span::Spanned<nika_schema::raw::action::RawAgentImages>>
 pub nika_schema::raw::RawAgentAction::max_tokens_total: core::option::Option<nika_source::span::Spanned<u64>>
 pub nika_schema::raw::RawAgentAction::max_turns: core::option::Option<nika_source::span::Spanned<u32>>
 pub nika_schema::raw::RawAgentAction::model: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
@@ -2187,6 +2225,42 @@ impl<T> core::convert::From<T> for nika_schema::raw::action::RawAgentAction
 pub fn nika_schema::raw::action::RawAgentAction::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawAgentAction where T: 'static
 pub fn nika_schema::raw::action::RawAgentAction::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::raw::RawAgentImages
+pub nika_schema::raw::RawAgentImages::save: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
+impl nika_schema::raw::action::RawAgentImages
+pub fn nika_schema::raw::action::RawAgentImages::new() -> Self
+pub fn nika_schema::raw::action::RawAgentImages::saved_at(save: nika_source::span::Spanned<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_schema::raw::action::RawAgentImages
+pub fn nika_schema::raw::action::RawAgentImages::clone(&self) -> nika_schema::raw::action::RawAgentImages
+impl core::default::Default for nika_schema::raw::action::RawAgentImages
+pub fn nika_schema::raw::action::RawAgentImages::default() -> nika_schema::raw::action::RawAgentImages
+impl core::fmt::Debug for nika_schema::raw::action::RawAgentImages
+pub fn nika_schema::raw::action::RawAgentImages::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_schema::raw::action::RawAgentImages
+impl<T, U> core::convert::Into<U> for nika_schema::raw::action::RawAgentImages where U: core::convert::From<T>
+pub fn nika_schema::raw::action::RawAgentImages::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::raw::action::RawAgentImages where U: core::convert::Into<T>
+pub type nika_schema::raw::action::RawAgentImages::Error = core::convert::Infallible
+pub fn nika_schema::raw::action::RawAgentImages::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::raw::action::RawAgentImages where U: core::convert::TryFrom<T>
+pub type nika_schema::raw::action::RawAgentImages::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::raw::action::RawAgentImages::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::raw::action::RawAgentImages where T: core::clone::Clone
+pub type nika_schema::raw::action::RawAgentImages::Owned = T
+pub fn nika_schema::raw::action::RawAgentImages::clone_into(&self, target: &mut T)
+pub fn nika_schema::raw::action::RawAgentImages::to_owned(&self) -> T
+impl<T> core::any::Any for nika_schema::raw::action::RawAgentImages where T: 'static + ?core::marker::Sized
+pub fn nika_schema::raw::action::RawAgentImages::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::raw::action::RawAgentImages where T: ?core::marker::Sized
+pub fn nika_schema::raw::action::RawAgentImages::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::raw::action::RawAgentImages where T: ?core::marker::Sized
+pub fn nika_schema::raw::action::RawAgentImages::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::raw::action::RawAgentImages where T: core::clone::Clone
+pub unsafe fn nika_schema::raw::action::RawAgentImages::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::raw::action::RawAgentImages
+pub fn nika_schema::raw::action::RawAgentImages::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::raw::action::RawAgentImages where T: 'static
+pub fn nika_schema::raw::action::RawAgentImages::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::RawExecAction
 pub nika_schema::raw::RawExecAction::capture: core::option::Option<nika_source::span::Spanned<nika_vocab::capture::CaptureMode>>
 pub nika_schema::raw::RawExecAction::command: nika_schema::raw::action::RawCommand

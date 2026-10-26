@@ -359,6 +359,7 @@ pub mod nika_vocab::glossary
 pub const nika_vocab::glossary::GLOSSARY: &[(&str, &str)]
 pub fn nika_vocab::glossary::entry(word: &str) -> core::option::Option<(&'static str, &'static str)>
 pub mod nika_vocab::keys
+pub const nika_vocab::keys::AGENT_IMAGES_KEYS: &[&str]
 pub const nika_vocab::keys::AGENT_KEYS: &[&str]
 pub const nika_vocab::keys::CONST_TYPED_KEYS: &[&str]
 pub const nika_vocab::keys::EGRESS_KEYS: &[&str]

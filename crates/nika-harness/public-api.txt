@@ -951,6 +951,7 @@ pub nika_harness::run_acp::AcpOneShot::seat: &'static str
 impl nika_harness::run_acp::AcpOneShot
 pub fn nika_harness::run_acp::AcpOneShot::drive<R, W>(self, reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::run_acp::AcpOneShot::grade(self, need: nika_harness::infer::StructuredOutputGrade) -> core::result::Result<Self, nika_harness::run_acp::AcpOneShotRefused>
+pub const fn nika_harness::run_acp::AcpOneShot::image_prompts(self) -> bool
 pub async fn nika_harness::run_acp::AcpOneShot::run(self, request: nika_kernel_ai::harness::HarnessRequest, timeout: core::option::Option<core::time::Duration>) -> core::result::Result<nika_kernel_ai::harness::HarnessOutcome, nika_kernel_ai::harness::HarnessError>
 pub async fn nika_harness::run_acp::AcpOneShot::run_over(self, transport: &(dyn nika_kernel_ai::harness::DynAgentBackend + '_), request: nika_kernel_ai::harness::HarnessRequest, timeout: core::option::Option<core::time::Duration>) -> core::result::Result<nika_kernel_ai::harness::HarnessOutcome, nika_kernel_ai::harness::HarnessError>
 impl core::clone::Clone for nika_harness::run_acp::AcpOneShot
@@ -1899,6 +1900,7 @@ pub nika_harness::AcpOneShot::seat: &'static str
 impl nika_harness::run_acp::AcpOneShot
 pub fn nika_harness::run_acp::AcpOneShot::drive<R, W>(self, reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::run_acp::AcpOneShot::grade(self, need: nika_harness::infer::StructuredOutputGrade) -> core::result::Result<Self, nika_harness::run_acp::AcpOneShotRefused>
+pub const fn nika_harness::run_acp::AcpOneShot::image_prompts(self) -> bool
 pub async fn nika_harness::run_acp::AcpOneShot::run(self, request: nika_kernel_ai::harness::HarnessRequest, timeout: core::option::Option<core::time::Duration>) -> core::result::Result<nika_kernel_ai::harness::HarnessOutcome, nika_kernel_ai::harness::HarnessError>
 pub async fn nika_harness::run_acp::AcpOneShot::run_over(self, transport: &(dyn nika_kernel_ai::harness::DynAgentBackend + '_), request: nika_kernel_ai::harness::HarnessRequest, timeout: core::option::Option<core::time::Duration>) -> core::result::Result<nika_kernel_ai::harness::HarnessOutcome, nika_kernel_ai::harness::HarnessError>
 impl core::clone::Clone for nika_harness::run_acp::AcpOneShot

@@ -850,6 +850,7 @@ pub unsafe fn nika_types::access::SelectionEvidence::clone_to_uninit(&self, dest
 impl<T> core::convert::From<T> for nika_types::access::SelectionEvidence
 pub fn nika_types::access::SelectionEvidence::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::access::SelectionEvidence where T: for<'de> serde_core::de::Deserialize<'de>
+pub const nika_types::access::HARNESS_IMAGES_ADVICE: &str
 pub const nika_types::access::HARNESS_SHARED_RESIDUAL: &str
 pub const nika_types::access::HARNESS_UNRESOLVED_PATH: &str
 pub const nika_types::access::UNMEASURED_HARNESS_UNASKED: &str
