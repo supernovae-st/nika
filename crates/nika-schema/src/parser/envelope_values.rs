@@ -12,6 +12,7 @@
 
 use marked_yaml::Node;
 use marked_yaml::types::MarkedMappingNode;
+use nika_types::types::Primitive;
 
 use crate::error::SchemaError;
 use crate::source::Spanned;
@@ -29,6 +30,26 @@ pub(super) fn parse_inputs(
     workflow: &MarkedMappingNode,
 ) -> Result<Vec<(Spanned<String>, VarDecl)>, SchemaError> {
     parse_typed_block(cx, workflow, "inputs", INPUT_KEYS)
+}
+
+/// The ten primitives an input may declare, in the type grammar's own order
+/// (spec 09 §grammar): the roster an untyped input is taught.
+const PRIMITIVES: [Primitive; 10] = [
+    Primitive::Null,
+    Primitive::Bool,
+    Primitive::Integer,
+    Primitive::Number,
+    Primitive::String,
+    Primitive::Bytes,
+    Primitive::Uri,
+    Primitive::Path,
+    Primitive::Duration,
+    Primitive::Timestamp,
+];
+
+/// The primitive names, spelled by the type grammar itself.
+pub(crate) fn primitive_roster() -> Vec<&'static str> {
+    PRIMITIVES.iter().map(|p| p.as_str()).collect()
 }
 
 /// The shared typed-declaration block reader (`inputs:`) —
@@ -49,9 +70,11 @@ fn parse_typed_block(
         let Some(typed) = value.as_mapping().filter(|m| m.get_node("type").is_some()) else {
             return Err(SchemaError::Validation {
                 message: format!(
-                    "`{key}` entry `{}` is not a typed declaration — `type:` required \
-                     (a fixed value is a `const:` entry)",
-                    name.value
+                    "`{key}` entry `{}` is not a typed declaration — `type:` required: \
+                     `{}` (the primitives are {}; a fixed value is a `const:` entry)",
+                    name.value,
+                    typed_skeleton(cx, &name.value, value),
+                    primitive_roster().join(" · "),
                 ),
                 span: cx.span(value.span()),
             });
@@ -59,6 +82,29 @@ fn parse_typed_block(
         out.push((name.clone(), parse_typed_var(cx, &name.value, typed, keys)?));
     }
     Ok(out)
+}
+
+/// The typed form an untyped entry most likely meant (#1600): its `default:`
+/// (or the bare scalar it is) kept, the primitive read from that value.
+fn typed_skeleton(cx: &Cx<'_>, name: &str, value: &Node) -> String {
+    let default = match value {
+        Node::Mapping(entry) => entry.get_node("default"),
+        Node::Scalar(_) => Some(value),
+        Node::Sequence(_) => None,
+    }
+    .and_then(|node| json_value(cx, node).ok())
+    .filter(|d| !d.is_array() && !d.is_object() && !d.is_null());
+    let primitive = match &default {
+        Some(serde_json::Value::Bool(_)) => Primitive::Bool,
+        Some(serde_json::Value::Number(n)) if n.is_i64() || n.is_u64() => Primitive::Integer,
+        Some(serde_json::Value::Number(_)) => Primitive::Number,
+        _ => Primitive::String,
+    };
+    let ty = primitive.as_str();
+    match default {
+        Some(d) => format!("{name}: {{ type: {ty}, default: {d} }}"),
+        None => format!("{name}: {{ type: {ty} }}"),
+    }
 }
 
 /// Parse `const:` — bare literals OR typed constants `{type, value}`

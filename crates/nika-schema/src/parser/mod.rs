@@ -30,6 +30,8 @@ mod retired;
 mod run_access;
 pub(crate) mod tasks;
 #[cfg(test)]
+mod teaching_tests;
+#[cfg(test)]
 mod type_sweep;
 mod value;
 pub(crate) mod verbs;
@@ -417,7 +419,8 @@ pub(super) struct Cx<'a> {
 /// three independent places: "a LIVE authority — `inputs:` since
 /// `config:` died" (the check analyzer), "It rides `inputs:` now"
 /// (`permit_taint`), and #909's own diff comment.
-fn retired_key_teaching(key: &str, location: &str) -> Option<&'static str> {
+fn retired_key_teaching(key: &str, location: &str) -> Option<std::borrow::Cow<'static, str>> {
+    use std::borrow::Cow;
     // Scoped on purpose, and symmetric: the same word is a plausible field
     // name in another block (`output` reads fine inside `exec:` · `types`
     // fine in a future block), and teaching one block's migration inside
@@ -427,17 +430,23 @@ fn retired_key_teaching(key: &str, location: &str) -> Option<&'static str> {
     if location.contains("envelope") {
         // A RETIRED envelope key was ours and moved; a FOREIGN one is
         // another tool's word for a concept we spell elsewhere (#1402).
-        return retired::envelope(key).or_else(|| retired::foreign_envelope(key));
+        return retired::envelope(key)
+            .or_else(|| retired::foreign_envelope(key))
+            .map(Cow::Borrowed);
     }
     if location.starts_with("task `") {
-        // Three tables, one scope, tried in order of how much the author
+        // Four tables, one scope, tried in order of how much the author
         // already knows. A RETIRED key was ours and moved. A FOREIGN key
         // is another tool's word for a concept we spell differently. An
         // ENVELOPE key is our own word at the wrong depth — the author is
-        // not wrong about the vocabulary at all, only about the column.
+        // not wrong about the vocabulary at all, only about the column. A
+        // BUILTIN's name is a tool the author knows, written where the
+        // verb that calls it belongs (#1600).
         return retired::task(key)
             .or_else(|| retired::foreign(key))
-            .or_else(|| retired::envelope_key_at_task_level(key));
+            .or_else(|| retired::envelope_key_at_task_level(key))
+            .map(Cow::Borrowed)
+            .or_else(|| retired::builtin_as_task_key(key).map(Cow::Owned));
     }
     None
 }
