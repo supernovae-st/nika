@@ -65,7 +65,7 @@ research:
     infer:
       prompt: "Research Rust async runtimes 2026 in 5 paragraphs"
       system: "You are a senior software architect."
-      model: mistral/mistral-large         # override default · <provider>/<name>
+      model: mistral/mistral-large-latest  # override default · <provider>/<name>
       temperature: 0.3
       max_tokens: 16384                  # room for the thinking budget and the answer
       schema:                            # optional · structured output
@@ -441,7 +441,7 @@ research:
     agent:
       system: "You are a research assistant. Use tools to gather info."
       prompt: "Research the topic · ${{ inputs.topic }} · and produce a markdown brief"
-      model: mistral/mistral-large
+      model: mistral/mistral-large-latest
       tools:                            # whitelist · default-deny (no tools if omitted)
         - "nika:fetch"
         - "nika:write"

@@ -164,34 +164,52 @@ this prose spec (kept in sync · the prose is normative on conflict).
 Editors (VS Code · Zed · JetBrains · Neovim) pick it up via the standard
 `yaml.schemas` association (or a `# yaml-language-server: $schema=…` modeline)
 to give **autocomplete + inline validation** as you type, the same DX as
-GitHub Actions and Docker Compose. A working modeline today:
+GitHub Actions and Docker Compose. The modeline in use today names the
+address the schema gives as its own `$id` (the examples and templates carry
+it, and `nika init` writes it into the editor settings):
 
 ```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/supernovae-st/nika-spec/main/schemas/workflow.schema.json
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 nika: my-workflow
 ```
 
+⚠️ **That address serves a copy published with the website, and the copy
+can lag this repository.** On 2026-10-24 it served the revision of
+2026-09-18, which predates `nika:remove_file`, the `{ file: }` form of
+`prompt:`, `system:` and `schema:`, and `for_each.max_items`: an editor
+reading it flags a valid workflow that uses them. For the exact schema an
+engine embeds, `nika spec --schema` prints it offline, byte for byte, and the
+address pinned at the embedded spec commit serves the same bytes online; for
+engine 0.123.0 (spec `6390b08`) that is
+`https://raw.githubusercontent.com/supernovae-st/nika-spec/6390b08eb9791ce49c63ee17f8466fab118cadb8/schemas/workflow.schema.json`.
+
 #### The address MUST become versioned and immutable (normative · D-2026-08-11-N24)
 
-⚠️ **The modeline above points at a moving branch, and that is a defect with
-two independent causes.**
+⚠️ **The `$id` modeline above names the whole v1 family, not one schema
+revision, and that is a defect with two independent causes.** (Until
+2026-10-24 this page showed the
+`raw.githubusercontent.com/supernovae-st/nika-spec/main/…` form, which
+carries both causes.)
 
 *The first is ours.* Since [§unknown key](#an-unknown-key-is-an-error-at-every-level-normative--d-2026-08-11-n20)
 an unknown key is an error, so this schema's `additionalProperties: false` is
 no longer a lint preference — it is the accepted surface of the language. Served
-from `main`, that surface moves under every editor in the world **while no file
-has changed**. A workflow that validated on Monday shows red on Tuesday because
-a schema it never named was edited. This is precisely the drift the strict rule
-exists to prevent, arriving through the back door.
+at one moving address, that surface moves under every editor in the world
+**while no file has changed**. A workflow that validated on Monday shows red on
+Tuesday because a schema it never named was edited. This is precisely the drift
+the strict rule exists to prevent, arriving through the back door.
 
-*The second is the host's.* `raw.githubusercontent.com` fronts a cache that
-serves stale bytes: a schema can be correct at the commit and wrong at the
-reader for an unspecified window. **Immutable upstream is not immutable at the
-point of use** — measured in this workspace, 2026-08-07.
+*The second is the host's.* A cache in front of the address serves stale bytes:
+a schema can be correct at the commit and wrong at the reader for an
+unspecified window. **Immutable upstream is not immutable at the point of
+use** — measured on `raw.githubusercontent.com` in this workspace,
+2026-08-07.
 
-**The shape.** One address per minor, frozen forever ·
+**The shape.** One address per minor, frozen forever. This address is the
+target and is **not served** (it answers 404 today) ·
 
 ```yaml
+# the target shape · not served yet
 # yaml-language-server: $schema=https://nika.sh/schema/v0.1/workflow.schema.json
 nika: my-workflow
 ```
@@ -199,7 +217,7 @@ nika: my-workflow
 This is what JSON Schema, OpenAPI, Kubernetes and CWL all do, and it composes
 with the `nika:` mark the envelope already carries. A file written in 2027
 still reads in 2030 against **its own** schema. Until the address ships, the
-modeline above is the pragmatic form and this paragraph is the standing debt —
+`$id` modeline is the pragmatic form and this paragraph is the standing debt —
 stated, not hidden.
 
 This is also what makes a Nika file

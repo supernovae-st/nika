@@ -64,11 +64,12 @@ tasks:
       price: ".price"
       name: ".name"
     on_error:
-      # Offline rehearsal · a sample ABOVE the target, so the gate below stays
-      # closed and the dry run ends green with the alert skipped. The alert
-      # path is therefore NOT exercised offline — which is exactly why the
+      # Rehearsal stand-in · the placeholder host resolves nowhere, so this
+      # sample ABOVE the target takes over: the gate below stays closed and
+      # the dry run ends green with the alert skipped. The alert path is
+      # therefore NOT exercised by the rehearsal — which is exactly why the
       # `net:` bound above has to be right by reading, not by running.
-      recover: { price: 949, name: "MacBook Air (offline sample)" }
+      recover: { price: 949, name: "MacBook Air (rehearsal sample)" }
 
   alert:
     with:

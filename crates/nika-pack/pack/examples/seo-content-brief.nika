@@ -26,7 +26,8 @@
 #   and the recovered samples take over. Point `const.competitor_sitemap` at a
 #   REAL sitemap (and put that host in `permits.net.http`) for a real brief.
 #   `--var topic=your-keyword` picks the target (slug-shaped · see `inputs:`).
-#   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
+#   Mock rehearsal (zero key, deterministic) · add `--model mock/echo`. It
+#   replaces the model, not the network: both fetches still go out.
 
 nika: seo-content-brief
 

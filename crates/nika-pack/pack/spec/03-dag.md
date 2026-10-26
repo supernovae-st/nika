@@ -518,7 +518,7 @@ the meaning of an expression that parses today. The conditional `?:`, the
 
 ```yaml
 # pick a model / a path / a prompt by condition — anywhere a value is taken
-model:  "${{ inputs.env == 'prod' ? 'mistral/mistral-large' : 'ollama/qwen3.5:9b' }}"   # quoted · ` : ` would end a YAML key
+model:  "${{ inputs.env == 'prod' ? 'mistral/mistral-large-latest' : 'ollama/qwen3.5:9b' }}"   # quoted · ` : ` would end a YAML key
 prompt: "${{ has(inputs.style) ? inputs.style : 'be concise' }}"
 when:   ${{ with.scan_log.contains('ERROR') }}      # branch on substring · the log arrived via with:
 ```
@@ -1679,7 +1679,7 @@ workflow whose conformance report is clean.
       "permits": ["fs.read:README.md"], "cost_interval": null
     },
     {
-      "id": "think", "kind": "task", "verb": "infer", "model": "mistral/mistral-small",
+      "id": "think", "kind": "task", "verb": "infer", "model": "mistral/mistral-small-latest",
       "when": null, "fan_out": null, "permits": [],
       "cost_interval": [0.0002, 0.0031],
       "timeout_ms": 60000, "outputs": ["summary"]

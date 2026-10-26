@@ -20,14 +20,16 @@
 #   - typed `outputs:` · the workflow is CALLABLE: another workflow can
 #     consume {brief, sources} as a contract
 #
-# Needs · nothing to rehearse — the whole file, agent loop included, runs
-# offline under `--model mock/echo` (measured: the loop settles in two turns
-# and honours its schema). Real research needs a tool-calling model and the
-# hosts named in `permits.net.http` to be reachable.
+# Needs · nothing to rehearse — the whole file, agent loop included, runs on
+# the mock model under `--model mock/echo`: zero keys, no model call
+# (measured: the loop settles in two turns and honours its schema). The mock
+# replaces the model, not the network: the agent's `nika:fetch` stays granted
+# for the hosts named in `permits.net.http`. Real research needs a
+# tool-calling model and those hosts to be reachable.
 #
 # Run · nika run examples/deep-research-brief.nika \
 #         --var topic="local-first AI runtimes"
-#       · rehearse with no keys and no network · add --model mock/echo
+#       · rehearse on the mock model, zero keys · add --model mock/echo
 
 nika: deep-research-brief
 

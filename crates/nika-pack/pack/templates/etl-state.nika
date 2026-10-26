@@ -107,7 +107,7 @@ tasks:
         mode: jq
         jq: ".records"
     on_error:
-      recover: []                   # offline rehearsal · an empty batch, the delta stays quiet
+      recover: []                   # the fetch failed · an empty batch, the delta stays quiet
 
   delta:
     with:                           # the bindings ARE the edges · previous + fresh → delta
