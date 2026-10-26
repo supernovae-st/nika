@@ -803,19 +803,31 @@ pub(crate) fn client_capabilities() -> Value {
         "version": 1, "capabilities": ["sessionFailure"]}}}})
 }
 
-/// The failure a `session/prompt` result reports for its turn: codex-acp's Air
-/// `sessionFailure` under the result's `_meta`, which the adapter puts there only when the
-/// turn did not complete. `None` when the result carries none. The adapter's own words ride
+/// The failure a `session/prompt` result reports for its turn: the Air `sessionFailure` under
+/// the result's `_meta`, which codex-acp 1.13.1 and claude-agent-acp 0.81.1 put there only when
+/// the turn did not complete. `None` when the result carries none. The adapter's own words ride
 /// verbatim, on one line and bounded: its title (the error message), severity and category.
-/// The classification is the adapter's, never read from the title: a failure whose actions
-/// offer `retry` is a session death a retry may heal (codex-acp 1.13.1 offers it on a 429
-/// rate limit, a lost connection, an overloaded service and any provider error it cannot
-/// name, which is how a 400 `model_not_found` arrives); any other (an exhausted quota, a bad
-/// request, a policy denial, missing auth) is the harness's refusal.
+/// The classification is the adapter's, never read from the title. A failure whose actions
+/// offer `login` (`auth_required`: a 401 or a revoked sign-in) is the lost sign-in a typed
+/// error kind reports on the other path ([`crate::client`]'s signed-out harness, in our words:
+/// the adapter's may carry account details). One that offers `retry` is a session death a
+/// retry may heal (codex-acp offers it on a 429 rate limit, a lost connection, an overloaded
+/// service and any provider error it cannot name, which is how a 400 `model_not_found`
+/// arrives). Any other (an exhausted quota or budget, a bad request, a policy denial) is the
+/// harness's refusal.
 pub(crate) fn turn_failure(result: &Value) -> Option<HarnessError> {
     let failure = result
         .pointer("/_meta/jetbrains/air/sessionFailure")
         .filter(|failure| !failure.is_null())?;
+    let offers = |action: &str| {
+        failure
+            .get("actions")
+            .and_then(Value::as_array)
+            .is_some_and(|actions| actions.iter().any(|a| a.as_str() == Some(action)))
+    };
+    if offers("login") {
+        return Some(crate::client::signed_out());
+    }
     let word = |key: &str, absent: &str| {
         failure
             .get(key)
@@ -830,11 +842,7 @@ pub(crate) fn turn_failure(result: &Value) -> Option<HarnessError> {
         word("category", "category unstated"),
         word("title", "no message")
     );
-    let retry = failure
-        .get("actions")
-        .and_then(Value::as_array)
-        .is_some_and(|actions| actions.iter().any(|a| a.as_str() == Some("retry")));
-    Some(if retry {
+    Some(if offers("retry") {
         HarnessError::Session { reason }
     } else {
         HarnessError::Refused { reason }
@@ -1445,5 +1453,89 @@ mod tests {
             reason,
             "the harness reported a failed turn (severity unstated · category unstated): no message"
         );
+    }
+
+    /// NIK-275 review · a failure that offers `login` (codex-acp `auth_required`, which it sends
+    /// typed instead of its JSON-RPC rejection once the capability is advertised) is the lost
+    /// sign-in, in our words: the adapter's may carry account details, and it is no refusal
+    /// of the selected model or profile.
+    #[test]
+    fn a_login_failure_is_the_lost_sign_in() {
+        let expired = serde_json::json!({"stopReason": "end_turn", "_meta": {"jetbrains": {
+            "air": {"version": 1, "sessionFailure": {"id": "turn-1:error", "revision": 1,
+            "category": "access", "severity": "error",
+            "title": "unexpected status 401 Unauthorized: Your refresh token was already used; \
+                      sign in again.",
+            "actions": ["login"]}}}}});
+        let Some(HarnessError::Unavailable { reason }) = turn_failure(&expired) else {
+            panic!("a login failure is the signed-out harness");
+        };
+        assert_eq!(reason, crate::client::SIGN_IN_EXPIRED);
+        assert!(!reason.contains("refresh token"));
+    }
+
+    /// NIK-275 review · claude-agent-acp 0.81.1 implements the same Air extension: once the
+    /// capability is advertised, a provider failure settles its turn `end_turn` with a typed
+    /// `sessionFailure` beside its usage and quota, with `details` and `reason` the client does
+    /// not need. The same reading holds: its actions decide.
+    #[test]
+    fn claude_code_typed_failures_read_the_same() {
+        let failed = |category: &str, title: &str, actions: serde_json::Value| {
+            serde_json::json!({"stopReason": "end_turn",
+                "usage": {"inputTokens": 3, "outputTokens": 0, "cachedReadTokens": 0,
+                          "cachedWriteTokens": 0, "totalTokens": 3},
+                "_meta": {"quota": {"token_count": {"input_tokens": 3}, "model_usage": []},
+                "jetbrains": {"air": {"version": 1, "sessionFailure": {
+                    "id": "turn-7:error", "revision": 1, "category": category,
+                    "severity": "error", "title": title, "details": "request id req_1",
+                    "reason": "provider", "actions": actions}}}}})
+        };
+        let overloaded = failed(
+            "service",
+            "Claude is temporarily overloaded.",
+            serde_json::json!(["retry"]),
+        );
+        let Some(HarnessError::Session { reason }) = turn_failure(&overloaded) else {
+            panic!("an overload offers a retry");
+        };
+        assert_eq!(
+            reason,
+            "the harness reported a failed turn (error · service): Claude is temporarily \
+             overloaded."
+        );
+        for (category, title, actions) in [
+            (
+                "limit",
+                "The Claude account has no available quota.",
+                serde_json::json!([]),
+            ),
+            (
+                "request",
+                "Claude could not process this request.",
+                serde_json::json!([]),
+            ),
+            (
+                "limit",
+                "This Claude turn reached its configured limit.",
+                serde_json::json!(["new_session"]),
+            ),
+        ] {
+            assert!(
+                matches!(
+                    turn_failure(&failed(category, title, actions)),
+                    Some(HarnessError::Refused { .. })
+                ),
+                "{title}"
+            );
+        }
+        let login = failed(
+            "access",
+            "Sign in to continue using Claude.",
+            serde_json::json!(["login"]),
+        );
+        assert!(matches!(
+            turn_failure(&login),
+            Some(HarnessError::Unavailable { .. })
+        ));
     }
 }

@@ -919,7 +919,7 @@ pub(crate) const SIGN_IN_EXPIRED: &str = "the app's sign-in has expired or was r
 
 /// The unavailable harness a lost sign-in leaves: no retry heals it before the human signs in
 /// again in the app.
-fn signed_out() -> HarnessError {
+pub(crate) fn signed_out() -> HarnessError {
     HarnessError::Unavailable {
         reason: SIGN_IN_EXPIRED.to_owned(),
     }

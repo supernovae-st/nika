@@ -977,9 +977,9 @@ pub const NIKA_1802: NikaCode = NikaCode {
     slug: "access-unknown-token",
 };
 /// NIKA-1803: A known agentic CLI token cannot run here — binary
-/// absent, ACP speaker missing, or this nika was built without
-/// adapters. Dummy-readable: install the CLI, or choose an API key or a
-/// local engine instead.
+/// absent, ACP speaker missing, this nika was built without adapters,
+/// or the app's sign-in expired. Dummy-readable: install the CLI or sign
+/// in again in the app, or choose an API key or a local engine instead.
 pub const NIKA_1803: NikaCode = NikaCode {
     num: 1803,
     category: Category::Access,
@@ -987,7 +987,8 @@ pub const NIKA_1803: NikaCode = NikaCode {
     slug: "access-harness-unavailable",
 };
 /// NIKA-1804: The harness session died mid-run (process exit · wire
-/// breakdown) — the one TRANSIENT row of the family.
+/// breakdown), or the harness reported a failed turn it offers to retry
+/// — the one TRANSIENT row of the family.
 pub const NIKA_1804: NikaCode = NikaCode {
     num: 1804,
     category: Category::Access,
@@ -995,7 +996,8 @@ pub const NIKA_1804: NikaCode = NikaCode {
     slug: "access-harness-session",
 };
 /// NIKA-1805: The harness itself refused (auth absent on ITS side ·
-/// unsupported capability) — its own words ride verbatim.
+/// unsupported capability · a failed turn it offers no retry for) — its
+/// own words ride verbatim.
 pub const NIKA_1805: NikaCode = NikaCode {
     num: 1805,
     category: Category::Access,
