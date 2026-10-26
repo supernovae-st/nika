@@ -14,15 +14,25 @@
 //!   same content-flow pass the caller runs, once per entry
 //!   ([`super::content_flow::Entry`]): content the closure brings in itself
 //!   (`born`), the call's arguments (`args`), and the files a tainted writer
-//!   left before the call (`files`, read by an `exec:` of the closure). Each
+//!   left before the call (`files`, read by an `exec:` or a builtin read of
+//!   the closure, whatever the path). Each
 //!   may reach the call's OUTPUT (the child's `outputs:`), an EGRESS task
 //!   (the effect table's egress-capable tasks, the caller's legs deciding
-//!   the trifecta), or a FILE (a writer: the channel a later `exec:` reads).
+//!   the trifecta), or a FILE (a writer: the channel a later reader reads).
 //!   The trifecta lane judges the call as the tasks it stands for: a source
 //!   when born content reaches its output or a file, a sink when content
 //!   reaches an egress task. A blocking gate inside the closure is never
 //!   credited to the caller: the caller's own gate, upstream of the call,
 //!   clears it, as it clears the same tasks written inline.
+//! - **effect** (NEP-0020 · `NIKA-SEC-014`): a run of the closure reaches
+//!   an egress-capable task of the effect table, whatever content reaches
+//!   it, on a route that crosses no confirm gate of the closure (the
+//!   nearest gate owns its closure). The consent lane judges the call as
+//!   that task: a confirm gate in front of it must close every route to it
+//!   on a refusal, as in front of the same task written inline. When every
+//!   such route crosses a gate of the closure the check cannot decide from
+//!   the caller (a `when:` on an input the caller may bind to its answer),
+//!   the effect is `effect_conditional`: the advisory, never the refusal.
 //! - **grants**: the entries of the caller's own `permits:` the call uses
 //!   or may use. The child runs inside the caller's boundary (laws 3/4:
 //!   `child ∩ parent` at check and at run), so these entries are
@@ -48,6 +58,7 @@ use nika_cap::{ExecPermit, FsPermits, NetPermits, Permits};
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 
 use super::composition::{GraphWalker, normalize_path, resolve_relative, static_target_defect};
+use super::consent::{Sink, closure_effect};
 use super::content_flow::{self, ARGS_ORIGIN, Entry, FILES_ORIGIN, Sources};
 
 /// One `invoke: workflow:` call as a composed check resolved it.
@@ -72,10 +83,25 @@ pub struct ComposedCall {
     #[serde(default, skip_serializing_if = "CallFlow::is_empty")]
     pub args: CallFlow,
     /// Where a file written with untrusted content before the call goes,
-    /// once an `exec:` of the closure reads it. Its `file` is never set:
-    /// the channel is already open.
+    /// once an `exec:` or a builtin read of the closure reads it. Its `file`
+    /// is never set: the channel is already open.
     #[serde(default, skip_serializing_if = "CallFlow::is_empty")]
     pub files: CallFlow,
+    /// The first task, in the child or a workflow below it, that a run of
+    /// the call reaches with an effect (an egress-capable task of the effect
+    /// table, whatever content reaches it) on a route that crosses no
+    /// confirm gate of the closure, or the workflow the check could not
+    /// resolve. `None` when nothing below can act, or only behind the
+    /// closure's own confirm gate: a refused confirm in front of the call
+    /// then triggers no effect (NEP-0020).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effect: Option<String>,
+    /// Every route to `effect` crosses a gate of the closure the check
+    /// cannot decide from the caller (a `when:` on an input the caller may
+    /// bind to its answer): whether a refusal fires it is unproven, so the
+    /// consent lane advises instead of refusing.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub effect_conditional: bool,
     /// The entries of the caller's own `permits:` this call uses or may use
     /// (spec 14 law 3): never dead while the call exists.
     pub grants: Permits,
@@ -97,6 +123,8 @@ impl ComposedCall {
                 file: None,
                 ..CallFlow::everywhere(why)
             },
+            effect: Some(why.to_owned()),
+            effect_conditional: false,
             grants: Permits::new(),
         }
     }
@@ -218,6 +246,10 @@ struct Reach {
     born: Flow,
     args: Flow,
     files: Flow,
+    /// The effect a run reaches from the entry ([`ComposedCall::effect`]).
+    effect: Option<Witness>,
+    /// Only behind a gate the check cannot decide from a caller.
+    effect_conditional: bool,
     /// Every workflow below resolved.
     resolved: bool,
     /// The union of each workflow's inferred needs (`super::permits_infer`).
@@ -239,6 +271,8 @@ impl Reach {
                 file: None,
                 ..Flow::everywhere(why)
             },
+            effect: Some(Witness::here(why.to_owned())),
+            effect_conditional: false,
             resolved: false,
             needs: Permits::new(),
             opaque: Permits::new(),
@@ -254,6 +288,8 @@ impl Reach {
             born: self.born.render(target),
             args: self.args.render(target),
             files: self.files.render(target),
+            effect: self.effect.as_ref().map(|w| w.render(target)),
+            effect_conditional: self.effect_conditional,
             grants: Permits::new(),
         }
     }
@@ -340,6 +376,8 @@ fn reach_of_file(
     let declared = child.permits.as_ref().map(|p| &p.value);
     let mut reach = own_reach(&child, declared);
     let mut nested: BTreeMap<String, (String, Reach)> = BTreeMap::new();
+    // What each task does for the consent law, and its witness.
+    let mut acts: Vec<(Sink, Option<Witness>)> = Vec::with_capacity(child.tasks.len());
     for task in &child.tasks {
         let task_id = &task.value.id.value;
         if let Some(target) = workflow_target(&task.value.action) {
@@ -347,19 +385,34 @@ fn reach_of_file(
             if reach.ingress.is_none() {
                 reach.ingress = below.ingress.as_ref().map(|w| w.under(target));
             }
+            let sink = Sink::of_closure(below.effect.is_some(), below.effect_conditional);
+            acts.push((sink, below.effect.as_ref().map(|w| w.under(target))));
             reach.resolved &= below.resolved;
             reach.needs = reach.needs.union(&below.needs);
             // A grandchild runs inside this child's boundary.
             let bound = below.opaque.intersect(declared.unwrap_or(&Permits::new()));
             reach.opaque = reach.opaque.union(&bound);
             nested.insert(task_id.clone(), (target.to_owned(), below));
-        } else if reach.ingress.is_none() {
-            reach.ingress = born_ingress(task_id, &task.value.action).map(Witness::here);
+        } else {
+            if reach.ingress.is_none() {
+                reach.ingress = born_ingress(task_id, &task.value.action).map(Witness::here);
+            }
+            acts.push(if crate::trifecta::egress_capable(&task.value.action) {
+                let what = egress_what(task_id, &task.value.action);
+                (Sink::Proven, Some(Witness::here(what)))
+            } else {
+                (Sink::Inert, None)
+            });
         }
     }
     stack.pop();
     match crate::analyzer::analyze(&child) {
         Ok(analyzed) => {
+            let sinks = acts.iter().map(|(sink, _)| *sink).collect();
+            if let Some((n, proven)) = closure_effect(&child, &analyzed.edges, sinks) {
+                reach.effect = acts.get_mut(n).and_then(|(_, witness)| witness.take());
+                reach.effect_conditional = !proven;
+            }
             let judged = Judged {
                 wf: &child,
                 waves: &analyzed.topo_waves,
@@ -445,7 +498,7 @@ impl Judged<'_> {
         }
         if origin == FILES_ORIGIN {
             return Witness::here(format!(
-                "output `{name}` carries a file an `exec:` read after an earlier write"
+                "output `{name}` carries a file read after an earlier write"
             ));
         }
         if let Some((target, below)) = self.nested.get(origin)
@@ -522,6 +575,8 @@ fn own_reach(wf: &RawWorkflow, declared: Option<&Permits>) -> Reach {
         born: Flow::default(),
         args: Flow::default(),
         files: Flow::default(),
+        effect: None,
+        effect_conditional: false,
         resolved: true,
         needs: inferred.permits,
         opaque: declared.map_or_else(Permits::new, |d| faces_of(d, opaque)),

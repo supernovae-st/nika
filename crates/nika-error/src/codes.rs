@@ -788,14 +788,34 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              `agent:` whose `tools:` admit one) reaches its outputs or a file \
              it writes. It is an egress task when untrusted content reaches an \
              egress task inside it: content the child brings in, the call's \
-             arguments, or a file written before the call that a child \
-             `exec:` reads. The parent then needs a blocking `nika:prompt` of \
+             arguments, or a file written before the call that a child task \
+             reads. The parent then needs a blocking `nika:prompt` of \
              its own upstream of the call, as for the inline form; a gate \
              inside the child is not credited to the caller. A child the \
              check cannot read or resolve counts as such a source and such an \
              egress task. `nika check <file>` and `nika run` read the \
              children; a check of the source alone (an editor, the MCP \
-             `nika_check` tool) judges the parent's own tasks only.\n",
+             `nika_check` tool) judges the parent's own tasks only.\n\n  \
+             A file carries untrusted content too: once a task writes some \
+             to a file, a later `exec:`, or a builtin read (`nika:read` · \
+             `nika:grep` · `nika:glob` · …) of a path that write may have \
+             reached, carries it on. When the write's path is literal, \
+             the builtin read counts wherever it runs: beside the writer, \
+             or before it (the next run reads the file).\n",
+        ),
+        // NIK-273 follow-up: a child workflow call is an egress-capable task.
+        "NIKA-SEC-014" => Some(
+            "  A call to a child workflow counts as an egress-capable task \
+             when the child, or a workflow it calls, reaches one (an \
+             `exec:`, a net or file-write builtin, an `mcp:` tool, an \
+             `agent:` whose `tools:` admit one), whatever content reaches \
+             it: the child runs inside this file's boundary. Every route \
+             from a confirm gate to the call must close on « no », as for \
+             the inline task. A confirm gate inside the child owns the \
+             effect behind it. A child gate the check cannot decide from \
+             the caller (a `when:` on an input) earns the advisory hint, \
+             not the refusal. A child the check cannot read or resolve \
+             counts as acting.\n",
         ),
         _ => None,
     }
@@ -829,6 +849,34 @@ mod tests {
             "the parent's own tasks only",
         ] {
             assert!(help.contains(lesson), "`{lesson}` missing: {help}");
+        }
+    }
+
+    /// NIK-273 follow-up: the trifecta lesson names the builtin readers of
+    /// the file channel.
+    #[test]
+    fn the_file_channel_is_taught() {
+        let trifecta = spec_contract_help("NIKA-SEC-009").expect("teaches");
+        assert!(
+            trifecta.contains("a builtin read") && trifecta.contains("wherever it"),
+            "{trifecta}"
+        );
+    }
+
+    /// NIK-273 follow-up: the consent lesson counts a child call as an
+    /// egress-capable task.
+    #[test]
+    fn the_composed_consent_is_taught() {
+        let consent = spec_contract_help("NIKA-SEC-014").expect("teaches");
+        for lesson in [
+            "A call to a child workflow counts as an egress-capable task",
+            "whatever content reaches it",
+            "must close on « no »",
+            "A confirm gate inside the child owns",
+            "earns the advisory hint",
+            "counts as acting",
+        ] {
+            assert!(consent.contains(lesson), "`{lesson}` missing: {consent}");
         }
     }
 
