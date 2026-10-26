@@ -165,7 +165,11 @@ async fn codex_is_held_in_its_client_approval_mode_before_the_prompt() {
         assert_eq!(seen.len(), 1, "{confinement:?}");
         assert_eq!(seen[0].0.as_deref(), Some("read-only"));
         assert!(seen[0].1, "selected and read back");
-        assert!(seen[0].2.contains("/tmp and $TMPDIR"), "{}", seen[0].2);
+        assert!(
+            seen[0].2.contains("/tmp, $TMPDIR and its own ~/.codex"),
+            "{}",
+            seen[0].2
+        );
         assert_eq!(
             seen[0].2.contains("grants no fs.write"),
             confinement == HarnessConfinement::ReadOnly,

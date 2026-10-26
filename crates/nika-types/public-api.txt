@@ -641,6 +641,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessRequireme
 pub nika_types::access::HarnessBoundary::agents: &'static [&'static str]
 pub nika_types::access::HarnessBoundary::asked_command_leaves_sandbox: bool
 pub nika_types::access::HarnessBoundary::fetches_unasked: core::option::Option<&'static str>
+pub nika_types::access::HarnessBoundary::loads_unasked: core::option::Option<&'static str>
 pub nika_types::access::HarnessBoundary::measured_on: &'static str
 pub nika_types::access::HarnessBoundary::read_only_mode: &'static str
 pub nika_types::access::HarnessBoundary::reads_unasked: &'static str

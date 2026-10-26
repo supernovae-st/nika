@@ -39,6 +39,9 @@ pub struct HarnessBoundary {
     pub runs_unasked: Option<&'static str>,
     /// What it fetches without asking, under the selected mode (`None`: every fetch asks).
     pub fetches_unasked: Option<&'static str>,
+    /// What it loads from the user's own configuration on its own, at every session (`None`:
+    /// nothing measured).
+    pub loads_unasked: Option<&'static str>,
     /// Whether the selected mode runs ordinary commands in the harness's own sandbox without
     /// asking, so a command it asks about asks to LEAVE that sandbox (NIK-274): the client
     /// sends such an ask as an escalation, which no grant answers, `exec: true` included.
@@ -59,7 +62,11 @@ impl HarnessBoundary {
     /// it runs with no sandbox at all. A network approval is a command ask titled `<protocol>
     /// network access to <host>` (request `_meta.permission.title` `Allow network access?`),
     /// with `rawInput.url` only for http and https; `rawInput.additionalPermissions` asks to
-    /// widen the sandbox.
+    /// widen the sandbox. Measured with real Codex on 2026-10-26: without asking it also calls
+    /// its MCP tools marked `readOnlyHint` (remote ones included), runs its tools through a
+    /// JavaScript code mode, opens pages with its hosted web tool, writes its own `~/.codex`
+    /// (images, session logs, state), starts every configured MCP server and applies the
+    /// user's global `~/.codex/AGENTS.md` and Codex plugins.
     pub const CODEX_ACP: Self = Self {
         seat: "codex",
         agents: &["@agentclientprotocol/codex-acp", "codex-acp"],
@@ -67,9 +74,16 @@ impl HarnessBoundary {
         read_only_mode: "read-only",
         workspace_write_mode: "read-only",
         reads_unasked: "any file",
-        writes_unasked: Some("the project, /tmp and $TMPDIR"),
-        runs_unasked: Some("any program in its own sandbox"),
-        fetches_unasked: None,
+        writes_unasked: Some("the project, /tmp, $TMPDIR and its own ~/.codex"),
+        runs_unasked: Some(
+            "any program in its own sandbox, its tools through a JavaScript code mode and its \
+             MCP tools marked readOnlyHint (remote ones included)",
+        ),
+        fetches_unasked: Some("pages with its hosted web tool, whose content reaches the model"),
+        loads_unasked: Some(
+            "starts every configured MCP server and applies your global ~/.codex/AGENTS.md \
+             and Codex plugins",
+        ),
         asked_command_leaves_sandbox: true,
     };
 
@@ -91,6 +105,7 @@ impl HarnessBoundary {
         writes_unasked: None,
         runs_unasked: Some("shell commands Claude Code classifies as read-only"),
         fetches_unasked: Some("documentation hosts Claude Code pre-approves"),
+        loads_unasked: None,
         asked_command_leaves_sandbox: false,
     };
 
@@ -109,6 +124,7 @@ impl HarnessBoundary {
         writes_unasked: None,
         runs_unasked: Some("shell commands it judges safe reads in the project"),
         fetches_unasked: Some("Google web searches"),
+        loads_unasked: None,
         asked_command_leaves_sandbox: false,
     };
 
@@ -140,7 +156,7 @@ impl HarnessBoundary {
     }
 
     /// What the harness does without asking, in one clause: reads, writes (told against the
-    /// workflow's own `fs.write`), runs, fetches.
+    /// workflow's own `fs.write`), runs, fetches, loads.
     fn unasked_clause(&self, writes_granted: bool) -> String {
         let mut clause = format!("reads {}", self.reads_unasked);
         if let Some(place) = self.writes_unasked {
@@ -150,19 +166,23 @@ impl HarnessBoundary {
                 "(the workflow grants no fs.write)"
             };
             let reach = if writes_granted { "anywhere in " } else { "" };
-            clause.push_str(", writes ");
+            clause.push_str("; writes ");
             clause.push_str(reach);
             clause.push_str(place);
             clause.push(' ');
             clause.push_str(scope);
         }
         if let Some(runs) = self.runs_unasked {
-            clause.push_str(", runs ");
+            clause.push_str("; runs ");
             clause.push_str(runs);
         }
         if let Some(fetches) = self.fetches_unasked {
-            clause.push_str(", fetches ");
+            clause.push_str("; fetches ");
             clause.push_str(fetches);
+        }
+        if let Some(loads) = self.loads_unasked {
+            clause.push_str("; ");
+            clause.push_str(loads);
         }
         clause
     }
@@ -305,16 +325,21 @@ mod tests {
         assert_eq!(
             codex.check_advice(false),
             "an `agent:` task on codex runs in mode `read-only`: Nika judges each approval it \
-             asks (journaled permit_checked), but without asking it reads any file, writes the \
-             project, /tmp and $TMPDIR (the workflow grants no fs.write), runs any program in \
-             its own sandbox — permits: does not bound that (`nika explain harness`)"
+             asks (journaled permit_checked), but without asking it reads any file; writes the \
+             project, /tmp, $TMPDIR and its own ~/.codex (the workflow grants no fs.write); runs \
+             any program in its own sandbox, its tools through a JavaScript code mode and its \
+             MCP tools marked readOnlyHint (remote ones included); fetches pages with its hosted \
+             web tool, whose content reaches the model; starts every configured MCP server and \
+             applies your global ~/.codex/AGENTS.md and Codex plugins — permits: does not bound \
+             that (`nika explain harness`)"
         );
         assert!(codex.check_advice(true).contains(
-            "writes anywhere in the project, /tmp and $TMPDIR (not only the fs.write paths)"
+            "writes anywhere in the project, /tmp, $TMPDIR and its own ~/.codex (not only the \
+             fs.write paths)"
         ));
         let witness = codex.unasked(false);
         assert!(
-            witness.starts_with("Without asking, the harness reads any file, "),
+            witness.starts_with("Without asking, the harness reads any file; "),
             "{witness}"
         );
         assert!(witness.ends_with(HARNESS_SHARED_RESIDUAL), "{witness}");
