@@ -163,13 +163,15 @@ fn bare_refs(text: &str) -> Vec<String> {
     out
 }
 
-/// One identifier: a letter or `_`, then letters, digits, `_` or `-`.
+/// One expression identifier: a letter or `_`, then letters, digits or
+/// `_`. A dashed name is left out: `${{ inputs.my-name }}` does not parse,
+/// so the hint would suggest a reference the check refuses.
 fn is_bare_name(inner: &str) -> bool {
     let mut chars = inner.chars();
     chars
         .next()
         .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
-        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 /// The reference-shaped mustache islands of one string: « {{ inputs.x }} »
@@ -261,6 +263,22 @@ mod tests {
             "nika: w\ninputs:\n  name: { type: string, default: \"Ada\" }\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: \"Hello ${{ inputs.name }}\", max_tokens: 8 }\n",
         );
         assert!(real.is_empty(), "{real:?}");
+    }
+
+    /// A dashed name is no expression identifier: `${{ inputs.my-name }}`
+    /// fails the check with NIKA-VAR-005, so the hint never suggests it.
+    /// The plain sibling in the same text is still named.
+    #[test]
+    fn a_dashed_bare_island_draws_no_reference_the_check_refuses() {
+        let rows = rows_of(
+            "nika: w\ninputs:\n  name: { type: string, default: \"Ada\" }\n  my-name: { type: string, default: \"Bo\" }\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: \"Hello {{ name }} {{ my-name }}\", max_tokens: 8 }\n",
+        );
+        assert_eq!(rows.len(), 1, "{rows:?}");
+        assert!(rows[0].1.contains("${{ inputs.name }}"), "{}", rows[0].1);
+        assert!(
+            rows.iter().all(|(_, hint)| !hint.contains("my-name")),
+            "{rows:?}"
+        );
     }
 
     #[test]
