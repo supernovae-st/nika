@@ -260,7 +260,7 @@ fn channel_conflicts_and_inline_forms_refuse_without_consuming_stdin() {
     }
 }
 
-/// B-D7 · a `--var` refusal carries the slug the `--inputs-json` channel and
+/// A `--var` refusal carries the slug the `--inputs-json` channel and
 /// the server already use, so a `--json` caller routes on `error.code`
 /// instead of parsing the sentence. Measured on 0.123.2: every one of these
 /// reached the caller as `code: null`.
