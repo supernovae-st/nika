@@ -1046,6 +1046,8 @@ pub const nika_cap::JQ_STD_SHADOWS: &str
 pub const nika_cap::JQ_STD_SHADOW_PROBES: &str
 pub const nika_cap::PURE_INTERNAL_TOOLS: &[&str]
 pub const nika_cap::RUNNER_FLOOR_ENV_VARS: &[&str]
+pub const nika_cap::SYSTEM_VOICE_ESPEAK: &str
+pub const nika_cap::SYSTEM_VOICE_SAY: &str
 pub const nika_cap::WITHHELD_JQ_NATIVES: &[nika_cap::WithheldNative]
 pub fn nika_cap::builtin_effect(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> core::option::Option<nika_cap::BuiltinEffect>
 pub fn nika_cap::builtin_egresses(tool: &str) -> bool
@@ -1079,6 +1081,9 @@ pub fn nika_cap::path_leaves_workspace(path: &str) -> bool
 pub fn nika_cap::pure_internal_for_all_calls(tool: &str) -> bool
 pub fn nika_cap::read_slot_paths(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<nika_cap::SlotPath>
 pub fn nika_cap::required_fs_directions(tool: &str) -> core::option::Option<(bool, bool)>
+pub fn nika_cap::secondary_read_slots<'a>(tool: &str, args: core::option::Option<&'a serde_json::value::Value>) -> alloc::vec::Vec<(alloc::string::String, &'a serde_json::value::Value)>
+pub fn nika_cap::starts_system_voice(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> bool
+pub const fn nika_cap::system_voice_program() -> core::option::Option<&'static str>
 pub fn nika_cap::tool_grant_admits_ingress(grant: &str) -> bool
 pub fn nika_cap::trifecta_verdict(permits: &nika_cap::Permits, subjects: &[nika_cap::TrifectaSubject], witnesses: &[nika_cap::TaintWitness], topo_order: &[usize]) -> nika_cap::TrifectaVerdict
 pub fn nika_cap::unbound_fs_args(tool: &str, args: core::option::Option<&serde_json::value::Value>, reads: &[alloc::string::String], writes: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>

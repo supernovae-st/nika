@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T2 chain · the contact sheet
+#
+# Two sample photos and their duotone twins become one contact sheet, and
+# the two photos a side-by-side strip — native composition, with no image
+# program to install, no model and no network. `nika:image_compose` is a
+# pure function of (input bytes · args): the same photos lay out the same
+# sheet forever, byte-identical.
+#
+# Demonstrates ·
+#   - `nika:image_fx` making the variants the sheet shows (a duotone each)
+#   - `nika:image_compose` · `layout: row` (a side-by-side) and the default
+#     `grid` (2×2, derived from four inputs)
+#   - `scale: fit` + `cell` · every image scaled into the same box, aspect
+#     kept, letterboxed on `background`
+#   - every input is a READ the check judges against `permits.fs.read`, and
+#     each sheet a WRITE judged against `permits.fs.write`
+#
+# Run · nika run examples/image-compose-sheet.nika
+
+nika: image-compose-sheet
+
+permits:
+  exec: false
+  tools: ["nika:image_compose", "nika:image_fx"]
+  fs:
+    # Exact files, read and written: the photos ship with the repo, and the
+    # sheet also reads back the two duotones this file writes.
+    read:
+      - "examples/fixtures/photos/harbour-02.png"
+      - "examples/fixtures/photos/sunset-01.png"
+      - "out/contact/harbour-duotone.png"
+      - "out/contact/sunset-duotone.png"
+    write:
+      - "out/contact/harbour-duotone.png"
+      - "out/contact/sheet.png"
+      - "out/contact/strip.png"
+      - "out/contact/sunset-duotone.png"
+
+tasks:
+  sunset_duotone:
+    invoke:
+      tool: "nika:image_fx"
+      args:
+        input: "examples/fixtures/photos/sunset-01.png"
+        out: "out/contact/sunset-duotone.png"
+        ops: [ { duotone: { dark: "#10141c", light: "#f2c14e" } } ]
+
+  harbour_duotone:
+    invoke:
+      tool: "nika:image_fx"
+      args:
+        input: "examples/fixtures/photos/harbour-02.png"
+        out: "out/contact/harbour-duotone.png"
+        ops: [ { duotone: { dark: "#10141c", light: "#7fd1ff" } } ]
+
+  # Two photos side by side, each at its own size.
+  strip:
+    invoke:
+      tool: "nika:image_compose"
+      args:
+        inputs:
+          - "examples/fixtures/photos/sunset-01.png"
+          - "examples/fixtures/photos/harbour-02.png"
+        out: "out/contact/strip.png"
+        layout: row
+        gap: 4
+        background: "#10141c"
+
+  # The sheet reads the duotones, so it runs after both land.
+  sheet:
+    after: { sunset_duotone: success, harbour_duotone: success }
+    invoke:
+      tool: "nika:image_compose"
+      args:
+        inputs:
+          - "examples/fixtures/photos/sunset-01.png"
+          - "out/contact/sunset-duotone.png"
+          - "examples/fixtures/photos/harbour-02.png"
+          - "out/contact/harbour-duotone.png"
+        out: "out/contact/sheet.png"
+        scale: fit
+        cell: { width: 96, height: 64 }
+        gap: 4
+        padding: 8
+        background: "#10141c"
+
+outputs:
+  strip:
+    value: ${{ tasks.strip.output }}
+    description: "The side-by-side receipt · path, sha256, width and height"
+  sheet:
+    value: ${{ tasks.sheet.output }}
+    description: "The contact-sheet receipt · path, sha256, width and height"

@@ -345,7 +345,205 @@ pub const nika_fx::codec::png::MAX_PIXELS: u64
 pub const nika_fx::codec::png::SIG: [u8; 8]
 pub fn nika_fx::codec::png::crc32(data: &[u8]) -> u32
 pub fn nika_fx::codec::png::decode(data: &[u8]) -> core::result::Result<nika_fx::pix::PixBuf, nika_fx::error::FxError>
+pub fn nika_fx::codec::png::decode_with_alpha(data: &[u8]) -> core::result::Result<(nika_fx::pix::PixBuf, core::option::Option<alloc::vec::Vec<u8>>), nika_fx::error::FxError>
 pub fn nika_fx::codec::png::encode(img: &nika_fx::pix::PixBuf, recipe_json: core::option::Option<&str>) -> alloc::vec::Vec<u8>
+pub fn nika_fx::codec::png::header(data: &[u8]) -> core::result::Result<(u32, u32), nika_fx::error::FxError>
+pub mod nika_fx::compose
+#[non_exhaustive] pub enum nika_fx::compose::Layout
+pub nika_fx::compose::Layout::Column
+pub nika_fx::compose::Layout::Grid
+pub nika_fx::compose::Layout::Row
+impl nika_fx::compose::Layout
+pub const fn nika_fx::compose::Layout::name(self) -> &'static str
+impl core::clone::Clone for nika_fx::compose::Layout
+pub fn nika_fx::compose::Layout::clone(&self) -> nika_fx::compose::Layout
+impl core::cmp::Eq for nika_fx::compose::Layout
+impl core::cmp::PartialEq for nika_fx::compose::Layout
+pub fn nika_fx::compose::Layout::eq(&self, other: &nika_fx::compose::Layout) -> bool
+impl core::fmt::Debug for nika_fx::compose::Layout
+pub fn nika_fx::compose::Layout::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fx::compose::Layout
+impl core::marker::StructuralPartialEq for nika_fx::compose::Layout
+impl<T, U> core::convert::Into<U> for nika_fx::compose::Layout where U: core::convert::From<T>
+pub fn nika_fx::compose::Layout::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::compose::Layout where U: core::convert::Into<T>
+pub type nika_fx::compose::Layout::Error = core::convert::Infallible
+pub fn nika_fx::compose::Layout::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::compose::Layout where U: core::convert::TryFrom<T>
+pub type nika_fx::compose::Layout::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::compose::Layout::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::compose::Layout where T: core::clone::Clone
+pub type nika_fx::compose::Layout::Owned = T
+pub fn nika_fx::compose::Layout::clone_into(&self, target: &mut T)
+pub fn nika_fx::compose::Layout::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::compose::Layout where T: 'static + ?core::marker::Sized
+pub fn nika_fx::compose::Layout::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::compose::Layout where T: ?core::marker::Sized
+pub fn nika_fx::compose::Layout::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::compose::Layout where T: ?core::marker::Sized
+pub fn nika_fx::compose::Layout::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::compose::Layout where T: core::clone::Clone
+pub unsafe fn nika_fx::compose::Layout::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::compose::Layout
+pub fn nika_fx::compose::Layout::from(t: T) -> T
+#[non_exhaustive] pub enum nika_fx::compose::Scale
+pub nika_fx::compose::Scale::Fill
+pub nika_fx::compose::Scale::Fit
+pub nika_fx::compose::Scale::None
+impl nika_fx::compose::Scale
+pub const fn nika_fx::compose::Scale::name(self) -> &'static str
+impl core::clone::Clone for nika_fx::compose::Scale
+pub fn nika_fx::compose::Scale::clone(&self) -> nika_fx::compose::Scale
+impl core::cmp::Eq for nika_fx::compose::Scale
+impl core::cmp::PartialEq for nika_fx::compose::Scale
+pub fn nika_fx::compose::Scale::eq(&self, other: &nika_fx::compose::Scale) -> bool
+impl core::fmt::Debug for nika_fx::compose::Scale
+pub fn nika_fx::compose::Scale::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fx::compose::Scale
+impl core::marker::StructuralPartialEq for nika_fx::compose::Scale
+impl<T, U> core::convert::Into<U> for nika_fx::compose::Scale where U: core::convert::From<T>
+pub fn nika_fx::compose::Scale::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::compose::Scale where U: core::convert::Into<T>
+pub type nika_fx::compose::Scale::Error = core::convert::Infallible
+pub fn nika_fx::compose::Scale::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::compose::Scale where U: core::convert::TryFrom<T>
+pub type nika_fx::compose::Scale::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::compose::Scale::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::compose::Scale where T: core::clone::Clone
+pub type nika_fx::compose::Scale::Owned = T
+pub fn nika_fx::compose::Scale::clone_into(&self, target: &mut T)
+pub fn nika_fx::compose::Scale::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::compose::Scale where T: 'static + ?core::marker::Sized
+pub fn nika_fx::compose::Scale::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::compose::Scale where T: ?core::marker::Sized
+pub fn nika_fx::compose::Scale::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::compose::Scale where T: ?core::marker::Sized
+pub fn nika_fx::compose::Scale::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::compose::Scale where T: core::clone::Clone
+pub unsafe fn nika_fx::compose::Scale::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::compose::Scale
+pub fn nika_fx::compose::Scale::from(t: T) -> T
+#[non_exhaustive] pub struct nika_fx::compose::ComposeArgs
+pub nika_fx::compose::ComposeArgs::background: [u8; 3]
+pub nika_fx::compose::ComposeArgs::cell: core::option::Option<(u32, u32)>
+pub nika_fx::compose::ComposeArgs::columns: core::option::Option<u32>
+pub nika_fx::compose::ComposeArgs::gap: u32
+pub nika_fx::compose::ComposeArgs::layout: nika_fx::compose::Layout
+pub nika_fx::compose::ComposeArgs::padding: u32
+pub nika_fx::compose::ComposeArgs::rows: core::option::Option<u32>
+pub nika_fx::compose::ComposeArgs::scale: nika_fx::compose::Scale
+impl nika_fx::compose::ComposeArgs
+pub const fn nika_fx::compose::ComposeArgs::new() -> Self
+impl core::clone::Clone for nika_fx::compose::ComposeArgs
+pub fn nika_fx::compose::ComposeArgs::clone(&self) -> nika_fx::compose::ComposeArgs
+impl core::cmp::Eq for nika_fx::compose::ComposeArgs
+impl core::cmp::PartialEq for nika_fx::compose::ComposeArgs
+pub fn nika_fx::compose::ComposeArgs::eq(&self, other: &nika_fx::compose::ComposeArgs) -> bool
+impl core::default::Default for nika_fx::compose::ComposeArgs
+pub fn nika_fx::compose::ComposeArgs::default() -> Self
+impl core::fmt::Debug for nika_fx::compose::ComposeArgs
+pub fn nika_fx::compose::ComposeArgs::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::compose::ComposeArgs
+impl<T, U> core::convert::Into<U> for nika_fx::compose::ComposeArgs where U: core::convert::From<T>
+pub fn nika_fx::compose::ComposeArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::compose::ComposeArgs where U: core::convert::Into<T>
+pub type nika_fx::compose::ComposeArgs::Error = core::convert::Infallible
+pub fn nika_fx::compose::ComposeArgs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::compose::ComposeArgs where U: core::convert::TryFrom<T>
+pub type nika_fx::compose::ComposeArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::compose::ComposeArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::compose::ComposeArgs where T: core::clone::Clone
+pub type nika_fx::compose::ComposeArgs::Owned = T
+pub fn nika_fx::compose::ComposeArgs::clone_into(&self, target: &mut T)
+pub fn nika_fx::compose::ComposeArgs::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::compose::ComposeArgs where T: 'static + ?core::marker::Sized
+pub fn nika_fx::compose::ComposeArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::compose::ComposeArgs where T: ?core::marker::Sized
+pub fn nika_fx::compose::ComposeArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::compose::ComposeArgs where T: ?core::marker::Sized
+pub fn nika_fx::compose::ComposeArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::compose::ComposeArgs where T: core::clone::Clone
+pub unsafe fn nika_fx::compose::ComposeArgs::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::compose::ComposeArgs
+pub fn nika_fx::compose::ComposeArgs::from(t: T) -> T
+#[non_exhaustive] pub struct nika_fx::compose::ComposeOutput
+pub nika_fx::compose::ComposeOutput::columns: u32
+pub nika_fx::compose::ComposeOutput::height: u32
+pub nika_fx::compose::ComposeOutput::inputs: alloc::vec::Vec<nika_fx::compose::InputFacts>
+pub nika_fx::compose::ComposeOutput::png: alloc::vec::Vec<u8>
+pub nika_fx::compose::ComposeOutput::recipe: alloc::string::String
+pub nika_fx::compose::ComposeOutput::rows: u32
+pub nika_fx::compose::ComposeOutput::width: u32
+impl core::clone::Clone for nika_fx::compose::ComposeOutput
+pub fn nika_fx::compose::ComposeOutput::clone(&self) -> nika_fx::compose::ComposeOutput
+impl core::cmp::Eq for nika_fx::compose::ComposeOutput
+impl core::cmp::PartialEq for nika_fx::compose::ComposeOutput
+pub fn nika_fx::compose::ComposeOutput::eq(&self, other: &nika_fx::compose::ComposeOutput) -> bool
+impl core::fmt::Debug for nika_fx::compose::ComposeOutput
+pub fn nika_fx::compose::ComposeOutput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::compose::ComposeOutput
+impl<T, U> core::convert::Into<U> for nika_fx::compose::ComposeOutput where U: core::convert::From<T>
+pub fn nika_fx::compose::ComposeOutput::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::compose::ComposeOutput where U: core::convert::Into<T>
+pub type nika_fx::compose::ComposeOutput::Error = core::convert::Infallible
+pub fn nika_fx::compose::ComposeOutput::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::compose::ComposeOutput where U: core::convert::TryFrom<T>
+pub type nika_fx::compose::ComposeOutput::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::compose::ComposeOutput::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::compose::ComposeOutput where T: core::clone::Clone
+pub type nika_fx::compose::ComposeOutput::Owned = T
+pub fn nika_fx::compose::ComposeOutput::clone_into(&self, target: &mut T)
+pub fn nika_fx::compose::ComposeOutput::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::compose::ComposeOutput where T: 'static + ?core::marker::Sized
+pub fn nika_fx::compose::ComposeOutput::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::compose::ComposeOutput where T: ?core::marker::Sized
+pub fn nika_fx::compose::ComposeOutput::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::compose::ComposeOutput where T: ?core::marker::Sized
+pub fn nika_fx::compose::ComposeOutput::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::compose::ComposeOutput where T: core::clone::Clone
+pub unsafe fn nika_fx::compose::ComposeOutput::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::compose::ComposeOutput
+pub fn nika_fx::compose::ComposeOutput::from(t: T) -> T
+#[non_exhaustive] pub struct nika_fx::compose::InputFacts
+pub nika_fx::compose::InputFacts::height: u32
+pub nika_fx::compose::InputFacts::sha256: alloc::string::String
+pub nika_fx::compose::InputFacts::width: u32
+impl core::clone::Clone for nika_fx::compose::InputFacts
+pub fn nika_fx::compose::InputFacts::clone(&self) -> nika_fx::compose::InputFacts
+impl core::cmp::Eq for nika_fx::compose::InputFacts
+impl core::cmp::PartialEq for nika_fx::compose::InputFacts
+pub fn nika_fx::compose::InputFacts::eq(&self, other: &nika_fx::compose::InputFacts) -> bool
+impl core::fmt::Debug for nika_fx::compose::InputFacts
+pub fn nika_fx::compose::InputFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fx::compose::InputFacts
+impl<T, U> core::convert::Into<U> for nika_fx::compose::InputFacts where U: core::convert::From<T>
+pub fn nika_fx::compose::InputFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fx::compose::InputFacts where U: core::convert::Into<T>
+pub type nika_fx::compose::InputFacts::Error = core::convert::Infallible
+pub fn nika_fx::compose::InputFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fx::compose::InputFacts where U: core::convert::TryFrom<T>
+pub type nika_fx::compose::InputFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fx::compose::InputFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fx::compose::InputFacts where T: core::clone::Clone
+pub type nika_fx::compose::InputFacts::Owned = T
+pub fn nika_fx::compose::InputFacts::clone_into(&self, target: &mut T)
+pub fn nika_fx::compose::InputFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fx::compose::InputFacts where T: 'static + ?core::marker::Sized
+pub fn nika_fx::compose::InputFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fx::compose::InputFacts where T: ?core::marker::Sized
+pub fn nika_fx::compose::InputFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fx::compose::InputFacts where T: ?core::marker::Sized
+pub fn nika_fx::compose::InputFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fx::compose::InputFacts where T: core::clone::Clone
+pub unsafe fn nika_fx::compose::InputFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fx::compose::InputFacts
+pub fn nika_fx::compose::InputFacts::from(t: T) -> T
+pub const nika_fx::compose::CONTRACT_TAG: &str
+pub const nika_fx::compose::MAX_INPUTS: usize
+pub const nika_fx::compose::MAX_SPACING: u32
+pub const nika_fx::compose::MAX_TRACKS: u32
+pub fn nika_fx::compose::compose(inputs: &[&[u8]], args: &nika_fx::compose::ComposeArgs) -> core::result::Result<nika_fx::compose::ComposeOutput, nika_fx::error::FxError>
+pub fn nika_fx::compose::grid(args: &nika_fx::compose::ComposeArgs, count: usize) -> core::result::Result<(u32, u32), nika_fx::error::FxError>
 pub mod nika_fx::det
 pub struct nika_fx::det::Pcg32
 impl nika_fx::det::Pcg32
@@ -384,6 +582,7 @@ pub nika_fx::error::FxError::Args(alloc::string::String)
 pub nika_fx::error::FxError::Budget
 pub nika_fx::error::FxError::Budget::max: u64
 pub nika_fx::error::FxError::Budget::pixels: u64
+pub nika_fx::error::FxError::Cap(alloc::string::String)
 pub nika_fx::error::FxError::Decode(alloc::string::String)
 pub nika_fx::error::FxError::Encode(alloc::string::String)
 pub nika_fx::error::FxError::UnsupportedFormat(alloc::string::String)
@@ -660,6 +859,7 @@ pub nika_fx::FxError::Args(alloc::string::String)
 pub nika_fx::FxError::Budget
 pub nika_fx::FxError::Budget::max: u64
 pub nika_fx::FxError::Budget::pixels: u64
+pub nika_fx::FxError::Cap(alloc::string::String)
 pub nika_fx::FxError::Decode(alloc::string::String)
 pub nika_fx::FxError::Encode(alloc::string::String)
 pub nika_fx::FxError::UnsupportedFormat(alloc::string::String)

@@ -5,7 +5,8 @@
 //!
 //! Two event shapes record a written byte stream with its content hash:
 //! - `task_completed` of a builtin that saves files and reports each one's path, size and
-//!   sha256 (`nika:chart` · `nika:image_generate` · `nika:tts_generate` · `nika:image_fx`), on
+//!   sha256 (`nika:chart` · `nika:image_generate` · `nika:tts_generate` · `nika:image_fx` ·
+//!   `nika:image_compose`), on
 //!   its own successful invocation (`outcome` class `success`, cause `normal`: never a
 //!   recovered or author-shaped value);
 //! - `agent_image_observed` of an image the harness sent, stored as a blob under
@@ -136,7 +137,9 @@ fn written_files(event: &Event) -> Vec<Artifact> {
     for answer in answers {
         let saved: Vec<(&Value, &str, Option<&str>)> = match tool {
             "nika:chart" => vec![(answer, "bytes", Some("image/svg+xml"))],
-            "nika:image_fx" => vec![(answer, "size_bytes", format_mime(&answer["format"]))],
+            "nika:image_fx" | "nika:image_compose" => {
+                vec![(answer, "size_bytes", format_mime(&answer["format"]))]
+            }
             "nika:image_generate" => (answer["images"].as_array().into_iter().flatten())
                 .map(|image| (image, "size_bytes", None))
                 .collect(),
@@ -261,7 +264,7 @@ fn media_type(text: &str) -> bool {
             .is_some_and(|(kind, sub)| token(kind) && token(sub))
 }
 
-/// The media type of an image format word (`nika:image_fx`'s `format`).
+/// The media type of an image format word (`nika:image_fx`'s and `nika:image_compose`'s `format`).
 fn format_mime(format: &Value) -> Option<&'static str> {
     match format.as_str()? {
         "png" => Some("image/png"),
