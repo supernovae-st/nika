@@ -286,7 +286,8 @@ remains `chart_vl_sibling`. Findings name rules/slots without repeating proposed
 each present slot becomes a `SlotPath::Literal { path, descends }` (a glob pattern as its
 walk root, descending; `grep.path` and an `output_dir` descend), and a template, a
 non-string, an empty string or a malformed read container becomes `SlotPath::Unknown`.
-The write side adds the chart's `.vl.json` sibling. The content-taint pass of `nika-check`
+The read side adds the root a `grep` without `path` searches (`.`, descending); the
+write side adds the chart's `.vl.json` sibling. The content-taint pass of `nika-check`
 reads them for its file channel: a builtin read of a path an earlier tainted write may have
 reached carries that content on (NIK-273 follow-up). Neither grants authority.
 

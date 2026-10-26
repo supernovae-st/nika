@@ -703,6 +703,8 @@ mod tests {
             "{ tool: \"nika:read\", args: { path: \"./drop/${{ inputs.name }}\" } }",
             "{ tool: \"nika:grep\", args: { pattern: \"body\", path: \"./drop\" } }",
             "{ tool: \"nika:glob\", args: { pattern: \"./drop/*.txt\" } }",
+            // No `path`: grep searches the workspace, `./drop` included.
+            "{ tool: \"nika:grep\", args: { pattern: \"body\" } }",
         ];
         for invoke in tainted {
             let r = report(&drop_read(invoke));
@@ -752,6 +754,45 @@ mod tests {
             .map(|v| v.task.as_str())
             .collect();
         assert_eq!(sinks, ["leak"], "{:?}", r.trifecta_findings);
+    }
+
+    /// The file outlives the run order (NIK-273 review): a read in the
+    /// writer's own wave runs beside it (a retry waits for the file), and a
+    /// read the run order puts first reads what the previous run left. A
+    /// builtin read meets every tainted write of its path, earlier or not.
+    #[test]
+    fn a_builtin_read_meets_a_tainted_write_whatever_the_order() {
+        let pick = "  pick:\n    after: { save: success }\n    invoke: { tool: \"nika:read\", args: { path: \"./drop/page.txt\" } }\n";
+        let unmoored = GATED_DROP.replacen(pick, "", 1);
+        let same_wave = unmoored.replacen(
+            "  save:\n",
+            "  pick:\n    after: { page: success }\n    invoke: { tool: \"nika:read\", args: { path: \"./drop/page.txt\" } }\n  save:\n",
+            1,
+        );
+        let read_first = unmoored.replacen(
+            "  ask:\n",
+            "  pick:\n    invoke: { tool: \"nika:read\", args: { path: \"./drop/page.txt\" } }\n  ask:\n",
+            1,
+        );
+        for (why, yaml) in [("same wave", same_wave), ("read first", read_first)] {
+            let r = report(&yaml);
+            assert!(r.conformance.is_empty(), "{why}: {:?}", r.conformance);
+            let found: Vec<(&str, Option<&str>)> = r
+                .trifecta_findings
+                .iter()
+                .map(|v| (v.task.as_str(), v.source.as_deref()))
+                .collect();
+            assert_eq!(found, [("leak", Some("page"))], "{why}");
+        }
+        // A read of another path stays clean in either order.
+        let other = unmoored.replacen(
+            "  ask:\n",
+            "  pick:\n    invoke: { tool: \"nika:read\", args: { path: \"./drop/other.txt\" } }\n  ask:\n",
+            1,
+        );
+        let r = report(&other);
+        assert!(r.conformance.is_empty(), "{:?}", r.conformance);
+        assert!(r.trifecta_findings.is_empty(), "{:?}", r.trifecta_findings);
     }
 
     /// The two-exec pin (F2 regression · 2026-07-30): born-ingress must

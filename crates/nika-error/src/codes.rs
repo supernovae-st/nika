@@ -797,9 +797,11 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              children; a check of the source alone (an editor, the MCP \
              `nika_check` tool) judges the parent's own tasks only.\n\n  \
              A file carries untrusted content too: once a task writes some \
-             to a file, a later `exec:`, or a later builtin read \
-             (`nika:read` · `nika:grep` · `nika:glob` · …) of a path that \
-             write may have reached, carries it on.\n",
+             to a file, a later `exec:`, or a builtin read (`nika:read` · \
+             `nika:grep` · `nika:glob` · …) of a path that write may have \
+             reached, carries it on. The builtin read counts wherever it \
+             runs: beside the writer, or before it (the next run reads the \
+             file).\n",
         ),
         // NIK-273 follow-up: a child workflow call is an egress-capable task.
         "NIKA-SEC-014" => Some(
@@ -852,7 +854,7 @@ mod tests {
     fn the_file_channel_is_taught() {
         let trifecta = spec_contract_help("NIKA-SEC-009").expect("teaches");
         assert!(
-            trifecta.contains("a later builtin read") && trifecta.contains("`nika:read`"),
+            trifecta.contains("a builtin read") && trifecta.contains("wherever it"),
             "{trifecta}"
         );
     }

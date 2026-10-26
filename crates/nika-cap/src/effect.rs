@@ -450,11 +450,12 @@ pub enum SlotPath {
 /// Every place one call of `tool` with `args` may READ a file: the read side of the slots
 /// [`unbound_fs_args`] binds (`read`/`grep`/`edit` `path`, `glob` `pattern`, a string `decide`
 /// `bundle`, `image_fx` `input`, `chart` `data.path`, `image_generate` `image`, `images[]` and
-/// `mask`, each `fetch` `multipart[].path`), one entry per present slot. Empty when the call
-/// reads no file. A malformed read container is [`SlotPath::Unknown`]: it never disappears.
+/// `mask`, each `fetch` `multipart[].path`), one entry per present slot, plus the root a
+/// `grep` without `path` searches (`.`, descending). Empty when the call reads no file.
+/// A malformed read container is [`SlotPath::Unknown`]: it never disappears.
 #[must_use]
 pub fn read_slot_paths(tool: &str, args: Option<&serde_json::Value>) -> Vec<SlotPath> {
-    fs_slots(tool, args)
+    let mut out: Vec<SlotPath> = fs_slots(tool, args)
         .into_iter()
         .filter_map(|slot| match slot {
             FsSlot::Arg {
@@ -467,8 +468,22 @@ pub fn read_slot_paths(tool: &str, args: Option<&serde_json::Value>) -> Vec<Slot
             FsSlot::Arg { .. } => None,
             FsSlot::Malformed { .. } => Some(SlotPath::Unknown),
         })
-        .collect()
+        .collect();
+    let path_absent = args
+        .and_then(serde_json::Value::as_object)
+        .is_none_or(|map| !map.contains_key("path"));
+    if tool == "nika:grep" && path_absent {
+        out.push(SlotPath::Literal {
+            path: GREP_DEFAULT_ROOT.to_owned(),
+            descends: true,
+        });
+    }
+    out
 }
+
+/// The root `nika:grep` searches when its call names no `path` (its tool definition: « root to
+/// search (default .) »): the whole workspace, recursively.
+const GREP_DEFAULT_ROOT: &str = ".";
 
 /// Every place one call of `tool` with `args` may WRITE a file: the write side of the slots
 /// [`unbound_fs_args`] binds (`write`/`edit`/`remove_file` `path`, `chart`/`image_fx` `out`,
@@ -1202,6 +1217,9 @@ mod tests {
                 json!({"path": "./src", "pattern": "x"}),
                 vec![lit("./src", true)],
             ),
+            // An absent `path` searches the default root, the workspace (the tool's own
+            // default · NIK-273 follow-up): the call still reads files.
+            ("nika:grep", json!({"pattern": "x"}), vec![lit(".", true)]),
             (
                 "nika:glob",
                 json!({"pattern": "./drop/*.txt"}),

@@ -9,13 +9,18 @@
 //!
 //! Paths are compared lexically, as the check has no filesystem: folded
 //! with [`nika_cap::lexically_normalize`] and ASCII case (a case-insensitive
-//! filesystem makes `Page.txt` and `page.txt` one file). A path the bytes
-//! do not fix (a template · a subprocess · a server · a child closure) may
-//! be any path. Two paths written from different anchors (the workspace,
-//! `/`, the home directory, above the workspace) name the same file only
-//! when one ends with the other's segments, since where the workspace sits
-//! is unknown statically; a directory reached from another anchor may hold
-//! anything. Symlinks stay the runtime's.
+//! filesystem makes `Page.txt` and `page.txt` one file). A segment past
+//! ASCII may name any segment (Unicode case and normalisation forms fold
+//! there too), and `/private/tmp`, `/private/var` and `/private/etc` are
+//! `/tmp`, `/var` and `/etc` (the macOS firmlinks). A path the bytes do not
+//! fix (a template · a subprocess · a server · a child closure) may be any
+//! path. Only `/` sits at a known place: the workspace, the home directory
+//! and above the workspace may sit anywhere, so a path from one of them
+//! names a rooted file when the rooted path ends with its segments (holds
+//! them anywhere, for a directory), and a rooted directory may hold any of
+//! them; two paths from two such anchors meet when one ends with the
+//! other's segments, or when either is a directory. Other symlinks stay
+//! the runtime's.
 
 use nika_cap::SlotPath;
 use nika_schema::raw::RawAction;
@@ -118,11 +123,16 @@ fn spot(slot: &SlotPath) -> Spot {
     }
 }
 
+/// The rooted directories macOS reaches through `/private` (firmlinks).
+const PRIVATE_FIRMLINKS: [&str; 3] = ["tmp", "var", "etc"];
+
 /// A literal path folded to its anchor and segments.
 fn lexical(path: &str, descends: bool) -> Spot {
+    // `$HOMEDIR/x` is a workspace directory, not the home directory.
     let home = ["${HOME}", "$HOME", "~"]
         .iter()
-        .find_map(|prefix| path.strip_prefix(prefix));
+        .find_map(|prefix| path.strip_prefix(prefix))
+        .filter(|rest| rest.is_empty() || rest.starts_with('/'));
     let (anchor, folded) = if let Some(rest) = home {
         let folded = nika_cap::lexically_normalize(&format!("/{rest}"));
         (Anchor::Home, folded)
@@ -137,11 +147,18 @@ fn lexical(path: &str, descends: bool) -> Spot {
         };
         (anchor, folded)
     };
-    let parts = folded
+    let mut parts: Vec<String> = folded
         .split('/')
         .filter(|seg| !matches!(*seg, "" | "." | ".."))
         .map(str::to_ascii_lowercase)
         .collect();
+    if anchor == Anchor::Root
+        && let [private, linked, ..] = parts.as_slice()
+        && private == "private"
+        && PRIVATE_FIRMLINKS.contains(&linked.as_str())
+    {
+        parts.remove(0);
+    }
     Spot::At {
         anchor,
         parts,
@@ -167,9 +184,63 @@ fn may_meet(written: &Spot, read: &Spot) -> bool {
         return true;
     };
     if wa == ra && *wa != Anchor::Above {
-        return wp == rp || (*wd && rp.starts_with(wp)) || (*rd && wp.starts_with(rp));
+        return same(wp, rp) || (*wd && starts(rp, wp)) || (*rd && starts(wp, rp));
     }
-    *wd || *rd || wp.ends_with(rp) || rp.ends_with(wp)
+    match (wa, ra) {
+        (Anchor::Root, _) => rooted_meets_placed(wp, *wd, rp, *rd),
+        (_, Anchor::Root) => rooted_meets_placed(rp, *rd, wp, *wd),
+        // Two unknown places: either may sit inside the other's directory.
+        _ => *wd || *rd || ends(wp, rp) || ends(rp, wp),
+    }
+}
+
+/// A rooted spot against one under an anchor whose place `P` is unknown
+/// (it names `P` + `placed`): `P` may begin with a rooted directory, so
+/// that directory may hold anything; otherwise the rooted path must end
+/// with `placed`, or hold its segments anywhere when `placed` is a
+/// directory (`P` before them, the file after them).
+fn rooted_meets_placed(
+    rooted: &[String],
+    rooted_descends: bool,
+    placed: &[String],
+    placed_descends: bool,
+) -> bool {
+    rooted_descends
+        || if placed_descends {
+            holds(rooted, placed)
+        } else {
+            ends(rooted, placed)
+        }
+}
+
+/// One segment against another: equal, or past ASCII on either side (a
+/// filesystem folds Unicode case and normalisation forms the check does
+/// not model).
+fn segment_meets(a: &str, b: &str) -> bool {
+    a == b || !a.is_ascii() || !b.is_ascii()
+}
+
+/// Two segment runs that may name the same path.
+fn same(a: &[String], b: &[String]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| segment_meets(x, y))
+}
+
+/// `path` begins with `head`.
+fn starts(path: &[String], head: &[String]) -> bool {
+    path.get(..head.len()).is_some_and(|run| same(run, head))
+}
+
+/// `path` ends with `tail`.
+fn ends(path: &[String], tail: &[String]) -> bool {
+    path.len()
+        .checked_sub(tail.len())
+        .and_then(|from| path.get(from..))
+        .is_some_and(|run| same(run, tail))
+}
+
+/// `path` holds the run `inner` somewhere.
+fn holds(path: &[String], inner: &[String]) -> bool {
+    inner.is_empty() || path.windows(inner.len()).any(|run| same(run, inner))
 }
 
 #[cfg(test)]
@@ -212,6 +283,65 @@ mod tests {
         assert!(
             may_meet(&under("/srv"), &at("./a.txt")),
             "a directory may hold it"
+        );
+    }
+
+    /// A `$HOME`-like name that is not `$HOME` is a workspace directory,
+    /// as the runtime creates it (NIK-273 review).
+    #[test]
+    fn a_home_prefix_needs_a_separator() {
+        assert!(may_meet(
+            &at("$HOMEDIR/page.txt"),
+            &at("./$HOMEDIR/page.txt")
+        ));
+        assert!(may_meet(&at("~stash/page.txt"), &at("./~stash/page.txt")));
+        assert!(may_meet(&at("$HOME/page.txt"), &at("/Users/me/page.txt")));
+        assert!(may_meet(&at("${HOME}/a/b"), &at("~/a/b")));
+        assert!(may_meet(&at("~"), &at("$HOME")));
+    }
+
+    /// A case-insensitive, normalising filesystem folds what ASCII case
+    /// does not: a segment past ASCII may name any segment.
+    #[test]
+    fn a_segment_past_ascii_may_be_any_segment() {
+        assert!(may_meet(
+            &at("./drop/PAG\u{c9}.txt"),
+            &at("./drop/pag\u{e9}.txt")
+        ));
+        assert!(may_meet(
+            &at("./drop/caf\u{e9}.txt"),
+            &at("./drop/cafe\u{301}.txt")
+        ));
+        assert!(!may_meet(&at("./dr\u{f4}le/a.txt"), &at("./drop/b.txt")));
+    }
+
+    /// macOS reaches `/tmp`, `/var` and `/etc` through `/private`.
+    #[test]
+    fn the_private_firmlinks_are_one_place() {
+        assert!(may_meet(
+            &at("/tmp/x/page.txt"),
+            &at("/private/tmp/x/page.txt")
+        ));
+        assert!(may_meet(&at("/private/var/a"), &at("/var/a")));
+        assert!(may_meet(&under("/private/etc"), &at("/etc/hosts")));
+        assert!(!may_meet(&at("/private/home/a"), &at("/home/a")));
+    }
+
+    /// A directory under an anchor whose place is unknown holds a rooted
+    /// file only when its segments run inside the file's (NIK-273 review).
+    #[test]
+    fn a_placed_directory_holds_a_rooted_file_only_by_its_segments() {
+        let rooted = at("/tmp/cache/page.txt");
+        assert!(!may_meet(&rooted, &under("./src")));
+        assert!(!may_meet(&rooted, &under("~/src")));
+        assert!(may_meet(&rooted, &under("./cache")));
+        assert!(may_meet(&rooted, &under("./tmp/cache")));
+        assert!(may_meet(&rooted, &under(".")));
+        assert!(may_meet(&under("./out"), &at("/srv/ws/out/a.png")));
+        assert!(!may_meet(&under("./out"), &at("/srv/ws/drop/a.png")));
+        assert!(
+            may_meet(&under("/srv"), &under("./src")),
+            "the workspace may sit in /srv"
         );
     }
 
