@@ -1404,4 +1404,30 @@ mod tests {
             "no child, no hold: {advice:?}"
         );
     }
+
+    /// A child's subprocess reaches only what its own declared block grants
+    /// (it runs under `child ∩ parent`): a caller entry outside that block is
+    /// dead however opaque the subprocess is, and still drifts.
+    #[test]
+    fn a_grant_outside_the_childs_own_boundary_still_drifts() {
+        let caller = "nika: caller\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:glob\"]\n  net: { http: [\"unused.example.com\"] }\n  fs: { read: [\"./repo/**\", \"./secrets/**\"], write: [\"./out/**\"] }\ntasks:\n  call:\n    invoke: { workflow: \"./log.nika\" }\n    returns: { object: { text: string } }\noutputs:\n  log: ${{ tasks.call.output.text }}\n";
+        let advice = composed_drift(caller, LOG_CHILD);
+        for dead in [
+            "entry `./secrets/**`",
+            "entry `./out/**`",
+            "entry `unused.example.com`",
+            "entry `nika:glob`",
+        ] {
+            assert!(
+                advice.iter().any(|a| a.contains(dead)),
+                "`{dead}` is dead: {advice:?}"
+            );
+        }
+        assert!(
+            !advice
+                .iter()
+                .any(|a| a.contains("entry `git`") || a.contains("entry `./repo/**`")),
+            "the child's program and read are held: {advice:?}"
+        );
+    }
 }
