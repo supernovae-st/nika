@@ -149,6 +149,8 @@ struct StoreFormatVersion {
 // Each token names a route THIS door really serves. `compile` means exactly
 // "POST /v1/compile speaks the compile_version 1 foundation wire" (#1670): it
 // promises no authoring cognition beyond what that document's provenance states.
+// `artifacts`: GET /v1/jobs/{id}/artifacts and /artifacts/{name} serve a settled job's
+// journaled artifacts (NIK-265).
 const HTTP_ADAPTER_CAPABILITIES: &[&str] = &[
     "check",
     "executionSnapshot",
@@ -156,6 +158,7 @@ const HTTP_ADAPTER_CAPABILITIES: &[&str] = &[
     "cancel",
     "jobInputs",
     "compile",
+    "artifacts",
 ];
 // Only on a server whose resident scheduler is live: the schedule routes.
 const SCHEDULE_CAPABILITY: &str = "schedule";

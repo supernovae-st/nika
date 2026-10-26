@@ -1,7 +1,9 @@
 # `nika serve` network threat model
 
 **Status:** binding design boundary for ADR-117; W06 admits authenticated
-loopback HTTP and W07 projects the durable job journal over SSE. A checked
+loopback HTTP, W07 projects the durable job journal over SSE, and ADR-117's
+amendment of 2026-10-26 admits the download of a settled job's journal-bound
+artifacts. A checked
 box in this document means the implementation and its test exist, not
 merely that the design mentions them.
 
@@ -19,7 +21,8 @@ or disclosure beyond the minimal public health identity.
 - job inputs, outputs, status, cost, trace identity, and event journal;
 - ARM claims, terminal receipts, and verified ledger projection;
 - provider credentials and tool results;
-- future artifact capabilities and cancellation authority;
+- a settled job's journal-bound artifacts (files a builtin saved, images an
+  agent's harness sent) and cancellation authority;
 - process availability, concurrency slots, and spend ceilings.
 
 ## Trust boundaries
@@ -34,7 +37,7 @@ or disclosure beyond the minimal public health identity.
 | event stream | job journal | SSE client | same auth as job; monotonic resume cursor; redacted payloads |
 | cancellation | authenticated job id | run-scoped execution token | signal token before terminal mutation; idempotent replay cannot revive a job |
 | trace verification | job trace identity | future remote journal authority | typed unavailable verdict today; never scan paths or claim verification from a chain head alone |
-| artifact path | execution output | future download route | route absent until a typed held artifact manifest exists |
+| artifact download | requested artifact name; files a run left in the project | the job's sealed journal and the held project root | the name is a key into a manifest read only from the job's sealed, intact journal whose head is the receipt's `chain_head`, never a path; the recorded place opens below the held root with no link at any component; bytes leave only while they match the journaled size and SHA-256 (the whole file hashed before the response, then each streamed chunk against the digest kept for it) |
 
 Loopback is not a trust boundary. A browser, local process, container, SSH
 forward, or compromised developer tool can reach it.
@@ -82,7 +85,8 @@ alone.
 | `GET /v1/openapi.json` | no | no | Bearer auth; live-route document; no credential examples or artifact paths; a native server adds only its compile generation-2 contract, never its seat (model, endpoint, credential, snapshot, bounds) |
 | effecting `/v1/*` POST | no | yes | auth before parse; body limit; content type; idempotency before execution |
 | `POST /v1/compile` | no | no (native server: the seat's calls only) | auth before parse; its own 1 MiB body ceiling and per-field bounds; content type; bounded concurrency; returns authoring data only; generation 2 exists only under an explicit operator seat, bounded in calls, tokens, time, slots and kept rounds |
-| artifact routes | absent | — | remain absent until a held typed artifact manifest exists |
+| `GET /v1/jobs/{opaque-id}/artifacts` | no | no | Bearer auth before lookup; uniform unknown-id response; settled jobs only (409 `job_not_settled`); manifest read only from the job's journal, located by its receipt and judged sealed, intact and headed by the receipt's `chain_head` over the bytes read (409 otherwise); entries only for events that record a written byte stream with its SHA-256; no server path, no blob address; at most 1,024 entries and four concurrent journal verifications or pre-download hash passes (503) |
+| `GET /v1/jobs/{opaque-id}/artifacts/{name}` | no | no | everything the manifest requires; `{name}` is a manifest key, percent-decoded once and matched exactly, never resolved on the filesystem; a file only at a relative path inside the project and outside its `.nika` (refused by name in any ASCII case, and by device and inode under any other spelling the filesystem folds onto it), an agent image only as its blob under `.nika/blobs`, both opened below the held root refusing a link at every component; 256 MiB per artifact (403 `artifact_too_large` before a byte is read); the whole file hashed against the journal before the response starts (409 `artifact_changed`), each streamed chunk sent only when it hashes to the digest kept for it; streams hold no slot and are bounded by the connection limit; `nosniff`, `attachment`, `Content-Security-Policy: sandbox`, `no-store` |
 
 Adding a route cannot weaken this table. The OpenAPI document is a projection
 of the live routes, never a second authority.
@@ -280,7 +284,23 @@ transcript is claimed where no such test existed on that SHA.
 - [x] cancellation signals the engine token before a durable `cancelled`
   receipt, queued cancellation never enters the backend, and concurrent/lost-
   response retries converge on the same terminal record;
-- [x] artifact routes remain absent until their typed authority is admitted;
+- [x] artifact routes (ADR-117 amendment, 2026-10-26): both refuse without the
+  Bearer token and answer an unknown, foreign or malformed id with the job
+  door's own body; a queued, running or paused job is `job_not_settled`; an
+  unsealed, edited or removed journal, a journal sealed with a key the server
+  does not weigh or headed otherwise than the receipt, and a backend that
+  keeps none serve nothing; a traversal, an encoded traversal, an absolute
+  path, an empty segment or an unlisted project file is `artifact_not_found`
+  and never read, while a name sent with its `/` as `%2F` addresses its
+  entry; a link in place of the file or of a directory on the way, a
+  removed, truncated or edited file and an edited blob are
+  `artifact_changed`; a file recorded under a spelling the filesystem folds
+  onto the project's `.nika` is never listed; an artifact over the bound stays listed and is refused
+  before a byte is read; a file changed while it streams never arrives
+  whole, and a changed first chunk sends no byte; a real `nika:chart` run
+  through the production backend lists and serves its SVG; every answer is
+  the one the served document declares (`server::tests::artifacts`,
+  `server::artifacts::tests`);
 - [x] compile: unauthenticated bodies are never collected or judged; unknown fields, present
   nulls, duplicate keys (envelope and `answers`), positional arrays and foreign
   vocabulary refuse with fixed strings that echo no request byte; every bound
@@ -329,9 +349,12 @@ transcript is claimed where no such test existed on that SHA.
 ## Review triggers
 
 Reopen ADR-117 before adding multi-tenancy, browser credential storage,
-in-process TLS, arbitrary workflow uploads, webhook triggers,
-artifact download, or a second authentication mechanism. Each changes a trust
-boundary rather than merely adding a route. Reopen this model before a native
+in-process TLS, arbitrary workflow uploads, webhook triggers, an artifact
+source other than a digest the sealed journal records (an upload, a deletion,
+a range, a listing of unjournaled files), or a second authentication
+mechanism. Each changes a trust boundary rather than merely adding a route.
+Artifact download itself was reopened and admitted by ADR-117's amendment of
+2026-10-26, under the route policy above. Reopen this model before a native
 seat gains a harness or decision seat, another strategy or sample count, a
 caller-chosen model or knowledge source, durable or shared kept rounds, or an
 automatic retry of paid work.

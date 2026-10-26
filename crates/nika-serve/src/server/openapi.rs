@@ -15,7 +15,7 @@ const COMMITTED: &str = include_str!("../../openapi.json");
 
 /// [`OpenAPI`](https://spec.openapis.org/oas/v3.1.0) document of the live HTTP surface.
 ///
-/// Artifact and `POST /v1/run` paths are omitted until those authorities exist.
+/// The `POST /v1/run` path is omitted until that authority exists.
 pub(crate) fn document() -> Value {
     let mut document = serde_json::from_str::<Value>(COMMITTED).unwrap_or(Value::Null);
     let version = Value::from(env!("CARGO_PKG_VERSION"));
@@ -105,14 +105,14 @@ mod builder {
 
     /// [`OpenAPI`](https://spec.openapis.org/oas/v3.1.0) document of the live HTTP surface.
     ///
-    /// Artifact and `POST /v1/run` paths are omitted until those authorities exist.
+    /// The `POST /v1/run` path is omitted until that authority exists.
     pub(super) fn document() -> Value {
         json!({
             "openapi": "3.1.0",
             "info": {
                 "title": "nika serve",
                 "version": env!("CARGO_PKG_VERSION"),
-                "description": "Authenticated loopback remote execution, declarative schedules and stateless source-only authoring (POST /v1/compile never runs, admits or writes). Artifacts, schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent."
+                "description": "Authenticated loopback remote execution, declarative schedules, verified downloads of the artifacts a settled job's sealed journal records, and stateless source-only authoring (POST /v1/compile never runs, admits or writes). Schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent."
             },
             "servers": [{"url": "http://127.0.0.1"}],
             "security": [{"bearerAuth": []}],
@@ -199,6 +199,13 @@ mod builder {
             named.insert(
                 "CompileOutcome".to_owned(),
                 super::super::compile::schema::outcome(),
+            );
+            named.insert("ArtifactManifest".to_owned(), artifact_manifest_schema());
+            named.insert("Artifact".to_owned(), artifact_schema());
+            named.insert("ScheduleFindings".to_owned(), schedule_findings_schema());
+            named.insert(
+                "SchedulePreconditionFailed".to_owned(),
+                schedule_precondition_schema(),
             );
         }
         schemas
@@ -548,6 +555,7 @@ mod builder {
                 "verdict": {"type": "string", "enum": ["unavailable", "ok", "sealed", "anchored", "replayed", "incomplete", "tampered", "broken", "unchained", "empty", "unreadable", "refused", "line-over-long", "unknown"]},
                 "reason": {"type": "string", "enum": ["run_not_terminal", "trace_journal_unavailable", "sealed", "unsealed", "forged", "buried", "unattributable", "writer_alive", "writer_dead", "writer_unknown", "buried_seal", "broken", "unchained", "empty", "unreadable", "refused", "line_over_long", "unknown"]},
                 "trace_id": {"type": "string", "minLength": 1},
+                "tier": {"type": "string", "enum": ["ok", "sealed", "anchored", "replayed", "broken", "line-over-long", "unchained", "empty", "unreadable", "refused", "buried-seal", "unknown"], "description": "The CLI's own `tier`, verbatim: the attained tier over an intact chain, or its refusal class. `verdict` is its projection; a forged seal still reads `ok` here with `exit` 2, so read `exit` and the legs, not a word alone."},
                 "verify_version": {"type": "integer", "minimum": 1},
                 "exit": {"type": "integer", "enum": [0, 2, 3, 5], "description": "The CLI's exit class: 0 the reported tier holds · 2 a forged or edited journal · 3 the environment (unchained · unreadable · a missing input) · 5 incomplete lifecycle evidence"},
                 "chain": {"type": "object", "additionalProperties": true, "description": "events · head · headline (intact · torn · incomplete) · liveness (alive · dead · unknown · null)"},
@@ -573,6 +581,8 @@ mod builder {
             "/v1/jobs/{id}/events": job_events_path(),
             "/v1/jobs/{id}/cancel": job_cancel_path(),
             "/v1/jobs/{id}/trace/verify": job_trace_verify_path(),
+            "/v1/jobs/{id}/artifacts": job_artifacts_path(),
+            "/v1/jobs/{id}/artifacts/{name}": job_artifact_path(),
             "/v1/schedules/{id}": schedule_path()
         })
     }
@@ -630,11 +640,51 @@ mod builder {
             },
             "put": {
                 "summary": "Create or revision-conditionally update one resident schedule",
-                "description": "Create requires If-None-Match: *. Update requires the exact ETag in If-Match. Identical lost-response retries are unchanged and retain the revision.",
+                "description": "Create requires If-None-Match: *. Update requires the exact ETag in If-Match. Identical lost-response retries are unchanged and retain the revision. A refused precondition answers 412 with the schedule's current revision (null when none exists). A definition the planner or the schedule validator refuses answers 422 with its findings; a malformed body, refused inputs or a refused workflow answer 422 with the error envelope.",
                 "parameters": [{"$ref": "#/components/parameters/IfNoneMatch"}, {"$ref": "#/components/parameters/IfMatch"}],
                 "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SchedulePut"}}}},
-                "responses": {"200": {"description": "Applied or unchanged", "headers": {"ETag": {"schema": {"type": "string"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ScheduleApply"}}}}, "401": error_ref(), "412": error_ref(), "413": error_ref(), "415": error_ref(), "422": error_ref(), "503": error_ref()}
+                "responses": {
+                    "200": {"description": "Applied or unchanged", "headers": {"ETag": {"schema": {"type": "string"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ScheduleApply"}}}},
+                    "401": error_ref(),
+                    "412": {"description": "Precondition refused; carries the current revision", "headers": {"ETag": {"schema": {"type": "string"}, "description": "The current revision, when one exists"}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SchedulePreconditionFailed"}}}},
+                    "413": error_ref(), "415": error_ref(),
+                    "422": {"description": "Refused definition: its findings, or the error envelope", "content": {"application/json": {"schema": {"oneOf": [{"$ref": "#/components/schemas/ScheduleFindings"}, {"$ref": "#/components/schemas/Error"}]}}}},
+                    "503": error_ref(),
+                    "507": error_named("Durable schedule capacity exhausted")
+                }
             }
+        })
+    }
+
+    /// The 422 a refused schedule definition answers: the validator's or the planner's
+    /// findings, never the error envelope (the published SDK reads `findings` as written).
+    fn schedule_findings_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["findings"],
+            "properties": {"findings": {"type": "array", "minItems": 1, "items": {
+                "type": "object", "additionalProperties": false,
+                "required": ["code", "detail"],
+                "properties": {"code": {"type": "string", "minLength": 1}, "detail": {"type": "string"}}
+            }}}
+        })
+    }
+
+    /// The 412 a refused schedule precondition answers: the error envelope, plus the
+    /// schedule's current revision inside it (null when none exists).
+    fn schedule_precondition_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["error"],
+            "properties": {"error": {
+                "type": "object", "additionalProperties": false,
+                "required": ["code", "message", "currentRevision"],
+                "properties": {
+                    "code": {"type": "string", "const": "schedule_precondition_failed"},
+                    "message": {"type": "string"},
+                    "currentRevision": {"anyOf": [{"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, {"type": "null"}]}
+                }
+            }}
         })
     }
 
@@ -663,7 +713,8 @@ mod builder {
     fn workflow_metadata_path() -> Value {
         json!({"get": {
             "summary": "Workflow metadata without source bytes",
-            "parameters": [{"name": "name", "in": "path", "required": true, "schema": {"type": "string"}}],
+            "description": "`{name}` is a served name exactly as GET /v1/workflows lists it: a project-relative path that usually contains `/` (`workflows/daily.nika`). Send its `/` separators literally, as path separators: GET /v1/workflows/workflows/daily.nika. A served name uses only ASCII letters, digits, `.`, `_`, `-` and `/`, so no segment needs percent-encoding; an encoded separator (`%2F`) or any other escape is not decoded and answers 404.",
+            "parameters": [{"name": "name", "in": "path", "required": true, "description": "The served name, `/` separators sent literally (it spans several path segments)", "schema": {"type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*\\.nika$"}}],
             "responses": {"200": {"description": "Contained name", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowMetadata"}}}}, "401": error_ref(), "404": error_ref()}
         }})
     }
@@ -716,6 +767,7 @@ mod builder {
                 "202": {"description": "Created", "content": json_job()},
                 "200": {"description": "Idempotent replay", "content": json_job()},
                 "400": error_named("Invalid idempotency key"), "401": error_ref(),
+                "404": error_named("No workflow by that name under the served registry (by-name form)"),
                 "408": error_named("Request deadline"),
                 "409": error_named("Idempotency key already bound to another request"),
                 "413": error_named("Encoded body or decoded snapshot resource limit"),
@@ -734,7 +786,9 @@ mod builder {
             "requestBody": snapshot_request_body("CheckByName"),
             "responses": {
                 "200": {"description": "Compact snapshot validation acknowledgement, not the full engine check report", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SnapshotValidationAck"}}}},
-                "401": error_ref(), "408": error_named("Request deadline"),
+                "401": error_ref(),
+                "404": error_named("No workflow by that name under the served registry (by-name form)"),
+                "408": error_named("Request deadline"),
                 "413": error_named("Encoded body or decoded snapshot resource limit"),
                 "415": error_named("Content-Type or Content-Encoding refused"),
                 "422": error_named("Malformed, unsupported, tampered, or semantically refused snapshot")
@@ -774,7 +828,7 @@ mod builder {
     fn job_cancel_path() -> Value {
         json!({"post": {
             "summary": "Request cancellation or replay an ended observation",
-            "description": "A queued job cancels atomically before execution claims it. An active job receives the run-scoped cancellation signal and returns 202 until its execution owner settles: the result may be success, failure or cancellation; expired grace means interrupted, never an invented cancellation. A paused or final observation returns its existing result unchanged.",
+            "description": "A queued job cancels atomically before execution claims it. An active job receives the run-scoped cancellation signal and returns 202 until its execution owner settles: the result may be success, failure or cancellation. The grace is fixed at 5 seconds from the signal: a run that has not reached a wave boundary and settled by then is dropped and the job settles `interrupted`, never an invented cancellation. A task still inside one long step when the signal arrives (an agent turn, a long wait) typically outlasts the grace. A paused or final observation returns its existing result unchanged.",
             "parameters": [job_id_param()],
             "responses": {"200": {"description": "Cancelled before execution, or already ended observation", "content": json_job()}, "202": {"description": "Cancellation requested; execution has not yet settled", "content": json_job()}, "401": error_ref(), "404": error_ref(), "503": error_ref()}
         }})
@@ -787,6 +841,83 @@ mod builder {
             "parameters": [job_id_param()],
             "responses": {"200": {"description": "Typed trace verdict", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TraceVerification"}}}}, "401": error_ref(), "404": error_ref()}
         }})
+    }
+
+    fn job_artifacts_path() -> Value {
+        json!({"get": {
+            "summary": "The artifacts a settled job's sealed journal records",
+            "description": "Answers only for a settled job (succeeded, failed, cancelled, interrupted); an interrupted run never sealed its journal, so its job answers 409 `artifact_journal_unavailable`. The manifest is read from the journal the job's receipt names, judged by the one verifier `nika trace verify` runs: the chain must be intact, the seal must verify against a run key that verifier weighs on the server (`~/.nika/keys/run-signing.pub` or the retired-key ledger), and the head must be the receipt's `chain_head`. Each entry is one journal event that records a written byte stream with its SHA-256: a file a builtin saved (`nika:chart`, `nika:image_generate`, `nika:tts_generate`, `nika:image_fx`) at a relative path inside the project and outside its `.nika` (refused by name in any ASCII case, and by device and inode under any other spelling the filesystem folds onto it), its last write winning, or an image an agent's harness sent, kept under `.nika/blobs`. `nika:write` and `nika:edit` journal no hash of what they wrote, so their files are not listed. Every size and digest is the journal's; the download route checks the bytes against them. No filesystem path of the server is exposed.",
+            "parameters": [job_id_param()],
+            "responses": {
+                "200": {"description": "The manifest, bound to the job's receipt", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ArtifactManifest"}}}},
+                "401": error_ref(),
+                "404": error_named("`job_not_found`: unknown or foreign job id"),
+                "408": error_named("Request deadline"),
+                "409": error_named("`job_not_settled`: queued, running or paused · `artifact_journal_unavailable`: no receipt chain head, or no journal by the job's identity · `artifact_journal_unverified`: the journal is not sealed and intact with the receipt's head"),
+                "500": error_named("`internal_error`: the server could not read the journal"),
+                "503": error_named("`store_busy`: durable job state unavailable · `artifact_capacity`: every artifact slot is busy")
+            }
+        }})
+    }
+
+    fn job_artifact_path() -> Value {
+        json!({"get": {
+            "summary": "Stream one artifact's bytes, verified against its journaled SHA-256",
+            "description": format!("`{{name}}` is an entry's `name` from GET /v1/jobs/{{id}}/artifacts, never a filesystem path. Every name contains `/` (`file/out/report.pdf`, `agent_image/1.png`): send it with its `/` literal or percent-encoded (`%2F`), as one path parameter. The rest of the path is percent-decoded once and matched exactly against the manifest's names; an escape that is not two hexadecimal digits, bytes that are not UTF-8 or NUL match no entry. The server opens the recorded place below the project root it holds, refusing a symbolic link at any component, and reads every byte against the recorded size and SHA-256 before the response starts (409 `artifact_changed` on a mismatch), keeping the SHA-256 of each 256 KiB chunk. While the bytes stream, each chunk is read again and sent only if it hashes to the digest kept for it: every byte that leaves is a byte of the recorded file, and a file changed during the stream ends it before its `Content-Length`. A stream also ends short when the server stops or cannot read the file: retry a short body, and a file that really changed then answers 409 `artifact_changed`. The bound is `max_artifact_bytes`; a larger artifact stays listed and is refused 403. At most {slots} journal verifications and pre-download hash passes run at once (`artifact_capacity` otherwise); a stream holds no slot once its bytes start, is bounded by the connection limit, and is not bounded by the request deadline.", slots = super::super::artifacts::ARTIFACT_SLOTS),
+            "parameters": [job_id_param(), {"name": "name", "in": "path", "required": true, "description": "An entry's manifest `name`; its `/` may be sent literally or as `%2F` (decoded once, matched exactly)", "schema": {"type": "string", "minLength": 1}}],
+            "responses": {
+                "200": {
+                    "description": "The recorded bytes",
+                    "headers": {
+                        "Content-Length": {"description": "The recorded size", "schema": {"type": "integer", "minimum": 0}},
+                        "Nika-Artifact-Sha256": {"description": "The recorded SHA-256 (lowercase hex), the manifest's `sha256`", "schema": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+                        "Content-Disposition": {"schema": {"type": "string", "const": "attachment"}},
+                        "X-Content-Type-Options": {"schema": {"type": "string", "const": "nosniff"}},
+                        "Content-Security-Policy": {"schema": {"type": "string", "const": "sandbox"}},
+                        "Cache-Control": {"schema": {"type": "string", "const": "no-store"}}
+                    },
+                    "content": {"*/*": {"schema": {"type": "string", "contentMediaType": "application/octet-stream", "description": "The artifact's bytes; Content-Type is the manifest's `mime`"}}}
+                },
+                "401": error_ref(),
+                "403": error_named("`artifact_too_large`: over this server's download bound"),
+                "404": error_named("`job_not_found`: unknown or foreign job id · `artifact_not_found`: no entry by that name"),
+                "409": error_named("`job_not_settled` · `artifact_journal_unavailable` · `artifact_journal_unverified` (as the manifest) · `artifact_changed`: the bytes at the recorded place no longer match the record"),
+                "500": error_named("`internal_error`: the server could not read the journal or the artifact"),
+                "503": error_named("`store_busy` · `artifact_capacity`")
+            }
+        }})
+    }
+
+    fn artifact_manifest_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "description": format!("A settled job's artifacts, as its sealed journal records them, bound to its receipt: `receipt` is the job's own (trace id and chain head included), `verdict` the tier its journal attained. At most {listed} entries are listed, in journal order; `truncated` says more exist (a download still finds every recorded name).", listed = super::super::artifacts::MAX_LISTED),
+            "required": ["receipt", "verdict", "max_artifact_bytes", "truncated", "artifacts"],
+            "properties": {
+                "receipt": {"$ref": "#/components/schemas/JobReceipt"},
+                "verdict": {"type": "string", "enum": ["sealed", "anchored"]},
+                "max_artifact_bytes": {"type": "integer", "minimum": 1, "examples": [super::super::config::DEFAULT_MAX_ARTIFACT_BYTES], "description": "The largest artifact this server downloads (256 MiB by default)"},
+                "truncated": {"type": "boolean"},
+                "artifacts": {"type": "array", "maxItems": super::super::artifacts::MAX_LISTED, "items": {"$ref": "#/components/schemas/Artifact"}}
+            }
+        })
+    }
+
+    fn artifact_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["name", "kind", "size", "sha256", "mime", "event_id"],
+            "properties": {
+                "name": {"type": "string", "minLength": 1, "description": "Unique within the job: `file/<path>` or `agent_image/<n>.<ext>` (the n-th image the job's agents sent that the blob store kept). The download route's `{name}`."},
+                "kind": {"type": "string", "enum": ["file", "agent_image"]},
+                "path": {"type": "string", "minLength": 1, "description": "A file's project-relative path, as the workflow wrote it (normalized). Absent for an agent image."},
+                "size": {"type": "integer", "minimum": 0, "description": "Bytes, as journaled"},
+                "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 of the recorded bytes, as journaled"},
+                "mime": {"type": "string", "minLength": 3, "description": "The recorded media type, else one derived from the extension, else application/octet-stream"},
+                "task": {"type": "string", "description": "The task whose event records it"},
+                "event_id": {"type": "string", "format": "uuid", "description": "The id of that journal event"}
+            }
+        })
     }
 
     fn snapshot_request_body(named: &str) -> Value {
@@ -839,12 +970,13 @@ mod tests {
         "/v1/jobs/{id}/events",
         "/v1/jobs/{id}/cancel",
         "/v1/jobs/{id}/trace/verify",
+        "/v1/jobs/{id}/artifacts",
+        "/v1/jobs/{id}/artifacts/{name}",
         "/v1/schedules/{id}",
         "/v1/openapi.json",
     ];
 
     const ABSENT_PATHS: &[&str] = &[
-        "/v1/jobs/{id}/artifacts",
         "/v1/run",
         "/v1/schedules",
         "/v1/schedules/{id}/trigger",

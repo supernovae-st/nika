@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+mod artifacts;
 mod auth;
 mod cancel;
 mod compile;
@@ -360,6 +361,8 @@ struct AppState {
     /// Authoring CPU slots (#1670). A permit lives inside the blocking compile
     /// closure, so a timed-out request cannot free a slot still in use.
     compile_slots: Arc<Semaphore>,
+    /// The artifact door's read slots (NIK-265).
+    artifacts: artifacts::Door,
     /// The operator's native authoring seat (compile generation 2), when configured.
     native: Option<Arc<compile::Seat>>,
     token: BearerToken,
@@ -660,6 +663,7 @@ impl BoundServer {
             compile_slots: Arc::new(Semaphore::new(
                 authority.state.limits.max_compile_requests(),
             )),
+            artifacts: artifacts::Door::default(),
             native,
             token: prepared.token,
             store: authority.state.store.clone(),

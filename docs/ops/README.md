@@ -67,8 +67,46 @@ the TypeScript SDK cover the API from an application.
 
 - `POST /v1/jobs/{id}/cancel` cancels a queued job (`200`, settled
   `cancelled`) or asks a running one to stop (`202`, settled later). A job
-  already settled or paused answers `200` with its record, unchanged.
-- `/v1/jobs/{id}/artifacts` is not served (`404`).
+  already settled or paused answers `200` with its record, unchanged. A
+  running job gets a fixed 5-second grace to reach a wave boundary and
+  settle; past it the resident drops the run and the job settles
+  `interrupted`. A task inside one long step (an agent turn, a long wait)
+  usually outlasts the grace.
+- `GET /v1/jobs/{id}/artifacts` lists what a settled job's journal records
+  as its artifacts: the files `nika:chart`, `nika:image_generate`,
+  `nika:tts_generate` and `nika:image_fx` saved inside the project, and the
+  images an agent's harness sent. Each entry has a `name`, `kind`, `size`,
+  `sha256` and `mime`, and the manifest carries the job's `receipt`. Files
+  written by `nika:write` or `nika:edit` are not listed, because their
+  journal frame records no digest. To serve a file through this route, save
+  it with one of those builtins.
+- `GET /v1/jobs/{id}/artifacts/{name}` streams one of them, `{name}` being
+  the entry's `name`, its `/` sent as is or as `%2F`. The bytes come with
+  `Content-Type`, `Content-Length` and `Nika-Artifact-Sha256`. The server
+  refuses to serve bytes that no longer match the journal
+  (`409 artifact_changed`), and stops a stream at the first chunk that
+  changed while it was being sent. A body shorter than its `Content-Length`
+  is an incomplete download, also left by a resident that stops mid-stream:
+  retry it, and a file that really changed then answers `409`.
+
+Both artifact routes need a sealed journal. Create the resident's run key
+with `NIKA_KEYCHAIN=off nika key init`, which keeps it under `~/.nika/keys`.
+The routes verify the seal against the keys `nika trace verify` weighs:
+`~/.nika/keys/run-signing.pub` and the retired-key ledger. A journal left
+unsealed (no run key), or sealed with an explicit `NIKA_RUN_KEY_FILE` pair
+whose public half is not one of those keys, answers
+`409 artifact_journal_unverified`. The job must have settled:
+a queued, running or paused job answers `409 job_not_settled`. One artifact
+is served up to 256 MiB; a larger one stays listed and its download answers
+`403 artifact_too_large`.
+
+```sh
+TOKEN="$(cat .nika/serve.token)"
+curl -s -H "Authorization: Bearer $TOKEN" \
+  http://127.0.0.1:8787/v1/jobs/<id>/artifacts
+curl -s -H "Authorization: Bearer $TOKEN" -o totals.svg \
+  http://127.0.0.1:8787/v1/jobs/<id>/artifacts/file/out/totals.svg
+```
 
 ## Files here
 
