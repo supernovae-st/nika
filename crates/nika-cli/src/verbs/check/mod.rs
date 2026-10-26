@@ -770,7 +770,8 @@ fn naming_note(text: &mut String, theme: Theme, path: &str, wf: &nika_schema::ra
 }
 
 /// `--json` parse-fatal verdict: one findings row, `parse_fatal: true`. A typed parser refusal
-/// gives its own code and whole message, an authored newline kept, never the human frame (#1075);
+/// gives its own code and whole message, an authored newline kept, never the human frame (#1075),
+/// and its site as `span: {start, end}` (byte offsets, the CONFORM findings' shape · #1608);
 /// any other refusal (an unreadable file: codeless) is its text's first line.
 pub(crate) fn parse_fatal_json(out: &VerbOutput, typed: Option<&SchemaError>) -> VerbOutput {
     let text = out.text.trim();
@@ -794,6 +795,9 @@ pub(crate) fn parse_fatal_json(out: &VerbOutput, typed: Option<&SchemaError>) ->
     if let Some(c) = &code {
         finding["code"] = serde_json::json!(c);
         finding["docs_url"] = serde_json::json!(format!("{}/{c}", nika_check::ERROR_DOCS_BASE));
+    }
+    if let Some(span) = typed.and_then(SchemaError::span) {
+        finding["span"] = serde_json::json!({ "start": span.start.0, "end": span.end.0 });
     }
     let payload = serde_json::json!({
         "report_version": nika_check::REPORT_VERSION,

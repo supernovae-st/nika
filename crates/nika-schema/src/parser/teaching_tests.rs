@@ -2,8 +2,8 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The parse refusals a newcomer meets first teach the shape they refused
-//! (#1600): a scalar verb body, an untyped input and a builtin written as a
-//! task key.
+//! (#1600, #1608): a scalar verb body, an untyped input, a builtin written as
+//! a task key, and a YAML syntax error that names its site and its usual cause.
 
 use crate::error::SchemaError;
 use crate::parser::{ParseMode, parse};
@@ -14,6 +14,13 @@ fn refusal(source: &str) -> SchemaError {
         Ok(_) => panic!("the fixture must be refused:\n{source}"),
         Err(err) => err,
     }
+}
+
+/// The 1-based line a refusal's span starts on.
+fn span_line(source: &str, err: &SchemaError) -> usize {
+    let span = err.span().unwrap_or_else(|| panic!("a span: {err:?}"));
+    let start = usize::try_from(span.start.0).unwrap_or(usize::MAX);
+    source[..start.min(source.len())].matches('\n').count() + 1
 }
 
 #[test]
@@ -89,4 +96,36 @@ fn a_builtin_written_as_a_task_key_teaches_the_invoke_call() {
     // A key that is no builtin keeps the generic refusal.
     let other = refusal("nika: p\ntasks:\n  a:\n    zzz: 1\n").to_string();
     assert!(!other.contains("invoke: { tool: nika:"), "{other}");
+}
+
+#[test]
+fn a_colon_in_a_plain_value_names_its_site_and_the_quote_repair() {
+    let source = "nika: p\nmodel: mock/echo\ntasks:\n  a:\n    infer:\n      prompt: Note: this has a colon: here\n";
+    let err = refusal(source);
+    assert!(
+        matches!(err, SchemaError::YamlSyntax { span: Some(_), .. }),
+        "{err:?}"
+    );
+    assert_eq!(span_line(source, &err), 6, "{err:?}");
+    let message = err.to_string();
+    assert!(
+        message.contains("mapping values are not allowed") && message.contains("quote"),
+        "{message}"
+    );
+}
+
+#[test]
+fn a_bare_expression_in_a_flow_mapping_teaches_quoting_it() {
+    let source = "nika: p\nmodel: mock/echo\ninputs:\n  t: {type: string, default: x}\ntasks:\n  a:\n    infer: {prompt: ${{ inputs.t }}}\n";
+    let err = refusal(source);
+    assert!(
+        matches!(err, SchemaError::YamlSyntax { span: Some(_), .. }),
+        "{err:?}"
+    );
+    assert_eq!(span_line(source, &err), 7, "{err:?}");
+    let message = err.to_string();
+    assert!(
+        message.contains("quote") && message.contains("\"${{ … }}\""),
+        "{message}"
+    );
 }
