@@ -191,13 +191,17 @@ const ROWS: &[(&str, &str)] = &[
          discovered seat) runs the harness's OWN tools. Nika holds the session in the measured \
          mode whose approvals reach it (codex-acp `read-only`, claude-agent-acp `default`, \
          gemini-cli `default`), never one that approves on its own, reads it back (or takes the \
-         legacy acknowledgement) before the prompt or refuses, and judges every ask against permits: — allowed once inside, a \
-         pause for you outside (NIKA-1806), each journaled as permit_checked. What the mode \
-         lets the harness do WITHOUT asking stays outside permits: (Codex reads any file and \
-         writes the project, /tmp and $TMPDIR in its own sandbox); a command asked as a shell \
-         string is admitted only by `permits.exec: true`; an allowed command runs under the \
-         harness's sandbox, not Nika's; the harness's own permission rules, hooks and MCP \
-         servers still apply. A seat with no measured mode is judged on its asks alone",
+         legacy acknowledgement) before the prompt or refuses, and judges every ask against \
+         permits: — allowed once inside, a pause for you outside (NIKA-1806), each journaled \
+         as permit_checked. A path is judged where the system lands, through every symlink \
+         and `..`; an ask for network access or for a wider harness sandbox always pauses, \
+         `permits.exec: true` included. What the mode lets the harness do WITHOUT asking stays \
+         outside permits: (Codex reads any file and writes the project, /tmp and $TMPDIR in \
+         its own sandbox); a command asked as a shell string is admitted only by \
+         `permits.exec: true`; an allowed command runs under the harness's sandbox, not \
+         Nika's, and a Codex command that asked to leave that sandbox runs with none; the \
+         harness's own permission rules, hooks and MCP servers still apply. A seat with no \
+         measured mode is judged on its asks alone",
     ),
     (
         "run-clock",

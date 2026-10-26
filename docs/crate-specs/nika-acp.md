@@ -165,20 +165,43 @@ or `current_mode_update` away from the held mode ends the session. The table is
   never settles; the human gate is never answered by the engine;
 - the paths an ask names are anchored on the session root (root-relative inside
   it, the vocabulary `permits.fs` is authored in; absolute outside it), and each
-  path's effective identity is judged too, so an in-project symlink that leads out
-  is judged where it leads;
+  path's physical identity is judged too (`nika_harness::client::anchor`): the raw
+  path is walked from `/`, component by component, the resolved prefix kept
+  canonical; a symlink is followed through `read_link`, relative to its parent,
+  a dangling one included, at most 40 hops; a missing component starts a missing
+  tail; `..` pops that tail, else the canonical prefix. `out/link/../x` with
+  `out/link` pointing outside lands beside the link's target and is judged there.
+  A walk that cannot complete (a loop, an unreadable component) yields a
+  `<unresolved>` location no grant admits: the ask pauses, never judged on the raw
+  `..` text. The lexical fold only names the displayed location;
 - a command is judged by its argv program against `permits.exec`; a shell-string
   command (codex-acp, claude-agent-acp) or an ask with no `rawInput` (gemini-cli)
   is admitted only by `exec: true` (the shell-form law's bridge twin);
-- a network ask (`fetch`, or an `execute` carrying `rawInput.url`, codex-acp's
-  network approval) is never auto-answered.
+- an ask that reaches beyond its kind arrives as `HarnessEvent::EscalationAsked`
+  and is judged before its kind, never answered within the grants (`exec: true`
+  included): NETWORK access, read from every structured signal codex-acp 1.13.1
+  emits (`rawInput.url`, set only for http and https; the toolCall title
+  `<protocol> network access to <host>`, which a `socks5Tcp` or `socks5Udp`
+  approval carries without any URL; the request `_meta.permission.title`
+  `Allow network access?` with the content text `<protocol> access to <host>`;
+  a `network.enabled` additional permission), witnessed on plane `net` with gate
+  `network · <target>`, and a `fetch` ask; a WIDER HARNESS SANDBOX
+  (`rawInput.additionalPermissions`, the `rawInput.permissions` of codex-acp's
+  `request_permissions` ask, claude-agent-acp's `dangerouslyDisableSandbox: true`),
+  witnessed with gate `sandbox · <widening>`. claude-agent-acp's other Bash keys
+  (`command`, `description`, `timeout`, `run_in_background`) and gemini-cli's
+  bare asks carry none of these and are judged as before.
 
 **What the bridge does not cover**, stated by `nika check` as the `[harness]`
 hint and in [docs/usage/harness-agents.md](../usage/harness-agents.md): whatever
 the held mode lets the harness do without asking (the table); an allowed action
-runs under the harness's own sandbox, not Nika's exec sandbox (Codex runs an
-approved escalated command unsandboxed), so `permits.fs` and `permits.net` do not
-confine it; the harness's own permission rules, hooks and configured MCP servers
+runs under the harness's own sandbox, not Nika's exec sandbox, so `permits.fs` and
+`permits.net` do not confine it, and the connections an allowed command opens by
+itself are not asks (Codex keeps sandboxed commands offline; Claude Code and
+Gemini CLI commands have the host's network); a Codex command ask in `read-only`
+usually requests to run outside its sandbox without saying so on the wire, so
+`exec: true` admits it and Codex runs it unsandboxed; the harness's own permission
+rules, hooks and configured MCP servers
 act without Nika's judgment unless they ask; an unmeasured seat is judged on its
 asks alone. `NIKA-DRIFT-001` never calls the `permits.exec` or `permits.fs` grants
 of such a run dead: the bridge judges asks against them.

@@ -32,13 +32,24 @@ every such task as a `[harness]` hint (`nika explain harness`).
   (`NIKA-1806`). Answer with `nika run --resume <trace> --answer <task>=true`
   (or `false`).
 - Paths are judged in your project's terms (`./out/**` matches the absolute path
-  the harness names), and a symlink is judged where it leads.
+  the harness names) and where the operating system will land: each path is
+  walked from the root, component by component, through every symlink (a
+  dangling one included) and every `..`. `out/link/../notes.md` with `out/link`
+  pointing outside the project is judged outside, beside the link's target. A
+  path that cannot be resolved (a symlink loop, an unreadable directory) pauses
+  for you.
 - A command is matched against `permits.exec` by its program. A harness that
   asks with a shell string (Codex, Claude Code) or without any command line
   (Gemini CLI) can only be admitted by `permits.exec: true`; otherwise the ask
   pauses for you.
-- A network ask (a fetch, or a command asking for network access) is never
-  answered automatically: it pauses for you with the URL in view.
+- An ask for network access is never answered automatically, whatever
+  `permits.exec` grants: a fetch, or a command the harness says needs the
+  network (Codex: an http or https URL, a SOCKS target such as
+  `socks5Tcp network access to <host>`, or a network permission). It pauses for
+  you with the target in view.
+- A command that asks the harness to widen its own sandbox (Codex
+  `additionalPermissions`, Claude Code `dangerouslyDisableSandbox`) pauses for
+  you: no grant covers it, `permits.exec: true` included.
 
 ## What `permits:` does not cover
 
@@ -55,8 +66,16 @@ Nika, so `permits:` does not bound it:
 On every seat:
 
 - An action Nika allows runs under the harness's own sandbox, not Nika's exec
-  sandbox. Codex runs an approved escalated command with no sandbox at all.
-  `permits.fs` and `permits.net` do not confine that command.
+  sandbox, so `permits.fs` and `permits.net` do not confine it. Nika judges the
+  network access a harness asks for, not the connections an allowed command
+  opens by itself: Codex keeps its sandboxed commands offline unless they ask,
+  while a command Claude Code or Gemini CLI runs has the network the machine
+  has.
+- In `read-only`, Codex runs ordinary commands in its sandbox without asking,
+  so a command it does ask about usually wants to run outside that sandbox. Its
+  ask does not say so: `permits.exec: true` admits it like any command, and
+  Codex then runs it with no sandbox at all. Leave `permits.exec` unset, or
+  name only the programs you expect, to keep such a command waiting for you.
 - The harness's own configuration still applies: its permission rules, its
   hooks and the MCP servers it configures act without Nika's judgment unless
   they ask.
@@ -75,7 +94,10 @@ Each harness `agent:` task journals, in order:
   harness's own mode was only observed),
   whose `why` states what the harness still does without asking;
 - one `permit_checked` per ask, with decision `allow`, `deny` (your answer) or
-  `escalate` (paused for you). A run paused on that question still journals
-  the task's decisions, just before its `workflow_paused` frame;
+  `escalate` (paused for you). Its gate names what was judged: `network ·
+  <target>` for a network ask, `sandbox · <widening>` for a sandbox widening,
+  otherwise the ask's kind with its program or paths (an unresolvable path
+  reads `<unresolved>`). A run paused on that question still journals the
+  task's decisions, just before its `workflow_paused` frame;
 - one `permit_checked` with decision `deny` for each file or terminal method the
   harness called and Nika refused.

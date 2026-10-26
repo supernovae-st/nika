@@ -393,7 +393,11 @@ arrives as `HarnessEvent::SessionConfined` and is witnessed as `PermissionJudged
 asking). A client method the harness called and was refused
 (`HarnessEvent::ClientCallRefused`) is witnessed as a `deny` on the plane it would
 have exercised. Every permission ask keeps the B5 bridge unchanged: inside the grants
-`AllowOnce`, outside a pause (`HarnessGate` · NIKA-1806).
+`AllowOnce`, outside a pause (`HarnessGate` · NIKA-1806). An ask that reaches beyond
+its kind (`HarnessEvent::EscalationAsked`: network access, or a wider harness sandbox)
+rides the same bridge with `HarnessAskFacts::network` / `widens` set, which the judge
+reads before the kind, so no grant answers it: it pauses, or takes the operator's bound
+answer, witnessed with gate `network · <target>` or `sandbox · <widening>`.
 
 ## ACP media beside the unchanged result
 
