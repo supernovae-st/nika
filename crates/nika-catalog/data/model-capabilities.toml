@@ -110,12 +110,17 @@ scope = { providers = ["openai", "openrouter"] }
 match = { kind = "prefix_any", prefixes = ["o1-", "o3-", "o4-"] }
 caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true, tokenizer = "o200k", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort"], supports_system_messages = false, json_mode = "schema" }
 
-# [4] OpenAI GPT-5 base name. Keeps temperature supported (unlike o-series).
+# [4] OpenAI GPT-5, GPT-5 mini and GPT-5 nano, with their August 2025 snapshots. Like the
+#     o-series they fix their sampling: OpenAI answers a temperature other than the default (1)
+#     with HTTP 400 « Unsupported value: 'temperature' does not support 0 with this model. Only
+#     the default (1) value is supported. » (seen on gpt-5-mini under 0.123.2; public reports
+#     for gpt-5 and gpt-5-mini-2025-08-07). The dot variants (gpt-5.1 and later) and the dash family
+#     below (gpt-5-chat-latest included) keep the default: no refusal is recorded for them.
 [[rules]]
 name  = "openai-gpt5-exact"
 scope = { providers = ["openai", "openrouter"] }
-match = { kind = "exact_any", models = ["gpt-5"] }
-caps  = { token_limit_param = "max-completion-tokens", reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
+match = { kind = "exact_any", models = ["gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-2025-08-07", "gpt-5-mini-2025-08-07", "gpt-5-nano-2025-08-07"] }
+caps  = { token_limit_param = "max-completion-tokens", supports_temperature = false, reasoning = true, tokenizer = "o200k", input_modalities = ["image", "text"], output_modalities = ["text"], supported_parameters = ["parallel-tool-calls"], json_mode = "schema" }
 
 # [5] OpenAI GPT-5 family — dash and dot variants (gpt-5-turbo, gpt-5.1, …).
 [[rules]]
