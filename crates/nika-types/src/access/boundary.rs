@@ -188,6 +188,13 @@ pub const HARNESS_SHARED_RESIDUAL: &str = "A command ask that carries no argv (a
      own settings (its permission rules, hooks and MCP servers) still apply: what they allow \
      never asks.";
 
+/// The marker an anchored ask location starts with when the client could not resolve the
+/// file the harness's path reaches (a symlink loop, an unreadable component, a component that
+/// is not a directory). The bridge's judge reads it as unverifiable, never as a path a grant
+/// could admit, so the ask pauses for the operator (NIK-266). A real path that happens to
+/// start with it only pauses too: the collision is fail-closed.
+pub const HARNESS_UNRESOLVED_PATH: &str = "<unresolved>";
+
 /// What an unmeasured harness does under its own mode, in the engine's words: Nika selects
 /// nothing and judges only the asks that reach it.
 pub const UNMEASURED_HARNESS_UNASKED: &str = "No approval mode is measured for this harness: \

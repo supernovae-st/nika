@@ -226,6 +226,17 @@ fn judge_fs(facts: &HarnessAskFacts, permits: Option<&Permits>, write: bool) -> 
         };
     };
     for path in &facts.locations {
+        // An identity the client could not resolve is never a path a grant admits (NIK-266):
+        // a `**` glob would match the marker's text, so it is refused before any glob runs.
+        if path.starts_with(nika_types::access::HARNESS_UNRESOLVED_PATH) {
+            return HarnessGate::Outside {
+                plane: "fs",
+                why: format!(
+                    "{path}: the file this path reaches could not be resolved — unverifiable \
+                     asks pause for the operator"
+                ),
+            };
+        }
         if !permits.allows_path(path, write) {
             return HarnessGate::Outside {
                 plane: "fs",
@@ -396,6 +407,40 @@ mod tests {
         assert!(matches!(
             judge_harness_ask(&f, Some(&permits_exec_git())),
             HarnessGate::Inside { plane: "exec", .. }
+        ));
+    }
+
+    /// NIK-266 · an identity the client could not resolve is outside every grant, even one
+    /// whose glob would match the marker's text (`**` · `./**` · `/**`).
+    #[test]
+    fn an_unresolved_location_is_outside_every_grant() {
+        let mut everything = Permits::new();
+        everything.fs = Some(FsPermits::new(
+            vec!["**".to_owned(), "/**".to_owned()],
+            vec!["**".to_owned(), "./**".to_owned(), "/**".to_owned()],
+        ));
+        for kind in ["edit", "read"] {
+            let mut f = facts(kind);
+            f.locations = vec![
+                "out/l1/f.md".to_owned(),
+                format!(
+                    "{} out/l1/f.md · a symlink loop",
+                    nika_types::access::HARNESS_UNRESOLVED_PATH
+                ),
+            ];
+            let v = judge_harness_ask(&f, Some(&everything));
+            let HarnessGate::Outside { plane, why } = v else {
+                panic!("an unresolved identity is never inside, got {v:?}");
+            };
+            assert_eq!(plane, "fs");
+            assert!(why.contains("could not be resolved"), "{why}");
+        }
+        // The same grants still admit the resolvable path alone (the control).
+        let mut f = facts("edit");
+        f.locations = vec!["out/l1/f.md".to_owned()];
+        assert!(matches!(
+            judge_harness_ask(&f, Some(&everything)),
+            HarnessGate::Inside { .. }
         ));
     }
 

@@ -613,7 +613,8 @@ pub use selection::{
 // client selects and the residual `nika check` states, one table for both.
 mod boundary;
 pub use boundary::{
-    HARNESS_SHARED_RESIDUAL, HarnessBoundary, UNMEASURED_HARNESS_UNASKED, unmeasured_check_advice,
+    HARNESS_SHARED_RESIDUAL, HARNESS_UNRESOLVED_PATH, HarnessBoundary, UNMEASURED_HARNESS_UNASKED,
+    unmeasured_check_advice,
 };
 
 /// How far a HARNESS seat's readiness is PROVEN — a rung, never a
