@@ -8,26 +8,56 @@
 //!
 //! - **egress-capable** = `exec:` · `invoke:` with a net/fs-write effect
 //!   (the ONE effect table) · `mcp:` (fail-closed) · `agent:` whose
-//!   whitelist admits an egress-effecting tool. `infer:` is not egress; a
-//!   child-workflow call is spec 14's (`NIKA-COMP-002`), never here.
+//!   whitelist admits an egress-effecting tool. `infer:` is not egress.
+//! - **an `invoke: workflow:` call** is judged through the child closure a
+//!   composed check resolved ([`scan_trifecta_composed`] · NIK-273): an
+//!   ingress when the closure brings untrusted content in, a source when
+//!   that content reaches the call's output or a file, and an egress-capable
+//!   sink when untrusted content (its own, the call's arguments, or a file a
+//!   writer left) reaches an egress task in it. A closure the check cannot
+//!   resolve is all of these (fail-closed). A blocking gate inside the child
+//!   is not credited here: the caller's own gate upstream of the call is.
+//!   Only a composed check resolves calls.
 //! - **blocking human gate** = an `invoke:` of `nika:prompt` with NO
 //!   `default:` arg (the NEP's escape is the HUMAN decision). Gated on a
 //!   valid DAG + a DECLARED `permits:` block (skipped, never wrong).
 
 use nika_cap::TrifectaSubject;
 
+use crate::ComposedCall;
 use crate::analyzer::Edge;
-use nika_schema::raw::{RawAction, RawWorkflow};
+use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 use nika_schema::source::Spanned;
 
 /// Judge the trifecta over the derived graph. Empty unless the workflow
 /// declares `permits:` AND the trifecta legs all hold AND an egress-capable
 /// task the untrusted content reaches escapes gate dominance.
+///
+/// Reader-less: no child workflow is resolved, so an `invoke: workflow:`
+/// call is never an ingress here (the [`crate::check`] posture, like its
+/// composition and cost lanes). [`scan_trifecta_composed`] judges the calls
+/// a composed check resolved.
 #[must_use]
 pub fn scan_trifecta(
     wf: &RawWorkflow,
     edges: &[Edge],
     topo_waves: &[Vec<usize>],
+) -> nika_cap::TrifectaVerdict {
+    scan_trifecta_composed(wf, edges, topo_waves, &[])
+}
+
+/// [`scan_trifecta`] over the child calls a composed check resolved
+/// ([`crate::CheckReport::composed_calls`] · spec 14 · NIK-273): each call
+/// stands for the tasks of its child closure, exactly as they would be
+/// judged inline (module doc), and a refusal it feeds or receives names the
+/// child task behind it. A call `calls` does not list is judged child-blind:
+/// no ingress, no egress, its arguments flowing to its output.
+#[must_use]
+pub fn scan_trifecta_composed(
+    wf: &RawWorkflow,
+    edges: &[Edge],
+    topo_waves: &[Vec<usize>],
+    calls: &[ComposedCall],
 ) -> nika_cap::TrifectaVerdict {
     let Some(permits) = wf.permits.as_ref() else {
         return nika_cap::TrifectaVerdict::default();
@@ -35,19 +65,29 @@ pub fn scan_trifecta(
     // The realized-flow facts (v2.0). The MCP trust closure is the
     // catalog mark's seam — until it lands, every server is untrusted.
     let mcp_trusted = |_: &str| false;
-    let witnesses = super::content_flow::analyze_content_flow(wf, topo_waves, &mcp_trusted);
+    let sources = super::content_flow::Sources {
+        mcp_trusted: &mcp_trusted,
+        calls,
+        entry: super::content_flow::Entry::Born,
+        exec_reads_files: None,
+    };
+    let flow = super::content_flow::analyze_content_flow(wf, topo_waves, &sources);
     let mut subjects: Vec<TrifectaSubject> = wf
         .tasks
         .iter()
         .map(|t| {
             let task = &t.value;
+            let call = listed_call(calls, &task.id.value, &task.action);
             TrifectaSubject::new(
                 task.id.value.clone(),
-                egress_capable(&task.action),
+                egress_capable(&task.action) || call.is_some_and(call_egress_capable),
                 human_gate(&task.action),
             )
             .with_defaulted_gate(defaulted_gate(&task.action))
-            .with_ingress_source(super::content_flow::classify(&task.action, &mcp_trusted).0)
+            .with_ingress_source(
+                super::content_flow::classify(&task.action, &mcp_trusted).0
+                    || call.is_some_and(|c| c.ingress.is_some()),
+            )
         })
         .collect();
     for e in edges {
@@ -56,7 +96,95 @@ pub fn scan_trifecta(
         }
     }
     let topo_flat: Vec<usize> = topo_waves.iter().flatten().copied().collect();
-    nika_cap::trifecta_verdict(&permits.value, &subjects, &witnesses, &topo_flat)
+    let mut verdict =
+        nika_cap::trifecta_verdict(&permits.value, &subjects, &flow.witnesses, &topo_flat);
+    name_composed_sources(&mut verdict, wf, calls);
+    verdict
+}
+
+/// The listed call a task stands for (a workflow call `calls` names).
+fn listed_call<'a>(
+    calls: &'a [ComposedCall],
+    task_id: &str,
+    action: &RawAction,
+) -> Option<&'a ComposedCall> {
+    let RawAction::Invoke(inv) = action else {
+        return None;
+    };
+    if !matches!(inv.target, RawInvokeTarget::Workflow(_)) {
+        return None;
+    }
+    calls.iter().find(|c| c.task == task_id)
+}
+
+/// A call whose closure some untrusted content reaches an egress task of.
+fn call_egress_capable(call: &ComposedCall) -> bool {
+    call.born.egress.is_some() || call.args.egress.is_some() || call.files.egress.is_some()
+}
+
+/// A refusal a composed call takes part in names the child task behind it,
+/// after the NEP's sentence: the caller's file shows only `invoke:
+/// workflow:`, and « untrusted content from `call` » alone does not say why.
+/// Only the refusals whose source or sink IS the call are named; an inline
+/// refusal is untouched.
+fn name_composed_sources(
+    verdict: &mut nika_cap::TrifectaVerdict,
+    wf: &RawWorkflow,
+    calls: &[ComposedCall],
+) {
+    for v in &mut verdict.violations {
+        // A call that sends out what it brings in is named once, as the sink.
+        let as_source = v
+            .source
+            .as_deref()
+            .filter(|s| *s != v.task)
+            .and_then(|source| {
+                let task = wf.tasks.iter().find(|t| t.value.id.value == source)?;
+                let call = listed_call(calls, source, &task.value.action)?;
+                let why = call
+                    .born
+                    .output
+                    .as_deref()
+                    .or(call.born.file.as_deref())
+                    .or(call.born.egress.as_deref())
+                    .or(call.ingress.as_deref())?;
+                Some(format!(
+                    " · `{source}` calls a workflow that brings untrusted content in: {why} \
+                 (spec 14: a call carries what its child's body brings in)"
+                ))
+            });
+        let as_sink = wf
+            .tasks
+            .iter()
+            .find(|t| t.value.id.value == v.task)
+            .and_then(|task| listed_call(calls, &v.task, &task.value.action))
+            .and_then(|call| {
+                let born_here = v.source.as_deref() == Some(v.task.as_str());
+                if born_here {
+                    let why = call.born.egress.as_deref()?;
+                    let brought = call.ingress.as_deref().unwrap_or(why);
+                    return Some(format!(
+                        " · `{}` calls a workflow that brings untrusted content in ({brought}) \
+                         and sends it out: {why} (spec 14: the child runs inside this file's \
+                         boundary)",
+                        v.task
+                    ));
+                }
+                let why = call
+                    .args
+                    .egress
+                    .as_deref()
+                    .or(call.files.egress.as_deref())?;
+                Some(format!(
+                    " · `{}` calls a workflow that sends it out: {why} \
+                     (spec 14: the child runs inside this file's boundary)",
+                    v.task
+                ))
+            });
+        for tail in [as_source, as_sink].into_iter().flatten() {
+            v.detail.push_str(&tail);
+        }
+    }
 }
 
 /// The task's egress capability (see the module doc for the table).
@@ -67,8 +195,9 @@ pub(crate) fn egress_capable(action: &RawAction) -> bool {
         RawAction::Infer(_) => false,
         RawAction::Invoke(inv) => {
             let Some(tool) = inv.tool() else {
-                // A child-workflow call: spec 14 (COMP-002) owns the child's
-                // boundary — this lane does not re-judge it.
+                // A child-workflow call: one task's own bytes say nothing of
+                // its child's effects. The trifecta judges the call through
+                // its composed closure (`scan_trifecta_composed` · NIK-273).
                 return false;
             };
             let id = tool.value.as_str();

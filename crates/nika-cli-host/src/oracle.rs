@@ -459,7 +459,8 @@ pub fn judge(
     // permits.fs: on a run that seats one, those grants are never drift (NIK-266).
     let seated = harness_agents(wf, report, &plan);
     let bridged = nika_dap::drift::declares_harness_access(wf) || !seated.is_empty();
-    let drift = nika_dap::drift::scan_bridged(wf, bridged);
+    // A grant a child call holds is never dead (NIK-273): the composed report lists them.
+    let drift = nika_dap::drift::scan_composed(wf, bridged, &report.composed_calls);
     let harness = harness_hints(wf, &seated);
     let children = child_references(wf);
     Verdict {

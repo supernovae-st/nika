@@ -33,6 +33,33 @@ depend on without pulling the CLI:
   brings is reported with the child, task, field and path
   (`CheckReport::project_files`). A child's own read boundary stays its own
   check's. A plain `check()` reads no files.
+- **composed calls** (spec 14 · NIK-273) — `check_composed` and
+  `check_project` resolve every direct `invoke: workflow:` call through the
+  composition walk (one parse per file, its file cap) and list it in
+  `CheckReport::composed_calls` (`ComposedCall`): whether the closure brings
+  untrusted content in (`ingress`, the table's born sources: `exec:` · an
+  invoked `nika:fetch` · an `mcp:*` tool · an `agent:` whose whitelist admits
+  ingress), and where three kinds of content entering it go (`CallFlow`, by
+  the same content-flow pass run over the child): what it brings in (`born`),
+  the call's arguments (`args`), and a file a tainted writer left before the
+  call (`files`, read by an `exec:` of the closure). Each may reach the
+  call's output, an egress task of the closure, or a file. The trifecta lane
+  judges the call as the tasks it stands for: a source when born content
+  reaches its output or a file, a sink when content reaches an egress task.
+  A parent refuses `NIKA-SEC-009` exactly as the inline form would, unless a
+  blocking gate of its own dominates the path; a gate inside the child is not
+  credited to the caller. A refusal names the child task behind the call. A
+  closure the walk cannot resolve (unreadable · unparseable · a graph that
+  does not analyze · registry or templated target · a cycle · past the cap)
+  sets every fact (fail-closed). `grants` lists the caller's entries the
+  closure uses or may use: the needs its inference lists, and in a category
+  a workflow reaches opaquely (an `exec:` · a dynamic program, host or path ·
+  an agent whitelist · a harness-servable agent) the entries its own declared
+  block, met with every block above it, keeps; `nika-dap`'s
+  `NIKA-DRIFT-001` never names a held grant dead. The runtime trust gate
+  re-derives the trifecta over the same calls. A plain `check()` resolves no
+  call: its trifecta lane, like its composition and cost lanes, judges the
+  caller's own tasks only.
 - **the conformance harness** (`tests/common`) — the Core, Deep, lint, runtime
   and stdlib fixture levels from the checkout pinned by `SPEC_PIN`. Core and
   Deep verdicts now include the Agent Skill resolution lane through the same
