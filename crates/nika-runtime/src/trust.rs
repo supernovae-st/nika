@@ -74,10 +74,11 @@ pub(crate) fn check_report(wf: &RawWorkflow, report: &CheckReport) -> Result<(),
     // DAG-independent and runs unconditionally.
     //
     // The child calls a composed check resolved ride the report (NIK-273):
-    // this gate reads no file, so it judges each call's ingress as the
-    // report states it. That can only ADD sources over the child-blind
-    // reading (a forged list cannot hide a flow the bytes show), and an
-    // honest composed report's lanes, mitigations included, equal these.
+    // this gate reads no file, so it judges each call's closure as the
+    // report states it. That can only ADD sources, sinks and file writers
+    // over the child-blind reading (a forged list cannot hide a flow the
+    // bytes show, and no gate inside a child is credited), and an honest
+    // composed report's lanes, mitigations included, equal these.
     let trifecta = match nika_check::analyze(wf) {
         Ok(a) => nika_check::trifecta::scan_trifecta_composed(
             wf,

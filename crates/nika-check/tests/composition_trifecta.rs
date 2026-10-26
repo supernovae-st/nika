@@ -296,9 +296,21 @@ fn a_pure_child_is_not_an_ingress_even_with_every_leg_armed() {
     assert!(report.composition.is_empty(), "{:?}", report.composition);
 }
 
-/// Fail-closed: a child the check cannot resolve may bring anything in.
+/// Fail-closed: a child the check cannot resolve may bring anything in, and
+/// send it out itself: the webhook it feeds and the call are both refused.
 #[test]
 fn an_unresolvable_child_is_untrusted_ingress() {
+    let sinks = |report: &CheckReport| -> Vec<(String, Option<String>)> {
+        report
+            .trifecta_findings
+            .iter()
+            .map(|f| (f.task.clone(), f.source.clone()))
+            .collect()
+    };
+    let expected = vec![
+        ("call".to_owned(), Some("call".to_owned())),
+        ("ping".to_owned(), Some("call".to_owned())),
+    ];
     // Unreadable.
     let report = composed(&parent(PARENT_UNGATED, "./ghost.nika", Holds::Fetch), &[]);
     assert!(
@@ -306,14 +318,7 @@ fn an_unresolvable_child_is_untrusted_ingress() {
         "{:?}",
         report.composition
     );
-    assert_eq!(
-        report.trifecta_findings.len(),
-        1,
-        "{:?}",
-        report.trifecta_findings
-    );
-    assert_eq!(report.trifecta_findings[0].task, "ping");
-    assert_eq!(report.trifecta_findings[0].source.as_deref(), Some("call"));
+    assert_eq!(sinks(&report), expected, "{:?}", report.trifecta_findings);
 
     // Unparseable.
     let report = composed(
@@ -321,12 +326,7 @@ fn an_unresolvable_child_is_untrusted_ingress() {
         &[("child.nika", "nika: [unclosed\n")],
     );
     assert!(report.composition.iter().any(|f| f.code == "NIKA-COMP-001"));
-    assert_eq!(
-        report.trifecta_findings.len(),
-        1,
-        "{:?}",
-        report.trifecta_findings
-    );
+    assert_eq!(sinks(&report), expected, "{:?}", report.trifecta_findings);
 
     // A pinned registry child, which this engine does not run.
     let report = composed(
@@ -334,12 +334,7 @@ fn an_unresolvable_child_is_untrusted_ingress() {
         &[],
     );
     assert!(report.composition.iter().any(|f| f.code == "NIKA-COMP-001"));
-    assert_eq!(
-        report.trifecta_findings.len(),
-        1,
-        "{:?}",
-        report.trifecta_findings
-    );
+    assert_eq!(sinks(&report), expected, "{:?}", report.trifecta_findings);
 }
 
 /// Transitive: the fetch sits one workflow further down.
@@ -377,4 +372,467 @@ fn an_unresolvable_child_under_a_boundary_granting_no_ingress_completes_no_trife
 fn the_reader_less_check_stays_child_blind() {
     let wf = parsed(&parent(PARENT_UNGATED, "./child.nika", Holds::Fetch));
     assert!(check(&wf).trifecta_findings.is_empty());
+}
+
+// ─── the other half: a child that sends content out (review of #1840) ────
+
+/// A child that writes the two arguments it is given into one file.
+const CHILD_DROP: &str = r#"nika: child-drop
+permits:
+  tools: ["nika:write"]
+  fs: { write: ["./out/**"] }
+inputs:
+  page: { type: string, required: true }
+  note: { type: string, required: true }
+tasks:
+  leak:
+    invoke:
+      tool: nika:write
+      args: { path: ./out/leak.txt, content: "page=${{ inputs.page }} note=${{ inputs.note }}" }
+outputs:
+  done: { value: "${{ tasks.leak.output }}" }
+"#;
+
+/// A subprocess output and a private note, written out by the parent itself.
+const SEND_INLINE: &str = r#"nika: send-inline
+permits:
+  exec: ["echo"]
+  tools: ["nika:read", "nika:write"]
+  fs: { read: ["./private.txt"], write: ["./out/**"] }
+tasks:
+  page:
+    exec: { command: ["echo", "untrusted page body"] }
+  secret_note:
+    invoke: { tool: nika:read, args: { path: ./private.txt } }
+  leak:
+    with:
+      page: ${{ tasks.page.output }}
+      note: ${{ tasks.secret_note.output }}
+    invoke:
+      tool: nika:write
+      args: { path: ./out/leak.txt, content: "page=${{ with.page }} note=${{ with.note }}" }
+"#;
+
+/// The same flow with the write moved into `child-drop.nika`, fed through `args:`.
+const SEND_COMPOSED: &str = r#"nika: send-composed
+permits:
+  exec: ["echo"]
+  tools: ["nika:read", "nika:write"]
+  fs: { read: ["./private.txt"], write: ["./out/**"] }
+tasks:
+  page:
+    exec: { command: ["echo", "untrusted page body"] }
+  secret_note:
+    invoke: { tool: nika:read, args: { path: ./private.txt } }
+  leak:
+    with:
+      page: ${{ tasks.page.output }}
+      note: ${{ tasks.secret_note.output }}
+    invoke:
+      workflow: ./child-drop.nika
+      args: { page: "${{ with.page }}", note: "${{ with.note }}" }
+"#;
+
+/// The sink task, its source, and the one SEC-009 finding.
+fn refused_at(report: &CheckReport, task: &str, source: &str) {
+    let found: Vec<(&str, Option<&str>)> = report
+        .trifecta_findings
+        .iter()
+        .map(|f| (f.task.as_str(), f.source.as_deref()))
+        .collect();
+    assert_eq!(
+        found,
+        vec![(task, Some(source))],
+        "{:?}",
+        report.trifecta_findings
+    );
+    assert!(
+        report.trifecta_findings[0]
+            .detail
+            .starts_with("lethal trifecta complete · human gate required"),
+        "{}",
+        report.trifecta_findings[0].detail
+    );
+    assert!(!report.is_clean(), "the lane gates the check");
+}
+
+/// The egress half of NIK-273: the parent holds the untrusted content and the
+/// private read and hands both to a child that writes them out. The call is
+/// the sink, exactly as the inline write is.
+#[test]
+fn a_child_writing_its_arguments_out_is_refused_like_the_inline_write() {
+    let inline = check(&parsed(SEND_INLINE));
+    refused_at(&inline, "leak", "page");
+
+    let report = composed(SEND_COMPOSED, &[("child-drop.nika", CHILD_DROP)]);
+    assert!(report.composition.is_empty(), "{:?}", report.composition);
+    refused_at(&report, "leak", "page");
+    let detail = &report.trifecta_findings[0].detail;
+    assert!(
+        detail.contains(
+            "`leak` calls a workflow that sends it out: `./child-drop.nika` · task `leak` invokes `nika:write`"
+        ),
+        "the child task behind the sink is named: {detail}"
+    );
+}
+
+/// A child that only notifies, fed a fetched page and a private note.
+const CHILD_SEND: &str = r#"nika: child-send
+permits:
+  tools: ["nika:notify"]
+  net: { http: ["hooks.example.com"] }
+inputs:
+  page: { type: string, required: true }
+  note: { type: string, required: true }
+tasks:
+  ping:
+    invoke:
+      tool: nika:notify
+      args:
+        channel: webhook
+        target: https://hooks.example.com/hook
+        message: "page says: ${{ inputs.page }}"
+        data: { note: "${{ inputs.note }}" }
+"#;
+
+/// The fetch and the private read in the parent (or the fetch in a first
+/// child), the webhook in a second child.
+#[test]
+fn a_notifying_child_is_a_sink_for_the_content_it_is_passed() {
+    let parent_fetch = r#"nika: egress-in-child
+permits:
+  tools: ["nika:fetch", "nika:read", "nika:notify"]
+  net: { http: ["docs.example.com", "hooks.example.com"] }
+  fs: { read: ["./private.txt"] }
+tasks:
+  page:
+    invoke: { tool: nika:fetch, args: { url: "https://docs.example.com/page", mode: text } }
+  secret_note:
+    invoke: { tool: nika:read, args: { path: ./private.txt } }
+  send:
+    with:
+      page: ${{ tasks.page.output }}
+      note: ${{ tasks.secret_note.output }}
+    invoke:
+      workflow: ./child-send.nika
+      args: { page: "${{ with.page }}", note: "${{ with.note }}" }
+"#;
+    let report = composed(parent_fetch, &[("child-send.nika", CHILD_SEND)]);
+    refused_at(&report, "send", "page");
+
+    let two_children = r#"nika: two-children
+permits:
+  tools: ["nika:fetch", "nika:read", "nika:notify"]
+  net: { http: ["docs.example.com", "hooks.example.com"] }
+  fs: { read: ["./private.txt"] }
+tasks:
+  fetch:
+    invoke: { workflow: ./child.nika }
+    returns: { object: { text: string } }
+  secret_note:
+    invoke: { tool: nika:read, args: { path: ./private.txt } }
+  send:
+    with:
+      page: ${{ tasks.fetch.output.text }}
+      note: ${{ tasks.secret_note.output }}
+    invoke:
+      workflow: ./child-send.nika
+      args: { page: "${{ with.page }}", note: "${{ with.note }}" }
+"#;
+    let report = composed(
+        two_children,
+        &[("child.nika", CHILD_FETCH), ("child-send.nika", CHILD_SEND)],
+    );
+    refused_at(&report, "send", "fetch");
+    let detail = &report.trifecta_findings[0].detail;
+    assert!(
+        detail.contains("`fetch` calls a workflow that brings untrusted content in")
+            && detail.contains("`send` calls a workflow that sends it out"),
+        "both calls are named: {detail}"
+    );
+
+    // A caller's gate upstream of every entry clears it, as inline.
+    let gated = parent_fetch
+        .replace(
+            "tasks:\n  page:\n",
+            "tasks:\n  ask:\n    invoke: { tool: nika:prompt, args: { message: \"Send?\" } }\n  page:\n    after: { ask: success }\n",
+        )
+        .replace(
+            "  secret_note:\n    invoke:",
+            "  secret_note:\n    after: { ask: success }\n    invoke:",
+        )
+        .replace(
+            "  send:\n    with:\n",
+            "  send:\n    when: ${{ with.go == true }}\n    with:\n      go: ${{ tasks.ask.output }}\n",
+        )
+        .replace("\"nika:notify\"]", "\"nika:notify\", \"nika:prompt\"]");
+    let report = composed(&gated, &[("child-send.nika", CHILD_SEND)]);
+    assert!(
+        report.trifecta_findings.is_empty(),
+        "{:?}",
+        report.trifecta_findings
+    );
+    let cleared: Vec<(&str, &str)> = report
+        .trifecta_mitigations
+        .iter()
+        .map(|m| (m.sink.as_str(), m.gate.as_str()))
+        .collect();
+    assert_eq!(cleared, vec![("send", "ask")]);
+}
+
+/// A child that saves a subprocess's output to a file in the workspace.
+const CHILD_DROPPER: &str = r#"nika: child-dropper
+permits:
+  exec: ["echo"]
+  tools: ["nika:write"]
+  fs: { write: ["./drop/**"] }
+tasks:
+  page:
+    exec: { command: ["echo", "untrusted page body"] }
+  save:
+    with: { body: "${{ tasks.page.output }}" }
+    invoke: { tool: nika:write, args: { path: ./drop/page.txt, content: "${{ with.body }}" } }
+"#;
+
+/// Inside the child, untrusted content reaches a write: under the parent's
+/// legs that write is the sink it would be inline, and the call stands for it.
+#[test]
+fn a_child_writing_what_it_brings_in_is_judged_under_the_callers_legs() {
+    let parent = r#"nika: dropped
+permits:
+  exec: ["echo"]
+  tools: ["nika:read", "nika:write"]
+  fs: { read: ["./private.txt", "./drop/**"], write: ["./drop/**", "/srv/out/**"] }
+tasks:
+  call:
+    invoke: { workflow: ./child-dropper.nika }
+  pick:
+    after: { call: success }
+    invoke: { tool: nika:read, args: { path: ./drop/page.txt } }
+  secret_note:
+    invoke: { tool: nika:read, args: { path: ./private.txt } }
+  leak:
+    with:
+      page: ${{ tasks.pick.output }}
+      note: ${{ tasks.secret_note.output }}
+    invoke:
+      tool: nika:write
+      args: { path: /srv/out/leak.txt, content: "page=${{ with.page }} note=${{ with.note }}" }
+"#;
+    let report = composed(parent, &[("child-dropper.nika", CHILD_DROPPER)]);
+    refused_at(&report, "call", "call");
+    let detail = &report.trifecta_findings[0].detail;
+    assert!(
+        detail.contains("task `page` is an `exec:`")
+            && detail.contains("task `save` invokes `nika:write`"),
+        "the child's ingress and its write are named: {detail}"
+    );
+}
+
+/// The file channel crosses the wall: a parent subprocess that reads the file
+/// a child wrote with untrusted content in it is tainted, as inline.
+#[test]
+fn a_file_a_child_writes_taints_a_parent_subprocess_like_the_inline_writer() {
+    let inline = r#"nika: ship-inline
+permits:
+  exec: ["echo", "cp"]
+  tools: ["nika:write"]
+  fs: { read: ["./private.txt", "./drop/**"], write: ["./drop/**", "/srv/out/**"] }
+tasks:
+  page:
+    exec: { command: ["echo", "untrusted page body"] }
+  save:
+    with: { body: "${{ tasks.page.output }}" }
+    invoke: { tool: nika:write, args: { path: ./drop/page.txt, content: "${{ with.body }}" } }
+  ship:
+    after: { save: success }
+    exec: { command: ["cp", "./drop/page.txt", "./private.txt", "/srv/out/"] }
+"#;
+    let twin = check(&parsed(inline));
+    let sinks: Vec<(&str, Option<&str>)> = twin
+        .trifecta_findings
+        .iter()
+        .map(|f| (f.task.as_str(), f.source.as_deref()))
+        .collect();
+    assert_eq!(sinks, vec![("save", Some("page")), ("ship", Some("page"))]);
+
+    let composed_form = r#"nika: ship-composed
+permits:
+  exec: ["echo", "cp"]
+  tools: ["nika:write"]
+  fs: { read: ["./private.txt", "./drop/**"], write: ["./drop/**", "/srv/out/**"] }
+tasks:
+  call:
+    invoke: { workflow: ./child-dropper.nika }
+  ship:
+    after: { call: success }
+    exec: { command: ["cp", "./drop/page.txt", "./private.txt", "/srv/out/"] }
+"#;
+    let report = composed(composed_form, &[("child-dropper.nika", CHILD_DROPPER)]);
+    let sinks: Vec<(&str, Option<&str>)> = report
+        .trifecta_findings
+        .iter()
+        .map(|f| (f.task.as_str(), f.source.as_deref()))
+        .collect();
+    assert_eq!(
+        sinks,
+        vec![("call", Some("call")), ("ship", Some("call"))],
+        "the child's write and the subprocess that reads it: {:?}",
+        report.trifecta_findings
+    );
+}
+
+/// No false positive: a child whose subprocess output reaches neither its
+/// outputs nor an egress task leaves the call's output clean, as the same
+/// tasks inline do.
+#[test]
+fn a_child_subprocess_that_reaches_nothing_taints_nothing() {
+    let child = r#"nika: child-side
+permits:
+  exec: ["date"]
+  tools: ["nika:jq"]
+tasks:
+  stamp:
+    exec: { command: ["date"] }
+  label:
+    invoke: { tool: nika:jq, args: { input: "{\"a\": 1}", expression: ".a" } }
+outputs:
+  n: { value: "${{ tasks.label.output }}", type: integer }
+"#;
+    let parent = r#"nika: parent-side
+permits:
+  exec: ["date"]
+  tools: ["nika:jq", "nika:read", "nika:notify"]
+  net: { http: ["hooks.example.com"] }
+  fs: { read: ["./private.txt"] }
+tasks:
+  call:
+    invoke: { workflow: ./child-side.nika }
+    returns: { object: { n: integer } }
+  note:
+    invoke: { tool: nika:read, args: { path: ./private.txt } }
+  ping:
+    with:
+      n: ${{ tasks.call.output.n }}
+      note: ${{ tasks.note.output }}
+    invoke:
+      tool: nika:notify
+      args:
+        channel: webhook
+        target: https://hooks.example.com/hook
+        message: "n=${{ with.n }}"
+        data: { note: "${{ with.note }}" }
+"#;
+    let report = composed(parent, &[("child-side.nika", child)]);
+    assert!(
+        report.trifecta_findings.is_empty(),
+        "{:?}",
+        report.trifecta_findings
+    );
+    assert!(report.is_clean(), "{:?}", report.findings);
+    // The inline twin, accepted on every engine.
+    let inline = parent
+        .replace(
+            "  call:\n    invoke: { workflow: ./child-side.nika }\n    returns: { object: { n: integer } }\n",
+            "  stamp:\n    exec: { command: [\"date\"] }\n  call:\n    invoke: { tool: nika:jq, args: { input: \"{\\\"a\\\": 1}\", expression: \".a\" } }\n",
+        )
+        .replace("${{ tasks.call.output.n }}", "${{ tasks.call.output }}");
+    assert!(check(&parsed(&inline)).trifecta_findings.is_empty());
+}
+
+/// A blocking gate inside the child is not credited to its caller: the call
+/// is one task of the caller's graph, and its gate does not dominate the
+/// caller's other paths. The caller's own gate upstream of the call is.
+#[test]
+fn a_gate_inside_the_child_is_not_credited_to_the_caller() {
+    let child = r#"nika: child-gated-fetch
+permits:
+  tools: ["nika:prompt", "nika:fetch"]
+  net: { http: ["docs.example.com"] }
+tasks:
+  ask:
+    invoke: { tool: nika:prompt, args: { message: "Fetch the page and send it on?" } }
+  page:
+    with: { go: "${{ tasks.ask.output }}" }
+    when: ${{ with.go == true }}
+    invoke: { tool: nika:fetch, args: { url: "https://docs.example.com/page", mode: text } }
+outputs:
+  text: { value: "${{ tasks.page.output }}", type: string }
+"#;
+    let report = composed(
+        &parent(PARENT_UNGATED, "./child.nika", Holds::Fetch)
+            .replace("\"nika:notify\"", "\"nika:notify\", \"nika:prompt\""),
+        &[("child.nika", child)],
+    );
+    refused_at_ping_from_call(&report);
+    assert!(report.trifecta_mitigations.is_empty());
+
+    let gated = parent(PARENT_GATED, "./child.nika", Holds::Fetch);
+    let report = composed(&gated, &[("child.nika", child)]);
+    assert!(
+        report.trifecta_findings.is_empty(),
+        "{:?}",
+        report.trifecta_findings
+    );
+}
+
+/// An inline refusal in a workflow that also calls an unrelated child is
+/// named as before: no child witness is appended to it.
+#[test]
+fn an_inline_refusal_beside_an_unrelated_call_names_no_child() {
+    let mixed = r#"nika: parent-mixed
+permits:
+  exec: ["git"]
+  tools: ["nika:fetch", "nika:read", "nika:notify"]
+  net: { http: ["docs.example.com", "hooks.example.com"] }
+  fs: { read: ["./private.txt", "./repo/**"] }
+tasks:
+  page:
+    invoke: { tool: nika:fetch, args: { url: "https://docs.example.com/page", mode: text } }
+  note:
+    invoke: { tool: nika:read, args: { path: ./private.txt } }
+  ping:
+    with:
+      page: ${{ tasks.page.output }}
+      note: ${{ tasks.note.output }}
+    invoke:
+      tool: nika:notify
+      args:
+        channel: webhook
+        target: https://hooks.example.com/hook
+        message: "page: ${{ with.page }}"
+        data: { note: "${{ with.note }}" }
+  history:
+    invoke: { workflow: ./child.nika }
+    returns: { object: { text: string } }
+outputs:
+  log: ${{ tasks.history.output.text }}
+"#;
+    let report = composed(mixed, &[("child.nika", CHILD_EXEC)]);
+    refused_at(&report, "ping", "page");
+    // The inline twin runs the child's subprocess in place of the call.
+    let twin = mixed
+        .replace(
+            "    invoke: { workflow: ./child.nika }\n    returns: { object: { text: string } }\n",
+            "    exec: { command: [\"git\", \"-C\", \"./repo\", \"log\", \"--oneline\", \"-3\"] }\n",
+        )
+        .replace("${{ tasks.history.output.text }}", "${{ tasks.history.output }}");
+    let inline = check(&parsed(&twin));
+    refused_at(&inline, "ping", "page");
+    assert_eq!(
+        report.trifecta_findings[0].detail, inline.trifecta_findings[0].detail,
+        "the inline message is unchanged"
+    );
+}
+
+/// Fail-closed on the egress half too: an unreadable child handed untrusted
+/// content and a private note may send them anywhere.
+#[test]
+fn an_unresolvable_child_is_a_sink_for_what_it_is_passed() {
+    let report = composed(
+        &SEND_COMPOSED.replace("./child-drop.nika", "./ghost.nika"),
+        &[],
+    );
+    assert!(report.composition.iter().any(|f| f.code == "NIKA-COMP-001"));
+    refused_at(&report, "leak", "page");
 }

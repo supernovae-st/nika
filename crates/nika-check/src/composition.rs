@@ -25,8 +25,8 @@
 //! walked for acyclicity; a child's OWN direct calls are that child's
 //! check's to judge (each file answers for its own contract). The same walk
 //! then resolves each direct call's child contract for the ROOT's other
-//! lanes ([`super::composed_call`]): whether the call's output is
-//! untrusted content (the trifecta) and which root grants it holds (drift).
+//! lanes ([`super::composed_call`]): where untrusted content goes through
+//! the call (the trifecta) and which root grants it holds (drift).
 
 use std::collections::{BTreeMap, BTreeSet};
 

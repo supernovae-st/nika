@@ -168,7 +168,7 @@ use nika_schema::raw::RawWorkflow;
 
 pub use analysis::{DagAnalysis, TaskBlast, WriteConflict};
 pub use certificate::{Bound, CertTerm, RunCertificate};
-pub use composed_call::ComposedCall;
+pub use composed_call::{CallFlow, ComposedCall};
 pub use composition::CompositionFinding;
 pub use consent::ConsentFinding;
 pub use cost::{ComposedCost, CostCeiling, TaskCost, UnboundedReason, floor_refusal};
@@ -524,10 +524,11 @@ pub struct CheckReport {
     /// resolved half (cycles · containment · the typed call) through an
     /// injected reader. Additive: `report_version` stays 1.
     pub composition: Vec<CompositionFinding>,
-    /// Every direct `invoke: workflow:` call judged through its resolved
-    /// child (spec 14): whether its output is untrusted content (the
-    /// trifecta lane's ingress) and which grants of this file it holds.
-    /// Only [`check_composed`] fills it. Additive, absent when empty.
+    /// Every direct `invoke: workflow:` call judged through its child
+    /// closure (spec 14), resolved or not: where untrusted content goes
+    /// through it (the trifecta lane judges the call as the tasks it stands
+    /// for) and which grants of this file it holds. Only
+    /// [`check_composed`] fills it. Additive, absent when empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub composed_calls: Vec<ComposedCall>,
     /// Project files (spec 02 §Project files): what [`check_project`] could not compose. A plain

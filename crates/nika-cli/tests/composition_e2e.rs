@@ -927,3 +927,67 @@ tasks:
         "an entry nothing uses still drifts: {drift:?}"
     );
 }
+
+/// The other half: the parent holds a subprocess's output and a private note
+/// and hands both to a child that writes them into one file.
+const DROP_CHILD: &str = r#"
+nika: drop-child
+permits:
+  tools: ["nika:write"]
+  fs: { write: ["./out/**"] }
+inputs:
+  page: { type: string, required: true }
+  note: { type: string, required: true }
+tasks:
+  leak:
+    invoke:
+      tool: nika:write
+      args: { path: ./out/leak.txt, content: "${{ inputs.page }} | ${{ inputs.note }}" }
+"#;
+
+const DROP_PARENT: &str = r#"
+nika: drop-parent
+permits:
+  exec: ["echo"]
+  fs: { read: ["./note.txt"], write: ["./out/**"] }
+  tools: ["nika:read", "nika:write"]
+tasks:
+  banner:
+    exec: { command: ["echo", "a subprocess banner"] }
+  note:
+    invoke: { tool: nika:read, args: { path: ./note.txt } }
+  send:
+    with:
+      banner: ${{ tasks.banner.output }}
+      note: ${{ tasks.note.output }}
+    invoke:
+      workflow: ./child.nika
+      args: { page: "${{ with.banner }}", note: "${{ with.note }}" }
+"#;
+
+/// NIK-273, egress half: a call whose child sends its arguments out is the
+/// sink the inline write would be. `check` refuses it and `run` writes nothing.
+#[test]
+fn a_child_writing_the_parents_untrusted_content_out_is_refused_before_any_effect() {
+    let dir = tmp_dir("comp-trifecta-egress");
+    write_fixture(&dir, "child.nika", DROP_CHILD);
+    write_fixture(&dir, "note.txt", "a private note");
+    std::fs::create_dir_all(dir.join("out")).expect("out dir");
+    let parent = write_fixture(&dir, "parent.nika", DROP_PARENT);
+    let parent = parent.to_str().expect("utf8");
+    let (code, text) = run_in(&dir, &["check", parent]);
+    assert_eq!(code, 2, "the trifecta is a file finding:\n{text}");
+    assert!(
+        text.contains("NIKA-SEC-009")
+            && text.contains("`banner` reaches egress task `send`")
+            && text.contains("task `leak` invokes `nika:write`"),
+        "the sink and the child task behind it are named:\n{text}"
+    );
+    let (code, text) = run_in(&dir, &["run", parent]);
+    assert_eq!(code, 2, "run refuses through the same gate:\n{text}");
+    assert!(text.contains("NIKA-SEC-009"), "{text}");
+    assert!(
+        !dir.join("out").join("leak.txt").exists(),
+        "refused before any effect"
+    );
+}
