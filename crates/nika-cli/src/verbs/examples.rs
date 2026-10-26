@@ -215,7 +215,7 @@ pub fn storefront(theme: Theme) -> VerbOutput {
         "{}",
         chrome::rail_head(
             theme,
-            &format!("{} first-run jobs — offline · zero keys", slugs.len())
+            &format!("{} first-run jobs — mock model · zero keys", slugs.len())
         )
     );
     for slug in slugs {
@@ -319,7 +319,7 @@ pub fn list(theme: Theme) -> VerbOutput {
 
     let _ = write!(
         text,
-        "\nnext ·\n  nika try 01-hello                    # see it work · offline · zero keys\n  nika compile hello hello.nika   # explicit offline first file\n  nika compile --list                  # exact skeleton previews\n\n{}",
+        "\nnext ·\n  nika try 01-hello                    # see it work · mock model · zero keys\n  nika compile hello hello.nika   # explicit offline first file\n  nika compile --list                  # exact skeleton previews\n\n{}",
         theme.paint(
             Role::Dim,
             "verbs · \u{25c7} infer (ask a model) · \u{25b7} exec (run a command) · \u{25c6} invoke (use a tool) · \u{2726} agent (bounded loop)"
@@ -328,9 +328,11 @@ pub fn list(theme: Theme) -> VerbOutput {
     VerbOutput::ok(text)
 }
 
-/// The `try` seat law (V5 · RAMS-4): offline by default — the mock
-/// rehearsal unless a real seat is asked for. `--model self` keeps the
-/// example's own `model:` (the file IS the lesson on that seat).
+/// The `try` seat law (V5 · RAMS-4): the mock model by default — zero keys,
+/// no model call — unless a real seat is asked for. The seat replaces the
+/// model only: a step that fetches still reaches its host (#1605).
+/// `--model self` keeps the example's own `model:` (the file IS the lesson
+/// on that seat).
 #[must_use]
 pub fn rehearsal_seat(model: Option<&str>) -> Option<&str> {
     match model {
@@ -409,6 +411,22 @@ mod tests {
             "no free-shaped claim: {}",
             out.text
         );
+        // #1605 · two shelf jobs fetch (`ceo-monday-brief` ·
+        // `05-fetch-chain`): the head names the mock model, never « offline ».
+        assert!(
+            out.text
+                .contains("5 first-run jobs — mock model · zero keys"),
+            "{}",
+            out.text
+        );
+        assert!(
+            out.text
+                .lines()
+                .filter(|line| line.contains("first-run jobs") || line.contains("nika try"))
+                .all(|line| !line.to_lowercase().contains("offline")),
+            "the storefront never promises an offline rehearsal: {}",
+            out.text
+        );
     }
 
     /// The full shelf keeps its parsable rows (the vscode extension
@@ -424,6 +442,22 @@ mod tests {
             out.text
         );
         assert!(out.text.contains("infer (ask a model)"), "{}", out.text);
+        // #1605 · the try door names its seat, not an offline promise.
+        assert!(
+            out.text.contains(
+                "nika try 01-hello                    # see it work · mock model · zero keys"
+            ),
+            "{}",
+            out.text
+        );
+        assert!(
+            out.text
+                .lines()
+                .filter(|line| line.contains("nika try"))
+                .all(|line| !line.contains("offline")),
+            "no try line promises an offline rehearsal: {}",
+            out.text
+        );
     }
 
     /// V5 · RAMS-4: bare = mock rehearsal · `self` = the example's own

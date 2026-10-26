@@ -8,7 +8,8 @@
 //! detection `doctor` diagnoses with · one truth, two voices), what this
 //! BINARY carries (counts DERIVED live from the embedded pack/catalog,
 //! never hardcoded — the born-stale law), and the three commands to run
-//! next (offline first · zero keys).
+//! next (the mock model first · zero keys; a step that fetches still
+//! reaches its host).
 //!
 //! Always offline (no `--ping` here — that stays doctor's opt-in), always
 //! exit `0` (a greeting is never a failure — even a bare machine gets

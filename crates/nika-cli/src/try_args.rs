@@ -65,8 +65,9 @@ pub(crate) fn listing(args: &TryArgs, plain_theme: Theme) -> Option<VerbOutput> 
         .then(|| verbs::examples::shelf_or_front(args.all, plain_theme))
 }
 
-/// The rehearsal half — the named example runs on its seat (offline
-/// mock by default · `--model self` keeps the file's own).
+/// The rehearsal half — the named example runs on its seat (the mock
+/// model by default, whose steps keep their real effects · `--model
+/// self` keeps the file's own).
 pub(crate) fn rehearse(args: &TryArgs, plain_theme: Theme) -> u8 {
     let Some(slug) = args.slug.as_deref() else {
         return verbs::exit::OK;

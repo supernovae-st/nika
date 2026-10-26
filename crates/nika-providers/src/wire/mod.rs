@@ -110,7 +110,7 @@ pub(crate) fn map_http_err(e: &HttpError) -> ProviderError {
                 "{reason}; check the provider endpoint and service, then use an authored \
                  retry.max_attempts with bounded backoff if appropriate. The provider may \
                  have generated or billed tokens before the interruption; missing usage \
-                 is unknown, not zero. For an offline rehearsal, choose mock/echo."
+                 is unknown, not zero. To rehearse without a model call, choose mock/echo."
             ),
         },
         HttpError::Timeout { .. } => ProviderError::Api {

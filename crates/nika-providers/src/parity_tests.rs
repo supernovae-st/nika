@@ -690,10 +690,12 @@ async fn every_wire_keeps_connection_failures_transient_and_streams_fused() {
                 "connection reset",
                 "retry.max_attempts",
                 "unknown, not zero",
-                "mock/echo",
+                "To rehearse without a model call, choose mock/echo.",
             ] {
                 assert!(message.contains(expected), "{id}: {message}");
             }
+            // #1605 · mock/echo replaces the model; a fetch step still reaches its host.
+            assert!(!message.contains("offline"), "{id}: {message}");
         }
     }
 }

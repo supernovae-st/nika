@@ -8,7 +8,7 @@
 #   - `expect` is REQUIRED and explicit — `{rc: 0}` for a green run,
 #     `{finding: CODE}` for an expected typed refusal (rc asserted non-zero).
 #   - `door: try` (default) drives `nika try <slug>` — the shipped showroom
-#     door, offline mock seat by default, fixtures materialized by the door
+#     door, mock seat by default (its fetches stay real), fixtures materialized by the door
 #     itself. `door: run` stages a scratch cwd (`kit:`), plants the example,
 #     and drives `nika run` — required when the row needs `--answer`
 #     (a human gate) since `try` carries no answer flag.
@@ -17,7 +17,8 @@
 #     (git init + one commit + a src/ file) · `cargo-project` (a minimal
 #     bin crate) · `spec-repo` (VERSION + CHANGELOG.md + schemas/).
 #   - `model: mock/echo` — the ONLY model this gate may name (hermetic law:
-#     zero keys · zero network · zero keychain). Passed to `run` as
+#     zero keys · zero keychain; the mock replaces the model, not the network,
+#     so a row still reaches its declared `permits.net.http` hosts). Passed to `run` as
 #     `--model`; `try` rows never carry the flag (the mock rehearsal seat is
 #     the default there).
 #   - `answers:` — pre-seeded gate answers (`--answer approve=true`).

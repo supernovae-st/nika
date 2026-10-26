@@ -157,17 +157,37 @@ pub(super) fn try_own_file_line(slug: &str) -> String {
     format!("rehearsal · {slug}. explore authoring skeletons: nika compile --list")
 }
 
-/// `nika try <slug>` — execute one EMBEDDED example through the
-/// real runtime (the pack ships offline · zero network for the exec/
-/// mock-model examples). Stages the embedded YAML to a temp file (the
-/// verb reads a path) and runs it.
-///
-/// `model_override` — `Some(m)` (from `--model m`) swaps the example's
-/// envelope model for `m` (so `--model mock/echo` previews offline). On a
-/// FAILED run with NO override, a rescue tip keyed on the failure KIND is
-/// printed to stderr (#145: the offline-model nudge for infer/provider
-/// failures · the real missing dependency for an exec `program not
-/// found`) · the original exit code is returned unchanged.
+/// The hosts a workflow's `permits.net.http` lets it reach, as declared
+/// (empty when the block or its `net:` category is absent).
+pub(crate) fn declared_hosts(wf: &nika_schema::raw::RawWorkflow) -> &[String] {
+    wf.permits
+        .as_ref()
+        .and_then(|permits| permits.value.net.as_ref())
+        .map(|net| net.http.as_slice())
+        .unwrap_or_default()
+}
+
+/// #1605 · the try card's network line, printed before the run:
+/// the mock seat replaces the model, never the network, so a rehearsal
+/// whose `permits.net.http` names hosts says which ones it may reach.
+/// `None` when the workflow declares no host or the seat is a real model
+/// (`--model <provider/model>` · `self` on a real `model:`): nothing there
+/// promises otherwise.
+pub(super) fn try_reach_line(
+    wf: &nika_schema::raw::RawWorkflow,
+    model_override: Option<&str>,
+) -> Option<String> {
+    let hosts = declared_hosts(wf);
+    let seat = model_override.or_else(|| wf.model.as_ref().map(|m| m.value.as_str()));
+    if hosts.is_empty() || !seat.is_some_and(|m| m.starts_with("mock/")) {
+        return None;
+    }
+    Some(format!(
+        "may reach: {} — the mock replaces the model, not the network",
+        hosts.join(" · ")
+    ))
+}
+
 /// Fold `try`'s `--answer` / `--resume` into the same request `run` builds.
 /// Relative resume paths pin to the operator cwd BEFORE the rehearsal
 /// room chdir, or a `--resume traces/t.ndjson` would look inside the temp
@@ -195,6 +215,19 @@ fn try_gate_request(
     })
 }
 
+/// `nika try <slug>` — execute one EMBEDDED example through the real
+/// runtime. The default seat is the mock model (zero keys · no model
+/// call); every other effect stays real, so a step that fetches still
+/// reaches its host and the try card names those hosts before the run
+/// (#1605). Stages the embedded YAML to a temp file (the verb reads a
+/// path) and runs it.
+///
+/// `model_override` — `Some(m)` (from `--model m`) swaps the example's
+/// envelope model for `m` (so `--model mock/echo` previews with no model
+/// call). On a FAILED run with NO override, a rescue tip keyed on the
+/// failure KIND is printed to stderr (#145: the mock-preview nudge for
+/// infer/provider failures · the real missing dependency for an exec
+/// `program not found`) · the original exit code is returned unchanged.
 #[must_use]
 #[allow(clippy::fn_params_excessive_bools)] // the run trio, verbatim (two switches)
 pub fn example(
@@ -208,7 +241,8 @@ pub fn example(
     theme: Theme,
 ) -> u8 {
     // V5 seat law (RAMS-4): the raw --model flag resolves here — bare =
-    // the offline mock rehearsal · `self` = the example's own seat.
+    // the mock rehearsal (no model call · other effects stay real) ·
+    // `self` = the example's own seat.
     let model_override = crate::verbs::examples::rehearsal_seat(model_flag);
     let Some(yaml) = nika_pack::example(slug) else {
         eprintln!("unknown example `{slug}` — bare `nika try` names the embedded set");
@@ -344,7 +378,7 @@ fn example_predisplay(slug: &str, yaml: &str, theme: Theme) {
 }
 
 /// The example's envelope `model:` string (empty when the YAML has no
-/// model or won't parse). Best-effort — drives only the offline-hint
+/// model or won't parse). Best-effort — drives only the mock-preview hint
 /// decision, never the run itself.
 fn example_model(yaml: &str) -> String {
     nika_schema::parse(
@@ -391,13 +425,15 @@ fn example_tip(
         return None;
     }
     // Infer/provider failures — the "no local model running" case: the
-    // offline preview is one flag away (the funnel's highest-intent P0).
+    // mock preview is the bare `nika try` (the funnel's highest-intent P0).
+    // It replaces the model only, so the tip never promises « offline »
+    // (#1605 · a step that fetches still reaches its host).
     if failure.code.starts_with("NIKA-INFER-") {
         if model.is_empty() || model == "mock/echo" {
             return None;
         }
         return Some(format!(
-            "tip: no local model running? preview this example offline →\n        nika try {slug}"
+            "tip: no local model running? preview this example on the mock model →\n        nika try {slug}"
         ));
     }
     // A missing program — name the REAL dependency (the ✖ line above
@@ -411,7 +447,7 @@ fn example_tip(
             .filter(|p| !p.is_empty());
         return Some(match program {
             Some(p) => format!(
-                "tip: this example shells out to `{p}` — not found on this machine;\n        install it, or browse offline-friendly examples → nika try"
+                "tip: this example shells out to `{p}` — not found on this machine;\n        install it, or browse the other examples → nika try"
             ),
             None => "tip: this example shells out to a program this machine does not \
                      have\n        (the ✖ line names it) — install it, or browse → nika try"
@@ -611,24 +647,30 @@ mod tests {
 
     /// The rescue-tip policy (pure · the heart of the UX decision) is
     /// keyed on the failure KIND (#145): only an infer/provider failure
-    /// earns the offline-model nudge; a missing program names the real
+    /// earns the mock-preview nudge; a missing program names the real
     /// dependency instead of suggesting a model swap that cannot fix it.
     #[test]
     fn example_tip_keys_on_the_failure_kind() {
         let infer = failed("NIKA-INFER-001", "provider call failed: model not found");
         // FAIL on infer + no override + a local model → the right nudge.
         let tip = example_tip("01-hello", &infer, false, "ollama/llama3.1")
-            .expect("the infer failure earns the offline nudge");
-        // V5: `try` is offline by default — the rescue line is the bare
-        // command again, no `--model` flag to teach.
+            .expect("the infer failure earns the mock-preview nudge");
+        // V5: `try` rehearses on the mock model by default — the rescue
+        // line is the bare command again, no `--model` flag to teach.
         assert!(tip.contains("nika try 01-hello"), "{tip}");
+        // #1605 · the mock replaces the model, not the network.
+        assert!(
+            tip.contains("preview this example on the mock model"),
+            "{tip}"
+        );
+        assert!(!tip.contains("offline"), "{tip}");
         // A clean run never needs the tip.
         let ok = RunVerdict::bare(exit::OK);
         assert!(example_tip("01-hello", &ok, false, "ollama/llama3.1").is_none());
         // The user already overrode the model · suggesting it again is noise.
         assert!(example_tip("01-hello", &infer, true, "ollama/llama3.1").is_none());
         // mock/echo needs no provider · a failure there is a real bug, not
-        // a missing local model — so the offline tip would mislead.
+        // a missing local model — so the mock-preview tip would mislead.
         assert!(example_tip("01-hello", &infer, false, "mock/echo").is_none());
         // No envelope model (a parse miss) · the nudge would mislead.
         assert!(example_tip("01-hello", &infer, false, "").is_none());
@@ -647,6 +689,13 @@ mod tests {
             !tip.contains("mock/echo"),
             "no model swap for a missing binary: {tip}"
         );
+        // #1605 · the shelf holds examples that fetch: none is
+        // « offline-friendly » by being on it.
+        assert!(
+            tip.contains("install it, or browse the other examples → nika try"),
+            "{tip}"
+        );
+        assert!(!tip.contains("offline"), "{tip}");
         // An unparseable exec message still teaches, generically.
         let vague = failed("NIKA-EXEC-002", "spawn refused");
         let tip = example_tip("03-exec-pipeline", &vague, false, "ollama/llama3.1")
@@ -687,6 +736,109 @@ mod tests {
         assert!(
             example_tip("01-hello", &belt, true, "mock/echo").is_none(),
             "first-shelf jobs have no recover hint"
+        );
+    }
+
+    fn parsed(yaml: &str) -> nika_schema::raw::RawWorkflow {
+        nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses")
+    }
+
+    /// #1605 · the mock seat replaces the model, never the
+    /// network: the try card names every `permits.net.http` host, in the
+    /// declared order, and says nothing when no host is declared or the
+    /// seat is a real model.
+    #[test]
+    fn the_try_card_names_the_hosts_a_mock_rehearsal_reaches() {
+        let fetch = parsed(
+            "nika: two-hosts\npermits:\n  tools: [\"nika:fetch\"]\n  net: { http: [\"nika.sh\", \"docs.nika.sh\"] }\ntasks:\n  page:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://nika.sh\" } }\n",
+        );
+        assert_eq!(declared_hosts(&fetch), ["nika.sh", "docs.nika.sh"]);
+        assert_eq!(
+            try_reach_line(&fetch, Some("mock/echo")).as_deref(),
+            Some(
+                "may reach: nika.sh · docs.nika.sh — the mock replaces the model, not the network"
+            )
+        );
+        assert_eq!(
+            try_reach_line(&fetch, Some("ollama/qwen3")),
+            None,
+            "a real seat promises nothing offline"
+        );
+        assert_eq!(
+            try_reach_line(&fetch, None),
+            None,
+            "`--model self` on a file with no model is no mock rehearsal"
+        );
+
+        let own_mock = parsed(
+            "nika: own-mock\nmodel: mock/echo\npermits:\n  tools: [\"nika:fetch\"]\n  net: { http: [\"nika.sh\"] }\ntasks:\n  page:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://nika.sh\" } }\n",
+        );
+        assert_eq!(
+            try_reach_line(&own_mock, None).as_deref(),
+            Some("may reach: nika.sh — the mock replaces the model, not the network"),
+            "`--model self` on a mock `model:` is still a mock rehearsal"
+        );
+
+        for quiet in [
+            "nika: no-permits\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
+            "nika: no-net\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
+            "nika: empty-net\npermits:\n  net: { http: [] }\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
+        ] {
+            let wf = parsed(quiet);
+            assert!(declared_hosts(&wf).is_empty(), "{quiet}");
+            assert_eq!(try_reach_line(&wf, Some("mock/echo")), None, "{quiet}");
+        }
+    }
+
+    /// The same law over the shipped shelf: every embedded example's try
+    /// card names exactly its declared hosts under the default seat, and
+    /// the measured #1605 cases read what they reach.
+    #[test]
+    fn every_shelf_example_names_exactly_its_declared_hosts() {
+        let seat = crate::verbs::examples::rehearsal_seat(None);
+        let mut named = 0;
+        for slug in nika_pack::example_slugs() {
+            let yaml = nika_pack::example(&slug).expect("listed slug embeds");
+            let wf = parsed(yaml);
+            let hosts = declared_hosts(&wf);
+            match try_reach_line(&wf, seat) {
+                Some(line) => {
+                    named += 1;
+                    assert_eq!(
+                        line,
+                        format!(
+                            "may reach: {} — the mock replaces the model, not the network",
+                            hosts.join(" · ")
+                        ),
+                        "{slug}"
+                    );
+                }
+                None => assert!(hosts.is_empty(), "{slug} declares {hosts:?} but names none"),
+            }
+        }
+        assert!(named > 0, "the shelf holds examples that fetch");
+        for (slug, want) in [
+            ("snippets/use-a-tool", "may reach: nika.sh"),
+            ("snippets/weekly-radar", "may reach: hnrss.org"),
+            (
+                "ceo-monday-brief",
+                "may reach: hn.algolia.com · hooks.slack.com",
+            ),
+        ] {
+            let wf = parsed(nika_pack::example(slug).expect("measured example ships"));
+            let line = try_reach_line(&wf, seat).expect("a fetching rehearsal names its hosts");
+            assert!(line.starts_with(&format!("{want} — ")), "{slug}: {line}");
+        }
+        let hello = parsed(nika_pack::example("01-hello").expect("hello ships"));
+        assert_eq!(
+            try_reach_line(&hello, seat),
+            None,
+            "01-hello declares no host"
         );
     }
 }
