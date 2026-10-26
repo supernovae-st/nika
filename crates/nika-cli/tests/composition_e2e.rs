@@ -751,3 +751,243 @@ fn a_root_timeout_destroys_a_pending_leaf_eight_levels_down() {
         "the destroyed leaf never wrote, a full leaf delay after the run returned"
     );
 }
+
+// ─── NIKA-SEC-009 across the composition wall (NIK-273) ─────────────────
+
+/// A child whose result is a subprocess's output: untrusted content, the
+/// same class an inline `exec:` is judged for.
+const BANNER_CHILD: &str = r#"
+nika: banner-child
+permits: { exec: ["echo"] }
+tasks:
+  banner:
+    exec: { command: ["echo", "a subprocess banner"] }
+outputs:
+  text: { value: "${{ tasks.banner.output }}", type: string }
+"#;
+
+/// The parent holds `exec: [echo]` for its child, reads a private note, and
+/// writes both into one file: private read + untrusted ingress + egress.
+const BANNER_PARENT: &str = r#"
+nika: banner-parent
+permits:
+  exec: ["echo"]
+  fs: { read: ["./note.txt"], write: ["./out/**"] }
+  tools: ["nika:read", "nika:write"]
+tasks:
+  call:
+    invoke: { workflow: "./child.nika" }
+    returns: { object: { text: string } }
+  note:
+    invoke: { tool: nika:read, args: { path: ./note.txt } }
+  leak:
+    with:
+      banner: ${{ tasks.call.output.text }}
+      note: ${{ tasks.note.output }}
+    invoke:
+      tool: nika:write
+      args: { path: ./out/leak.txt, content: "${{ with.banner }} | ${{ with.note }}" }
+"#;
+
+/// The same parent behind a blocking human gate that every path crosses, the
+/// write bound to the affirmative answer.
+const BANNER_PARENT_GATED: &str = r#"
+nika: banner-parent
+permits:
+  exec: ["echo"]
+  fs: { read: ["./note.txt"], write: ["./out/**"] }
+  tools: ["nika:read", "nika:write", "nika:prompt"]
+tasks:
+  ask:
+    invoke: { tool: nika:prompt, args: { message: "Write the banner and the note?" } }
+  call:
+    after: { ask: success }
+    invoke: { workflow: "./child.nika" }
+    returns: { object: { text: string } }
+  note:
+    after: { ask: success }
+    invoke: { tool: nika:read, args: { path: ./note.txt } }
+  leak:
+    with:
+      go: ${{ tasks.ask.output }}
+      banner: ${{ tasks.call.output.text }}
+      note: ${{ tasks.note.output }}
+    when: ${{ with.go == true }}
+    invoke:
+      tool: nika:write
+      args: { path: ./out/leak.txt, content: "${{ with.banner }} | ${{ with.note }}" }
+"#;
+
+/// NIK-273: untrusted content a CHILD brings in is an ingress for its caller.
+/// `check` refuses the ungated parent with the inline form's code, and `run`
+/// refuses through the same gate before any task: the write never happens.
+#[test]
+fn a_child_subprocess_reaching_a_parent_write_is_refused_before_any_effect() {
+    let dir = tmp_dir("comp-trifecta-refused");
+    write_fixture(&dir, "child.nika", BANNER_CHILD);
+    write_fixture(&dir, "note.txt", "a private note");
+    std::fs::create_dir_all(dir.join("out")).expect("out dir");
+    let parent = write_fixture(&dir, "parent.nika", BANNER_PARENT);
+    let parent = parent.to_str().expect("utf8");
+    let (code, text) = run_in(&dir, &["check", parent]);
+    assert_eq!(code, 2, "the trifecta is a file finding:\n{text}");
+    assert!(
+        text.contains("NIKA-SEC-009") && text.contains("`call` reaches egress task `leak`"),
+        "the composed source is named:\n{text}"
+    );
+    let (code, text) = run_in(&dir, &["run", parent]);
+    assert_eq!(code, 2, "run refuses through the same gate:\n{text}");
+    assert!(text.contains("NIKA-SEC-009"), "{text}");
+    assert!(
+        !dir.join("out").join("leak.txt").exists(),
+        "refused before any effect"
+    );
+}
+
+/// The gate clears the composed trifecta, and the run's trust gate agrees
+/// with the composed report (no false NIKA-1707): the answered run writes.
+#[test]
+fn a_gated_child_subprocess_runs_once_the_gate_is_answered() {
+    let dir = tmp_dir("comp-trifecta-gated");
+    write_fixture(&dir, "child.nika", BANNER_CHILD);
+    write_fixture(&dir, "note.txt", "a private note");
+    std::fs::create_dir_all(dir.join("out")).expect("out dir");
+    let parent = write_fixture(&dir, "parent.nika", BANNER_PARENT_GATED);
+    let parent = parent.to_str().expect("utf8");
+    let (code, text) = run_in(&dir, &["check", parent]);
+    assert_eq!(code, 0, "the gated composition is clean:\n{text}");
+    let (code, text) = run_in(&dir, &["run", parent, "--answer", "ask=true"]);
+    assert_eq!(code, 0, "the answered run settles green:\n{text}");
+    assert!(!text.contains("NIKA-1707"), "{text}");
+    let written = std::fs::read_to_string(dir.join("out").join("leak.txt")).expect("written");
+    assert!(
+        written.contains("a subprocess banner") && written.contains("a private note"),
+        "{written}"
+    );
+}
+
+/// DRIFT-001 must never advise removing a grant the parent holds for its
+/// child: the child's program and the read its subprocess makes run inside
+/// the parent's boundary (spec 14 law 3). A grant nothing uses still drifts.
+#[test]
+fn drift_never_advises_removing_a_grant_the_child_runs_on() {
+    let dir = tmp_dir("comp-drift");
+    let child = r#"
+nika: log-child
+permits: { exec: ["git"], fs: { read: ["./repo/**"] } }
+tasks:
+  log:
+    exec: { command: ["git", "-C", "./repo", "log", "--oneline", "-3"] }
+outputs:
+  log: { value: "${{ tasks.log.output }}", type: string }
+"#;
+    let parent = r#"
+nika: log-parent
+permits:
+  exec: ["git"]
+  fs: { read: ["./repo/**"] }
+  tools: ["nika:prompt", "nika:notify", "nika:glob"]
+  net: { http: ["hooks.example.com"] }
+tasks:
+  ask:
+    invoke: { tool: nika:prompt, args: { message: "Post the log?" } }
+  call:
+    after: { ask: success }
+    invoke: { workflow: "./child.nika" }
+    returns: { object: { log: string } }
+  ping:
+    with:
+      go: ${{ tasks.ask.output }}
+      log: ${{ tasks.call.output.log }}
+    when: ${{ with.go == true }}
+    invoke:
+      tool: nika:notify
+      args: { channel: webhook, target: "https://hooks.example.com/hook", message: "${{ with.log }}" }
+"#;
+    write_fixture(&dir, "child.nika", child);
+    let pp = write_fixture(&dir, "parent.nika", parent);
+    let (code, text) = run_in(&dir, &["check", pp.to_str().expect("utf8"), "--json"]);
+    assert_eq!(code, 0, "{text}");
+    let report: serde_json::Value = serde_json::from_str(&text).expect("check --json");
+    let drift: Vec<&str> = report["hints"]
+        .as_array()
+        .expect("hints")
+        .iter()
+        .filter(|h| h["kind"] == "drift")
+        .filter_map(|h| h["advice"].as_str())
+        .collect();
+    assert!(
+        !drift
+            .iter()
+            .any(|a| a.contains("`git`") || a.contains("./repo/**")),
+        "the child's grants are not dead: {drift:?}"
+    );
+    assert!(
+        drift.iter().any(|a| a.contains("`nika:glob`")),
+        "an entry nothing uses still drifts: {drift:?}"
+    );
+}
+
+/// The other half: the parent holds a subprocess's output and a private note
+/// and hands both to a child that writes them into one file.
+const DROP_CHILD: &str = r#"
+nika: drop-child
+permits:
+  tools: ["nika:write"]
+  fs: { write: ["./out/**"] }
+inputs:
+  page: { type: string, required: true }
+  note: { type: string, required: true }
+tasks:
+  leak:
+    invoke:
+      tool: nika:write
+      args: { path: ./out/leak.txt, content: "${{ inputs.page }} | ${{ inputs.note }}" }
+"#;
+
+const DROP_PARENT: &str = r#"
+nika: drop-parent
+permits:
+  exec: ["echo"]
+  fs: { read: ["./note.txt"], write: ["./out/**"] }
+  tools: ["nika:read", "nika:write"]
+tasks:
+  banner:
+    exec: { command: ["echo", "a subprocess banner"] }
+  note:
+    invoke: { tool: nika:read, args: { path: ./note.txt } }
+  send:
+    with:
+      banner: ${{ tasks.banner.output }}
+      note: ${{ tasks.note.output }}
+    invoke:
+      workflow: ./child.nika
+      args: { page: "${{ with.banner }}", note: "${{ with.note }}" }
+"#;
+
+/// NIK-273, egress half: a call whose child sends its arguments out is the
+/// sink the inline write would be. `check` refuses it and `run` writes nothing.
+#[test]
+fn a_child_writing_the_parents_untrusted_content_out_is_refused_before_any_effect() {
+    let dir = tmp_dir("comp-trifecta-egress");
+    write_fixture(&dir, "child.nika", DROP_CHILD);
+    write_fixture(&dir, "note.txt", "a private note");
+    std::fs::create_dir_all(dir.join("out")).expect("out dir");
+    let parent = write_fixture(&dir, "parent.nika", DROP_PARENT);
+    let parent = parent.to_str().expect("utf8");
+    let (code, text) = run_in(&dir, &["check", parent]);
+    assert_eq!(code, 2, "the trifecta is a file finding:\n{text}");
+    assert!(
+        text.contains("NIKA-SEC-009")
+            && text.contains("`banner` reaches egress task `send`")
+            && text.contains("task `leak` invokes `nika:write`"),
+        "the sink and the child task behind it are named:\n{text}"
+    );
+    let (code, text) = run_in(&dir, &["run", parent]);
+    assert_eq!(code, 2, "run refuses through the same gate:\n{text}");
+    assert!(text.contains("NIKA-SEC-009"), "{text}");
+    assert!(
+        !dir.join("out").join("leak.txt").exists(),
+        "refused before any effect"
+    );
+}

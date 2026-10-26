@@ -23,7 +23,10 @@
 //! the CLI hands `fs::read_to_string`). What one invocation judges: the
 //! ROOT's direct calls carry the full law set; the reachable closure is
 //! walked for acyclicity; a child's OWN direct calls are that child's
-//! check's to judge (each file answers for its own contract).
+//! check's to judge (each file answers for its own contract). The same walk
+//! then resolves each direct call's child contract for the ROOT's other
+//! lanes ([`super::composed_call`]): where untrusted content goes through
+//! the call (the trifecta) and which root grants it holds (drift).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -106,7 +109,7 @@ pub(super) fn scan_static(wf: &RawWorkflow) -> Vec<CompositionFinding> {
 }
 
 /// Why a target string is not statically resolvable — `None` = clean.
-fn static_target_defect(target: &str) -> Option<String> {
+pub(super) fn static_target_defect(target: &str) -> Option<String> {
     if target.contains("${{") {
         return Some(
             "the target is `${{ }}`-templated — a call graph you cannot draw \
@@ -164,18 +167,30 @@ fn static_target_defect(target: &str) -> Option<String> {
     None
 }
 
+/// What the resolved half learned: the lane's findings, and every direct
+/// call judged through its child for the caller's other lanes.
+pub(super) struct Resolved {
+    /// The FULL composition lane (static defects included).
+    pub(super) findings: Vec<CompositionFinding>,
+    /// Every direct `invoke: workflow:` call, in task order.
+    pub(super) calls: Vec<crate::ComposedCall>,
+}
+
 /// The RESOLVED half — walks the call graph through the injected reader.
 /// `root` is the parent workflow's own id (the path the caller loaded it
 /// from); relative targets resolve against each file's own directory.
 /// Returns the FULL lane (static defects included — one superset, so the
 /// caller replaces, never merges). With `files`, the project files of every
 /// child the walk loaded compose too, each from the child's own folder.
+/// The same walker then resolves each direct call's child contract
+/// ([`super::composed_call`]), after the files composed, so the walk adds
+/// no file to that composition.
 pub(super) fn scan_resolved_with(
     wf: &RawWorkflow,
     root: &str,
     read: &mut dyn FnMut(&str) -> Result<String, String>,
     files: Option<&mut ChildFiles<'_, '_>>,
-) -> Vec<CompositionFinding> {
+) -> Resolved {
     let mut out = scan_static(wf);
     let statically_bad: Vec<String> = out.iter().map(|f| f.target.clone()).collect();
     let parent_env = BTreeMap::new();
@@ -215,7 +230,11 @@ pub(super) fn scan_resolved_with(
             files.compose_child(id, child);
         }
     }
-    out
+    let calls = super::composed_call::resolve(wf, root, &mut walker);
+    Resolved {
+        findings: out,
+        calls,
+    }
 }
 
 /// [`scan_resolved_with`] without project files: the composition tests' seam.
@@ -225,7 +244,7 @@ pub(super) fn scan_resolved(
     root: &str,
     read: &mut dyn FnMut(&str) -> Result<String, String>,
 ) -> Vec<CompositionFinding> {
-    scan_resolved_with(wf, root, read, None)
+    scan_resolved_with(wf, root, read, None).findings
 }
 
 /// Everything one direct call is judged against (laws 1-resolve · 2 ·
@@ -241,7 +260,7 @@ struct JudgeCtx<'a> {
 }
 
 /// Parse-once cache + reader for the call-graph walk.
-struct GraphWalker<'a> {
+pub(super) struct GraphWalker<'a> {
     read: &'a mut dyn FnMut(&str) -> Result<String, String>,
     parsed: BTreeMap<String, RawWorkflow>,
     file_cap_hit: bool,
@@ -249,7 +268,7 @@ struct GraphWalker<'a> {
 
 impl GraphWalker<'_> {
     /// Resolve + parse one file id (memoized). `Err(detail)` = COMP-001.
-    fn load(&mut self, id: &str) -> Result<&RawWorkflow, String> {
+    pub(super) fn load(&mut self, id: &str) -> Result<&RawWorkflow, String> {
         if !self.parsed.contains_key(id) {
             if self.parsed.len() >= MAX_GRAPH_FILES {
                 self.file_cap_hit = true;
@@ -728,7 +747,7 @@ pub(super) fn folder_of(root: &str) -> String {
 
 /// Lexically resolve `target` against the DIRECTORY of `base` (both as
 /// the caller names them) — pure, no filesystem, `..`/`.` normalized.
-fn resolve_relative(base: &str, target: &str) -> String {
+pub(super) fn resolve_relative(base: &str, target: &str) -> String {
     if target.starts_with('/') {
         return normalize_path(target);
     }
@@ -746,7 +765,7 @@ fn resolve_relative(base: &str, target: &str) -> String {
 /// Lexical `.`/`..` normalization (never touches the filesystem — the
 /// SAME id two spellings of one path collapse to, so the cycle walk
 /// cannot be dodged with `./a/../a/child.yaml`).
-fn normalize_path(p: &str) -> String {
+pub(super) fn normalize_path(p: &str) -> String {
     let absolute = p.starts_with('/');
     let mut parts: Vec<&str> = Vec::new();
     for seg in p.split('/') {

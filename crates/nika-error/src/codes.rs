@@ -779,6 +779,24 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              link-local or metadata space is refused here, and so is a hop \
              to a loopback name the file did not declare.\n",
         ),
+        // NIK-273: the untrusted ingress may sit in a child workflow.
+        "NIKA-SEC-009" => Some(
+            "  A child workflow is judged through the task that calls it, as \
+             the tasks it stands for. The call is a source of untrusted \
+             content when content the child, or a workflow it calls, brings \
+             in (an `exec:`, an invoked `nika:fetch` or `mcp:` tool, an \
+             `agent:` whose `tools:` admit one) reaches its outputs or a file \
+             it writes. It is an egress task when untrusted content reaches an \
+             egress task inside it: content the child brings in, the call's \
+             arguments, or a file written before the call that a child \
+             `exec:` reads. The parent then needs a blocking `nika:prompt` of \
+             its own upstream of the call, as for the inline form; a gate \
+             inside the child is not credited to the caller. A child the \
+             check cannot read or resolve counts as such a source and such an \
+             egress task. `nika check <file>` and `nika run` read the \
+             children; a check of the source alone (an editor, the MCP \
+             `nika_check` tool) judges the parent's own tasks only.\n",
+        ),
         _ => None,
     }
 }
@@ -792,6 +810,27 @@ fn is_provider_code(code: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// NIK-273: the trifecta lesson says a child counts for its caller as a
+    /// source and as an egress task, that its own gate is not credited, that
+    /// an unresolvable child counts, and which checks read children (a
+    /// source-only check does not).
+    #[test]
+    fn the_trifecta_lesson_names_the_composed_ingress_and_its_reach() {
+        let help = spec_contract_help("NIKA-SEC-009").expect("teaches");
+        for lesson in [
+            "A child workflow is judged through the task that calls it",
+            "reaches its outputs or a file it writes",
+            "It is an egress task when untrusted content reaches an egress task inside it",
+            "the call's arguments",
+            "a gate inside the child is not credited to the caller",
+            "cannot read or resolve counts as such a source",
+            "`nika check <file>` and `nika run` read the children",
+            "the parent's own tasks only",
+        ] {
+            assert!(help.contains(lesson), "`{lesson}` missing: {help}");
+        }
+    }
 
     /// A value over a rehearsal room's bound teaches how to clear it, beside its cause.
     #[test]
