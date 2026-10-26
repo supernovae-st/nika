@@ -375,6 +375,52 @@ fn tts_enums_are_closed() {
     silent("nika:tts_generate", &json!({"provider": "system"}));
 }
 
+#[test]
+fn a_literal_system_voice_is_judged_the_way_its_run_judges_it() {
+    // The model IS the synthesizer: its program name, or nothing.
+    for model in ["say", "espeak-ng"] {
+        silent(
+            "nika:tts_generate",
+            &json!({"provider": "system", "model": model}),
+        );
+    }
+    assert!(
+        only(
+            "nika:tts_generate",
+            &json!({"provider": "system", "model": "kokoro"})
+        )
+        .contains("no model choice")
+    );
+    // A host voice name: never an option, never a path or a command.
+    for voice in [
+        "Samantha",
+        "Eddy (English (UK))",
+        "Amélie",
+        "en-us+f3",
+        "${{ v }}",
+    ] {
+        silent(
+            "nika:tts_generate",
+            &json!({"provider": "system", "voice": voice}),
+        );
+    }
+    for voice in ["-o", "say; rm", "a/b", "x\ny", "v".repeat(65).as_str()] {
+        assert!(
+            only(
+                "nika:tts_generate",
+                &json!({"provider": "system", "voice": voice})
+            )
+            .contains("not a host voice name"),
+            "{voice}"
+        );
+    }
+    // Other providers keep their own model and voice spaces.
+    silent(
+        "nika:tts_generate",
+        &json!({"provider": "openai", "model": "kokoro", "voice": "-o"}),
+    );
+}
+
 // ── nika:image_compose ───────────────────────────────────────────
 
 #[test]

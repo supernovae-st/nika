@@ -675,6 +675,35 @@ fn check_tts_generate_shape(args: Option<&serde_json::Value>, out: &mut Vec<Stri
     {
         out.push(format!("`timeout_ms: {n}` out of range — 1000..=600000"));
     }
+    if literal("provider") == Some("system") {
+        check_system_voice_shape(literal("model"), literal("voice"), out);
+    }
+}
+
+/// `provider: system` (stdlib §`nika:tts_generate`): no model choice — the
+/// model IS the host synthesizer (`say` · `espeak-ng`) — and a host voice
+/// NAME, never an option, a path or a command. The run refuses both `-001`;
+/// a literal is judged here first, so check and run agree.
+fn check_system_voice_shape(model: Option<&str>, voice: Option<&str>, out: &mut Vec<String>) {
+    if let Some(model) = model
+        && !matches!(model, "say" | "espeak-ng")
+    {
+        out.push(format!(
+            "`model: {model}` — provider: system has no model choice: it speaks through the \
+             host's synthesizer (say · espeak-ng); omit `model:`"
+        ));
+    }
+    let lawful = |c: char| {
+        c.is_alphanumeric() || matches!(c, ' ' | '(' | ')' | '-' | '_' | '.' | '+' | '\'')
+    };
+    if let Some(voice) = voice
+        && (voice.starts_with('-') || voice.chars().count() > 64 || !voice.chars().all(lawful))
+    {
+        out.push(format!(
+            "`voice: {voice}` is not a host voice name — letters, digits, space and \
+             ( ) - _ . + ' only, at most 64 characters, never a leading `-`"
+        ));
+    }
 }
 
 /// `nika:fetch` static contracts (stdlib §fetch + extract-modes-v0.1.md ·
