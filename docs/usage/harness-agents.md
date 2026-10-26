@@ -24,21 +24,31 @@ every such task as a `[harness]` hint (`nika explain harness`).
   only as message text, which Nika does not read).
 - Nika offers the harness no file or terminal methods. A harness that calls one
   anyway gets an error, never a fake success, and the refusal is journaled.
-- Nika asks codex-acp to report a turn it could not complete as a failure (its
-  `sessionFailure` extension). A rejected model or an exhausted retry limit
-  then fails the task with Codex's own error, instead of returning that error
-  as the answer. A harness without such a report still returns its error as
-  text, and Nika does not read answer text to guess a failure.
+- Nika asks the harness to report a turn it could not complete as a failure
+  (the `sessionFailure` extension, which codex-acp and claude-agent-acp
+  implement). A rejected model or an exhausted retry limit then fails the task
+  with the harness's own error, instead of returning that error as the answer.
+  A failure the harness offers to retry is transient (`NIKA-1804`, so `retry:`
+  may replay the task); one that asks you to sign in again reads as an expired
+  sign-in; any other is a refusal (`NIKA-1805`). A harness without such a
+  report still returns its error as text, and Nika does not read answer text
+  to guess a failure.
 
 **On every permission the harness asks** (journaled as `permit_checked`):
 
 - Inside your `permits:` grants: allowed once, never "allow always".
-- Outside them: the run pauses with the harness's question verbatim, followed
-  by the command it names when the title does not show it, and by the reason it
-  gives (`NIKA-1806`). Answer with `nika run --resume <trace> --answer <task>=true`
-  (or `false`). The harness is shut down at the pause; the resumed run starts
-  the task again in a new session, and your answer decides its first ask
-  outside the grants.
+- Outside them: the run pauses with the harness's question, followed by the
+  command it names unless the title shows it, and by the reason it gives
+  (`NIKA-1806`). The question is one line: control characters become spaces
+  and invisible ones (direction overrides, zero-width characters) are removed,
+  so the harness cannot rewrite or hide the line you answer. A title or
+  command over 2,000 bytes shows its beginning and its end around the number
+  of bytes left out and their SHA-256. Answer with
+  `nika run --resume <trace> --answer <task>=true` (or `false`). The harness
+  is shut down at the pause; the resumed run starts the task again in a new
+  session, and your answer decides its first ask outside the grants, once for
+  the task: an attempt that `retry:` replays never reuses it, so an ask outside
+  the grants there pauses again.
 - Paths are judged in your project's terms (`./out/**` matches the absolute path
   the harness names) and where the operating system will land: each path is
   walked from the root, component by component, through every symlink (a
@@ -105,9 +115,11 @@ Each harness `agent:` task journals, in order:
 - one `permit_checked` per ask, with decision `allow`, `deny` (your answer) or
   `escalate` (paused for you). Its gate names what was judged: `mcp · <server
   or tool call>` for an MCP tool approval, `network · <target>` for a network
-  ask, `sandbox · <widening>` for a sandbox widening, `sandbox · command` for a
-  Codex command that asks to leave its sandbox (the command and the reason in
-  its `why`),
+  ask, `sandbox · <widening>` for a sandbox widening (its `why` names the
+  command the widening is for), `sandbox · command` for a Codex command that
+  asks to leave its sandbox (the command and the reason in its `why`, whole up
+  to 16 KiB, then its beginning and end around the bytes left out and their
+  SHA-256),
   otherwise the ask's kind with its program or paths (an unresolvable path
   reads `<unresolved>`). A run paused on that question still journals the
   task's decisions, just before its `workflow_paused` frame;

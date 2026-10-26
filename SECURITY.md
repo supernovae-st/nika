@@ -85,7 +85,10 @@ Without a code `nika explain` resolves:
   a wider application sandbox, to run a command outside it (every command
   Codex asks about in `read-only`) or to approve one of the application's own
   MCP tool calls always pauses for the operator, even under
-  `permits.exec: true`. What the mode lets the application do without asking
+  `permits.exec: true`. The pause question is one line the application cannot
+  steer (controls and invisible characters removed) and names the command and
+  its reason; one `--answer` decides one ask for the task, never an ask in an
+  attempt `retry:` replays. What the mode lets the application do without asking
   is outside `permits:`: Codex, for one, reads any file and writes the project,
   `/tmp` and `$TMPDIR` inside its own sandbox. An action Nika allows runs under
   the application's own sandbox. `nika check`
