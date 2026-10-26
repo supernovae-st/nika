@@ -379,6 +379,23 @@ Diagnose-only + **print the exact fix command** (never auto-mutate):
   fix: nika completions zsh > ~/.zfunc/_nika
 ```
 
+The rows after `binary` name the executable itself (#1614). `running` gives
+its resolved path, `nika <version> (<commit>)` and the installer read from
+that path alone (`install.sh` · `homebrew` · `npm-global` · `npm-payload` ·
+`cargo` · `nix` · `release-dir` · `source-build`, else `unknown`). The
+first `path` row says what typing `nika` runs: this binary, the same build
+through another file (a launcher or a copy), or another build, which warns
+with its repair. Every other `nika` on PATH follows with the version it
+reports: each is asked `--version` concurrently under a two-second
+deadline, a copy that hangs is `unknown`, one that fails warns, and a
+relative PATH entry is listed but never executed. `--json` adds
+`running.{path,path_error,version,commit,installer,on_path,first_on_path}`
+and `others[]` (`path` · `resolved` · `installer` · `executable` ·
+`first_on_path` · `shadows_running` · `running_shadows_this` · `probe` ·
+`version` · `commit` · `same_build` · `order` · `detail`). `nika welcome`
+prints the same facts in one line under `this binary`, with an advisory
+when another build answers to `nika`, and carries the same two keys.
+
 `--fix` stays REFUSED v1 (auto-mutating PATH/shell config from a CLI is the
 class of magic we refuse; the printed command is the contract). Revisit only
 on repeated operator demand.
