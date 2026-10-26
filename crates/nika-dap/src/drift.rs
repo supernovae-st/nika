@@ -434,6 +434,7 @@ impl BodyUsage {
                     None => {}
                 }
                 self.eat_multipart_parts(a);
+                self.eat_secondary_reads(a);
             }
             RawAction::Agent(a) => {
                 if !a.tools.is_empty() {
@@ -466,6 +467,25 @@ impl BodyUsage {
                 offer(&mut self.hosts, url_host(tok));
             } else if tok.starts_with("${{") {
                 offer(&mut self.hosts, None);
+            }
+        }
+    }
+
+    /// The read slots the single `path_arg` leaves out
+    /// ([`nika_cap::secondary_read_slots`] · `nika:image_compose`'s
+    /// `inputs[]`): each literal input is a read the run needs, so the grant
+    /// covering it is a USE — never `declared-but-unused` advice that would
+    /// order the removal of a read the run requires (the gauntlet's C-D1
+    /// class). A templated list or element poisons the set: no claim.
+    fn eat_secondary_reads(&mut self, a: &RawInvokeAction) {
+        let Some(tool) = a.tool() else { return };
+        let args = a.args.as_ref().map(|s| &s.value);
+        for (_, value) in nika_cap::secondary_read_slots(&tool.value, args) {
+            match value.as_str() {
+                Some(p) if !p.is_empty() && !p.contains("${{") => {
+                    offer(&mut self.reads, Some(p.to_owned()));
+                }
+                _ => offer(&mut self.reads, None),
             }
         }
     }
@@ -1282,6 +1302,48 @@ mod tests {
     fn a_dynamic_multipart_part_poisons_the_read_set() {
         let advice = drifted(
             "nika: w\nconst:\n  p: \"./data/report.csv\"\npermits:\n  fs: { read: [\"./data/**\"] }\n  tools: [\"nika:fetch\"]\n  net: { http: [\"api.example.com\"] }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/up\", method: \"POST\", multipart: [{ name: \"file\", path: \"${{ const.p }}\" }] } }\n",
+        );
+        assert!(
+            !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
+            "{advice:?}"
+        );
+    }
+
+    /// The gauntlet's C-D1 class, never repeated: every `nika:image_compose`
+    /// input is a read the run needs, so the grant covering it is a use —
+    /// the drift scan must not advise removing it. The sheet's write is a
+    /// use of the write grant.
+    #[test]
+    fn image_compose_inputs_count_as_reads_and_out_as_a_write() {
+        let advice = drifted(
+            "nika: w\npermits:\n  tools: [\"nika:image_compose\"]\n  fs:\n    read: [\"./fx/**\"]\n    write: [\"./out/sheet.png\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:image_compose\", args: { inputs: [\"./fx/a.png\", \"./fx/b.png\"], out: \"./out/sheet.png\" } }\n",
+        );
+        assert!(
+            !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
+            "the read the inputs need is never drift: {advice:?}"
+        );
+        assert!(
+            !advice
+                .iter()
+                .any(|a| a.contains("`permits.fs.write` entry")),
+            "{advice:?}"
+        );
+        // A read entry no input touches is still named.
+        let spare = drifted(
+            "nika: w\npermits:\n  tools: [\"nika:image_compose\"]\n  fs:\n    read: [\"./fx/**\", \"./private/**\"]\n    write: [\"./out/sheet.png\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:image_compose\", args: { inputs: [\"./fx/a.png\"], out: \"./out/sheet.png\" } }\n",
+        );
+        assert!(
+            spare.iter().any(|a| a.contains("`./private/**`")),
+            "{spare:?}"
+        );
+        assert!(!spare.iter().any(|a| a.contains("`./fx/**`")), "{spare:?}");
+    }
+
+    /// A templated input list hides the read set: no claim, never wrong.
+    #[test]
+    fn a_dynamic_image_compose_list_poisons_the_read_set() {
+        let advice = drifted(
+            "nika: w\nconst:\n  frames: [\"./frames/a.png\"]\npermits:\n  tools: [\"nika:image_compose\"]\n  fs:\n    read: [\"./frames/**\"]\n    write: [\"./out/sheet.png\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:image_compose\", args: { inputs: \"${{ const.frames }}\", out: \"./out/sheet.png\" } }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),

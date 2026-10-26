@@ -64,10 +64,11 @@ pub enum BuiltinEffect {
 /// Filesystem directions every valid call needs, independent of chosen paths.
 /// The pair is `(reads, writes)`. Optional input/idempotence reads are excluded.
 /// Unlike the single-path [`builtin_effect`] projection, `image_fx` requires a
-/// read of `input` AND a write of `out`; neither direction refers to both paths.
+/// read of `input` AND a write of `out`, and `image_compose` a read of every
+/// `inputs[]` path AND a write of `out`; neither direction refers to both paths.
 #[must_use]
 pub fn required_fs_directions(tool: &str) -> Option<(bool, bool)> {
-    if tool == "nika:image_fx" {
+    if matches!(tool, "nika:image_fx" | "nika:image_compose") {
         return Some((true, true));
     }
     match builtin_effect(tool, None) {
@@ -265,8 +266,11 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
         // · one path_arg per effect); chart was INVISIBLE here until
         // 2026-07-11 — the inference wrote a boundary the run then
         // refused (the self-refusing class); its `compile_to` vega
-        // sibling rides `chart_vl_sibling`.
-        "nika:image_fx" | "nika:chart" => Some(BuiltinEffect::Fs {
+        // sibling rides `chart_vl_sibling`. image_compose's reads are NOT
+        // left to the run: every `inputs[]` path rides
+        // [`secondary_read_slots`], so the check, the inference and the
+        // drift scan judge them (the gauntlet's C-D1 gap, not repeated).
+        "nika:image_fx" | "nika:chart" | "nika:image_compose" => Some(BuiltinEffect::Fs {
             path_arg: "out",
             reads: false,
             writes: true,
@@ -381,12 +385,39 @@ fn notify_webhook_channel(args: Option<&serde_json::Value>) -> bool {
     }
 }
 
+/// The READ slots of one call that [`builtin_effect`]'s single `path_arg`
+/// leaves out, each as `(slot name, raw value)`: `nika:image_compose`'s
+/// ordered `inputs[k]`. A present `inputs` that is not a list (a templated
+/// `${{ }}` list, or a malformed value) is ONE slot named `inputs`, so a
+/// consumer can never mistake a hidden read set for an empty one: it reads
+/// a templated string as dynamic, never as a path. Every other tool has
+/// none — their extra reads stay where their owners put them.
+#[must_use]
+pub fn secondary_read_slots<'a>(
+    tool: &str,
+    args: Option<&'a serde_json::Value>,
+) -> Vec<(String, &'a serde_json::Value)> {
+    if tool != "nika:image_compose" {
+        return Vec::new();
+    }
+    match args.and_then(|a| a.get("inputs")) {
+        Some(serde_json::Value::Array(items)) => items
+            .iter()
+            .enumerate()
+            .map(|(k, value)| (format!("inputs[{k}]"), value))
+            .collect(),
+        Some(other) => vec![("inputs".to_owned(), other)],
+        None => Vec::new(),
+    }
+}
+
 /// Every filesystem argument of one call of `tool` with `args` that is not bound to the calling
 /// task's own stated reach. Read slots (`read`/`grep` `path`, `glob` `pattern`, `decide` `bundle`
-/// when it is a string, `image_fx` `input`, `chart` `data.path`, `image_generate` `image`, each
-/// `images[]` element and `mask`, each `fetch` `multipart[].path`) must equal one of `reads`;
-/// write slots (`write` `path`, `chart`/`image_fx` `out`, `image_generate`/`tts_generate`
-/// `output_dir`) one of `writes`; a slot whose effect both reads and writes (`edit` `path`) must
+/// when it is a string, `image_fx` `input`, each `image_compose` `inputs[]` element, `chart`
+/// `data.path`, `image_generate` `image`, each `images[]` element and `mask`, each `fetch`
+/// `multipart[].path`) must equal one of `reads`; write slots (`write` `path`,
+/// `chart`/`image_fx`/`image_compose` `out`, `image_generate`/`tts_generate` `output_dir`) one of
+/// `writes`; a slot whose effect both reads and writes (`edit` `path`) must
 /// be in both. Primary slots and their directions come from [`builtin_effect`]; the secondary
 /// slots it leaves out (one `path_arg` per effect) are listed here, at the same owner.
 ///
@@ -442,6 +473,15 @@ pub fn unbound_fs_args(
                 slot("input", value, true, false);
             }
         }
+        "nika:image_compose" => match get("inputs") {
+            Some(serde_json::Value::Array(_)) => {
+                for (name, value) in secondary_read_slots(tool, args) {
+                    slot(&name, value, true, false);
+                }
+            }
+            Some(_) => out.push(malformed("inputs", "an array of literal paths")),
+            None => {}
+        },
         "nika:chart" => match get("data") {
             Some(serde_json::Value::Object(data)) => match data.get("path") {
                 Some(value) => slot("data.path", value, true, false),
@@ -833,6 +873,88 @@ mod tests {
                 other => panic!("{tool} must declare an Fs write · got {other:?}"),
             }
         }
+    }
+
+    /// `nika:image_compose`: the primary effect is the `out` write, every
+    /// `inputs[]` path is a STATIC read slot (never left to the run), and the
+    /// call needs both directions.
+    #[test]
+    fn image_compose_models_every_input_as_a_read_and_out_as_a_write() {
+        assert_eq!(
+            builtin_effect("nika:image_compose", None),
+            Some(BuiltinEffect::Fs {
+                path_arg: "out",
+                reads: false,
+                writes: true,
+                recursive: false,
+                walk_root: false,
+            })
+        );
+        assert_eq!(
+            required_fs_directions("nika:image_compose"),
+            Some((true, true))
+        );
+        assert!(builtin_egresses("nika:image_compose"), "a write is egress");
+        let args = json!({"inputs": ["./a.png", "${{ with.b }}", 7], "out": "./s.png"});
+        let slots: Vec<(String, serde_json::Value)> =
+            secondary_read_slots("nika:image_compose", Some(&args))
+                .into_iter()
+                .map(|(name, v)| (name, v.clone()))
+                .collect();
+        assert_eq!(
+            slots,
+            vec![
+                ("inputs[0]".to_owned(), json!("./a.png")),
+                ("inputs[1]".to_owned(), json!("${{ with.b }}")),
+                ("inputs[2]".to_owned(), json!(7)),
+            ]
+        );
+        // A whole templated list is ONE dynamic slot, never an empty set.
+        let templated = json!({"inputs": "${{ with.frames }}", "out": "./s.png"});
+        let one = secondary_read_slots("nika:image_compose", Some(&templated));
+        assert_eq!(one.len(), 1);
+        assert_eq!(one[0].0, "inputs");
+        // Every other tool keeps its reads where its owner put them.
+        for tool in [
+            "nika:image_fx",
+            "nika:chart",
+            "nika:read",
+            "nika:image_generate",
+        ] {
+            assert!(secondary_read_slots(tool, Some(&args)).is_empty(), "{tool}");
+        }
+    }
+
+    #[test]
+    fn image_compose_inputs_and_out_bind_to_the_stated_reach() {
+        let reads = stated(&["./a.png", "./b.png"]);
+        let writes = stated(&["./out/s.png"]);
+        let lawful = json!({"inputs": ["./a.png", "b.png"], "out": "./out/s.png"});
+        assert_eq!(
+            unbound_fs_args("nika:image_compose", Some(&lawful), &reads, &writes),
+            Vec::<String>::new()
+        );
+        let stray = json!({"inputs": ["./a.png", "./zq-canary.png"], "out": "./out/s.png"});
+        let found = unbound_fs_args("nika:image_compose", Some(&stray), &reads, &writes);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(
+            found[0].contains("`inputs[1]`") && found[0].contains("its reads"),
+            "{found:?}"
+        );
+        assert!(
+            !found[0].contains("zq-canary"),
+            "the value is never repeated"
+        );
+        // An input read is never satisfied by a write grant.
+        let swapped = json!({"inputs": ["./out/s.png"], "out": "./out/s.png"});
+        let found = unbound_fs_args("nika:image_compose", Some(&swapped), &reads, &writes);
+        assert!(found.iter().any(|f| f.contains("`inputs[0]`")), "{found:?}");
+        let templated = json!({"inputs": "${{ with.frames }}", "out": "./out/s.png"});
+        let found = unbound_fs_args("nika:image_compose", Some(&templated), &reads, &writes);
+        assert!(found.iter().any(|f| f.contains("`inputs`")), "{found:?}");
+        let out = json!({"inputs": ["./a.png"], "out": "./elsewhere.png"});
+        let found = unbound_fs_args("nika:image_compose", Some(&out), &reads, &writes);
+        assert!(found.iter().any(|f| f.contains("`out`")), "{found:?}");
     }
 
     fn stated(paths: &[&str]) -> Vec<String> {

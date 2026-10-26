@@ -379,6 +379,39 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &nika_schema::raw::Raw
     if let Some(vl) = chart_vl_sibling(a) {
         c.writes.insert(vl);
     }
+    collect_secondary_reads(c, id, a);
+}
+
+/// The READ slots the single `path_arg` leaves out (`nika:image_compose`'s
+/// `inputs[]`): every judgeable path is a read the boundary grants — the
+/// same seam the escape scan judges, so the printed block never refuses the
+/// file it came from — and a hidden one names the fs face partial.
+fn collect_secondary_reads(c: &mut Collector, id: &str, a: &nika_schema::raw::RawInvokeAction) {
+    let Some(tool) = a.tool() else { return };
+    for (_, value) in nika_cap::secondary_read_slots(&tool.value, a.args.as_ref().map(|s| &s.value))
+    {
+        match super::permits_fit::judgeable_value(&c.consts, value) {
+            Some(path) if path_escapes_workspace(&path) => {
+                c.partial.fs = true;
+                c.notes.push(format!(
+                    "task `{id}` reads `{path}` — that path escapes the workspace, so no \
+                     `permits.fs` entry is inferred (point the task at a workspace-relative \
+                     path; widening the boundary toward a host file is a deliberate operator \
+                     choice, never the printed repair)"
+                ));
+            }
+            Some(path) => {
+                c.reads.insert(path);
+            }
+            None => {
+                c.partial.fs = true;
+                c.notes.push(format!(
+                    "task `{id}` uses a dynamic path — `fs` cannot express 'any path'; \
+                     add the resolved path(s) before running"
+                ));
+            }
+        }
+    }
 }
 
 /// Record a builtin fs effect, or an honesty note if the path is dynamic
@@ -810,6 +843,41 @@ tasks:
         assert!(r.permits.fs.is_none() && r.permits.net.is_none());
         assert!(r.permits.tools.is_none());
         assert!(r.notes.is_empty());
+    }
+
+    /// Every literal `nika:image_compose` input is a read the inferred
+    /// boundary grants, and `out:` the write (the C-D1 gap — a read check
+    /// never modelled — is not repeated for the composition).
+    #[test]
+    fn image_compose_infers_each_input_as_a_read_and_out_as_a_write() {
+        let yaml = "nika: w\ntasks:\n  s:\n    invoke: { tool: \"nika:image_compose\", args: { inputs: [\"./fx/a.png\", \"./fx/b.png\"], out: \"./out/sheet.png\" } }\n";
+        let r = infer_of(yaml);
+        let fs = r.permits.fs.as_ref().expect("fs");
+        assert_eq!(fs.read, vec!["./fx/a.png", "./fx/b.png"]);
+        assert_eq!(fs.write, vec!["./out/sheet.png"]);
+        assert!(r.notes.is_empty(), "every path was literal: {:?}", r.notes);
+        assert_round_trips_clean(yaml);
+    }
+
+    /// A templated list hides the read set: the fs face is named partial,
+    /// never inferred empty.
+    #[test]
+    fn a_templated_image_compose_list_marks_fs_partial() {
+        let r = infer_of(
+            "nika: w\nconst:\n  frames: [\"./fx/a.png\"]\ntasks:\n  s:\n    invoke: { tool: \"nika:image_compose\", args: { inputs: \"${{ const.frames }}\", out: \"./out/sheet.png\" } }\n",
+        );
+        assert!(r.partial.fs, "a hidden read set is a partial fs face");
+        assert!(
+            r.notes
+                .iter()
+                .any(|n| n.contains("`s`") && n.contains("dynamic path")),
+            "{:?}",
+            r.notes
+        );
+        assert_eq!(
+            r.permits.fs.as_ref().expect("fs").write,
+            vec!["./out/sheet.png"]
+        );
     }
 
     #[test]
