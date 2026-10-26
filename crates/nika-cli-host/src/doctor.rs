@@ -246,8 +246,8 @@ fn provider_findings(probe: &Probe, out: &mut Vec<Finding>) {
 }
 
 /// Operator-visible mint. Same recipe `nika serve --bind` prints.
-const SERVE_TOKEN_MINT: &str =
-    "umask 077 && openssl rand -hex 24 > .nika/serve.token && chmod 600 .nika/serve.token";
+const SERVE_TOKEN_MINT: &str = "umask 077 && mkdir -p .nika && openssl rand -hex 24 > .nika/serve.token \
+     && chmod 600 .nika/serve.token";
 
 /// HTTP door readiness. Silent when the cwd has no token file — the
 /// door is opt-in. Never claims TLS: this process does not terminate it.

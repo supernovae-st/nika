@@ -116,7 +116,7 @@ pub(super) fn foreign(key: &str) -> Option<&'static str> {
              and pure ORDERING rides `after: { a: success }` (spec 03 §the flow · \
              `depends_on:` is the same key under its other name)",
         ),
-        "uses" | "steps" | "jobs" | "script" => Some(
+        "uses" | "steps" | "jobs" => Some(
             "a task body is one of the four verbs — `infer:` · `exec:` · `invoke:` · \
              `agent:` — and there is no action-reference field; a reusable unit is \
              another workflow, called with `invoke: { workflow: ./child.nika }` \
@@ -132,6 +132,32 @@ pub(super) fn foreign(key: &str) -> Option<&'static str> {
             "`invoke:` takes `args:` (a map), not `params:` — the live dialect \
              is `invoke: { tool: nika:fetch, args: { url: \"https://example.com\" } }` \
              (spec 03 §invoke)",
+        ),
+        // The one-call dialects (#1622): a model call, an HTTP call, a shell
+        // line or a tool call written straight on the task. Each field is
+        // real — it lives one level down, inside the verb that owns it.
+        "prompt" | "max_tokens" | "system" => Some(
+            "a model call is the `infer:` verb and this field lives inside it — \
+             `infer: { prompt: \"…\", max_tokens: 400 }` (`system:` sits beside them)",
+        ),
+        "http" | "url" | "method" | "request" => Some(
+            "an HTTP call is the `nika:fetch` tool, called by `invoke:` — \
+             `invoke: { tool: nika:fetch, args: { url: \"https://example.com\", method: GET } }`",
+        ),
+        "command" | "shell" => Some(
+            "a process is the `exec:` verb and this field lives inside it — \
+             `exec: { command: [prog, arg] }` (argv) or `exec: { shell: \"…\" }` \
+             (one shell line), plus `permits.exec` naming the program",
+        ),
+        // GitLab CI's `script:` is a shell step, not an action reference.
+        "script" => Some(
+            "a script is the `exec:` verb — `exec: { shell: \"…\" }` (one shell line) \
+             or `exec: { command: [prog, arg] }` (argv), plus `permits.exec` naming \
+             the program",
+        ),
+        "tool" | "args" => Some(
+            "a tool call is the `invoke:` verb — `tool:` and `args:` nest inside it: \
+             `invoke: { tool: nika:fetch, args: { url: \"https://example.com\" } }`",
         ),
         // Airflow's task vocabulary (#1402 · the rival-tool persona renamed
         // its way through every refusal that named a replacement and
@@ -341,6 +367,67 @@ mod tests {
             !noise.contains("ENVELOPE") && !noise.contains("four verbs"),
             "an ordinary unknown key gains no teaching · {noise}"
         );
+    }
+
+    /// #1622 · a task-level key from another workflow dialect names the
+    /// verb that owns it. Measured on 0.123.2: `prompt:`, `http:`,
+    /// `command:` and `tool:` at task level drew only the bare field list,
+    /// so a first-minute author learned the column was wrong and nothing
+    /// about where the field lives, and `script:` drew the composition
+    /// teaching although GitLab's `script:` is a shell step. The repairers
+    /// find the field list by its own prefix, so the teaching leads and the
+    /// list still follows.
+    #[test]
+    fn dialect_task_keys_name_the_verb_that_owns_them() {
+        let sees = |body: &str| {
+            let yaml = format!("nika: w\ntasks:\n  t:\n{body}");
+            parse(&yaml, FileId::new(0), ParseMode::Strict)
+                .expect_err("a dialect key at task level refuses")
+                .to_string()
+        };
+        let prompt = sees("    prompt: \"Write a haiku\"\n    max_tokens: 40\n");
+        assert!(
+            prompt.contains("infer:"),
+            "`prompt:` names `infer:` · {prompt}"
+        );
+        let http = sees("    http:\n      url: https://example.com\n      method: GET\n");
+        assert!(
+            http.contains("nika:fetch") && http.contains("invoke:"),
+            "`http:` names `invoke:` over `nika:fetch` · {http}"
+        );
+        let command = sees("    command: \"ls -la\"\n");
+        assert!(
+            command.contains("exec:"),
+            "`command:` names `exec:` · {command}"
+        );
+        // GitLab CI's `script:` is a shell step, not an action reference:
+        // the teaching names `exec:` and its permit, never composition.
+        let script = sees("    script: \"echo hi\"\n");
+        assert!(
+            script.contains("exec: { shell:") && script.contains("permits.exec"),
+            "`script:` names `exec:` and `permits.exec` · {script}"
+        );
+        assert!(
+            !script.contains("action-reference"),
+            "`script:` is not taught as composition · {script}"
+        );
+        let tool = sees("    tool: nika:fetch\n    args: { url: \"https://example.com\" }\n");
+        assert!(
+            tool.contains("invoke:"),
+            "`tool:` nests inside `invoke:` · {tool}"
+        );
+        for (key, taught) in [
+            ("prompt", &prompt),
+            ("http", &http),
+            ("command", &command),
+            ("script", &script),
+            ("tool", &tool),
+        ] {
+            assert!(
+                taught.contains("the fields here:"),
+                "`{key}:` keeps the field list behind the teaching · {taught}"
+            );
+        }
     }
 
     /// EVERY key the fourteen-key era shipped teaches where its role went

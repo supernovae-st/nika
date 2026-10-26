@@ -177,6 +177,32 @@ fn unconsumed_infer_is_dead_spend() {
     assert!(!h2.iter().any(|x| x.kind == "dead-spend"), "{h2:?}");
 }
 
+/// A `${{ group.<name> }}` fold reads every task that declares `group:
+/// <name>` — the same membership the DAG folds. Measured on 0.123.2: both
+/// members drew `[dead-spend]` while `fold` read them through the group.
+#[test]
+fn group_members_read_by_a_fold_are_not_dead_spend() {
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  a:\n    group: legs\n    infer: { prompt: \"say a\", max_tokens: 16 }\n  b:\n    group: legs\n    infer: { prompt: \"say b\", max_tokens: 16 }\n  fold:\n    with:\n      legs: ${{ group.legs }}\n    infer: { prompt: \"combine ${{ with.legs }}\", max_tokens: 32 }\noutputs:\n  fold: ${{ tasks.fold.output }}\n",
+    );
+    assert!(
+        !h.iter()
+            .any(|x| x.kind == "dead-spend" && (x.task == "a" || x.task == "b")),
+        "a group member read by a fold is consumed: {h:?}"
+    );
+    // Control: a third infer outside the group, read by nobody, still
+    // spends unread tokens — exactly one hint, on that task.
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  a:\n    group: legs\n    infer: { prompt: \"say a\", max_tokens: 16 }\n  b:\n    group: legs\n    infer: { prompt: \"say b\", max_tokens: 16 }\n  stray:\n    infer: { prompt: \"say c\", max_tokens: 16 }\n  fold:\n    with:\n      legs: ${{ group.legs }}\n    infer: { prompt: \"combine ${{ with.legs }}\", max_tokens: 32 }\noutputs:\n  fold: ${{ tasks.fold.output }}\n",
+    );
+    let dead: Vec<&str> = h
+        .iter()
+        .filter(|x| x.kind == "dead-spend")
+        .map(|x| x.task.as_str())
+        .collect();
+    assert_eq!(dead, ["stray"], "{h:?}");
+}
+
 /// The first-day trap, taught where it is born: `outputs.r: ${{
 /// tasks.a }}` binds the ENVELOPE — the hint names the output, the
 /// task, the drift, and the fix; the contradictory dead-spend voice

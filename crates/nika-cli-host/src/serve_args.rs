@@ -107,7 +107,8 @@ pub struct ServeArgs {
     #[arg(long)]
     pub allow_remote: bool,
     /// Owner-only Bearer file (32–512 visible ASCII bytes, mode 0600). Never argv.
-    /// Mint: umask 077 && openssl rand -hex 24 > .nika/serve.token && chmod 600 .nika/serve.token
+    /// Mint: umask 077 && mkdir -p .nika && openssl rand -hex 24 > .nika/serve.token
+    /// && chmod 600 .nika/serve.token
     #[arg(long, value_name = "FILE")]
     pub token_file: Option<PathBuf>,
     /// Durable job-state root. Defaults to `<cwd>/.nika/serve`.

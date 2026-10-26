@@ -346,9 +346,12 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              `# yaml-language-server:` modeline",
         ),
         "NIKA-PARSE-005" => Some(
-            "the field is not in the closed envelope — check the spelling \
-             against `nika spec --schema` (the did-you-mean in the finding \
-             usually names it); custom prose is a `#` comment above `nika:`",
+            "the field is not in the closed envelope — the finding lists the \
+             fields valid at that column (`the fields here: …`) and its \
+             did-you-mean names a near spelling. A key from another dialect \
+             lives inside a verb: `prompt:` → `infer:` · `http:` → `invoke:` \
+             with `tool: nika:fetch` · `command:` / `script:` → `exec:` · `tool:` → \
+             `invoke:`. Custom prose is a `#` comment above `nika:`",
         ),
         "NIKA-PARSE-019" => Some(
             "the field's YAML SHAPE is wrong (a string where a list goes, a \
@@ -813,6 +816,25 @@ mod tests {
         assert!(
             !out.text.contains("description:"),
             "description: is dead:\n{}",
+            out.text
+        );
+    }
+
+    #[test]
+    fn parse_005_teaches_the_column_not_the_schema() {
+        // #1622: a first-minute author sent to `nika spec --schema` reads a
+        // JSON Schema to learn what the finding already listed. The fix names
+        // the listed column and maps the dialect keys to their verbs.
+        let out = run("NIKA-PARSE-005");
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(
+            out.text.contains("infer:") && out.text.contains("nika:fetch"),
+            "names the verbs that own the dialect keys:\n{}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("nika spec --schema"),
+            "the schema dump is not the fix:\n{}",
             out.text
         );
     }

@@ -241,7 +241,12 @@ fn key_rung(key_row: Option<&KeyRow>) -> Rung {
         available: key_row.is_some(),
         ready: key_row.is_some(),
         reason: match key_row {
-            Some(k) => format!("{} is set · ready now · billed per run", k.env),
+            // Set, not checked: nothing on this path dials the vendor, and
+            // `doctor --ping` probes only local ports (#1619).
+            Some(k) => format!(
+                "{} is set · not checked until the first call · billed per run",
+                k.env
+            ),
             None => "a vendor key on this computer".to_owned(),
         },
     }

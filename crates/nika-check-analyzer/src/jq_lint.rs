@@ -33,17 +33,100 @@ use nika_schema::raw::{RawAction, RawWorkflow};
 
 use crate::static_ref::{bare_static_ref, static_literal_of};
 
-/// Compile-check a jq program with the runtime's exact jaq stack. `Ok(())`
-/// when it compiles; `Err(reason)` with a clean one-line message otherwise.
-pub(super) fn jq_compiles(program: &str) -> Result<(), String> {
+/// Compile-check a jq program with the runtime's exact jaq stack, with `vars` bound as global
+/// variables beside the run-start one (`$name` spellings, as the run binds them). `Ok(())` when
+/// it compiles; `Err(reason)` with a clean one-line message otherwise.
+pub(super) fn jq_compiles(program: &str, vars: &[String]) -> Result<(), String> {
+    compile(program, vars).map_err(Refusal::reason)
+}
+
+/// Why a jq program does not compile: it does not load, or it reads names nothing defines.
+enum Refusal {
+    /// A lex, parse or io failure, already rendered as one line.
+    Load(String),
+    /// The undefined filters and variables, in the compiler's order (a variable keeps its `$`).
+    Undefined(Vec<String>),
+}
+
+impl Refusal {
+    fn reason(self) -> String {
+        match self {
+            Self::Load(reason) => reason,
+            Self::Undefined(names) => render_undefined(&names),
+        }
+    }
+}
+
+/// The variables the run binds for a jq program, as far as the check can know them.
+enum Bindings {
+    /// The exact set (empty when the run binds none).
+    Known(Vec<String>),
+    /// An `input:` only the run builds: an object there binds keys the check cannot see.
+    AtRun,
+}
+
+/// The variables `nika:jq` binds at run from its `input:` (`nika-builtin` `data::jq`
+/// `input_variables`): each key of an object input that is a jq identifier, as `$<key>`, never
+/// the run-start name. A templated input is an object only the run builds. `nika:fetch`
+/// `mode: jq` binds none.
+fn bindings(tool: &str, args: &serde_json::Value) -> Bindings {
+    if tool != "nika:jq" {
+        return Bindings::Known(Vec::new());
+    }
+    match args.get("input") {
+        Some(serde_json::Value::Object(fields)) => Bindings::Known(
+            fields
+                .keys()
+                .filter(|key| is_jq_identifier(key))
+                .map(|key| format!("${key}"))
+                .filter(|name| name != nika_cap::JQ_RUN_START_VAR)
+                .collect(),
+        ),
+        Some(serde_json::Value::String(text)) if text.contains("${{") => Bindings::AtRun,
+        _ => Bindings::Known(Vec::new()),
+    }
+}
+
+/// The runtime's rule for a key that binds (`nika-builtin` `data::is_jq_identifier`, mirrored
+/// across the layer boundary like the compile call itself).
+fn is_jq_identifier(key: &str) -> bool {
+    let mut chars = key.chars();
+    chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// Compile-check a program whose `input:` only the run builds: every name it reads must be
+/// defined, except a `$name` the run's object input may bind.
+fn compiles_but_for_run_variables(program: &str) -> Result<(), String> {
+    match compile(program, &[]) {
+        Err(Refusal::Undefined(names)) => {
+            let names: Vec<String> = names
+                .into_iter()
+                .filter(|name| !name.starts_with('$'))
+                .collect();
+            if names.is_empty() {
+                Ok(())
+            } else {
+                Err(render_undefined(&names))
+            }
+        }
+        other => other.map_err(Refusal::reason),
+    }
+}
+
+fn compile(program: &str, vars: &[String]) -> Result<(), Refusal> {
     let clock_defs = jaq_core::load::parse(nika_cap::JQ_CLOCK_DEFS, |parser| parser.defs())
-        .ok_or_else(|| "internal: canonical jq clock definitions do not parse".to_owned())?;
+        .ok_or_else(|| {
+            Refusal::Load("internal: canonical jq clock definitions do not parse".to_owned())
+        })?;
     let defs = jaq_core::defs()
         .chain(
             jaq_std::defs().filter(|definition| nika_cap::install_jq_definition(definition.name)),
         )
         .chain(jaq_json::defs())
-        .chain(std_shadows()?)
+        .chain(std_shadows().map_err(Refusal::Load)?)
         .chain(clock_defs);
     // One typed policy decides every effect-bearing native/definition. Clock
     // forms compile against the run-start variable; execution supplies its
@@ -61,13 +144,15 @@ pub(super) fn jq_compiles(program: &str) -> Result<(), String> {
                 path: (),
             },
         )
-        .map_err(|errs| render_load(&errs))?;
+        .map_err(|errs| Refusal::Load(render_load(&errs)))?;
     Compiler::default()
         .with_funs(funs)
-        .with_global_vars([nika_cap::JQ_RUN_START_VAR])
+        .with_global_vars(
+            std::iter::once(nika_cap::JQ_RUN_START_VAR).chain(vars.iter().map(String::as_str)),
+        )
         .compile(modules)
         .map(|_| ())
-        .map_err(|errs| render_compile(&errs))
+        .map_err(|errs| Refusal::Undefined(undefined_names(&errs)))
 }
 
 /// The std shadows the runtime chains after jaq-json ([`nika_cap::JQ_STD_SHADOWS`]), parsed as
@@ -97,15 +182,22 @@ fn render_load(errs: &[(File<&str, ()>, Error<&str>)]) -> String {
     }
 }
 
-/// Render a jaq COMPILE error set (undefined filters/variables) as one line —
-/// and, when the undefined name is one this engine WITHHELDS, say so and name
-/// the class it would have read (D-2026-08-11-N26) rather than telling the
-/// author that a filter jq really does define is « undefined ».
+/// The undefined names of a jaq COMPILE error set, in the compiler's order.
 #[allow(clippy::type_complexity)] // the shape is jaq's `compile::Errors`, not ours
-fn render_compile<U>(errs: &[(File<&str, ()>, Vec<(&str, U)>)]) -> String {
-    errs.first().and_then(|(_, v)| v.first()).map_or_else(
+fn undefined_names<U>(errs: &[(File<&str, ()>, Vec<(&str, U)>)]) -> Vec<String> {
+    errs.iter()
+        .flat_map(|(_, names)| names.iter().map(|(name, _)| (*name).to_owned()))
+        .collect()
+}
+
+/// Render undefined filters/variables as one line — and, when the first name
+/// is one this engine WITHHELDS, say so and name the class it would have read
+/// (D-2026-08-11-N26) rather than telling the author that a filter jq really
+/// does define is « undefined ».
+fn render_undefined(names: &[String]) -> String {
+    names.first().map_or_else(
         || "compile error".to_owned(),
-        |(name, _)| {
+        |name| {
             nika_cap::withheld_jq_policy_reason(name)
                 .unwrap_or_else(|| format!("undefined filter or variable `{name}`"))
         },
@@ -181,7 +273,15 @@ fn check_action(wf: &RawWorkflow, action: &RawAction, errors: &mut Vec<SchemaErr
         });
         return;
     }
-    if let Err(reason) = jq_compiles(program) {
+    // The variables are bound as the run binds them (#1578): an object `input:` binds its
+    // keys, so `$rows` over `input: { rows: … }` compiles. A templated input is an object
+    // only the run builds, so an undefined `$name` is left to the run, as a templated
+    // program is; every other undefined name still refuses here.
+    let refusal = match bindings(tool, args) {
+        Bindings::Known(vars) => jq_compiles(program, &vars).err(),
+        Bindings::AtRun => compiles_but_for_run_variables(program).err(),
+    };
+    if let Some(reason) = refusal {
         errors.push(SchemaError::ExpressionViolation {
             reason: format!("jq compile error — {reason}"),
             span: Some(span),
@@ -303,7 +403,7 @@ mod tests {
             "map(.n)",
             "to_entries",
         ] {
-            assert!(jq_compiles(ok).is_ok(), "`{ok}` should compile");
+            assert!(jq_compiles(ok, &[]).is_ok(), "`{ok}` should compile");
         }
     }
 
@@ -316,7 +416,7 @@ mod tests {
             ("env.PATH", "ambient process environment"),
             ("env", "ambient process environment"),
         ] {
-            let reason = jq_compiles(program).expect_err(program);
+            let reason = jq_compiles(program, &[]).expect_err(program);
             assert!(
                 reason.contains(class),
                 "{program} · must name `{class}` · got: {reason}"
@@ -333,7 +433,7 @@ mod tests {
     fn the_clock_forms_compile_against_the_n27_rebinding() {
         for rebound in ["now", "0 | localtime", "0 | strflocaltime(\"%Y\")"] {
             assert!(
-                jq_compiles(rebound).is_ok(),
+                jq_compiles(rebound, &[]).is_ok(),
                 "{rebound} · check and run must accept the same N27 forms"
             );
         }
@@ -351,9 +451,9 @@ mod tests {
             "fromdateiso8601",
         ] {
             assert!(
-                jq_compiles(ok).is_ok(),
+                jq_compiles(ok, &[]).is_ok(),
                 "`{ok}` must survive · {:?}",
-                jq_compiles(ok)
+                jq_compiles(ok, &[])
             );
         }
     }
@@ -361,7 +461,7 @@ mod tests {
     #[test]
     fn a_typo_keeps_jaqs_own_wording() {
         // We never dress an undefined name up as a boundary refusal.
-        let reason = jq_compiles("envv").expect_err("undefined");
+        let reason = jq_compiles("envv", &[]).expect_err("undefined");
         assert!(
             reason.contains("undefined filter or variable `envv`"),
             "{reason}"
@@ -397,7 +497,7 @@ mod tests {
     #[test]
     fn malformed_jq_is_a_clean_error_not_a_debug_repr() {
         // The 006-jq-compile-error fixture shape + the jq-3 leak class.
-        let err = jq_compiles(".foo | | bad").expect_err("trailing pipe");
+        let err = jq_compiles(".foo | | bad", &[]).expect_err("trailing pipe");
         assert!(
             !err.contains("File {"),
             "no raw jaq Debug repr leaks: {err}"
@@ -407,7 +507,7 @@ mod tests {
             "no raw jaq Debug repr leaks: {err}"
         );
         assert!(
-            jq_compiles(".a |").is_err(),
+            jq_compiles(".a |", &[]).is_err(),
             "incomplete pipe is a compile error"
         );
     }
@@ -415,7 +515,7 @@ mod tests {
     #[test]
     fn unknown_filter_is_an_undefined_error() {
         // `matches` is not in the v0.1 jaq surface — a compile (undefined) error.
-        let err = jq_compiles(".s | nonexistent_filter_xyz").expect_err("undefined");
+        let err = jq_compiles(".s | nonexistent_filter_xyz", &[]).expect_err("undefined");
         assert!(err.contains("undefined"), "{err}");
     }
 
@@ -425,7 +525,7 @@ mod tests {
         // Pin the CONTENT (not just « no Debug repr ») so a stubbed
         // `render_load`/`syntax_msg` (body → "" / "xyzzy") is caught: the
         // real renderer always emits an « expected … » line.
-        let err = jq_compiles(".a |").expect_err("trailing pipe is a syntax error");
+        let err = jq_compiles(".a |", &[]).expect_err("trailing pipe is a syntax error");
         assert!(
             err.contains("expected"),
             "syntax_msg/render_load must name what was expected: {err}"
@@ -552,6 +652,60 @@ tasks:
         assert!(errors.is_empty(), "a valid jq program is clean: {errors:?}");
     }
 
+    fn jq_findings(input: &str, expression: &str) -> Vec<SchemaError> {
+        let wf = wf_of(&format!(
+            "nika: jq-vars\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  x:\n    invoke: {{ tool: \"nika:jq\", args: {{ input: [1], expression: \".\" }} }}\n  rows_var:\n    invoke:\n      tool: nika:jq\n      args:\n        input: {input}\n        expression: '{expression}'\n"
+        ));
+        let mut errors = Vec::new();
+        scan_jq(&wf, &mut errors);
+        errors
+    }
+
+    /// #1578 · `nika:jq` binds each key of an object `input:` as `$<key>` at run, so the
+    /// check compiles the program with the same names bound. Measured on 0.123.2: the
+    /// documented `$rows` form failed check with « undefined … `$rows` » and never ran.
+    #[test]
+    fn input_object_keys_compile_as_variables() {
+        let findings = jq_findings(
+            "{ rows: [{a: 1}, {a: 2}], batch: \"B1\" }",
+            "$rows | map(. + {batch: $batch})",
+        );
+        assert!(findings.is_empty(), "{findings:?}");
+    }
+
+    /// A name the input does not carry is still undefined, and the finding names it.
+    #[test]
+    fn an_undeclared_variable_still_refuses() {
+        let findings = jq_findings(
+            "{ rows: [{a: 1}, {a: 2}], batch: \"B1\" }",
+            "$nope | map(. + {batch: $batch})",
+        );
+        assert_eq!(findings.len(), 1, "{findings:?}");
+        let SchemaError::ExpressionViolation { reason, .. } = &findings[0] else {
+            panic!("expected an ExpressionViolation, got {:?}", findings[0]);
+        };
+        assert!(reason.contains("`$nope`"), "{reason}");
+    }
+
+    /// A templated `input:` is an object only the run builds, so its keys are only known
+    /// there: an undefined `$name` is left to the run, every other undefined name refuses.
+    #[test]
+    fn a_templated_input_defers_its_variables_to_the_run() {
+        let templated = "\"${{ tasks.x.output }}\"";
+        assert!(jq_findings(templated, "$rows").is_empty());
+        for (expression, named) in [
+            ("undefined_fn(1)", "`undefined_fn`"),
+            ("$rows | undefined_fn(1)", "`undefined_fn`"),
+        ] {
+            let findings = jq_findings(templated, expression);
+            assert_eq!(findings.len(), 1, "{expression} · {findings:?}");
+            let SchemaError::ExpressionViolation { reason, .. } = &findings[0] else {
+                panic!("expected an ExpressionViolation, got {:?}", findings[0]);
+            };
+            assert!(reason.contains(named), "{expression} · {reason}");
+        }
+    }
+
     /// A Unicode class compiles as jq, then the runtime's regex engine refuses it on the first
     /// item it meets (live gauntlet wave 8, r12): the check names it before any run.
     #[test]
@@ -605,7 +759,7 @@ mod tests_number {
             "[.[] | try tonumber] | add",
             "[fromjson]",
         ] {
-            assert!(super::jq_compiles(program).is_ok(), "{program}");
+            assert!(super::jq_compiles(program, &[]).is_ok(), "{program}");
         }
     }
 
@@ -619,7 +773,11 @@ mod tests_number {
     fn every_shared_shadow_probe_compiles() {
         for probe in probe_set()["probes"].as_array().expect("probes") {
             let program = probe["program"].as_str().expect("a program");
-            assert!(super::jq_compiles(program).is_ok(), "{}", probe["name"]);
+            assert!(
+                super::jq_compiles(program, &[]).is_ok(),
+                "{}",
+                probe["name"]
+            );
         }
     }
 
