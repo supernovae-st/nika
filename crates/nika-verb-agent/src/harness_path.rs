@@ -118,7 +118,9 @@ pub(crate) async fn run_on_harness(
     // B5 · the operator's bound verdict is CONSUMED by the first
     // out-of-grants ask it decides: the human answered ONE question, so
     // a second ask (or a different one on a nondeterministic replay)
-    // pauses again instead of riding a stale grant.
+    // pauses again instead of riding a stale grant. `GateAnswerSpent`
+    // carries the consumption past this attempt: a `retry:` replay of
+    // the task never receives the answer again.
     let mut gate_answer = input.gate_answer.clone();
 
     let mut stream = seat
@@ -439,11 +441,12 @@ fn bridge_ask(
             reply.respond(PermissionDecision::AllowOnce);
         }
         HarnessGate::Outside { plane, why } => {
-            match gate_answer
-                .take()
-                .as_ref()
-                .and_then(serde_json::Value::as_bool)
-            {
+            let answer = gate_answer.take();
+            if answer.is_some() {
+                // Spent for the whole task: the runtime never re-arms it for a replay.
+                observer.on_event(&AgentEvent::GateAnswerSpent);
+            }
+            match answer.as_ref().and_then(serde_json::Value::as_bool) {
                 Some(true) => {
                     observer.on_event(&AgentEvent::PermissionJudged {
                         plane,

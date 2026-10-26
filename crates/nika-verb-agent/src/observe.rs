@@ -230,6 +230,11 @@ pub enum AgentEvent {
         /// The grant law applied (the teaching one-liner).
         why: String,
     },
+    /// The operator's bound `--answer` decided an ask (P3 B5): it is spent for the task. The
+    /// human answered ONE question, so a later attempt of the same task (a `retry:` replay)
+    /// never rides it again: an ask outside the grants there pauses. Not journaled itself, the
+    /// decision rides [`Self::PermissionJudged`].
+    GateAnswerSpent,
 }
 
 impl AgentEvent {

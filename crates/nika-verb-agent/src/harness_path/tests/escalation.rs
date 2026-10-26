@@ -126,4 +126,58 @@ async fn the_operator_answers_an_escalation() {
     assert_eq!(frames.len(), 1, "{frames:?}");
     assert_eq!((frames[0].0, frames[0].2), ("net", "allow"));
     assert!(frames[0].3.contains("operator granted"), "{frames:?}");
+    // The answer is reported spent, once, before its verdict: the runtime never hands it to
+    // a replayed attempt of the task (the NIK-275 review).
+    let events = observer.0.lock().expect("observer lock");
+    let spent: Vec<usize> = (events.iter().enumerate())
+        .filter(|(_, e)| matches!(e, AgentEvent::GateAnswerSpent))
+        .map(|(at, _)| at)
+        .collect();
+    let judged_at = (events.iter())
+        .position(|e| matches!(e, AgentEvent::PermissionJudged { .. }))
+        .expect("the verdict is witnessed");
+    assert_eq!(spent.len(), 1, "{events:?}");
+    assert!(spent[0] < judged_at, "{events:?}");
+}
+
+/// B5 · an ask inside the grants spends no answer: only an ask the answer decides does.
+#[tokio::test]
+async fn an_ask_inside_the_grants_spends_no_answer() {
+    let verdicts = Arc::new(Mutex::new(Vec::new()));
+    let reply_verdicts = Arc::clone(&verdicts);
+    let tape = vec![
+        HarnessEvent::PermissionAsked {
+            question: "run `git`".to_owned(),
+            reply: PermissionReply::new(Box::new(move |d| {
+                reply_verdicts.lock().expect("verdict lock").push(d);
+            })),
+            kind: Some("execute".to_owned()),
+            locations: Vec::new(),
+            command: vec!["git".to_owned(), "status".to_owned()],
+            url: None,
+        },
+        completed("done"),
+    ];
+    let mut input = AgentInput::new("try");
+    input.permits = Some({
+        let mut p = nika_schema::types::Permits::new();
+        p.exec = Some(nika_schema::types::ExecPermit::Any);
+        p
+    });
+    input.gate_answer = Some(serde_json::Value::Bool(true));
+    let observer = VecObserver::default();
+    run_on_harness(&seat_with(tape), input, &observer)
+        .await
+        .expect("an ask inside the grants completes the run");
+    assert_eq!(
+        verdicts.lock().expect("verdict lock").as_slice(),
+        &[PermissionDecision::AllowOnce]
+    );
+    let events = observer.0.lock().expect("observer lock");
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, AgentEvent::GateAnswerSpent)),
+        "{events:?}"
+    );
 }
