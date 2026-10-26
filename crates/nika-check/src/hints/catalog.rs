@@ -194,8 +194,8 @@ const ROWS: &[(&str, &str)] = &[
          legacy acknowledgement) before the prompt or refuses, and judges every ask against \
          permits: — allowed once inside, a pause for you outside (NIKA-1806), each journaled \
          as permit_checked. A path is judged where the system lands, through every symlink \
-         and `..`; an ask for network access or for a wider harness sandbox always pauses, \
-         `permits.exec: true` included. What the mode lets the harness do WITHOUT asking stays \
+         and `..`; an ask for network access, for a wider harness sandbox or to approve one \
+         of its own MCP tool calls always pauses, `permits.exec: true` included. What the mode lets the harness do WITHOUT asking stays \
          outside permits: (Codex reads any file and writes the project, /tmp and $TMPDIR in \
          its own sandbox); a command asked as a shell string is admitted only by \
          `permits.exec: true`; an allowed command runs under the harness's sandbox, not \

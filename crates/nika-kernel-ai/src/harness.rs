@@ -220,9 +220,9 @@ pub enum HarnessEvent {
         url: Option<String>,
     },
     /// An ask that reaches beyond its own kind (NIK-266): it opens network access (a fetch, or
-    /// a command the harness says needs the network) or asks the harness to widen its own
-    /// sandbox. The same reply lane as [`Self::PermissionAsked`], but no grant answers it:
-    /// only the operator does. A consumer that does not know this variant drops the reply,
+    /// a command the harness says needs the network), asks the harness to widen its own
+    /// sandbox, or approves one of the harness's own MCP tool calls. The same reply lane as
+    /// [`Self::PermissionAsked`], but no grant answers it: only the operator does. A consumer that does not know this variant drops the reply,
     /// which the harness hears as `cancelled` (fail-closed).
     EscalationAsked {
         /// The harness's own description of the action.
@@ -280,6 +280,11 @@ pub struct HarnessEscalation {
     /// The widening of the harness's own sandbox the ask asks, summarized (Codex
     /// `additionalPermissions`: `network`, `write /`; Claude Code `dangerouslyDisableSandbox`).
     pub widens: Option<String>,
+    /// The harness's own MCP tool call the ask approves (codex-acp's
+    /// `_meta.is_mcp_tool_approval`): the server it names (`rawInput.serverName`), else the
+    /// tool call it refers to. `permits.tools` names the workflow's MCP tools, not the
+    /// harness's, so no grant covers it.
+    pub mcp: Option<String>,
 }
 
 impl HarnessEscalation {
@@ -303,10 +308,17 @@ impl HarnessEscalation {
         self
     }
 
+    /// The harness's own MCP tool call the ask approves.
+    #[must_use]
+    pub fn with_mcp(mut self, call: impl Into<String>) -> Self {
+        self.mcp = Some(call.into());
+        self
+    }
+
     /// Whether the ask reaches nothing beyond its kind.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.network.is_none() && self.widens.is_none()
+        self.network.is_none() && self.widens.is_none() && self.mcp.is_none()
     }
 }
 
@@ -650,6 +662,9 @@ mod tests {
         let widens = HarnessEscalation::new().with_widens("write /");
         assert_eq!(widens.widens.as_deref(), Some("write /"));
         assert!(widens.network.is_none() && !widens.is_empty());
+        let mcp = HarnessEscalation::new().with_mcp("web");
+        assert_eq!(mcp.mcp.as_deref(), Some("web"));
+        assert!(mcp.network.is_none() && mcp.widens.is_none() && !mcp.is_empty());
     }
 
     #[test]

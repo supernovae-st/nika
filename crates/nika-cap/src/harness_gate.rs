@@ -49,6 +49,10 @@ pub struct HarnessAskFacts {
     /// `additionalPermissions`, Claude Code `dangerouslyDisableSandbox`), summarized. No grant
     /// covers it, `exec: true` included. `None`: the ask asks no widening.
     pub widens: Option<String>,
+    /// The harness's own MCP tool call the ask approves (codex-acp's
+    /// `_meta.is_mcp_tool_approval`): its server, else the tool call it refers to. `None`: the
+    /// ask approves no MCP tool call.
+    pub mcp: Option<String>,
 }
 
 impl HarnessAskFacts {
@@ -97,6 +101,13 @@ impl HarnessAskFacts {
     #[must_use]
     pub fn with_widens(mut self, widens: Option<String>) -> Self {
         self.widens = widens;
+        self
+    }
+
+    /// Attach the harness's own MCP tool call the ask approves.
+    #[must_use]
+    pub fn with_mcp(mut self, mcp: Option<String>) -> Self {
+        self.mcp = mcp;
         self
     }
 }
@@ -199,9 +210,21 @@ pub fn judge_harness_ask(facts: &HarnessAskFacts, permits: Option<&Permits>) -> 
     }
 }
 
-/// Network access and sandbox widening, the two things an ask may reach beyond its own kind:
-/// never auto-judged, the operator answers with the target in view.
+/// One of the harness's own MCP tool calls, network access and sandbox widening, what an ask
+/// may reach beyond its own kind: never auto-judged, the operator answers with it in view.
 fn judge_escalation(facts: &HarnessAskFacts) -> Option<HarnessGate> {
+    // The server or tool call a harness names is ITS configuration, not a `permits.tools` id
+    // (`mcp:<server>/<tool>` names the workflow's own servers): no grant can be matched.
+    if let Some(call) = facts.mcp.as_deref() {
+        return Some(HarnessGate::Outside {
+            plane: "tools",
+            why: format!(
+                "the ask approves one of the harness's own MCP tool calls ({call}): \
+                 permits.tools names the workflow's MCP tools, not the harness's, so no grant \
+                 covers it — the operator answers"
+            ),
+        });
+    }
     let widening = facts.widens.as_deref().map(|widens| {
         format!(
             "it asks the harness to widen its own sandbox ({widens}), which no grant covers, \
@@ -625,7 +648,7 @@ mod tests {
         );
     }
 
-    /// The two NIK-266 builders set exactly their field, and a bare fact set names neither.
+    /// The NIK-266 builders set exactly their field, and a bare fact set names none.
     #[test]
     fn the_escalation_builders_set_exactly_their_field() {
         let f = HarnessAskFacts::new()
@@ -633,8 +656,33 @@ mod tests {
             .with_widens(Some("write /".to_owned()));
         assert_eq!(f.network.as_deref(), Some("socks5Tcp://h"));
         assert_eq!(f.widens.as_deref(), Some("write /"));
-        assert!(f.kind.is_none() && f.url.is_none() && f.command.is_empty());
+        assert!(f.kind.is_none() && f.url.is_none() && f.command.is_empty() && f.mcp.is_none());
+        let mcp = HarnessAskFacts::new().with_mcp(Some("web".to_owned()));
+        assert_eq!(mcp.mcp.as_deref(), Some("web"));
+        assert!(mcp.network.is_none() && mcp.widens.is_none());
         let bare = HarnessAskFacts::new();
-        assert!(bare.network.is_none() && bare.widens.is_none());
+        assert!(bare.network.is_none() && bare.widens.is_none() && bare.mcp.is_none());
+    }
+
+    /// NIK-266 · codex-acp asks to approve its own MCP tool calls as `execute` asks with no
+    /// command: they were answered `allow_once` by `exec: true`. They are judged on the tools
+    /// plane and never inside a grant, `permits.tools` included (its ids name the workflow's
+    /// MCP servers, not the harness's).
+    #[test]
+    fn an_mcp_tool_approval_is_a_tools_ask_never_an_exec_grant() {
+        let mut everything = permits_exec_any();
+        everything.tools = Some(vec!["*".to_owned(), "mcp:web/*".to_owned()]);
+        for call in ["web", "tool call mcp-call-1"] {
+            let mut f = facts("execute");
+            f.mcp = Some(call.to_owned());
+            for permits in [Some(&everything), Some(&permits_exec_any()), None] {
+                let v = judge_harness_ask(&f, permits);
+                let HarnessGate::Outside { plane, why } = v else {
+                    panic!("an MCP tool approval is never inside, got {v:?}");
+                };
+                assert_eq!(plane, "tools");
+                assert!(why.contains(call) && why.contains("permits.tools"), "{why}");
+            }
+        }
     }
 }

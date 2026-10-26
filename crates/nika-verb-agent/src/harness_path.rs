@@ -332,7 +332,8 @@ fn asked(event: HarnessEvent) -> Option<(HarnessAskFacts, String, PermissionRepl
                 .with_locations(locations)
                 .with_command(command)
                 .with_network(escalation.network)
-                .with_widens(escalation.widens);
+                .with_widens(escalation.widens)
+                .with_mcp(escalation.mcp);
             Some((facts, question, reply))
         }
         _ => None,
@@ -340,10 +341,13 @@ fn asked(event: HarnessEvent) -> Option<(HarnessAskFacts, String, PermissionRepl
 }
 
 /// The witness `gate` label for one ask — what the bridge judged, in
-/// one string (the network target · the widening · the program · the
-/// paths · the kind): an auditor reads WHICH authority was exercised
-/// without re-parsing wire facts.
+/// one string (the MCP tool call · the network target · the widening ·
+/// the program · the paths · the kind): an auditor reads WHICH authority
+/// was exercised without re-parsing wire facts.
 fn gate_label(facts: &HarnessAskFacts) -> String {
+    if let Some(call) = &facts.mcp {
+        return format!("mcp · {call}");
+    }
     if let Some(target) = &facts.network {
         return format!("network · {target}");
     }
@@ -1009,6 +1013,10 @@ mod tests {
             .with_kind(Some("execute".to_owned()))
             .with_widens(Some("write /".to_owned()));
         assert_eq!(gate_label(&widened), "sandbox · write /");
+        let mcp = HarnessAskFacts::new()
+            .with_kind(Some("execute".to_owned()))
+            .with_mcp(Some("server web".to_owned()));
+        assert_eq!(gate_label(&mcp), "mcp · server web");
     }
 
     /// The seat's Debug shows the cwd and never the backend (the

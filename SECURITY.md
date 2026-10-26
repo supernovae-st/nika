@@ -81,9 +81,9 @@ Without a code `nika explain` resolves:
   holds it in the application's measured asking mode (refusing to start
   otherwise), judges every permission it asks against `permits:` and journals
   each decision as `permit_checked`. A path is judged where the operating
-  system lands, through every symlink and `..`; an ask for network access or
-  for a wider application sandbox always pauses for the operator, even under
-  `permits.exec: true`. What the mode lets the application do without asking
+  system lands, through every symlink and `..`; an ask for network access, for
+  a wider application sandbox or to approve one of the application's own MCP
+  tool calls always pauses for the operator, even under `permits.exec: true`. What the mode lets the application do without asking
   is outside `permits:`: Codex, for one, reads any file and writes the project,
   `/tmp` and `$TMPDIR` inside its own sandbox. An action Nika allows runs under
   the application's own sandbox, and a Codex command admitted by

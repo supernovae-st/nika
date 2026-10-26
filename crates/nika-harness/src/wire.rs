@@ -471,7 +471,9 @@ const MAX_SUMMARY: usize = 240;
 /// - widening: `rawInput.additionalPermissions` (Codex: the command's sandbox widened by
 ///   `network` or `fileSystem` entries), the `rawInput.permissions` of codex-acp's own
 ///   `request_permissions` ask ([`PERMISSIONS_REQUEST_TITLE`]),
-///   `rawInput.dangerouslyDisableSandbox: true` (Claude Code: the command leaves its sandbox).
+///   `rawInput.dangerouslyDisableSandbox: true` (Claude Code: the command leaves its sandbox);
+/// - an MCP tool call of the harness's own: the request `_meta.is_mcp_tool_approval`
+///   (codex-acp asks it as an `execute` ask with no command, see [`mcp_call`]).
 ///
 /// Claude Code's other Bash keys (`command`, `description`, `timeout`, `run_in_background`)
 /// and Gemini CLI's bare asks carry none of these, so their plain commands are unchanged.
@@ -516,7 +518,31 @@ pub(crate) fn ask_escalation(tool_call: &Value, meta: Option<&Value>) -> Harness
     if !widens.is_empty() {
         escalation = escalation.with_widens(bounded(&widens.join(" · ")));
     }
+    if let Some(call) = mcp_call(tool_call, meta) {
+        escalation = escalation.with_mcp(bounded(&call));
+    }
     escalation
+}
+
+/// The harness's own MCP tool call an ask approves, from codex-acp 1.13.1's MCP elicitation
+/// (`permissions/mcp.ts`): `_meta.is_mcp_tool_approval: true` marks it, on an `execute` ask
+/// that carries no command. A standalone ask names its server (`rawInput.serverName`, the tool
+/// only in free text); a correlated one carries its `toolCallId` alone. Neither is a
+/// `permits.tools` id, so the label only names what the operator is asked about.
+fn mcp_call(tool_call: &Value, meta: Option<&Value>) -> Option<String> {
+    let marked = |m: &Value| m.get("is_mcp_tool_approval").and_then(Value::as_bool) == Some(true);
+    if !(meta.is_some_and(marked) || tool_call.get("_meta").is_some_and(marked)) {
+        return None;
+    }
+    let server = tool_call
+        .pointer("/rawInput/serverName")
+        .and_then(Value::as_str);
+    let call = tool_call.get("toolCallId").and_then(Value::as_str);
+    Some(match (server, call) {
+        (Some(server), _) => format!("server {server}"),
+        (None, Some(call)) => format!("tool call {call}"),
+        (None, None) => "no server or tool call named".to_owned(),
+    })
 }
 
 /// `<protocol>://<host>` from `<protocol><infix><host>`, both one token, else `None`.
@@ -919,6 +945,38 @@ mod tests {
             ask_escalation(&unnamed, None).is_empty(),
             "a `permissions` key alone is not that request"
         );
+    }
+
+    /// codex-acp's MCP tool approvals (`_meta.is_mcp_tool_approval`, an `execute` ask with no
+    /// command) name their server, or only the tool call they refer to; without the marker an
+    /// ask is no MCP approval, and Claude Code's MCP asks (kind `other`) carry none.
+    #[test]
+    fn an_mcp_tool_approval_names_its_server_or_its_call() {
+        let flagged = serde_json::json!({"is_mcp_tool_approval": true});
+        let standalone = serde_json::json!({"toolCallId": "mcp-2", "kind": "execute",
+            "status": "pending", "title": "MCP tool call approval",
+            "content": [{"type": "content", "content": {"type": "text",
+                         "text": "Allow tool `fetch` on server `web` to run?"}}],
+            "rawInput": {"serverName": "web", "schema": null,
+                         "description": "Allow tool `fetch` on server `web` to run?"}});
+        let e = ask_escalation(&standalone, Some(&flagged));
+        assert_eq!(e.mcp.as_deref(), Some("server web"));
+        assert!(e.network.is_none() && e.widens.is_none());
+        let correlated =
+            serde_json::json!({"toolCallId": "mcp-call-1", "kind": "execute", "status": "pending"});
+        let e = ask_escalation(&correlated, Some(&flagged));
+        assert_eq!(e.mcp.as_deref(), Some("tool call mcp-call-1"));
+        let inner = serde_json::json!({"kind": "execute", "_meta": {"is_mcp_tool_approval": true}});
+        assert_eq!(
+            ask_escalation(&inner, None).mcp.as_deref(),
+            Some("no server or tool call named")
+        );
+        let unmarked = serde_json::json!({"is_mcp_tool_approval": false});
+        assert!(ask_escalation(&correlated, Some(&unmarked)).is_empty());
+        assert!(ask_escalation(&standalone, None).is_empty());
+        let claude = serde_json::json!({"toolCallId": "t", "kind": "other",
+            "title": "mcp__web__search", "rawInput": {"query": "nika"}});
+        assert!(ask_escalation(&claude, None).is_empty());
     }
 
     /// A long summary is bounded on a character boundary.
