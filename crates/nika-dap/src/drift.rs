@@ -74,6 +74,16 @@
 //! the corresponding grant dead (the F15 two-lanes contradiction class);
 //! a shell-form exec — or a dynamic/unparseable token — poisons the host
 //! set (no provable completeness · no claim, never wrong).
+//!
+//! The harness bridge (NIK-266): an `agent:` task on a harness seat runs the
+//! harness's OWN tools, and every permission the harness asks is judged
+//! against `permits.exec` and `permits.fs` (`nika_cap::judge_harness_ask`).
+//! Those grants are load-bearing for such a task even when no `exec:` task
+//! or builtin uses them, so neither category is drift while a task the
+//! bridge can serve exists (an agent with no `tools:` whitelist and no
+//! `schema:`, which a harness refuses) on a run that may seat it
+//! ([`scan_bridged`]). `permits.net` and `permits.tools` stay judged: the
+//! bridge never auto-answers a fetch and has no tools plane.
 
 use std::collections::BTreeSet;
 
@@ -92,13 +102,39 @@ pub const DRIFT_CODE: &str = "NIKA-DRIFT-001";
 /// The declared-but-unused advice rows for a workflow, sorted. Every row is
 /// the same class (`drift` · [`DRIFT_CODE`] · workflow-level), so both
 /// projections shape the constant fields around the advice texts.
+/// A run that DECLARES an ACP access (`run.access.protocol: acp`, or a
+/// `via:` naming a harness seat) is bridged; `nika check` widens that to the
+/// plan this machine resolves ([`scan_bridged`]).
 #[must_use]
 pub fn scan(wf: &RawWorkflow) -> Vec<String> {
+    scan_bridged(wf, declares_harness_access(wf))
+}
+
+/// [`scan`] when the caller knows whether an `agent:` task may run on a
+/// harness seat (`bridged`): the declaration, or the access plan that seats
+/// one. A bridged run keeps the `permits.exec` and `permits.fs` grants a
+/// bridge-servable agent task may need (module doc · NIK-266).
+#[must_use]
+pub fn scan_bridged(wf: &RawWorkflow, bridged: bool) -> Vec<String> {
     let mut out = Vec::new();
     push_unused_declarations(wf, &UsedNames::collect(wf), &mut out);
-    push_unused_permits(wf, &mut out);
+    push_unused_permits(wf, bridged, &mut out);
     out.sort();
     out
+}
+
+/// Whether the run declares an ACP access: `protocol: acp`, or a `via:` that
+/// names a shipped harness seat (`codex` · `claude-code` · …).
+#[must_use]
+pub fn declares_harness_access(wf: &RawWorkflow) -> bool {
+    let Some(access) = wf.run.as_ref().and_then(|run| run.value.access.as_ref()) else {
+        return false;
+    };
+    access.protocol == Some(nika_types::access::AccessProtocol::Acp)
+        || access
+            .via
+            .as_deref()
+            .is_some_and(|via| nika_types::access::HarnessRuntime::lookup(via).is_some())
 }
 
 /// Every `inputs./const./secrets.` name the body references (module-doc parity set).
@@ -291,6 +327,10 @@ struct BodyUsage {
     has_exec: bool,
     /// An `agent:` whitelist exists (dynamic dispatch — suppresses tools/net/fs).
     has_agent_whitelist: bool,
+    /// An `agent:` task a harness can serve exists (no whitelist, no schema —
+    /// the two a harness refuses): on a bridged run its permission bridge
+    /// judges asks against `permits.exec` and `permits.fs`.
+    has_bridge_agent: bool,
     /// Static `argv[0]`s of argv-form execs.
     programs: Option<BTreeSet<String>>,
     /// Static invoke tool names — complete by construction (the parser
@@ -398,6 +438,8 @@ impl BodyUsage {
             RawAction::Agent(a) => {
                 if !a.tools.is_empty() {
                     self.has_agent_whitelist = true;
+                } else if a.schema.is_none() && a.schema_file.is_none() {
+                    self.has_bridge_agent = true;
                 }
             }
             // Infer is effect-free; a future verb joins deliberately (the
@@ -453,15 +495,21 @@ impl BodyUsage {
 
 /// Declared `permits:` entries no task effect can use — per category,
 /// per entry where the used set is fully static.
-fn push_unused_permits(wf: &RawWorkflow, out: &mut Vec<String>) {
+fn push_unused_permits(wf: &RawWorkflow, bridged: bool, out: &mut Vec<String>) {
     let Some(permits) = wf.permits.as_ref().map(|p| &p.value) else {
         return;
     };
     let usage = BodyUsage::collect(wf);
-    push_exec_drift(permits, &usage, out);
+    // A harness bridge may judge asks against exec and fs: no claim there.
+    let bridge = bridged && usage.has_bridge_agent;
+    if !bridge {
+        push_exec_drift(permits, &usage, out);
+    }
     push_tools_drift(permits, &usage, out);
     push_net_drift(permits, &usage, out);
-    push_fs_drift(permits, &usage, out);
+    if !bridge {
+        push_fs_drift(permits, &usage, out);
+    }
 }
 
 /// `exec:` — `true` is used by ANY exec task; a program allowlist is
@@ -898,6 +946,81 @@ mod tests {
             !advice.iter().any(|a| a.contains("`permits.tools` entry")),
             "{advice:?}"
         );
+    }
+
+    /// The qualification workflow of NIK-266 (2026-10-25 · P4): an `agent:` task the
+    /// Codex seat runs beside two builtin consumers. `cp` and the fs grants are what the
+    /// harness bridge judges its asks against — never "remove the entry" on a run that seats
+    /// it; net and tools stay judged (the bridge never auto-answers a fetch, has no tools).
+    const BRIDGED: &str = "nika: codex-image\nmodel: openai/gpt-6-sol\nRUN\
+        permits:\n  fs:\n    read: [\"./out/codex-image.png\", \"./src/**\"]\n    \
+        write: [\"./out/codex-image.png\"]\n  exec: [\"cp\", \"shasum\"]\n  \
+        net: { http: [\"example.com\"] }\n  tools: [\"nika:read\", \"nika:write\"]\n\
+        tasks:\n  draw:\n    agent:\n      prompt: \"copy the image to ./out\"\n      \
+        max_turns: 6\n  digest:\n    after: { draw: success }\n    \
+        exec: { command: [\"shasum\", \"-a\", \"256\", \"./out/codex-image.png\"] }\n  \
+        measure:\n    after: { draw: success }\n    \
+        invoke: { tool: \"nika:read\", args: { path: \"./out/codex-image.png\" } }\n";
+
+    fn bridged(run: &str) -> RawWorkflow {
+        let yaml = BRIDGED.replace("RUN", run);
+        parse(&yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses")
+    }
+
+    #[test]
+    fn a_harness_agent_keeps_the_exec_and_fs_grants_its_bridge_judges() {
+        let declared = "run:\n  access:\n    via: codex\n    protocol: acp\n";
+        let wf = bridged(declared);
+        assert!(declares_harness_access(&wf));
+        let advice = scan(&wf);
+        for kept in ["`permits.exec` entry `cp`", "`permits.fs."] {
+            assert!(
+                !advice.iter().any(|a| a.contains(kept)),
+                "{kept}: {advice:?}"
+            );
+        }
+        for judged in [
+            "`permits.net.http` entry `example.com`",
+            "`permits.tools` entry `nika:write`",
+        ] {
+            assert!(
+                advice.iter().any(|a| a.contains(judged)),
+                "{judged}: {advice:?}"
+            );
+        }
+        // An undeclared route a machine plan seats is bridged by the caller.
+        let plain = bridged("");
+        assert!(!declares_harness_access(&plain));
+        assert_eq!(scan_bridged(&plain, true), advice);
+    }
+
+    /// The negative control: not bridged, the same body still proves `cp` dead —
+    /// and a whitelisted or schema-bound agent is native-only, so it bridges nothing.
+    #[test]
+    fn without_a_servable_harness_agent_the_exec_drift_stands() {
+        let unseated = scan(&bridged(""));
+        assert!(
+            unseated
+                .iter()
+                .any(|a| a.contains("`permits.exec` entry `cp` admits a program no task runs")),
+            "{unseated:?}"
+        );
+        for native in [
+            "      tools: [\"nika:read\"]\n",
+            "      schema: { type: object }\n",
+        ] {
+            let yaml = BRIDGED.replace("RUN", "").replace(
+                "      max_turns: 6\n",
+                &format!("      max_turns: 6\n{native}"),
+            );
+            let wf = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+            assert!(
+                scan_bridged(&wf, true)
+                    .iter()
+                    .any(|a| a.contains("`permits.exec` entry `cp`")),
+                "{native}"
+            );
+        }
     }
 
     #[test]

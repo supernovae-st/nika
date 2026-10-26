@@ -95,6 +95,8 @@ where
             completion: Some(one_shot),
             progress: None,
             meta: None,
+            agent_name: None,
+            confined: None,
         };
         match driver.handshake(&setup, &offer, one_shot, &cwd).await {
             Err(error) => {

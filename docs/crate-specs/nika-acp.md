@@ -128,18 +128,87 @@ usage reporting · auth-absent · version-mismatch refusal · cancel. Every e2e
 below runs hermetic — zero network, zero real harness in CI. A gate proven
 only against a real harness is not CI-provable (instrument law).
 
-## 6 · Authority bridge (P3.6 · confused-deputy-free)
+## 6 · Authority bridge (P3.6 · confused-deputy-free · NIK-266)
 
-ACP inverts capability direction: nika (Client) implements `fs.*`/`terminal/*`
-for the agent and receives `session/request_permission`:
+A harness runs its OWN tools: Nika serves it no filesystem and no terminal.
+`initialize` advertises no client capability (`clientCapabilities: {}`), and an
+agent → client call such as `fs/write_text_file` or `terminal/create` is answered
+with a JSON-RPC error (`-32601`) and journaled as a `permit_checked` deny, never
+an empty success the agent would read as served. Nika's authority over an
+`agent:` session is two levers, both journaled as `permit_checked`.
 
-- inside a `permits:` grant → auto-answer allow · emit `permit_checked`;
-- outside every grant → the EXISTING pause (exit 4 · question verbatim ·
-  `--resume --answer`) — the human gate is never answered by the engine;
-- `allow_always` NEVER auto-granted (the GOOSE_MODE=auto anti-pattern · A-5);
-- fs/terminal client-caps are backed by the nika sandbox, not raw OS.
+**1 · Root and mode, settled before the prompt** (`nika_harness::client::confine`).
+The session root is the admitted project, on the wire (`session/new.cwd`) and as
+the adapter process's own cwd, never the host process's directory. The task's
+`permits:` project to a confinement (`read-only` without an `fs.write` grant,
+`workspace-write` with one), and the client selects the adapter's MEASURED asking
+mode and reads it back from the session's own answer (the legacy
+`session/set_mode` door answers no state: its success is the acknowledgement), or
+refuses before any prompt. A mode that approves on its own is never selected; a `config_option_update`
+or `current_mode_update` away from the held mode ends the session. The table is
+`nika_types::access::HarnessBoundary` (one source for the client and `nika check`):
 
-Negative tests: a bypass attempt refuses; the gate question surfaces verbatim.
+| Seat (measured on) | Adapter default | Mode Nika holds | What the harness still does without asking |
+|---|---|---|---|
+| codex (codex-acp 1.13.1 · codex 0.156.1) | `agent` (Codex's auto-reviewer approves for the client) | `read-only` (approval `on-request`, reviewed by the client, over a `workspaceWrite` sandbox) | reads any file; writes the project, `/tmp` and `$TMPDIR`; runs any program in that sandbox; network off unless it asks. No mode is a read-only sandbox: without an `fs.write` grant the project stays writable |
+| claude-code (claude-agent-acp 0.81.1 · Claude Code 2.1.280) | the user's `permissions.defaultMode` (`auto`: a classifier decides) | `default` ("Manual": edits and non-read-only commands ask) | reads files in the project; runs commands it classifies read-only; fetches documentation hosts it pre-approves. `bypassPermissions` is withheld (`_meta.claudeCode.options.allowDangerouslySkipPermissions: false`) |
+| gemini-cli (0.62.0) | `default`, or `--approval-mode` / settings | `default` (legacy `session/set_mode`: its success is the only acknowledgement; gemini-cli announces a later mode change only as message text, which Nika does not read) | reads files in the workspace (its file tools refuse paths outside it); runs shell commands it judges safe reads; Google web searches |
+| qwen-code · kimi-code · opencode · copilot · grok-build | — | none measured: nothing is selected; a current mode that visibly approves on its own (`auto`, `accept`, `full`, `yolo`, `bypass` …) refuses the session | everything it does without asking |
+
+**2 · Every permission ask, judged against `permits:`** (`nika_cap::judge_harness_ask`):
+
+- inside a grant → `allow_once` (`allow_always` NEVER · the GOOSE_MODE=auto
+  anti-pattern · A-5) · `permit_checked allow`;
+- outside every grant → the EXISTING pause (NIKA-1806 · exit 4 · question
+  verbatim · `--resume --answer`), the harness hears `cancelled` · `permit_checked
+  escalate`, journaled before the `workflow_paused` frame although the paused task
+  never settles; the human gate is never answered by the engine;
+- the paths an ask names are anchored on the session root (root-relative inside
+  it, the vocabulary `permits.fs` is authored in; absolute outside it), and each
+  path's physical identity is judged too (`nika_harness::client::anchor`): the raw
+  path is walked from `/`, component by component, the resolved prefix kept
+  canonical; a symlink is followed through `read_link`, relative to its parent,
+  a dangling one included, at most 40 hops; a missing component starts a missing
+  tail; `..` pops that tail, else the canonical prefix. `out/link/../x` with
+  `out/link` pointing outside lands beside the link's target and is judged there.
+  A walk that cannot complete (a loop, an unreadable component) yields a
+  `<unresolved>` location no grant admits: the ask pauses, never judged on the raw
+  `..` text. The lexical fold only names the displayed location;
+- a command is judged by its argv program against `permits.exec`; a shell-string
+  command (codex-acp, claude-agent-acp) or an ask with no `rawInput` (gemini-cli)
+  is admitted only by `exec: true` (the shell-form law's bridge twin);
+- an ask that reaches beyond its kind arrives as `HarnessEvent::EscalationAsked`
+  and is judged before its kind, never answered within the grants (`exec: true`
+  included): NETWORK access, read from every structured signal codex-acp 1.13.1
+  emits (`rawInput.url`, set only for http and https; the toolCall title
+  `<protocol> network access to <host>`, which a `socks5Tcp` or `socks5Udp`
+  approval carries without any URL; the request `_meta.permission.title`
+  `Allow network access?` with the content text `<protocol> access to <host>`;
+  a `network.enabled` additional permission), witnessed on plane `net` with gate
+  `network · <target>`, and a `fetch` ask; a WIDER HARNESS SANDBOX
+  (`rawInput.additionalPermissions`, the `rawInput.permissions` of codex-acp's
+  `request_permissions` ask, claude-agent-acp's `dangerouslyDisableSandbox: true`),
+  witnessed with gate `sandbox · <widening>`. claude-agent-acp's other Bash keys
+  (`command`, `description`, `timeout`, `run_in_background`) and gemini-cli's
+  bare asks carry none of these and are judged as before.
+
+**What the bridge does not cover**, stated by `nika check` as the `[harness]`
+hint and in [docs/usage/harness-agents.md](../usage/harness-agents.md): whatever
+the held mode lets the harness do without asking (the table); an allowed action
+runs under the harness's own sandbox, not Nika's exec sandbox, so `permits.fs` and
+`permits.net` do not confine it, and the connections an allowed command opens by
+itself are not asks (Codex keeps sandboxed commands offline; Claude Code and
+Gemini CLI commands have the host's network); a Codex command ask in `read-only`
+usually requests to run outside its sandbox without saying so on the wire, so
+`exec: true` admits it and Codex runs it unsandboxed; the harness's own permission
+rules, hooks and configured MCP servers
+act without Nika's judgment unless they ask; an unmeasured seat is judged on its
+asks alone. `NIKA-DRIFT-001` never calls the `permits.exec` or `permits.fs` grants
+of such a run dead: the bridge judges asks against them.
+
+Negative tests: `crates/nika-acp/tests/gate_e2e.rs` and `confine_e2e.rs` (real
+spawned harness), `crates/nika-harness/src/client/confine/tests.rs` (scripted
+peers), `crates/nika-runtime/src/tests/harness_confinement.rs` (the journal).
 
 ## 7 · Billing honesty (P3.9)
 

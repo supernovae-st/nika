@@ -49,14 +49,15 @@ fn the_profile_disables_builtins_disk_settings_and_other_mcp_before_query() {
 
 /// Every Claude Code session asks to see its thinking, whatever its role: the audited one-shot
 /// profile carries summarized adaptive thinking beside its own options, an agent session that
-/// alone. A thinking option already named is kept as given, a meta of another shape is left as
+/// beside the withheld bypass mode (NIK-266). A thinking option already named is kept as given, a meta of another shape is left as
 /// it is, and Codex or any other adapter sends no options at all.
 #[test]
 fn every_claude_code_session_asks_to_see_its_thinking() {
     let shown = json!({"type": "adaptive", "display": "summarized"});
     assert_eq!(profile()["claudeCode"]["options"]["thinking"], shown);
     assert_eq!(claude().session_meta(), Some(profile()));
-    let agent = json!({"claudeCode": {"options": {"thinking": shown.clone()}}});
+    let agent = json!({"claudeCode": {"options": {
+        "allowDangerouslySkipPermissions": false, "thinking": shown.clone()}}});
     assert_eq!(agent_meta("claude-code"), Some(agent));
     let codex = OneShot {
         role: Completion::Infer,

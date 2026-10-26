@@ -201,10 +201,17 @@ pub(crate) fn show_thinking(mut meta: Value) -> Value {
 }
 
 /// The options an agent session on `adapter` sends with `session/new`, outside any one-shot
-/// profile: its own loop, tools and settings untouched, a Claude Code session only shows its
-/// thinking ([`show_thinking`]); every other adapter sends none.
+/// profile: its own loop, tools and settings untouched. A Claude Code session shows its
+/// thinking ([`show_thinking`]) and never offers `bypassPermissions` (NIK-266: the adapter
+/// lists that mode only when the client leaves `allowDangerouslySkipPermissions` unset, and a
+/// mode that approves everything must not even be reachable mid-session); every other adapter
+/// sends none.
 pub(crate) fn agent_meta(adapter: &str) -> Option<Value> {
-    (Profile::for_seat(adapter) == Some(Profile::ClaudeCode)).then(|| show_thinking(json!({})))
+    (Profile::for_seat(adapter) == Some(Profile::ClaudeCode)).then(|| {
+        show_thinking(
+            json!({"claudeCode": {"options": {"allowDangerouslySkipPermissions": false}}}),
+        )
+    })
 }
 
 /// No tool/media-bearing answer is accepted, even from an admitted implementation.
@@ -350,7 +357,8 @@ pub(crate) async fn run(
                 progress.reach(Phase::Completion);
                 return completed(*outcome, one_shot.version());
             }
-            HarnessEvent::PermissionAsked { reply, .. } => {
+            HarnessEvent::PermissionAsked { reply, .. }
+            | HarnessEvent::EscalationAsked { reply, .. } => {
                 reply.respond(nika_kernel::ai::harness::PermissionDecision::Deny);
                 return Err(Failure::refused(
                     "ACP authoring requested a tool; no answer accepted",

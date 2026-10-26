@@ -708,8 +708,10 @@ fn render_checked_with_profile(
         return Ok(json_verdict(wf, report, skills, &verdict, lanes, &ambient));
     }
 
+    // The harness boundary hints (NIK-266) ride the report's own hint block.
+    let shown = verdict.report_with_hints(report);
     let mut text = render(
-        report,
+        &shown,
         wf,
         source,
         path,

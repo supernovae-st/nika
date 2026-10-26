@@ -609,6 +609,14 @@ pub use selection::{
     AccessFallback, AccessProtocol, AccessRequirement, SelectedValue, SelectionEvidence,
 };
 
+// What a harness seat's `agent:` session can be held to (NIK-266): the measured modes the
+// client selects and the residual `nika check` states, one table for both.
+mod boundary;
+pub use boundary::{
+    HARNESS_SHARED_RESIDUAL, HARNESS_UNRESOLVED_PATH, HarnessBoundary, UNMEASURED_HARNESS_UNASKED,
+    unmeasured_check_advice,
+};
+
 /// How far a HARNESS seat's readiness is PROVEN — a rung, never a
 /// word, beside [`Trust`] (which grades identity). A seat on PATH is
 /// `installed`; a seat whose own login/identity command answered 0 at

@@ -54,12 +54,21 @@ impl<S, T, H, P, D, C> crate::Runtime<S, T, H, P, D, C> {
         Ok(runtime)
     }
 
-    /// Seat a harness with the admitted project held as its image room. A
-    /// refused anchor refuses the seat: there is no ambient store. Without a
-    /// project root no store is attached and a received image fails its task.
+    /// Seat a harness with the admitted project held as its image room and as
+    /// its session root (NIK-266): the agent works in the project the run was
+    /// admitted for, never in whatever directory the host process happens to
+    /// sit in (a service's own cwd is unrelated to the workflow). A refused
+    /// anchor refuses the seat: there is no ambient store. Without a project
+    /// root the seat keeps the launch directory, which IS the project root of
+    /// a local run, no store is attached and a received image fails its task.
     #[cfg(feature = "access-harness")]
     pub(crate) fn with_seat(mut self, seat: Seat) -> Result<Self, nika_kernel::HttpError> {
-        let Some(seat) = seat else { return Ok(self) };
+        let Some(mut seat) = seat else {
+            return Ok(self);
+        };
+        if let Some(root) = &self.config.sandbox_root {
+            seat.cwd.clone_from(root);
+        }
         self.agent = self.agent.with_harness_seat(seat);
         let Some(project_path) = &self.config.sandbox_root else {
             return Ok(self);

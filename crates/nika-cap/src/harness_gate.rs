@@ -39,6 +39,16 @@ pub struct HarnessAskFacts {
     pub command: Vec<String>,
     /// `rawInput.url`, for a `fetch` ask.
     pub url: Option<String>,
+    /// The network target an ask opens (NIK-266), read by the wire client from every
+    /// structured signal it carries: `rawInput.url`, a Codex network approval's
+    /// `<protocol> network access to <host>` (as `<protocol>://<host>`), its
+    /// `Allow network access?` request title, a network additional permission. `None`: the
+    /// ask names no network access.
+    pub network: Option<String>,
+    /// The widening of the harness's OWN sandbox the ask asks for its command (Codex
+    /// `additionalPermissions`, Claude Code `dangerouslyDisableSandbox`), summarized. No grant
+    /// covers it, `exec: true` included. `None`: the ask asks no widening.
+    pub widens: Option<String>,
 }
 
 impl HarnessAskFacts {
@@ -73,6 +83,20 @@ impl HarnessAskFacts {
     #[must_use]
     pub fn with_url(mut self, url: Option<String>) -> Self {
         self.url = url;
+        self
+    }
+
+    /// Attach the network target the ask opens.
+    #[must_use]
+    pub fn with_network(mut self, network: Option<String>) -> Self {
+        self.network = network;
+        self
+    }
+
+    /// Attach the sandbox widening the ask asks.
+    #[must_use]
+    pub fn with_widens(mut self, widens: Option<String>) -> Self {
+        self.widens = widens;
         self
     }
 }
@@ -124,12 +148,28 @@ impl HarnessGate {
 /// no-effect `think` still needs no grant).
 #[must_use]
 pub fn judge_harness_ask(facts: &HarnessAskFacts, permits: Option<&Permits>) -> HarnessGate {
+    // NIK-266 · what an ask reaches BEYOND its kind is judged first, whatever the kind: no
+    // grant answers network access the harness asks for, nor a wider harness sandbox.
+    if let Some(gate) = judge_escalation(facts) {
+        return gate;
+    }
     match facts.kind.as_deref() {
         // A think ask declares no effect reach — the one kind that
         // needs no grant (the pure-internal exemption's harness twin).
         Some("think") => HarnessGate::Inside {
             plane: "agent",
             why: "a think ask declares no effect reach".to_owned(),
+        },
+        // An execute ask that names a URL asks for NETWORK access for a
+        // command (codex-acp's network approval: `rawInput.url` beside the
+        // command, NIK-266): the net plane judges it, never the program
+        // allowlist — a listed program must not carry a socket out.
+        Some("execute") if facts.url.is_some() => HarnessGate::Outside {
+            plane: "net",
+            why: "an execute ask that opens network access is judged on the net plane, \
+                  never by its program — never auto-judged (no shared host parser at L0); \
+                  the operator answers with the URL in view"
+                .to_owned(),
         },
         Some("execute") => judge_execute(facts, permits),
         Some("read" | "search") => judge_fs(facts, permits, false),
@@ -157,6 +197,32 @@ pub fn judge_harness_ask(facts: &HarnessAskFacts, permits: Option<&Permits>) -> 
             }
         }
     }
+}
+
+/// Network access and sandbox widening, the two things an ask may reach beyond its own kind:
+/// never auto-judged, the operator answers with the target in view.
+fn judge_escalation(facts: &HarnessAskFacts) -> Option<HarnessGate> {
+    let widening = facts.widens.as_deref().map(|widens| {
+        format!(
+            "it asks the harness to widen its own sandbox ({widens}), which no grant covers, \
+                 `exec: true` included"
+        )
+    });
+    if let Some(target) = facts.network.as_deref() {
+        let mut why = format!(
+            "the ask opens network access ({target}): never auto-judged (no shared host parser \
+             at L0), the operator answers with the target in view"
+        );
+        if let Some(widening) = widening {
+            why.push_str("; ");
+            why.push_str(&widening);
+        }
+        return Some(HarnessGate::Outside { plane: "net", why });
+    }
+    widening.map(|widening| HarnessGate::Outside {
+        plane: "exec",
+        why: format!("{widening}: the operator answers"),
+    })
 }
 
 fn judge_execute(facts: &HarnessAskFacts, permits: Option<&Permits>) -> HarnessGate {
@@ -215,6 +281,17 @@ fn judge_fs(facts: &HarnessAskFacts, permits: Option<&Permits>, write: bool) -> 
         };
     };
     for path in &facts.locations {
+        // An identity the client could not resolve is never a path a grant admits (NIK-266):
+        // a `**` glob would match the marker's text, so it is refused before any glob runs.
+        if path.starts_with(nika_types::access::HARNESS_UNRESOLVED_PATH) {
+            return HarnessGate::Outside {
+                plane: "fs",
+                why: format!(
+                    "{path}: the file this path reaches could not be resolved — unverifiable \
+                     asks pause for the operator"
+                ),
+            };
+        }
         if !permits.allows_path(path, write) {
             return HarnessGate::Outside {
                 plane: "fs",
@@ -364,6 +441,108 @@ mod tests {
         assert!(why.contains("operator"), "{why}");
     }
 
+    /// NIK-266 · codex-acp asks network access for a command as an
+    /// `execute` carrying `rawInput.url`: a granted program must not admit
+    /// the socket — the net plane judges it, outside like every fetch.
+    #[test]
+    fn an_execute_that_opens_the_network_is_a_net_ask_never_an_exec_grant() {
+        let mut f = facts("execute");
+        f.command = vec!["git".to_owned(), "push".to_owned()];
+        f.url = Some("https://github.com".to_owned());
+        for permits in [permits_exec_git(), permits_exec_any(), permits_fs()] {
+            let v = judge_harness_ask(&f, Some(&permits));
+            let HarnessGate::Outside { plane, why } = v else {
+                panic!("a network execute is never inside an exec grant, got {v:?}");
+            };
+            assert_eq!(plane, "net");
+            assert!(why.contains("net plane"), "{why}");
+        }
+        // The same argv without a URL stays the exec plane's to judge.
+        f.url = None;
+        assert!(matches!(
+            judge_harness_ask(&f, Some(&permits_exec_git())),
+            HarnessGate::Inside { plane: "exec", .. }
+        ));
+    }
+
+    /// NIK-266 · a Codex SOCKS network approval carries no `rawInput.url`: the wire client
+    /// reads its target from the approval's title, and the net plane judges it — never the
+    /// `exec: true` grant that used to answer `allow_once`.
+    #[test]
+    fn a_socks_network_ask_without_a_url_is_never_inside_an_exec_grant() {
+        let mut f = facts("execute");
+        f.network = Some("socks5Tcp://exfil.example".to_owned());
+        for permits in [permits_exec_any(), permits_exec_git(), permits_fs()] {
+            let v = judge_harness_ask(&f, Some(&permits));
+            let HarnessGate::Outside { plane, why } = v else {
+                panic!("a network ask is never inside, got {v:?}");
+            };
+            assert_eq!(plane, "net");
+            assert!(why.contains("socks5Tcp://exfil.example"), "{why}");
+        }
+    }
+
+    /// NIK-266 · a command that asks the harness to widen its own sandbox pauses under every
+    /// grant, `exec: true` included; with network among the widening it is a net ask.
+    #[test]
+    fn a_sandbox_widening_is_never_covered_by_exec_true() {
+        let mut fs_only = facts("execute");
+        fs_only.widens = Some("write /".to_owned());
+        let v = judge_harness_ask(&fs_only, Some(&permits_exec_any()));
+        let HarnessGate::Outside { plane, why } = v else {
+            panic!("a widening is never inside exec: true, got {v:?}");
+        };
+        assert_eq!(plane, "exec");
+        assert!(
+            why.contains("write /") && why.contains("`exec: true` included"),
+            "{why}"
+        );
+
+        let mut with_network = facts("execute");
+        with_network.widens = Some("network, write /".to_owned());
+        with_network.network = Some("network access (an additional permission)".to_owned());
+        let v = judge_harness_ask(&with_network, Some(&permits_exec_any()));
+        let HarnessGate::Outside { plane, why } = v else {
+            panic!("a network widening is never inside, got {v:?}");
+        };
+        assert_eq!(plane, "net");
+        assert!(why.contains("an additional permission") && why.contains("network, write /"));
+    }
+
+    /// NIK-266 · an identity the client could not resolve is outside every grant, even one
+    /// whose glob would match the marker's text (`**` · `./**` · `/**`).
+    #[test]
+    fn an_unresolved_location_is_outside_every_grant() {
+        let mut everything = Permits::new();
+        everything.fs = Some(FsPermits::new(
+            vec!["**".to_owned(), "/**".to_owned()],
+            vec!["**".to_owned(), "./**".to_owned(), "/**".to_owned()],
+        ));
+        for kind in ["edit", "read"] {
+            let mut f = facts(kind);
+            f.locations = vec![
+                "out/l1/f.md".to_owned(),
+                format!(
+                    "{} out/l1/f.md · a symlink loop",
+                    nika_types::access::HARNESS_UNRESOLVED_PATH
+                ),
+            ];
+            let v = judge_harness_ask(&f, Some(&everything));
+            let HarnessGate::Outside { plane, why } = v else {
+                panic!("an unresolved identity is never inside, got {v:?}");
+            };
+            assert_eq!(plane, "fs");
+            assert!(why.contains("could not be resolved"), "{why}");
+        }
+        // The same grants still admit the resolvable path alone (the control).
+        let mut f = facts("edit");
+        f.locations = vec!["out/l1/f.md".to_owned()];
+        assert!(matches!(
+            judge_harness_ask(&f, Some(&everything)),
+            HarnessGate::Inside { .. }
+        ));
+    }
+
     #[test]
     fn a_think_needs_no_grant_even_under_zero_authority() {
         let f = facts("think");
@@ -444,5 +623,18 @@ mod tests {
                 && bare.command.is_empty()
                 && bare.url.is_none()
         );
+    }
+
+    /// The two NIK-266 builders set exactly their field, and a bare fact set names neither.
+    #[test]
+    fn the_escalation_builders_set_exactly_their_field() {
+        let f = HarnessAskFacts::new()
+            .with_network(Some("socks5Tcp://h".to_owned()))
+            .with_widens(Some("write /".to_owned()));
+        assert_eq!(f.network.as_deref(), Some("socks5Tcp://h"));
+        assert_eq!(f.widens.as_deref(), Some("write /"));
+        assert!(f.kind.is_none() && f.url.is_none() && f.command.is_empty());
+        let bare = HarnessAskFacts::new();
+        assert!(bare.network.is_none() && bare.widens.is_none());
     }
 }

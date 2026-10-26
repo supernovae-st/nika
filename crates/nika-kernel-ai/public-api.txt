@@ -438,6 +438,45 @@ pub fn nika_kernel_ai::genai::GenAiAttrs::as_any(&self) -> &(dyn core::any::Any 
 impl<T> serde_core::de::DeserializeOwned for nika_kernel_ai::genai::GenAiAttrs where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_kernel_ai::harness
 pub use nika_kernel_ai::harness::TokenUsage
+#[non_exhaustive] pub enum nika_kernel_ai::harness::HarnessConfinement
+pub nika_kernel_ai::harness::HarnessConfinement::ReadOnly
+pub nika_kernel_ai::harness::HarnessConfinement::WorkspaceWrite
+impl nika_kernel_ai::harness::HarnessConfinement
+pub const fn nika_kernel_ai::harness::HarnessConfinement::as_str(self) -> &'static str
+impl core::clone::Clone for nika_kernel_ai::harness::HarnessConfinement
+pub fn nika_kernel_ai::harness::HarnessConfinement::clone(&self) -> nika_kernel_ai::harness::HarnessConfinement
+impl core::cmp::Eq for nika_kernel_ai::harness::HarnessConfinement
+impl core::cmp::PartialEq for nika_kernel_ai::harness::HarnessConfinement
+pub fn nika_kernel_ai::harness::HarnessConfinement::eq(&self, other: &nika_kernel_ai::harness::HarnessConfinement) -> bool
+impl core::fmt::Debug for nika_kernel_ai::harness::HarnessConfinement
+pub fn nika_kernel_ai::harness::HarnessConfinement::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_kernel_ai::harness::HarnessConfinement
+impl core::marker::StructuralPartialEq for nika_kernel_ai::harness::HarnessConfinement
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::harness::HarnessConfinement
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::harness::HarnessConfinement where U: core::convert::From<T>
+pub fn nika_kernel_ai::harness::HarnessConfinement::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::harness::HarnessConfinement where U: core::convert::Into<T>
+pub type nika_kernel_ai::harness::HarnessConfinement::Error = core::convert::Infallible
+pub fn nika_kernel_ai::harness::HarnessConfinement::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::harness::HarnessConfinement where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::harness::HarnessConfinement::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::harness::HarnessConfinement::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::harness::HarnessConfinement where T: core::clone::Clone
+pub type nika_kernel_ai::harness::HarnessConfinement::Owned = T
+pub fn nika_kernel_ai::harness::HarnessConfinement::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::harness::HarnessConfinement::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::harness::HarnessConfinement where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::harness::HarnessConfinement::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::harness::HarnessConfinement where T: ?core::marker::Sized
+pub fn nika_kernel_ai::harness::HarnessConfinement::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::harness::HarnessConfinement where T: ?core::marker::Sized
+pub fn nika_kernel_ai::harness::HarnessConfinement::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::harness::HarnessConfinement where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::harness::HarnessConfinement::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::harness::HarnessConfinement
+pub fn nika_kernel_ai::harness::HarnessConfinement::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::harness::HarnessConfinement where T: 'static
+pub fn nika_kernel_ai::harness::HarnessConfinement::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_kernel_ai::harness::HarnessError
 pub nika_kernel_ai::harness::HarnessError::Refused
 pub nika_kernel_ai::harness::HarnessError::Refused::reason: alloc::string::String
@@ -480,8 +519,17 @@ pub fn nika_kernel_ai::harness::HarnessError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_ai::harness::HarnessError where T: 'static
 pub fn nika_kernel_ai::harness::HarnessError::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_kernel_ai::harness::HarnessEvent
+pub nika_kernel_ai::harness::HarnessEvent::ClientCallRefused
+pub nika_kernel_ai::harness::HarnessEvent::ClientCallRefused::method: alloc::string::String
 pub nika_kernel_ai::harness::HarnessEvent::Completed
 pub nika_kernel_ai::harness::HarnessEvent::Completed::outcome: alloc::boxed::Box<nika_kernel_ai::harness::HarnessOutcome>
+pub nika_kernel_ai::harness::HarnessEvent::EscalationAsked
+pub nika_kernel_ai::harness::HarnessEvent::EscalationAsked::command: alloc::vec::Vec<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessEvent::EscalationAsked::escalation: nika_kernel_ai::harness::HarnessEscalation
+pub nika_kernel_ai::harness::HarnessEvent::EscalationAsked::kind: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessEvent::EscalationAsked::locations: alloc::vec::Vec<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessEvent::EscalationAsked::question: alloc::string::String
+pub nika_kernel_ai::harness::HarnessEvent::EscalationAsked::reply: nika_kernel_ai::harness::PermissionReply
 pub nika_kernel_ai::harness::HarnessEvent::ImageActivityObserved
 pub nika_kernel_ai::harness::HarnessEvent::ImageActivityObserved::tool_call_id: alloc::string::String
 pub nika_kernel_ai::harness::HarnessEvent::ImageObserved
@@ -495,6 +543,10 @@ pub nika_kernel_ai::harness::HarnessEvent::PermissionAsked::locations: alloc::ve
 pub nika_kernel_ai::harness::HarnessEvent::PermissionAsked::question: alloc::string::String
 pub nika_kernel_ai::harness::HarnessEvent::PermissionAsked::reply: nika_kernel_ai::harness::PermissionReply
 pub nika_kernel_ai::harness::HarnessEvent::PermissionAsked::url: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessEvent::SessionConfined
+pub nika_kernel_ai::harness::HarnessEvent::SessionConfined::mode: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessEvent::SessionConfined::selected: bool
+pub nika_kernel_ai::harness::HarnessEvent::SessionConfined::unasked: alloc::string::String
 impl core::fmt::Debug for nika_kernel_ai::harness::HarnessEvent
 pub fn nika_kernel_ai::harness::HarnessEvent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_kernel_ai::harness::HarnessEvent
@@ -593,6 +645,49 @@ impl<T> core::convert::From<T> for nika_kernel_ai::harness::PermissionDecision
 pub fn nika_kernel_ai::harness::PermissionDecision::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_ai::harness::PermissionDecision where T: 'static
 pub fn nika_kernel_ai::harness::PermissionDecision::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_ai::harness::HarnessEscalation
+pub nika_kernel_ai::harness::HarnessEscalation::network: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessEscalation::widens: core::option::Option<alloc::string::String>
+impl nika_kernel_ai::harness::HarnessEscalation
+pub fn nika_kernel_ai::harness::HarnessEscalation::is_empty(&self) -> bool
+pub fn nika_kernel_ai::harness::HarnessEscalation::new() -> Self
+pub fn nika_kernel_ai::harness::HarnessEscalation::with_network(self, target: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_ai::harness::HarnessEscalation::with_widens(self, widens: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_ai::harness::HarnessEscalation
+pub fn nika_kernel_ai::harness::HarnessEscalation::clone(&self) -> nika_kernel_ai::harness::HarnessEscalation
+impl core::cmp::Eq for nika_kernel_ai::harness::HarnessEscalation
+impl core::cmp::PartialEq for nika_kernel_ai::harness::HarnessEscalation
+pub fn nika_kernel_ai::harness::HarnessEscalation::eq(&self, other: &nika_kernel_ai::harness::HarnessEscalation) -> bool
+impl core::default::Default for nika_kernel_ai::harness::HarnessEscalation
+pub fn nika_kernel_ai::harness::HarnessEscalation::default() -> nika_kernel_ai::harness::HarnessEscalation
+impl core::fmt::Debug for nika_kernel_ai::harness::HarnessEscalation
+pub fn nika_kernel_ai::harness::HarnessEscalation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::harness::HarnessEscalation
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::harness::HarnessEscalation
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::harness::HarnessEscalation where U: core::convert::From<T>
+pub fn nika_kernel_ai::harness::HarnessEscalation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::harness::HarnessEscalation where U: core::convert::Into<T>
+pub type nika_kernel_ai::harness::HarnessEscalation::Error = core::convert::Infallible
+pub fn nika_kernel_ai::harness::HarnessEscalation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::harness::HarnessEscalation where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::harness::HarnessEscalation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::harness::HarnessEscalation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::harness::HarnessEscalation where T: core::clone::Clone
+pub type nika_kernel_ai::harness::HarnessEscalation::Owned = T
+pub fn nika_kernel_ai::harness::HarnessEscalation::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::harness::HarnessEscalation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::harness::HarnessEscalation where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::harness::HarnessEscalation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::harness::HarnessEscalation where T: ?core::marker::Sized
+pub fn nika_kernel_ai::harness::HarnessEscalation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::harness::HarnessEscalation where T: ?core::marker::Sized
+pub fn nika_kernel_ai::harness::HarnessEscalation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::harness::HarnessEscalation where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::harness::HarnessEscalation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::harness::HarnessEscalation
+pub fn nika_kernel_ai::harness::HarnessEscalation::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::harness::HarnessEscalation where T: 'static
+pub fn nika_kernel_ai::harness::HarnessEscalation::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_ai::harness::HarnessImage
 pub nika_kernel_ai::harness::HarnessImage::data: core::option::Option<bytes::bytes::Bytes>
 pub nika_kernel_ai::harness::HarnessImage::mime_type: core::option::Option<alloc::string::String>
@@ -682,6 +777,7 @@ pub fn nika_kernel_ai::harness::HarnessOutcome::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_ai::harness::HarnessOutcome where T: 'static
 pub fn nika_kernel_ai::harness::HarnessOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_ai::harness::HarnessRequest
+pub nika_kernel_ai::harness::HarnessRequest::confinement: core::option::Option<nika_kernel_ai::harness::HarnessConfinement>
 pub nika_kernel_ai::harness::HarnessRequest::cwd: std::path::PathBuf
 pub nika_kernel_ai::harness::HarnessRequest::prompt: alloc::string::String
 pub nika_kernel_ai::harness::HarnessRequest::requested_effort: core::option::Option<alloc::string::String>
@@ -690,6 +786,7 @@ pub nika_kernel_ai::harness::HarnessRequest::requested_model: core::option::Opti
 pub nika_kernel_ai::harness::HarnessRequest::system: core::option::Option<alloc::string::String>
 impl nika_kernel_ai::harness::HarnessRequest
 pub fn nika_kernel_ai::harness::HarnessRequest::new(prompt: impl core::convert::Into<alloc::string::String>, cwd: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_kernel_ai::harness::HarnessRequest::with_confinement(self, confinement: nika_kernel_ai::harness::HarnessConfinement) -> Self
 pub fn nika_kernel_ai::harness::HarnessRequest::with_requested_effort(self, effort: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_kernel_ai::harness::HarnessRequest::with_requested_mode(self, mode: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_ai::harness::HarnessRequest::with_requested_model(self, model: impl core::convert::Into<alloc::string::String>) -> Self

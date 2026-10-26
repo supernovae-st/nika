@@ -250,7 +250,8 @@ async fn collect(
             HarnessEvent::Completed { outcome } if outcome.images.is_empty() => {
                 return Ok(*outcome);
             }
-            HarnessEvent::PermissionAsked { reply, .. } => {
+            HarnessEvent::PermissionAsked { reply, .. }
+            | HarnessEvent::EscalationAsked { reply, .. } => {
                 reply.respond(PermissionDecision::Deny);
                 return Err(refused("ACP infer requested a tool; no answer accepted"));
             }

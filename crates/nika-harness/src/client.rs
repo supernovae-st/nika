@@ -125,6 +125,8 @@ where
             completion,
             progress,
             meta,
+            agent_name: None,
+            confined: None,
         };
         if let Err(e) = driver.run(request).await {
             activity::failed(driver.progress.as_ref());
@@ -172,6 +174,12 @@ struct Driver<R, W> {
     progress: Option<crate::authoring::acp::Progress>,
     /// The options sent once with `session/new` (`_meta`), if any.
     meta: Option<Value>,
+    /// The adapter's own name (`initialize` → `agentInfo.name`): the key its measured
+    /// confinement is looked up by, never a guess from the command that spawned it.
+    agent_name: Option<String>,
+    /// The mode the session was confined to before the prompt (NIK-266): held for the whole
+    /// turn, a reported change away from it ends the session.
+    confined: Option<String>,
 }
 
 impl<R, W> Driver<R, W>
@@ -193,6 +201,10 @@ where
         if let Some(completion) = self.completion {
             crate::authoring::acp::admit(&value, completion)?;
         }
+        self.agent_name = value
+            .pointer("/agentInfo/name")
+            .and_then(Value::as_str)
+            .map(str::to_owned);
         let init: wire::InitializeResult = parse_payload(value, "initialize")?;
         if init.protocol_version != wire::PROTOCOL_V1 {
             return Err(HarnessError::Refused {
@@ -300,23 +312,16 @@ where
                                     completion.label()
                                 )));
                             }
-                            self.on_permission_ask(id, params, &ptx).await?;
+                            self.on_permission_ask(id, params, &request.cwd, &ptx).await?;
                         }
-                        Incoming::Request { id, .. } => {
+                        Incoming::Request { id, method, .. } => {
                             if let Some(completion) = self.completion {
                                 return Err(crate::authoring::acp::refusal(&format!(
                                     "{} requested an unsupported client action",
                                     completion.label()
                                 )));
                             }
-                            // An unknown agent request refuses politely —
-                            // JSON-RPC method-not-found keeps the wire honest.
-                            let line = wire::response_line(
-                                &id,
-                                &serde_json::json!({}),
-                            )
-                            .map_err(session_err)?;
-                            self.write_line(&line).await?;
+                            self.refuse_client_call(&id, method).await?;
                         }
                     }
                 }
@@ -336,6 +341,9 @@ where
         }
         if let Some(completion) = self.completion {
             crate::authoring::acp::judge_update(&update.update, completion)?;
+        }
+        if let Some(held) = &self.confined {
+            confine::judge_drift(&update.update, held)?;
         }
         if update.update.get("sessionUpdate").and_then(Value::as_str)
             == Some("config_option_update")
@@ -378,8 +386,12 @@ where
         &mut self,
         id: Value,
         params: Value,
+        root: &std::path::Path,
         ptx: &mpsc::UnboundedSender<(Value, PermissionDecision, Vec<wire::PermissionOptionIn>)>,
     ) -> Result<(), HarnessError> {
+        // The request-level `_meta` (codex-acp's `Allow network access?`) is read before the
+        // typed payload drops it (NIK-266).
+        let meta = params.get("_meta").cloned();
         let ask: PermissionRequestIn = parse_payload(params, "session/request_permission")?;
         let question = ask
             .tool_call
@@ -393,6 +405,11 @@ where
         // locations · command · url — the wire's own words, absent when
         // the agent did not speak them).
         let (kind, locations, command, url) = wire::ask_facts(&ask.tool_call);
+        // NIK-266: network access or a wider harness sandbox, from every signal the ask carries.
+        let escalation = wire::ask_escalation(&ask.tool_call, meta.as_ref());
+        // NIK-266: in the workflow's vocabulary — root-relative inside the session root,
+        // absolute outside, plus each path's physical identity when a link or `..` moves it.
+        let locations = anchor::anchor(locations, root).await;
         // The drop-reads-as-Deny guard: if the engine never answers,
         // the closure is DROPPED, the guard fires, the agent hears
         // `cancelled` — fail-closed, never a hang (A-5 twin).
@@ -404,16 +421,39 @@ where
             };
             PermissionReply::new(Box::new(move |decision| guard.answer(decision)))
         };
-        let _ = self
-            .event_tx
-            .send(Ok(HarnessEvent::PermissionAsked {
+        let event = if escalation.is_empty() {
+            HarnessEvent::PermissionAsked {
                 question,
                 reply,
                 kind,
                 locations,
                 command,
                 url,
-            }))
+            }
+        } else {
+            HarnessEvent::EscalationAsked {
+                question,
+                reply,
+                kind,
+                command,
+                locations,
+                escalation,
+            }
+        };
+        let _ = self.event_tx.send(Ok(event)).await;
+        Ok(())
+    }
+
+    /// Refuse a client method this client does not offer (it advertises no fs and no terminal
+    /// capability): a JSON-RPC error, never an empty success the agent would read as served,
+    /// and the refusal rides the stream so the engine witnesses it (NIK-266).
+    async fn refuse_client_call(&mut self, id: &Value, method: String) -> Result<(), HarnessError> {
+        let message = format!("`{method}` is not offered by this client");
+        let line = wire::error_line(id, wire::METHOD_NOT_FOUND, &message).map_err(session_err)?;
+        self.write_line(&line).await?;
+        let _ = self
+            .event_tx
+            .send(Ok(HarnessEvent::ClientCallRefused { method }))
             .await;
         Ok(())
     }
@@ -535,10 +575,25 @@ where
         }
         self.select_effort(&sid, config.as_ref(), request.requested_effort.as_deref())
             .await?;
-        match self.completion {
-            Some(one_shot) if one_shot.required_mode().is_some() => {
-                self.require_mode(&sid, config.as_ref(), one_shot).await
+        self.settle_mode(sid, session, config.as_ref(), request)
+            .await
+    }
+
+    /// The session's mode, last before the prompt: a one-shot profile's required mode, an
+    /// agent task's confinement (NIK-266 · never best effort), else a requested mode, best
+    /// effort. `config` is the configuration the session last reported.
+    async fn settle_mode(
+        &mut self,
+        sid: String,
+        session: &wire::NewSessionResult,
+        config: Option<&Value>,
+        request: &HarnessRequest,
+    ) -> Result<(), HarnessError> {
+        match (self.completion, request.confinement) {
+            (Some(one_shot), _) if one_shot.required_mode().is_some() => {
+                self.require_mode(&sid, config, one_shot).await
             }
+            (None, Some(confinement)) => self.confine(&sid, session, config, confinement).await,
             _ => self.select_mode(sid, session, request).await,
         }
     }
@@ -665,12 +720,26 @@ where
                         crate::authoring::acp::judge_update(&params["update"], completion)?;
                     }
                 }
-                Incoming::Request { .. } => {
+                Incoming::Request { id, method, .. } => {
                     if let Some(completion) = self.completion {
                         return Err(crate::authoring::acp::refusal(&format!(
                             "{} requested a client action before the prompt",
                             completion.label()
                         )));
+                    }
+                    // Nothing is granted before the prompt either: a permission ask this early
+                    // precedes the confinement and hears `cancelled`, any other call is refused;
+                    // both are witnessed.
+                    if method == wire::METHOD_REQUEST_PERMISSION {
+                        let cancelled = PermissionResult::cancelled();
+                        let line = wire::response_line(&id, &cancelled).map_err(session_err)?;
+                        self.write_line(&line).await?;
+                        let _ = self
+                            .event_tx
+                            .send(Ok(HarnessEvent::ClientCallRefused { method }))
+                            .await;
+                    } else {
+                        self.refuse_client_call(&id, method).await?;
                     }
                 }
                 _ => {} // interleaved beats before the handshake settles
@@ -692,6 +761,13 @@ mod effort;
 
 /// A completion profile's required session mode, applied and read back before the prompt.
 mod mode;
+
+/// An agent task's confinement: the measured mode its permits allow, applied and read back
+/// before the prompt, then held for the turn (NIK-266).
+mod confine;
+
+/// The paths a permission ask names, projected onto the session root (NIK-266).
+mod anchor;
 
 /// One ACP session kept open across turns (`crate::conversation`).
 pub(crate) mod conversation;
@@ -1392,98 +1468,7 @@ mod tests {
 }
 
 #[cfg(test)]
-mod wedge_tests {
-    use super::*;
-    use nika_kernel::ai::harness::HarnessRequest;
-    const FAST_IDLE: std::time::Duration = std::time::Duration::from_millis(80);
-
-    /// The refuter's counterexample (2026-08-06), pinned: a peer that
-    /// writes half a line and goes silent WITHOUT closing its pipe used
-    /// to hang the driver forever (a size bound, no time bound).
-    #[tokio::test]
-    async fn a_silent_partial_line_ends_at_the_idle_deadline() {
-        let (ours, theirs) = tokio::io::duplex(4096);
-        let (client_read, client_write) = tokio::io::split(ours);
-        let (_agent_read, mut agent_write) = tokio::io::split(theirs);
-        agent_write
-            .write_all(b"{\"jsonrpc\":\"2.0\"")
-            .await
-            .expect("partial write");
-
-        let mut stream = drive_with_idle(
-            client_read,
-            client_write,
-            HarnessRequest::new("hi", "/tmp"),
-            FAST_IDLE,
-        );
-        let next = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
-        let Some(Err(HarnessError::Session { reason })) = next else {
-            panic!("the idle deadline must end a silent peer, got {next:?}");
-        };
-        assert!(reason.contains("idle deadline"), "{reason}");
-        drop(agent_write); // the pipe stayed OPEN for the whole wait
-    }
-
-    /// Progress resets the deadline: an agent that answers slowly (each
-    /// beat inside the window) is never killed mid-turn.
-    #[tokio::test]
-    async fn progress_resets_the_idle_deadline() {
-        let (ours, theirs) = tokio::io::duplex(64 * 1024);
-        let (client_read, client_write) = tokio::io::split(ours);
-        let (agent_read, mut agent_write) = tokio::io::split(theirs);
-
-        let agent = tokio::spawn(async move {
-            use tokio::io::AsyncBufReadExt as _;
-            let mut r = tokio::io::BufReader::new(agent_read);
-            let mut line = String::new();
-            let answer = async |w: &mut tokio::io::WriteHalf<tokio::io::DuplexStream>, v: Value| {
-                let mut s = serde_json::to_string(&v).expect("json");
-                s.push('\n');
-                w.write_all(s.as_bytes()).await.expect("write");
-            };
-            for step in 0..3 {
-                // Each beat lands at 60% of the window: three gaps in a
-                // row, none fatal — the reset is what proves it.
-                tokio::time::sleep(FAST_IDLE.mul_f32(0.6)).await;
-                line.clear();
-                r.read_line(&mut line).await.expect("read");
-                let req: Value = serde_json::from_str(line.trim_end()).expect("json");
-                let result = match step {
-                    0 => serde_json::json!({"protocolVersion": 1}),
-                    1 => serde_json::json!({"sessionId": "s-slow"}),
-                    _ => serde_json::json!({"stopReason": "end_turn"}),
-                };
-                answer(
-                    &mut agent_write,
-                    serde_json::json!({"jsonrpc":"2.0","id":req["id"],"result":result}),
-                )
-                .await;
-            }
-        });
-
-        let mut stream = drive_with_idle(
-            client_read,
-            client_write,
-            HarnessRequest::new("slow", "/tmp"),
-            FAST_IDLE,
-        );
-        let mut completed = false;
-        loop {
-            let next = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
-            match next {
-                Some(Ok(HarnessEvent::Completed { .. })) => completed = true,
-                Some(Ok(_)) => {}
-                Some(Err(e)) => panic!("a slow BUT ALIVE agent must survive: {e}"),
-                None => break,
-            }
-        }
-        agent.await.expect("scripted slow agent");
-        assert!(
-            completed,
-            "the turn completes across three near-deadline gaps"
-        );
-    }
-}
+mod wedge_tests;
 
 #[cfg(test)]
 mod frame_tests;

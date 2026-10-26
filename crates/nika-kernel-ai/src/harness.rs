@@ -50,6 +50,12 @@ pub struct HarnessRequest {
     /// applies it through the session's own reasoning option after the model is selected and
     /// reads it back before the prompt, or refuses; it is never dropped or translated.
     pub requested_effort: Option<String>,
+    /// The confinement the session must hold (NIK-266): the workflow's `permits:` projected
+    /// onto the harness's own approval mode. Unlike [`Self::requested_mode`] this is never best
+    /// effort — the client applies the measured mode and reads it back before the prompt, or
+    /// refuses. `None` keeps the harness's own mode (the one-shot and conversation profiles,
+    /// which close their surfaces their own way).
+    pub confinement: Option<HarnessConfinement>,
 }
 
 impl HarnessRequest {
@@ -63,7 +69,15 @@ impl HarnessRequest {
             requested_model: None,
             requested_mode: None,
             requested_effort: None,
+            confinement: None,
         }
+    }
+
+    /// Require the session to hold `confinement` (NIK-266).
+    #[must_use]
+    pub fn with_confinement(mut self, confinement: HarnessConfinement) -> Self {
+        self.confinement = Some(confinement);
+        self
     }
 
     /// Ask for an exact native reasoning effort (`None` keeps the session's own).
@@ -91,6 +105,31 @@ impl HarnessRequest {
     pub fn with_requested_mode(mut self, mode: impl Into<String>) -> Self {
         self.requested_mode = Some(mode.into());
         self
+    }
+}
+
+/// What an `agent:` session must hold to (NIK-266) — the workflow's declared `permits:`
+/// projected onto the harness's own approval mode. Either way the client selects only a
+/// mode MEASURED to send every approval to the engine (never one that approves on its own:
+/// an auto-reviewer, accept-edits, full access, bypass) and reads it back before the prompt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum HarnessConfinement {
+    /// The workflow grants no `fs.write`: the most restrictive mode the harness offers.
+    ReadOnly,
+    /// The workflow grants `fs.write`: a mode that may write inside the session root, every
+    /// approval it asks still reaching the engine.
+    WorkspaceWrite,
+}
+
+impl HarnessConfinement {
+    /// The stable word (journal · refusal lines).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ReadOnly => "read-only",
+            Self::WorkspaceWrite => "workspace-write",
+        }
     }
 }
 
@@ -169,13 +208,55 @@ pub enum HarnessEvent {
         /// when the agent declared one — the bridge's judge reads this
         /// (B5); absent means unverifiable, which pauses (fail-closed).
         kind: Option<String>,
-        /// The paths the action touches (`toolCall.locations[].path`).
+        /// The paths the action touches (`toolCall.locations[].path`), as the client
+        /// anchored them on the session root (NIK-266): root-relative inside it — the
+        /// vocabulary `permits.fs` globs are authored in — absolute outside it, each followed
+        /// by its effective identity when a symlink moves it, so every one must fit.
         locations: Vec<String>,
         /// The argv of an `execute` ask (`rawInput.command`, array
         /// form) — empty for a prose-only ask.
         command: Vec<String>,
         /// The URL of a `fetch` ask (`rawInput.url`).
         url: Option<String>,
+    },
+    /// An ask that reaches beyond its own kind (NIK-266): it opens network access (a fetch, or
+    /// a command the harness says needs the network) or asks the harness to widen its own
+    /// sandbox. The same reply lane as [`Self::PermissionAsked`], but no grant answers it:
+    /// only the operator does. A consumer that does not know this variant drops the reply,
+    /// which the harness hears as `cancelled` (fail-closed).
+    EscalationAsked {
+        /// The harness's own description of the action.
+        question: String,
+        /// The one-shot reply lane.
+        reply: PermissionReply,
+        /// The wire's toolCall `kind` (`execute` for a command), as in
+        /// [`Self::PermissionAsked`].
+        kind: Option<String>,
+        /// The argv of the command (`rawInput.command`, array form), empty for a shell string.
+        command: Vec<String>,
+        /// The paths the ask names, anchored like [`Self::PermissionAsked`]'s `locations`.
+        locations: Vec<String>,
+        /// What the ask reaches beyond its kind.
+        escalation: HarnessEscalation,
+    },
+    /// The confinement the session settled before its prompt (NIK-266): the mode it runs
+    /// under and what the harness still does without asking. An auditor reads WHICH authority
+    /// the harness kept for itself before any permission ask.
+    SessionConfined {
+        /// The approval mode the session runs under, as the harness names it (`None`: it
+        /// advertises no mode at all).
+        mode: Option<String>,
+        /// `true` when the client selected the measured mode and read it back; `false` when
+        /// no measured mode exists for this harness and its own was only observed.
+        selected: bool,
+        /// What the harness still decides itself, without asking, in the engine's words.
+        unasked: String,
+    },
+    /// The harness called a client method this client does not offer (`fs/*` ·
+    /// `terminal/*` · any other): answered with a JSON-RPC error, never served (NIK-266).
+    ClientCallRefused {
+        /// The method the agent called, verbatim.
+        method: String,
     },
     /// The run completed — the terminal beat. Boxed: the outcome is
     /// the fat variant and every OTHER beat is hot-path (the clippy
@@ -184,6 +265,49 @@ pub enum HarnessEvent {
         /// The final outcome.
         outcome: Box<HarnessOutcome>,
     },
+}
+
+/// What an ask reaches beyond its own kind (NIK-266), read by the wire client from every
+/// structured signal the ask carries. Never covered by a grant: the bridge pauses it for the
+/// operator, the target in view.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct HarnessEscalation {
+    /// The network target the ask opens: a URL (`https://host`), the `<protocol>://<host>`
+    /// of a Codex network approval (`socks5Tcp://host`), or how the harness named the access
+    /// when it named no target.
+    pub network: Option<String>,
+    /// The widening of the harness's own sandbox the ask asks, summarized (Codex
+    /// `additionalPermissions`: `network`, `write /`; Claude Code `dangerouslyDisableSandbox`).
+    pub widens: Option<String>,
+}
+
+impl HarnessEscalation {
+    /// Construct (INV-019): nothing asked beyond the command.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The network target the ask opens.
+    #[must_use]
+    pub fn with_network(mut self, target: impl Into<String>) -> Self {
+        self.network = Some(target.into());
+        self
+    }
+
+    /// The sandbox widening the ask asks.
+    #[must_use]
+    pub fn with_widens(mut self, widens: impl Into<String>) -> Self {
+        self.widens = Some(widens.into());
+        self
+    }
+
+    /// Whether the ask reaches nothing beyond its kind.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.network.is_none() && self.widens.is_none()
+    }
 }
 
 /// The terminal facts of a delegated run — what the receipt records.
@@ -510,6 +634,22 @@ mod tests {
         let both = reason(&selection);
         assert!(both.contains("model=sonnet · effort=low"), "{both}");
         assert!(both.contains("an explicit selection is exact"), "{both}");
+    }
+
+    /// NIK-266 · an escalation is empty until it names a network target or a widening, and
+    /// each builder sets exactly its own field.
+    #[test]
+    fn an_escalation_names_what_the_command_reaches_beyond_running() {
+        assert!(HarnessEscalation::new().is_empty());
+        let network = HarnessEscalation::new().with_network("socks5Tcp://exfil.example");
+        assert_eq!(
+            network.network.as_deref(),
+            Some("socks5Tcp://exfil.example")
+        );
+        assert!(network.widens.is_none() && !network.is_empty());
+        let widens = HarnessEscalation::new().with_widens("write /");
+        assert_eq!(widens.widens.as_deref(), Some("write /"));
+        assert!(widens.network.is_none() && !widens.is_empty());
     }
 
     #[test]

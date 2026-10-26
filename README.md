@@ -468,7 +468,10 @@ understanding, and Graph editing is not implemented by this CLI.
 Compile's Check preview judges source only. `nika check` and `nika run` judge
 the actual environment separately. For a real model, choose the provider and
 access explicitly; the [model setup documentation](https://docs.nika.sh)
-explains local, API and supported harness choices.
+explains local, API and supported harness choices. On a harness seat an
+`agent:` task runs the application's own tools:
+[what `permits:` covers there](docs/usage/harness-agents.md), and what it
+does not, is listed per seat and printed by `nika check`.
 
 </details>
 

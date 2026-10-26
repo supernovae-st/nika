@@ -2067,6 +2067,7 @@ pub nika_cli_host::oracle::Verdict::children: alloc::vec::Vec<alloc::string::Str
 pub nika_cli_host::oracle::Verdict::clean: bool
 pub nika_cli_host::oracle::Verdict::drift: alloc::vec::Vec<alloc::string::String>
 pub nika_cli_host::oracle::Verdict::grade: nika_check::risk::RiskGrade
+pub nika_cli_host::oracle::Verdict::harness: alloc::vec::Vec<nika_check::hints::Hint>
 pub nika_cli_host::oracle::Verdict::judged: nika_cli_host::oracle::Judged
 pub nika_cli_host::oracle::Verdict::layers: nika_display::check_render::layers::VerdictLayers
 pub nika_cli_host::oracle::Verdict::models: nika_display::check_models::ModelsAudit
@@ -2074,6 +2075,7 @@ pub nika_cli_host::oracle::Verdict::plan: nika_providers::plan::ExecutionAccessP
 impl nika_cli_host::oracle::Verdict
 pub fn nika_cli_host::oracle::Verdict::lane_findings(&self, report: &nika_check::CheckReport, lanes: nika_cli_host::oracle::Lanes) -> alloc::vec::Vec<nika_cli_host::oracle::LaneFinding>
 pub fn nika_cli_host::oracle::Verdict::profile_clean(&self, operational: bool) -> bool
+pub fn nika_cli_host::oracle::Verdict::report_with_hints<'a>(&self, report: &'a nika_check::CheckReport) -> alloc::borrow::Cow<'a, nika_check::CheckReport>
 pub fn nika_cli_host::oracle::Verdict::strict_clean(&self, report: &nika_check::CheckReport, lanes: nika_cli_host::oracle::Lanes) -> bool
 impl<D> owo_colors::OwoColorize for nika_cli_host::oracle::Verdict
 impl<T, U> core::convert::Into<U> for nika_cli_host::oracle::Verdict where U: core::convert::From<T>

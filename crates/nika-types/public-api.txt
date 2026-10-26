@@ -637,6 +637,59 @@ pub unsafe fn nika_types::access::AccessRequirement::clone_to_uninit(&self, dest
 impl<T> core::convert::From<T> for nika_types::access::AccessRequirement
 pub fn nika_types::access::AccessRequirement::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessRequirement where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::access::HarnessBoundary
+pub nika_types::access::HarnessBoundary::agents: &'static [&'static str]
+pub nika_types::access::HarnessBoundary::fetches_unasked: core::option::Option<&'static str>
+pub nika_types::access::HarnessBoundary::measured_on: &'static str
+pub nika_types::access::HarnessBoundary::read_only_mode: &'static str
+pub nika_types::access::HarnessBoundary::reads_unasked: &'static str
+pub nika_types::access::HarnessBoundary::runs_unasked: core::option::Option<&'static str>
+pub nika_types::access::HarnessBoundary::seat: &'static str
+pub nika_types::access::HarnessBoundary::workspace_write_mode: &'static str
+pub nika_types::access::HarnessBoundary::writes_unasked: core::option::Option<&'static str>
+impl nika_types::access::HarnessBoundary
+pub const nika_types::access::HarnessBoundary::CLAUDE_AGENT_ACP: Self
+pub const nika_types::access::HarnessBoundary::CODEX_ACP: Self
+pub const nika_types::access::HarnessBoundary::GEMINI_CLI: Self
+pub const nika_types::access::HarnessBoundary::MEASURED: [Self; 3]
+pub fn nika_types::access::HarnessBoundary::check_advice(&self, writes_granted: bool) -> alloc::string::String
+pub fn nika_types::access::HarnessBoundary::for_agent(agent_name: &str) -> core::option::Option<Self>
+pub fn nika_types::access::HarnessBoundary::for_seat(id: &str) -> core::option::Option<Self>
+pub const fn nika_types::access::HarnessBoundary::mode_for_writes(&self, writes: bool) -> &'static str
+pub fn nika_types::access::HarnessBoundary::unasked(&self, writes_granted: bool) -> alloc::string::String
+impl core::clone::Clone for nika_types::access::HarnessBoundary
+pub fn nika_types::access::HarnessBoundary::clone(&self) -> nika_types::access::HarnessBoundary
+impl core::cmp::Eq for nika_types::access::HarnessBoundary
+impl core::cmp::PartialEq for nika_types::access::HarnessBoundary
+pub fn nika_types::access::HarnessBoundary::eq(&self, other: &nika_types::access::HarnessBoundary) -> bool
+impl core::fmt::Debug for nika_types::access::HarnessBoundary
+pub fn nika_types::access::HarnessBoundary::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::HarnessBoundary
+pub fn nika_types::access::HarnessBoundary::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::access::HarnessBoundary
+impl core::marker::StructuralPartialEq for nika_types::access::HarnessBoundary
+impl<T, U> core::convert::Into<U> for nika_types::access::HarnessBoundary where U: core::convert::From<T>
+pub fn nika_types::access::HarnessBoundary::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::HarnessBoundary where U: core::convert::Into<T>
+pub type nika_types::access::HarnessBoundary::Error = core::convert::Infallible
+pub fn nika_types::access::HarnessBoundary::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::HarnessBoundary where U: core::convert::TryFrom<T>
+pub type nika_types::access::HarnessBoundary::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::HarnessBoundary::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::HarnessBoundary where T: core::clone::Clone
+pub type nika_types::access::HarnessBoundary::Owned = T
+pub fn nika_types::access::HarnessBoundary::clone_into(&self, target: &mut T)
+pub fn nika_types::access::HarnessBoundary::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::access::HarnessBoundary where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::HarnessBoundary::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::HarnessBoundary where T: ?core::marker::Sized
+pub fn nika_types::access::HarnessBoundary::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::HarnessBoundary where T: ?core::marker::Sized
+pub fn nika_types::access::HarnessBoundary::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::HarnessBoundary where T: core::clone::Clone
+pub unsafe fn nika_types::access::HarnessBoundary::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::HarnessBoundary
+pub fn nika_types::access::HarnessBoundary::from(t: T) -> T
 #[non_exhaustive] pub struct nika_types::access::HarnessRuntime
 pub nika_types::access::HarnessRuntime::acp_bin: &'static str
 pub nika_types::access::HarnessRuntime::detect_bin: &'static str
@@ -795,6 +848,10 @@ pub unsafe fn nika_types::access::SelectionEvidence::clone_to_uninit(&self, dest
 impl<T> core::convert::From<T> for nika_types::access::SelectionEvidence
 pub fn nika_types::access::SelectionEvidence::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::access::SelectionEvidence where T: for<'de> serde_core::de::Deserialize<'de>
+pub const nika_types::access::HARNESS_SHARED_RESIDUAL: &str
+pub const nika_types::access::HARNESS_UNRESOLVED_PATH: &str
+pub const nika_types::access::UNMEASURED_HARNESS_UNASKED: &str
+pub fn nika_types::access::unmeasured_check_advice(seat: &str) -> alloc::string::String
 pub mod nika_types::baggage
 #[non_exhaustive] pub struct nika_types::baggage::Baggage
 pub nika_types::baggage::Baggage::entries: alloc::vec::Vec<nika_types::baggage::BaggageEntry>

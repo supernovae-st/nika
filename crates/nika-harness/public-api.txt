@@ -1569,6 +1569,7 @@ pub fn nika_harness::wire::TextBlock::as_any(&self) -> &(dyn core::any::Any + 's
 impl<T> typenum::type_operators::Same for nika_harness::wire::TextBlock
 pub type nika_harness::wire::TextBlock::Output = T
 pub const nika_harness::wire::METHOD_INITIALIZE: &str
+pub const nika_harness::wire::METHOD_NOT_FOUND: i64
 pub const nika_harness::wire::METHOD_REQUEST_PERMISSION: &str
 pub const nika_harness::wire::METHOD_SESSION_CANCEL: &str
 pub const nika_harness::wire::METHOD_SESSION_NEW: &str
@@ -1580,6 +1581,7 @@ pub const nika_harness::wire::METHOD_SET_MODEL: &str
 pub const nika_harness::wire::PROTOCOL_V1: u16
 pub fn nika_harness::wire::agent_chunk_text(update: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
 pub fn nika_harness::wire::ask_facts(tool_call: &serde_json::value::Value) -> (core::option::Option<alloc::string::String>, alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>, core::option::Option<alloc::string::String>)
+pub fn nika_harness::wire::error_line(id: &serde_json::value::Value, code: i64, message: &str) -> core::result::Result<alloc::string::String, nika_harness::wire::WireError>
 pub fn nika_harness::wire::notification_line(method: &str, params: &impl serde_core::ser::Serialize) -> core::result::Result<alloc::string::String, nika_harness::wire::WireError>
 pub fn nika_harness::wire::parse_line(line: &str) -> core::result::Result<nika_harness::wire::Incoming, nika_harness::wire::WireError>
 pub fn nika_harness::wire::request_line(id: u64, method: &str, params: &impl serde_core::ser::Serialize) -> core::result::Result<alloc::string::String, nika_harness::wire::WireError>

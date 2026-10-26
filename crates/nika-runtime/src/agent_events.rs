@@ -171,6 +171,21 @@ pub(crate) fn emit_agent_events(
     }
 }
 
+/// A paused task never settles, so its frames never ride the settle pass; but the decisions
+/// its agent loop took before the pause (the harness session's confinement, every ask judged,
+/// the one that escalated) are authority exercised, journaled beside the pause and before it
+/// (NIK-266 · the gate question alone named no decision). A resume reads only settled tasks,
+/// so these frames never change what it replays.
+pub(crate) fn emit_paused_decisions(
+    finish: &crate::task::Finish,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    if let crate::task::SettleAs::Ran(ran) = &finish.settle {
+        emit_agent_events(&finish.id, &ran.agent_events, stamper, sink);
+    }
+}
+
 /// Map ONE agent decision onto its canonical kind + specific fields
 /// (`None` for loop lifecycle — `RunStarted` · `TurnStarted` ·
 /// `Finished` are bracketed by the task frames; `#[non_exhaustive]`: a
