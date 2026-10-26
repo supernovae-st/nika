@@ -16,6 +16,195 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.123.2](https://github.com/supernovae-st/nika/compare/v0.123.1..v0.123.2) - 2026-10-26
+
+Nika 0.123.2 is the second maintenance release of the 0.123 reference line. An `agent:` task on
+a harness seat (Codex, Claude Code, Gemini CLI) is now held to the workflow's `permits:` as far
+as the seat allows: Nika selects the seat's asking mode, judges every ask against your grants and
+pauses for network, sandbox-widening and the harness's own MCP approvals, and `nika check` says
+what the seat still does without asking. `nika serve` can return the files a settled job made,
+and verifies journals sealed with an explicit run key pair. A mock rehearsal no longer calls
+itself offline when a step can reach the network, and `crypto-bigint` leaves its yanked release.
+The workflow language, the file format and the SDK protocol are unchanged.
+
+### Added
+
+- **`nika serve` downloads the artifacts a settled job's sealed journal
+  records.** `GET /v1/jobs/{id}/artifacts` lists them, bound to the job's
+  receipt: each file `nika:chart`, `nika:image_generate`,
+  `nika:tts_generate` or `nika:image_fx` saved inside the project, and each
+  image an agent's harness sent, with its size, SHA-256 and media type.
+  `GET /v1/jobs/{id}/artifacts/{name}` streams one, with `Content-Length`
+  and `Nika-Artifact-Sha256`. Both need the bearer token, answer only once
+  the job settled (`409 job_not_settled`), and serve nothing unless the
+  journal verifies sealed and intact with the receipt's chain head. A
+  name is looked up in the manifest, never on disk, and the file opens
+  below the project root with no link on the way. One artifact is served
+  up to 256 MiB. Bytes that no longer match the journal are refused
+  (`409 artifact_changed`), and a file changed mid-stream never arrives
+  whole. Health advertises `artifacts`; ADR-117 records the decision.
+
+### Changed
+
+- **`crypto-bigint` moves from the yanked 0.7.6 to 0.7.9.** Upstream
+  yanked 0.7.6, 0.7.7 and 0.7.8 for a breaking change, so `cargo deny
+  check` refused the lockfile and blocked every push. The crate reaches
+  the build through `p384`, which verifies the Sigstore timestamp
+  authority's ECDSA P-384 leaf in trace anchoring. 0.7.9 keeps the same
+  dependency set and has no build script or procedural macro.
+  `Cargo.lock` and `fuzz/Cargo.lock` move together.
+- **The SDK guard reads what the published `@supernovae-st/nika` 0.123.1 closes.**
+  `published_sdk.json` is re-read from that package's `dist`: machine protocol 2, a scheduled
+  origin's `missed_first` and `missed_count`, `choice` questions and the three compile cognitions,
+  on both compile generations. It still recorded 0.120.3 on protocol 1, so its test passed on a
+  moved clock; it now compares what the widest resident serves with what the published SDK reads.
+- **The embedded language pack follows nika-spec `c5dcd97`.** `SPEC_PIN`
+  and `crates/nika-pack/pack` advance together from `6390b08`, the commit
+  0.123.0 and 0.123.1 embed. The examples and templates that `nika try` and
+  `nika compile` serve no longer call a mock rehearsal offline: the mock
+  replaces the model, not the network, so a fetch step still reaches its
+  host (#1605, the pack half of #1833). `release-notes` no longer drafts
+  notes from a sample log when `git log` fails (the sample is now an
+  explicit `--var rehearse=true`), and `pr-review-fanout` closes its fan-out
+  on a « no » at the gate instead of failing. The spec chapters and stdlib
+  pages carry current model ids and the 0.123 reference-release amendments.
+  The schema and `canon.yaml` are unchanged.
+
+### Fixed
+
+- **`nika explain NIKA-SEC-004` and `NIKA-SEC-005` say a redirect is held to the same
+  boundary.** `nika:fetch` follows a 3xx itself and judges every hop like the URL in the file:
+  a hop onto a host outside `permits.net.http` is SEC-004, a hop into loopback, private,
+  link-local or metadata space (or onto an undeclared loopback name) is SEC-005. Neither page
+  named a redirect, and the SEC-005 closer promised that `nika check` catches it before a run;
+  it now says that check catches a literal URL and that a hop is judged at run.
+- **`nika explain NIKA-BUILTIN-JQ-001` names `decode: json` for `exec:` stdout.** A command that
+  prints JSON hands `nika:jq` a string, and the page taught only the `nika:read` + `fromjson`
+  path for files. It now names the exec side's explicit decoder,
+  `exec: { command: [...], decode: json }` (`jsonl` for one value per line), whose output is
+  the parsed value.
+- **`nika explain NIKA-SEC-001` names the OS sandbox.** A confined `exec` child refused at run
+  reads « seatbelt refused the confined process », and the page it points at named no
+  sandbox. It now says that `exec` runs inside the sandbox built from `permits:` (Seatbelt
+  through `/usr/bin/sandbox-exec` on macOS, bubblewrap through `/usr/bin/bwrap` on Linux, the
+  backend `nika doctor` reports). It also says that a denied exit is classified as that
+  sandbox's refusal from its stderr text alone, so a program's own permission error (a file
+  the OS refuses inside the grant) reads the same, and the file's own permissions are worth
+  checking too.
+- **An unresolved `${{ fetch.output }}` now teaches the task-output form.** When the root of a
+  NIKA-VAR-001 reference is a declared task id, the finding says so and names
+  `tasks.<id>.output` (bound in `with:` on a body surface), and `nika explain NIKA-VAR-001`
+  teaches the same `with:` binding. Neither surface names `config:` any more: the nine-key
+  envelope refuses that key (NIKA-PARSE-005), so a typo'd root is no longer offered it.
+- **`nika check --help` says what `--fix` really applies.** It read « Apply typed rename
+  repairs and re-audit », while the repair ladder also hoists `with:` bindings (NIKA-VAR-021)
+  and migrates retired forms (`needs:`, `depends_on`, `vars:`, a string `exec:` …). The help
+  now names the three repair families and says that other findings stay the author's, and the
+  `○ FIX` line printed when nothing applied names the same families instead of « typed rename
+  suggestions only ».
+- **`nika try` no longer calls its mock rehearsal offline, and names the hosts it may reach.**
+  The mock seat replaces the model only: `nika try snippets/use-a-tool` still GETs
+  `https://nika.sh`, and `snippets/weekly-radar` and `ceo-monday-brief` reach `hnrss.org` and
+  `hn.algolia.com` once their gate is answered. The `nika try` help, the first-run shelf heading,
+  the `--all` listing, the rescue tips, the `try` door blurb, the `model` glossary entry, the
+  `MODELS` row of `nika check`, the `NIKA-INFER-001` lesson and the provider connection hint now
+  say what is true (« on the mock model by default: zero keys, no model call; a step that fetches
+  still reaches its host »), and the rehearsal line of `nika explain <file>` names the declared
+  hosts (`# mock model · zero keys · may still reach nika.sh`). Before a mock rehearsal runs,
+  `nika try` prints `may reach: <hosts> — the mock replaces the model, not the network` from the
+  workflow's `permits.net.http`; a workflow that declares no host prints nothing new, and
+  `--quiet` keeps its compact card. The network itself is not blocked.
+- **`nika explain NIKA-PARSE-019` teaches the `permits.net` mapping.** A host list
+  (`net: [api.example.com]`) refuses with « `permits.net` must be a YAML mapping », and the
+  page answered with `tasks:` and `exec:` forms only. It now teaches the shape the parser
+  accepts, `permits: { net: { http: [api.example.com] } }`, ahead of the exec lesson: list the
+  host, not the URL (an `https://` entry is refused), and the one `http:` key covers `https://`
+  URLs too.
+- **`nika doctor --ping` no longer calls a web page on `:8080` a ready engine.** Its model-list
+  sweep asked `…/v1/chat/completions/models`, a 404 on every engine, and the ping row said
+  `ok … listening` for any open port. The sweep now asks the chat route's sibling,
+  `…/v1/models`. Only an answer that is clearly not an API (a 2xx body that is not JSON, such as
+  a web app's page) drops the `ok`: the row then reads « accepts connections but answers a page,
+  not an API — not a model server », and `--json`'s `adoption_state` no longer counts it as a
+  reachable engine. A 401 or 403 is named `key-protected`, a 404 `no /v1/models route` (the
+  `nika model serve` sidecar), and a timeout keeps the connect verdict. Ollama's
+  `{"object":"list","data":null}` reads as an empty model list.
+- **A `nika try` rehearsal that pauses at a gate names the try form that finishes it.** The
+  paused card said `nika run --answer approve=true FILE`, a file the verb discards when it
+  returns. Under `nika try` it now says `nika try <slug> --answer approve=true` (the answer is
+  pre-seeded on a fresh rehearsal, the form `nika try --help` documents), nested slugs such as
+  `snippets/weekly-radar` included. It carries the rehearsal's own flags as typed (`--var`,
+  `--model` with `self` kept as `self`, `--access`, `--max-cost-usd`, `--resume` and the answers
+  already given), so the pasted line reruns the same rehearsal, and the rehearsal card names
+  that slug too (`rehearsal · snippets/weekly-radar`, no longer the room's folded stem). A
+  workspace `nika run` keeps its own card.
+- **A recorded run's card names `nika trace verify`.** The run footer taught
+  `nika trace outputs` and never the proof itself. When the run recorded a trace, the card
+  (and the piped close) now lists `verify it: nika trace verify` beside `wrote .nika/traces`:
+  zero-arg, the verb judges the workspace's latest trace and prints the head the `trace:`
+  line names. The note is short enough that the card keeps its width.
+- **The ADR index carries `amends`.** `docs/adr/README.md` says `docs/adr/index.json` holds the
+  full relation graph, but `scripts/adr/generate-index.sh` emitted every edge except `amends`,
+  so the twelve ADRs that amend another (ADR-154 amends three) read as amending nothing. The
+  generator now emits it, the index is regenerated, and a hygiene self-test pins the edge.
+- **Release tarballs record root ownership.** The v0.123.1 archives recorded the build runner's
+  own uid (1001 on the Linux legs, 501 on macOS), so `tar -x` run as root in a rootless
+  container failed to restore an unmapped owner. The packaging step now writes every member
+  as 0:0 by number (GNU tar `--owner=0 --group=0 --numeric-owner` on Linux, bsdtar
+  `--uid 0 --gid 0 --numeric-owner` on macOS); the archive contents, the checksum step and the
+  replay of existing assets are unchanged.
+- **`nika serve` attributes the journals it seals with an explicit run key
+  pair.** A resident started with `NIKA_RUN_KEY_FILE` and `NIKA_RUN_PUB_FILE`
+  naming a pair outside `~/.nika/keys` sealed its jobs with that pair, but
+  `GET /v1/jobs/{id}/trace/verify` called the seal unattributable and both
+  artifact routes refused the job with `409 artifact_journal_unverified`.
+  The verifier now weighs that pair's public half after `--key` and before
+  `~/.nika/keys/run-signing.pub` and the retired-key ledger, the order the
+  signer takes them, so `nika trace verify` also attributes such a journal
+  without `--key`. A host that names no pair verifies as before.
+- **The `nika serve` OpenAPI document declares what the server answers.**
+  The trace verify response's `tier`, the 412 schedule error's
+  `error.currentRevision`, the schedule 422 `{findings}` body (kept as the
+  published SDK reads it) and the 404 of a by-name `POST /v1/check` and
+  `POST /v1/jobs` were sent but undeclared. `GET /v1/workflows/{name}` now
+  says a name containing `/` is sent with literal separators, and the
+  cancel route states its fixed 5-second grace before a run is
+  interrupted.
+- **The Session guide says what 0.123.1 suggests on an unsigned run.** It still named 0.123.0's
+  `nika sign`, which signs workflow files; `/proof` and `nika trace verify` now point at the run
+  key, `nika key init`, which seals later runs.
+
+### Security
+
+- **An `agent:` task on a harness seat is held to the workflow's `permits:` as far as the seat
+  allows, and `nika check` says where that stops.** On codex-acp the session kept the adapter's
+  default `agent` mode, whose own reviewer approves most actions, so a Codex task wrote `./out`
+  and read files outside the project without a single `permit_checked` frame. Nika now roots the
+  session in the admitted project (never the server's or the shell's directory), selects the
+  seat's measured asking mode (codex-acp `read-only`, claude-agent-acp `default` instead of your
+  `auto` default, gemini-cli `default`) and reads it back before the prompt or refuses to start,
+  never picks a mode that approves on its own, and ends the session if the mode moves mid-turn.
+  The mode, every ask and every refused client `fs/` or `terminal/` call are journaled as
+  `permit_checked`, also when the run pauses on the ask (a paused trace used to carry the
+  question and no decision). Asks are judged in the project's own terms: an absolute path the
+  harness names now matches `./out/**`, and every path is judged where the operating system
+  lands, walked through each symlink (a dangling one included) and each `..`: `out/link/../x`
+  with `out/link` pointing outside the project was judged as `out/x` and allowed; a path that
+  cannot be resolved now pauses. An ask for network access pauses for you even under
+  `permits.exec: true`: codex-acp's SOCKS approvals (`socks5Tcp network access to <host>`) carry
+  no URL and were answered `allow_once` as plain commands. So does a command asking the harness
+  to widen its own sandbox, which `exec: true` also answered (codex-acp `additionalPermissions`,
+  Claude Code `dangerouslyDisableSandbox`). What the mode still leaves to the harness is printed
+  on every such task as a `[harness]` hint (`nika explain harness`,
+  docs/usage/harness-agents.md): Codex, for one, reads any file and writes the project, `/tmp`
+  and `$TMPDIR` inside its own sandbox even with no `fs.write` grant, and a Codex command that
+  `permits.exec: true` admits after it asked to leave that sandbox runs with none.
+  `NIKA-DRIFT-001` no longer tells you to remove a `permits.exec` or `permits.fs` grant that the
+  permission bridge judges.
+- **A Codex MCP tool approval no longer rides `permits.exec: true`.** codex-acp asks to approve
+  its own MCP tool calls as a command ask with no command, which `exec: true` answered
+  `allow_once`; it now pauses for you on the tools plane, because `permits.tools` names your
+  workflow's MCP tools, not the harness's.
 ## [0.123.1](https://github.com/supernovae-st/nika/compare/v0.123.0..v0.123.1) - 2026-10-25
 
 Nika 0.123.1 is the first maintenance release of the 0.123 reference line. It carries a security
