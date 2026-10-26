@@ -118,6 +118,41 @@ fn parse_ihdr(body: &[u8]) -> Result<Ihdr, FxError> {
     })
 }
 
+/// The dimensions of a PNG, read from its IHDR alone — no inflate, no
+/// allocation beyond the 13-byte header. The same acceptance law as
+/// [`decode`] (depth 8 · gray/gray+alpha/RGB/RGBA · no Adam7 · per-side
+/// cap · per-image pixel budget), so a caller can gate a whole batch's
+/// pixel total BEFORE decompressing any of it. IHDR must be the first
+/// chunk (PNG-3 §5.6) and its CRC must hold.
+///
+/// # Errors
+/// `FxError::UnsupportedFormat` (not a PNG we accept) · `FxError::Decode`
+/// (no leading IHDR · CRC mismatch · zero or over-cap dimensions) ·
+/// `FxError::Budget` (this one image's pixels exceed [`MAX_PIXELS`]).
+pub fn header(data: &[u8]) -> Result<(u32, u32), FxError> {
+    if data.len() < 8 || data[..8] != SIG {
+        return Err(FxError::UnsupportedFormat(
+            "not a PNG (magic bytes) — v1 accepts PNG input; produce PNG upstream \
+             (image_generate format: png) or convert once via exec"
+                .into(),
+        ));
+    }
+    // signature · length (4) · "IHDR" (4) · body (13) · crc (4)
+    if data.len() < 8 + 8 + 13 + 4 || &data[12..16] != b"IHDR" {
+        return Err(FxError::Decode("IHDR must be the first chunk".into()));
+    }
+    let len = u32::from_be_bytes([data[8], data[9], data[10], data[11]]);
+    if len != 13 {
+        return Err(FxError::Decode("IHDR length != 13".into()));
+    }
+    let stored = u32::from_be_bytes([data[29], data[30], data[31], data[32]]);
+    if crc32(&data[12..29]) != stored {
+        return Err(FxError::Decode("chunk crc mismatch on IHDR".into()));
+    }
+    let ihdr = parse_ihdr(&data[16..29])?;
+    Ok((ihdr.w, ihdr.h))
+}
+
 /// Decode a PNG into an RGB8 buffer (alpha discarded · gray replicated).
 ///
 /// # Errors
@@ -125,6 +160,21 @@ fn parse_ihdr(body: &[u8]) -> Result<Ihdr, FxError> {
 /// (structural corruption · CRC/Adler) · `FxError::Budget` (pixel budget,
 /// gated from IHDR before any inflate).
 pub fn decode(data: &[u8]) -> Result<PixBuf, FxError> {
+    decode_planes(data).map(|(rgb, _alpha)| rgb)
+}
+
+/// Decode a PNG into an RGB8 buffer plus its alpha plane — `Some` (one
+/// byte per pixel, row-major) for gray+alpha and RGBA inputs, `None` for
+/// opaque color types. The RGB plane is byte-for-byte what [`decode`]
+/// returns: alpha is carried beside it, never premultiplied into it.
+///
+/// # Errors
+/// The same as [`decode`].
+pub fn decode_with_alpha(data: &[u8]) -> Result<(PixBuf, Option<Vec<u8>>), FxError> {
+    decode_planes(data)
+}
+
+fn decode_planes(data: &[u8]) -> Result<(PixBuf, Option<Vec<u8>>), FxError> {
     if data.len() < 8 || data[..8] != SIG {
         return Err(FxError::UnsupportedFormat(
             "not a PNG (magic bytes) — image_fx v1 accepts PNG input; produce PNG \
@@ -184,15 +234,23 @@ pub fn decode(data: &[u8]) -> Result<PixBuf, FxError> {
     let mut prev = vec![0u8; stride];
     let mut cur = vec![0u8; stride];
     let mut px = Vec::with_capacity(w * h);
+    // Alpha rides beside the RGB plane for the two alpha-carrying types
+    // (4 · gray+alpha, 6 · RGBA): the last sample of each pixel.
+    let mut alpha = matches!(ihdr.color, 4 | 6).then(|| Vec::with_capacity(w * h));
     for y in 0..h {
         let row = y * (stride + 1);
         let ft = raw[row];
         let src = &raw[row + 1..row + 1 + stride];
         unfilter_row(ft, src, &prev, &mut cur, bpp).map_err(FxError::Decode)?;
         push_row_rgb(&cur, ihdr.color, w, &mut px);
+        if let Some(plane) = alpha.as_mut() {
+            plane.extend(cur.chunks_exact(bpp).map(|sample| sample[bpp - 1]));
+        }
         std::mem::swap(&mut prev, &mut cur);
     }
-    PixBuf::from_pixels(w, h, px).ok_or_else(|| FxError::Decode("pixel count mismatch".into()))
+    let rgb = PixBuf::from_pixels(w, h, px)
+        .ok_or_else(|| FxError::Decode("pixel count mismatch".into()))?;
+    Ok((rgb, alpha))
 }
 
 fn unfilter_row(ft: u8, src: &[u8], prev: &[u8], cur: &mut [u8], bpp: usize) -> Result<(), String> {
@@ -389,9 +447,103 @@ pub fn encode(img: &PixBuf, recipe_json: Option<&str>) -> Vec<u8> {
     out
 }
 
+/// Test-only: encode raw samples of any accepted color type (filter None ·
+/// no recipe) — the composition tests need gray+alpha and RGBA inputs the
+/// RGB encoder never produces.
+#[cfg(test)]
+pub(crate) fn encode_samples(w: u32, h: u32, color: u8, samples: &[u8]) -> Vec<u8> {
+    let channels = match color {
+        0 => 1,
+        2 => 3,
+        4 => 2,
+        _ => 4,
+    };
+    let stride = w as usize * channels;
+    let mut raw = Vec::with_capacity(h as usize * (stride + 1));
+    for row in samples.chunks_exact(stride) {
+        raw.push(0);
+        raw.extend_from_slice(row);
+    }
+    let mut ihdr = Vec::with_capacity(13);
+    ihdr.extend_from_slice(&w.to_be_bytes());
+    ihdr.extend_from_slice(&h.to_be_bytes());
+    ihdr.extend_from_slice(&[8, color, 0, 0, 0]);
+    let mut out = Vec::new();
+    out.extend_from_slice(&SIG);
+    chunk(&mut out, *b"IHDR", &ihdr);
+    chunk(&mut out, *b"IDAT", &zlib_fixed_rle(&raw));
+    chunk(&mut out, *b"IEND", &[]);
+    out
+}
+
+/// Test-only: a PNG that is a signature and a valid IHDR and nothing else —
+/// enough for [`header`], never decodable. Proves a gate fires from the
+/// header alone, before any inflate.
+#[cfg(test)]
+pub(crate) fn header_only(w: u32, h: u32) -> Vec<u8> {
+    let mut ihdr = Vec::with_capacity(13);
+    ihdr.extend_from_slice(&w.to_be_bytes());
+    ihdr.extend_from_slice(&h.to_be_bytes());
+    ihdr.extend_from_slice(&[8, 2, 0, 0, 0]);
+    let mut out = Vec::new();
+    out.extend_from_slice(&SIG);
+    chunk(&mut out, *b"IHDR", &ihdr);
+    chunk(&mut out, *b"IEND", &[]);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn header_reads_dims_without_inflating_and_keeps_the_acceptance_law() {
+        assert_eq!(header(&header_only(61, 37)), Ok((61, 37)));
+        let png = encode(&test_img(), None);
+        assert_eq!(header(&png), Ok((61, 37)));
+        assert!(matches!(
+            header(b"GIF89a"),
+            Err(FxError::UnsupportedFormat(_))
+        ));
+        // A palette PNG is refused from its header, before any IDAT.
+        let mut palette = header_only(4, 4);
+        palette[25] = 3; // IHDR color type
+        let crc = crc32(&palette[12..29]);
+        palette[29..33].copy_from_slice(&crc.to_be_bytes());
+        assert!(matches!(
+            header(&palette),
+            Err(FxError::UnsupportedFormat(_))
+        ));
+        // A flipped CRC is structural corruption, never a format question.
+        let mut broken = header_only(4, 4);
+        broken[30] ^= 0xFF;
+        assert!(matches!(header(&broken), Err(FxError::Decode(_))));
+        // Over the per-image budget: refused from the 33 header bytes.
+        assert!(matches!(
+            header(&header_only(16_384, 8_192)),
+            Err(FxError::Budget { .. })
+        ));
+    }
+
+    #[test]
+    fn decode_with_alpha_keeps_the_rgb_plane_and_returns_the_alpha() {
+        // 2×1 RGBA: an opaque red, then a half-transparent blue.
+        let rgba = encode_samples(2, 1, 6, &[255, 0, 0, 255, 0, 0, 255, 128]);
+        let (rgb, alpha) = decode_with_alpha(&rgba).expect("rgba decodes");
+        assert_eq!(rgb.pixels(), &[[255, 0, 0], [0, 0, 255]]);
+        assert_eq!(alpha.as_deref(), Some(&[255u8, 128][..]));
+        assert_eq!(decode(&rgba).expect("rgb view").pixels(), rgb.pixels());
+        // Gray+alpha replicates gray and carries the alpha.
+        let ga = encode_samples(1, 1, 4, &[200, 10]);
+        let (g, a) = decode_with_alpha(&ga).expect("gray+alpha decodes");
+        assert_eq!(
+            (g.pixels(), a.as_deref()),
+            (&[[200, 200, 200]][..], Some(&[10u8][..]))
+        );
+        // An opaque type has no alpha plane.
+        let (_, none) = decode_with_alpha(&encode(&test_img(), None)).expect("rgb decodes");
+        assert_eq!(none, None);
+    }
 
     fn test_img() -> PixBuf {
         let mut img = PixBuf::new(61, 37); // odd dims on purpose
