@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "nika",
-  "version": "0.123.1",
+  "version": "0.123.2",
   "description": "Say it once. Keep it as a file. Nika turns the AI work you repeat into a readable workflow that stays yours: checked before it runs, run with the model you choose, proven afterwards. This package carries the authoring, debugging, operating and migration skills plus the read-only Nika MCP oracle. Requires the nika binary: brew install supernovae-st/tap/nika",
   "author": {
     "name": "SuperNovae Studio",

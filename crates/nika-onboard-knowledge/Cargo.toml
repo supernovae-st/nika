@@ -22,9 +22,9 @@ publish                = false  # Internal member of the nika-onboard unit.
 workspace = true
 
 [dependencies]
-nika-compile       = { path = "../nika-compile", version = "0.123.1" }       # AuthoringKnowledge · KnowledgeReference · CompileRequest
-nika-compile-seats = { path = "../nika-compile-seats", version = "0.123.1" } # foundry (recall, release profile, catalogue, reach) · decide
-nika-event         = { path = "../nika-event", version = "0.123.1" }         # shared knowledge byte identities
+nika-compile       = { path = "../nika-compile", version = "0.123.2" }       # AuthoringKnowledge · KnowledgeReference · CompileRequest
+nika-compile-seats = { path = "../nika-compile-seats", version = "0.123.2" } # foundry (recall, release profile, catalogue, reach) · decide
+nika-event         = { path = "../nika-event", version = "0.123.2" }         # shared knowledge byte identities
 include_dir        = { workspace = true }                              # the current knowledge release, embedded whole from its directory
 serde_json         = { workspace = true }
 
