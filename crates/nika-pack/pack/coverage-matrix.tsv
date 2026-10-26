@@ -316,6 +316,14 @@ stdlib	NIKA-SEC-012	check-reject	conformance/tests/stdlib/builtins/067-remove-fi
 stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/068-remove-file-template-separator-deferred/input.yaml
 stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/069-remove-file-template-dot-deferred/input.yaml
 stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/070-remove-file-typed-const-write-contained/input.yaml
+stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/071-valid-image-compose/input.yaml
+stdlib	NIKA-SEC-004	check-reject	conformance/tests/stdlib/builtins/073-image-compose-read-grant-required/input.yaml
+stdlib	NIKA-SEC-004	check-reject	conformance/tests/stdlib/builtins/074-image-compose-input-outside-read-boundary/input.yaml
+stdlib	NIKA-SEC-004	check-reject	conformance/tests/stdlib/builtins/075-image-compose-write-grant-required/input.yaml
+stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/076-image-compose-dynamic-inputs-deferred/input.yaml
+stdlib	NIKA-BUILTIN-001	check-reject	conformance/tests/stdlib/builtins/077-image-compose-layout-refused/input.yaml
+stdlib	NIKA-BUILTIN-001	check-reject	conformance/tests/stdlib/builtins/078-image-compose-unknown-argument-refused/input.yaml
+stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/079-valid-tts-system-no-exec-grant/input.yaml
 verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/trace/017-image-path-report
 verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/trace/018-image-storage-unconfirmed
 verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/trace/019-image-stored-receipt
