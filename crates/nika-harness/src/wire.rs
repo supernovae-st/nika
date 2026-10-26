@@ -651,6 +651,68 @@ fn one_line(text: &str) -> String {
         .to_owned()
 }
 
+// ─── What an ask names, for the operator (NIK-274) ──────────────────
+
+/// The command an ask names, as the harness sent it: `rawInput.command` as a string (codex-acp,
+/// claude-agent-acp) or an argv array joined by spaces. `None` when it names none.
+fn command_words(tool_call: &Value) -> Option<String> {
+    let command = tool_call.pointer("/rawInput/command")?;
+    let words = match command {
+        Value::String(text) => text.clone(),
+        Value::Array(items) => items
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>()
+            .join(" "),
+        _ => return None,
+    };
+    (!words.trim().is_empty()).then_some(words)
+}
+
+/// The reason a request gives for its ask (`_meta.permission.description`: codex-acp's
+/// justification for a command, a network access or a file change), one line, bounded.
+fn ask_reason(meta: Option<&Value>) -> Option<String> {
+    let reason = meta?.pointer("/permission/description")?.as_str()?;
+    let reason = one_line(reason);
+    (!reason.is_empty()).then(|| bounded(&reason))
+}
+
+/// The pause question for one ask: the harness's own title (`fallback` when it gives none),
+/// then the command it names when the title does not already show it, then the reason the
+/// request gives, each bounded and on one line. codex-acp titles every command ask `Run
+/// command`, so its title alone hid what a pause was about.
+pub(crate) fn ask_question(tool_call: &Value, meta: Option<&Value>, fallback: String) -> String {
+    let mut question = tool_call
+        .get("title")
+        .and_then(Value::as_str)
+        .map_or(fallback, str::to_owned);
+    if let Some(command) = command_words(tool_call)
+        && !question.contains(&command)
+    {
+        question.push_str(": ");
+        question.push_str(&bounded(&one_line(&command)));
+    }
+    if let Some(reason) = ask_reason(meta) {
+        question.push_str(" (reason: ");
+        question.push_str(&reason);
+        question.push(')');
+    }
+    question
+}
+
+/// What a command ask asks to run outside the harness's own sandbox, for the bridge's witness
+/// (NIK-274): the command as the harness spelled it, then the reason it gave, bounded.
+pub(crate) fn unsandboxed(tool_call: &Value, meta: Option<&Value>) -> String {
+    let command = command_words(tool_call).map_or_else(
+        || "an unnamed command".to_owned(),
+        |command| bounded(&one_line(&command)),
+    );
+    match ask_reason(meta) {
+        Some(reason) => format!("{command} — reason: {reason}"),
+        None => command,
+    }
+}
+
 // ─── Client capabilities and turn failures (NIK-275) ────────────────
 
 /// The most text a turn failure carries into the task's error.
@@ -1061,6 +1123,62 @@ mod tests {
             widens.len()
         );
         assert!(widens.ends_with('…'));
+    }
+
+    /// NIK-274 · the pause question names what a codex-acp `Run command` ask runs and why; a
+    /// title that already shows the command (Claude Code) is left as it is.
+    #[test]
+    fn a_question_names_the_command_and_its_reason() {
+        let codex = serde_json::json!({"kind": "execute", "title": "Run command",
+            "rawInput": {"command": "curl -sS https://example.com", "cwd": "/w"}});
+        let meta = serde_json::json!({"permission": {"version": 1, "title": "Run command?",
+            "description": "Fetch example.com\nfor its title"}});
+        assert_eq!(
+            ask_question(&codex, Some(&meta), "fallback".to_owned()),
+            "Run command: curl -sS https://example.com (reason: Fetch example.com for its title)"
+        );
+        assert_eq!(
+            ask_question(&codex, None, "fallback".to_owned()),
+            "Run command: curl -sS https://example.com"
+        );
+        let claude = serde_json::json!({"kind": "execute", "title": "ls -la",
+            "rawInput": {"command": "ls -la", "description": "list"}});
+        assert_eq!(ask_question(&claude, None, "fallback".to_owned()), "ls -la");
+        let argv = serde_json::json!({"title": "run `git`",
+            "rawInput": {"command": ["git", "push", "--force"]}});
+        assert_eq!(
+            ask_question(&argv, None, "fallback".to_owned()),
+            "run `git`: git push --force"
+        );
+        let untitled = serde_json::json!({"kind": "edit"});
+        assert_eq!(
+            ask_question(&untitled, None, "fallback".to_owned()),
+            "fallback"
+        );
+        let long = serde_json::json!({"title": "Run command",
+            "rawInput": {"command": format!("echo {}", "x".repeat(400))}});
+        let question = ask_question(&long, None, String::new());
+        assert!(
+            question.ends_with('…') && question.len() < 300,
+            "{question}"
+        );
+    }
+
+    /// NIK-274 · what an unsandboxed command ask names for the witness: the command, then the
+    /// reason; a command-less ask says so.
+    #[test]
+    fn an_unsandboxed_command_names_its_command_and_reason() {
+        let codex = serde_json::json!({"rawInput": {"command": "curl -sS https://example.com"}});
+        let meta = serde_json::json!({"permission": {"description": "Fetch its title"}});
+        assert_eq!(
+            unsandboxed(&codex, Some(&meta)),
+            "curl -sS https://example.com — reason: Fetch its title"
+        );
+        assert_eq!(unsandboxed(&codex, None), "curl -sS https://example.com");
+        assert_eq!(
+            unsandboxed(&serde_json::json!({}), None),
+            "an unnamed command"
+        );
     }
 
     /// NIK-275 · the capability that makes codex-acp report a failed turn as a typed failure,

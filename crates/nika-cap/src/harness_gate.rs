@@ -53,6 +53,10 @@ pub struct HarnessAskFacts {
     /// `_meta.is_mcp_tool_approval`): its server, else the tool call it refers to. `None`: the
     /// ask approves no MCP tool call.
     pub mcp: Option<String>,
+    /// The command the ask asks to run OUTSIDE the harness's own sandbox, with the reason the
+    /// harness gave (NIK-274: codex-acp `read-only` asks only for such commands). No grant
+    /// covers it, `exec: true` included. `None`: the ask names no such command.
+    pub unsandboxed: Option<String>,
 }
 
 impl HarnessAskFacts {
@@ -108,6 +112,13 @@ impl HarnessAskFacts {
     #[must_use]
     pub fn with_mcp(mut self, mcp: Option<String>) -> Self {
         self.mcp = mcp;
+        self
+    }
+
+    /// Attach the command the ask asks to run outside the harness's own sandbox.
+    #[must_use]
+    pub fn with_unsandboxed(mut self, command: Option<String>) -> Self {
+        self.unsandboxed = command;
         self
     }
 }
@@ -210,8 +221,9 @@ pub fn judge_harness_ask(facts: &HarnessAskFacts, permits: Option<&Permits>) -> 
     }
 }
 
-/// One of the harness's own MCP tool calls, network access and sandbox widening, what an ask
-/// may reach beyond its own kind: never auto-judged, the operator answers with it in view.
+/// One of the harness's own MCP tool calls, network access, a sandbox widening and a command
+/// run outside the sandbox, what an ask may reach beyond its own kind: never auto-judged, the
+/// operator answers with it in view.
 fn judge_escalation(facts: &HarnessAskFacts) -> Option<HarnessGate> {
     // The server or tool call a harness names is ITS configuration, not a `permits.tools` id
     // (`mcp:<server>/<tool>` names the workflow's own servers): no grant can be matched.
@@ -225,12 +237,16 @@ fn judge_escalation(facts: &HarnessAskFacts) -> Option<HarnessGate> {
             ),
         });
     }
-    let widening = facts.widens.as_deref().map(|widens| {
-        format!(
-            "it asks the harness to widen its own sandbox ({widens}), which no grant covers, \
-                 `exec: true` included"
-        )
-    });
+    let widening = facts
+        .widens
+        .as_deref()
+        .map(|widens| format!("it asks the harness to widen its own sandbox ({widens})"))
+        .into_iter()
+        .chain(facts.unsandboxed.as_deref().map(|command| {
+            format!("it asks to run a command outside the harness's own sandbox ({command})")
+        }))
+        .reduce(|first, second| format!("{first}; {second}"))
+        .map(|reach| format!("{reach}, which no grant covers, `exec: true` included"));
     if let Some(target) = facts.network.as_deref() {
         let mut why = format!(
             "the ask opens network access ({target}): never auto-judged (no shared host parser \
@@ -659,9 +675,50 @@ mod tests {
         assert!(f.kind.is_none() && f.url.is_none() && f.command.is_empty() && f.mcp.is_none());
         let mcp = HarnessAskFacts::new().with_mcp(Some("web".to_owned()));
         assert_eq!(mcp.mcp.as_deref(), Some("web"));
-        assert!(mcp.network.is_none() && mcp.widens.is_none());
+        assert!(mcp.network.is_none() && mcp.widens.is_none() && mcp.unsandboxed.is_none());
+        let run = HarnessAskFacts::new().with_unsandboxed(Some("make".to_owned()));
+        assert_eq!(run.unsandboxed.as_deref(), Some("make"));
+        assert!(run.mcp.is_none() && run.widens.is_none());
         let bare = HarnessAskFacts::new();
         assert!(bare.network.is_none() && bare.widens.is_none() && bare.mcp.is_none());
+    }
+
+    /// NIK-274 · in codex-acp `read-only` an asked command asks to leave Codex's sandbox (an
+    /// approved one runs with none): `exec: true` answered it `allow_once` and Codex fetched a
+    /// site outside its sandbox. It pauses on the exec plane under every grant, the command
+    /// and its reason in the why.
+    #[test]
+    fn a_command_run_outside_the_sandbox_is_never_covered_by_exec() {
+        let command = "curl -sS https://example.com — reason: Fetch example.com for its title";
+        for program in [vec![], vec!["curl".to_owned()]] {
+            let mut f = facts("execute");
+            f.command = program;
+            f.unsandboxed = Some(command.to_owned());
+            for permits in [Some(permits_exec_any()), Some(permits_exec_git()), None] {
+                let v = judge_harness_ask(&f, permits.as_ref());
+                let HarnessGate::Outside { plane, why } = v else {
+                    panic!("a command outside the sandbox is never inside, got {v:?}");
+                };
+                assert_eq!(plane, "exec");
+                assert!(
+                    why.contains(command) && why.contains("`exec: true` included"),
+                    "{why}"
+                );
+            }
+        }
+        // Beside a widening, both are named.
+        let mut both = facts("execute");
+        both.widens = Some("write /".to_owned());
+        both.unsandboxed = Some("make install".to_owned());
+        let v = judge_harness_ask(&both, Some(&permits_exec_any()));
+        let HarnessGate::Outside { plane, why } = v else {
+            panic!("never inside, got {v:?}");
+        };
+        assert_eq!(plane, "exec");
+        assert!(
+            why.contains("write /") && why.contains("make install"),
+            "{why}"
+        );
     }
 
     /// NIK-266 · codex-acp asks to approve its own MCP tool calls as `execute` asks with no

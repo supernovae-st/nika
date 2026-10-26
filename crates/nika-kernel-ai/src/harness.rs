@@ -221,9 +221,10 @@ pub enum HarnessEvent {
     },
     /// An ask that reaches beyond its own kind (NIK-266): it opens network access (a fetch, or
     /// a command the harness says needs the network), asks the harness to widen its own
-    /// sandbox, or approves one of the harness's own MCP tool calls. The same reply lane as
-    /// [`Self::PermissionAsked`], but no grant answers it: only the operator does. A consumer that does not know this variant drops the reply,
-    /// which the harness hears as `cancelled` (fail-closed).
+    /// sandbox or to run a command outside it, or approves one of the harness's own MCP tool
+    /// calls. The same reply lane as [`Self::PermissionAsked`], but no grant answers it: only
+    /// the operator does. A consumer that does not know this variant drops the reply, which
+    /// the harness hears as `cancelled` (fail-closed).
     EscalationAsked {
         /// The harness's own description of the action.
         question: String,
@@ -285,6 +286,11 @@ pub struct HarnessEscalation {
     /// tool call it refers to. `permits.tools` names the workflow's MCP tools, not the
     /// harness's, so no grant covers it.
     pub mcp: Option<String>,
+    /// The command the ask asks to run OUTSIDE the harness's own sandbox, as the harness spelled
+    /// it, with the reason it gave (NIK-274). A seat whose held mode runs ordinary commands
+    /// sandboxed without asking (codex-acp `read-only`) asks only to leave that sandbox: an
+    /// approved command then runs with none, so no grant covers it, `exec: true` included.
+    pub unsandboxed: Option<String>,
 }
 
 impl HarnessEscalation {
@@ -315,10 +321,20 @@ impl HarnessEscalation {
         self
     }
 
+    /// The command the ask asks to run outside the harness's own sandbox.
+    #[must_use]
+    pub fn with_unsandboxed(mut self, command: impl Into<String>) -> Self {
+        self.unsandboxed = Some(command.into());
+        self
+    }
+
     /// Whether the ask reaches nothing beyond its kind.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.network.is_none() && self.widens.is_none() && self.mcp.is_none()
+        self.network.is_none()
+            && self.widens.is_none()
+            && self.mcp.is_none()
+            && self.unsandboxed.is_none()
     }
 }
 
@@ -665,6 +681,12 @@ mod tests {
         let mcp = HarnessEscalation::new().with_mcp("web");
         assert_eq!(mcp.mcp.as_deref(), Some("web"));
         assert!(mcp.network.is_none() && mcp.widens.is_none() && !mcp.is_empty());
+        let run = HarnessEscalation::new().with_unsandboxed("curl -sS https://example.com");
+        assert_eq!(
+            run.unsandboxed.as_deref(),
+            Some("curl -sS https://example.com")
+        );
+        assert!(run.mcp.is_none() && run.network.is_none() && !run.is_empty());
     }
 
     #[test]

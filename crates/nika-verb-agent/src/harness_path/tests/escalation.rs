@@ -42,15 +42,18 @@ fn judged(observer: &VecObserver) -> Vec<(&'static str, String, &'static str, St
         .collect()
 }
 
-/// NIK-266 · a network, sandbox-widening or MCP tool approval ask is never inside
-/// `exec: true`: the run pauses with the harness's question verbatim, the witness names
-/// what it reaches, and the reply lane was never answered (the reviewers' `socks5Tcp`,
-/// `additionalPermissions` and `is_mcp_tool_approval` asks were answered `allow_once` before).
+/// NIK-266 · a network, sandbox-widening, MCP tool approval or unsandboxed command ask is
+/// never inside `exec: true`: the run pauses with the harness's question verbatim, the
+/// witness names what it reaches, and the reply lane was never answered (the reviewers'
+/// `socks5Tcp`, `additionalPermissions` and `is_mcp_tool_approval` asks, and the gauntlet's
+/// escalated Codex command, NIK-274, were answered `allow_once` before).
 #[tokio::test]
 async fn an_escalation_pauses_even_under_exec_true() {
     let socks = HarnessEscalation::new().with_network("socks5Tcp://exfil.example");
     let widened = HarnessEscalation::new().with_widens("write /");
     let mcp = HarnessEscalation::new().with_mcp("server web");
+    let unsandboxed = HarnessEscalation::new()
+        .with_unsandboxed("curl -sS https://example.com — reason: Fetch example.com for its title");
     for (title, asked, plane, gate) in [
         (
             "socks5Tcp network access to exfil.example",
@@ -60,6 +63,12 @@ async fn an_escalation_pauses_even_under_exec_true() {
         ),
         ("Run command", widened, "exec", "sandbox · write /"),
         ("MCP tool call approval", mcp, "tools", "mcp · server web"),
+        (
+            "Run command: curl -sS https://example.com (reason: Fetch example.com for its title)",
+            unsandboxed,
+            "exec",
+            "sandbox · command",
+        ),
     ] {
         let verdicts = Arc::new(Mutex::new(Vec::new()));
         let tape = vec![

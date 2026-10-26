@@ -39,6 +39,10 @@ pub struct HarnessBoundary {
     pub runs_unasked: Option<&'static str>,
     /// What it fetches without asking, under the selected mode (`None`: every fetch asks).
     pub fetches_unasked: Option<&'static str>,
+    /// Whether the selected mode runs ordinary commands in the harness's own sandbox without
+    /// asking, so a command it asks about asks to LEAVE that sandbox (NIK-274): the client
+    /// sends such an ask as an escalation, which no grant answers, `exec: true` included.
+    pub asked_command_leaves_sandbox: bool,
 }
 
 impl HarnessBoundary {
@@ -49,11 +53,13 @@ impl HarnessBoundary {
     /// DEFAULT, "Approve for me": the same sandbox, approvals reviewed by Codex's own
     /// auto-reviewer, so most never reach the client); `agent-full-access` (no sandbox, no
     /// approval at all). No mode is a read-only sandbox, so both confinements select
-    /// `read-only`, the only mode whose every approval reaches Nika. A command ask carries a
-    /// shell STRING; a network approval is a command ask titled `<protocol> network access to
-    /// <host>` (request `_meta.permission.title` `Allow network access?`), with `rawInput.url`
-    /// only for http and https; `rawInput.additionalPermissions` asks to widen the sandbox, and
-    /// an approved escalated command runs with none.
+    /// `read-only`, the only mode whose every approval reaches Nika. In it, ordinary commands
+    /// run sandboxed without asking, so a command ask is an escalation (`require_escalated`,
+    /// the command as a shell STRING, the reason in `_meta.permission.description`): approved,
+    /// it runs with no sandbox at all. A network approval is a command ask titled `<protocol>
+    /// network access to <host>` (request `_meta.permission.title` `Allow network access?`),
+    /// with `rawInput.url` only for http and https; `rawInput.additionalPermissions` asks to
+    /// widen the sandbox.
     pub const CODEX_ACP: Self = Self {
         seat: "codex",
         agents: &["@agentclientprotocol/codex-acp", "codex-acp"],
@@ -64,6 +70,7 @@ impl HarnessBoundary {
         writes_unasked: Some("the project, /tmp and $TMPDIR"),
         runs_unasked: Some("any program in its own sandbox"),
         fetches_unasked: None,
+        asked_command_leaves_sandbox: true,
     };
 
     /// claude-agent-acp 0.81.1 (Claude Code 2.1.280). Its modes: `default` ("Manual": every
@@ -84,6 +91,7 @@ impl HarnessBoundary {
         writes_unasked: None,
         runs_unasked: Some("shell commands Claude Code classifies as read-only"),
         fetches_unasked: Some("documentation hosts Claude Code pre-approves"),
+        asked_command_leaves_sandbox: false,
     };
 
     /// gemini-cli 0.62.0. Legacy modes only (`session/set_mode`, no mode config option):
@@ -101,6 +109,7 @@ impl HarnessBoundary {
         writes_unasked: None,
         runs_unasked: Some("shell commands it judges safe reads in the project"),
         fetches_unasked: Some("Google web searches"),
+        asked_command_leaves_sandbox: false,
     };
 
     /// Every measured adapter, in the registry's order (gemini first · Anthropic last).
@@ -185,13 +194,14 @@ impl HarnessBoundary {
 
 /// What holds on EVERY harness seat, measured or not (NIK-266): the residual beside each row.
 pub const HARNESS_SHARED_RESIDUAL: &str = "A command asked as a shell string is admitted only \
-     by `permits.exec: true`, otherwise it pauses for the operator. An ask for network access \
-     (a fetch, or a command the harness says needs the network), for a wider harness sandbox \
-     or to approve one of the harness's own MCP tool calls always pauses. An action Nika allows once runs under the harness's own sandbox, not Nika's \
-     exec sandbox, so permits.fs and permits.net do not confine it: an allowed command opens \
-     whatever connections that sandbox lets it, and an approved escalated Codex command runs \
-     with no sandbox at all. The harness's own settings (its permission rules, hooks and MCP \
-     servers) still apply: what they allow never asks.";
+     by `permits.exec: true`, otherwise it pauses for the operator; a command Codex asks about \
+     in `read-only` asks to leave its sandbox and always pauses. An ask for network access (a \
+     fetch, or a command the harness says needs the network), for a wider harness sandbox or \
+     to approve one of the harness's own MCP tool calls always pauses. An action Nika allows \
+     once runs under the harness's own sandbox, not Nika's exec sandbox, so permits.fs and \
+     permits.net do not confine it: an allowed command opens whatever connections that sandbox \
+     lets it. The harness's own settings (its permission rules, hooks and MCP servers) still \
+     apply: what they allow never asks.";
 
 /// The marker an anchored ask location starts with when the client could not resolve the
 /// file the harness's path reaches (a symlink loop, an unreadable component, a component that
@@ -318,6 +328,14 @@ mod tests {
             claude.contains("fetches documentation hosts Claude Code pre-approves"),
             "{claude}"
         );
+        // NIK-274 · only the mode that runs ordinary commands sandboxed unasked turns every
+        // command ask into an escalation.
+        let escalating: alloc::vec::Vec<&str> = HarnessBoundary::MEASURED
+            .iter()
+            .filter(|row| row.asked_command_leaves_sandbox)
+            .map(|row| row.seat)
+            .collect();
+        assert_eq!(escalating, ["codex"]);
         let unmeasured = unmeasured_check_advice("kimi-code");
         assert!(
             unmeasured.contains("on kimi-code runs in a mode Nika has not measured"),
