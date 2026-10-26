@@ -1521,6 +1521,7 @@ pub nika_check::Hint::code: core::option::Option<&'static str>
 pub nika_check::Hint::kind: &'static str
 pub nika_check::Hint::task: alloc::string::String
 impl nika_check::Hint
+pub fn nika_check::Hint::harness(task: &str, advice: alloc::string::String) -> Self
 pub fn nika_check::Hint::is_paid_run(&self) -> bool
 impl core::clone::Clone for nika_check::Hint
 pub fn nika_check::Hint::clone(&self) -> nika_check::Hint

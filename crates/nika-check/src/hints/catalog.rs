@@ -186,6 +186,20 @@ const ROWS: &[(&str, &str)] = &[
          `tasks.X.output` for the value",
     ),
     (
+        "harness",
+        "an `agent:` task the access plan seats on a harness (`run.access` · `--access` · a \
+         discovered seat) runs the harness's OWN tools. Nika holds the session in the measured \
+         mode whose approvals reach it (codex-acp `read-only`, claude-agent-acp `default`, \
+         gemini-cli `default`), never one that approves on its own, reads it back (or takes the \
+         legacy acknowledgement) before the prompt or refuses, and judges every ask against permits: — allowed once inside, a \
+         pause for you outside (NIKA-1806), each journaled as permit_checked. What the mode \
+         lets the harness do WITHOUT asking stays outside permits: (Codex reads any file and \
+         writes the project, /tmp and $TMPDIR in its own sandbox); a command asked as a shell \
+         string is admitted only by `permits.exec: true`; an allowed command runs under the \
+         harness's sandbox, not Nika's; the harness's own permission rules, hooks and MCP \
+         servers still apply. A seat with no measured mode is judged on its asks alone",
+    ),
+    (
         "run-clock",
         "a task `timeout:` whose time source the envelope never names — the \
          deadline rides the ambient system clock. Declare `run: { clock: … }` \

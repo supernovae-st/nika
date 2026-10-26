@@ -285,6 +285,9 @@ pub struct Verdict {
     pub clean: bool,
     /// Declared-vs-used drift (NIKA-DRIFT-001) — advisory rows.
     pub drift: Vec<String>,
+    /// What the permits boundary covers, and does not, on each `agent:` task the plan seats
+    /// on a harness (NIK-266) — advisory `harness` hints beside the report's own.
+    pub harness: Vec<nika_check::Hint>,
     /// What was judged with the filesystem.
     pub judged: Judged,
     /// The child workflows the file names (`invoke: { workflow: … }`) — a
@@ -293,6 +296,21 @@ pub struct Verdict {
 }
 
 impl Verdict {
+    /// `report` with this verdict's `harness` hints appended (NIK-266), for a door that
+    /// renders the report's hint block: borrowed unchanged when no task is seated.
+    #[must_use]
+    pub fn report_with_hints<'a>(
+        &self,
+        report: &'a CheckReport,
+    ) -> std::borrow::Cow<'a, CheckReport> {
+        if self.harness.is_empty() {
+            return std::borrow::Cow::Borrowed(report);
+        }
+        let mut shown = report.clone();
+        shown.hints.extend(self.harness.iter().cloned());
+        std::borrow::Cow::Owned(shown)
+    }
+
     /// The operational gate: grade below High AND access ready (when a
     /// static model exists). Always true off the operational lane — and
     /// false exactly when [`Self::lane_findings`] carries an operational
@@ -437,7 +455,12 @@ pub fn judge(
         layers.blockers.push(blocker);
     }
     let grade = nika_check::risk_grade(report);
-    let drift = nika_dap::drift::scan(wf);
+    // A harness seat's permission bridge judges its asks against permits.exec and
+    // permits.fs: on a run that seats one, those grants are never drift (NIK-266).
+    let seated = harness_agents(wf, report, &plan);
+    let bridged = nika_dap::drift::declares_harness_access(wf) || !seated.is_empty();
+    let drift = nika_dap::drift::scan_bridged(wf, bridged);
+    let harness = harness_hints(wf, &seated);
     let children = child_references(wf);
     Verdict {
         clean: valid && capacity.is_empty(),
@@ -447,9 +470,57 @@ pub fn judge(
         layers,
         grade,
         drift,
+        harness,
         judged,
         children,
     }
+}
+
+/// The `agent:` tasks a harness seat serves, each with that seat, in file order (NIK-266):
+/// the plan's seat for the task's model, else the seat `run.access.via` declares. A task
+/// with a `tools:` whitelist or a `schema:` is native-only — a harness refuses both.
+fn harness_agents(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    plan: &ExecutionAccessPlan,
+) -> Vec<(String, String)> {
+    let declared = (wf.run.as_ref())
+        .and_then(|run| run.value.access.as_ref())
+        .and_then(|access| access.via.as_deref())
+        .filter(|via| nika_types::access::HarnessRuntime::lookup(via).is_some());
+    (wf.tasks.iter())
+        .filter_map(|task| {
+            let nika_schema::raw::RawAction::Agent(agent) = &task.value.action else {
+                return None;
+            };
+            if !agent.tools.is_empty() || agent.schema.is_some() || agent.schema_file.is_some() {
+                return None;
+            }
+            let id = &task.value.id.value;
+            let model = (report.requirements.models.iter())
+                .find(|req| req.tasks.contains(id))
+                .map_or("", |req| req.model.as_str());
+            let seat = plan.seat_for(model).or(declared)?;
+            Some((id.clone(), seat.to_owned()))
+        })
+        .collect()
+}
+
+/// One `harness` hint per seated `agent:` task: the measured boundary of its seat (the mode
+/// Nika holds, what the harness still does unasked), or the unmeasured line.
+fn harness_hints(wf: &RawWorkflow, seated: &[(String, String)]) -> Vec<nika_check::Hint> {
+    let writes = (wf.permits.as_ref())
+        .and_then(|permits| permits.value.fs.as_ref())
+        .is_some_and(|fs| !fs.write.is_empty());
+    (seated.iter())
+        .map(|(task, seat)| {
+            let advice = nika_types::access::HarnessBoundary::for_seat(seat).map_or_else(
+                || nika_types::access::unmeasured_check_advice(seat),
+                |boundary| boundary.check_advice(writes),
+            );
+            nika_check::Hint::harness(task, advice)
+        })
+        .collect()
 }
 
 /// A workflow naming project files is not run-ready yet (spec 02 §Project files): a run does
@@ -629,13 +700,25 @@ fn extend_model_audit(object: &mut Map<String, Value>, audit: &ModelsAudit) {
 /// nika-check → nika-lints cycle, so this edge is the public door (#763).
 /// Egress judges the workflow this door audited: a project file it read
 /// is judged as text, one it did not read holds none.
-fn push_advisory_hints(hints: &mut Vec<Value>, drift: &[String], wf: &RawWorkflow) {
+fn push_advisory_hints(
+    hints: &mut Vec<Value>,
+    drift: &[String],
+    harness: &[nika_check::Hint],
+    wf: &RawWorkflow,
+) {
     for advice in drift {
         hints.push(serde_json::json!({
             "kind": "drift",
             "task": "-",
             "advice": advice,
             "code": nika_dap::drift::DRIFT_CODE,
+        }));
+    }
+    for hint in harness {
+        hints.push(serde_json::json!({
+            "kind": hint.kind,
+            "task": hint.task,
+            "advice": hint.advice,
         }));
     }
     for lint in nika_lints::one_obvious_way(wf) {
@@ -689,7 +772,7 @@ pub fn audit_json(
         Err(error) => return Err(format!("cannot serialize engine identity: {error}")),
     };
     if let Some(hints) = obj.get_mut("hints").and_then(Value::as_array_mut) {
-        push_advisory_hints(hints, &verdict.drift, wf);
+        push_advisory_hints(hints, &verdict.drift, &verdict.harness, wf);
     }
     // The lane refusals ride `findings[]` and `clean` reads them: the
     // same rows, the same predicate the exit code reads.
@@ -1342,3 +1425,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod harness_tests;

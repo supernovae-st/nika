@@ -327,6 +327,61 @@ fn the_layers_line_names_the_four_questions() {
     );
 }
 
+/// NIK-266 · the qualification workflow of 2026-10-25: an `agent:` task declared on Codex over
+/// ACP. `nika check` tells the author what the permits boundary covers on that seat and what it
+/// does not (the `[harness]` row), `nika explain harness` teaches it, and the drift row that
+/// urged removing the `cp` grant the permission bridge judges is gone — on both doors.
+#[test]
+fn a_harness_agent_task_is_told_its_boundary_and_keeps_its_bridged_grant() {
+    let rig = Rig::new("harness-boundary");
+    rig.write(
+        "codex-image.nika",
+        "nika: codex-image\nmodel: openai/gpt-6-sol\nrun:\n  access:\n    via: codex\n    \
+         protocol: acp\npermits:\n  fs:\n    read: [\"./out/codex-image.png\"]\n    \
+         write: [\"./out/codex-image.png\"]\n  exec: [\"cp\", \"shasum\"]\n  \
+         tools: [\"nika:read\"]\ntasks:\n  draw:\n    agent:\n      prompt: \"copy the image \
+         to ./out\"\n      max_turns: 6\n  digest:\n    after: { draw: success }\n    \
+         exec: { command: [\"shasum\", \"-a\", \"256\", \"./out/codex-image.png\"] }\n",
+    );
+    let check = rig.nika(&["check", "codex-image.nika"]);
+    let out = text(&check.stdout);
+    assert!(
+        out.contains(
+            "[harness] an `agent:` task on codex runs in mode `read-only`: Nika judges each \
+             approval it asks (journaled permit_checked), but without asking it reads any file, \
+             writes anywhere in the project, /tmp and $TMPDIR (not only the fs.write paths), \
+             runs any program in its own sandbox"
+        ) && out.contains("permits: does not bound that (`nika explain harness`)"),
+        "the boundary is stated where the author reads: {out}"
+    );
+    assert!(
+        !out.contains("`permits.exec` entry `cp`"),
+        "the bridged grant is never drift: {out}"
+    );
+    let json = rig.nika(&["check", "codex-image.nika", "--json"]);
+    let doc: serde_json::Value = serde_json::from_slice(&json.stdout).expect("check --json");
+    let rows: Vec<&serde_json::Value> = (doc["hints"].as_array().expect("hints"))
+        .iter()
+        .filter(|row| row["kind"] == "harness")
+        .collect();
+    assert_eq!(rows.len(), 1, "{}", doc["hints"]);
+    assert_eq!(rows[0]["task"], "draw");
+    assert!(
+        rows[0]["advice"]
+            .as_str()
+            .is_some_and(|a| a.contains("— permits: does not bound that")),
+        "{}",
+        rows[0]
+    );
+    let explain = rig.nika(&["explain", "harness"]);
+    let taught = text(&explain.stdout);
+    assert_eq!(explain.status.code(), Some(0), "{taught}");
+    assert!(
+        taught.contains("codex-acp `read-only`") && taught.contains("NIKA-1806"),
+        "{taught}"
+    );
+}
+
 /// The `fields` of the first frame of `kind`, as (key, value) pairs.
 fn frame_fields(stdout: &str, kind: &str) -> Vec<(String, serde_json::Value)> {
     let needle = format!("\"kind\":\"{kind}\"");

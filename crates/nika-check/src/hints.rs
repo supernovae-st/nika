@@ -147,6 +147,8 @@ pub struct Hint {
     /// · `fail-open-consent`
     /// · `unproven-law` · `silent-literal` · `documentation-host`
     /// · `exec-read-path` · `mcp-pins` · `skipped-read`
+    /// · `harness` (composed by the check doors from the access plan —
+    /// [`Hint::harness`] — since this crate has no notion of a seat)
     /// (additive · agents route on it; the module doc describes each).
     /// The paid-run family ([`PAID_RUN_KINDS`]) is what [`paid_ready`]
     /// reads — never `is_clean`.
@@ -178,6 +180,14 @@ pub const PAID_RUN_KINDS: &[&str] = &[
 ];
 
 impl Hint {
+    /// The `harness` hint (NIK-266): what the permits boundary covers, and what it does not,
+    /// for an `agent:` task the access plan seats on a harness. The check doors compose it
+    /// where the plan is resolved; the static scan never mints it.
+    #[must_use]
+    pub fn harness(task: &str, advice: String) -> Self {
+        hint("harness", task, advice)
+    }
+
     /// Whether this hint is in the paid-run family.
     #[must_use]
     pub fn is_paid_run(&self) -> bool {
