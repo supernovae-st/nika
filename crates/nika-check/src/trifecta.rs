@@ -103,7 +103,7 @@ pub fn scan_trifecta_composed(
 }
 
 /// The listed call a task stands for (a workflow call `calls` names).
-fn listed_call<'a>(
+pub(crate) fn listed_call<'a>(
     calls: &'a [ComposedCall],
     task_id: &str,
     action: &RawAction,
@@ -655,6 +655,144 @@ mod tests {
             Some("fetch_page"),
             "the opacity witness is the untrusted ORIGIN, propagated through the writer"
         );
+    }
+
+    /// The file channel's builtin readers (NIK-273 follow-up): a gate
+    /// clears the subprocess and the write that drops its output in
+    /// `./drop/page.txt`; `pick` then reads that file through `nika:read`
+    /// and `leak`, which no gate dominates, sends it out with a private
+    /// note. The read carries the content on, as an `exec:` reader does.
+    const GATED_DROP: &str = "nika: t\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:read\", \"nika:grep\", \"nika:glob\", \"nika:write\", \"nika:prompt\"]\n  fs:\n    read: [\"./private.txt\", \"./drop\", \"./drop/**\"]\n    write: [\"./drop/**\", \"/tmp/out/**\"]\ninputs:\n  name: { type: string, default: \"page.txt\" }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { message: \"cache the page?\" } }\n  page:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: \"${{ with.go == true }}\"\n    exec: { command: [\"echo\", \"untrusted page body\"] }\n  save:\n    with: { go: \"${{ tasks.ask.output }}\", body: \"${{ tasks.page.output }}\" }\n    when: \"${{ with.go == true }}\"\n    invoke: { tool: \"nika:write\", args: { path: \"./drop/page.txt\", content: \"${{ with.body }}\" } }\n  pick:\n    after: { save: success }\n    invoke: { tool: \"nika:read\", args: { path: \"./drop/page.txt\" } }\n  secret_note:\n    invoke: { tool: \"nika:read\", args: { path: \"./private.txt\" } }\n  leak:\n    with: { page: \"${{ tasks.pick.output }}\", note: \"${{ tasks.secret_note.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"/tmp/out/leak.txt\", content: \"page=${{ with.page }} note=${{ with.note }}\" } }\n";
+
+    /// `GATED_DROP` with `pick` reading through `invoke`.
+    fn drop_read(invoke: &str) -> String {
+        GATED_DROP.replacen(
+            "    invoke: { tool: \"nika:read\", args: { path: \"./drop/page.txt\" } }\n",
+            &format!("    invoke: {invoke}\n"),
+            1,
+        )
+    }
+
+    #[test]
+    fn a_builtin_read_of_a_file_a_tainted_writer_left_is_arrived_content() {
+        let r = report(GATED_DROP);
+        assert!(r.conformance.is_empty(), "{:?}", r.conformance);
+        assert_eq!(r.trifecta_findings.len(), 1, "{:?}", r.trifecta_findings);
+        let v = &r.trifecta_findings[0];
+        assert_eq!(v.task, "leak");
+        assert_eq!(
+            v.source.as_deref(),
+            Some("page"),
+            "the origin is the subprocess, through the writer and the read"
+        );
+        assert!(
+            v.detail
+                .starts_with("lethal trifecta complete · human gate required"),
+            "the inline message, unchanged: {}",
+            v.detail
+        );
+    }
+
+    /// Every read slot nika-cap models reads the channel, and a read the
+    /// written path cannot reach stays clean (the path is the channel).
+    #[test]
+    fn the_file_channel_follows_the_written_path() {
+        let tainted = [
+            "{ tool: \"nika:read\", args: { path: \"./drop/../drop/page.txt\" } }",
+            "{ tool: \"nika:read\", args: { path: \"drop/page.txt\" } }",
+            "{ tool: \"nika:read\", args: { path: \"./drop/${{ inputs.name }}\" } }",
+            "{ tool: \"nika:grep\", args: { pattern: \"body\", path: \"./drop\" } }",
+            "{ tool: \"nika:glob\", args: { pattern: \"./drop/*.txt\" } }",
+            // No `path`: grep searches the workspace, `./drop` included.
+            "{ tool: \"nika:grep\", args: { pattern: \"body\" } }",
+        ];
+        for invoke in tainted {
+            let r = report(&drop_read(invoke));
+            assert!(r.conformance.is_empty(), "{invoke}: {:?}", r.conformance);
+            let sinks: Vec<&str> = r
+                .trifecta_findings
+                .iter()
+                .map(|v| v.task.as_str())
+                .collect();
+            assert_eq!(sinks, ["leak"], "{invoke} reads the dropped page");
+        }
+        let clean = [
+            "{ tool: \"nika:read\", args: { path: \"./drop/other.txt\" } }",
+            "{ tool: \"nika:grep\", args: { pattern: \"body\", path: \"./drop/archive\" } }",
+            "{ tool: \"nika:read\", args: { path: \"./private.txt\" } }",
+        ];
+        for invoke in clean {
+            let r = report(&drop_read(invoke));
+            assert!(r.conformance.is_empty(), "{invoke}: {:?}", r.conformance);
+            assert!(
+                r.trifecta_findings.is_empty(),
+                "{invoke} cannot reach `./drop/page.txt`: {:?}",
+                r.trifecta_findings
+            );
+        }
+    }
+
+    /// The channel keeps every tainted writer, not only the first: a read
+    /// of the second file is tainted too.
+    #[test]
+    fn a_read_of_a_later_writers_file_is_tainted() {
+        let two = GATED_DROP.replacen(
+            "  pick:\n",
+            "  save_again:\n    with: { go: \"${{ tasks.ask.output }}\", body: \"${{ tasks.page.output }}\" }\n    when: \"${{ with.go == true }}\"\n    after: { save: success }\n    invoke: { tool: \"nika:write\", args: { path: \"./drop/second.txt\", content: \"${{ with.body }}\" } }\n  pick:\n",
+            1,
+        );
+        let two = two.replacen(
+            "    after: { save: success }\n    invoke: { tool: \"nika:read\", args: { path: \"./drop/page.txt\" } }\n",
+            "    after: { save_again: success }\n    invoke: { tool: \"nika:read\", args: { path: \"./drop/second.txt\" } }\n",
+            1,
+        );
+        let r = report(&two);
+        assert!(r.conformance.is_empty(), "{:?}", r.conformance);
+        let sinks: Vec<&str> = r
+            .trifecta_findings
+            .iter()
+            .map(|v| v.task.as_str())
+            .collect();
+        assert_eq!(sinks, ["leak"], "{:?}", r.trifecta_findings);
+    }
+
+    /// The file outlives the run order (NIK-273 review): a read in the
+    /// writer's own wave runs beside it (a retry waits for the file), and a
+    /// read the run order puts first reads what the previous run left. A
+    /// builtin read meets every tainted write of its path, earlier or not.
+    #[test]
+    fn a_builtin_read_meets_a_tainted_write_whatever_the_order() {
+        let pick = "  pick:\n    after: { save: success }\n    invoke: { tool: \"nika:read\", args: { path: \"./drop/page.txt\" } }\n";
+        let unmoored = GATED_DROP.replacen(pick, "", 1);
+        let same_wave = unmoored.replacen(
+            "  save:\n",
+            "  pick:\n    after: { page: success }\n    invoke: { tool: \"nika:read\", args: { path: \"./drop/page.txt\" } }\n  save:\n",
+            1,
+        );
+        let read_first = unmoored.replacen(
+            "  ask:\n",
+            "  pick:\n    invoke: { tool: \"nika:read\", args: { path: \"./drop/page.txt\" } }\n  ask:\n",
+            1,
+        );
+        for (why, yaml) in [("same wave", same_wave), ("read first", read_first)] {
+            let r = report(&yaml);
+            assert!(r.conformance.is_empty(), "{why}: {:?}", r.conformance);
+            let found: Vec<(&str, Option<&str>)> = r
+                .trifecta_findings
+                .iter()
+                .map(|v| (v.task.as_str(), v.source.as_deref()))
+                .collect();
+            assert_eq!(found, [("leak", Some("page"))], "{why}");
+        }
+        // A read of another path stays clean in either order.
+        let other = unmoored.replacen(
+            "  ask:\n",
+            "  pick:\n    invoke: { tool: \"nika:read\", args: { path: \"./drop/other.txt\" } }\n  ask:\n",
+            1,
+        );
+        let r = report(&other);
+        assert!(r.conformance.is_empty(), "{:?}", r.conformance);
+        assert!(r.trifecta_findings.is_empty(), "{:?}", r.trifecta_findings);
     }
 
     /// The two-exec pin (F2 regression · 2026-07-30): born-ingress must

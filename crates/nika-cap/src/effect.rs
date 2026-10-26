@@ -433,28 +433,190 @@ pub fn unbound_fs_args(
     reads: &[String],
     writes: &[String],
 ) -> Vec<String> {
-    let mut out = Vec::new();
     let mut findings = Vec::new();
-    let mut slot = |name: &str, value: &serde_json::Value, read: bool, write: bool| {
-        if let Some(why) = slot_refusal(value, read, write, reads, writes) {
-            findings.push(format!("`{tool}` `{name}` {why}"));
+    let mut malformed = Vec::new();
+    for slot in fs_slots(tool, args) {
+        match slot {
+            FsSlot::Arg {
+                name,
+                value,
+                read,
+                write,
+                ..
+            } => {
+                if let Some(why) = slot_refusal(value, read, write, reads, writes) {
+                    findings.push(format!("`{tool}` `{name}` {why}"));
+                }
+            }
+            // A container of the wrong shape cannot be read as paths: it is refused whatever it
+            // holds.
+            FsSlot::Malformed { name, shape } => malformed.push(format!(
+                "`{tool}` `{name}` must be {shape} the task states in its reach"
+            )),
         }
+    }
+    findings.extend(malformed);
+    findings
+}
+
+/// Where one filesystem slot of a call reaches, as far as the call's bytes fix it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SlotPath {
+    /// A literal path, or a glob pattern's walk root ([`glob_walk_root`]). `descends`: the effect
+    /// reaches below it (a recursive reader · a pattern · an output directory).
+    Literal {
+        /// The path as written (a pattern's walk root).
+        path: String,
+        /// The effect reaches every path below `path`.
+        descends: bool,
+    },
+    /// A slot whose path the bytes do not fix: a `${{ }}` template, a non-string, an empty
+    /// string, a malformed container. It may name any path.
+    Unknown,
+}
+
+/// Every place one call of `tool` with `args` may READ a file: the read side of the slots
+/// [`unbound_fs_args`] binds (`read`/`grep`/`edit` `path`, `glob` `pattern`, a string `decide`
+/// `bundle`, `image_fx` `input`, each `image_compose` `inputs[]`, `chart` `data.path`,
+/// `image_generate` `image`, `images[]` and `mask`, each `fetch` `multipart[].path`), one
+/// entry per present slot, plus the root a
+/// `grep` without `path` searches (`.`, descending). Empty when the call reads no file.
+/// A malformed read container is [`SlotPath::Unknown`]: it never disappears.
+#[must_use]
+pub fn read_slot_paths(tool: &str, args: Option<&serde_json::Value>) -> Vec<SlotPath> {
+    let mut out: Vec<SlotPath> = fs_slots(tool, args)
+        .into_iter()
+        .filter_map(|slot| match slot {
+            FsSlot::Arg {
+                value,
+                read: true,
+                descends,
+                pattern,
+                ..
+            } => Some(slot_path(value, descends, pattern)),
+            FsSlot::Arg { .. } => None,
+            FsSlot::Malformed { .. } => Some(SlotPath::Unknown),
+        })
+        .collect();
+    let path_absent = args
+        .and_then(serde_json::Value::as_object)
+        .is_none_or(|map| !map.contains_key("path"));
+    if tool == "nika:grep" && path_absent {
+        out.push(SlotPath::Literal {
+            path: GREP_DEFAULT_ROOT.to_owned(),
+            descends: true,
+        });
+    }
+    out
+}
+
+/// The root `nika:grep` searches when its call names no `path` (its tool definition: « root to
+/// search (default .) »): the whole workspace, recursively.
+const GREP_DEFAULT_ROOT: &str = ".";
+
+/// Every place one call of `tool` with `args` may WRITE a file: the write side of the slots
+/// [`unbound_fs_args`] binds (`write`/`edit`/`remove_file` `path`,
+/// `chart`/`image_fx`/`image_compose` `out`, `image_generate`/`tts_generate` `output_dir`),
+/// plus the `chart` `.vl.json` sibling
+/// ([`chart_vl_sibling`]). Empty when the call writes no file.
+#[must_use]
+pub fn write_slot_paths(tool: &str, args: Option<&serde_json::Value>) -> Vec<SlotPath> {
+    let mut out: Vec<SlotPath> = fs_slots(tool, args)
+        .into_iter()
+        .filter_map(|slot| match slot {
+            FsSlot::Arg {
+                value,
+                write: true,
+                descends,
+                pattern,
+                ..
+            } => Some(slot_path(value, descends, pattern)),
+            _ => None,
+        })
+        .collect();
+    if let Some(sibling) = chart_vl_sibling(tool, args) {
+        out.push(SlotPath::Literal {
+            path: sibling,
+            descends: false,
+        });
+    }
+    out
+}
+
+/// One slot's value as a [`SlotPath`]: the same literal test [`slot_refusal`] applies.
+fn slot_path(value: &serde_json::Value, descends: bool, pattern: bool) -> SlotPath {
+    match value
+        .as_str()
+        .filter(|path| !path.trim().is_empty() && !path.contains("${{"))
+    {
+        Some(path) if pattern => SlotPath::Literal {
+            path: glob_walk_root(path),
+            descends: true,
+        },
+        Some(path) => SlotPath::Literal {
+            path: path.to_owned(),
+            descends,
+        },
+        None => SlotPath::Unknown,
+    }
+}
+
+/// One filesystem slot of a call, before any judgment: the ONE list [`unbound_fs_args`],
+/// [`read_slot_paths`] and [`write_slot_paths`] read.
+enum FsSlot<'a> {
+    /// A present slot: its name, its value and what the effect does there.
+    Arg {
+        name: String,
+        value: &'a serde_json::Value,
+        read: bool,
+        write: bool,
+        /// The effect reaches below the path (the table's `recursive`).
+        descends: bool,
+        /// The value is a glob pattern: its walk root is the path (the table's `walk_root`).
+        pattern: bool,
+    },
+    /// A read container of the wrong shape (`chart` `data` · `image_generate` `images` ·
+    /// `fetch` `multipart` or one of its parts): it cannot be read as paths.
+    Malformed { name: String, shape: &'static str },
+}
+
+/// The value a `chart` `data` object without `path` binds: an absent path is no path.
+static NO_PATH: serde_json::Value = serde_json::Value::Null;
+
+/// Every filesystem slot of one call. Primary slots and their directions come from
+/// [`builtin_effect`]; the secondary slots it leaves out (one `path_arg` per effect) are listed
+/// here, at the same owner, all of them reads.
+fn fs_slots<'a>(tool: &str, args: Option<&'a serde_json::Value>) -> Vec<FsSlot<'a>> {
+    let read = |name: String, value| FsSlot::Arg {
+        name,
+        value,
+        read: true,
+        write: false,
+        descends: false,
+        pattern: false,
     };
-    // A container of the wrong shape cannot be read as paths: it is refused whatever it holds.
-    let malformed = |name: &str, shape: &str| {
-        format!("`{tool}` `{name}` must be {shape} the task states in its reach")
-    };
+    let malformed = |name: String, shape| FsSlot::Malformed { name, shape };
     let object = args.and_then(serde_json::Value::as_object);
     let get = |key: &str| object.and_then(|map| map.get(key));
+    let mut slots = Vec::new();
     if let Some(BuiltinEffect::Fs {
         path_arg,
-        reads: read,
-        writes: write,
-        ..
+        reads,
+        writes,
+        recursive,
+        walk_root,
     }) = builtin_effect(tool, args)
         && let Some(value) = get(path_arg)
     {
-        slot(path_arg, value, read, write);
+        slots.push(FsSlot::Arg {
+            name: path_arg.to_owned(),
+            value,
+            read: reads,
+            write: writes,
+            descends: recursive,
+            pattern: walk_root,
+        });
     }
     match tool {
         // A templated, null or malformed bundle hides a read `builtin_effect` cannot see; only an
@@ -462,45 +624,47 @@ pub fn unbound_fs_args(
         "nika:decide" => match get("bundle") {
             Some(serde_json::Value::Object(_)) | None => {}
             Some(value) if literal_str(args, "bundle").is_none() => {
-                slot("bundle", value, true, false);
+                slots.push(read("bundle".to_owned(), value));
             }
             Some(_) => {}
         },
-        "nika:image_fx" => {
-            if let Some(value) = get("input") {
-                slot("input", value, true, false);
-            }
-        }
+        "nika:image_fx" => slots.extend(get("input").map(|value| read("input".to_owned(), value))),
+        // Each `inputs[k]` is a read (the owner lists them); a templated or malformed list
+        // hides its reads, so it is refused whatever it holds.
         "nika:image_compose" => match get("inputs") {
-            Some(serde_json::Value::Array(_)) => {
-                for (name, value) in secondary_read_slots(tool, args) {
-                    slot(&name, value, true, false);
-                }
-            }
-            Some(_) => out.push(malformed("inputs", "an array of literal paths")),
+            Some(serde_json::Value::Array(_)) => slots.extend(
+                secondary_read_slots(tool, args)
+                    .into_iter()
+                    .map(|(name, value)| read(name, value)),
+            ),
+            Some(_) => slots.push(malformed("inputs".to_owned(), "an array of literal paths")),
             None => {}
         },
         "nika:chart" => match get("data") {
-            Some(serde_json::Value::Object(data)) => match data.get("path") {
-                Some(value) => slot("data.path", value, true, false),
-                None => slot("data.path", &serde_json::Value::Null, true, false),
-            },
+            Some(serde_json::Value::Object(data)) => {
+                slots.push(read(
+                    "data.path".to_owned(),
+                    data.get("path").unwrap_or(&NO_PATH),
+                ));
+            }
             Some(serde_json::Value::Array(_)) | None => {}
-            Some(_) => out.push(malformed("data", "rows or `{ path }` with a literal path")),
+            Some(_) => slots.push(malformed(
+                "data".to_owned(),
+                "rows or `{ path }` with a literal path",
+            )),
         },
         "nika:image_generate" => {
             for key in ["image", "mask"] {
-                if let Some(value) = get(key) {
-                    slot(key, value, true, false);
-                }
+                slots.extend(get(key).map(|value| read(key.to_owned(), value)));
             }
             match get("images") {
-                Some(serde_json::Value::Array(items)) => {
-                    for (k, value) in items.iter().enumerate() {
-                        slot(&format!("images[{k}]"), value, true, false);
-                    }
-                }
-                Some(_) => out.push(malformed("images", "an array of literal paths")),
+                Some(serde_json::Value::Array(items)) => slots.extend(
+                    items
+                        .iter()
+                        .enumerate()
+                        .map(|(k, value)| read(format!("images[{k}]"), value)),
+                ),
+                Some(_) => slots.push(malformed("images".to_owned(), "an array of literal paths")),
                 None => {}
             }
         }
@@ -508,22 +672,20 @@ pub fn unbound_fs_args(
             Some(serde_json::Value::Array(parts)) => {
                 for (k, part) in parts.iter().enumerate() {
                     match part.as_object() {
-                        Some(map) => {
-                            if let Some(value) = map.get("path") {
-                                slot(&format!("multipart[{k}].path"), value, true, false);
-                            }
-                        }
-                        None => out.push(malformed(&format!("multipart[{k}]"), "a part object")),
+                        Some(map) => slots.extend(
+                            map.get("path")
+                                .map(|value| read(format!("multipart[{k}].path"), value)),
+                        ),
+                        None => slots.push(malformed(format!("multipart[{k}]"), "a part object")),
                     }
                 }
             }
-            Some(_) => out.push(malformed("multipart", "an array of parts")),
+            Some(_) => slots.push(malformed("multipart".to_owned(), "an array of parts")),
             None => {}
         },
         _ => {}
     }
-    findings.extend(out);
-    findings
+    slots
 }
 
 /// Why one present filesystem slot is not bound: not a literal path, or a literal the task does
@@ -955,6 +1117,31 @@ mod tests {
         assert!(found.iter().any(|f| f.contains("`out`")), "{found:?}");
     }
 
+    /// The file channel (`NIKA-SEC-009`) follows a file a composition reads: every input is a
+    /// read slot path and `out` the write, from the same slot list the binding judges.
+    #[test]
+    fn image_compose_projects_each_input_as_a_read_and_out_as_a_write() {
+        let literal = |path: &str| SlotPath::Literal {
+            path: path.to_owned(),
+            descends: false,
+        };
+        let args = json!({"inputs": ["./a.png", "${{ with.b }}"], "out": "./out/s.png"});
+        assert_eq!(
+            read_slot_paths("nika:image_compose", Some(&args)),
+            [literal("./a.png"), SlotPath::Unknown]
+        );
+        assert_eq!(
+            write_slot_paths("nika:image_compose", Some(&args)),
+            [literal("./out/s.png")]
+        );
+        // A templated list hides every read: one unknown slot, never none.
+        let templated = json!({"inputs": "${{ with.frames }}", "out": "./out/s.png"});
+        assert_eq!(
+            read_slot_paths("nika:image_compose", Some(&templated)),
+            [SlotPath::Unknown]
+        );
+    }
+
     fn stated(paths: &[&str]) -> Vec<String> {
         paths.iter().map(|p| (*p).to_owned()).collect()
     }
@@ -1154,5 +1341,151 @@ mod tests {
         assert!(read_only.join("").contains("its writes"), "{read_only:?}");
         let dynamic = json!({"path": "${{ inputs.target }}"});
         assert!(!unbound_fs_args("nika:remove_file", Some(&dynamic), &[], &written).is_empty());
+    }
+
+    fn lit(path: &str, descends: bool) -> SlotPath {
+        SlotPath::Literal {
+            path: path.to_owned(),
+            descends,
+        }
+    }
+
+    /// The read side of the ONE slot list: every slot `unbound_fs_args` binds as a read is a
+    /// place the call reads, a pattern reads under its walk root, and an unfixed path is
+    /// `Unknown` (it may name any file, it never disappears).
+    #[test]
+    fn read_slot_paths_follow_every_read_slot() {
+        let cases: Vec<(&str, serde_json::Value, Vec<SlotPath>)> = vec![
+            (
+                "nika:read",
+                json!({"path": "./a.txt"}),
+                vec![lit("./a.txt", false)],
+            ),
+            (
+                "nika:grep",
+                json!({"path": "./src", "pattern": "x"}),
+                vec![lit("./src", true)],
+            ),
+            // An absent `path` searches the default root, the workspace (the tool's own
+            // default · NIK-273 follow-up): the call still reads files.
+            ("nika:grep", json!({"pattern": "x"}), vec![lit(".", true)]),
+            (
+                "nika:glob",
+                json!({"pattern": "./drop/*.txt"}),
+                vec![lit("./drop", true)],
+            ),
+            (
+                "nika:edit",
+                json!({"path": "./n.md", "find": "a", "replace": "b"}),
+                vec![lit("./n.md", false)],
+            ),
+            (
+                "nika:decide",
+                json!({"bundle": "./policy.json"}),
+                vec![lit("./policy.json", false)],
+            ),
+            (
+                "nika:decide",
+                json!({"bundle": "${{ inputs.b }}"}),
+                vec![SlotPath::Unknown],
+            ),
+            ("nika:decide", json!({"bundle": {"policy": {}}}), vec![]),
+            (
+                "nika:image_fx",
+                json!({"input": "./in.png", "out": "./o.png"}),
+                vec![lit("./in.png", false)],
+            ),
+            (
+                "nika:chart",
+                json!({"data": {"path": "./d.csv"}, "out": "./c.svg"}),
+                vec![lit("./d.csv", false)],
+            ),
+            (
+                "nika:chart",
+                json!({"data": [{"x": 1}], "out": "./c.svg"}),
+                vec![],
+            ),
+            (
+                "nika:chart",
+                json!({"data": "rows", "out": "./c.svg"}),
+                vec![SlotPath::Unknown],
+            ),
+            (
+                "nika:image_generate",
+                json!({"image": "./a.png", "mask": "./m.png", "images": ["./b.png"], "output_dir": "./o"}),
+                vec![
+                    lit("./a.png", false),
+                    lit("./m.png", false),
+                    lit("./b.png", false),
+                ],
+            ),
+            (
+                "nika:fetch",
+                json!({"url": "https://h/x", "multipart": [{"path": "./up.bin"}, {"text": "t"}]}),
+                vec![lit("./up.bin", false)],
+            ),
+            (
+                "nika:fetch",
+                json!({"url": "https://h/x", "multipart": "x"}),
+                vec![SlotPath::Unknown],
+            ),
+            (
+                "nika:read",
+                json!({"path": "./${{ inputs.f }}"}),
+                vec![SlotPath::Unknown],
+            ),
+            ("nika:read", json!({"path": 42}), vec![SlotPath::Unknown]),
+            (
+                "nika:write",
+                json!({"path": "./o.txt", "content": "x"}),
+                vec![],
+            ),
+            ("nika:jq", json!({"input": {}, "expression": "."}), vec![]),
+        ];
+        for (tool, args, want) in cases {
+            assert_eq!(read_slot_paths(tool, Some(&args)), want, "{tool} {args}");
+        }
+    }
+
+    /// The write side: the table's write slots, an output directory descending, and the chart's
+    /// derived vega sibling.
+    #[test]
+    fn write_slot_paths_follow_every_write_slot() {
+        let cases: Vec<(&str, serde_json::Value, Vec<SlotPath>)> = vec![
+            (
+                "nika:write",
+                json!({"path": "./o.txt", "content": "x"}),
+                vec![lit("./o.txt", false)],
+            ),
+            (
+                "nika:remove_file",
+                json!({"path": "./o.txt"}),
+                vec![lit("./o.txt", false)],
+            ),
+            (
+                "nika:edit",
+                json!({"path": "./n.md", "find": "a", "replace": "b"}),
+                vec![lit("./n.md", false)],
+            ),
+            (
+                "nika:image_generate",
+                json!({"prompt": "p", "output_dir": "./o"}),
+                vec![lit("./o", true)],
+            ),
+            (
+                "nika:chart",
+                json!({"data": [], "out": "./c.svg", "compile_to": "vega_lite"}),
+                vec![lit("./c.svg", false), lit("./c.vl.json", false)],
+            ),
+            (
+                "nika:write",
+                json!({"path": "${{ with.p }}", "content": "x"}),
+                vec![SlotPath::Unknown],
+            ),
+            ("nika:read", json!({"path": "./a.txt"}), vec![]),
+        ];
+        for (tool, args, want) in cases {
+            assert_eq!(write_slot_paths(tool, Some(&args)), want, "{tool} {args}");
+        }
     }
 }

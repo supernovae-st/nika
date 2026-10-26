@@ -42,7 +42,8 @@ depend on without pulling the CLI:
   ingress), and where three kinds of content entering it go (`CallFlow`, by
   the same content-flow pass run over the child): what it brings in (`born`),
   the call's arguments (`args`), and a file a tainted writer left before the
-  call (`files`, read by an `exec:` of the closure). Each may reach the
+  call (`files`, read by an `exec:` or a builtin read of the closure, whatever
+  the path). Each may reach the
   call's output, an egress task of the closure, or a file. The trifecta lane
   judges the call as the tasks it stands for: a source when born content
   reaches its output or a file, a sink when content reaches an egress task.
@@ -57,9 +58,39 @@ depend on without pulling the CLI:
   an agent whitelist · a harness-servable agent) the entries its own declared
   block, met with every block above it, keeps; `nika-dap`'s
   `NIKA-DRIFT-001` never names a held grant dead. The runtime trust gate
-  re-derives the trifecta over the same calls. A plain `check()` resolves no
-  call: its trifecta lane, like its composition and cost lanes, judges the
+  re-derives the trifecta over the same calls, and counts a call its report
+  does not list as unresolved. `effect` names the first egress-capable task
+  a run of the closure reaches, whatever content reaches it, on a route
+  that crosses no confirm gate of the closure (that nearest gate owns it ·
+  an unresolved closure sets it): the consent lane (`NIKA-SEC-014`) judges
+  such a call as that task, so a confirm gate in front of it must close
+  every route on a refusal, as in front of the inline task. When every such
+  route crosses a closure gate the check cannot decide from the caller (a
+  `when:` on an input the caller may bind to its answer),
+  `effect_conditional` is set and a refusal reaching the call is the
+  advisory hint, never the blocking row. A plain `check()` resolves no call: its
+  trifecta and consent lanes, like its composition and cost lanes, judge the
   caller's own tasks only.
+- **the file channel** (`file_channel`, inside the content-taint pass) —
+  under a declared `fs.read`, a task that reads a file a tainted write
+  left carries that content on: an `exec:` whatever the file, once an
+  earlier writer ran (the pass's sweep order); a builtin read (nika-cap's
+  read slots: `nika:read`, `nika:grep` and its default root, `nika:glob`,
+  `nika:edit`, a `decide` bundle, `image_fx`/`image_compose`/`chart`/
+  `image_generate` inputs, a `fetch` multipart part) when its path may be one
+  the write reached, whatever the order when the write's path is literal (a file
+  outlives the run order: a read beside the writer or before it reads it
+  in this run or the next; the pass sweeps until the writers settle). A
+  write the check cannot locate (a templated path, a subprocess, a server,
+  a child closure) meets only later reads, as an `exec:` reader does. A
+  call whose closure reads files meets an earlier tainted write of its
+  caller, as an `exec:` does. Paths compare lexically (folded,
+  ASCII case-blind, a segment past ASCII may be any segment, `/private/tmp`
+  `/var` `/etc` are their firmlinks); a template, a subprocess, a server or
+  a child closure may reach any path. Only `/` sits at a known place: a
+  path from the workspace, the home directory or above the workspace names
+  a rooted file the rooted path ends with (holds anywhere, for a
+  directory), and a rooted directory may hold any of them.
 - **the conformance harness** (`tests/common`) — the Core, Deep, lint, runtime
   and stdlib fixture levels from the checkout pinned by `SPEC_PIN`. Core and
   Deep verdicts now include the Agent Skill resolution lane through the same

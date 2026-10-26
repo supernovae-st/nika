@@ -13,5 +13,6 @@
   `NIKA-BUILTIN-IMAGE_COMPOSE-005` from the PNG headers before any
   decompression (an input count outside 1..=64 is an argument, `-001`), an
   input with a second IHDR is `-004`, and each of the six codes has its
-  `nika explain` lesson. A contact sheet no longer needs `exec magick
+  `nika explain` lesson. Its inputs are file reads the `NIKA-SEC-009`
+  content flow follows, like `nika:image_fx`'s. A contact sheet no longer needs `exec magick
   montage`.
