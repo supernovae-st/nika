@@ -488,6 +488,13 @@ fn system_synth_of_host() -> SystemSynth {
     ))
 }
 
+/// The keyless `system` voice: the host's own synthesizer, started by the
+/// builtin itself through an unconfined runner (an engine-fixed program,
+/// never workflow data · never the exec verb).
+fn host_system_voice() -> SystemVoice {
+    SystemVoice::new(Arc::new(TokioShell::new()), system_synth_of_host())
+}
+
 /// The first `name` on a `PATH` value that is a regular file.
 fn program_on_path(path: &str, name: &str) -> Option<std::path::PathBuf> {
     std::env::split_paths(path)
@@ -834,13 +841,7 @@ pub fn production_runtime_with_emitter(
             // the fetch idle guard is unsuitable. Resolve keys only at this boundary.
             .with_image_plane(Arc::clone(&provider_http), image_keys_from_env())
             .with_tts_plane(Arc::clone(&provider_http), tts_keys_from_env())
-            // The keyless `system` voice: the host's own synthesizer, started
-            // by the builtin itself through an unconfined runner (an engine-
-            // fixed program, never workflow data · never the exec verb).
-            .with_system_voice(SystemVoice::new(
-                Arc::new(TokioShell::new()),
-                system_synth_of_host(),
-            ))
+            .with_system_voice(host_system_voice())
             // The host's write-origins ledger, read back by its teardown.
             .with_write_origins(runtime_config.write_origins.clone()),
     );

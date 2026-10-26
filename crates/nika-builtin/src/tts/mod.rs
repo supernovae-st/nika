@@ -209,12 +209,7 @@ where
             &created_at,
             endpoint_host.as_deref(),
         );
-        if let serde_json::Value::Object(map) = &mut manifest {
-            map.insert("content_credentials".into(), content_credentials.into());
-            if let Some(reason) = unpriced_reason(args.provider) {
-                map.insert("cost_unpriced".into(), reason.into());
-            }
-        }
+        annotate(&mut manifest, content_credentials, args.provider);
         Some(write_manifest(fs, boundary, &args, &saved, &manifest, emitter).await?)
     } else {
         None
@@ -230,13 +225,20 @@ where
         endpoint_host.as_deref(),
         manifest_path.as_deref(),
     );
-    if let serde_json::Value::Object(map) = &mut output {
-        map.insert("content_credentials".into(), content_credentials.into());
-        if let Some(reason) = unpriced_reason(args.provider) {
+    annotate(&mut output, content_credentials, args.provider);
+    Ok(output)
+}
+
+/// The two receipt fields the manifest and the output both carry beside
+/// their base shape: the detected content credentials and, when the engine
+/// knows it, why `cost_usd` is null.
+fn annotate(record: &mut serde_json::Value, credentials: Option<&'static str>, provider: Provider) {
+    if let serde_json::Value::Object(map) = record {
+        map.insert("content_credentials".into(), credentials.into());
+        if let Some(reason) = unpriced_reason(provider) {
             map.insert("cost_unpriced".into(), reason.into());
         }
     }
-    Ok(output)
 }
 
 /// Why `cost_usd` is null, when the engine KNOWS (the honest-absence

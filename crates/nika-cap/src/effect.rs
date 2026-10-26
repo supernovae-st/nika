@@ -266,10 +266,8 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
         // · one path_arg per effect); chart was INVISIBLE here until
         // 2026-07-11 — the inference wrote a boundary the run then
         // refused (the self-refusing class); its `compile_to` vega
-        // sibling rides `chart_vl_sibling`. image_compose's reads are NOT
-        // left to the run: every `inputs[]` path rides
-        // [`secondary_read_slots`], so the check, the inference and the
-        // drift scan judge them (the gauntlet's C-D1 gap, not repeated).
+        // sibling rides `chart_vl_sibling`; image_compose's `inputs[]` ride
+        // [`secondary_read_slots`] (judged statically, never left to the run).
         "nika:image_fx" | "nika:chart" | "nika:image_compose" => Some(BuiltinEffect::Fs {
             path_arg: "out",
             reads: false,

@@ -225,6 +225,19 @@ pub(super) fn cost(
             },
         )
     };
+    let _ = writeln!(
+        out,
+        " {cost_mark} {}     {} {bound} {}",
+        t.paint(Role::Strong, "COST"),
+        t.paint(Role::Strong, &money),
+        t.paint(Role::Dim, &priced_tail(wf)),
+    );
+    cost_task_rows(out, report, t);
+}
+
+/// The dim tail of the priced COST rung: what its ceiling does not price,
+/// and the date of the price table it does.
+fn priced_tail(wf: &RawWorkflow) -> String {
     // The price table's date rides WITH the number. A ceiling is a
     // promise, and a promise computed against prices that have since
     // moved is a promise about the past — the `--json` lane has carried
@@ -235,27 +248,17 @@ pub(super) fn cost(
     // This is not hypothetical drift: vendor intro pricing expires on
     // announced dates, so a workflow audited in one month can bill more
     // in the next with the file unchanged.
-    let snap = nika_catalog::pricing_snapshot();
-    let _ = writeln!(
-        out,
-        " {cost_mark} {}     {} {bound} {}",
-        t.paint(Role::Strong, "COST"),
-        t.paint(Role::Strong, &money),
-        // `exec` + `mcp` join `prompts` in the unpriced list for the same
-        // reason the empty-cost branch above names them: this ceiling
-        // sums `infer:`/`agent:` output tokens, so a workflow that mixes
-        // an `infer:` with an `exec:` gets a ceiling with the exec's whole
-        // bill missing — and the ✔ does not say so.
-        t.paint(
-            Role::Dim,
-            &format!(
-                "· prompts, exec + mcp unpriced · prices {}{}",
-                snap.as_of,
-                voice_clause(wf)
-            )
-        ),
-    );
-    cost_task_rows(out, report, t);
+    //
+    // `exec` + `mcp` join `prompts` in the unpriced list for the same
+    // reason the empty-cost branch above names them: this ceiling
+    // sums `infer:`/`agent:` output tokens, so a workflow that mixes
+    // an `infer:` with an `exec:` gets a ceiling with the exec's whole
+    // bill missing — and the ✔ does not say so.
+    format!(
+        "· prompts, exec + mcp unpriced · prices {}{}",
+        nika_catalog::pricing_snapshot().as_of,
+        voice_clause(wf)
+    )
 }
 
 /// The tasks whose route bills reasoning beyond `max_tokens`, named, when there are any.
