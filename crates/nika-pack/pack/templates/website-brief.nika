@@ -25,9 +25,10 @@
 #   (on a networked machine the crawl really fetches const.site_url — it is permitted)
 nika: website-brief-template       # SLOT: kebab-case workflow id
 
-# This skeleton keeps its authored offline model. Creating a workflow does
+# This skeleton keeps its authored mock model. Creating a workflow does
 # not select a paid provider from ambient credentials. Choose a different
-# model explicitly for a real run; `--model mock/echo` remains offline.
+# model explicitly for a real run; `--model mock/echo` rehearses on the mock
+# model: zero keys, no model call; a fetch step still reaches its host.
 model: mock/echo
 
 const:
@@ -50,8 +51,9 @@ tasks:
         url: "${{ const.site_url }}"
         traverse: { max_pages: 5 }  # SLOT: crawl bound · 1..=25 (robots honored)
     on_error:
-      # Offline rehearsal · a literal standing in for the crawl digest, so the
-      # brief step runs with no network at all. Delete once the site is real.
+      # Rehearsal stand-in · when the crawl fails (no network, a dead host),
+      # this literal stands in for the crawl digest so the brief step still
+      # runs. Delete once the site is real.
       recover: "REHEARSAL DIGEST · Example Co · a small tool company · plain blue and white pages · buttons, a pricing table, one logo."
 
   brief:

@@ -13,7 +13,7 @@
 #   - 3-branch parallel gather · fetch + exec + read→convert→jq, one wave
 #   - jq arithmetic · `add` sums the revenue column WITHOUT a model call
 #   - the root human gate · NEP-0002, and WHY it cannot sit anywhere else
-#   - `on_error: recover:` · the offline rehearsal for the untrusted leg
+#   - `on_error: recover:` · the labelled stand-in when the untrusted fetch fails
 #   - the always-pattern · `after: {save: terminal}`, so an armed ping fires on
 #     every settled outcome — landed, failed, or declined. It rides `terminal`
 #     and not `unwind` because 03 §unwind makes cleanup failures LOG-ONLY:
@@ -26,7 +26,9 @@
 #   nika run <file> --resume <trace> --answer approve=true
 #
 # Run · nika run examples/ceo-monday-brief.nika
-#       · rehearse with no keys and no network · add --model mock/echo
+#       · rehearse on the mock model, zero keys · add --model mock/echo (it
+#         replaces the model, not the network: once `approve` is answered
+#         yes, `news` still fetches from hn.algolia.com)
 #       · arm the founders ping · add --var alert=true — FOUNDERS_WEBHOOK_URL must be
 #         set or the armed run dies NIKA-VAR-001 at `alert` (see permits.net.http)
 
@@ -122,10 +124,11 @@ tasks:
         mode: jq
         jq: ".hits[:10] | map(.title)"
     on_error:
-      # The honest dry run · offline the host resolves nowhere and this literal
-      # takes over, so the join below is exercised on both paths with the same
-      # binding. It is labelled in the brief so nobody mistakes it for signal.
-      recover: ["(offline rehearsal · no market signal was fetched)"]
+      # The honest stand-in · when the fetch fails (no network, a failing
+      # search) this literal takes over, so the join below is exercised on
+      # both paths with the same binding. It is labelled in the brief so
+      # nobody mistakes it for signal.
+      recover: ["(stand-in · no market signal was fetched)"]
 
   # ── branch 2 · engineering pulse ──
   pulse:

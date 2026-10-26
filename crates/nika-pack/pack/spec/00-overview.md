@@ -58,6 +58,15 @@ These 5 pillars are **locked forever** at v1. Everything else (providers · buil
 
 ## Pre-1.0 stability contract
 
+> **Amended 2026-10-23 · the maintained reference.** Engine 0.123.0 is the
+> open-source reference release and embeds this spec at commit `6390b08`.
+> After it the project is maintained (security fixes, bug fixes and
+> compatibility) and no engine 1.0.0 is scheduled, so the freeze this
+> section waits for is not planned. In the maintained line the grammar
+> changes only through recorded fixes ([CHANGELOG.md](../CHANGELOG.md)),
+> each landing with its conformance fixtures in one atomic window, as
+> below. The contract is kept as written: it is how the language was built.
+
 > **v1 names the first stable family of the language. Its public
 > stability begins at engine 1.0.0 — not before.**
 
@@ -113,7 +122,7 @@ tasks:
 ```yaml
 nika: scrape-and-summarize
 
-model: mistral/mistral-large
+model: mistral/mistral-large-latest
 permits:                        # the file's whole reach · absent = no authority (NIKA-AUTH-006)
   tools: ["nika:fetch", "nika:write"]
   net:
@@ -230,7 +239,7 @@ different operational cost, and v1 does not pretend to it.
 
 ## Frozen language envelope
 
-The **language** envelope is frozen at **v1** forever. **There is no `nika: v2` — ever.** Because that was true, the version slot carried no bits, and the envelope nuke gave it away: `nika:` now holds the file's NAME. **Nothing was lost.** v1 names the one language family; deep grammar changes happen INSIDE `v1` while the reference engine is pre-1.0 (per the [pre-1.0 stability contract](#pre-10-stability-contract) above), and after engine 1.0.0 changes are additive only (feature-detected · no version marker in the file at all). (This is the **language** family, independent of any engine version: the reference engine ships its own semver toward a 1.0 release, which does not touch v1.)
+The **language** envelope is frozen at **v1** forever. **There is no `nika: v2` — ever.** Because that was true, the version slot carried no bits, and the envelope nuke gave it away: `nika:` now holds the file's NAME. **Nothing was lost.** v1 names the one language family; deep grammar changes happen INSIDE `v1` while the reference engine is pre-1.0 (per the [pre-1.0 stability contract](#pre-10-stability-contract) above), and after engine 1.0.0 changes are additive only (feature-detected · no version marker in the file at all). (This is the **language** family, independent of any engine version: the reference engine ships its own semver, which does not touch v1. Amended 2026-10-23: no engine 1.0 release is scheduled after the 0.123 reference release; see the amendment to the stability contract above.)
 
 In practice · we expect v1 to last 10+ years.
 

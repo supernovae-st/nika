@@ -26,9 +26,10 @@
 # Run · nika run <file> --model mock/echo    # offline rehearsal · no daemon
 nika: docker-report-template       # SLOT: kebab-case workflow id
 
-# This skeleton keeps its authored offline model. Creating a workflow does
+# This skeleton keeps its authored mock model. Creating a workflow does
 # not select a paid provider from ambient credentials. Choose a different
-# model explicitly for a real run; `--model mock/echo` remains offline.
+# model explicitly for a real run; `--model mock/echo` rehearses on the mock
+# model: zero keys, no model call; a fetch step still reaches its host.
 model: mock/echo
 
 permits:                            # the blast radius · default-deny once present

@@ -90,7 +90,10 @@ tasks:
   # it), and each root CONSUMES the answer affirmatively (NEP-0020 — a
   # bare `after:` admits the refusal: it settles success with value
   # false). Under `--answer approve=true` the CI one-pass answers it here.
-  # The one [headless-prompt] hint is the price of a real gate — pay it here.
+  # The gate declares no `default:` on purpose: a default would answer for
+  # the human it exists to ask. The one hint `nika check` prints, [consent]
+  # on `save`, is the checker unable to prove the answer reaches the write
+  # through `summary`; it does, through `todo_sweep`, so a « no » closes it.
   approve:
     invoke:
       tool: "nika:prompt"
@@ -144,6 +147,9 @@ tasks:
   reviews:
     with:
       files: ${{ tasks.files.output }}
+    # « no » at the gate skips `files` (null), and a fan-out over null fails
+    # (NIKA-VAR-006): the swarm closes instead.
+    when: ${{ with.files != null }}
     for_each:
       items: ${{ with.files }}
       max_parallel: 4                    # four reviewers in flight · not forty
@@ -183,7 +189,8 @@ tasks:
 
   # The fan-in.
   #   `. // []`      · a clean diff SKIPS the swarm (an empty for_each resolves
-  #                    null), and the fan-in has to survive its own good news.
+  #                    null), and so does a « no » at the gate: the fan-in has
+  #                    to survive its own good news.
   #   `select(. != null)` · the reviewers that recovered leave here, by value.
   #   `.findings[] + {file}` · flatten [[finding]] → [finding], each carrying
   #                    the file it came from.

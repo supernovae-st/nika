@@ -2,4 +2,4 @@
 # runtime trace witness are proven at.
 # Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI
 # tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.
-6390b08eb9791ce49c63ee17f8466fab118cadb8
+c5dcd97a0611b9a091a81f35517f7e2cec00f106

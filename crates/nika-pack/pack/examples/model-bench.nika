@@ -46,7 +46,7 @@ nika: model-bench
 # this file never calls: every contender pins its own `infer.model:` below,
 # and the bench IS the seats. The absence is load-bearing honesty: with no
 # default to override, nothing can claim the mock rehearsal previews this
-# file (measured · the offline rescue tip fires only for a file that HAS
+# file (measured · the mock-preview rescue tip fires only for a file that HAS
 # an envelope model to swap).
 
 const:

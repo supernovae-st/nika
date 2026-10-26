@@ -22,7 +22,7 @@
 
 nika: social-repurpose
 
-model: ollama/qwen3.5:4b   # local · zero key · swap for mistral/mistral-large or any provider
+model: ollama/qwen3.5:4b   # local · zero key · swap for mistral/mistral-large-latest or any provider
 
 const:
   # The sample post ships with the repo. Point this at your own and move the

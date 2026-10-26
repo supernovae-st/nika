@@ -120,8 +120,9 @@ pub enum TraceAction {
         /// just works: each file verifies under its own header, the
         /// worst exit survives (default: the workspace's latest trace).
         traces: Vec<PathBuf>,
-        /// A candidate run public key for the SEALED tier (default:
-        /// ~/.nika/keys/run-signing.pub, then the retired.pub ledger).
+        /// A candidate run public key for the SEALED tier, weighed first
+        /// (then the `NIKA_RUN_KEY_FILE` · `NIKA_RUN_PUB_FILE` pair's public
+        /// half, ~/.nika/keys/run-signing.pub, the retired.pub ledger).
         #[arg(long)]
         key: Option<PathBuf>,
         /// Require the anchor tier: a MISSING sidecar is exit 3 (a

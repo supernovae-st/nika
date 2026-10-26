@@ -21,7 +21,7 @@
 # recovers to a labelled stand-in and the timeline is told so). The runbook
 # ships with the corpus — run from the repo root so its path resolves. The
 # status endpoint is a placeholder that resolves
-# nowhere, so both polls recover offline — point `--var status_url=` at yours
+# nowhere, so both polls fail and recover — point `--var status_url=` at yours
 # to make them real.
 # It runs green but PAUSES at `approve` (exit 4, not a failure) —
 #   nika run <file> --resume <trace> --answer approve=true
@@ -149,7 +149,7 @@ tasks:
       backoff_strategy: exponential
       jitter: true
     on_error:
-      recover: []                 # offline · no history to reconstruct from
+      recover: []                 # the poll failed · no history to reconstruct from
 
   runbook:
     with:
@@ -219,9 +219,10 @@ tasks:
         jq: ".current.state"
     on_error:
       # The rehearsal's stand-in says the service came back, so the green path
-      # is the one you see offline. Point --var status_url at a real endpoint
-      # and anything other than « operational » blocks the draft below — that
-      # refusal is the designed path, not a bug in the file.
+      # is the one you see while the placeholder resolves nowhere. Point
+      # --var status_url at a real endpoint and anything other than
+      # « operational » blocks the draft below — that refusal is the designed
+      # path, not a bug in the file.
       recover: "operational"
 
   confirmed:

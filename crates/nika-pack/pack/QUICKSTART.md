@@ -6,9 +6,9 @@
 >
 > **Status** · authoring, static checking AND execution all work TODAY:
 > `brew install supernovae-st/tap/nika`, then `nika check` + `nika run` on
-> any file in this page. The spec text itself is v0.2.0-draft (GA hardening)
-> in progress); the language family v1 is already frozen — there is no
-> `nika: v2`, ever.
+> any file in this page. The spec text itself is v0.2.0-draft, the version
+> engine 0.123.0 embeds; the language family v1 is already frozen — there is
+> no `nika: v2`, ever.
 
 ---
 
@@ -40,7 +40,7 @@ tasks:
 > (`ollama pull qwen3.5:4b` first · or `lmstudio/…` · `llamacpp/…` ·
 > `vllm/…`). Prefer cloud? Swap the one `model:` line for any of the
 > <!-- canon:providers -->18<!-- /canon --> providers ·
-> `mistral/mistral-small` · `anthropic/claude-haiku-4-5` ·
+> `mistral/mistral-small-latest` · `anthropic/claude-haiku-4-5` ·
 > `openai/gpt-5.2` · the rest of the file doesn't change.
 
 ---
@@ -111,8 +111,8 @@ caller never overrides is a `const:` entry instead (a bare literal ·
 `${{ const.X }}`). A value the **deployment** supplies is an `inputs:` entry
 carrying `required: false` and a `default:` — same namespace, same read.
 
-There are 5 variable namespaces · the three value authorities `inputs` ·
-`const` · `secrets` plus the runtime `with` · `tasks`.
+There are <!-- canon:namespaces -->6<!-- /canon --> variable namespaces · the three value authorities
+`inputs` · `const` · `secrets` plus the runtime `with` · `tasks` · `run`.
 See [spec/04-variables.md](./spec/04-variables.md).
 
 ---
@@ -258,7 +258,7 @@ a caller receives).
 
 - **[spec/](./spec/)**: the full specification (~30 pages · the contract)
 - **[templates/](./templates/)**: writing your own? Instantiate a
-  skeleton (6 valid, slot-marked) instead of starting blank, the
+  skeleton (<!-- canon:templates -->22<!-- /canon --> valid, slot-marked) instead of starting blank, the
   deterministic path agents follow ([protocol](AGENTS.md))
 - **[stdlib/](./stdlib/)**: the <!-- canon:providers -->18<!-- /canon --> providers · <!-- canon:extract_modes -->10<!-- /canon --> extract modes · <!-- canon:builtins -->29<!-- /canon --> builtins
 - **[examples/](./examples/)**: the numbered path + the jobs, all shipped and CI-gated (the count lives in [examples/manifest.yaml](./examples/manifest.yaml))

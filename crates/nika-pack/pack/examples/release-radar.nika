@@ -33,7 +33,9 @@
 #   approve=true`, or answer in one pass: `--answer approve=true`.
 #   Run it twice: the first run reports everything as new and writes the
 #   state, the second reports only what shipped in between.
-#   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
+#   Mock rehearsal (zero key, deterministic) · add `--model mock/echo`. It
+#   replaces the model, not the network: once approved, the feed fetch still
+#   reaches github.com.
 
 nika: release-radar
 

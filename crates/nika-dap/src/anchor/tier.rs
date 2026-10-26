@@ -127,7 +127,7 @@ pub fn seal_tier(
         // exists for). Missing input → the ENV class, non-zero so a gate
         // still fails closed, and never an accusation.
         return SealTier::Unattributable(format!(
-            "the seal names key {} — no candidate carries it (not --key, ~/.nika/keys/run-signing.pub, or the retired.pub ledger)",
+            "the seal names key {} — no candidate carries it (not --key, NIKA_RUN_PUB_FILE, ~/.nika/keys/run-signing.pub, or the retired.pub ledger)",
             crate::escape_tty(key_id)
         ));
     };

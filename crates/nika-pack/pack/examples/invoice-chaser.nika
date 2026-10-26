@@ -24,7 +24,7 @@
 
 nika: invoice-chaser
 
-model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (drafting is a fast-model job)
+model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b-versatile (drafting is a fast-model job)
 
 const:
   ledger_csv: "examples/fixtures/invoices.csv"

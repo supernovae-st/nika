@@ -15,10 +15,10 @@
 #     output BEFORE extraction, so the SAME bindings work on both paths
 #   - chaining a tool result into an `infer:` prompt
 #
-# Runs green offline: the placeholder host resolves nowhere, the recovery
-# value takes over, the summary still lands. That is the point — the
-# rehearsal exercises the failure path, which is the one you cannot test
-# by waiting for it.
+# Runs green with no reachable host: the fetch still goes out, the
+# placeholder host resolves nowhere, the recovery value takes over, the
+# summary still lands. That is the point — the rehearsal exercises the
+# failure path, which is the one you cannot test by waiting for it.
 #
 # Run · nika run examples/05-fetch-chain.nika
 
@@ -78,8 +78,8 @@ tasks:
       # a reasoning model needs 16384 here, or a documented run.reasoning.effort: low
       max_tokens: 512
 
-# `title` is here so a reader can see WHICH path ran: offline it reads
-# "Cached fallback article". Read with `--output json`.
+# `title` is here so a reader can see WHICH path ran: when the fetch fails
+# it reads "Cached fallback article". Read with `--output json`.
 outputs:
   title: ${{ tasks.fetch_article.title }}
   summary: ${{ tasks.summarize.output }}

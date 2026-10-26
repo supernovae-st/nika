@@ -69,11 +69,12 @@ rm -rf out                                                                    # 
   `permits.fs.read` literal with it — `permits:` cannot interpolate
   (`NIKA-AUTH-007`), and that is the point: a boundary you can read is a
   boundary a reviewer can check.
-- **Offline by default.** Any `infer:` file rehearses with `--model mock/echo`
-  — deterministic, zero keys. Files that reach the network carry an
-  `on_error: { recover: … }` sample so the run stays green with no network at all;
-  a recovery stands in for the RAW response, so the `extract:` jq bindings run
-  over it unchanged.
+- **The mock model by default, not offline.** Any `infer:` file rehearses with
+  `--model mock/echo`: zero keys, no model call, deterministic. The mock
+  replaces the model, not the network: a fetch step still reaches its host.
+  Files that reach the network carry an `on_error: { recover: … }` sample so
+  the run stays green with no network at all; a recovery stands in for the RAW
+  response, so the `extract:` jq bindings run over it unchanged.
 - **Every job checks green — including `release-radar`.** It crosses the
   lethal trifecta (private read + feed ingress + state-file write), so it
   carries the canonical human gate (`after: {approve: success}` at the head
@@ -94,9 +95,10 @@ rm -rf out                                                                    # 
   hints, never as the envelope default. Where the
   data is sensitive the local model is the point: sovereignty is a
   feature, show it
-- the offline story, honestly: `nika check` needs zero network on every
-  file, and any `infer:` showcase dry-runs with `--model mock/echo`
-  (deterministic, zero model) — see **Clone and run** above. The `agent:`
+- the network story, honestly: `nika check` needs zero network on every
+  file, and any `infer:` showcase rehearses with `--model mock/echo`
+  (deterministic, zero keys, no model call; a fetch step still reaches its
+  host) — see **Clone and run** above. The `agent:`
   showcases (`pr-review-fanout` · `deep-research-brief`) are the
   exception — mock echoes text and never *calls* a tool, so the ReAct loop
   does zero rounds under it: exercising the agent needs a real tool-calling

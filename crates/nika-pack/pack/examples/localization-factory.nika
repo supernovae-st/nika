@@ -32,7 +32,7 @@
 
 nika: localization-factory
 
-model: ollama/qwen3.5:4b   # local default · swap for mistral/mistral-large (EU model for EU locales)
+model: ollama/qwen3.5:4b   # local default · swap for mistral/mistral-large-latest (EU model for EU locales)
 
 const:
   lang: "fr"

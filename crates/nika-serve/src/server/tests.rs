@@ -444,6 +444,8 @@ fn four_header_limits() -> ServerLimits {
     )
 }
 
+#[cfg(unix)]
+mod artifacts;
 #[cfg(test)]
 mod budget;
 #[cfg(test)]
@@ -454,6 +456,8 @@ mod compile;
 mod cost_review;
 #[cfg(unix)]
 mod cost_review_v2;
+#[cfg(test)]
+mod declared;
 #[cfg(test)]
 mod durable_queue;
 #[cfg(test)]
@@ -637,11 +641,7 @@ async fn job_events_are_authenticated_allowlisted_and_resumable() {
     let cancel = server
         .request(&get_request(&format!("/v1/jobs/{id}/cancel")))
         .await;
-    let artifacts = server
-        .request(&get_request(&format!("/v1/jobs/{id}/artifacts")))
-        .await;
     assert_eq!(cancel.status, 404);
-    assert_eq!(artifacts.status, 404);
     server.stop().await.expect("clean stop");
 }
 
@@ -1316,7 +1316,7 @@ async fn openapi_is_authenticated_and_lists_only_real_authorities() {
     assert!(body["paths"].get("/v1/jobs/{id}/events").is_some());
     assert!(body["paths"].get("/v1/jobs/{id}/cancel").is_some());
     assert!(body["paths"].get("/v1/jobs/{id}/trace/verify").is_some());
-    assert!(body["paths"].get("/v1/jobs/{id}/artifacts").is_none());
+    assert!(body["paths"].get("/v1/jobs/{id}/artifacts").is_some());
     server.stop().await.expect("clean stop");
 }
 
