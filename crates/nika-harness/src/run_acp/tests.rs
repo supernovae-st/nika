@@ -385,6 +385,19 @@ enum Mode {
     Absent,
 }
 
+/// How the scripted codex-acp's turn ends (NIK-275).
+#[derive(Debug, Clone, Copy)]
+enum Turn {
+    /// It answers `OK`.
+    Answers,
+    /// Its turn fails: codex-acp 1.13.1 reports a typed `sessionFailure` on the prompt result
+    /// when the client advertised the capability, else the error as answer text. `retry` is
+    /// the 429 retry exhaustion of the gauntlet (retry offered), otherwise an exhausted usage
+    /// quota (`quota_exhausted`, no retry); `typed: false` is an adapter that knows no typed
+    /// failure at all.
+    Fails { retry: bool, typed: bool },
+}
+
 /// codex-acp 1.13.1's shape: `model`, `reasoning_effort` (`thought_level`)
 /// whose values belong to the CURRENT model, and `mode`.
 fn codex(model: &str, effort: &str, mode: Option<&str>) -> Value {
@@ -409,7 +422,13 @@ fn codex(model: &str, effort: &str, mode: Option<&str>) -> Value {
 }
 
 /// A scripted codex-acp 1.13.1 recording every request it reads.
-async fn codex_peer(mut r: Reader, mut w: Writer, mode: Mode, seen: Arc<Mutex<Vec<Value>>>) {
+async fn codex_peer(
+    mut r: Reader,
+    mut w: Writer,
+    (mode, turn): (Mode, Turn),
+    seen: Arc<Mutex<Vec<Value>>>,
+) {
+    let mut typed_failures = false;
     let advertised = |current: &str| match mode {
         Mode::Absent => None,
         Mode::Confirms | Mode::Ignores => Some(current.to_owned()),
@@ -426,8 +445,17 @@ async fn codex_peer(mut r: Reader, mut w: Writer, mode: Mode, seen: Arc<Mutex<Ve
         let config_id = request["params"]["configId"].as_str().unwrap_or_default();
         let value = request["params"]["value"].as_str().unwrap_or_default();
         let result = match request["method"].as_str() {
-            Some("initialize") => json!({"protocolVersion":1,"agentInfo":
-                {"name":"@agentclientprotocol/codex-acp","title":"Codex","version":"1.13.1"}}),
+            Some("initialize") => {
+                let air = request.pointer("/params/clientCapabilities/_meta/jetbrains/air");
+                typed_failures = air.is_some_and(|air| {
+                    air["version"].as_u64() >= Some(1)
+                        && air["capabilities"]
+                            .as_array()
+                            .is_some_and(|all| all.iter().any(|c| c == "sessionFailure"))
+                });
+                json!({"protocolVersion":1,"agentInfo":
+                    {"name":"@agentclientprotocol/codex-acp","title":"Codex","version":"1.13.1"}})
+            }
             Some("session/new") => json!({"sessionId":"s-codex",
                 "configOptions":codex(&model, &effort, advertised(&current).as_deref())}),
             Some("session/set_config_option") => {
@@ -439,26 +467,52 @@ async fn codex_peer(mut r: Reader, mut w: Writer, mode: Mode, seen: Arc<Mutex<Ve
                 }
                 json!({"configOptions":codex(&model, &effort, advertised(&current).as_deref())})
             }
-            Some("session/prompt") => {
-                let chunk = json!({"sessionUpdate":"agent_message_chunk",
-                    "content":{"type":"text","text":"OK"}});
-                send(
-                    &mut w,
-                    &json!({"jsonrpc":"2.0","method":"session/update",
-                        "params":{"sessionId":"s-codex","update":chunk}}),
-                )
-                .await;
-                json!({"stopReason":"end_turn"})
-            }
+            Some("session/prompt") => codex_turn_end(&mut w, turn, typed_failures).await,
             other => panic!("unexpected client request {other:?}"),
         };
         reply(&mut w, &request, result).await;
     }
 }
 
+/// How the scripted codex-acp ends its turn: the answer `OK`, or the failure as codex-acp
+/// 1.13.1 reports it, typed only when `typed_failures` was advertised (NIK-275).
+async fn codex_turn_end(w: &mut Writer, turn: Turn, typed_failures: bool) -> Value {
+    let (text, category, actions) = match turn {
+        Turn::Answers => ("OK", "", json!([])),
+        Turn::Fails { retry: true, .. } => (
+            "exceeded retry limit, last status: 429 Too Many Requests",
+            "limit",
+            json!(["retry"]),
+        ),
+        Turn::Fails { retry: false, .. } => ("usage limit reached", "limit", json!([])),
+    };
+    if matches!(turn, Turn::Fails { typed: true, .. }) && typed_failures {
+        return json!({"stopReason":"end_turn","usage":null,"_meta":{
+            "quota":{"token_count":null,"model_usage":[]},
+            "jetbrains":{"air":{"version":1,"sessionFailure":{"id":"turn-1:error",
+                "revision":1,"category":category,"severity":"error","title":text,
+                "actions":actions}}}}});
+    }
+    let shown = if matches!(turn, Turn::Answers) {
+        text.to_owned()
+    } else {
+        format!("{text}\n\n")
+    };
+    let chunk = json!({"sessionUpdate":"agent_message_chunk",
+        "content":{"type":"text","text":shown}});
+    send(
+        w,
+        &json!({"jsonrpc":"2.0","method":"session/update",
+            "params":{"sessionId":"s-codex","update":chunk}}),
+    )
+    .await;
+    json!({"stopReason":"end_turn"})
+}
+
 /// A lent transport driving the Codex completion profile over a duplex.
 struct ScriptedCodex {
     mode: Mode,
+    turn: Turn,
     seen: Arc<Mutex<Vec<Value>>>,
 }
 
@@ -473,7 +527,7 @@ impl DynAgentBackend for ScriptedCodex {
         tokio::spawn(codex_peer(
             BufReader::new(peer_read),
             peer_write,
-            self.mode,
+            (self.mode, self.turn),
             Arc::clone(&self.seen),
         ));
         let codex = meet_acp_one_shot("codex").expect("attested");
@@ -485,9 +539,18 @@ async fn codex_one_shot(
     mode: Mode,
     effort: &str,
 ) -> (Result<HarnessOutcome, HarnessError>, Vec<Value>) {
+    codex_one_shot_ending(mode, effort, Turn::Answers).await
+}
+
+async fn codex_one_shot_ending(
+    mode: Mode,
+    effort: &str,
+    turn: Turn,
+) -> (Result<HarnessOutcome, HarnessError>, Vec<Value>) {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let transport = ScriptedCodex {
         mode,
+        turn,
         seen: Arc::clone(&seen),
     };
     let request = HarnessRequest::new("answer OK", "/never/the/session/root")
@@ -620,5 +683,69 @@ async fn the_codex_profile_admits_only_codex_acp() {
             .to_string()
             .contains("requires the audited @agentclientprotocol/codex-acp 1.13.1 profile"),
         "{refused}"
+    );
+}
+
+/// NIK-275 · an `infer:` turn Codex could not complete is never an answer: the client
+/// advertises codex-acp's typed `sessionFailure`, and the failure the adapter then reports on
+/// the prompt result fails the call with the adapter's words. The gauntlet's 429 retry
+/// exhaustion (retry offered) is a session death; an exhausted quota (no retry) a refusal.
+#[tokio::test]
+async fn a_failed_codex_turn_fails_the_infer_with_the_adapters_error() {
+    let (result, seen) = codex_one_shot_ending(
+        Mode::Confirms,
+        "max",
+        Turn::Fails {
+            retry: true,
+            typed: true,
+        },
+    )
+    .await;
+    match result {
+        Err(HarnessError::Session { reason }) => assert_eq!(
+            reason,
+            "the harness reported a failed turn (error · limit): exceeded retry limit, last \
+             status: 429 Too Many Requests"
+        ),
+        other => panic!("a failed turn must fail the infer: {other:?}"),
+    }
+    assert_eq!(
+        seen[0]["params"]["clientCapabilities"]["_meta"]["jetbrains"]["air"],
+        json!({"version": 1, "capabilities": ["sessionFailure"]})
+    );
+    let (result, _) = codex_one_shot_ending(
+        Mode::Confirms,
+        "max",
+        Turn::Fails {
+            retry: false,
+            typed: true,
+        },
+    )
+    .await;
+    match result {
+        Err(HarnessError::Refused { reason }) => {
+            assert_eq!(
+                reason,
+                "the harness reported a failed turn (error · limit): usage limit reached"
+            );
+        }
+        other => panic!("an exhausted quota must refuse the infer: {other:?}"),
+    }
+}
+
+/// NIK-275 · an adapter that knows no typed failure still turns a failed turn into answer
+/// text and `end_turn`: Nika cannot tell it from an answer without reading the text, which it
+/// never does, so that answer stands (the documented limit).
+#[tokio::test]
+async fn without_typed_failures_a_failed_turn_still_reads_as_its_text() {
+    let turn = Turn::Fails {
+        retry: true,
+        typed: false,
+    };
+    let (result, _) = codex_one_shot_ending(Mode::Confirms, "max", turn).await;
+    let outcome = result.expect("the text reads as an answer");
+    assert_eq!(
+        outcome.output,
+        "exceeded retry limit, last status: 429 Too Many Requests\n\n"
     );
 }

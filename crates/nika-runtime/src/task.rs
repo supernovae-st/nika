@@ -827,7 +827,8 @@ where
     }
 
     /// The per-attempt dispatch context (the fn-length law's
-    /// extraction) — the bound `--answer` for THIS task rides it (B5), the
+    /// extraction) — the bound `--answer` for THIS task rides it (B5,
+    /// until an attempt spends it: the attempt loop then withholds it), the
     /// child budget reads the ledger AT CALL TIME (law 6), the ledger
     /// takes a dropped attempt's provider requests (B7), and the workflow
     /// is where a seat only the run decides is judged (B9).
@@ -876,6 +877,10 @@ where
             let ctx = || {
                 let mut ctx = self.task_ctx((task, wf), budget, ledger, witness, run_start);
                 ctx.stopped = Some(stopped.clone());
+                // B5 · one answer, one ask: a replay never re-arms an answer already spent.
+                if agent_buffer.gate_answer_spent() {
+                    ctx.gate_answer = None;
+                }
                 ctx
             };
             let attempts = async {

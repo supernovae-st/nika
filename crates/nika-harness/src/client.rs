@@ -193,7 +193,7 @@ where
             wire::METHOD_INITIALIZE,
             &InitializeParams {
                 protocol_version: wire::PROTOCOL_V1,
-                client_capabilities: serde_json::json!({}),
+                client_capabilities: wire::client_capabilities(),
             },
         )
         .await?;
@@ -272,6 +272,10 @@ where
                         reason: e.to_string(),
                     })? {
                         Incoming::Response { id: ID_PROMPT, result } => {
+                            // NIK-275: a failed turn the adapter reports is never an answer.
+                            if let Some(failure) = wire::turn_failure(&result) {
+                                return Err(failure);
+                            }
                             let done: PromptResult = parse_payload(result, "session/prompt")?;
                             self.media.check_stop(&done.stop_reason)?;
                             if let Some(completion) = self.completion
@@ -393,28 +397,32 @@ where
         // typed payload drops it (NIK-266).
         let meta = params.get("_meta").cloned();
         let ask: PermissionRequestIn = parse_payload(params, "session/request_permission")?;
-        // NIK-266: network access, a wider harness sandbox or one of the harness's own MCP tool
-        // calls, from every signal the ask carries.
-        let escalation = wire::ask_escalation(&ask.tool_call, meta.as_ref());
-        // The harness's own words; an ask that carries none (codex-acp's correlated MCP
-        // approval) is named from what it approves.
-        let question = ask
-            .tool_call
-            .get("title")
-            .and_then(Value::as_str)
-            .map_or_else(
-                || match &escalation.mcp {
-                    Some(call) => {
-                        format!("the harness asked to approve its MCP tool call ({call})")
-                    }
-                    None => "the harness asked to perform an action".to_owned(),
-                },
-                str::to_owned,
-            );
         // B5: the judgeable facts ride beside the question (kind ·
         // locations · command · url — the wire's own words, absent when
         // the agent did not speak them).
         let (kind, locations, command, url) = wire::ask_facts(&ask.tool_call);
+        // NIK-266: network access, a wider harness sandbox or one of the harness's own MCP tool
+        // calls, from every signal the ask carries. NIK-274: under a mode that runs ordinary
+        // commands sandboxed unasked, any command ask asks to leave that sandbox; beside a
+        // widening, the witness names the command the widening is for.
+        let mut escalation = wire::ask_escalation(&ask.tool_call, meta.as_ref());
+        if kind.as_deref() == Some("execute") {
+            let leaves = escalation.is_empty() && self.commands_escalate();
+            if leaves || escalation.widens.is_some() {
+                let named = wire::escalated_command(&ask.tool_call, meta.as_ref())
+                    .or_else(|| leaves.then(|| "an unnamed command".to_owned()));
+                if let Some(command) = named {
+                    escalation = escalation.with_escalated_command(command);
+                }
+            }
+        }
+        // The harness's own words, with the command and reason it names; an ask with no title
+        // (codex-acp's correlated MCP approval) is named from what it approves.
+        let fallback = match &escalation.mcp {
+            Some(call) => format!("the harness asked to approve its MCP tool call ({call})"),
+            None => "the harness asked to perform an action".to_owned(),
+        };
+        let question = wire::ask_question(&ask.tool_call, meta.as_ref(), fallback);
         // NIK-266: in the workflow's vocabulary — root-relative inside the session root,
         // absolute outside, plus each path's physical identity when a link or `..` moves it.
         let locations = anchor::anchor(locations, root).await;
@@ -911,7 +919,7 @@ pub(crate) const SIGN_IN_EXPIRED: &str = "the app's sign-in has expired or was r
 
 /// The unavailable harness a lost sign-in leaves: no retry heals it before the human signs in
 /// again in the app.
-fn signed_out() -> HarnessError {
+pub(crate) fn signed_out() -> HarnessError {
     HarnessError::Unavailable {
         reason: SIGN_IN_EXPIRED.to_owned(),
     }

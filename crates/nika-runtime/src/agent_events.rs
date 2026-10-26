@@ -41,6 +41,19 @@ impl BufferingObserver {
         self.events.lock().map_or(0, |events| events.len())
     }
 
+    /// Whether an earlier attempt of this task spent the operator's bound `--answer` (B5): one
+    /// answer decides one ask, so a replayed attempt must never receive it again (the NIK-275
+    /// review: a typed harness failure became retryable, and the replay's first ask outside
+    /// the grants, a different command, was approved by the same answer). Poisoned evidence
+    /// reads as spent: the ask then pauses, fail-closed.
+    pub(crate) fn gate_answer_spent(&self) -> bool {
+        self.events.lock().map_or(true, |events| {
+            events
+                .iter()
+                .any(|event| matches!(event, AgentEvent::GateAnswerSpent))
+        })
+    }
+
     /// A newly retryable connection fault must not restart an agent's tools.
     /// Until effect-aware replay is proven, any completed tool vetoes replay,
     /// including `on_codes`; poisoned evidence fails closed too.
