@@ -15,11 +15,12 @@
 //! (468 · a whitelisted tool denied by `permits:`/the SSRF floor mid-loop
 //! — the wire speaks the boundary's own `NIKA-SEC-004`/`NIKA-SEC-005`,
 //! never fed back to the model), and the final message cut at the output
-//! cap (470 · spec `NIKA-AGENT-006`).
+//! cap (470 · spec `NIKA-AGENT-006`), and a declared `images: { save: }` whose session
+//! delivered no image bytes (471 · spec `NIKA-AGENT-007`).
 
 use nika_error::codes::{
     NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465, NIKA_466, NIKA_467, NIKA_468,
-    NIKA_469, NIKA_470, NIKA_1806, NikaCode,
+    NIKA_469, NIKA_470, NIKA_471, NIKA_1806, NikaCode,
 };
 use nika_error::traits::NikaErrorCode;
 use nika_kernel::ai::provider::ProviderError;
@@ -238,6 +239,41 @@ pub enum VerbAgentError {
         spend: Box<SpendOnFailure>,
     },
 
+    /// The task declares `images: { save: }` and its harness session delivered no image
+    /// bytes (NIKA-471 · wire `NIKA-AGENT-007` · spec 02 §Harness images): none was
+    /// generated, or the harness only REPORTED a saved path, which is never opened. The
+    /// declared file is never left unwritten behind a success.
+    #[error(
+        "the task declares `images: {{ save: }}` and its session delivered no image bytes \
+         ({reported} path(s) the harness reported were not opened, by design)"
+    )]
+    #[diagnostic(code(nika::verb::agent_no_image))]
+    NoImage {
+        /// How many image observations carried only a reported path.
+        reported: usize,
+        /// The agent's final message (`error.details.partial_output`).
+        partial_output: String,
+        /// Empty-honest: a harness reports no meterable spend.
+        spend: Box<SpendOnFailure>,
+    },
+
+    /// The engine could not write a received image at the task's `images.save` path
+    /// (NIKA-471 · spec 02 §Harness images): the write builtin's own failure, its spec code
+    /// on the wire (`NIKA-BUILTIN-WRITE-001` …). A boundary refusal is
+    /// [`Self::SecurityBoundary`] instead.
+    #[error("the received image could not be written at `{path}`: {detail}")]
+    #[diagnostic(code(nika::verb::agent_image_write))]
+    ImageWrite {
+        /// The path the task declared (with `-n` for image n ≥ 2).
+        path: String,
+        /// The write's own spec code.
+        code: String,
+        /// The write's own words.
+        detail: String,
+        /// Empty-honest: a harness reports no meterable spend.
+        spend: Box<SpendOnFailure>,
+    },
+
     /// The user's agent harness itself failed the task, typed by its own
     /// class (NIKA-1803 unavailable · NIKA-1804 the session died, the one
     /// transient row · NIKA-1805 refused: an unoffered model or effort, a
@@ -296,6 +332,8 @@ impl VerbAgentError {
             | Self::Stalled { spend, .. }
             | Self::SecurityBoundary { spend, .. }
             | Self::Harness { spend, .. }
+            | Self::NoImage { spend, .. }
+            | Self::ImageWrite { spend, .. }
             | Self::HarnessGate { spend, .. } => *spend = incurred,
             Self::InvalidParam { .. } | Self::ToolDefs { .. } => {}
         }
@@ -320,6 +358,8 @@ impl VerbAgentError {
             | Self::Stalled { spend, .. }
             | Self::SecurityBoundary { spend, .. }
             | Self::Harness { spend, .. }
+            | Self::NoImage { spend, .. }
+            | Self::ImageWrite { spend, .. }
             | Self::HarnessGate { spend, .. } => spend.has_signal().then_some(spend),
             Self::InvalidParam { .. } | Self::ToolDefs { .. } => None,
         }
@@ -343,6 +383,9 @@ impl VerbAgentError {
                 "partial_output": partial_output,
                 "stop_reason": stop_reason,
             })),
+            Self::NoImage { partial_output, .. } => Some(serde_json::json!({
+                "partial_output": partial_output,
+            })),
             _ => None,
         }
     }
@@ -355,6 +398,7 @@ impl NikaErrorCode for VerbAgentError {
             Self::MaxTurns { .. } => NIKA_460,
             Self::MaxTokens { .. } => NIKA_461,
             Self::FinalCut { .. } => NIKA_470,
+            Self::NoImage { .. } | Self::ImageWrite { .. } => NIKA_471,
             Self::WhitelistViolation { .. } => NIKA_462,
             Self::Inference { .. } | Self::TurnInterrupted { .. } => NIKA_463,
             Self::SchemaValidation { .. } => NIKA_464,
@@ -394,11 +438,12 @@ impl NikaErrorCode for VerbAgentError {
             Self::MaxTurns { .. } => "NIKA-AGENT-001".to_owned(),
             Self::MaxTokens { .. } => "NIKA-AGENT-002".to_owned(),
             Self::FinalCut { .. } => "NIKA-AGENT-006".to_owned(),
+            Self::NoImage { .. } => "NIKA-AGENT-007".to_owned(),
             Self::UsageUnmetered { .. } => "NIKA-AGENT-005".to_owned(),
             Self::WhitelistViolation { .. } => "NIKA-SEC-002".to_owned(),
             Self::Inference { .. } | Self::TurnInterrupted { .. } => "NIKA-INFER-001".to_owned(),
             Self::SchemaValidation { .. } => "NIKA-INFER-002".to_owned(),
-            Self::SecurityBoundary { code, .. } => code.clone(),
+            Self::SecurityBoundary { code, .. } | Self::ImageWrite { code, .. } => code.clone(),
             Self::InvalidParam { .. }
             | Self::ToolDefs { .. }
             | Self::Stalled { .. }
@@ -417,6 +462,8 @@ impl NikaErrorCode for VerbAgentError {
             | Self::OperatorStopped { .. }
             | Self::MaxTokens { .. }
             | Self::FinalCut { .. }
+            | Self::NoImage { .. }
+            | Self::ImageWrite { .. }
             | Self::WhitelistViolation { .. }
             | Self::SchemaValidation { .. }
             | Self::InvalidParam { .. }
@@ -513,6 +560,26 @@ mod tests {
             assert_eq!(err.nika_code().num, num, "{err}");
             assert!(!err.is_transient(), "{err} is a verdict, not transient");
         }
+    }
+
+    #[test]
+    fn a_missing_saved_image_is_agent_007_a_verdict_with_its_message() {
+        let err = VerbAgentError::NoImage {
+            reported: 1,
+            partial_output: "I saved it to ~/.codex/generated_images".to_owned(),
+            spend: Box::default(),
+        };
+        assert_eq!(err.nika_code().num, 471);
+        assert_eq!(err.spec_code(), "NIKA-AGENT-007");
+        assert!(!err.is_transient(), "a run that made no image is a verdict");
+        assert!(
+            err.to_string()
+                .contains("1 path(s) the harness reported were not opened")
+        );
+        assert_eq!(
+            VerbAgentError::details_of(&err),
+            Some(serde_json::json!({"partial_output": "I saved it to ~/.codex/generated_images"}))
+        );
     }
 
     #[test]

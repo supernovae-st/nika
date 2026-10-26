@@ -12,8 +12,8 @@ use marked_yaml::types::{MarkedMappingNode, MarkedScalarNode};
 
 use crate::error::SchemaError;
 use crate::raw::{
-    ProjectFileRef, RawAction, RawAgentAction, RawCommand, RawExecAction, RawInferAction,
-    RawInvokeAction, Thinking, VisionInput,
+    ProjectFileRef, RawAction, RawAgentAction, RawAgentImages, RawCommand, RawExecAction,
+    RawInferAction, RawInvokeAction, Thinking, VisionInput,
 };
 use crate::source::Spanned;
 use crate::types::{CaptureMode, DecodeMode};
@@ -59,7 +59,11 @@ pub(crate) const AGENT_KEYS: &[&str] = &[
     "max_tokens_total",
     "temperature",
     "schema",
+    "images",
 ];
+
+/// `agent.images:` sub-fields (spec `02-verbs.md` §Harness images).
+pub(crate) const AGENT_IMAGES_KEYS: &[&str] = &["save"];
 
 /// `thinking:` sub-fields (spec `02-verbs.md` · `{ enabled, budget_tokens }`).
 pub(crate) const THINKING_KEYS: &[&str] = &["enabled", "budget_tokens"];
@@ -294,7 +298,42 @@ fn parse_agent_body(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawAgentAct
     action.max_tokens_total = parse_u64_field(cx, body, "max_tokens_total")?;
     action.temperature = parse_temperature(cx, body)?;
     (action.schema, action.schema_file) = parse_schema(cx, body)?;
+    action.images = parse_agent_images(cx, body)?;
     Ok(action)
+}
+
+/// `images:` — `{ save?: <path> }` (spec `02-verbs.md` §Harness images). A mapping with
+/// `save:` only: any other key (a path the application reports, say) is unknown and refused.
+fn parse_agent_images(
+    cx: &Cx<'_>,
+    body: &MarkedMappingNode,
+) -> Result<Option<Spanned<RawAgentImages>>, SchemaError> {
+    let Some(node) = body.get_node("images") else {
+        return Ok(None);
+    };
+    let Some(map) = node.as_mapping() else {
+        return Err(SchemaError::Validation {
+            message: "`images` must be a mapping `{ save: <path> }` (or `{}` for the value only)"
+                .to_owned(),
+            span: cx.span(node.span()),
+        });
+    };
+    cx.check_unknown_keys(map, AGENT_IMAGES_KEYS, "`agent.images:`")?;
+    let save = cx.opt_scalar(map, "save")?;
+    if save
+        .as_ref()
+        .is_some_and(|path| path.value.trim().is_empty())
+    {
+        let at = map
+            .get_node("save")
+            .map_or_else(|| map.span(), |n| n.span());
+        return Err(SchemaError::Validation {
+            message: "`images.save` must name a project path".to_owned(),
+            span: cx.span(at),
+        });
+    }
+    let images = save.map_or_else(RawAgentImages::new, RawAgentImages::saved_at);
+    Ok(Some(Spanned::new(images, cx.span_or_zero(node.span()))))
 }
 
 // ── Field helpers ───────────────────────────────────────────────────
@@ -1256,6 +1295,61 @@ tasks:
             panic!("expected Agent");
         };
         assert!(action.skills.is_empty(), "skills are opt-in");
+    }
+
+    #[test]
+    fn agent_images_parse_the_save_path_and_the_value_only_form() {
+        let saved = "\
+tasks:
+  banner:
+    agent:
+      prompt: \"Draw\"
+      images:
+        save: \"./out/${{ inputs.slug }}.png\"
+";
+        let RawAction::Agent(action) = one_action(saved) else {
+            panic!("expected Agent");
+        };
+        let images = action.images.expect("images declared").value;
+        assert_eq!(
+            images.save.expect("save").value,
+            "./out/${{ inputs.slug }}.png",
+            "a rendered save path is kept verbatim for dispatch"
+        );
+        let value_only = "\
+tasks:
+  banner:
+    agent:
+      prompt: \"Draw\"
+      images: {}
+";
+        let RawAction::Agent(action) = one_action(value_only) else {
+            panic!("expected Agent");
+        };
+        assert!(action.images.expect("images declared").value.save.is_none());
+        let RawAction::Agent(action) =
+            one_action("tasks:\n  chat:\n    agent:\n      prompt: \"Talk\"\n")
+        else {
+            panic!("expected Agent");
+        };
+        assert!(action.images.is_none(), "images are opt-in");
+    }
+
+    #[test]
+    fn agent_images_refuse_a_reported_path_key_a_scalar_and_an_empty_save() {
+        for (body, says) in [
+            (
+                "images:\n        copy_from: \"~/.codex/generated_images\"\n",
+                "copy_from",
+            ),
+            ("images: \"./out/a.png\"\n", "must be a mapping"),
+            ("images:\n        save: \" \"\n", "must name a project path"),
+        ] {
+            let yaml =
+                format!("tasks:\n  banner:\n    agent:\n      prompt: \"Draw\"\n      {body}");
+            let err = parse(&yaml, FileId::new(0), ParseMode::Strict).expect_err("refused");
+            assert!(err.to_string().contains(says), "{body}: {err}");
+        }
     }
 
     #[test]

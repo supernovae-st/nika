@@ -1087,6 +1087,14 @@ where
         input.timeout = ctx.deadline;
         input.temperature = temp_f32(action.temperature.as_ref());
         input.schema = task_schema(action.schema.as_ref(), contract);
+        // `images:` (spec 02 §Harness images): the save path renders like every verb field.
+        if let Some(images) = &action.images {
+            let save = match render_opt(images.value.save.as_ref(), scope) {
+                Ok(save) => save,
+                Err(err) => return Dispatched::template_err("agent · ?", &err),
+            };
+            input.images = Some(nika_verb_agent::AgentImages::new(save));
+        }
         // The buffer is the CALLER's (per task-attempt-loop · still
         // per-dispatch-isolated since a wave's tasks each own one):
         // owning it here would put it inside the timeout-cancellable

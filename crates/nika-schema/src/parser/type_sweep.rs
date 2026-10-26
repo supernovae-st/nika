@@ -153,6 +153,13 @@ const TABLE: &[Row] = &[
     row("agent", "max_tokens_total", FieldType::Num, "soon", "5000"),
     row("agent", "temperature", FieldType::Num, "soon", "0.2"),
     row("agent", "schema", FieldType::Map, "123", "{ type: object }"),
+    row(
+        "agent",
+        "images",
+        FieldType::Map,
+        "123",
+        "{ save: \"./out/a.png\" }",
+    ),
 ];
 
 /// Build a one-task workflow around `<verb>: { <companions> <field>: <value> }`

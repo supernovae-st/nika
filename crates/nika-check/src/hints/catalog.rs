@@ -204,7 +204,13 @@ const ROWS: &[(&str, &str)] = &[
          pages with its hosted web tool, writes its own ~/.codex, starts its configured MCP \
          servers and applies your global AGENTS.md and plugins, all unasked; the harness's \
          own permission rules, hooks and MCP servers still apply. A seat with no measured \
-         mode is judged on its asks alone",
+         mode is judged on its asks alone. An image the harness generates reaches the \
+         workflow through the task's `images:`: `.output.images` lists the bytes THIS \
+         session sent (sha256, size, dimensions) and `images: { save: <path> }` writes them \
+         inside permits.fs.write; a path the harness reports, such as its shared \
+         generated-images folder, is never opened, and a save with no image received fails \
+         NIKA-AGENT-007. A `schema:` is validated by Nika on the final message, with no repair \
+         turn",
     ),
     (
         "run-clock",

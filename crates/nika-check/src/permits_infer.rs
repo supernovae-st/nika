@@ -297,6 +297,28 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
             for tool in a.tools.iter().filter(|tool| !tool.value.starts_with('!')) {
                 c.tools.insert(tool.value.clone());
             }
+            // `images: { save: }` (spec 02 §Harness images): the engine writes the received
+            // bytes at a literal path (or a bare const); a rendered one stays the runtime's.
+            if let Some(save) = a.images.as_ref().and_then(|i| i.value.save.as_ref()) {
+                let path = if save.value.contains("${{") {
+                    c.consts.resolve(&save.value).map(str::to_owned)
+                } else {
+                    Some(save.value.clone())
+                };
+                match path {
+                    Some(path) if path_escapes_workspace(&path) => {
+                        c.partial.fs = true;
+                        c.notes.push(format!(
+                            "task `{id}` saves its images at `{path}` — that path escapes the \
+                             workspace, so no `permits.fs.write` entry is inferred"
+                        ));
+                    }
+                    Some(path) => {
+                        c.writes.insert(path);
+                    }
+                    None => {}
+                }
+            }
         }
         RawAction::Infer(_) => {}
         #[allow(

@@ -63,6 +63,8 @@ bytes            = { workspace = true }   # canned HttpResponse bodies (the F1 c
 insta            = { workspace = true }
 proptest         = { workspace = true }
 tokio            = { workspace = true }
+base64           = { workspace = true }   # a scripted ACP peer's image payloads (harness image values)
+sha2             = { workspace = true }   # the digest those received bytes must keep
 
 [package.metadata.lore]
 daemon        = "timonier"

@@ -396,6 +396,63 @@ fn a_stored_agent_image_is_its_blob_and_nothing_else_is() {
     assert_eq!(not_an_image[0].mime, "application/octet-stream");
 }
 
+/// B-D18 · an image the engine wrote under `images: { save: }` is a project file artifact with
+/// the RECEIVED digest — beside its blob, never the path the harness reported.
+#[test]
+fn a_saved_agent_image_is_also_its_project_file_with_the_received_digest() {
+    let mut saved = stored_image(SHA_A, 42);
+    saved["saved_path"] = json!("./out/release/banner.png");
+    let artifacts = derive(&[observed(1, &saved)]);
+    assert_eq!(
+        names(&artifacts),
+        ["agent_image/1.png", "file/out/release/banner.png"]
+    );
+    let file = &artifacts[1];
+    assert_eq!(file.kind, Kind::File);
+    assert_eq!(file.path(), Some("out/release/banner.png"));
+    assert_eq!(
+        (file.size, file.sha256.as_str(), file.mime.as_str()),
+        (42, SHA_A, "image/png")
+    );
+    assert_eq!(file.task.as_deref(), Some("draw"));
+    // Unsaved, path-only or outside the project: no file artifact, and the reported path
+    // is never one.
+    let unsaved = derive(&[observed(2, &stored_image(SHA_B, 7))]);
+    assert_eq!(names(&unsaved), ["agent_image/1.png"]);
+    for outside in [
+        "/elsewhere/codex/image.png",
+        "../out.png",
+        ".nika/blobs/x.png",
+    ] {
+        let mut escaped = stored_image(SHA_A, 42);
+        escaped["saved_path"] = json!(outside);
+        assert_eq!(
+            names(&derive(&[observed(3, &escaped)])),
+            ["agent_image/1.png"],
+            "{outside}"
+        );
+    }
+    let mut undigested = stored_image(SHA_A, 42);
+    undigested["saved_path"] = json!("out/a.png");
+    undigested["received_sha256"] = Value::Null;
+    assert!(derive(&[observed(4, &undigested)]).is_empty());
+    // A later write of the same path by a builtin replaces it, like any rewritten file.
+    let rewritten = derive(&[
+        observed(5, &saved),
+        completed(
+            6,
+            "fx",
+            "nika:image_fx",
+            &json!({"path": "out/release/banner.png", "sha256": SHA_B, "size_bytes": 9, "format": "png"}),
+        ),
+    ]);
+    assert_eq!(
+        names(&rewritten),
+        ["agent_image/1.png", "file/out/release/banner.png"]
+    );
+    assert_eq!(rewritten[1].sha256, SHA_B, "the last journaled write wins");
+}
+
 fn document(tier: &str, exit: u8, headline: &str, seal: &str, head: &str) -> String {
     json!({
         "verify_version": 1, "trace": "/p/.nika/traces/x.ndjson", "tier": tier, "exit": exit,

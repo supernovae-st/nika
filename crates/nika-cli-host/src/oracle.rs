@@ -293,6 +293,9 @@ pub struct Verdict {
     /// The child workflows the file names (`invoke: { workflow: … }`) — a
     /// child-blind lane must SAY it did not read them (W3-F2).
     pub children: Vec<String>,
+    /// The `infer:`/`agent:` tasks a seat serves: their `cost` hints (declare `max_tokens` /
+    /// `max_tokens_total`) are withheld — the field cannot ride an ACP session (D2).
+    pub seated: std::collections::BTreeSet<String>,
 }
 
 impl Verdict {
@@ -303,12 +306,21 @@ impl Verdict {
         &self,
         report: &'a CheckReport,
     ) -> std::borrow::Cow<'a, CheckReport> {
-        if self.harness.is_empty() {
+        let withheld = |hint: &nika_check::Hint| self.withholds(hint.kind, &hint.task);
+        if self.harness.is_empty() && !report.hints.iter().any(withheld) {
             return std::borrow::Cow::Borrowed(report);
         }
         let mut shown = report.clone();
+        shown.hints.retain(|hint| !withheld(hint));
         shown.hints.extend(self.harness.iter().cloned());
         std::borrow::Cow::Owned(shown)
+    }
+
+    /// Whether a hint of `kind` on `task` is withheld: a `cost` hint asks for `max_tokens` /
+    /// `max_tokens_total`, which a seated task cannot carry (the run would refuse it or price
+    /// the subscription as an API).
+    fn withholds(&self, kind: &str, task: &str) -> bool {
+        kind == "cost" && self.seated.contains(task)
     }
 
     /// The operational gate: grade below High AND access ready (when a
@@ -454,6 +466,9 @@ pub fn judge(
     if let Some(blocker) = project_files_blocker(wf, judged) {
         layers.blockers.push(blocker);
     }
+    // What a seat cannot honour blocks RUN READY here, as it refuses the run (D2).
+    let seats = seat_fields::judge(wf, report, &plan);
+    layers.blockers.extend(seats.blockers);
     let grade = nika_check::risk_grade(report);
     // A harness seat's permission bridge judges its asks against permits.exec and
     // permits.fs: on a run that seats one, those grants are never drift (NIK-266).
@@ -474,12 +489,14 @@ pub fn judge(
         harness,
         judged,
         children,
+        seated: seats.seated,
     }
 }
 
 /// The `agent:` tasks a harness seat serves, each with that seat, in file order (NIK-266):
 /// the plan's seat for the task's model, else the seat `run.access.via` declares. A task
-/// with a `tools:` whitelist or a `schema:` is native-only — a harness refuses both.
+/// with a `tools:` whitelist is native-only — a harness refuses it (its `schema:` is
+/// validated by Nika on the seat's final message).
 fn harness_agents(
     wf: &RawWorkflow,
     report: &CheckReport,
@@ -494,7 +511,7 @@ fn harness_agents(
             let nika_schema::raw::RawAction::Agent(agent) = &task.value.action else {
                 return None;
             };
-            if !agent.tools.is_empty() || agent.schema.is_some() || agent.schema_file.is_some() {
+            if !agent.tools.is_empty() {
                 return None;
             }
             let id = &task.value.id.value;
@@ -773,6 +790,12 @@ pub fn audit_json(
         Err(error) => return Err(format!("cannot serialize engine identity: {error}")),
     };
     if let Some(hints) = obj.get_mut("hints").and_then(Value::as_array_mut) {
+        hints.retain(|hint| {
+            !verdict.withholds(
+                hint["kind"].as_str().unwrap_or_default(),
+                hint["task"].as_str().unwrap_or_default(),
+            )
+        });
         push_advisory_hints(hints, &verdict.drift, &verdict.harness, wf);
     }
     // The lane refusals ride `findings[]` and `clean` reads them: the
@@ -1429,3 +1452,9 @@ mod tests {
 
 #[cfg(test)]
 mod harness_tests;
+
+/// What a seat cannot honour, judged from its declared capabilities (D2).
+mod seat_fields;
+
+#[cfg(test)]
+mod seat_fields_tests;

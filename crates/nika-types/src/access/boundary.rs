@@ -204,13 +204,19 @@ impl HarnessBoundary {
         format!(
             "an `agent:` task on {} runs in mode `{}`: Nika judges each approval it asks \
              (journaled permit_checked), but without asking it {} — permits: does not bound \
-             that (`nika explain harness`)",
+             that (`nika explain harness`). {HARNESS_IMAGES_ADVICE}",
             self.seat,
             self.mode_for_writes(writes_granted),
             self.unasked_clause(writes_granted)
         )
     }
 }
+
+/// How an image a seat generates reaches the workflow (spec 02 §Harness images): the bytes
+/// this session sent, never a copy out of a folder the harness shares with other sessions.
+pub const HARNESS_IMAGES_ADVICE: &str = "An image it generates reaches the workflow through \
+     `images: { save: <path> }`: Nika writes the bytes this session sent, never a file the \
+     harness reports or a copy from its shared images folder.";
 
 /// What holds on EVERY harness seat, measured or not (NIK-266): the residual beside each row.
 pub const HARNESS_SHARED_RESIDUAL: &str = "A command asked as a shell string is admitted only \
@@ -242,7 +248,7 @@ pub fn unmeasured_check_advice(seat: &str) -> String {
     format!(
         "an `agent:` task on {seat} runs in a mode Nika has not measured: Nika judges only the \
          permissions it asks for (journaled permit_checked); whatever it reads, writes, runs or \
-         fetches unasked is outside permits: (`nika explain harness`)"
+         fetches unasked is outside permits: (`nika explain harness`). {HARNESS_IMAGES_ADVICE}"
     )
 }
 
@@ -331,7 +337,9 @@ mod tests {
              MCP tools marked readOnlyHint (remote ones included); fetches pages with its hosted \
              web tool, whose content reaches the model; starts every configured MCP server and \
              applies your global ~/.codex/AGENTS.md and Codex plugins — permits: does not bound \
-             that (`nika explain harness`)"
+             that (`nika explain harness`). An image it generates reaches the workflow through \
+             `images: { save: <path> }`: Nika writes the bytes this session sent, never a file \
+             the harness reports or a copy from its shared images folder."
         );
         assert!(codex.check_advice(true).contains(
             "writes anywhere in the project, /tmp, $TMPDIR and its own ~/.codex (not only the \
@@ -345,8 +353,12 @@ mod tests {
         assert!(witness.ends_with(HARNESS_SHARED_RESIDUAL), "{witness}");
         let claude = HarnessBoundary::CLAUDE_AGENT_ACP.check_advice(true);
         assert!(claude.contains("in mode `default`"), "{claude}");
+        // The unasked clause, before the image advice every row ends with.
+        let unasked = claude
+            .strip_suffix(HARNESS_IMAGES_ADVICE)
+            .unwrap_or(&claude);
         assert!(
-            !claude.contains("writes"),
+            !unasked.contains("writes"),
             "every Claude Code edit asks: {claude}"
         );
         assert!(
@@ -366,5 +378,9 @@ mod tests {
             unmeasured.contains("on kimi-code runs in a mode Nika has not measured"),
             "{unmeasured}"
         );
+        // B-D18 · every seat's row teaches the one way an image reaches the workflow.
+        for advice in [codex.check_advice(true), claude, unmeasured] {
+            assert!(advice.ends_with(HARNESS_IMAGES_ADVICE), "{advice}");
+        }
     }
 }

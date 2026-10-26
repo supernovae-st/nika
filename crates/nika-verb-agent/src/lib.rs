@@ -109,6 +109,8 @@ pub mod whitelist;
 mod batch;
 mod guard;
 #[cfg(feature = "access-harness")]
+mod harness_images;
+#[cfg(feature = "access-harness")]
 pub mod harness_path;
 mod intrinsic;
 mod io;
@@ -175,7 +177,7 @@ pub const MAX_TURNS_CEILING: u32 = 1000;
 const MAX_TOOL_NAME_LEN: usize = 256;
 
 use io::TurnBudget;
-pub use io::{AgentInput, AgentOutput, AgentValue};
+pub use io::{AgentImages, AgentInput, AgentOutput, AgentValue};
 
 /// The multi-turn agentic loop — the `agent` verb executor.
 pub struct AgentVerb<P, T, D> {
@@ -407,14 +409,16 @@ where
             input
                 .model
                 .get_or_insert_with(|| self.default_model.clone());
-            return harness_path::run_on_harness(
-                seat,
-                input,
-                observer,
-                self.harness_images.as_ref(),
-            )
-            .await;
+            let images = input.images.clone();
+            let run =
+                harness_path::run_on_harness(seat, input, observer, self.harness_images.as_ref())
+                    .await?;
+            return match images {
+                Some(request) => self.deliver_images(&request, run, observer).await,
+                None => Ok(run.output),
+            };
         }
+        refuse_native_images(&input)?;
         // arm_run failures (and an undeclarable effort) precede any billed call.
         selection::native_level(input.requirement.as_ref())?;
         let (whitelist, defs, model, budget) = self.arm_run(&input).await?;
@@ -1529,6 +1533,22 @@ fn security_boundary_code(err: &VerbInvokeError) -> Option<&str> {
     }
 }
 
+/// `images:` is a seat's field (spec 02 §Harness images): the engine's own loop gets its
+/// images from its tools' outputs (`nika:image_generate`), so it refuses before any call.
+fn refuse_native_images(input: &AgentInput) -> Result<(), VerbAgentError> {
+    if input.images.is_none() {
+        return Ok(());
+    }
+    Err(VerbAgentError::InvalidParam {
+        param: "images",
+        detail: "`images:` collects the images an agent application delivers on its own \
+                 session, and this task runs the engine's own loop: its images are its tools' \
+                 outputs (`nika:image_generate`). Declare `run.access.protocol: acp` with a \
+                 seat, or drop `images:` (nothing was sent)"
+            .to_owned(),
+    })
+}
+
 /// Is this a tool name the model may safely SEE (NIKA-450 parity)?
 ///
 /// A def name from a compromised `tools/list` could carry control chars
@@ -1563,3 +1583,7 @@ mod tests_harness_model;
 #[cfg(test)]
 #[cfg(feature = "access-harness")]
 mod tests_selection;
+
+#[cfg(test)]
+#[cfg(feature = "access-harness")]
+mod tests_harness_images;

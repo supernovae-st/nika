@@ -11,8 +11,10 @@
 //! native loop. What this path never does (B4 honesty · refusals with
 //! witnesses, not silent degradation):
 //!
-//! - a task `schema:` refuses — structured output on a harness is P4's
-//!   capability attestation, never assumed;
+//! - a task `schema:` is the ENGINE's to enforce: the prompt carries it and
+//!   the final message is validated here (`NIKA-464` · wire
+//!   `NIKA-INFER-002` on a miss). There is no repair turn: a new session
+//!   would replay the agent's work, so a miss fails the task;
 //! - a `tools:` whitelist refuses — the harness runs its OWN tools;
 //!   the enforceable boundary is the permission bridge (B5), and a
 //!   declared whitelist the engine cannot enforce would be a lie;
@@ -79,18 +81,9 @@ impl HarnessSeat {
     }
 }
 
-/// What a harness access cannot honour, refused before its session starts: a structured-output
-/// schema it does not attest, and a tool whitelist it cannot enforce.
+/// What a harness access cannot honour, refused before its session starts: a tool whitelist
+/// it cannot enforce.
 fn refuse_unenforceable(input: &AgentInput) -> Result<(), VerbAgentError> {
-    if input.schema.is_some() {
-        return Err(VerbAgentError::InvalidParam {
-            param: "schema",
-            detail: "not attested on a harness access (P3) — structured output \
-                     arrives with P4's capability attestation; drop the schema \
-                     or pick an infer-grade access"
-                .to_owned(),
-        });
-    }
     if !input.tools.is_empty() {
         return Err(VerbAgentError::InvalidParam {
             param: "tools",
@@ -110,8 +103,15 @@ pub(crate) async fn run_on_harness(
     input: AgentInput,
     observer: &dyn AgentObserver,
     images: Option<&Arc<dyn crate::spill::SpillStoreDyn>>,
-) -> Result<AgentOutput, VerbAgentError> {
+) -> Result<crate::harness_images::HarnessRun, VerbAgentError> {
     refuse_unenforceable(&input)?;
+    let validator = input
+        .schema
+        .as_ref()
+        .map(crate::shape::compile)
+        .transpose()?;
+    let mut received = Vec::new();
+    let mut reported_only = 0_usize;
 
     let typed = input.requirement.is_some();
     let request = session_request(seat, &input);
@@ -160,7 +160,10 @@ pub(crate) async fn run_on_harness(
                 observer.on_event(&AgentEvent::HarnessImageActivity { tool_call_id });
             }
             Some(Ok(HarnessEvent::ImageObserved { image })) => {
-                store_image(*image, images, observer).await?;
+                match store_image(*image, images, observer).await? {
+                    Some(image) => received.push(image),
+                    None => reported_only += 1,
+                }
             }
             Some(Ok(HarnessEvent::Completed { outcome })) => {
                 // Under a declaration the selection is exact: a model or an
@@ -168,7 +171,15 @@ pub(crate) async fn run_on_harness(
                 if typed && let Some(refusal) = outcome.selection.moved_refusal() {
                     return Err(harness_err(refusal, typed));
                 }
-                return Ok(completed_output(*outcome, &input));
+                let mut output = completed_output(*outcome, &input);
+                if let Some(validator) = &validator {
+                    output.output = crate::harness_images::validated(&output.output, validator)?;
+                }
+                return Ok(crate::harness_images::HarnessRun {
+                    output,
+                    received,
+                    reported_only,
+                });
             }
             Some(Ok(_)) => {
                 // Chunks (the outcome carries the accumulated text ·
@@ -193,7 +204,16 @@ pub(crate) async fn run_on_harness(
 /// back before the prompt, or refuses (typed, under the declaration) — and the
 /// confinement the workflow's `permits:` require of the session's own mode (NIK-266).
 fn session_request(seat: &HarnessSeat, input: &AgentInput) -> HarnessRequest {
-    let mut request = HarnessRequest::new(input.prompt.clone(), seat.cwd.clone())
+    let prompt = match &input.schema {
+        Some(schema) => format!(
+            "{}\n\nWhen you finish, your final message must be ONLY a JSON value that satisfies \
+             this JSON Schema, no prose, no code fences:\n{}",
+            input.prompt,
+            crate::shape::render_schema(schema)
+        ),
+        None => input.prompt.clone(),
+    };
+    let mut request = HarnessRequest::new(prompt, seat.cwd.clone())
         .with_requested_effort(input.requirement.as_ref().and_then(|r| r.effort.clone()))
         .with_confinement(confinement_for(input.permits.as_ref()));
     if let Some(system) = &input.system {
@@ -270,16 +290,18 @@ fn refused_call_witness(method: String) -> AgentEvent {
 /// Persist only bytes received on the wire. The receipt is published BEFORE the
 /// store is awaited, so a cancelled put still leaves `storage: unconfirmed`; the
 /// store's answer follows as `HarnessImageStored`. A failed store is a permanent
-/// failure, never a second generation.
+/// failure, never a second generation. Returns the received image (its bytes kept for
+/// a declared `images:`), or `None` for a path-only report, which is never opened.
 async fn store_image(
     mut image: nika_kernel::ai::harness::HarnessImage,
     store: Option<&Arc<dyn crate::spill::SpillStoreDyn>>,
     observer: &dyn AgentObserver,
-) -> Result<(), VerbAgentError> {
+) -> Result<Option<crate::harness_images::ReceivedImage>, VerbAgentError> {
     let Some(data) = image.data.take() else {
         observer.on_event(&AgentEvent::HarnessImageObserved { image });
-        return Ok(());
+        return Ok(None);
     };
+    let received = crate::harness_images::ReceivedImage::of(&image, data.clone());
     let tool_call_id = image.tool_call_id.clone();
     observer.on_event(&AgentEvent::HarnessImageActivity {
         tool_call_id: tool_call_id.clone(),
@@ -297,7 +319,7 @@ async fn store_image(
         stored: stored.clone(),
     });
     stored
-        .map(drop)
+        .map(|_| Some(received))
         .map_err(|reason| harness_err(HarnessError::Refused { reason }, false))
 }
 
@@ -542,7 +564,9 @@ mod tests {
         input: AgentInput,
         observer: &dyn AgentObserver,
     ) -> Result<AgentOutput, VerbAgentError> {
-        super::run_on_harness(seat, input, observer, None).await
+        super::run_on_harness(seat, input, observer, None)
+            .await
+            .map(|run| run.output)
     }
 
     #[tokio::test]
@@ -563,10 +587,16 @@ mod tests {
             completed("unchanged text"),
         ]);
         let observer = VecObserver::default();
-        let out = super::run_on_harness(&seat, AgentInput::new("draw"), &observer, Some(&store))
+        let run = super::run_on_harness(&seat, AgentInput::new("draw"), &observer, Some(&store))
             .await
             .unwrap();
-        assert_eq!(out.output, AgentValue::Text("unchanged text".into()));
+        assert_eq!(run.output.output, AgentValue::Text("unchanged text".into()));
+        assert_eq!(
+            run.received.len(),
+            1,
+            "the received bytes ride beside the output"
+        );
+        assert_eq!(run.received[0].bytes, bytes, "the very bytes received");
         let events = observer.0.lock().unwrap().clone();
         let at = |pred: fn(&AgentEvent) -> bool| events.iter().position(pred).unwrap();
         let receipt_at = at(|e| matches!(e, AgentEvent::HarnessImageObserved { .. }));
@@ -1350,21 +1380,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn schema_and_tools_refuse_with_witnesses() {
-        let seat = seat_with(vec![completed("never reached")]);
-        let schema_err = run_on_harness(
-            &seat,
-            {
-                let mut i = AgentInput::new("x");
-                i.schema = Some(serde_json::json!({"type": "object"}));
-                i
-            },
-            &crate::NoopObserver,
-        )
-        .await
-        .expect_err("schema refuses on a harness in P3");
-        assert!(schema_err.to_string().contains("P4"), "{schema_err}");
-
+    async fn tools_refuse_with_a_witness() {
         let seat2 = seat_with(vec![completed("never reached")]);
         let tools_err = run_on_harness(
             &seat2,

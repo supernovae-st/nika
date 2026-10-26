@@ -24,6 +24,8 @@ mod fan_out_accounting;
 mod harness_confinement;
 #[cfg(feature = "access-harness")]
 mod harness_image_room;
+#[cfg(feature = "access-harness")]
+mod harness_image_values;
 mod returns_contract;
 mod route_identity_trace;
 mod seated_receipt;

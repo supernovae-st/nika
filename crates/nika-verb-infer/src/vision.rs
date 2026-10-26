@@ -66,22 +66,46 @@ fn vision_block(part: &VisionPart) -> Result<ContentBlock, VerbInferError> {
             })
         }
         VisionPart::File { path } => {
-            if path.trim().is_empty() {
-                return Err(invalid("vision file path is empty"));
-            }
-            let bytes = std::fs::read(path) // seam-bypass-ok: v0.1 vision file load · nika-media CAS staging still deferred · missing path must refuse before any provider call
-                .map_err(|err| invalid(format!("cannot read image `{path}`: {err}")))?;
-            if bytes.is_empty() {
-                return Err(invalid(format!("image `{path}` is empty")));
-            }
-            let mime = image_mime(path, &bytes);
-            let b64 = base64_encode(&bytes);
+            let (mime, b64) = file_image(path)?;
             Ok(ContentBlock::Image {
                 source: format!("data:{mime};base64,{b64}"),
                 detail: None,
             })
         }
     }
+}
+
+/// One `source: file` image: its media type (magic bytes first) and its base64 bytes.
+fn file_image(path: &str) -> Result<(&'static str, String), VerbInferError> {
+    if path.trim().is_empty() {
+        return Err(invalid("vision file path is empty"));
+    }
+    let bytes = std::fs::read(path) // seam-bypass-ok: v0.1 vision file load · nika-media CAS staging still deferred · missing path must refuse before any provider call
+        .map_err(|err| invalid(format!("cannot read image `{path}`: {err}")))?;
+    if bytes.is_empty() {
+        return Err(invalid(format!("image `{path}` is empty")));
+    }
+    Ok((image_mime(path, &bytes), base64_encode(&bytes)))
+}
+
+/// The `vision:` files as the images an ACP session sends with its prompt (image content
+/// blocks). A URL is never fetched by Nika: the caller refuses it before reaching here, and
+/// this loader refuses it again rather than drop it.
+#[cfg(feature = "access-harness")]
+pub(crate) fn prompt_images(
+    parts: &[VisionPart],
+) -> Result<Vec<nika_kernel::ai::harness::HarnessPromptImage>, VerbInferError> {
+    parts
+        .iter()
+        .map(|part| match part {
+            VisionPart::File { path } => file_image(path)
+                .map(|(mime, b64)| nika_kernel::ai::harness::HarnessPromptImage::new(mime, b64)),
+            VisionPart::Url { url } => Err(invalid(format!(
+                "vision URL `{url}` cannot ride an ACP session: Nika does not fetch it; point \
+                 `vision:` at a local file"
+            ))),
+        })
+        .collect()
 }
 
 fn invalid(detail: impl Into<String>) -> VerbInferError {
@@ -176,6 +200,36 @@ mod tests {
             }
             other => panic!("expected InvalidParam, got {other:?}"),
         }
+    }
+
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn prompt_images_read_files_in_order_and_refuse_a_url() {
+        let dir = std::env::temp_dir().join(format!("nika-vision-acp-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let png = dir.join("a.png");
+        std::fs::write(&png, b"\x89PNG\r\n\x1a\nrest").expect("png");
+        let jpg = dir.join("b.bin");
+        std::fs::write(&jpg, [0xFF, 0xD8, 0xFF, 0x00]).expect("jpg");
+        let parts = [
+            VisionPart::file(png.to_string_lossy()),
+            VisionPart::file(jpg.to_string_lossy()),
+        ];
+        let images = prompt_images(&parts).expect("files load");
+        assert_eq!(images.len(), 2);
+        assert_eq!(images[0].mime_type, "image/png");
+        assert_eq!(images[0].data, base64_encode(b"\x89PNG\r\n\x1a\nrest"));
+        assert_eq!(
+            images[1].mime_type, "image/jpeg",
+            "magic bytes, not the extension"
+        );
+        let url = prompt_images(&[VisionPart::url("https://example.com/x.png")])
+            .expect_err("a URL is never fetched");
+        assert!(
+            matches!(&url, VerbInferError::InvalidParam { param: "vision", detail } if detail.contains("does not fetch")),
+            "{url:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

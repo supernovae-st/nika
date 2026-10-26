@@ -1026,7 +1026,7 @@ fn invoke_value(a: &RawInvokeAction, scope: Option<&Scope<'_>>) -> Option<Value>
 }
 
 fn agent_value(a: &RawAgentAction, scope: Option<&Scope<'_>>) -> Option<Value> {
-    Some(json!({
+    let mut value = json!({
         "prompt": text(&a.prompt, scope)?,
         "system": opt_text(a.system.as_ref(), scope)?,
         "model": opt_text(a.model.as_ref(), scope)?,
@@ -1038,7 +1038,16 @@ fn agent_value(a: &RawAgentAction, scope: Option<&Scope<'_>>) -> Option<Value> {
         "max_tokens_total": a.max_tokens_total.as_ref().map(|m| m.value),
         "temperature": a.temperature.as_ref().map(|t| t.value.to_string()),
         "schema": json_field(a.schema.as_ref(), scope)?,
-    }))
+    });
+    // `images:` changes the output's shape and writes files: it joins the identity, and only
+    // when declared, so every task without it keeps the identity it had.
+    if let (Some(images), Some(fields)) = (&a.images, value.as_object_mut()) {
+        fields.insert(
+            "images".to_owned(),
+            json!({"save": opt_text(images.value.save.as_ref(), scope)?}),
+        );
+    }
+    Some(value)
 }
 
 #[cfg(test)]

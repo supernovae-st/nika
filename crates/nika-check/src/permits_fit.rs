@@ -222,6 +222,7 @@ fn check_action(
                     escapes_tool(id, "agent", &tool.value, out);
                 }
             }
+            check_images_save(id, a, permits, consts, out);
         }
         RawAction::Infer(_) => {}
         #[allow(
@@ -229,6 +230,41 @@ fn check_action(
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
         other => unreachable!("unknown action: {other:?}"),
+    }
+}
+
+/// `images: { save: }` (spec 02 §Harness images): the engine writes the received bytes there,
+/// so a literal path (or a bare const) is judged against `permits.fs.write` before the run —
+/// the first image's path; its `-n` siblings share its directory and so its grant. A rendered
+/// path stays the runtime's `NIKA-SEC-004`. Under an absent block the zero boundary refuses
+/// it (stamped `NIKA-AUTH-006` by the caller).
+fn check_images_save(
+    id: &str,
+    a: &nika_schema::raw::RawAgentAction,
+    permits: &Permits,
+    consts: &ConstStrings,
+    out: &mut Vec<CapabilityEscape>,
+) {
+    let Some(save) = a.images.as_ref().and_then(|i| i.value.save.as_ref()) else {
+        return;
+    };
+    let path = if save.value.contains("${{") {
+        match consts.resolve(&save.value) {
+            Some(path) => path.to_owned(),
+            None => return,
+        }
+    } else {
+        save.value.clone()
+    };
+    if !permits.allows_path(&path, true) {
+        out.push(fs_escape(
+            id,
+            "images.save",
+            &path,
+            "fs.write",
+            permits,
+            true,
+        ));
     }
 }
 

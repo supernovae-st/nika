@@ -233,6 +233,19 @@ fn claude_code_and_codex_carry_attested_acp_one_shots() {
 }
 
 #[test]
+fn both_attested_profiles_read_images_at_initialize() {
+    for seat in ["claude-code", "codex"] {
+        assert!(
+            meet_acp_one_shot(seat).expect("attested").image_prompts(),
+            "{seat}: promptCapabilities.image measured true"
+        );
+    }
+}
+
+/// The adapter's OWN level stays text: a structured need on the profile itself is refused
+/// (the `infer:` verb meets that need by validating the answer, and so meets the profile at
+/// `text`).
+#[test]
 fn a_structured_need_is_refused_before_any_spawn() {
     let claude = meet_acp_one_shot("claude-code").expect("attested");
     assert!(claude.grade(StructuredOutputGrade::Text).is_ok());

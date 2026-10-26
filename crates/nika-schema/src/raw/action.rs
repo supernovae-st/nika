@@ -351,6 +351,35 @@ pub struct RawAgentAction {
     pub system_file: Option<ProjectFileRef>,
     /// `schema: { file }` — `schema` holds the file's JSON Schema once composed.
     pub schema_file: Option<ProjectFileRef>,
+    /// `images:` — the images an agent application delivers on the task's own session,
+    /// made a value of the task (spec `02-verbs.md` §Harness images). `None`: the task's
+    /// `.output` keeps its plain shape and received images stay trace evidence only.
+    pub images: Option<Spanned<RawAgentImages>>,
+}
+
+/// `agent.images:` — `{ save?: <path> }` (spec `02-verbs.md` §Harness images): `.output`
+/// becomes `{ message, images }`, and `save:` names where the engine writes the bytes it
+/// received on the task's own session (never a path the application reports).
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct RawAgentImages {
+    /// `save:` — the project path of the first image (image n ≥ 2 takes `-n` before the
+    /// extension) · `${{ }}` allowed · judged against `permits.fs.write` before any write.
+    pub save: Option<Spanned<String>>,
+}
+
+impl RawAgentImages {
+    /// Images as a value only, nothing saved.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Images saved at `save` (and its `-n` siblings).
+    #[must_use]
+    pub fn saved_at(save: Spanned<String>) -> Self {
+        Self { save: Some(save) }
+    }
 }
 
 impl RawAgentAction {
@@ -370,6 +399,7 @@ impl RawAgentAction {
             prompt_file: None,
             system_file: None,
             schema_file: None,
+            images: None,
         }
     }
 }
