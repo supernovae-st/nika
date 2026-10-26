@@ -379,6 +379,22 @@ seam — they shipped this arc; the loop verb is gated on this one decision.
               the §5 OPEN question is RESOLVED.
 ```
 
+## The harness session's confinement (NIK-266)
+
+The harness path opens every delegated session rooted at the seat's cwd, which the
+runtime anchors on the admitted project (`RuntimeConfig.sandbox_root`), and with a
+`HarnessConfinement` projected from the task's `permits:` (`confinement_for`): no
+`fs.write` grant (an absent block included) is `ReadOnly`, a write grant is
+`WorkspaceWrite`. The client turns that into the adapter's measured asking mode and
+reads it back before the prompt, or refuses (`nika-acp` spec §6). The settled mode
+arrives as `HarnessEvent::SessionConfined` and is witnessed as `PermissionJudged`
+(plane `agent`, gate `session mode · <mode>`, decision `confine` when selected,
+`unmeasured` when only observed, `why` = what the harness still does without
+asking). A client method the harness called and was refused
+(`HarnessEvent::ClientCallRefused`) is witnessed as a `deny` on the plane it would
+have exercised. Every permission ask keeps the B5 bridge unchanged: inside the grants
+`AllowOnce`, outside a pause (`HarnessGate` · NIKA-1806).
+
 ## ACP media beside the unchanged result
 
 The harness path persists received image bytes through the injected kernel blob

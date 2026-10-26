@@ -75,6 +75,18 @@ Without a code `nika explain` resolves:
 - **Tamper-evident, signed runs.** Every run journal is hash-chained, and
   runs are signed once `nika key init` minted a run-signing key;
   `nika trace verify` checks both.
+- **Harness seats hold only what they ask.** An `agent:` task on an agent
+  application you are signed into (Codex, Claude Code, Gemini CLI over ACP)
+  runs that application's own tools. Nika roots the session in the project,
+  holds it in the application's measured asking mode (refusing to start
+  otherwise), judges every permission it asks against `permits:` and journals
+  each decision as `permit_checked`. What the mode lets the application do
+  without asking is outside `permits:`: Codex, for one, reads any file and
+  writes the project, `/tmp` and `$TMPDIR` inside its own sandbox. `nika check`
+  states it on each such task (`[harness]`, `nika explain harness`);
+  [docs/usage/harness-agents.md](docs/usage/harness-agents.md) lists it per
+  seat. A report that a harness acted beyond what that page says it can is in
+  scope.
 
 ## Structural Hardening (architectural)
 
