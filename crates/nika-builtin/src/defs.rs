@@ -429,12 +429,12 @@ fn media_defs() -> Vec<ToolDef> {
         ),
         def(
             "tts_generate",
-            "Synthesize speech audio (local compat servers · openai gpt-4o-mini-tts · elevenlabs · mock for offline runs) — saves ONE audio file under output_dir and returns path + format + sha256 + duration (+ a provenance manifest); audio bytes never ride outputs.",
+            "Synthesize speech audio (local compat servers · system: the host's own voice, keyless and offline · openai gpt-4o-mini-tts · elevenlabs · mock for offline runs) — saves ONE audio file under output_dir and returns path + format + sha256 + duration (+ a provenance manifest); audio bytes never ride outputs.",
             serde_json::json!({
-                "provider": s("local | openai | elevenlabs | mock (inferred from model: when omitted · local is never inferred)"),
-                "model": s("provider model id · defaults: tts-1 (local · LocalAI convention) · gpt-4o-mini-tts · eleven_multilingual_v2 · mock-tts-1"),
+                "provider": s("local | system | openai | elevenlabs | mock (inferred from model: when omitted · local and system are never inferred · system = macOS /usr/bin/say or Linux espeak-ng, started by the engine, no permits.exec)"),
+                "model": s("provider model id · defaults: tts-1 (local · LocalAI convention) · say or espeak-ng (system · fixed) · gpt-4o-mini-tts · eleven_multilingual_v2 · mock-tts-1"),
                 "text": s("the text to speak · ≤4096 chars (fan long scripts out with for_each)"),
-                "voice": s("provider voice · defaults: alloy (openai/local) · Rachel's id (elevenlabs) · sine (mock)"),
+                "voice": s("provider voice · defaults: alloy (openai/local) · default (system · the host's default voice; a named one must be installed) · Rachel's id (elevenlabs) · sine (mock)"),
                 "format": s("mp3 | wav | auto (default · provider-native · the saved extension follows the bytes)"),
                 "speed": { "type": "number", "description": "0.25..=4.0 (openai/local · warned-dropped elsewhere)" },
                 "output_dir": s("directory the audio lands in (created if missing · fs-permit gated)"),
@@ -490,7 +490,37 @@ fn media_defs() -> Vec<ToolDef> {
             }),
             &["input", "out", "ops"],
         ),
+        image_compose_def(),
     ]
+}
+
+/// `nika:image_compose` (stdlib §Media graduate #5) — its own fn under the
+/// fn-length law (the media family outgrew one body).
+fn image_compose_def() -> ToolDef {
+    def(
+        "image_compose",
+        "Compose an ordered list of PNG images into ONE PNG — a contact sheet or grid, a side-by-side (row), a vertical stack (column) — each image at its own size, scaled to fit its cell (aspect kept) or cropped to fill it, with gap, padding and a background colour. Byte-identical forever for identical input bytes + args; the recipe rides the artifact (tEXt) and outputs carry path + sha256 + width + height, bytes never inline.",
+        serde_json::json!({
+            "inputs": {
+                "type": "array", "items": { "type": "string", "pattern": "\\S" },
+                "description": "ordered source PNG paths · 1..=64 · each read is permit-gated fs.read · placed row-major"
+            },
+            "out": s("output artifact path ending .png — rides the declared permits.fs.write boundary"),
+            "layout": s("grid (default) | row | column"),
+            "columns": { "type": "integer", "description": "grid only · 1..=64 · derived from the count when absent (⌈√n⌉)" },
+            "rows": { "type": "integer", "description": "grid only · 1..=64 · derived from the count when absent" },
+            "scale": s("none (default · each image at its own size) | fit (scaled into the cell, aspect kept) | fill (scaled to cover the cell, center-cropped)"),
+            "cell": {
+                "type": "object",
+                "properties": { "width": { "type": "integer" }, "height": { "type": "integer" } },
+                "description": "fit/fill only · { width, height } 1..=16384 · default: the largest input box"
+            },
+            "gap": { "type": "integer", "description": "pixels between cells · 0..=1024 · default 0" },
+            "padding": { "type": "integer", "description": "pixels around the sheet · 0..=1024 · default 0" },
+            "background": s("#rrggbb (or [r,g,b]) · default #ffffff · the canvas, gaps and letterboxes")
+        }),
+        &["inputs", "out"],
+    )
 }
 
 #[cfg(test)]
@@ -739,11 +769,11 @@ mod tests {
         let defs = tool_defs();
         assert_eq!(
             defs.len(),
-            29,
-            "stdlib ships exactly 29 (22 Rams-swept + nika:compose ADR-096 + \
+            30,
+            "stdlib ships exactly 30 (22 Rams-swept + nika:compose ADR-096 + \
              nika:image_generate stdlib §Media + nika:tts_generate stdlib §Audio + \
              nika:image_fx stdlib §Media + nika:decide spec 11 W-DEC + \
-             nika:remove_file §nika:remove_file)"
+             nika:remove_file §nika:remove_file + nika:image_compose §Media #5)"
         );
         let mut names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
         names.sort_unstable();
@@ -956,6 +986,8 @@ mod tests {
             "nika:chart.data",
             "nika:image_fx.input",
             "nika:image_fx.out",
+            "nika:image_compose.inputs",
+            "nika:image_compose.out",
             "nika:image_generate.output_dir",
             "nika:image_generate.image",
             "nika:image_generate.images",

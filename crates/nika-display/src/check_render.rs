@@ -128,7 +128,7 @@ pub fn render(
     if let Some((ok_msg, rows)) = skills.rung() {
         section_list(&mut out, t, "SKILLS", &ok_msg, rows);
     }
-    cost(&mut out, report, t, layers);
+    cost(&mut out, report, wf, t, layers);
     energy(&mut out, report, t);
 
     narrowed_rungs(&mut out, report, t);
@@ -1015,6 +1015,16 @@ fn verb_of<'w>(action: &'w RawAction, wf: &'w RawWorkflow) -> (&'static str, Opt
             },
         ),
         RawAction::Invoke(a) => match &a.target {
+            // A builtin that starts a host program ITSELF names it here — the
+            // plan says what the run starts, and `system` is no `exec:`.
+            nika_schema::raw::RawInvokeTarget::Tool(t)
+                if nika_cap::starts_system_voice(&t.value, a.args.as_ref().map(|s| &s.value)) =>
+            {
+                (
+                    "invoke",
+                    Some(format!("{} · {}", t.value, system_voice_clause())),
+                )
+            }
             nika_schema::raw::RawInvokeTarget::Tool(t) => ("invoke", Some(t.value.clone())),
             nika_schema::raw::RawInvokeTarget::Workflow(w) => {
                 ("invoke", Some(format!("workflow:{}", w.value)))
@@ -1023,6 +1033,44 @@ fn verb_of<'w>(action: &'w RawAction, wf: &'w RawWorkflow) -> (&'static str, Opt
         // #[non_exhaustive] — a future verb must not break this build.
         _ => ("task", None),
     }
+}
+
+/// What a `provider: system` call starts on this host, in the plan's words:
+/// the synthesizer the builtin runs itself (no `permits.exec`), or the
+/// refusal the run will give where the host has none.
+#[must_use]
+pub(crate) fn system_voice_clause() -> String {
+    nika_cap::system_voice_program().map_or_else(
+        || {
+            "no system synthesizer on this host · the run refuses \
+             NIKA-BUILTIN-TTS_GENERATE-002"
+                .to_owned()
+        },
+        |program| format!("starts {program} itself · not exec:, no permits.exec"),
+    )
+}
+
+/// Does any task start the host synthesizer itself (a literal
+/// `provider: system` on `nika:tts_generate`)?
+pub(crate) fn starts_host_voice(wf: &RawWorkflow) -> bool {
+    wf.tasks.iter().any(|task| match &task.value.action {
+        RawAction::Invoke(invoke) => match &invoke.target {
+            nika_schema::raw::RawInvokeTarget::Tool(tool) => {
+                nika_cap::starts_system_voice(&tool.value, invoke.args.as_ref().map(|a| &a.value))
+            }
+            nika_schema::raw::RawInvokeTarget::Workflow(_) => false,
+        },
+        _ => false,
+    })
+}
+
+/// The cost clause for a workflow that speaks through the host synthesizer:
+/// that speech is local work no price lane meters, so it is UNPRICED, never
+/// free (stdlib §`nika:tts_generate` · `provider: system`). `None` when no
+/// task starts it. The COST rung and `nika inspect` say it in one voice.
+#[must_use]
+pub fn host_voice_unpriced(wf: &RawWorkflow) -> Option<&'static str> {
+    starts_host_voice(wf).then_some("system voice local work unpriced")
 }
 
 /// `≤ N Wh` at a ceiling-honest display grain: a tiny bound rounds UP

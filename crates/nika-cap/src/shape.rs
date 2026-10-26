@@ -71,6 +71,7 @@ pub fn builtin_shape_findings(tool: &str, args: Option<&serde_json::Value>) -> V
         "nika:image_generate" => check_image_generate_shape(args, &mut out),
         "nika:chart" => check_chart_shape(args, &mut out),
         "nika:image_fx" => check_image_fx_shape(args, &mut out),
+        "nika:image_compose" => check_image_compose_shape(args, &mut out),
         "nika:tts_generate" => check_tts_generate_shape(args, &mut out),
         "nika:decide" => check_decide_shape(args, &mut out),
         "nika:hash" => check_hash_shape(args, &mut out),
@@ -267,6 +268,214 @@ fn check_image_fx_shape(args: Option<&serde_json::Value>, out: &mut Vec<String>)
     }
 }
 
+/// The `nika:image_compose` caps the static rule mirrors (the runtime's
+/// `nika_fx::compose` constants are the authority · this crate stays
+/// dependency-light, so the same numbers are pinned by a test there).
+const COMPOSE_MAX_INPUTS: usize = 64;
+const COMPOSE_MAX_TRACKS: i64 = 64;
+const COMPOSE_MAX_SPACING: i64 = 1024;
+const COMPOSE_MAX_SIDE: i64 = 16_384;
+
+/// `nika:image_compose` static contracts (stdlib §Media graduate #5): the
+/// input list's shape and count, the closed `layout`/`scale` enums, the
+/// grid-only `columns`/`rows`, the fit/fill-only `cell`, the literal ranges
+/// and the `.png` artifact — judged when literal, templated values are the
+/// runtime's (statically silent). Unknown keys and missing `inputs`/`out`
+/// are the catalog row's refusals (ARGS), never re-reported here.
+fn check_image_compose_shape(args: Option<&serde_json::Value>, out: &mut Vec<String>) {
+    let Some(map) = args.and_then(serde_json::Value::as_object) else {
+        return;
+    };
+    let templated = |v: &serde_json::Value| v.as_str().is_some_and(|s| s.contains("${{"));
+    let suffix = "(builtins-v0.1.md §nika:image_compose)";
+    let count = compose_inputs_shape(map.get("inputs"), suffix, out);
+    if let Some(v) = map.get("out")
+        && !templated(v)
+    {
+        // The runtime's own test, verbatim: the extension is exactly `png`
+        // (a `.PNG` is refused at run, so the check refuses it too).
+        let png = |path: &str| {
+            std::path::Path::new(path)
+                .extension()
+                .and_then(|e| e.to_str())
+                == Some("png")
+        };
+        match v.as_str() {
+            Some(path) if !path.is_empty() && !png(path) => out.push(format!(
+                "`out: {path}` must end in .png — the artifact is a PNG {suffix}"
+            )),
+            Some(path) if !path.is_empty() => {}
+            _ => out.push(format!("`out:` must be a non-empty path string {suffix}")),
+        }
+    }
+    let literal = |key: &str| -> Option<&str> {
+        let v = map.get(key)?.as_str()?;
+        (!v.contains("${{")).then_some(v)
+    };
+    for (key, allowed) in [
+        ("layout", ["grid", "row", "column"]),
+        ("scale", ["none", "fit", "fill"]),
+    ] {
+        match (map.get(key), literal(key)) {
+            (Some(_), Some(v)) if !allowed.contains(&v) => out.push(format!(
+                "`{key}: {v}` is not in the closed set — {} {suffix}",
+                allowed.join(" · ")
+            )),
+            (Some(v), None) if !templated(v) => out.push(format!(
+                "`{key}:` must be one of {} {suffix}",
+                allowed.join(" · ")
+            )),
+            _ => {}
+        }
+    }
+    let layout = if map.contains_key("layout") {
+        literal("layout")
+    } else {
+        Some("grid")
+    };
+    let mut tracks = [None, None];
+    for (slot, key) in ["columns", "rows"].into_iter().enumerate() {
+        let Some(v) = map.get(key) else { continue };
+        if let Some(other @ ("row" | "column")) = layout {
+            out.push(format!(
+                "`{key}:` applies to `layout: grid` only (layout is {other}) {suffix}"
+            ));
+        }
+        tracks[slot] = compose_int(key, v, 1, COMPOSE_MAX_TRACKS, suffix, out);
+    }
+    if let ([Some(c), Some(r)], Some(n)) = (tracks, count)
+        && c * r < i64::try_from(n).unwrap_or(i64::MAX)
+    {
+        out.push(format!(
+            "a {c}x{r} grid holds {} cells · fewer than the {n} inputs {suffix}",
+            c * r
+        ));
+    }
+    let scale = if map.contains_key("scale") {
+        literal("scale")
+    } else {
+        Some("none")
+    };
+    if let Some(cell) = map.get("cell") {
+        if scale == Some("none") {
+            out.push(format!(
+                "`cell:` applies to `scale: fit | fill` only (scale is none) {suffix}"
+            ));
+        }
+        compose_cell_shape(cell, suffix, out);
+    }
+    for key in ["gap", "padding"] {
+        if let Some(v) = map.get(key) {
+            compose_int(key, v, 0, COMPOSE_MAX_SPACING, suffix, out);
+        }
+    }
+    if let Some(v) = map.get("background")
+        && !templated(v)
+        && !compose_color_ok(v)
+    {
+        out.push(format!(
+            "`background:` must be #rrggbb or [r, g, b] with channels 0..=255 {suffix}"
+        ));
+    }
+}
+
+/// The `inputs:` shape — a list of 1..=64 non-empty path strings, or one
+/// whole templated list. Returns the literal count when it is a list.
+fn compose_inputs_shape(
+    inputs: Option<&serde_json::Value>,
+    suffix: &str,
+    out: &mut Vec<String>,
+) -> Option<usize> {
+    match inputs? {
+        serde_json::Value::Array(items) => {
+            if !(1..=COMPOSE_MAX_INPUTS).contains(&items.len()) {
+                out.push(format!(
+                    "`inputs:` holds {} paths · the contract is 1..={COMPOSE_MAX_INPUTS} {suffix}",
+                    items.len()
+                ));
+            }
+            for (k, item) in items.iter().enumerate() {
+                if item.as_str().is_none_or(str::is_empty) {
+                    out.push(format!(
+                        "`inputs[{k}]` must be a non-empty path string {suffix}"
+                    ));
+                }
+            }
+            Some(items.len())
+        }
+        serde_json::Value::String(s) if s.contains("${{") => None,
+        _ => {
+            out.push(format!(
+                "`inputs:` must be a list of PNG paths (or one whole `${{{{ }}}}` list) {suffix}"
+            ));
+            None
+        }
+    }
+}
+
+/// A literal integer in `lo..=hi`, or a templated value (silent). Returns
+/// the literal for cross-field checks.
+fn compose_int(
+    key: &str,
+    v: &serde_json::Value,
+    lo: i64,
+    hi: i64,
+    suffix: &str,
+    out: &mut Vec<String>,
+) -> Option<i64> {
+    if v.as_str().is_some_and(|s| s.contains("${{")) {
+        return None;
+    }
+    match v.as_i64() {
+        Some(n) if (lo..=hi).contains(&n) && v.is_number() => Some(n),
+        _ => {
+            out.push(format!(
+                "`{key}: {v}` must be an integer {lo}..={hi} {suffix}"
+            ));
+            None
+        }
+    }
+}
+
+/// `cell:` is `{ width, height }`, each a literal 1..=16384 or templated.
+fn compose_cell_shape(cell: &serde_json::Value, suffix: &str, out: &mut Vec<String>) {
+    if cell.as_str().is_some_and(|s| s.contains("${{")) {
+        return;
+    }
+    let Some(map) = cell.as_object() else {
+        out.push(format!("`cell:` must be {{ width, height }} {suffix}"));
+        return;
+    };
+    for key in map
+        .keys()
+        .filter(|k| !matches!(k.as_str(), "width" | "height"))
+    {
+        out.push(format!(
+            "`cell` has no key `{key}` (width · height) {suffix}"
+        ));
+    }
+    for key in ["width", "height"] {
+        match map.get(key) {
+            Some(v) => {
+                compose_int(&format!("cell.{key}"), v, 1, COMPOSE_MAX_SIDE, suffix, out);
+            }
+            None => out.push(format!("`cell` requires `{key}:` {suffix}")),
+        }
+    }
+}
+
+/// `#rrggbb` or `[r, g, b]` with integer channels 0..=255.
+fn compose_color_ok(v: &serde_json::Value) -> bool {
+    if let Some(hex) = v.as_str() {
+        let digits = hex.strip_prefix('#').unwrap_or_default();
+        return hex.starts_with('#')
+            && digits.len() == 6
+            && digits.bytes().all(|b| b.is_ascii_hexdigit());
+    }
+    v.as_array()
+        .is_some_and(|c| c.len() == 3 && c.iter().all(|x| x.as_u64().is_some_and(|n| n <= 255)))
+}
+
 /// Per-op literal enum checks for `nika:image_fx` — closed vocabularies
 /// mirrored from the runtime parser; `${{…}}`-templated values are runtime
 /// business (statically silent · the tts pattern).
@@ -438,7 +647,10 @@ fn check_tts_generate_shape(args: Option<&serde_json::Value>, out: &mut Vec<Stri
     };
 
     let enums: [(&str, &[&str]); 2] = [
-        ("provider", &["local", "openai", "elevenlabs", "mock"]),
+        (
+            "provider",
+            &["local", "system", "openai", "elevenlabs", "mock"],
+        ),
         ("format", &["mp3", "wav", "auto"]),
     ];
     for (key, allowed) in enums {
@@ -462,6 +674,35 @@ fn check_tts_generate_shape(args: Option<&serde_json::Value>, out: &mut Vec<Stri
         && !(1_000..=600_000).contains(&n)
     {
         out.push(format!("`timeout_ms: {n}` out of range — 1000..=600000"));
+    }
+    if literal("provider") == Some("system") {
+        check_system_voice_shape(literal("model"), literal("voice"), out);
+    }
+}
+
+/// `provider: system` (stdlib §`nika:tts_generate`): no model choice — the
+/// model IS the host synthesizer (`say` · `espeak-ng`) — and a host voice
+/// NAME, never an option, a path or a command. The run refuses both `-001`;
+/// a literal is judged here first, so check and run agree.
+fn check_system_voice_shape(model: Option<&str>, voice: Option<&str>, out: &mut Vec<String>) {
+    if let Some(model) = model
+        && !matches!(model, "say" | "espeak-ng")
+    {
+        out.push(format!(
+            "`model: {model}` — provider: system has no model choice: it speaks through the \
+             host's synthesizer (say · espeak-ng); omit `model:`"
+        ));
+    }
+    let lawful = |c: char| {
+        c.is_alphanumeric() || matches!(c, ' ' | '(' | ')' | '-' | '_' | '.' | '+' | '\'')
+    };
+    if let Some(voice) = voice
+        && (voice.starts_with('-') || voice.chars().count() > 64 || !voice.chars().all(lawful))
+    {
+        out.push(format!(
+            "`voice: {voice}` is not a host voice name — letters, digits, space and \
+             ( ) - _ . + ' only, at most 64 characters, never a leading `-`"
+        ));
     }
 }
 
