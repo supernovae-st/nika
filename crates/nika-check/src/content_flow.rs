@@ -130,29 +130,7 @@ pub(super) fn analyze_content_flow(
                 inputs: inputs_src.as_ref(),
             };
 
-            let mut with_src: BTreeMap<&str, String> = BTreeMap::new();
-            for (key, value) in &task.with {
-                for r in collect_json_strings(&value.value)
-                    .into_iter()
-                    .flat_map(refs_in_str)
-                {
-                    if let Some(src) = refs.source_of(&r, &with_src, None) {
-                        with_src.insert(key.value.as_str(), src);
-                        break;
-                    }
-                }
-            }
-            let item_src: Option<String> = task.for_each.as_ref().and_then(|f| match &f.value {
-                nika_schema::raw::ForEachValue::Expression(src) => refs_in_str(src)
-                    .into_iter()
-                    .find_map(|r| refs.source_of(&r, &with_src, None)),
-                nika_schema::raw::ForEachValue::List(_) => None,
-            #[allow(
-                clippy::unreachable,
-                reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
-            )]
-            other => unreachable!("unknown for_each form: {other:?}"),
-            });
+            let (with_src, item_src) = refs.bindings(task);
 
             let arrived: Option<String> = action_effect_fields(&task.action)
                 .into_iter()
@@ -320,6 +298,37 @@ struct Refs<'a> {
 }
 
 impl Refs<'_> {
+    /// The origin each `with:` binding carries, and the `for_each` item's.
+    fn bindings<'t>(
+        &self,
+        task: &'t nika_schema::raw::RawTask,
+    ) -> (BTreeMap<&'t str, String>, Option<String>) {
+        let mut with_src: BTreeMap<&str, String> = BTreeMap::new();
+        for (key, value) in &task.with {
+            for r in collect_json_strings(&value.value)
+                .into_iter()
+                .flat_map(refs_in_str)
+            {
+                if let Some(src) = self.source_of(&r, &with_src, None) {
+                    with_src.insert(key.value.as_str(), src);
+                    break;
+                }
+            }
+        }
+        let item_src: Option<String> = task.for_each.as_ref().and_then(|f| match &f.value {
+            nika_schema::raw::ForEachValue::Expression(src) => refs_in_str(src)
+                .into_iter()
+                .find_map(|r| self.source_of(&r, &with_src, None)),
+            nika_schema::raw::ForEachValue::List(_) => None,
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
+        )]
+        other => unreachable!("unknown for_each form: {other:?}"),
+        });
+        (with_src, item_src)
+    }
+
     fn source_of(
         &self,
         r: &NamespaceRef,
