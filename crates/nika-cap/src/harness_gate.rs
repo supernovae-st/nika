@@ -53,10 +53,11 @@ pub struct HarnessAskFacts {
     /// `_meta.is_mcp_tool_approval`): its server, else the tool call it refers to. `None`: the
     /// ask approves no MCP tool call.
     pub mcp: Option<String>,
-    /// The command the ask asks to run OUTSIDE the harness's own sandbox, with the reason the
-    /// harness gave (NIK-274: codex-acp `read-only` asks only for such commands). No grant
-    /// covers it, `exec: true` included. `None`: the ask names no such command.
-    pub unsandboxed: Option<String>,
+    /// The command an escalating ask runs, with the reason the harness gave (NIK-274). Alone,
+    /// it asks to run outside the harness's own sandbox (codex-acp `read-only` asks only for
+    /// such commands); beside [`Self::widens`], it is the command the widening is asked for.
+    /// No grant covers either, `exec: true` included. `None`: the ask names no such command.
+    pub escalated_command: Option<String>,
 }
 
 impl HarnessAskFacts {
@@ -115,10 +116,10 @@ impl HarnessAskFacts {
         self
     }
 
-    /// Attach the command the ask asks to run outside the harness's own sandbox.
+    /// Attach the command an escalating ask runs, with its reason.
     #[must_use]
-    pub fn with_unsandboxed(mut self, command: Option<String>) -> Self {
-        self.unsandboxed = command;
+    pub fn with_escalated_command(mut self, command: Option<String>) -> Self {
+        self.escalated_command = command;
         self
     }
 }
@@ -237,16 +238,19 @@ fn judge_escalation(facts: &HarnessAskFacts) -> Option<HarnessGate> {
             ),
         });
     }
-    let widening = facts
-        .widens
-        .as_deref()
-        .map(|widens| format!("it asks the harness to widen its own sandbox ({widens})"))
-        .into_iter()
-        .chain(facts.unsandboxed.as_deref().map(|command| {
-            format!("it asks to run a command outside the harness's own sandbox ({command})")
-        }))
-        .reduce(|first, second| format!("{first}; {second}"))
-        .map(|reach| format!("{reach}, which no grant covers, `exec: true` included"));
+    let widening = match (facts.widens.as_deref(), facts.escalated_command.as_deref()) {
+        (Some(widens), Some(command)) => Some(format!(
+            "it asks the harness to widen its own sandbox ({widens}) to run a command ({command})"
+        )),
+        (Some(widens), None) => Some(format!(
+            "it asks the harness to widen its own sandbox ({widens})"
+        )),
+        (None, Some(command)) => Some(format!(
+            "it asks to run a command outside the harness's own sandbox ({command})"
+        )),
+        (None, None) => None,
+    }
+    .map(|reach| format!("{reach}, which no grant covers, `exec: true` included"));
     if let Some(target) = facts.network.as_deref() {
         let mut why = format!(
             "the ask opens network access ({target}): never auto-judged (no shared host parser \
@@ -675,9 +679,9 @@ mod tests {
         assert!(f.kind.is_none() && f.url.is_none() && f.command.is_empty() && f.mcp.is_none());
         let mcp = HarnessAskFacts::new().with_mcp(Some("web".to_owned()));
         assert_eq!(mcp.mcp.as_deref(), Some("web"));
-        assert!(mcp.network.is_none() && mcp.widens.is_none() && mcp.unsandboxed.is_none());
-        let run = HarnessAskFacts::new().with_unsandboxed(Some("make".to_owned()));
-        assert_eq!(run.unsandboxed.as_deref(), Some("make"));
+        assert!(mcp.network.is_none() && mcp.widens.is_none() && mcp.escalated_command.is_none());
+        let run = HarnessAskFacts::new().with_escalated_command(Some("make".to_owned()));
+        assert_eq!(run.escalated_command.as_deref(), Some("make"));
         assert!(run.mcp.is_none() && run.widens.is_none());
         let bare = HarnessAskFacts::new();
         assert!(bare.network.is_none() && bare.widens.is_none() && bare.mcp.is_none());
@@ -693,7 +697,7 @@ mod tests {
         for program in [vec![], vec!["curl".to_owned()]] {
             let mut f = facts("execute");
             f.command = program;
-            f.unsandboxed = Some(command.to_owned());
+            f.escalated_command = Some(command.to_owned());
             for permits in [Some(permits_exec_any()), Some(permits_exec_git()), None] {
                 let v = judge_harness_ask(&f, permits.as_ref());
                 let HarnessGate::Outside { plane, why } = v else {
@@ -706,18 +710,22 @@ mod tests {
                 );
             }
         }
-        // Beside a widening, both are named.
+        // Beside a widening, the witness names the command the widening is asked for (the
+        // NIK-274 review: a widening ask named no command, so an operator-granted one left no
+        // record of what ran).
         let mut both = facts("execute");
         both.widens = Some("write /".to_owned());
-        both.unsandboxed = Some("make install".to_owned());
+        both.escalated_command = Some("make install — reason: install it".to_owned());
         let v = judge_harness_ask(&both, Some(&permits_exec_any()));
         let HarnessGate::Outside { plane, why } = v else {
             panic!("never inside, got {v:?}");
         };
         assert_eq!(plane, "exec");
-        assert!(
-            why.contains("write /") && why.contains("make install"),
-            "{why}"
+        assert_eq!(
+            why,
+            "it asks the harness to widen its own sandbox (write /) to run a command (make \
+             install — reason: install it), which no grant covers, `exec: true` included: the \
+             operator answers"
         );
     }
 

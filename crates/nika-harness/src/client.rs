@@ -402,12 +402,19 @@ where
         // the agent did not speak them).
         let (kind, locations, command, url) = wire::ask_facts(&ask.tool_call);
         // NIK-266: network access, a wider harness sandbox or one of the harness's own MCP tool
-        // calls, from every signal the ask carries; NIK-274: under a mode that runs ordinary
-        // commands sandboxed unasked, any command ask asks to leave that sandbox.
+        // calls, from every signal the ask carries. NIK-274: under a mode that runs ordinary
+        // commands sandboxed unasked, any command ask asks to leave that sandbox; beside a
+        // widening, the witness names the command the widening is for.
         let mut escalation = wire::ask_escalation(&ask.tool_call, meta.as_ref());
-        if escalation.is_empty() && kind.as_deref() == Some("execute") && self.commands_escalate() {
-            escalation =
-                escalation.with_unsandboxed(wire::unsandboxed(&ask.tool_call, meta.as_ref()));
+        if kind.as_deref() == Some("execute") {
+            let leaves = escalation.is_empty() && self.commands_escalate();
+            if leaves || escalation.widens.is_some() {
+                let named = wire::escalated_command(&ask.tool_call, meta.as_ref())
+                    .or_else(|| leaves.then(|| "an unnamed command".to_owned()));
+                if let Some(command) = named {
+                    escalation = escalation.with_escalated_command(command);
+                }
+            }
         }
         // The harness's own words, with the command and reason it names; an ask with no title
         // (codex-acp's correlated MCP approval) is named from what it approves.

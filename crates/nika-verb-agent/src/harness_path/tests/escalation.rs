@@ -52,8 +52,9 @@ async fn an_escalation_pauses_even_under_exec_true() {
     let socks = HarnessEscalation::new().with_network("socks5Tcp://exfil.example");
     let widened = HarnessEscalation::new().with_widens("write /");
     let mcp = HarnessEscalation::new().with_mcp("server web");
-    let unsandboxed = HarnessEscalation::new()
-        .with_unsandboxed("curl -sS https://example.com — reason: Fetch example.com for its title");
+    let unsandboxed = HarnessEscalation::new().with_escalated_command(
+        "curl -sS https://example.com — reason: Fetch example.com for its title",
+    );
     for (title, asked, plane, gate) in [
         (
             "socks5Tcp network access to exfil.example",

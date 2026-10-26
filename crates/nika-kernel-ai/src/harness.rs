@@ -286,11 +286,13 @@ pub struct HarnessEscalation {
     /// tool call it refers to. `permits.tools` names the workflow's MCP tools, not the
     /// harness's, so no grant covers it.
     pub mcp: Option<String>,
-    /// The command the ask asks to run OUTSIDE the harness's own sandbox, as the harness spelled
-    /// it, with the reason it gave (NIK-274). A seat whose held mode runs ordinary commands
-    /// sandboxed without asking (codex-acp `read-only`) asks only to leave that sandbox: an
-    /// approved command then runs with none, so no grant covers it, `exec: true` included.
-    pub unsandboxed: Option<String>,
+    /// The command an escalating ask runs, as the harness spelled it, with the reason it gave
+    /// (NIK-274). Alone, the command IS the escalation: a seat whose held mode runs ordinary
+    /// commands sandboxed without asking (codex-acp `read-only`) asks only to run one outside
+    /// that sandbox, and an approved one runs with none. Beside [`Self::widens`], it is the
+    /// command the widened or disabled sandbox is asked for. No grant covers either, `exec:
+    /// true` included.
+    pub escalated_command: Option<String>,
 }
 
 impl HarnessEscalation {
@@ -321,10 +323,10 @@ impl HarnessEscalation {
         self
     }
 
-    /// The command the ask asks to run outside the harness's own sandbox.
+    /// The command an escalating ask runs, with its reason.
     #[must_use]
-    pub fn with_unsandboxed(mut self, command: impl Into<String>) -> Self {
-        self.unsandboxed = Some(command.into());
+    pub fn with_escalated_command(mut self, command: impl Into<String>) -> Self {
+        self.escalated_command = Some(command.into());
         self
     }
 
@@ -334,7 +336,7 @@ impl HarnessEscalation {
         self.network.is_none()
             && self.widens.is_none()
             && self.mcp.is_none()
-            && self.unsandboxed.is_none()
+            && self.escalated_command.is_none()
     }
 }
 
@@ -681,9 +683,9 @@ mod tests {
         let mcp = HarnessEscalation::new().with_mcp("web");
         assert_eq!(mcp.mcp.as_deref(), Some("web"));
         assert!(mcp.network.is_none() && mcp.widens.is_none() && !mcp.is_empty());
-        let run = HarnessEscalation::new().with_unsandboxed("curl -sS https://example.com");
+        let run = HarnessEscalation::new().with_escalated_command("curl -sS https://example.com");
         assert_eq!(
-            run.unsandboxed.as_deref(),
+            run.escalated_command.as_deref(),
             Some("curl -sS https://example.com")
         );
         assert!(run.mcp.is_none() && run.network.is_none() && !run.is_empty());

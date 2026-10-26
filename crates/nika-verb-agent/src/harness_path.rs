@@ -334,7 +334,7 @@ fn asked(event: HarnessEvent) -> Option<(HarnessAskFacts, String, PermissionRepl
                 .with_network(escalation.network)
                 .with_widens(escalation.widens)
                 .with_mcp(escalation.mcp)
-                .with_unsandboxed(escalation.unsandboxed);
+                .with_escalated_command(escalation.escalated_command);
             Some((facts, question, reply))
         }
         _ => None,
@@ -356,7 +356,7 @@ fn gate_label(facts: &HarnessAskFacts) -> String {
     if let Some(widens) = &facts.widens {
         return format!("sandbox · {widens}");
     }
-    if facts.unsandboxed.is_some() {
+    if facts.escalated_command.is_some() {
         return "sandbox · command".to_owned();
     }
     let kind = facts.kind.as_deref().unwrap_or("<undeclared>");
@@ -1024,7 +1024,7 @@ mod tests {
         assert_eq!(gate_label(&mcp), "mcp · server web");
         let unsandboxed = HarnessAskFacts::new()
             .with_kind(Some("execute".to_owned()))
-            .with_unsandboxed(Some("curl -sS https://example.com".to_owned()));
+            .with_escalated_command(Some("curl -sS https://example.com".to_owned()));
         assert_eq!(gate_label(&unsandboxed), "sandbox · command");
     }
 

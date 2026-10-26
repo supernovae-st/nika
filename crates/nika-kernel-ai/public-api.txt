@@ -646,16 +646,16 @@ pub fn nika_kernel_ai::harness::PermissionDecision::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_ai::harness::PermissionDecision where T: 'static
 pub fn nika_kernel_ai::harness::PermissionDecision::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_ai::harness::HarnessEscalation
+pub nika_kernel_ai::harness::HarnessEscalation::escalated_command: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessEscalation::mcp: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessEscalation::network: core::option::Option<alloc::string::String>
-pub nika_kernel_ai::harness::HarnessEscalation::unsandboxed: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessEscalation::widens: core::option::Option<alloc::string::String>
 impl nika_kernel_ai::harness::HarnessEscalation
 pub fn nika_kernel_ai::harness::HarnessEscalation::is_empty(&self) -> bool
 pub fn nika_kernel_ai::harness::HarnessEscalation::new() -> Self
+pub fn nika_kernel_ai::harness::HarnessEscalation::with_escalated_command(self, command: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_ai::harness::HarnessEscalation::with_mcp(self, call: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_ai::harness::HarnessEscalation::with_network(self, target: impl core::convert::Into<alloc::string::String>) -> Self
-pub fn nika_kernel_ai::harness::HarnessEscalation::with_unsandboxed(self, command: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_ai::harness::HarnessEscalation::with_widens(self, widens: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_kernel_ai::harness::HarnessEscalation
 pub fn nika_kernel_ai::harness::HarnessEscalation::clone(&self) -> nika_kernel_ai::harness::HarnessEscalation
