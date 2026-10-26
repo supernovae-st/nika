@@ -1,6 +1,6 @@
 {
-  "sdk": "@supernovae-st/nika@0.123.1",
-  "read_from": "the published dist/index.js (npm integrity sha512-Jm8vk5Pcq3lVTQFqiChQzZ8K4G1X+hnv8cLt5btVbE9pmjstkT/GfxEZ91b3FJGaEPHkNHy2DdeHpWvSy0B8wQ==, read 25 Oct 2026): the keys and values each closed parser accepts",
+  "sdk": "@supernovae-st/nika@0.123.2",
+  "read_from": "the published dist/index.js (npm integrity sha512-b34jAvQcUqeJo0w5QmTkFp+q/roM4u9BNeXRBl+/+/nqWt87jzUEZzqE3JhnP9VwPXej2xj5Ox+UsWgEr3UqHA==, read 26 Oct 2026): the keys and values each closed parser accepts",
   "enforced_clocks": { "machineProtocolVersion": 2 },
   "closed": [
     {
@@ -58,6 +58,7 @@
       "schema": "CompileOutcomeV2",
       "member": "provenance.cognition",
       "values": ["deterministicOnly", "explicitProvider", "explicitDecision"]
-    }
+    },
+    { "schema": "ArtifactManifest", "member": "verdict", "values": ["sealed", "anchored"] }
   ]
 }
