@@ -698,8 +698,9 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              `--model` / envelope \
              `model:` is envelope-only: a per-task `model:` pin stays live \
              and metered (it does not inherit a parent `--model mock/echo` \
-             rehearsal). Keep testing offline with `--model mock/echo` on \
-             a workflow that has no per-task pins, or `--access <seat>`. \
+             rehearsal). Keep testing with no model call through `--model \
+             mock/echo` on a workflow that has no per-task pins (a fetch \
+             step still reaches its host), or pin a seat with `--access <seat>`. \
              A catalog alias (`grok`) is the same seat as its canonical \
              id (`xai`) and uses that seat's key (`XAI_API_KEY`). \
              A buffered inference call without a task `timeout:` is given \
@@ -1074,6 +1075,12 @@ mod tests {
         assert!(help.contains("envelope-only"), "{help}");
         assert!(help.contains("per-task"), "{help}");
         assert!(help.contains("mock/echo"), "{help}");
+        // #1605 · the mock replaces the model, not the network.
+        assert!(!help.contains("offline"), "{help}");
+        assert!(
+            help.contains("a fetch step still reaches its host"),
+            "{help}"
+        );
         assert!(help.contains("xai"), "{help}");
         assert!(help.contains("XAI_API_KEY"), "{help}");
         assert!(help.contains("600s, local or cloud"), "{help}");

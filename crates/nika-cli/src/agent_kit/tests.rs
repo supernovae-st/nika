@@ -213,3 +213,23 @@ fn authoring_replay_names_the_fresh_trace() {
         "the pathless replay form returned"
     );
 }
+
+/// #1605 · a mock rehearsal replaces the model, not the network:
+/// the operating skill never calls it offline and names the fetch it keeps.
+#[test]
+fn operating_mock_rehearsal_names_the_fetch_it_keeps() {
+    let skill = read("skills/nika-operating/SKILL.md");
+    let folded = skill.split_whitespace().collect::<Vec<_>>().join(" ");
+    assert!(
+        folded.contains("Shape with `mock/echo` (deterministic, zero keys, no model call)"),
+        "the mock seat is named for what it replaces"
+    );
+    assert!(
+        folded.contains("a fetch still reaches its host"),
+        "the rehearsal names the network it keeps"
+    );
+    assert!(
+        !folded.contains("(offline, deterministic, zero keys)"),
+        "the offline promise returned"
+    );
+}

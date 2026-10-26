@@ -46,7 +46,7 @@ fn narrates_the_diamond_with_cost_and_handoff() {
     }
     // The default model IS mock — no redundant mock-rehearsal line.
     assert!(
-        !out.text.contains("offline rehearsal"),
+        !out.text.contains("# mock model"),
         "mock workflows need no mock hint:\n{}",
         out.text
     );
@@ -818,7 +818,7 @@ tasks:
     std::fs::remove_file(&pinned).ok();
     assert_eq!(out.code, exit::OK, "{}", out.text);
     assert!(
-        !out.text.contains("offline rehearsal"),
+        !out.text.contains("# mock model · zero keys"),
         "a pinned task is not rehearsed by the envelope override:\n{}",
         out.text
     );
@@ -839,12 +839,60 @@ tasks:
     infer: { prompt: hi, max_tokens: 10 }
 ",
     );
-    let out = run(plain.to_str().expect("utf8"), false, false);
+    let plain_path = plain.to_str().expect("utf8").to_owned();
+    let out = run(&plain_path, false, false);
     std::fs::remove_file(&plain).ok();
     assert_eq!(out.code, exit::OK, "{}", out.text);
     assert!(
-        out.text.contains("offline rehearsal"),
+        out.text.contains(&format!(
+            "nika run {plain_path} --model mock/echo   # mock model · zero keys\n"
+        )),
         "an envelope-only model rehearses under --model mock/echo:\n{}",
         out.text
+    );
+    assert!(
+        !out.text.contains("offline rehearsal"),
+        "the mock replaces the model, not the network (#1605):\n{}",
+        out.text
+    );
+}
+
+/// #1605 · `--model mock/echo` replaces the model, never the
+/// network: a workflow whose `permits.net.http` declares a host is told,
+/// on the rehearsal line itself, that its fetch still reaches it.
+#[test]
+fn the_rehearsal_line_names_the_hosts_a_fetch_still_reaches() {
+    let fetching = tmp(
+        "fetching",
+        "nika: fetching
+model: mistral/mistral-small-latest
+permits:
+  tools: [\"nika:fetch\"]
+  net: { http: [\"nika.sh\"] }
+tasks:
+  page:
+    invoke:
+      tool: \"nika:fetch\"
+      args: { url: \"https://nika.sh\" }
+  greet:
+    infer: { prompt: hi, max_tokens: 10 }
+",
+    );
+    let path = fetching.to_str().expect("utf8").to_owned();
+    let out = run(&path, false, false);
+    std::fs::remove_file(&fetching).ok();
+    assert_eq!(out.code, exit::OK, "{}", out.text);
+    assert!(
+        out.text.contains(&format!(
+            "nika run {path} --model mock/echo   # mock model · zero keys · may still reach nika.sh\n"
+        )),
+        "the rehearsal line names the host the fetch reaches:\n{}",
+        out.text
+    );
+    assert!(!out.text.contains("offline rehearsal"), "{}", out.text);
+    assert_eq!(mock_rehearsal_note(&[]), "mock model · zero keys");
+    assert_eq!(
+        mock_rehearsal_note(&["nika.sh".to_owned(), "docs.nika.sh".to_owned()]),
+        "mock model · zero keys · may still reach nika.sh · docs.nika.sh"
     );
 }

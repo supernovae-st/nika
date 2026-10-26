@@ -26,7 +26,8 @@
 //! not live inside it) drives the real binary, hermetically:
 //!
 //! - `door: try` (default) goes through `nika try <slug>` — the shipped
-//!   door, offline mock seat by default, fixtures materialized by the door.
+//!   door, mock seat by default (its fetches stay real · #1605), fixtures
+//!   materialized by the door.
 //!   C01 shipped `--answer` on this door; a gated row may stay on `try`.
 //! - `door: run` stages a scratch cwd per the row's `kit:` and goes through
 //!   `nika run --no-progress --max-cost-usd 0.01` — for rows that need a
@@ -404,7 +405,7 @@ fn stage_git_repo(dir: &Path) {
 }
 
 /// Assemble the row's command — `try` speaks the showroom dialect (no
-/// `--model`: the offline mock rehearsal IS the default seat), `run`
+/// `--model`: the mock rehearsal IS the default seat), `run`
 /// carries the trio plus the row's model/answers/vars.
 fn entry_command(entry: &Entry, room: &Room, body: &str) -> Command {
     let mut cmd = nika();
@@ -499,6 +500,43 @@ fn judge(entry: &Entry, o: &Outcome) -> Option<String> {
             }
         }
         _ => Some("expect carries neither rc nor finding".to_owned()),
+    }
+}
+
+/// #1605 · a `door: try` rehearsal names, before its run, the
+/// hosts its example's `permits.net.http` declares — the mock seat replaces
+/// the model, not the network — and names none when it declares none.
+/// `None` = the try card told the truth.
+fn reach_failure(entry: &Entry, body: &str, o: &Outcome) -> Option<String> {
+    if entry.door != Door::Try {
+        return None;
+    }
+    let wf = nika_schema::parse(
+        body,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .ok()?;
+    let hosts = wf
+        .permits
+        .as_ref()
+        .and_then(|permits| permits.value.net.as_ref())
+        .map(|net| net.http.join(" · "))
+        .filter(|hosts| !hosts.is_empty());
+    let named: Vec<&str> = o
+        .err
+        .lines()
+        .filter(|line| line.starts_with("may reach: "))
+        .collect();
+    match hosts {
+        Some(hosts) => {
+            let want = format!("may reach: {hosts} — the mock replaces the model, not the network");
+            (named != [want.as_str()]).then(|| {
+                format!("the try card must name its hosts once: want {want:?}, got {named:?}")
+            })
+        }
+        None => (!named.is_empty())
+            .then(|| format!("the try card names hosts the example does not declare: {named:?}")),
     }
 }
 
@@ -602,7 +640,10 @@ fn every_shipped_example_runs_per_its_manifest_row() {
                     );
                 }
             }
-            None => match judge(entry, &outcome).or(feed_failure) {
+            None => match judge(entry, &outcome)
+                .or(feed_failure)
+                .or_else(|| reach_failure(entry, body, &outcome))
+            {
                 None => {
                     tally.1 += 1;
                     let door = match entry.door {

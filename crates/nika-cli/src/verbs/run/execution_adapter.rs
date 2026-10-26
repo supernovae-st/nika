@@ -156,6 +156,24 @@ impl CliExecutionRequest<'_> {
         }
     }
 
+    /// #1605 · a `nika try` rehearsal names the hosts its
+    /// workflow may reach, right before the run starts: the mock seat
+    /// replaces the model, never the network. Human surfaces only, like
+    /// the access announce; a workspace `nika run` keeps its own lines.
+    fn rehearsal_reach_notice(&self, wf: &nika_schema::raw::RawWorkflow) -> Option<String> {
+        let rehearsal = matches!(self.binding, inputs::InputBindings::Rehearsal(..));
+        if !rehearsal || self.json || self.output_json || self.mode == RenderMode::Quiet {
+            return None;
+        }
+        example::try_reach_line(wf, self.model_override)
+    }
+
+    fn announce_rehearsal_reach(&self, wf: &nika_schema::raw::RawWorkflow) {
+        if let Some(reach) = self.rehearsal_reach_notice(wf) {
+            eprintln!("{reach}");
+        }
+    }
+
     /// The `--dry-run` lane over the admitted world (split out of `run_admitted_context_over` at
     /// the 100-line ratchet): what the run would do, nothing run.
     fn dry_run_lane(
@@ -470,6 +488,7 @@ fn run_admitted_context_over(
         Err(code) => return RunVerdict::bare(code),
     };
     announce_access(&plan, (request.json, request.output_json), request.mode);
+    request.announce_rehearsal_reach(&wf);
     let verdict = execute_request(&runtime, request, &cancel, &world);
     finish_cost(cost.as_ref(), verdict, machine)
 }
@@ -738,5 +757,68 @@ mod tests {
         let verdict = session.complete(outcome);
 
         assert_eq!(verdict.into_outcome().code, exit::FILE);
+    }
+
+    /// #1605 · only a `nika try` rehearsal on a human surface
+    /// names its hosts before the run; a workspace `nika run`, a machine
+    /// lane and `--quiet` keep their bytes.
+    #[test]
+    fn only_a_human_try_rehearsal_names_the_hosts_it_reaches() {
+        let wf = nika_schema::parse(
+            "nika: use-a-tool\npermits:\n  tools: [\"nika:fetch\"]\n  net: { http: [\"nika.sh\"] }\ntasks:\n  page:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://nika.sh\" } }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let request = |binding, mode, json| CliExecutionRequest {
+            file: "/tmp/nika-try-use-a-tool/use-a-tool.nika",
+            repair_target: nika_display::check_render::RepairTarget::WorkspaceFile,
+            json,
+            output_json: false,
+            theme: Theme::new(false, false, false),
+            mode,
+            dry_run: false,
+            model_override: Some("mock/echo"),
+            access_pin: None,
+            binding,
+            resume: None,
+            no_trace_file: true,
+            task_filter: None,
+            no_outputs: false,
+            max_cost_usd: None,
+            review_channel: nika_cli_host::run_cost::ReviewChannel::Unavailable,
+            invocation_cost: None,
+            run_facts: nika_runtime::RunFacts::default(),
+        };
+        let rehearsal = inputs::InputBindings::Rehearsal(&[], "");
+        let line = "may reach: nika.sh — the mock replaces the model, not the network";
+        for mode in [RenderMode::Plain, RenderMode::Live] {
+            assert_eq!(
+                request(rehearsal, mode, false)
+                    .rehearsal_reach_notice(&wf)
+                    .as_deref(),
+                Some(line)
+            );
+        }
+        assert_eq!(
+            request(rehearsal, RenderMode::Quiet, false).rehearsal_reach_notice(&wf),
+            None,
+            "--quiet keeps the compact card"
+        );
+        assert_eq!(
+            request(rehearsal, RenderMode::Plain, true).rehearsal_reach_notice(&wf),
+            None,
+            "a machine lane keeps its stream"
+        );
+        assert_eq!(
+            request(
+                inputs::InputBindings::Operator(&[]),
+                RenderMode::Plain,
+                false
+            )
+            .rehearsal_reach_notice(&wf),
+            None,
+            "a workspace run is not a try rehearsal"
+        );
     }
 }

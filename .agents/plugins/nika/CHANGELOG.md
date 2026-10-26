@@ -24,6 +24,12 @@ key `nika key init` mints seals a journal (the checklist asked for a run
 the README's « Say it once. Keep it as a file. » in place of the retired
 intent-as-code pitch.
 
+The operating skill no longer calls a `mock/echo` rehearsal offline: the
+mock replaces the model only, so tools, writes and subprocesses stay real
+and a fetch still reaches its host, which `nika try` now names before the
+run. The language reference calls the `mock/text` refusal probe keyless
+for the same reason.
+
 ## 0.123.1 — 2026-10-25
 
 Lockstep on the engine wave.

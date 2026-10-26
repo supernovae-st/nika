@@ -50,7 +50,9 @@ impl DoorId {
     #[must_use]
     pub const fn blurb(self) -> &'static str {
         match self {
-            Self::Discover => "the showroom · offline",
+            // #1605 · never « offline »: the mock seat replaces the
+            // model, and a showroom step that fetches still reaches its host.
+            Self::Discover => "the showroom · mock model",
             Self::Create => "compile a workflow",
             Self::Project => "found this repo (wizard)",
         }
@@ -87,6 +89,20 @@ mod tests {
             assert!(
                 door.blurb().chars().count() <= 26,
                 "{door:?} blurb must stay ≤26 chars"
+            );
+        }
+    }
+
+    /// #1605 · the showroom runs on the mock model; a step that fetches
+    /// still reaches its host, so the blurb never promises « offline ».
+    #[test]
+    fn the_showroom_blurb_names_the_mock_model_not_offline() {
+        assert_eq!(DoorId::Discover.blurb(), "the showroom · mock model");
+        for door in DoorId::ALL {
+            assert!(
+                !door.blurb().contains("offline"),
+                "{door:?}: {}",
+                door.blurb()
             );
         }
     }

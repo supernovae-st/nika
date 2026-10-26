@@ -126,10 +126,12 @@ fsync durability or that a detached write has stopped.
 
 - Models are `provider/name`. `nika catalog` is the embedded registry:
   providers · models · capabilities · which env var each needs.
-- Shape with `mock/echo` (offline, deterministic, zero keys). Prove
+- Shape with `mock/echo` (deterministic, zero keys, no model call). Prove
   structure first, spend later. The CLI override changes the envelope
-  model only: inspect per-task model pins before calling a rehearsal
-  offline. Tools, writes, subprocesses and secret sources remain real.
+  model only: inspect per-task model pins before assuming a rehearsal
+  calls no model. Tools, writes, subprocesses and secret sources remain
+  real: a fetch still reaches its host, and `nika try` names those hosts
+  before it runs.
 - Local models: `--model ollama/<model>` runs on the machine — same
   file, same check, same trace. Give local providers `timeout: "300s"`+.
 - The file does not hardcode a vendor: swapping cloud↔local is a

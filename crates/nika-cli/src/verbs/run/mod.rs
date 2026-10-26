@@ -32,6 +32,7 @@ pub use nika_dap::recover::{RecoveredTrace, recover_events};
 pub use sink::{FoldSink, RenderMode};
 
 mod example;
+pub(crate) use example::declared_hosts;
 pub use example::example;
 use sink::{ExecutionSink, TraceNote, TraceSurface, surface_trace};
 

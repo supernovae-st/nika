@@ -12,12 +12,14 @@ DeepSeek and inspect the result. You do not need to choose from the full catalog
 
 ```sh
 nika try                         # the showroom: the numbered path + the jobs
-nika try 01-hello                # prove one, offline (mock rehearsal · zero keys)
+nika try 01-hello                # prove one on the mock model (zero keys · no model call)
 nika compile hello hello.nika    # create the offline lesson at an explicit path
 ```
 
 `try` previews an embedded example. `compile` creates a workflow file you can
 inspect, edit and keep. The hello rehearsal uses `mock/echo`, not a real AI answer.
+The mock replaces the model only: an example that fetches still reaches its
+host, and `nika try` names those hosts before the run.
 
 The corpus is organized as **the path** (numbered foundation lessons ·
 complete construct coverage, including extract-then-law) then **the jobs**

@@ -99,7 +99,7 @@ the one fact it owns. Serve prints the same document without it (#1670).
 | `nika explain NIKA-XXXX` | teach one error code (cause · fix-form · doc link) | 0 · 2 unknown code |
 | `nika completions <shell>` | shell completions (clap-generated) | 0 |
 | `nika compile <skeleton> [dest]` | one stateless authoring core; exact skeleton or hello; no destination previews source and stable questions; repeatable `--answer KEY=JSON_LITERAL`; explicit `--base` + `--change` for conservative constant edits, `--output` for an edit destination; `--json` version 1; `--list` read-only names; only Ready writes an explicit destination, `--force` required on conflict; no wizard on pipe or ambient model stamping | 0 ready/list · 2 authoring validation/incomplete/refused · 3 I/O or machinery |
-| `nika spec` (`--schema` prints the JSON Schema) / `nika try [slug]` | the embedded self-contained surface — bare = the showroom list · a slug runs it offline by default (`--model` opts into a real seat · V5) | 0 |
+| `nika spec` (`--schema` prints the JSON Schema) / `nika try [slug]` | the embedded self-contained surface — bare = the showroom list · a slug runs it on the mock model by default (zero keys · no model call; a step that fetches still reaches its host, named before the run · `--model` opts into a real seat · V5) | 0 |
 | `nika lsp` | the in-binary language server (stdio) | — |
 | `nika mcp` | the in-binary MCP server | — |
 
