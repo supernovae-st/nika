@@ -561,15 +561,25 @@ where
         }
         self.select_effort(&sid, config.as_ref(), request.requested_effort.as_deref())
             .await?;
+        self.settle_mode(sid, session, config.as_ref(), request)
+            .await
+    }
+
+    /// The session's mode, last before the prompt: a one-shot profile's required mode, an
+    /// agent task's confinement (NIK-266 · never best effort), else a requested mode, best
+    /// effort. `config` is the configuration the session last reported.
+    async fn settle_mode(
+        &mut self,
+        sid: String,
+        session: &wire::NewSessionResult,
+        config: Option<&Value>,
+        request: &HarnessRequest,
+    ) -> Result<(), HarnessError> {
         match (self.completion, request.confinement) {
             (Some(one_shot), _) if one_shot.required_mode().is_some() => {
-                self.require_mode(&sid, config.as_ref(), one_shot).await
+                self.require_mode(&sid, config, one_shot).await
             }
-            // An agent task's permits, never best effort (NIK-266).
-            (None, Some(confinement)) => {
-                self.confine(&sid, session, config.as_ref(), confinement)
-                    .await
-            }
+            (None, Some(confinement)) => self.confine(&sid, session, config, confinement).await,
             _ => self.select_mode(sid, session, request).await,
         }
     }
