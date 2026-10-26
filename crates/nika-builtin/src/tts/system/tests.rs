@@ -17,8 +17,7 @@ use nika_kernel::process::{ShellCommand, ShellError, ShellResult, ShellRunDyn};
 
 use super::*;
 use crate::tts::args;
-use crate::tts::sniff;
-use crate::tts::types::{AudioFormat, C_ARGS, C_PROVIDER_UNAVAILABLE, C_REQUEST};
+use crate::tts::types::{C_ARGS, C_PROVIDER_UNAVAILABLE, C_REQUEST};
 
 static SEQ: AtomicU64 = AtomicU64::new(0);
 
@@ -430,6 +429,11 @@ async fn stubbed_binaries_run_through_the_real_exec_runner() {
 #[cfg(target_os = "macos")]
 #[tokio::test]
 async fn the_real_say_speaks_a_wav_on_this_mac() {
+    // The only test that reads the bytes back: its imports live with it,
+    // so a non-macOS build has nothing unused.
+    use crate::tts::sniff;
+    use crate::tts::types::AudioFormat;
+
     let program = Path::new("/usr/bin/say");
     if !program.is_file() {
         return; // a Mac without the speech tools: nothing to prove here
