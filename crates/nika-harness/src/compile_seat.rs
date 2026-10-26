@@ -246,9 +246,14 @@ impl ProviderInferDyn for HarnessSeat {
                 std::future::poll_fn(|cx| futures_core::Stream::poll_next(stream.as_mut(), cx))
                     .await;
             match next {
-                Some(Ok(HarnessEvent::PermissionAsked {
-                    question, reply, ..
-                })) => {
+                Some(Ok(
+                    HarnessEvent::PermissionAsked {
+                        question, reply, ..
+                    }
+                    | HarnessEvent::EscalationAsked {
+                        question, reply, ..
+                    },
+                )) => {
                     denied += 1;
                     reply.respond(PermissionDecision::Deny);
                     if let Ok(mut observed) = self.observed.lock() {

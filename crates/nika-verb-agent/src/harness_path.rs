@@ -130,33 +130,19 @@ pub(crate) async fn run_on_harness(
     loop {
         let next = std::future::poll_fn(|cx| stream.as_mut().poll_next(cx)).await;
         match next {
-            Some(Ok(HarnessEvent::PermissionAsked {
-                question,
-                reply,
-                kind,
-                locations,
-                command,
-                url,
-            })) => {
+            Some(Ok(
+                ask @ (HarnessEvent::PermissionAsked { .. } | HarnessEvent::EscalationAsked { .. }),
+            )) => {
                 // B5 · the AUTHORITY BRIDGE (extracted under the
                 // fn-length law): judged against the workflow's
                 // declared `permits:` — answered ONCE and witnessed
                 // inside, the operator's bound verdict outside, and
                 // absent one the run PAUSES (the reply lane drops
                 // unanswered: the harness hears `cancelled`).
-                let facts = HarnessAskFacts::new()
-                    .with_kind(kind)
-                    .with_locations(locations)
-                    .with_command(command)
-                    .with_url(url);
-                bridge_ask(
-                    &facts,
-                    question,
-                    reply,
-                    input.permits.as_ref(),
-                    &mut gate_answer,
-                    observer,
-                )?;
+                if let Some((facts, question, reply)) = asked(ask) {
+                    let permits = input.permits.as_ref();
+                    bridge_ask(&facts, question, reply, permits, &mut gate_answer, observer)?;
+                }
             }
             Some(Ok(HarnessEvent::SessionConfined {
                 mode,
@@ -313,10 +299,57 @@ async fn store_image(
         .map_err(|reason| harness_err(HarnessError::Refused { reason }, false))
 }
 
+/// The judged facts of one ask beat, with its question and reply lane (B5): a plain ask's
+/// kind, paths, command and URL; an escalation's (NIK-266) beside the network target and
+/// the sandbox widening it asks, which no grant covers. `None` for every other beat.
+fn asked(event: HarnessEvent) -> Option<(HarnessAskFacts, String, PermissionReply)> {
+    match event {
+        HarnessEvent::PermissionAsked {
+            question,
+            reply,
+            kind,
+            locations,
+            command,
+            url,
+        } => {
+            let facts = HarnessAskFacts::new()
+                .with_kind(kind)
+                .with_locations(locations)
+                .with_command(command)
+                .with_url(url);
+            Some((facts, question, reply))
+        }
+        HarnessEvent::EscalationAsked {
+            question,
+            reply,
+            kind,
+            command,
+            locations,
+            escalation,
+        } => {
+            let facts = HarnessAskFacts::new()
+                .with_kind(kind)
+                .with_locations(locations)
+                .with_command(command)
+                .with_network(escalation.network)
+                .with_widens(escalation.widens);
+            Some((facts, question, reply))
+        }
+        _ => None,
+    }
+}
+
 /// The witness `gate` label for one ask — what the bridge judged, in
-/// one string (the program · the paths · the kind): an auditor reads
-/// WHICH authority was exercised without re-parsing wire facts.
+/// one string (the network target · the widening · the program · the
+/// paths · the kind): an auditor reads WHICH authority was exercised
+/// without re-parsing wire facts.
 fn gate_label(facts: &HarnessAskFacts) -> String {
+    if let Some(target) = &facts.network {
+        return format!("network · {target}");
+    }
+    if let Some(widens) = &facts.widens {
+        return format!("sandbox · {widens}");
+    }
     let kind = facts.kind.as_deref().unwrap_or("<undeclared>");
     match kind {
         "execute" => match facts.command.first() {
@@ -488,6 +521,9 @@ mod tests {
 
     use nika_error::traits::NikaErrorCode as _;
     use nika_kernel::ai::harness::{HarnessEventStream, HarnessOutcome, PermissionReply};
+
+    /// NIK-266 · the bridge's escalation asks (network · sandbox widening).
+    mod escalation;
 
     async fn run_on_harness(
         seat: &HarnessSeat,
@@ -962,6 +998,17 @@ mod tests {
         assert_eq!(gate_label(&think), "think");
         let bare = HarnessAskFacts::new();
         assert_eq!(gate_label(&bare), "<undeclared>");
+        // NIK-266 · what an ask reaches beyond its kind names the gate first.
+        let net = HarnessAskFacts::new()
+            .with_kind(Some("execute".to_owned()))
+            .with_command(vec!["curl".to_owned()])
+            .with_network(Some("socks5Tcp://exfil.example".to_owned()))
+            .with_widens(Some("write /".to_owned()));
+        assert_eq!(gate_label(&net), "network · socks5Tcp://exfil.example");
+        let widened = HarnessAskFacts::new()
+            .with_kind(Some("execute".to_owned()))
+            .with_widens(Some("write /".to_owned()));
+        assert_eq!(gate_label(&widened), "sandbox · write /");
     }
 
     /// The seat's Debug shows the cwd and never the backend (the

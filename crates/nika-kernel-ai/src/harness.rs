@@ -219,6 +219,26 @@ pub enum HarnessEvent {
         /// The URL of a `fetch` ask (`rawInput.url`).
         url: Option<String>,
     },
+    /// An ask that reaches beyond its own kind (NIK-266): it opens network access (a fetch, or
+    /// a command the harness says needs the network) or asks the harness to widen its own
+    /// sandbox. The same reply lane as [`Self::PermissionAsked`], but no grant answers it:
+    /// only the operator does. A consumer that does not know this variant drops the reply,
+    /// which the harness hears as `cancelled` (fail-closed).
+    EscalationAsked {
+        /// The harness's own description of the action.
+        question: String,
+        /// The one-shot reply lane.
+        reply: PermissionReply,
+        /// The wire's toolCall `kind` (`execute` for a command), as in
+        /// [`Self::PermissionAsked`].
+        kind: Option<String>,
+        /// The argv of the command (`rawInput.command`, array form), empty for a shell string.
+        command: Vec<String>,
+        /// The paths the ask names, anchored like [`Self::PermissionAsked`]'s `locations`.
+        locations: Vec<String>,
+        /// What the ask reaches beyond its kind.
+        escalation: HarnessEscalation,
+    },
     /// The confinement the session settled before its prompt (NIK-266): the mode it runs
     /// under and what the harness still does without asking. An auditor reads WHICH authority
     /// the harness kept for itself before any permission ask.
@@ -245,6 +265,49 @@ pub enum HarnessEvent {
         /// The final outcome.
         outcome: Box<HarnessOutcome>,
     },
+}
+
+/// What an ask reaches beyond its own kind (NIK-266), read by the wire client from every
+/// structured signal the ask carries. Never covered by a grant: the bridge pauses it for the
+/// operator, the target in view.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct HarnessEscalation {
+    /// The network target the ask opens: a URL (`https://host`), the `<protocol>://<host>`
+    /// of a Codex network approval (`socks5Tcp://host`), or how the harness named the access
+    /// when it named no target.
+    pub network: Option<String>,
+    /// The widening of the harness's own sandbox the ask asks, summarized (Codex
+    /// `additionalPermissions`: `network`, `write /`; Claude Code `dangerouslyDisableSandbox`).
+    pub widens: Option<String>,
+}
+
+impl HarnessEscalation {
+    /// Construct (INV-019): nothing asked beyond the command.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The network target the ask opens.
+    #[must_use]
+    pub fn with_network(mut self, target: impl Into<String>) -> Self {
+        self.network = Some(target.into());
+        self
+    }
+
+    /// The sandbox widening the ask asks.
+    #[must_use]
+    pub fn with_widens(mut self, widens: impl Into<String>) -> Self {
+        self.widens = Some(widens.into());
+        self
+    }
+
+    /// Whether the ask reaches nothing beyond its kind.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.network.is_none() && self.widens.is_none()
+    }
 }
 
 /// The terminal facts of a delegated run — what the receipt records.
@@ -571,6 +634,22 @@ mod tests {
         let both = reason(&selection);
         assert!(both.contains("model=sonnet · effort=low"), "{both}");
         assert!(both.contains("an explicit selection is exact"), "{both}");
+    }
+
+    /// NIK-266 · an escalation is empty until it names a network target or a widening, and
+    /// each builder sets exactly its own field.
+    #[test]
+    fn an_escalation_names_what_the_command_reaches_beyond_running() {
+        assert!(HarnessEscalation::new().is_empty());
+        let network = HarnessEscalation::new().with_network("socks5Tcp://exfil.example");
+        assert_eq!(
+            network.network.as_deref(),
+            Some("socks5Tcp://exfil.example")
+        );
+        assert!(network.widens.is_none() && !network.is_empty());
+        let widens = HarnessEscalation::new().with_widens("write /");
+        assert_eq!(widens.widens.as_deref(), Some("write /"));
+        assert!(widens.network.is_none() && !widens.is_empty());
     }
 
     #[test]

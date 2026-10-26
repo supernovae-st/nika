@@ -50,7 +50,10 @@ impl HarnessBoundary {
     /// auto-reviewer, so most never reach the client); `agent-full-access` (no sandbox, no
     /// approval at all). No mode is a read-only sandbox, so both confinements select
     /// `read-only`, the only mode whose every approval reaches Nika. A command ask carries a
-    /// shell STRING; a network ask carries `rawInput.url`.
+    /// shell STRING; a network approval is a command ask titled `<protocol> network access to
+    /// <host>` (request `_meta.permission.title` `Allow network access?`), with `rawInput.url`
+    /// only for http and https; `rawInput.additionalPermissions` asks to widen the sandbox, and
+    /// an approved escalated command runs with none.
     pub const CODEX_ACP: Self = Self {
         seat: "codex",
         agents: &["@agentclientprotocol/codex-acp", "codex-acp"],
@@ -181,12 +184,14 @@ impl HarnessBoundary {
 }
 
 /// What holds on EVERY harness seat, measured or not (NIK-266): the residual beside each row.
-pub const HARNESS_SHARED_RESIDUAL: &str = "A command ask that carries no argv (a shell string) \
-     is admitted only by `permits.exec: true`, and a network ask is never auto-answered: both \
-     pause for the operator. An action Nika allows once runs under the harness's own sandbox, \
-     not Nika's exec sandbox, so permits.fs and permits.net do not confine it. The harness's \
-     own settings (its permission rules, hooks and MCP servers) still apply: what they allow \
-     never asks.";
+pub const HARNESS_SHARED_RESIDUAL: &str = "A command asked as a shell string is admitted only \
+     by `permits.exec: true`, otherwise it pauses for the operator. An ask for network access \
+     (a fetch, or a command the harness says needs the network) or for a wider harness sandbox \
+     always pauses. An action Nika allows once runs under the harness's own sandbox, not Nika's \
+     exec sandbox, so permits.fs and permits.net do not confine it: an allowed command opens \
+     whatever connections that sandbox lets it, and an approved escalated Codex command runs \
+     with no sandbox at all. The harness's own settings (its permission rules, hooks and MCP \
+     servers) still apply: what they allow never asks.";
 
 /// The marker an anchored ask location starts with when the client could not resolve the
 /// file the harness's path reaches (a symlink loop, an unreadable component, a component that

@@ -389,6 +389,9 @@ where
         root: &std::path::Path,
         ptx: &mpsc::UnboundedSender<(Value, PermissionDecision, Vec<wire::PermissionOptionIn>)>,
     ) -> Result<(), HarnessError> {
+        // The request-level `_meta` (codex-acp's `Allow network access?`) is read before the
+        // typed payload drops it (NIK-266).
+        let meta = params.get("_meta").cloned();
         let ask: PermissionRequestIn = parse_payload(params, "session/request_permission")?;
         let question = ask
             .tool_call
@@ -402,8 +405,10 @@ where
         // locations · command · url — the wire's own words, absent when
         // the agent did not speak them).
         let (kind, locations, command, url) = wire::ask_facts(&ask.tool_call);
+        // NIK-266: network access or a wider harness sandbox, from every signal the ask carries.
+        let escalation = wire::ask_escalation(&ask.tool_call, meta.as_ref());
         // NIK-266: in the workflow's vocabulary — root-relative inside the session root,
-        // absolute outside, plus each path's effective identity when a link moves it.
+        // absolute outside, plus each path's physical identity when a link or `..` moves it.
         let locations = anchor::anchor(locations, root).await;
         // The drop-reads-as-Deny guard: if the engine never answers,
         // the closure is DROPPED, the guard fires, the agent hears
@@ -416,17 +421,26 @@ where
             };
             PermissionReply::new(Box::new(move |decision| guard.answer(decision)))
         };
-        let _ = self
-            .event_tx
-            .send(Ok(HarnessEvent::PermissionAsked {
+        let event = if escalation.is_empty() {
+            HarnessEvent::PermissionAsked {
                 question,
                 reply,
                 kind,
                 locations,
                 command,
                 url,
-            }))
-            .await;
+            }
+        } else {
+            HarnessEvent::EscalationAsked {
+                question,
+                reply,
+                kind,
+                command,
+                locations,
+                escalation,
+            }
+        };
+        let _ = self.event_tx.send(Ok(event)).await;
         Ok(())
     }
 

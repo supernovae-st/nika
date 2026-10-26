@@ -357,7 +357,8 @@ pub(crate) async fn run(
                 progress.reach(Phase::Completion);
                 return completed(*outcome, one_shot.version());
             }
-            HarnessEvent::PermissionAsked { reply, .. } => {
+            HarnessEvent::PermissionAsked { reply, .. }
+            | HarnessEvent::EscalationAsked { reply, .. } => {
                 reply.respond(nika_kernel::ai::harness::PermissionDecision::Deny);
                 return Err(Failure::refused(
                     "ACP authoring requested a tool; no answer accepted",
