@@ -42,6 +42,9 @@ pub(super) fn push_jq_as_map_hint(hints: &mut Vec<Hint>, id: &str, a: &RawInvoke
 
 /// `. as $c | map(...)` maps the *current* value. `($c | map(...))` is
 /// the one-way. A one-liner used to slip past the line-start detector.
+/// Only a bare `map(` AFTER the first dot binding counts: a binding inside
+/// a map body (`map(. as $r | ...)`) binds each element, and the map that
+/// encloses it maps exactly what its author meant (measured on 0.123.2).
 fn jq_maps_the_current_after_bind(expr: &str) -> bool {
     // The DOT binding is what puts the current value in question, so it stays
     // the trigger: no `. as $name`, no hint.
@@ -61,7 +64,9 @@ fn jq_maps_the_current_after_bind(expr: &str) -> bool {
     // re-navigates, so map receives that array — the same class as a map
     // piped from a bound name (issue 1038 remainder).
     rest = erase_field_piped_maps(&rest);
-    rest.contains("map(")
+    rest.find(". as $")
+        .and_then(|at| rest.get(at..))
+        .is_some_and(|after_bind| after_bind.contains("map("))
 }
 
 /// Drop `.IDENT | map(` / `(.IDENT | map(` so a remaining `map(` is bare.
