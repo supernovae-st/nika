@@ -107,7 +107,7 @@ stay internal machinery per §Taxonomy ownership.
 | `NIKA-INVOKE` | `invoke:` verb errors | 001-099 |
 | `NIKA-AGENT` | `agent:` verb errors | 001-099 |
 | `NIKA-PROVIDER` | Provider adapter errors | 001-099 per provider |
-| `NIKA-BUILTIN-<BUILTIN>` | Builtin tool errors · per-builtin sub-namespace (`NIKA-BUILTIN-WAIT-001` · `NIKA-BUILTIN-NOTIFY-001` · `NIKA-BUILTIN-INSPECT-001` · `NIKA-BUILTIN-IMAGE_GENERATE-001..007` + `NIKA-BUILTIN-IMAGE_FX-001..006` — the §Media builtins' planes, stdlib page normative · `NIKA-BUILTIN-FETCH-001` — `nika:fetch`'s network/extraction errors, whose instances carry `category: network_error` though the namespace is the uniform `NIKA-BUILTIN`) | 001-099 per builtin |
+| `NIKA-BUILTIN-<BUILTIN>` | Builtin tool errors · per-builtin sub-namespace (`NIKA-BUILTIN-WAIT-001` · `NIKA-BUILTIN-NOTIFY-001` · `NIKA-BUILTIN-INSPECT-001` · `NIKA-BUILTIN-IMAGE_GENERATE-001..007` + `NIKA-BUILTIN-IMAGE_FX-001..006` + `NIKA-BUILTIN-IMAGE_COMPOSE-001..006` — the §Media builtins' planes, stdlib page normative · `NIKA-BUILTIN-FETCH-001` — `nika:fetch`'s network/extraction errors, whose instances carry `category: network_error` though the namespace is the uniform `NIKA-BUILTIN`) | 001-099 per builtin |
 | `NIKA-MCP` | MCP client errors | 001-099 |
 | `NIKA-SEC` | Security policy violations (SSRF · blocklist) | 001-099 |
 | `NIKA-TIMEOUT` | Task or step timeouts | 001-099 |

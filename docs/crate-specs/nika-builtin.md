@@ -17,9 +17,9 @@
 The real tool layer. `nika-verb-invoke` and `nika-verb-agent` dispatch over
 the kernel `ToolExecuteDyn` seam, and the agent enumerates definitions over
 `ToolDefinitionProviderDyn` — until now only mocks implement either. This
-crate is the production implementation: a **closed registry of the 29
+crate is the production implementation: a **closed registry of the 30
 stdlib builtins** (core 6 · file 6 · data 9 · introspection 2 ·
-network 2 · media 4), each a thin composition over kernel effect seams, plus the
+network 2 · media 5), each a thin composition over kernel effect seams, plus the
 model-facing `ToolDef` (name · description · JSON-Schema params) for every
 tool.
 
@@ -28,9 +28,9 @@ tool.
 ```text
                     ┌───────────────────────────────────────┐
  verbs (L2) ──────▶ │ BuiltinDispatcher<F, H, C, E, P, W>   │  implements
-   invoke · agent   │   the closed 29-registry              │  ToolExecuteDyn
+   invoke · agent   │   the closed 30-registry              │  ToolExecuteDyn
                     │   route(name) → the builtin fn        │  ToolBatchDyn
- agent tool-defs ─▶ │   tool_defs() → 29 × ToolDef          │  ToolDefinitionProviderDyn
+ agent tool-defs ─▶ │   tool_defs() → 30 × ToolDef          │  ToolDefinitionProviderDyn
                     └──┬────┬────┬────┬─────┬────┬──────────┘
                        │    │    │    │     │    │
                   F: Fs │ H: HttpClient │ C: ClockDyn │ E: Emitter
@@ -42,6 +42,12 @@ tool.
                   (the PROVIDER client · SSRF-disabled const endpoints ·
                   600s ceiling · ADR-105) — unwired ⇒ mock-only, real
                   providers fail the precise -002
+                       │
+                  system voice (OPTIONAL) · SystemVoice (a SpeechRunner +
+                  the host's SystemSynth) · with_system_voice() at the
+                  composition root — tts_generate `provider: system`
+                  starts say / espeak-ng itself (never exec:) · unwired
+                  or no synthesizer ⇒ the precise -002
 ```
 
 - **Kernel seams consumed** (all `trait_variant` Dyn · generics not

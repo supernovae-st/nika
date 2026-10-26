@@ -733,6 +733,7 @@ fn check_builtin_effect(
         return; // a workflow: call is the composition lane's (COMP-002)
     };
     let tool = tool_ref.value.as_str();
+    check_secondary_reads(id, tool, a, permits, consts, out);
     match builtin_effect(a) {
         Some(BuiltinEffect::Net { url_arg }) => {
             check_net_effect(id, tool, a, permits, consts, url_arg, out);
@@ -773,6 +774,47 @@ fn check_builtin_effect(
         }
         None => {}
     }
+}
+
+/// The READ slots the single `path_arg` leaves out ([`nika_cap::secondary_read_slots`] ·
+/// `nika:image_compose`'s `inputs[]`): each literal or whole bare-const path
+/// is judged as a read against `permits.fs.read`, BEFORE anything runs —
+/// the gauntlet's C-D1 gap (a read the check never modelled, refused only
+/// at run) is not repeated. A templated element is the run's
+/// `NIKA-SEC-004`; the finding names the slot, so a sheet of many inputs
+/// says which one escapes.
+fn check_secondary_reads(
+    id: &str,
+    tool: &str,
+    a: &RawInvokeAction,
+    permits: &Permits,
+    consts: &ConstStrings,
+    out: &mut Vec<CapabilityEscape>,
+) {
+    for (slot, value) in nika_cap::secondary_read_slots(tool, a.args.as_ref().map(|s| &s.value)) {
+        let Some(path) = judgeable_value(consts, value) else {
+            continue;
+        };
+        if !permits.allows_path(&path, false) {
+            let mut esc = fs_escape(id, tool, &path, "fs.read", permits, false);
+            esc.detail =
+                esc.detail
+                    .replacen(&format!("`{tool}` "), &format!("`{tool}` `{slot}` "), 1);
+            out.push(esc);
+        }
+    }
+}
+
+/// A value this scan can JUDGE, wherever it sits (a list element, not only
+/// a top-level arg): a non-empty literal, or a whole bare
+/// `${{ const.<name> }}` resolved through the const table — the
+/// [`judgeable_arg`] law, over a value.
+pub(super) fn judgeable_value(consts: &ConstStrings, value: &serde_json::Value) -> Option<String> {
+    let s = value.as_str().filter(|s| !s.is_empty())?;
+    if s.contains("${{") {
+        return consts.resolve(s).map(str::to_owned);
+    }
+    Some(s.to_owned())
 }
 
 /// A computed host-path operand of a file-plumbing program — no literal

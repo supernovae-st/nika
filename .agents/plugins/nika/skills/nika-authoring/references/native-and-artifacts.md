@@ -60,11 +60,11 @@ The order is a builtin (`invoke: { tool: "nika:<name>" }`) → an MCP tool
    | Family | Every builtin in it |
    |---|---|
    | CORE | `nika:log` · `nika:emit` · `nika:assert` · `nika:prompt` · `nika:done` · `nika:wait` |
-   | FILE | `nika:read` · `nika:write` · `nika:edit` · `nika:glob` · `nika:grep` |
+   | FILE | `nika:read` · `nika:write` · `nika:edit` · `nika:remove_file` · `nika:glob` · `nika:grep` |
    | DATA | `nika:jq` · `nika:json_diff` · `nika:json_merge_patch` · `nika:validate` · `nika:convert` · `nika:uuid` · `nika:date` · `nika:hash` · `nika:decide` |
    | NETWORK | `nika:fetch` · `nika:notify` |
    | INTROSPECTION | `nika:compose` (agent-loop only · calling a child is `invoke: { workflow: … }` · §Composition) · `nika:inspect` |
-   | MEDIA | `nika:chart` · `nika:image_generate` · `nika:image_fx` · `nika:tts_generate` |
+   | MEDIA | `nika:chart` · `nika:image_generate` · `nika:image_fx` · `nika:image_compose` · `nika:tts_generate` |
 
    The NAMES above are canon — that is the whole set. The argument
    CONTRACTS are not: read them from `nika catalog --tools`
@@ -81,7 +81,13 @@ The order is a builtin (`invoke: { tool: "nika:<name>" }`) → an MCP tool
    `nika:convert` · schema checks → `nika:validate` · image styling
    (ImageMagick / PIL / dither scripts) → `nika:image_fx`
    (deterministic — same input+args = same bytes, the artifact sha256
-   joins the trace chain).
+   joins the trace chain) · contact sheets, side-by-sides and stacks
+   (`magick montage` / `append`) → `nika:image_compose` (grid · row ·
+   column · deterministic like `image_fx`; every input is an
+   `fs.read`) · speech with no key (`say` / `espeak-ng`) →
+   `nika:tts_generate` with `provider: system` (the engine starts the
+   host synthesizer itself — no `permits.exec`; the audio rides
+   `permits.fs.write`).
 2. **Which MCP tool replaces it?** A product API deserves an MCP
    server, never a helper script.
 3. **Neither?** Name the exact gap — then `exec:` is legitimate

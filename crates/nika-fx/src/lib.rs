@@ -16,6 +16,7 @@
 
 pub mod args;
 pub mod codec;
+pub mod compose;
 pub mod det;
 pub mod error;
 pub mod ops;

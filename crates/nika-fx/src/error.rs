@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Typed error surface. The nika-builtin wiring maps these onto
-//! `NIKA-BUILTIN-IMAGE_FX-NNN` codes (001 args · 003 unsupported-format ·
-//! 004 decode · 005 budget — see the builtin module).
+//! `NIKA-BUILTIN-IMAGE_FX-NNN` and `NIKA-BUILTIN-IMAGE_COMPOSE-NNN` codes
+//! (001 args · 003 unsupported-format · 004 decode · 005 budget and caps —
+//! see the builtin modules).
 
 use std::fmt;
 
@@ -21,6 +22,11 @@ pub enum FxError {
     Decode(String),
     /// Decoded-pixel budget exceeded — bounded BEFORE inflate from IHDR.
     Budget { pixels: u64, max: u64 },
+    /// A per-side size cap exceeded (an input, a composition canvas or a
+    /// scaled box over 16384 on a side) — judged from the headers and the
+    /// args before any allocation. The pixel totals stay
+    /// [`FxError::Budget`].
+    Cap(String),
     /// Internal encode failure (should not happen on valid pipelines).
     Encode(String),
 }
@@ -35,6 +41,7 @@ impl fmt::Display for FxError {
                 write!(f, "decoded-pixel budget exceeded: {pixels} > {max}")
             }
             FxError::Encode(m) => write!(f, "png encode failed: {m}"),
+            FxError::Cap(m) => write!(f, "size cap exceeded: {m}"),
         }
     }
 }

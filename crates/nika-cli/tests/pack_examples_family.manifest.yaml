@@ -88,6 +88,7 @@ entries:
   - { slug: contract-guard, expect: { rc: 0 } }
   - { slug: csv-chart-report, expect: { rc: 0 } }
   - { slug: etl-quarantine, expect: { rc: 0 } }
+  - { slug: image-compose-sheet, expect: { rc: 0 } }
   - { slug: image-fx-batch, expect: { rc: 0 } }
   - { slug: invoice-chaser, expect: { rc: 0 } }
   - { slug: meeting-actions, expect: { rc: 0 } }

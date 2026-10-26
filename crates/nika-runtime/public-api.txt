@@ -912,6 +912,8 @@ impl<T> core::convert::From<T> for nika_runtime::simulated::SimulatedShell
 pub fn nika_runtime::simulated::SimulatedShell::from(t: T) -> T
 impl<T> dyn_clone::DynClone for nika_runtime::simulated::SimulatedShell where T: core::clone::Clone
 pub fn nika_runtime::simulated::SimulatedShell::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_builtin::tts::system::SpeechRunner for nika_runtime::simulated::SimulatedShell where T: nika_kernel_core::io::process::ShellRunDyn + core::marker::Sync
+pub fn nika_runtime::simulated::SimulatedShell::run_speech(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>> + core::marker::Send + '_)>>
 impl<T> nika_error::traits::AsAny for nika_runtime::simulated::SimulatedShell where T: 'static
 pub fn nika_runtime::simulated::SimulatedShell::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_runtime::simulated::SimulatedShell where T: core::marker::Copy
