@@ -33,6 +33,7 @@
 //! The digest law is the receipt family's own ([`crate::resume::jcs_blake3_hex`]
 //! · JCS + number-fold + blake3). DETERMINISTIC — never a judge-LLM.
 
+use nika_types::cost::UnpricedReason;
 use nika_verb_exec::{ExecCommand, ExecInput};
 use nika_verb_invoke::InvokeInput;
 use serde_json::{Value, json};
@@ -250,6 +251,9 @@ where
                         let cost_source = cost_usd
                             .is_some()
                             .then(|| note.trim_start_matches("invoke · ").to_owned());
+                        // …and why it is absent, when an engine builtin
+                        // knows (the honest-absence WHY · `cost_unpriced`).
+                        let cost_unpriced = builtin_unpriced(&note, &value, cost_usd);
                         // Judge the final task value before publishing success.
                         // The call already fired: a contract rejection keeps its
                         // spend and attestation, and follows the ordinary typed
@@ -273,7 +277,7 @@ where
                             warning,
                             cost_usd,
                             cost_source,
-                            None,
+                            cost_unpriced,
                         )
                         .with_commit(attestation)
                     }
@@ -439,6 +443,59 @@ pub(crate) fn gate(preview: &str, request: &Value) -> Option<CommitGate> {
             commit,
         })
     })
+}
+
+/// Why an engine builtin's spend is absent from `cost_usd`, when it says
+/// (`cost_unpriced` beside a null `cost_usd` · the `nika:tts_generate`
+/// `system` voice reports `local_model`: local compute is unpriced, never
+/// free). Only an ENGINE builtin (`nika:`) speaks into the run's ledger, only
+/// with no priced spend, and only in the closed vocabulary — an MCP
+/// server's output never labels the ledger, and an unknown word is no claim.
+fn builtin_unpriced(note: &str, value: &Value, cost_usd: Option<f64>) -> Option<UnpricedReason> {
+    let tool = note.trim_start_matches("invoke · ");
+    if cost_usd.is_some() || !tool.starts_with("nika:") {
+        return None;
+    }
+    match value.get("cost_unpriced")?.as_str()? {
+        "local_model" => Some(UnpricedReason::LocalModel),
+        "mock_provider" => Some(UnpricedReason::MockProvider),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod unpriced_tests {
+    use super::*;
+
+    #[test]
+    fn only_an_engine_builtin_without_a_price_names_why() {
+        let system =
+            json!({ "provider": "system", "cost_usd": null, "cost_unpriced": "local_model" });
+        assert_eq!(
+            builtin_unpriced("invoke · nika:tts_generate", &system, None),
+            Some(UnpricedReason::LocalModel)
+        );
+        // A priced spend is never relabelled.
+        assert_eq!(
+            builtin_unpriced("invoke · nika:tts_generate", &system, Some(0.02)),
+            None
+        );
+        // An MCP server's output never speaks into the ledger.
+        assert_eq!(
+            builtin_unpriced("invoke · mcp:srv/tool", &system, None),
+            None
+        );
+        // An unknown word, or none, is no claim.
+        let odd = json!({ "cost_unpriced": "free" });
+        assert_eq!(
+            builtin_unpriced("invoke · nika:tts_generate", &odd, None),
+            None
+        );
+        assert_eq!(
+            builtin_unpriced("invoke · nika:jq", &json!([1]), None),
+            None
+        );
+    }
 }
 
 /// The TOCTOU injection seam — compiled under `cfg(test)` ONLY: the

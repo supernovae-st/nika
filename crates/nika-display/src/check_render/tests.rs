@@ -1550,3 +1550,79 @@ mod writes_card {
         assert!(!plain.contains("seat-served"), "no seat, no note");
     }
 }
+
+/// The host synthesizer is local work no price lane meters: the COST rung
+/// says it is unpriced, never lets `$0.00` read as free (stdlib
+/// §`nika:tts_generate` · `provider: system`).
+mod host_voice_cost {
+    use super::super::*;
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    fn cost_line(yaml: &str) -> String {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        let out = render(
+            &report,
+            &wf,
+            yaml,
+            "w.nika",
+            RepairTarget::WorkspaceFile,
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            true,
+            &crate::check_render::VerdictLayers::default(),
+        );
+        out.lines()
+            .find(|l| l.contains("COST"))
+            .expect("a COST rung")
+            .to_owned()
+    }
+
+    fn speak(provider: &str) -> String {
+        format!(
+            "nika: w\npermits:\n  tools: [\"nika:tts_generate\"]\n  fs:\n    write: [\"out/voice/**\"]\ntasks:\n  speak:\n    invoke: {{ tool: \"nika:tts_generate\", args: {{ provider: {provider}, text: hi, output_dir: out/voice }} }}\n"
+        )
+    }
+
+    #[test]
+    fn a_voice_only_workflow_names_its_local_work_unpriced() {
+        let line = cost_line(&speak("system"));
+        assert!(
+            line.contains(
+                "no infer/agent tasks · $0.00 · exec + mcp spend unpriced · system voice local \
+                 work unpriced"
+            ),
+            "{line}"
+        );
+    }
+
+    #[test]
+    fn another_provider_keeps_the_plain_line() {
+        let line = cost_line(&speak("mock"));
+        assert!(line.contains("exec + mcp spend unpriced"), "{line}");
+        assert!(
+            !line.contains("system voice"),
+            "no host voice, no clause: {line}"
+        );
+    }
+
+    #[test]
+    fn a_priced_ceiling_beside_a_voice_names_it_too() {
+        let yaml = format!(
+            "{}  draft:\n    infer: {{ prompt: hi, max_tokens: 100 }}\n",
+            speak("system").replacen("nika: w\n", "nika: w\nmodel: openai/gpt-4o-mini\n", 1)
+        );
+        let line = cost_line(&yaml);
+        assert!(
+            line.contains("prompts, exec + mcp unpriced · prices "),
+            "{line}"
+        );
+        assert!(
+            line.ends_with("· system voice local work unpriced"),
+            "{line}"
+        );
+    }
+}

@@ -75,7 +75,7 @@ pub use defs::{TOOLS_EXPORT_VERSION, tool_defs, tools_json};
 pub use image::ImageKeys;
 pub use live::LiveInspect;
 pub use permits::FsBoundary;
-pub use tts::TtsKeys;
+pub use tts::{SpeechFuture, SpeechRunner, SystemSynth, SystemVoice, TtsKeys};
 pub use write_origins::{CreatedFile, WriteOrigin, WriteOrigins};
 
 /// The closed builtin namespace prefix.
@@ -291,6 +291,10 @@ pub struct BuiltinDispatcher<F, H, C, Em, P, W> {
     /// from the environment here).
     image_keys: image::ImageKeys,
     tts_keys: tts::TtsKeys,
+    /// The host's own synthesizer behind `nika:tts_generate`'s `system`
+    /// provider — `None` until the composition root wires it via
+    /// [`Self::with_system_voice`] (a `system` call then refuses `-002`).
+    system_voice: Option<tts::SystemVoice>,
     /// The run's write origins (what `nika:write`/`nika:edit` created or
     /// changed, originals kept aside) — `None` until the host wires its
     /// ledger via [`Self::with_write_origins`].
@@ -321,6 +325,7 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
             tts_http: None,
             image_keys: image::ImageKeys::new(),
             tts_keys: tts::TtsKeys::new(),
+            system_voice: None,
             write_origins: None,
         }
     }
@@ -365,6 +370,17 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
     pub fn with_tts_plane(mut self, http: Arc<H>, keys: tts::TtsKeys) -> Self {
         self.tts_http = Some(http);
         self.tts_keys = keys;
+        self
+    }
+
+    /// Wire the KEYLESS `system` voice — the host's own synthesizer (macOS
+    /// `say` · Linux `espeak-ng`), which `nika:tts_generate` starts itself
+    /// through `voice`'s runner: never the workflow's `exec:`, no
+    /// `permits.exec`. The composition root decides the synthesizer;
+    /// unwired, a `system` call refuses `NIKA-BUILTIN-TTS_GENERATE-002`.
+    #[must_use]
+    pub fn with_system_voice(mut self, voice: tts::SystemVoice) -> Self {
+        self.system_voice = Some(voice);
         self
     }
 
@@ -561,10 +577,14 @@ where
     /// The `nika:tts_generate` plumbing (kept out of `route`'s match for
     /// the fn-length budget — pure delegation).
     async fn route_tts(&self, args: &Args) -> BuiltinOutcome {
+        let planes = tts::Planes {
+            http: self.tts_http.as_deref(),
+            keys: &self.tts_keys,
+            system: self.system_voice.as_ref(),
+        };
         tts::generate(
             self.fs.as_ref(),
-            self.tts_http.as_deref(),
-            &self.tts_keys,
+            &planes,
             self.clock.as_ref(),
             self.emitter.as_ref(),
             &self.fs_boundary,

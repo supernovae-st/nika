@@ -438,7 +438,10 @@ fn check_tts_generate_shape(args: Option<&serde_json::Value>, out: &mut Vec<Stri
     };
 
     let enums: [(&str, &[&str]); 2] = [
-        ("provider", &["local", "openai", "elevenlabs", "mock"]),
+        (
+            "provider",
+            &["local", "system", "openai", "elevenlabs", "mock"],
+        ),
         ("format", &["mp3", "wav", "auto"]),
     ];
     for (key, allowed) in enums {

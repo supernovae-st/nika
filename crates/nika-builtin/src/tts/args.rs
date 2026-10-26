@@ -74,6 +74,9 @@ pub(crate) fn parse(args: &Args) -> Result<TtsArgs, BuiltinFailure> {
     let provider = parse_provider(args)?;
     let model = opt_str(args, "model")?.unwrap_or_else(|| provider.default_model().to_owned());
     let voice = opt_str(args, "voice")?.unwrap_or_else(|| provider.default_voice().to_owned());
+    if provider == Provider::System {
+        check_system_model_and_voice(&model, &voice)?;
+    }
 
     let format = match opt_str(args, "format")?.as_deref() {
         None | Some("auto") => None,
@@ -89,6 +92,13 @@ pub(crate) fn parse(args: &Args) -> Result<TtsArgs, BuiltinFailure> {
     if format == Some(AudioFormat::Mp3) && provider == Provider::Mock {
         warnings.push(
             "format_mismatch: the mock renders WAV only — the request rides, the bytes decide"
+                .to_owned(),
+        );
+    }
+    if format == Some(AudioFormat::Mp3) && provider == Provider::System {
+        warnings.push(
+            "format_mismatch: the system voice renders WAV only — the request rides, the bytes \
+             decide"
                 .to_owned(),
         );
     }
@@ -181,17 +191,49 @@ fn parse_provenance_knobs(
     Ok((metadata, manifest))
 }
 
+/// The `system` provider has no model choice (the model IS the host's
+/// program) and speaks a host voice NAME: letters, digits, space and
+/// `( ) - _ . + '`, at most 64 characters, never a leading `-` — the
+/// alphabet of `say -v '?'` and `espeak-ng --voices`, nothing an option
+/// parser could read as a flag.
+fn check_system_model_and_voice(model: &str, voice: &str) -> Result<(), BuiltinFailure> {
+    if model != Provider::System.default_model() {
+        return Err(BuiltinFailure::new(
+            C_ARGS,
+            format!(
+                "`model: {model}` — the system provider has no model choice: it speaks through \
+                 this host's synthesizer (`{}`); omit `model:`",
+                Provider::System.default_model()
+            ),
+        ));
+    }
+    let lawful = |c: char| {
+        c.is_alphanumeric() || matches!(c, ' ' | '(' | ')' | '-' | '_' | '.' | '+' | '\'')
+    };
+    if voice.starts_with('-') || voice.chars().count() > 64 || !voice.chars().all(lawful) {
+        return Err(BuiltinFailure::new(
+            C_ARGS,
+            format!(
+                "`voice: {voice}` is not a host voice name — letters, digits, space and \
+                 ( ) - _ . + ' only, at most 64 characters, never a leading `-`"
+            ),
+        ));
+    }
+    Ok(())
+}
+
 fn parse_provider(args: &Args) -> Result<Provider, BuiltinFailure> {
     match args.get("provider").and_then(serde_json::Value::as_str) {
         Some("local") => Ok(Provider::Local),
+        Some("system") => Ok(Provider::System),
         Some("openai") => Ok(Provider::Openai),
         Some("elevenlabs") => Ok(Provider::Elevenlabs),
         Some("mock") => Ok(Provider::Mock),
         Some(other) => Err(BuiltinFailure::new(
             C_ARGS,
             format!(
-                "unknown `provider:` `{other}` — one of local · openai · elevenlabs · mock \
-                 (local is never inferred: model names are server-specific)"
+                "unknown `provider:` `{other}` — one of local · system · openai · elevenlabs · \
+                 mock (local and system are never inferred: name them)"
             ),
         )),
         // Model-prefix inference mirrors the image family; `local` stays
@@ -204,12 +246,12 @@ fn parse_provider(args: &Args) -> Result<Provider, BuiltinFailure> {
                 C_ARGS,
                 format!(
                     "cannot infer a provider from model `{other}` — set `provider:` \
-                     (local · openai · elevenlabs · mock)"
+                     (local · system · openai · elevenlabs · mock)"
                 ),
             )),
             None => Err(BuiltinFailure::new(
                 C_ARGS,
-                "`provider:` is required (local · openai · elevenlabs · mock)",
+                "`provider:` is required (local · system · openai · elevenlabs · mock)",
             )),
         },
     }
@@ -285,5 +327,57 @@ mod tests {
         // local default timeout is the CPU-wide one.
         let l = parse(&base(serde_json::json!({ "provider": "local" }))).expect("valid");
         assert_eq!(l.timeout.as_millis(), 300_000);
+    }
+
+    #[test]
+    fn system_takes_a_host_voice_name_and_no_model_choice() {
+        let s = parse(&base(serde_json::json!({ "provider": "system" }))).expect("valid");
+        assert_eq!(
+            (s.provider, s.voice.as_str()),
+            (Provider::System, "default")
+        );
+        assert_eq!(s.model, super::super::types::SYSTEM_MODEL);
+        assert_eq!(
+            s.timeout.as_millis(),
+            120_000,
+            "a host voice is seconds-class"
+        );
+        for voice in [
+            "Samantha",
+            "Eddy (English (UK))",
+            "Amélie",
+            "en-us+f3",
+            "fr",
+        ] {
+            parse(&base(
+                serde_json::json!({ "provider": "system", "voice": voice }),
+            ))
+            .unwrap_or_else(|e| panic!("`{voice}` is a host voice name: {}", e.message));
+        }
+        for voice in ["-o", "say; rm", "a/b", "x\ny", "v".repeat(65).as_str()] {
+            let e = parse(&base(
+                serde_json::json!({ "provider": "system", "voice": voice }),
+            ))
+            .expect_err(voice);
+            assert!(e.message.contains("not a host voice name"), "{}", e.message);
+        }
+        let e = parse(&base(
+            serde_json::json!({ "provider": "system", "model": "kokoro" }),
+        ))
+        .expect_err("no model choice");
+        assert!(e.message.contains("no model choice"), "{}", e.message);
+        let mp3 = parse(&base(
+            serde_json::json!({ "provider": "system", "format": "mp3" }),
+        ))
+        .expect("rides with a warning");
+        assert!(
+            mp3.warnings
+                .iter()
+                .any(|w| w.starts_with("format_mismatch: the system voice"))
+        );
+        // Never inferred from a model name.
+        let mut m = base(serde_json::json!({ "model": "say" }));
+        m.remove("provider");
+        assert!(parse(&m).is_err(), "system is never inferred");
     }
 }

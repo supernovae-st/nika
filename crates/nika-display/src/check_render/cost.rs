@@ -51,7 +51,7 @@ fn cost_composed_only(out: &mut String, report: &CheckReport, t: Theme) {
 /// that used to claim the whole bill from a lane that prices
 /// `infer:`/`agent:` and nothing else; the composed-children arm joins
 /// here (extracted under the fn-length law).
-fn cost_empty_arm(out: &mut String, report: &CheckReport, t: Theme) {
+fn cost_empty_arm(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     if !report.cost.composed.is_empty() {
         return cost_composed_only(out, report, t);
     }
@@ -68,9 +68,21 @@ fn cost_empty_arm(out: &mut String, report: &CheckReport, t: Theme) {
         // `✔ audited · est ≤$0.0000`.
         t.paint(
             Role::Dim,
-            "no infer/agent tasks · $0.00 · exec + mcp spend unpriced"
+            &format!(
+                "no infer/agent tasks · $0.00 · exec + mcp spend unpriced{}",
+                voice_clause(wf)
+            )
         )
     );
+}
+
+/// ` · system voice local work unpriced` when a task speaks through the host
+/// synthesizer: the `$0.00` above prices `infer:`/`agent:` only, and the
+/// voice's local compute is unpriced, never free.
+fn voice_clause(wf: &RawWorkflow) -> String {
+    crate::check_render::host_voice_unpriced(wf)
+        .map(|clause| format!(" · {clause}"))
+        .unwrap_or_default()
 }
 
 /// The per-task rows of [`cost()`] — a priced row at its cap, or the
@@ -138,9 +150,15 @@ fn no_price_reason(model: &str) -> &'static str {
     }
 }
 
-pub(super) fn cost(out: &mut String, report: &CheckReport, t: Theme, layers: &VerdictLayers) {
+pub(super) fn cost(
+    out: &mut String,
+    report: &CheckReport,
+    wf: &RawWorkflow,
+    t: Theme,
+    layers: &VerdictLayers,
+) {
     if report.cost.tasks.is_empty() {
-        return cost_empty_arm(out, report, t);
+        return cost_empty_arm(out, report, wf, t);
     }
     // OUTPUT ceiling, and the word is load-bearing. `cost::ceiling` prices
     // `max_tokens`, which the spec defines as "Max OUTPUT tokens"
@@ -230,7 +248,11 @@ pub(super) fn cost(out: &mut String, report: &CheckReport, t: Theme, layers: &Ve
         // bill missing — and the ✔ does not say so.
         t.paint(
             Role::Dim,
-            &format!("· prompts, exec + mcp unpriced · prices {}", snap.as_of)
+            &format!(
+                "· prompts, exec + mcp unpriced · prices {}{}",
+                snap.as_of,
+                voice_clause(wf)
+            )
         ),
     );
     cost_task_rows(out, report, t);

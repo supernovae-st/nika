@@ -81,7 +81,13 @@ pub(crate) fn render_pair(
         // the same measured reason: this lane prices `infer:`/`agent:`
         // and nothing else, so `$0.00` was a claim about a bill it never
         // saw. A lone `exec: ["claude", "-p", …]` reaches here.
-        "no infer/agent tasks · $0.00 · exec + mcp spend unpriced".to_owned()
+        // …and a host-synthesizer voice is local work it never prices.
+        format!(
+            "no infer/agent tasks · $0.00 · exec + mcp spend unpriced{}",
+            nika_display::check_render::host_voice_unpriced(wf)
+                .map(|clause| format!(" · {clause}"))
+                .unwrap_or_default()
+        )
     } else if report.cost.has_unbounded {
         // One voice with the COST rung (check/render.rs): `≥` claimed a
         // floor over a number that bounds nothing from below — render.rs

@@ -113,9 +113,14 @@ pub fn external_effects(
     candidate: &str,
     boundary: Option<&nika_check::EffectivePermits>,
 ) -> String {
-    let declared = nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict)
-        .ok()
-        .and_then(|wf| wf.permits.map(|p| p.value));
+    let parsed = nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict).ok();
+    // A builtin that starts a host program ITSELF (`nika:tts_generate` ·
+    // `provider: system`) reaches outside the project without `exec:` —
+    // the human accepting the review is told which program it starts.
+    let host_voice = parsed
+        .as_ref()
+        .is_some_and(crate::check_render::starts_host_voice);
+    let declared = parsed.and_then(|wf| wf.permits.map(|p| p.value));
     let mut hosts: Vec<String> = declared
         .as_ref()
         .and_then(|p| p.net.as_ref())
@@ -151,6 +156,12 @@ pub fn external_effects(
             external.push(format!("runs · {}", p.join(" · ")));
         }
         _ => {}
+    }
+    if host_voice {
+        external.push(format!(
+            "speaks · {}",
+            crate::check_render::system_voice_clause()
+        ));
     }
     external.extend(unpinned.into_iter().map(str::to_owned));
     if external.is_empty() {

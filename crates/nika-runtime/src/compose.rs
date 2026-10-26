@@ -34,7 +34,8 @@ use crate::WorkflowSecretResolver;
 use crate::simulated::{SimulatedDispatcher, SimulatedShell};
 use crate::{Runtime, RuntimeConfig};
 use nika_builtin::{
-    BuiltinDispatcher, Emitter, FsBoundary, ImageKeys, LiveInspect, NonInteractive, TtsKeys,
+    BuiltinDispatcher, Emitter, FsBoundary, ImageKeys, LiveInspect, NonInteractive, SystemSynth,
+    SystemVoice, TtsKeys,
 };
 use nika_clock::DeclaredClock;
 use nika_exec_runner::TokioShell;
@@ -455,6 +456,45 @@ fn tts_keys_from_env() -> TtsKeys {
     keys
 }
 
+/// The host synthesizer behind `nika:tts_generate`'s `system` provider — the
+/// composition root's one probe of the host (the builtin never reads the
+/// environment): macOS `/usr/bin/say` (its WAV lands in the engine's temp
+/// dir, read back and removed by the builtin), Linux `espeak-ng` found on
+/// the engine's `PATH`. Anything else, or a missing program, is an
+/// `Unavailable` whose text names what is missing — a `system` call then
+/// refuses `NIKA-BUILTIN-TTS_GENERATE-002`, never falls back.
+fn system_synth_of_host() -> SystemSynth {
+    if cfg!(target_os = "macos") {
+        let say = std::path::Path::new(nika_cap::SYSTEM_VOICE_SAY);
+        return if say.is_file() {
+            SystemSynth::say(say, std::env::temp_dir())
+        } else {
+            SystemSynth::unavailable(format!("{} is missing on this Mac", say.display()))
+        };
+    }
+    if cfg!(target_os = "linux") {
+        return match env_lookup("PATH")
+            .and_then(|path| program_on_path(&path, nika_cap::SYSTEM_VOICE_ESPEAK))
+        {
+            Some(program) => SystemSynth::espeak_ng(program),
+            None => SystemSynth::unavailable(
+                "espeak-ng was not found on PATH — install espeak-ng (e.g. `apt install espeak-ng`)",
+            ),
+        };
+    }
+    SystemSynth::unavailable(format!(
+        "this host is {} — provider: system speaks through macOS /usr/bin/say or Linux espeak-ng",
+        std::env::consts::OS
+    ))
+}
+
+/// The first `name` on a `PATH` value that is a regular file.
+fn program_on_path(path: &str, name: &str) -> Option<std::path::PathBuf> {
+    std::env::split_paths(path)
+        .map(|dir| dir.join(name))
+        .find(|candidate| candidate.is_file())
+}
+
 /// Derive the runtime `permits.fs` boundary from a parsed workflow.
 ///
 /// No `permits:` block → a DECLARED boundary with empty glob lists
@@ -794,6 +834,13 @@ pub fn production_runtime_with_emitter(
             // the fetch idle guard is unsuitable. Resolve keys only at this boundary.
             .with_image_plane(Arc::clone(&provider_http), image_keys_from_env())
             .with_tts_plane(Arc::clone(&provider_http), tts_keys_from_env())
+            // The keyless `system` voice: the host's own synthesizer, started
+            // by the builtin itself through an unconfined runner (an engine-
+            // fixed program, never workflow data · never the exec verb).
+            .with_system_voice(SystemVoice::new(
+                Arc::new(TokioShell::new()),
+                system_synth_of_host(),
+            ))
             // The host's write-origins ledger, read back by its teardown.
             .with_write_origins(runtime_config.write_origins.clone()),
     );

@@ -36,6 +36,7 @@ mod permits;
 mod shape;
 pub mod sink;
 mod subsume;
+mod system_voice;
 mod trifecta;
 mod witness;
 
@@ -90,6 +91,9 @@ pub use permits::{ExecPermit, FsPermits, NetPermits, Permits, glob_matches};
 // reading a declaration.
 pub use effect_vocab::{CertEffects, EffectClass, HUMAN_GATE_TOOL};
 pub use shape::{builtin_invoke_refusal, builtin_shape_findings};
+pub use system_voice::{
+    SYSTEM_VOICE_ESPEAK, SYSTEM_VOICE_SAY, starts_system_voice, system_voice_program,
+};
 // NEP-0002 · the lethal-trifecta judge (`NIKA-SEC-009`) — the pure
 // leg-conjunction + path-dominance logic; the projection lives in
 // `nika-schema::check::trifecta` (the PolicySubject / policy_violations split).

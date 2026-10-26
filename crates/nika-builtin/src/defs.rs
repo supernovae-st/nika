@@ -429,12 +429,12 @@ fn media_defs() -> Vec<ToolDef> {
         ),
         def(
             "tts_generate",
-            "Synthesize speech audio (local compat servers · openai gpt-4o-mini-tts · elevenlabs · mock for offline runs) — saves ONE audio file under output_dir and returns path + format + sha256 + duration (+ a provenance manifest); audio bytes never ride outputs.",
+            "Synthesize speech audio (local compat servers · system: the host's own voice, keyless and offline · openai gpt-4o-mini-tts · elevenlabs · mock for offline runs) — saves ONE audio file under output_dir and returns path + format + sha256 + duration (+ a provenance manifest); audio bytes never ride outputs.",
             serde_json::json!({
-                "provider": s("local | openai | elevenlabs | mock (inferred from model: when omitted · local is never inferred)"),
-                "model": s("provider model id · defaults: tts-1 (local · LocalAI convention) · gpt-4o-mini-tts · eleven_multilingual_v2 · mock-tts-1"),
+                "provider": s("local | system | openai | elevenlabs | mock (inferred from model: when omitted · local and system are never inferred · system = macOS /usr/bin/say or Linux espeak-ng, started by the engine, no permits.exec)"),
+                "model": s("provider model id · defaults: tts-1 (local · LocalAI convention) · say or espeak-ng (system · fixed) · gpt-4o-mini-tts · eleven_multilingual_v2 · mock-tts-1"),
                 "text": s("the text to speak · ≤4096 chars (fan long scripts out with for_each)"),
-                "voice": s("provider voice · defaults: alloy (openai/local) · Rachel's id (elevenlabs) · sine (mock)"),
+                "voice": s("provider voice · defaults: alloy (openai/local) · default (system · the host's default voice; a named one must be installed) · Rachel's id (elevenlabs) · sine (mock)"),
                 "format": s("mp3 | wav | auto (default · provider-native · the saved extension follows the bytes)"),
                 "speed": { "type": "number", "description": "0.25..=4.0 (openai/local · warned-dropped elsewhere)" },
                 "output_dir": s("directory the audio lands in (created if missing · fs-permit gated)"),
