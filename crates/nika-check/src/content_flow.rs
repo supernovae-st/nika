@@ -5,7 +5,10 @@
 //! lattice — [`super::flow`] tracks secret CONFIDENTIALITY): does untrusted
 //! content actually REACH a task's effect surface, and from which ingress?
 //! Sources: invoked `nika:fetch` · `mcp:*` (fail-closed) · `agent:` with an
-//! ingress whitelist. Propagation mirrors [`super::flow`] with three
+//! ingress whitelist · `exec:` · an `invoke: workflow:` call whose child, or
+//! a workflow below it, holds one of these (or cannot be resolved), as the
+//! composed check found it ([`crate::ComposedCall`] · spec 14 · NIK-273).
+//! Propagation mirrors [`super::flow`] with three
 //! inversions: `infer:`/`agent:` outputs ARE tainted when their prompt sees
 //! it · an `exec:` is tainted when a tainted WRITER ran earlier under a
 //! declared `fs.read` (the file channel argv cannot see) · recover reads
@@ -20,12 +23,23 @@ use nika_schema::expression::NamespaceRef;
 use nika_schema::raw::{RawAction, RawWorkflow};
 use nika_schema::types::OnErrorAction;
 
-/// Compute the per-task content-taint witness. `mcp_trusted(server_id)`
-/// answers the catalog's `content_trust` mark (`true` = trusted content).
+/// Where untrusted content is born, beyond the verb tables: the two
+/// judgments this pass cannot make from the workflow's own bytes.
+pub(super) struct Sources<'a> {
+    /// `mcp_trusted(server_id)` answers the catalog's `content_trust` mark
+    /// (`true` = trusted content).
+    pub(super) mcp_trusted: &'a dyn Fn(&str) -> bool,
+    /// `untrusted_call(task_id)`: the composed check judged this
+    /// `invoke: workflow:` call's output untrusted content. A reader-less
+    /// check resolves no child and answers `false` for every call.
+    pub(super) untrusted_call: &'a dyn Fn(&str) -> bool,
+}
+
+/// Compute the per-task content-taint witness over `sources`.
 pub(super) fn analyze_content_flow(
     wf: &RawWorkflow,
     waves: &[Vec<usize>],
-    mcp_trusted: &dyn Fn(&str) -> bool,
+    sources: &Sources<'_>,
 ) -> Vec<TaintWitness> {
     let n = wf.tasks.len();
     let id_of: BTreeMap<&str, usize> = wf
@@ -83,7 +97,8 @@ pub(super) fn analyze_content_flow(
             }
 
             // Output taint: born-source wins; else effect flows out (inversion).
-            let mut out_src = if classify(&task.action, mcp_trusted).0 {
+            let (born, writes) = classify(&task.id.value, &task.action, sources);
+            let mut out_src = if born {
                 Some(task.id.value.clone())
             } else {
                 effect_src.clone()
@@ -101,10 +116,7 @@ pub(super) fn analyze_content_flow(
             // The file channel arms on ARRIVED taint (`effect_src`), never
             // on born output — the full story and its mutation-proven pin:
             // `trifecta::tests::two_execs_with_no_flow_between_them_pass`.
-            if effect_src.is_some()
-                && any_writer_so_far.is_none()
-                && classify(&task.action, mcp_trusted).1
-            {
+            if effect_src.is_some() && any_writer_so_far.is_none() && writes {
                 any_writer_so_far.clone_from(&effect_src);
             }
             effect[i] = effect_src;
@@ -149,7 +161,14 @@ fn source_of(
 /// with this row: its outputs taint downstream effects like any other
 /// ingress, and the trifecta's leg ② counts the exec permit as an
 /// ingress channel (`nika_cap::trifecta` — the grant twin of this law).
-pub(super) fn classify(action: &RawAction, mcp_trusted: &dyn Fn(&str) -> bool) -> (bool, bool) {
+///
+/// An `invoke: workflow:` call is born-ingress when the composed check
+/// judged its output untrusted (NIK-273): the child, or a workflow below
+/// it, holds a row of this table, or could not be resolved. Composition
+/// used to read `(false, false)` here, so the same fetch drew SEC-009
+/// inline and a ✔ one `invoke: workflow:` away. Its writes stay `false`:
+/// the child's own boundary is spec 14's (`NIKA-COMP-002`).
+pub(super) fn classify(task_id: &str, action: &RawAction, sources: &Sources<'_>) -> (bool, bool) {
     match action {
         RawAction::Exec(_) => (true, true),
         RawAction::Agent(a) => (
@@ -160,13 +179,13 @@ pub(super) fn classify(action: &RawAction, mcp_trusted: &dyn Fn(&str) -> bool) -
         ),
         RawAction::Invoke(inv) => {
             let Some(tool) = inv.tool() else {
-                return (false, false); // a child call — spec 14 owns its boundary
+                return ((sources.untrusted_call)(task_id), false);
             };
             let id = tool.value.as_str();
             if let Some(server) = id.strip_prefix("mcp:") {
                 // Server content untrusted UNLESS the catalog marks it
                 // (absent/unknown = untrusted) · server writes are opaque.
-                let trusted = mcp_trusted(server.split('/').next().unwrap_or(server));
+                let trusted = (sources.mcp_trusted)(server.split('/').next().unwrap_or(server));
                 return (nika_cap::invoke_tool_is_ingress(id, trusted), true);
             }
             let args = inv.args.as_ref().map(|a| &a.value);

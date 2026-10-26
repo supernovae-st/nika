@@ -19,7 +19,8 @@
 //!    embedder can hand `run` a hand-built clean one (a skipped check
 //!    and a forged report are indistinguishable). Under a declared
 //!    `permits:` block the gate re-derives the PURE boundary subset —
-//!    permits-fit + trifecta, the cheap L0 lanes, never the whole check
+//!    permits-fit + trifecta (over the child calls the report resolved),
+//!    the cheap L0 lanes, never the whole check
 //!    ladder — and refuses when it disagrees with the report's lanes:
 //!    the report does not describe this workflow. Without a declared
 //!    boundary there is nothing to verify (today's posture · the SSRF
@@ -71,8 +72,19 @@ pub(crate) fn check_report(wf: &RawWorkflow, report: &CheckReport) -> Result<(),
     // mirrored one-for-one: the trifecta lane reads the derived graph (a
     // valid DAG or no claim — skipped, never wrong) · permits-fit is
     // DAG-independent and runs unconditionally.
+    //
+    // The child calls a composed check resolved ride the report (NIK-273):
+    // this gate reads no file, so it judges each call's ingress as the
+    // report states it. That can only ADD sources over the child-blind
+    // reading (a forged list cannot hide a flow the bytes show), and an
+    // honest composed report's lanes, mitigations included, equal these.
     let trifecta = match nika_check::analyze(wf) {
-        Ok(a) => nika_check::trifecta::scan_trifecta(wf, &a.edges, &a.topo_waves),
+        Ok(a) => nika_check::trifecta::scan_trifecta_composed(
+            wf,
+            &a.edges,
+            &a.topo_waves,
+            &report.composed_calls,
+        ),
         Err(_) => nika_cap::TrifectaVerdict::default(),
     };
     let escapes = nika_check::permits_fit::scan_escapes(wf);
@@ -315,6 +327,42 @@ mod tests {
             "the re-derivation agrees with the honest report — no false refusal"
         );
         assert_eq!(probe.executed_commands().len(), 1, "the exec ran");
+    }
+
+    /// NIK-273 · a composed report judges a child's untrusted content as an
+    /// ingress and credits the gate that clears it. The gate re-derives over
+    /// the SAME resolved calls, so an honest composed report passes (no false
+    /// NIKA-1707 on a correctly gated composition), and the credit is bound
+    /// to those calls: the report stripped of them no longer describes the
+    /// bytes it judged.
+    #[test]
+    fn a_composed_report_and_the_gate_credit_the_same_child_gate() {
+        const CHILD: &str = "nika: banner\npermits: { exec: [\"echo\"] }\ntasks:\n  banner:\n    exec: { command: [\"echo\", \"hi\"] }\noutputs:\n  text: { value: \"${{ tasks.banner.output }}\", type: string }\n";
+        const PARENT: &str = "nika: gated\npermits: { exec: [\"echo\"], fs: { read: [\"./note.txt\"], write: [\"./out/**\"] }, tools: [\"nika:read\", \"nika:write\", \"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { message: \"write?\" } }\n  call:\n    after: { ask: success }\n    invoke: { workflow: \"./child.nika\" }\n    returns: { object: { text: string } }\n  note:\n    after: { ask: success }\n    invoke: { tool: \"nika:read\", args: { path: \"./note.txt\" } }\n  leak:\n    with: { go: \"${{ tasks.ask.output }}\", banner: \"${{ tasks.call.output.text }}\", note: \"${{ tasks.note.output }}\" }\n    when: \"${{ with.go == true }}\"\n    invoke: { tool: \"nika:write\", args: { path: \"./out/leak.txt\", content: \"${{ with.banner }} ${{ with.note }}\" } }\n";
+        let wf = parse(PARENT);
+        let report = nika_check::check_composed(&wf, "parent.nika", &mut |path| match path {
+            "child.nika" => Ok(CHILD.to_owned()),
+            other => Err(format!("no fixture for {other}")),
+        });
+        assert!(report.is_clean(), "{:?}", report.findings);
+        let credited: Vec<(&str, &str)> = report
+            .trifecta_mitigations
+            .iter()
+            .map(|m| (m.sink.as_str(), m.gate.as_str()))
+            .collect();
+        assert_eq!(
+            credited,
+            vec![("leak", "ask")],
+            "the child's ingress is cleared"
+        );
+        assert!(
+            super::check_report(&wf, &report).is_ok(),
+            "the re-derivation over the report's calls agrees"
+        );
+        let mut stripped = report.clone();
+        stripped.composed_calls.clear();
+        let err = super::check_report(&wf, &stripped).expect_err("the credit needs the calls");
+        assert_eq!(err.spec_code(), "NIKA-1707");
     }
 
     /// (c) No `permits:` block → the 1707 re-derivation is skipped (that

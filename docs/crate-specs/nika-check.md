@@ -33,6 +33,22 @@ depend on without pulling the CLI:
   brings is reported with the child, task, field and path
   (`CheckReport::project_files`). A child's own read boundary stays its own
   check's. A plain `check()` reads no files.
+- **composed calls** (spec 14 · NIK-273) — `check_composed` and
+  `check_project` resolve every direct `invoke: workflow:` call through the
+  composition walk (one parse per file, its file cap) and list it in
+  `CheckReport::composed_calls`: whether the call's output is untrusted
+  content, and which of the caller's own grants the call uses or may use.
+  The output is untrusted when the child, or a workflow it calls, holds a
+  task the content-flow table judges a born source inline (`exec:` · an
+  invoked `nika:fetch` · an `mcp:*` tool · an `agent:` whose whitelist
+  admits ingress), or when a workflow of that closure cannot be resolved
+  (unreadable · unparseable · registry or templated target · a cycle ·
+  past the cap: fail-closed). The trifecta lane judges such a call as the
+  ingress it stands for, so a parent refuses `NIKA-SEC-009` exactly as the
+  inline form would, and a refusal names the child task behind the call;
+  the runtime trust gate re-derives the trifecta over the same calls. A plain `check()`
+  resolves no call: its trifecta lane, like its composition and cost lanes,
+  judges the caller's own tasks only.
 - **the conformance harness** (`tests/common`) — the Core, Deep, lint, runtime
   and stdlib fixture levels from the checkout pinned by `SPEC_PIN`. Core and
   Deep verdicts now include the Agent Skill resolution lane through the same

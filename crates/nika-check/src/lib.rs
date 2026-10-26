@@ -122,6 +122,7 @@ pub use nika_check_analyzer as analyzer;
 mod analysis;
 mod boundary_offer;
 mod certificate;
+mod composed_call;
 mod composition;
 mod conformance_codes;
 mod consent;
@@ -167,6 +168,7 @@ use nika_schema::raw::RawWorkflow;
 
 pub use analysis::{DagAnalysis, TaskBlast, WriteConflict};
 pub use certificate::{Bound, CertTerm, RunCertificate};
+pub use composed_call::ComposedCall;
 pub use composition::CompositionFinding;
 pub use consent::ConsentFinding;
 pub use cost::{ComposedCost, CostCeiling, TaskCost, UnboundedReason, floor_refusal};
@@ -522,6 +524,12 @@ pub struct CheckReport {
     /// resolved half (cycles · containment · the typed call) through an
     /// injected reader. Additive: `report_version` stays 1.
     pub composition: Vec<CompositionFinding>,
+    /// Every direct `invoke: workflow:` call judged through its resolved
+    /// child (spec 14): whether its output is untrusted content (the
+    /// trifecta lane's ingress) and which grants of this file it holds.
+    /// Only [`check_composed`] fills it. Additive, absent when empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub composed_calls: Vec<ComposedCall>,
     /// Project files (spec 02 §Project files): what [`check_project`] could not compose. A plain
     /// [`check`] reads no files. Additive, and absent when empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -680,6 +688,7 @@ fn gated_scans(
     conformance_clean: bool,
     edges: &[analyzer::Edge],
     topo_waves: &[Vec<usize>],
+    calls: &[ComposedCall],
 ) -> (
     nika_cap::TrifectaVerdict,
     consent::ConsentScan,
@@ -693,7 +702,7 @@ fn gated_scans(
         );
     }
     (
-        trifecta::scan_trifecta(wf, edges, topo_waves),
+        trifecta::scan_trifecta_composed(wf, edges, topo_waves, calls),
         consent::scan_consent(wf, edges, topo_waves),
         order::scan_order(wf, edges),
     )
@@ -724,6 +733,11 @@ fn dag_facts(
 
 #[must_use]
 pub fn check(wf: &RawWorkflow) -> CheckReport {
+    check_calls(wf, Vec::new())
+}
+
+/// [`check`] over the child calls a composed check resolved (NIK-273).
+pub(crate) fn check_calls(wf: &RawWorkflow, composed_calls: Vec<ComposedCall>) -> CheckReport {
     let (conformance, topo_waves, edges) = dag_facts(wf);
     // One IFC pass over the DAG — the taint fact base both leak reports
     // read. An empty wave order (conformance failure) taints nothing:
@@ -743,7 +757,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     // and a predicate spelled twice is a place for them to drift apart.
     let conforms = conformance.is_empty();
     let (trifecta, mut consent_scan, order_findings) =
-        gated_scans(wf, conforms, &edges, &topo_waves);
+        gated_scans(wf, conforms, &edges, &topo_waves, &composed_calls);
     hints.extend(std::mem::take(&mut consent_scan.hints));
     hints.extend(skipped_read::hints(wf, conforms, &edges, &topo_waves));
     hints::credit_gates(&mut hints, &trifecta.mitigations);
@@ -800,6 +814,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         // the PURE composition half (spec 14 law 1's textual part);
         // the resolved half needs a reader — `check_composed`
         composition: composition::scan_static(wf),
+        composed_calls,
         project_files: Vec::new(),
         hints,
         waves: topo_waves,

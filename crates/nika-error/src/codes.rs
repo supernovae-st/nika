@@ -779,6 +779,19 @@ pub fn spec_contract_help(code: &str) -> Option<&'static str> {
              link-local or metadata space is refused here, and so is a hop \
              to a loopback name the file did not declare.\n",
         ),
+        // NIK-273: the untrusted ingress may sit in a child workflow.
+        "NIKA-SEC-009" => Some(
+            "  A child workflow is judged through the task that calls it. When \
+             the child, or a workflow it calls, has a task that brings \
+             untrusted content in (an `exec:`, an invoked `nika:fetch` or \
+             `mcp:` tool, an `agent:` whose `tools:` admit one), the calling \
+             task's output is untrusted content in the parent, which needs \
+             the same blocking `nika:prompt` gate as the inline form. A child \
+             the check cannot read or resolve counts as such a source. \
+             `nika check <file>` and `nika run` read the children; a check \
+             of the source alone (an editor, the MCP `nika_check` tool) \
+             judges the parent's own tasks only.\n",
+        ),
         _ => None,
     }
 }
@@ -792,6 +805,22 @@ fn is_provider_code(code: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// NIK-273: the trifecta lesson says a child's ingress counts for its
+    /// caller, that an unresolvable child counts, and which checks read
+    /// children (a source-only check does not).
+    #[test]
+    fn the_trifecta_lesson_names_the_composed_ingress_and_its_reach() {
+        let help = spec_contract_help("NIKA-SEC-009").expect("teaches");
+        for lesson in [
+            "A child workflow is judged through the task that calls it",
+            "cannot read or resolve counts as such a source",
+            "`nika check <file>` and `nika run` read the children",
+            "the parent's own tasks only",
+        ] {
+            assert!(help.contains(lesson), "`{lesson}` missing: {help}");
+        }
+    }
 
     /// A value over a rehearsal room's bound teaches how to clear it, beside its cause.
     #[test]
