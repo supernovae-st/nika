@@ -1021,9 +1021,13 @@ the wire contract; `round(a ÷ b)` is `⌊(a + ⌊b ÷ 2⌋) ÷ b⌋`, never bel
   artifact is RGB8 (PNG color type 2).
 
 Caps (normative · `-005`) · each input ≤ 16384 per side · the SUM of the
-inputs' pixels ≤ 2^26 · the canvas ≤ 16384 per side and ≤ 2^26 pixels —
-all judged from the PNG headers and the args BEFORE any decompression or
-canvas allocation.
+inputs' pixels ≤ 2^26 · each `fit` / `fill` scaled box (the placed size
+above, before the `fill` crop) ≤ 16384 per side and ≤ 2^26 pixels · the
+canvas ≤ 16384 per side and ≤ 2^26 pixels — all judged from the PNG
+headers and the args BEFORE any decompression or canvas allocation. An
+input carries exactly one IHDR, its first chunk (PNG-3): the size the caps
+judged is the size decoded, and a second IHDR is `-004`. The input count
+(1..=64) is an argument, `-001`.
 
 Output · `{ path, sha256, size_bytes, width, height, format, layout,
 columns, rows, scale, inputs: [{ path, sha256, width, height }],
@@ -1108,10 +1112,15 @@ honestly `null` (never a guess). Empty payloads are `-004`.
 **The `system` provider (keyless · offline · engine-run).** The engine
 starts the host's own synthesizer ITSELF, as part of the builtin: macOS
 `/usr/bin/say` (16-bit PCM WAV · 22050 Hz · written to an engine scratch
-file, never a workflow path), Linux `espeak-ng --stdout` found on the
-engine's `PATH`. The text rides the program's standard input, never its
-argument vector. It is never the workflow's `exec:`: no `permits.exec`
-is required or consulted, the program is fixed by the engine (never
+file, never a workflow path), Linux `espeak-ng --stdout` found in an
+absolute directory of the engine's `PATH` (never a relative entry). The
+text rides the program's standard input, never its argument vector, and is
+spoken as TEXT, never synthesizer markup: both programs read `[[` as the
+start of markup (`say`'s embedded commands such as `[[volm 0]]` ·
+`espeak-ng`'s phonemes), so the engine breaks every `[[` with a space
+before the text reaches them. The audio is capped at 64 MiB (`-003` ·
+never transient · measured before it is read). It is never the
+workflow's `exec:`: no `permits.exec` is required or consulted, the program is fixed by the engine (never
 workflow data), and the audio still lands under `output_dir:` through
 `permits.fs.write` like every provider. A static checker names the
 program the call will start; the journal records the start as the
