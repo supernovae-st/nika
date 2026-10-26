@@ -350,7 +350,7 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              fields valid at that column (`the fields here: …`) and its \
              did-you-mean names a near spelling. A key from another dialect \
              lives inside a verb: `prompt:` → `infer:` · `http:` → `invoke:` \
-             with `tool: nika:fetch` · `command:` → `exec:` · `tool:` → \
+             with `tool: nika:fetch` · `command:` / `script:` → `exec:` · `tool:` → \
              `invoke:`. Custom prose is a `#` comment above `nika:`",
         ),
         "NIKA-PARSE-019" => Some(

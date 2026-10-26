@@ -116,7 +116,7 @@ pub(super) fn foreign(key: &str) -> Option<&'static str> {
              and pure ORDERING rides `after: { a: success }` (spec 03 §the flow · \
              `depends_on:` is the same key under its other name)",
         ),
-        "uses" | "steps" | "jobs" | "script" => Some(
+        "uses" | "steps" | "jobs" => Some(
             "a task body is one of the four verbs — `infer:` · `exec:` · `invoke:` · \
              `agent:` — and there is no action-reference field; a reusable unit is \
              another workflow, called with `invoke: { workflow: ./child.nika }` \
@@ -148,6 +148,12 @@ pub(super) fn foreign(key: &str) -> Option<&'static str> {
             "a process is the `exec:` verb and this field lives inside it — \
              `exec: { command: [prog, arg] }` (argv) or `exec: { shell: \"…\" }` \
              (one shell line), plus `permits.exec` naming the program",
+        ),
+        // GitLab CI's `script:` is a shell step, not an action reference.
+        "script" => Some(
+            "a script is the `exec:` verb — `exec: { shell: \"…\" }` (one shell line) \
+             or `exec: { command: [prog, arg] }` (argv), plus `permits.exec` naming \
+             the program",
         ),
         "tool" | "args" => Some(
             "a tool call is the `invoke:` verb — `tool:` and `args:` nest inside it: \
@@ -367,8 +373,10 @@ mod tests {
     /// verb that owns it. Measured on 0.123.2: `prompt:`, `http:`,
     /// `command:` and `tool:` at task level drew only the bare field list,
     /// so a first-minute author learned the column was wrong and nothing
-    /// about where the field lives. The repairers find the field list by
-    /// its own prefix, so the teaching leads and the list still follows.
+    /// about where the field lives, and `script:` drew the composition
+    /// teaching although GitLab's `script:` is a shell step. The repairers
+    /// find the field list by its own prefix, so the teaching leads and the
+    /// list still follows.
     #[test]
     fn dialect_task_keys_name_the_verb_that_owns_them() {
         let sees = |body: &str| {
@@ -392,6 +400,17 @@ mod tests {
             command.contains("exec:"),
             "`command:` names `exec:` · {command}"
         );
+        // GitLab CI's `script:` is a shell step, not an action reference:
+        // the teaching names `exec:` and its permit, never composition.
+        let script = sees("    script: \"echo hi\"\n");
+        assert!(
+            script.contains("exec: { shell:") && script.contains("permits.exec"),
+            "`script:` names `exec:` and `permits.exec` · {script}"
+        );
+        assert!(
+            !script.contains("action-reference"),
+            "`script:` is not taught as composition · {script}"
+        );
         let tool = sees("    tool: nika:fetch\n    args: { url: \"https://example.com\" }\n");
         assert!(
             tool.contains("invoke:"),
@@ -401,6 +420,7 @@ mod tests {
             ("prompt", &prompt),
             ("http", &http),
             ("command", &command),
+            ("script", &script),
             ("tool", &tool),
         ] {
             assert!(
