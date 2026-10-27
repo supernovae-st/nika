@@ -17,13 +17,9 @@
   check, whatever the path's form, under a boundary that admits no read; a
   `source: url` entry needs no grant), makes every `vision:` entry a
   provider-egress sink of its task (`NIKA-SEC-006`, `NIKA-SEC-009`), and
-  bounds an `images: { save: }` to four files and names it in the same-path
-  law (`NIKA-SEC-012`). nika-spec#401 (`5cd95cd`) lets the `cost_usd` of
-  `nika:image_generate` and `nika:tts_generate` come from the engine's dated
-  price catalog, marked by `cost_basis` with the rates' date in
-  `cost_as_of`, and keeps it `null` when neither the provider's report nor
-  the catalog yields a figure.
-  <!-- TODO(0.124.0): #1851 merged as 14073c081 and set this pin, so the
-  rebased branch carries `5cd95cd` with no pin move of its own. After the
-  rebase, delete the last sentence of `vision-file-reads.security.md` (or
-  the #400 sentence here), which says the same, then delete this comment. -->
+  bounds an `images: { save: }` to four files and names it, with its `-2` to
+  `-4` siblings, in the same-path law (`NIKA-SEC-012`). nika-spec#401
+  (`5cd95cd`) lets the `cost_usd` of `nika:image_generate` and
+  `nika:tts_generate` come from the engine's dated price catalog, marked by
+  `cost_basis` with the rates' date in `cost_as_of`, and keeps it `null`
+  when neither the provider's report nor the catalog yields a figure.

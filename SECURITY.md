@@ -58,7 +58,7 @@ run starts, and the runtime enforces the same boundary again.
 | `NIKA-SEC-002` | Agent tool whitelist | an agent's tool call outside its `tools:` list is refused |
 | `NIKA-SEC-003` | Recursion bound | nested-run depth exceeded, or a self-launching workflow |
 | `NIKA-SEC-005` | SSRF floor | a `nika:fetch` or `nika:notify` URL that resolves to a loopback, private, link-local or metadata address is refused, whatever the permits say |
-| `NIKA-SEC-006` · `NIKA-SEC-007` | Secret flow | a `secrets.<name>` value reaching an unsanctioned sink (exec argument, invoke payload, prompt) or the workflow's outputs |
+| `NIKA-SEC-006` · `NIKA-SEC-007` | Secret flow | a `secrets.<name>` value reaching an unsanctioned sink (exec argument, invoke payload, prompt, `vision:` entry) or the workflow's outputs |
 | `NIKA-SEC-008` | Data as code | a fetched URL naming code-bearing content without an explicit `lift:` door |
 | `NIKA-SEC-009` | Lethal trifecta | private read + untrusted ingress + external egress, with no blocking human gate in between |
 | `NIKA-SEC-010` · `NIKA-SEC-014` | Approval and consent | an approval replayed, mismatched or rate-limited; a refused confirm gate that still lets an egress effect through |
@@ -66,10 +66,6 @@ run starts, and the runtime enforces the same boundary again.
 | `NIKA-SEC-012` | Unordered shared writes | two tasks with no order between them write the same target |
 | `NIKA-SEC-015` | Order law | an `exec:` task runs downstream of a network effect |
 | `NIKA-1710` · `NIKA-1711` | OS sandbox | `exec` children and MCP servers run confined (macOS Seatbelt · Linux bubblewrap); a host that cannot confine a `permits:`-declaring workflow with `exec:` children refuses to run it, and a mistyped `NIKA_SANDBOX` refuses to start |
-
-<!-- TODO(nika-spec#400): re-check the NIKA-SEC-004 row's vision clause against
-     nika-spec#400 and the engine pull request that implements it, once both
-     have merged, then delete this comment. -->
 
 Without a code `nika explain` resolves:
 

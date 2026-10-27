@@ -304,15 +304,15 @@ clause by clause.
   otherwise the `ceiling:` in the project's `nika.yaml`, otherwise USD 0.25.
   It bounds the run's metered spend as the runtime estimates it. It does not
   cover authoring and it is not an invoice.
-- Paid media counts against the ceiling. Images and speech the catalog prices,
-  such as OpenAI `gpt-image-2`, the Gemini image models, OpenAI `tts-1` and
-  `tts-1-hd` and ElevenLabs speech, are metered at their public prices. A paid
-  media call it cannot price (the default OpenAI voice `gpt-4o-mini-tts`,
-  `gpt-image-1.5`, `gpt-image-1-mini` or an unknown model id) is refused before
-  any request; the keyless `system` voice runs as unpriced local work.
-  <!-- TODO(#1846): re-check this item against supernovae-st/nika#1846 once it
-  merges (which models are priced, which are refused, the refusal codes), then
-  delete this comment. -->
+- Paid media counts against the ceiling. Images and speech the catalog prices
+  (OpenAI `gpt-image-2`, the five Gemini image models it lists, OpenAI `tts-1`
+  and `tts-1-hd`, and the ElevenLabs models it maps to a price) are floored
+  before the request and billed at dated public prices; OpenAI's
+  `gpt-image-2.5-sunburst` and `gpt-image-2.5-flare` are billed from the usage
+  they report. A paid media call the catalog cannot price (the default OpenAI
+  voice `gpt-4o-mini-tts`, `gpt-image-1.5`, `gpt-image-1-mini` or a model id it
+  does not list) is refused before any request; the keyless `system` voice
+  bills no provider and runs as unpriced local work.
 - After reopening a history whose saved spending constraint cannot be proved,
   state a fresh Run ceiling. No default replaces that missing evidence.
 - When a workflow declares a required input without a default, the Session asks

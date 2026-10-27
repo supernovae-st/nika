@@ -24,6 +24,4 @@
   `source: url` needs no grant: the provider fetches it. Migration: grant
   each vision file in `permits.fs.read` (`nika check --infer-permits` prints
   the block); embedders hand the verb bytes they read (`VisionPart::Loaded`),
-  never a path. `SPEC_PIN` and the embedded pack follow nika-spec#400, which
-  also names `images.save` and its `-2` to `-4` siblings in the same-path law
-  (`NIKA-SEC-012`).
+  never a path.
