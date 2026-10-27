@@ -96,7 +96,12 @@ impl MediaState {
             };
         }
         let bytes = raw["result"].as_str().map_or(0, str::len);
-        if self.images.len() >= MAX_IMAGES || bytes > MAX_BASE64_TOTAL.saturating_sub(self.encoded)
+        // The image bound counts the images whose bytes arrived: a path-only report is a
+        // claim, never listed nor saved (spec 02 §Harness images), so it takes no image slot
+        // (the tracked-operation bound still caps how many reports a turn may carry).
+        let received = self.images.values().filter(|i| i.data.is_some()).count();
+        if (image.data.is_some() && received >= MAX_IMAGES)
+            || bytes > MAX_BASE64_TOTAL.saturating_sub(self.encoded)
         {
             return Err(refusal(
                 "image receipt exceeds four images or 8 MiB of base64; nothing was truncated",
@@ -274,6 +279,39 @@ mod tests {
         large["rawOutput"]["result"] = json!("A".repeat(MAX_BASE64_TOTAL + 1));
         assert!(MediaState::default().observe(&large).is_err());
     }
+    /// Spec 02 §Harness images · the four-image bound counts the images whose bytes arrived. A
+    /// path-only report is a claim, never an image (it is never listed nor saved), so four of
+    /// them leave room for every received image; the fifth received image is refused.
+    #[test]
+    fn the_four_image_bound_counts_received_images_only() {
+        let call = |id: &str, bytes: bool| {
+            let mut value = complete();
+            value["toolCallId"] = json!(id);
+            if !bytes {
+                value["rawOutput"]["result"] = json!("");
+                value["content"] = json!([]);
+            }
+            value
+        };
+        let mut state = MediaState::default();
+        for n in 0..4 {
+            let image = state
+                .observe(&call(&format!("im-path-{n}"), false))
+                .unwrap()
+                .unwrap();
+            assert!(image.data.is_none(), "a reported path carries no bytes");
+        }
+        for n in 0..MAX_IMAGES {
+            let image = state.observe(&call(&format!("im-{n}"), true)).unwrap();
+            assert!(
+                image.is_some_and(|i| i.data.is_some()),
+                "received image {n} fits beside four path-only reports"
+            );
+        }
+        let refused = state.observe(&call("im-fifth", true)).unwrap_err();
+        assert!(refused.to_string().contains("four images"), "{refused}");
+    }
+
     #[test]
     fn base64_budget_is_inclusive_aggregate_and_never_decodes_invalid_data() {
         let mut bytes = vec![0; MAX_BASE64_TOTAL / 4 * 3];

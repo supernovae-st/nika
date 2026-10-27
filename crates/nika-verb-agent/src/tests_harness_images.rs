@@ -353,6 +353,32 @@ async fn a_second_image_outside_the_grant_refuses_before_the_first_is_written() 
     );
 }
 
+/// Spec 02 §Harness images · a save names at most four files (the path, then `-2` to `-4`, the
+/// paths every check judged): a turn that delivers a fifth image fails before any write, even
+/// from a lent backend no ACP client bounded. The writer keeps its own cap.
+#[tokio::test]
+async fn a_fifth_received_image_refuses_the_save_before_any_write() {
+    let mut tape: Vec<HarnessEvent> = (1..=5)
+        .map(|n| received(&format!("ig-{n}"), &png(format!("image {n}").as_bytes())))
+        .collect();
+    tape.push(completed("five banners"));
+    let (verb, _, tools) = seated(tape, MockToolExecutor::new());
+    let err = verb
+        .run(saving("./out/banner.png"))
+        .await
+        .expect_err("a save names at most four files");
+    assert!(
+        matches!(&err, VerbAgentError::Harness { source: HarnessError::Refused { reason }, .. }
+            if reason.contains("four images") && reason.contains("nothing was written")),
+        "{err:?}"
+    );
+    assert!(
+        tools.captured_calls().is_empty(),
+        "no image is written, the first four included: {:?}",
+        tools.captured_calls()
+    );
+}
+
 /// `images:` is a seat's field: the engine's own loop refuses it before any model call.
 #[tokio::test]
 async fn the_native_loop_refuses_images_before_any_call() {

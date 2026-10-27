@@ -1384,6 +1384,71 @@ mod permits_panel_under_red_conformance {
     }
 }
 
+/// Spec 02 §Vision inputs · the PERMITS panel and the legal-zero hint read ONE fact
+/// (`EffectivePermits::is_pure_compute`): a body whose fs derivation is partial (a rendered
+/// `vision:` file) is never called pure compute, and the check refuses the rendered read the
+/// empty boundary can never admit instead of calling the run ready.
+mod permits_panel_pure_compute_claim {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    use crate::check_render::*;
+
+    fn console_of(report: &nika_check::CheckReport, wf: &RawWorkflow, yaml: &str) -> String {
+        render(
+            report,
+            wf,
+            yaml,
+            "w.nika",
+            RepairTarget::WorkspaceFile,
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+            &crate::check_render::VerdictLayers::default(),
+        )
+    }
+
+    const RENDERED: &str = "nika: look\ninputs:\n  pic: { type: string, required: true }\ntasks:\n  look:\n    infer:\n      prompt: \"Describe the flow\"\n      vision:\n        - source: file\n          path: \"${{ inputs.pic }}\"\n";
+    const PURE: &str = "nika: w\ntasks:\n  a:\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        input: {}\n        expression: '.'\n";
+
+    /// The finding's probe: no block, a rendered vision path. The run refuses it whatever the
+    /// value, so the card names the refusal and never the pure-compute zero.
+    #[test]
+    fn a_rendered_vision_file_under_no_block_is_refused_never_pure_compute() {
+        let wf = parse(RENDERED, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        assert!(!report.is_clean(), "the empty boundary admits no read");
+        let out = console_of(&report, &wf, RENDERED);
+        assert!(
+            out.lines()
+                .any(|l| l.contains("PERMITS") && l.contains("[NIKA-AUTH-006 · fs] task `look`")),
+            "{out}"
+        );
+        assert!(!out.contains("pure compute"), "{out}");
+    }
+
+    /// The panel's claim follows the derivation, not the escape list alone: a partial fs face
+    /// withholds « pure compute » even where no escape renders (the hint's own predicate).
+    #[test]
+    fn a_partial_fs_derivation_is_never_called_pure_compute() {
+        let wf = parse(PURE, FileId::new(0), ParseMode::Strict).expect("parses");
+        let mut report = nika_check::check(&wf);
+        assert!(report.permits.is_pure_compute(true), "the pure body");
+        report.permits.partial.fs = true;
+        assert!(!report.permits.is_pure_compute(true));
+        let out = console_of(&report, &wf, PURE);
+        let line = out
+            .lines()
+            .find(|l| l.contains("PERMITS"))
+            .expect("the PERMITS rung renders");
+        assert!(line.contains("zero authority"), "{line}");
+        assert!(!line.contains("pure compute"), "{line}");
+        assert!(line.contains("RUN's verdict"), "{line}");
+    }
+}
+
 mod builtin_contract_code_on_tools_and_args {
     use nika_schema::parser::{ParseMode, parse};
     use nika_schema::source::FileId;

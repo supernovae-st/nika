@@ -192,19 +192,6 @@ fn scripted_answering(seat: &'static str, answers: &[&'static str], images: bool
     })
 }
 
-/// A fresh scratch directory for one test's image files.
-fn scratch(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "nika-infer-acp-{name}-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos())
-    ));
-    std::fs::create_dir_all(&dir).expect("scratch");
-    dir
-}
-
 /// The `session/prompt` requests the peer saw, in order.
 fn prompts(transport: &Scripted) -> Vec<Value> {
     let seen = transport.seen.lock().expect("seen").clone();
@@ -384,12 +371,12 @@ async fn a_schema_task_that_never_validates_fails_infer_002_after_its_repairs() 
 /// `initialize` advertises image prompts.
 #[tokio::test]
 async fn a_vision_file_rides_as_an_image_block_to_an_agent_that_reads_images() {
-    let dir = scratch("vision");
-    let png = dir.join("logo.png");
-    std::fs::write(&png, b"\x89PNG\r\n\x1a\nIHDR-bytes").expect("png");
     let transport = scripted_answering("claude-code", &["a blue logo"], true);
     let mut input = ask("claude-code", "max");
-    input.vision = vec![VisionPart::file(png.to_string_lossy())];
+    input.vision = vec![VisionPart::loaded(
+        "./logo.png",
+        b"\x89PNG\r\n\x1a\nIHDR-bytes".to_vec(),
+    )];
     let out = verb(transport.clone())
         .run_on_harness("claude-code", input)
         .await
@@ -405,12 +392,12 @@ async fn a_vision_file_rides_as_an_image_block_to_an_agent_that_reads_images() {
 
 #[tokio::test]
 async fn a_vision_file_refuses_before_the_session_when_the_agent_reads_no_images() {
-    let dir = scratch("vision");
-    let png = dir.join("logo.png");
-    std::fs::write(&png, b"\x89PNG\r\n\x1a\nIHDR-bytes").expect("png");
     let transport = scripted_answering("claude-code", &["unseen"], false);
     let mut input = ask("claude-code", "max");
-    input.vision = vec![VisionPart::file(png.to_string_lossy())];
+    input.vision = vec![VisionPart::loaded(
+        "./logo.png",
+        b"\x89PNG\r\n\x1a\nIHDR-bytes".to_vec(),
+    )];
     let err = verb(transport.clone())
         .run_on_harness("claude-code", input)
         .await

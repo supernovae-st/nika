@@ -73,7 +73,12 @@ pub(super) fn lane(
     hints: &mut Vec<Hint>,
 ) -> EffectivePermits {
     let effective = crate::effective::collect(wf);
-    crate::hints::legal_zero_hint(wf, escapes_empty, judged, hints);
+    // A read the derivation cannot pin (a rendered `vision:` file or `nika:read`
+    // path) is the run's to judge, so the body is not pure compute whatever the
+    // escape scan saw (spec 02 §Vision inputs): no legal-zero claim then. The
+    // check card's PERMITS rung reads the same predicate.
+    let pure = effective.is_pure_compute(escapes_empty);
+    crate::hints::legal_zero_hint(wf, pure, judged, hints);
     if judged && escapes_empty {
         offer_tightest(&effective, hints);
     }
@@ -178,6 +183,44 @@ mod tests {
     fn check_yaml(yaml: &str) -> CheckReport {
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         check(&wf)
+    }
+
+    /// Spec 02 §Vision inputs · an `infer:` that names a `vision:` file reads it. A rendered
+    /// path under an absent block can never be admitted (the zero boundary grants no read), so
+    /// check refuses it (`NIKA-AUTH-006`) and never calls the body pure compute: the legal-zero
+    /// hint's advice (`permits: {}`) would still refuse the read.
+    #[test]
+    fn a_rendered_vision_file_is_never_called_pure_compute() {
+        let r = check_yaml(
+            "nika: w\nmodel: mock/echo\ninputs:\n  pic: { type: string, required: true }\ntasks:\n  a:\n    infer:\n      prompt: \"hi\"\n      max_tokens: 5\n      vision:\n        - { source: file, path: \"${{ inputs.pic }}\" }\n",
+        );
+        assert!(!r.is_clean(), "the empty boundary admits no read: {r:?}");
+        assert!(
+            r.capability_escapes
+                .iter()
+                .any(|e| e.task == "a" && e.category == "fs" && e.undeclared),
+            "{:?}",
+            r.capability_escapes
+        );
+        assert!(!r.permits.is_pure_compute(r.capability_escapes.is_empty()));
+        assert!(
+            !r.hints
+                .iter()
+                .any(|h| h.kind == "permits" && h.advice.contains("pure compute")),
+            "{:?}",
+            r.hints
+        );
+        // The pure body keeps its hint.
+        let pure = check_yaml(
+            "nika: w\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+        );
+        assert!(
+            pure.hints
+                .iter()
+                .any(|h| h.kind == "permits" && h.advice.contains("pure compute")),
+            "{:?}",
+            pure.hints
+        );
     }
 
     /// The tightest boundary is OFFERED when the declared one is wider,

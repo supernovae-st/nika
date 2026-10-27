@@ -1069,6 +1069,41 @@ tasks:
         assert!(f.is_empty(), "{f:?}");
     }
 
+    /// Spec 02 §Vision inputs · a child's `vision:` file is a read its needs carry, so it is
+    /// contained by the parent's read boundary like any other read (spec 14 laws 3/4).
+    #[test]
+    fn a_childs_vision_file_needs_the_parents_read_grant() {
+        let child = "\
+nika: child
+permits:
+  fs: { read: [\"./diagrams/**\"] }
+tasks:
+  look:
+    infer:
+      prompt: \"Describe the flow\"
+      vision:
+        - { source: file, path: \"./diagrams/flow.png\" }
+";
+        let parent = |read: &str| {
+            format!(
+                "nika: parent\npermits:\n  fs: {{ read: [\"{read}\"] }}\ntasks:\n  audit:\n    \
+                 invoke:\n      workflow: \"./child.nika\"\n"
+            )
+        };
+        let narrow = parse(&parent("./docs/**"));
+        let f = scan_resolved(&narrow, "parent.nika", &mut |_| Ok(child.to_owned()));
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].code, "NIKA-COMP-002");
+        assert!(
+            f[0].detail.contains("./diagrams/flow.png"),
+            "the refusal names the read: {}",
+            f[0].detail
+        );
+        let covering = parse(&parent("./diagrams/**"));
+        let f = scan_resolved(&covering, "parent.nika", &mut |_| Ok(child.to_owned()));
+        assert!(f.is_empty(), "{f:?}");
+    }
+
     #[test]
     fn undeclared_parent_boundary_is_zero_authority() {
         // F-O8 « absent = zero authority »: no parent permits ⇒ the parent

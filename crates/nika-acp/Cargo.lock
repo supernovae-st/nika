@@ -2404,6 +2404,7 @@ dependencies = [
 name = "nika-runtime"
 version = "0.123.2"
 dependencies = [
+ "base64 0.23.1",
  "blake3",
  "futures-util",
  "nika-builtin",

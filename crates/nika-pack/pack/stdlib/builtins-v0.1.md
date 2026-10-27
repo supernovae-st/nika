@@ -795,13 +795,30 @@ path, filename, mime_type, format, width, height, size_bytes, sha256,
 provider, model, seed, variant_id, warnings, metadata }], usage:
 { input_tokens, output_tokens, total_tokens, thoughts_tokens }, cost_usd,
 warnings, manifest_path, output_dir }` — absent usage axes are `null`,
-never zero-that-looks-real. `cost_usd` is the render's REAL spend when
-the provider reports it exactly (xai bills `cost_in_usd_ticks` in the
-response · 1 cent = 10⁸ ticks) and `null` otherwise — never an estimate
-dressed as truth. **Invoke-cost metering (normative)** · a tool whose
-structured output carries a top-level numeric `cost_usd` reports real
-spend; engines SHOULD meter it into the run's cost ledger through the
-same honest-spend channel `infer:` rides.
+never zero-that-looks-real. `cost_usd` is the render's spend, and a
+non-null one rides with `cost_basis`, the origin of the figure: either the
+provider's own exact report (`provider_reported` · xai bills
+`cost_in_usd_ticks` in the response · 1 cent = 10⁸ ticks), or the
+engine's dated price catalog applied to what the provider reported:
+`catalog_rate_x_usage` (the model's catalog token rates × the usage the
+responses reported, a response that reported none adding its images at
+the catalog price per image) or `catalog_price_x_images` (the model's
+catalog price per image × the images delivered, when no response reports
+usage). The price per image is the catalog's for the requested size class
+and quality; where the request leaves either open (`quality: auto`, a
+size the catalog does not list), the highest the catalog lists for what it
+could have rendered, never below. A catalog figure also carries
+`cost_as_of`, the date its rates were read from the provider's public
+price page (`YYYY-MM-DD`). When neither the provider's report nor the
+catalog yields a figure (a model the catalog does not price, or one it
+prices by tokens only whose response reports no usage), `cost_usd` is
+`null` and both markers are absent — never an estimate dressed as truth,
+never a zero. The catalog itself is engine
+data, not language surface (spend-honesty law ·
+[07](../spec/07-conformance.md)). **Invoke-cost metering (normative)** · a
+tool whose structured output carries a top-level numeric `cost_usd`
+reports real spend; engines SHOULD meter it into the run's cost ledger
+through the same honest-spend channel `infer:` rides.
 
 **Security (engine MUST)** · provider endpoints are ENGINE-FIXED constants
 (never workflow data — the provider egress is engine transport, exactly like
@@ -1085,9 +1102,13 @@ content-hash-named `{stem}-{provider}-{model}-{sha8}.{ext}` so identical
 re-runs are idempotent), the output carries `{ provider, model, voice,
 created_at, endpoint_host, audio: { path, filename, format, mime_type,
 size_bytes, sha256, duration_ms }, cost_usd, warnings, manifest_path,
-output_dir }` (plus `cost_unpriced` when the engine knows why `cost_usd`
-is null · `system`) — **audio bytes NEVER ride outputs**, and a sidecar
-provenance manifest (`manifest: true` default) echoes the resolved
+output_dir }` (plus `cost_basis` and `cost_as_of` beside a non-null
+`cost_usd`, as `image_generate` · `catalog_rate_x_characters`: the
+engine's dated catalog rate per character × the characters the request
+sent, the text as trimmed · a provider's own exact report stays
+`provider_reported`; plus `cost_unpriced` when the engine knows why
+`cost_usd` is null · `system`) — **audio bytes NEVER ride outputs**, and a
+sidecar provenance manifest (`manifest: true` default) echoes the resolved
 request.
 
 | Arg | Contract |

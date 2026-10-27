@@ -1269,21 +1269,28 @@ pub fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Them
         return;
     }
     if wf.permits.is_none() && report.capability_escapes.is_empty() {
-        let _ = writeln!(
-            out,
-            " {} {}  {}",
-            t.paint(Role::Dim, "○"),
-            t.paint(Role::Strong, "PERMITS"),
+        // « pure compute » is the legal-zero hint's claim, read from the SAME
+        // predicate (`EffectivePermits::is_pure_compute`): a body whose fs
+        // derivation is partial (a rendered `vision:` file) is the run's to
+        // judge, and `permits: {}` would still refuse it there.
+        let claim = if report.permits.is_pure_compute(true) {
             // `{}` and NOT `{{}}`: this literal is an ARGUMENT to `writeln!`,
             // not part of its format string, so braces are not unescaped
             // here. The doubled form shipped, and it is not a cosmetic slip —
             // `permits: {{}}` is refused by YAML itself, so the line taught a
             // form no parser accepts while the HINT one row below printed the
             // right one. Two lines of the same output disagreeing.
-            t.paint(
-                Role::Dim,
-                "zero authority (no `permits:` declared · F-O8) · pure compute · `permits: {}` states it"
-            )
+            "zero authority (no `permits:` declared · F-O8) · pure compute · `permits: {}` states it"
+        } else {
+            "zero authority (no `permits:` declared · F-O8) · a computed file path is the RUN's \
+             verdict, and zero authority admits none"
+        };
+        let _ = writeln!(
+            out,
+            " {} {}  {}",
+            t.paint(Role::Dim, "○"),
+            t.paint(Role::Strong, "PERMITS"),
+            t.paint(Role::Dim, claim)
         );
         return;
     }

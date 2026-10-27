@@ -224,7 +224,7 @@ fn check_action(
             }
             check_images_save(id, a, permits, consts, out);
         }
-        RawAction::Infer(_) => {}
+        RawAction::Infer(a) => check_vision_reads(id, a, permits, consts, out),
         #[allow(
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
@@ -237,9 +237,10 @@ fn check_action(
 /// so a literal path (or a bare const) is judged against `permits.fs.write` before the run —
 /// every path the save can take, the first and its `-n` siblings
 /// ([`nika_types::access::harness_image_paths`]): an exact-file grant holds the first image
-/// and not the second, which the run would refuse after writing the first. A rendered path
-/// stays the runtime's `NIKA-SEC-004`. Under an absent block the zero boundary refuses it
-/// (stamped `NIKA-AUTH-006` by the caller).
+/// and not the second, which the run would refuse after writing the first. Which file a
+/// rendered path names stays the runtime's `NIKA-SEC-004`; an `fs.write` that grants no path
+/// refuses every value, after a paid turn, so it is refused here. Under an absent block the
+/// zero boundary refuses both (stamped `NIKA-AUTH-006` by the caller).
 fn check_images_save(
     id: &str,
     a: &nika_schema::raw::RawAgentAction,
@@ -251,10 +252,13 @@ fn check_images_save(
         return;
     };
     let path = if save.value.contains("${{") {
-        match consts.resolve(&save.value) {
-            Some(path) => path.to_owned(),
-            None => return,
-        }
+        let Some(path) = consts.resolve(&save.value) else {
+            if grants_no_path(permits, true) {
+                out.push(computed_path_escape(id, "images.save", "fs.write"));
+            }
+            return;
+        };
+        path.to_owned()
     } else {
         save.value.clone()
     };
@@ -271,21 +275,89 @@ fn check_images_save(
     }
 }
 
+/// The `source: file` paths of an `infer:` task's `vision:` list, in order (spec 02 §Vision
+/// inputs): each one a file the engine reads and sends to the provider. A `source: url` is not
+/// an fs effect (the provider fetches it), and a source form this build does not know is never
+/// read (the run refuses it unwired before any read), so neither is yielded.
+pub(super) fn vision_files(
+    a: &nika_schema::raw::RawInferAction,
+) -> impl Iterator<Item = &nika_schema::source::Spanned<String>> {
+    a.vision.iter().filter_map(|item| match &item.value {
+        nika_schema::raw::VisionInput::File { path } => Some(path),
+        _ => None,
+    })
+}
+
+/// `vision:` files (spec 02 §Vision inputs): the engine reads each `source: file` path and
+/// sends its bytes to the provider, a read of the `nika:read` class, so a literal path (or a
+/// whole bare const) is judged against `permits.fs.read` before the run. Which file a rendered
+/// path names stays the runtime's `NIKA-SEC-004`; whether the boundary grants ANY read does
+/// not (the waiver rule in `lib.rs`): an empty `fs.read` refuses every rendered value, so it is
+/// refused here, once per task. Under an absent block the zero boundary refuses both (stamped
+/// `NIKA-AUTH-006` by the caller).
+fn check_vision_reads(
+    id: &str,
+    a: &nika_schema::raw::RawInferAction,
+    permits: &Permits,
+    consts: &ConstStrings,
+    out: &mut Vec<CapabilityEscape>,
+) {
+    let mut rendered = false;
+    for path in vision_files(a) {
+        match judgeable_str(consts, &path.value) {
+            Some(path) if !permits.allows_path(&path, false) => {
+                out.push(fs_escape(id, "vision", &path, "fs.read", permits, false));
+            }
+            Some(_) => {}
+            None => rendered = true,
+        }
+    }
+    if rendered && grants_no_path(permits, false) {
+        out.push(computed_path_escape(id, "vision", "fs.read"));
+    }
+}
+
+/// Whether the boundary's `fs` side (`fs.write` when `write`, else `fs.read`) admits no path at
+/// all: an absent `fs:` category, or an empty list.
+fn grants_no_path(permits: &Permits, write: bool) -> bool {
+    permits.fs.as_ref().is_none_or(|fs| {
+        if write {
+            fs.write.is_empty()
+        } else {
+            fs.read.is_empty()
+        }
+    })
+}
+
+/// A file the engine itself reads or writes for the task (a `vision:` file, an `images.save`) at
+/// a path computed at run time, under a `side` that grants no path. WHICH path is unknowable here;
+/// whether ANY path is granted is a set-emptiness test, decidable without the value (the
+/// `check_net_effect` precedent): the run is refused whatever the value turns out to be.
+fn computed_path_escape(id: &str, field: &str, side: &'static str) -> CapabilityEscape {
+    CapabilityEscape {
+        task: id.to_owned(),
+        category: "fs",
+        detail: format!(
+            "`{field}` names a file at a path computed at run time, and permits.{side} grants \
+             none — every path is outside an empty grant, so the run is refused whatever the \
+             value turns out to be"
+        ),
+        fix: Some(format!(
+            "grant the paths the task may name in permits.{side} (`nika check --infer-permits` \
+             names the computed path for review)"
+        )),
+        floor: false,
+        undeclared: false,
+    }
+}
+
 /// A granted tool with an empty required fs side has no possible legal target.
 fn check_agent_fs(id: &str, tool: &str, permits: &Permits, out: &mut Vec<CapabilityEscape>) {
     let Some((reads, writes)) = nika_cap::required_fs_directions(tool) else {
         return;
     };
     for (active, write, side) in [(reads, false, "fs.read"), (writes, true, "fs.write")] {
-        if active
-            && permits.fs.as_ref().is_none_or(|fs| {
-                if write {
-                    fs.write.is_empty()
-                } else {
-                    fs.read.is_empty()
-                }
-            })
-        {
+        if active && grants_no_path(permits, write) {
             out.push(CapabilityEscape {
                 task: id.to_owned(),
                 category: "fs",
@@ -849,7 +921,14 @@ fn check_secondary_reads(
 /// `${{ const.<name> }}` resolved through the const table — the
 /// [`judgeable_arg`] law, over a value.
 pub(super) fn judgeable_value(consts: &ConstStrings, value: &serde_json::Value) -> Option<String> {
-    let s = value.as_str().filter(|s| !s.is_empty())?;
+    judgeable_str(consts, value.as_str()?)
+}
+
+/// [`judgeable_value`] over a bare string (a `vision:` path).
+pub(super) fn judgeable_str(consts: &ConstStrings, s: &str) -> Option<String> {
+    if s.is_empty() {
+        return None;
+    }
     if s.contains("${{") {
         return consts.resolve(s).map(str::to_owned);
     }

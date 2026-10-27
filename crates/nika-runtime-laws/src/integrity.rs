@@ -468,6 +468,31 @@ mod tests {
         assert_eq!(task_integrity(&clean_prompt, &recs), Integrity::trusted());
     }
 
+    /// Spec 02 §Vision inputs · the `vision:` entries are effect fields of the ONE table the
+    /// check reads too: content that picks the file (or the URL) picks what the model sees, so
+    /// the answer carries its label, exactly as a prompt that reads it would.
+    #[test]
+    fn a_vision_entry_carries_the_label_of_what_picks_it() {
+        let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
+        for entry in [
+            "{ source: file, path: \"${{ tasks.dl.output }}\" }",
+            "{ source: url, url: \"${{ tasks.dl.output }}\" }",
+        ] {
+            let task = parse_task(&format!(
+                "{HEAD}  look:\n    infer: {{ prompt: \"describe\", max_tokens: 5, vision: [{entry}] }}\n"
+            ));
+            assert_eq!(
+                task_integrity(&task, &recs),
+                Integrity::untrusted("dl"),
+                "{entry}"
+            );
+        }
+        let authored = parse_task(&format!(
+            "{HEAD}  look:\n    infer: {{ prompt: \"describe\", max_tokens: 5, vision: [{{ source: file, path: \"./diagrams/flow.png\" }}] }}\n"
+        ));
+        assert_eq!(task_integrity(&authored, &recs), Integrity::trusted());
+    }
+
     #[test]
     fn exec_is_a_born_source() {
         // F2 · 2026-07-30 (operator decision A, run 5): a subprocess is a

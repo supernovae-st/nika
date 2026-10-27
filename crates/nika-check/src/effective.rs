@@ -77,6 +77,17 @@ impl EffectivePermits {
             Some(p) => format_grants(p),
         }
     }
+
+    /// Whether the body is pure compute: nothing escapes (`escapes_empty`, the escape scan's
+    /// verdict) AND the derivation pins every file path. A read or write the derivation cannot
+    /// pin (a rendered `vision:` file, `nika:read` path or `images.save`) is the run's to judge,
+    /// so such a body is never pure compute and `permits: {}` would still refuse it at run (spec
+    /// 02 §Vision inputs). The legal-zero hint and the check card's PERMITS rung read this one
+    /// predicate, so they cannot disagree.
+    #[must_use]
+    pub const fn is_pure_compute(&self, escapes_empty: bool) -> bool {
+        escapes_empty && !self.partial.fs
+    }
 }
 
 fn format_grants(p: &Permits) -> String {

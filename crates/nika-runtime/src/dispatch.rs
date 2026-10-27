@@ -17,11 +17,11 @@ use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
-use nika_schema::raw::{RawAction, RawCommand, RawTask, RawWorkflow, VisionInput};
+use nika_schema::raw::{RawAction, RawCommand, RawTask, RawWorkflow};
 use nika_types::cost::UnpricedReason;
 use nika_verb_agent::AgentInput;
 use nika_verb_exec::{CaptureMode, ExecCommand, ExecValue};
-use nika_verb_infer::{InferInput, VisionPart};
+use nika_verb_infer::InferInput;
 use nika_verb_invoke::InvokeInput;
 use serde_json::Value;
 
@@ -34,6 +34,7 @@ mod permits;
 mod regate;
 mod spend;
 mod verb_outcome;
+mod vision;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
 use exec_io::{build_exec_input, capture_mode, render_exec_io};
@@ -1055,11 +1056,10 @@ where
         if action.thinking.as_ref().is_some_and(|t| t.value.enabled) {
             input.thinking_budget = action.thinking.as_ref().and_then(|t| t.value.budget_tokens);
         }
-        match collect_vision(&action.vision, scope) {
-            Ok(v) => input.vision = v,
-            Err(VisionErr::Template(err)) => return Dispatched::template_err("infer · ?", &err),
-            Err(VisionErr::Unwired(detail)) => return Dispatched::unwired("infer · ?", detail),
-        }
+        let vision = match vision::render(&action.vision, scope) {
+            Ok(rendered) => rendered,
+            Err(refused) => return *refused,
+        };
         // One Door · wave 1: the lane decides the adapter — the frozen
         // plan's seat for THIS task's model (a pinned seat serves every
         // model), never a run-wide « a seat exists » flag.
@@ -1074,6 +1074,13 @@ where
         if let Some(refused) = self.pre_send_refusal(&lane_model, "infer", ctx) {
             return refused;
         }
+        // Spec 02 §Vision inputs: every file is a read inside the workflow's boundary, made
+        // once the lane runs the task and before any provider call (`dispatch/vision.rs`).
+        let note = format!("infer · {lane_model}");
+        input.vision = match self.load_vision(vision, &note).await {
+            Ok(parts) => parts,
+            Err(refused) => return *refused,
+        };
         let input = input.with_requirement(self.requirement());
         #[cfg(feature = "access-harness")]
         if let Some(seat_id) = self.seat_for(&lane_model) {
@@ -1264,42 +1271,6 @@ where
     }
 }
 
-/// Price the spend a FAILED verb had already incurred (decorated on
-/// its error at the verb seam): the LLM leg through the same resolver
-/// successes use, plus any tool-reported spend — either alone still
-/// rides. `None`-everything when the failure preceded any billed call.
-fn collect_vision(
-    items: &[nika_schema::Spanned<VisionInput>],
-    scope: &Scope<'_>,
-) -> Result<Vec<VisionPart>, VisionErr> {
-    let mut out = Vec::with_capacity(items.len());
-    for item in items {
-        out.push(match &item.value {
-            VisionInput::File { path } => VisionPart::file(
-                expr::render(&path.value, scope)
-                    .map_err(RuntimeError::from)
-                    .map_err(VisionErr::Template)?,
-            ),
-            VisionInput::Url { url } => VisionPart::url(
-                expr::render(&url.value, scope)
-                    .map_err(RuntimeError::from)
-                    .map_err(VisionErr::Template)?,
-            ),
-            other => {
-                return Err(VisionErr::Unwired(format!(
-                    "vision source form not wired yet: {other:?}"
-                )));
-            }
-        });
-    }
-    Ok(out)
-}
-
-enum VisionErr {
-    Template(RuntimeError),
-    Unwired(String),
-}
-
 /// The agent fields rendered before the task's lane is known: `model:` (the same render seam
 /// as infer's, #824) and the `images.save` path (spec 02 §Harness images).
 fn render_agent_fields(
@@ -1389,14 +1360,15 @@ mod infer_deadline_tests {
     use crate::{DeterministicStamper, Runtime, RuntimeConfig, VecSink};
 
     /// Captures every provider request · answers a minimal
-    /// vendor-shaped success so the run settles green.
+    /// vendor-shaped success so the run settles green. `pub(super)`: the
+    /// `vision` tests read the wire through it.
     #[derive(Default)]
-    struct CapturingHttp {
+    pub(super) struct CapturingHttp {
         captured: Mutex<Vec<HttpRequest>>,
     }
 
     impl CapturingHttp {
-        fn captured(&self) -> Vec<HttpRequest> {
+        pub(super) fn captured(&self) -> Vec<HttpRequest> {
             self.captured.lock().expect("test mutex").clone()
         }
     }
@@ -1450,9 +1422,10 @@ mod infer_deadline_tests {
         captured
     }
 
-    /// Same rig as [`run_and_capture`], but a failed task is data (the
-    /// #1135 missing-file catching test).
-    pub(super) async fn run_capture(yaml: &str) -> (crate::RunOutcome, Vec<HttpRequest>) {
+    /// Same rig as [`run_and_capture`], but a failed task is data. (The
+    /// #1135 missing-file test moved to `dispatch/vision/tests.rs`, onto
+    /// the real builtin plane a vision read now rides.)
+    async fn run_capture(yaml: &str) -> (crate::RunOutcome, Vec<HttpRequest>) {
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),
