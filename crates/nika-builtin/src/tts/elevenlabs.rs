@@ -22,13 +22,17 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     args: &TtsArgs,
 ) -> Result<ProviderAudio, BuiltinFailure> {
     let (request, warnings) = build_request(args, key)?;
-    let response = http.post(request).await.map_err(map_transport)?;
+    // A request that left may have rendered and billed (C-D3).
+    let response = (http.post(request).await)
+        .map_err(|error| crate::media::cost::transport_failure(error, map_transport))?;
     if !(200..300).contains(&response.status) {
         return Err(map_error_status(response.status, &response.body));
     }
     Ok(ProviderAudio {
         bytes: response.body.to_vec(),
-        cost_usd: None, // subscription-quota billing · no response cost field
+        // No cost field in the response: the dated media table bills it per
+        // character (`tts::bill` · C-D3).
+        cost_usd: None,
         endpoint_host: Some("api.elevenlabs.io".to_owned()),
         warnings,
     })

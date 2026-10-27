@@ -124,9 +124,9 @@ impl AudioFormat {
 #[derive(Debug, Default)]
 pub(crate) struct ProviderAudio {
     pub(crate) bytes: Vec<u8>,
-    /// Real spend in USD when computable exactly — v1 providers are
-    /// subscription/token-priced without a response cost field → `None`
-    /// (honest · the shape matches the image family for the ledger seam).
+    /// Real spend in USD when the provider reports it in its response. No
+    /// v1 speech provider does: `None`, and the builtin bills the call from
+    /// the dated media table per character instead (C-D3 · `tts::bill`).
     pub(crate) cost_usd: Option<f64>,
     /// The host the synthesis came from (provenance — load-bearing for
     /// `local`). `None` for the in-process mock.
@@ -150,6 +150,16 @@ mod tests {
             assert_eq!(p.id(), id);
             assert!(!p.default_model().is_empty());
             assert!(!p.default_voice().is_empty());
+        }
+        // C-D3 · the catalog prices a call that omits `model:` at the model
+        // this builtin defaults to: the two defaults are one fact.
+        for p in [Provider::Openai, Provider::Elevenlabs] {
+            assert_eq!(
+                nika_catalog::builtin_media_default_model("nika:tts_generate", p.id()),
+                Some(p.default_model()),
+                "{}",
+                p.id()
+            );
         }
         assert_eq!(AudioFormat::Mp3.mime(), "audio/mpeg");
         assert_eq!(AudioFormat::Wav.extension(), "wav");

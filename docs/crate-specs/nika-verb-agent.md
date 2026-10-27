@@ -466,3 +466,36 @@ are decorated once at the existing failure seam. This does not newly account for
 a whole agent/task future dropped before returning an error: the runtime ledger
 still owns its existing debit and terminal rules. Unread iterations can remain
 cancelled, independently of physical-call facts. Child-workflow drain is unchanged.
+
+## Paid media under the run's cost cap (C-D3)
+
+`AgentInput::cost_remaining_usd` carries the run ledger's remaining USD when
+the task dispatched (a snapshot of the ledger, net of the floors its paid
+media calls in flight hold; absent without a cap). The loop keeps a
+`media_cap::MediaAllowance` against it: before each tool batch it charges the
+loop's model turns so far at their known estimate, and each returned tool
+call at its reported spend. Before the native loop sends a whitelisted tool
+call to the invoke seam, it asks `nika_check::analyzer::media_cap_hold` about
+that call's arguments (read as rendered: a `${{` in them is text the
+provider receives) against what the allowance leaves: a paid media call
+(`nika:image_generate`, `nika:tts_generate`) whose model the catalog cannot
+price, whose floor exceeds what is left, or that is billed from its usage
+when nothing is left or once an earlier paid call billed without a figure,
+is refused with a NIKA-1704 tool-error block fed back to the model (the
+refusal of an unpriced call names every model the catalog prices). An
+admitted call holds its floor until it returns, so the concurrent calls of
+one turn (`max_parallel_tools`) cannot spend the same remainder twice; a
+call that billed without a figure stays charged at its floor. Nothing
+refused reaches the executor, so nothing bills; the model may choose a
+priced model, the keyless `system` voice, or a `local` or `mock` provider.
+Without a cap the call runs. A priced call's `cost_usd` (the builtin's bill
+from the dated media table), and the priced part of what a failed call had
+already billed (`ToolErrorDetails::spent`), join `AgentOutput::tools_cost_usd`,
+which the runtime adds to the task's spend. A returned paid media call that
+reported no `cost_usd` is named once per call in `AgentOutput::tools_unpriced`
+(`missing_catalog_price`, or `provider_did_not_report_usage` for a priced
+call), as is a failed call's unknown part, and in
+`SpendOnFailure::tools_unpriced` when the loop fails afterwards, so the
+runtime ledger counts it. The snapshot is per task: concurrent agent tasks of
+one run each judge against their own, as text siblings in flight do. The
+harness path refuses a tool whitelist, so it never reaches a media builtin.

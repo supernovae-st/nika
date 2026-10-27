@@ -1135,6 +1135,7 @@ pub fn nika_check::ConsentFinding::as_any(&self) -> &(dyn core::any::Any + 'stat
 pub nika_check::CostCeiling::bounded_total_usd: f64
 pub nika_check::CostCeiling::composed: alloc::vec::Vec<nika_check::ComposedCost>
 pub nika_check::CostCeiling::has_unbounded: bool
+pub nika_check::CostCeiling::media: alloc::vec::Vec<nika_check::MediaCost>
 pub nika_check::CostCeiling::min_path_total_usd: f64
 pub nika_check::CostCeiling::tasks: alloc::vec::Vec<nika_check::TaskCost>
 impl nika_check::CostCeiling
@@ -1899,6 +1900,55 @@ impl<T> dyn_clone::DynClone for nika_check::LiteralCredential where T: core::clo
 pub fn nika_check::LiteralCredential::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::LiteralCredential where T: 'static
 pub fn nika_check::LiteralCredential::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::MediaCost
+pub nika_check::MediaCost::as_of: core::option::Option<alloc::string::String>
+pub nika_check::MediaCost::model: core::option::Option<alloc::string::String>
+pub nika_check::MediaCost::priced: bool
+pub nika_check::MediaCost::provider: alloc::string::String
+pub nika_check::MediaCost::rate: core::option::Option<alloc::string::String>
+pub nika_check::MediaCost::run_decided: bool
+pub nika_check::MediaCost::task: alloc::string::String
+pub nika_check::MediaCost::tool: alloc::string::String
+pub nika_check::MediaCost::usd_per_call: core::option::Option<f64>
+impl nika_check::MediaCost
+pub fn nika_check::MediaCost::metered(&self) -> bool
+pub fn nika_check::MediaCost::unpriced(&self) -> bool
+impl core::clone::Clone for nika_check::MediaCost
+pub fn nika_check::MediaCost::clone(&self) -> nika_check::MediaCost
+impl core::cmp::PartialEq for nika_check::MediaCost
+pub fn nika_check::MediaCost::eq(&self, other: &nika_check::MediaCost) -> bool
+impl core::fmt::Debug for nika_check::MediaCost
+pub fn nika_check::MediaCost::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::MediaCost
+impl serde_core::ser::Serialize for nika_check::MediaCost
+pub fn nika_check::MediaCost::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::MediaCost
+impl<T, U> core::convert::Into<U> for nika_check::MediaCost where U: core::convert::From<T>
+pub fn nika_check::MediaCost::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::MediaCost where U: core::convert::Into<T>
+pub type nika_check::MediaCost::Error = core::convert::Infallible
+pub fn nika_check::MediaCost::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::MediaCost where U: core::convert::TryFrom<T>
+pub type nika_check::MediaCost::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::MediaCost::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::MediaCost where T: core::clone::Clone
+pub type nika_check::MediaCost::Owned = T
+pub fn nika_check::MediaCost::clone_into(&self, target: &mut T)
+pub fn nika_check::MediaCost::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::MediaCost where T: 'static + ?core::marker::Sized
+pub fn nika_check::MediaCost::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::MediaCost where T: ?core::marker::Sized
+pub fn nika_check::MediaCost::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::MediaCost where T: ?core::marker::Sized
+pub fn nika_check::MediaCost::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::MediaCost where T: core::clone::Clone
+pub unsafe fn nika_check::MediaCost::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::MediaCost
+pub fn nika_check::MediaCost::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::MediaCost where T: core::clone::Clone
+pub fn nika_check::MediaCost::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::MediaCost where T: 'static
+pub fn nika_check::MediaCost::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::MissingArg
 pub nika_check::MissingArg::arg: alloc::string::String
 pub nika_check::MissingArg::task: alloc::string::String

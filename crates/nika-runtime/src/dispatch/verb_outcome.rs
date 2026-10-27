@@ -195,17 +195,25 @@ pub(super) fn agent_success(out: AgentOutput, access: Option<AccessPlan>) -> Dis
         )
     });
     let split = split.carried();
-    Dispatched::ok_metered(
+    // C-D3 · a paid media tool call that billed with no reported spend is
+    // outside `cost_usd`: named on the frame when the LLM leg is priced, and
+    // counted per call by the ledger.
+    let tools_unpriced = out.tools_unpriced.first().copied();
+    let mut dispatched = Dispatched::ok_metered(
         note,
         value,
         tokens,
         None,
         cost_usd,
         out.model_resolved.clone(),
-        llm_unpriced,
+        llm_unpriced.or(tools_unpriced),
     )
     .with_usage(split)
-    .with_access(access.map(|lane| lane.with_selection(out.selection)))
+    .with_access(access.map(|lane| lane.with_selection(out.selection)));
+    if let Ok(ok) = &mut dispatched.result {
+        ok.unpriced_inner_calls = u32::try_from(out.tools_unpriced.len()).unwrap_or(u32::MAX);
+    }
+    dispatched
 }
 
 #[cfg(test)]

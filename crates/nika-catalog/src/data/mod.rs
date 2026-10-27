@@ -19,6 +19,8 @@
 pub mod builtin_prices;
 #[cfg(feature = "builtins-transforms")]
 pub mod builtins;
+#[cfg(feature = "builtins-transforms")]
+pub mod media_prices;
 
 pub mod generated;
 

@@ -230,6 +230,7 @@ fn parse_response(
     Ok(ProviderBatch {
         images,
         usage: Usage::default(), // self-hosted — no billing axes to report
+        unreported_images: 0,
         endpoint_host: Some(host_of(base_url)),
         cost_usd: None, // self-hosted — no billing axis
         provider_text: None,

@@ -470,3 +470,38 @@ one provider ahead of a broader rule, `claude-on-anthropic` and
 nika-providers tests pin `thinking_off` and `reasons_by_default` to what each
 wire sends. Facts describe documented and observed behavior, not a guarantee
 of a given call's reasoning.
+
+## Dated media prices (C-D3 · added 2026-10-27)
+
+`data/media_prices.rs` is a hand-sourced table of the paid media models'
+public rates, apart from the generated models.dev snapshot (which carries no
+per-image or per-character rate). Every `MediaRate` row names its builtin,
+provider, model id, `MediaUnit`, USD rate, official source page and the date
+the page was read (`MEDIA_PRICING_AS_OF`); a row states only what its source
+states. Three units: `Image { size, quality }` (one delivered image of a size
+or resolution class at a quality, the admission floor and the bill of an
+image response that reports no usage), `MillionCharacters` (speech, exact
+from the text before the call) and `MillionTokens(TokenAxis)` (text input,
+image input, image output, and text and thinking output where the page gives
+one). `find_media_model(tool, provider, model)` returns the `MediaModel`
+handle; `image_floor` picks the listed row of a request's size class and
+quality, else the lowest listed over what the request leaves open (`quality:
+auto`, an unlisted size), and `image_ceiling` the highest (what an image
+whose response reports no usage is billed at); `image_usage_usd` bills each reported axis at its
+rate and an unsplit remainder at the highest rate it could fall under, never
+below; `speech_usd` is rate × characters. `builtin_media_price(tool,
+provider, model)` classifies a call: `Unmetered` (local · mock · `system`),
+`PerCall` (xAI, priced per image whatever the model), `Rated` (a model the
+table lists; an absent `model:` is the provider's default,
+`builtin_media_default_model`, kept equal to the builtin's by its tests) or
+`Unknown` (any other paid model: unknown spend, never free).
+`media_pricing_record()` (serde feature) is the table as the run's prologue
+records it. The 2026-10-27 rows: `OpenAI` `gpt-image-2` (per image at
+1024x1024, 1024x1536 and 1536x1024 for low, medium and high, and its token
+rates), `gpt-image-2.5-sunburst` and `-flare` (token rates only), the five
+Gemini image models (per image by resolution class and their token rates),
+`tts-1` and `tts-1-hd` per character, and nine `ElevenLabs` model ids under
+their page families. Unpriced on purpose: `gpt-4o-mini-tts` (no per-call
+price, no usage in its response), `gpt-image-1.5` and `gpt-image-1-mini`
+(shut down 2026-12-01). Prices change externally: the rows are dated
+estimates for floors and bills, never a provider's invoice.

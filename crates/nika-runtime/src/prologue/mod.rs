@@ -40,6 +40,10 @@ mod tests;
 ///   contre la table 2026 pinnée ». Compile-time statics only
 ///   ([`nika_catalog::pricing_snapshot`] + [`nika_catalog::PRICING_SCHEMA`]
 ///   — the `spec_pin` posture: no clock, no I/O, determinism intact);
+/// - `media_pricing` — the dated media price table (C-D3), ONE compact
+///   JSON text (`{"schema","as_of","rates":[…]}` · every row with its unit,
+///   USD rate, source page and date), so the media spend a replay reads is
+///   judged against the rates the run was billed at;
 /// - `budget` — the resolved operator budget (`--max-cost-usd`), ONE
 ///   compact JSON text (`{"max_cost_usd":dollars}` — dollars ride as a
 ///   JSON number, the `total_cost_usd` float convention). ABSENT when
@@ -78,6 +82,14 @@ pub(crate) fn cost_pin_fields(max_cost_usd: Option<f64>) -> Vec<(&'static str, F
         })).collect::<Vec<_>>()
     });
     fields.push(("admission_pricing", s(&admission.to_string())));
+    // C-D3 · the dated media table every paid media call is floored and
+    // billed from (per image · per character · per token, each row with its
+    // source and date): the cost-replay leg reads THIS record, never a later
+    // binary's rates (spec 15).
+    fields.push((
+        "media_pricing",
+        s(&nika_catalog::media_pricing_record().to_string()),
+    ));
     if let Some(budget) = max_cost_usd.filter(|b| b.is_finite()) {
         let resolved = serde_json::json!({ "max_cost_usd": budget });
         fields.push(("budget", s(&resolved.to_string())));

@@ -39,3 +39,8 @@ MUTATION inherited · BENCHMARKS/CANARY/PARITY N/A.
   `call_id`, `outcome` = `unknown` once sent · `not_sent`):
   `ToolResult::stopped` is the one shape of a call the run stopped waiting
   for, spec code `NIKA-CANCEL-001` (`STOPPED_CALL_CODE`), never transient.
+  Since 2026-10-27 they may carry what the failed call had already billed
+  (`spent`, `SpentBeforeFailure`: its priced part in whole micro-USD and
+  whether a request it could not price was sent, packed in 32 bits so the
+  fact never widens a tool error). It is a cost fact for the run's ledger,
+  never projected into the spec's `details` object.

@@ -114,6 +114,7 @@ mod harness_images;
 pub mod harness_path;
 mod intrinsic;
 mod io;
+mod media_cap;
 mod request;
 mod router;
 mod selection;
@@ -135,8 +136,9 @@ use nika_types::blame::BlamePolarity;
 use nika_types::cost::SpendOnFailure;
 use nika_verb_invoke::{InvokeInput, InvokeVerb, VerbInvokeError};
 
-use crate::batch::{BatchFold, BatchOutcome, Resolved};
+use crate::batch::{BatchFold, BatchOutcome, Resolved, ToolSpend};
 use crate::guard::{Guard, GuardVerdict};
+use crate::media_cap::MediaAllowance;
 use crate::request::{build_request, joined_text, opening_messages, routing_query, schema_request};
 use crate::router::ToolRouter;
 
@@ -433,16 +435,18 @@ where
         // this, the run ledger debits it, `--max-cost-usd` sees it.
         let mut usage_total = TokenUsage::default();
         let mut inference_calls = Vec::new();
-        let mut tools_cost_usd = 0.0_f64;
+        let mut tools = ToolSpend::default();
+        // C-D3 · what the run's cost cap leaves this loop's paid media calls.
+        let allowance = MediaAllowance::new(input.cost_remaining_usd);
         let out = self
             .run_loop(
                 input,
                 observer,
-                (&whitelist, &defs, &model, budget),
+                (&whitelist, &defs, &model, budget, &allowance),
                 run_start,
                 &mut usage_total,
                 &mut inference_calls,
-                &mut tools_cost_usd,
+                &mut tools,
             )
             .await;
         out.map(|out| (out.with_inference_calls(inference_calls.clone())).with_selection(receipt))
@@ -451,14 +455,15 @@ where
                     .spend()
                     .and_then(|spend| spend.tools_cost_usd)
                     .unwrap_or(0.0);
-                let tools_cost_usd = tools_cost_usd + reported_tools;
+                let tools_cost_usd = tools.usd + reported_tools;
                 e.with_spend(
                     SpendOnFailure::new(
                         usage_total,
                         (tools_cost_usd > 0.0).then_some(tools_cost_usd),
                         Some(model),
                     )
-                    .with_inference_calls(inference_calls),
+                    .with_inference_calls(inference_calls)
+                    .with_tools_unpriced(tools.unpriced),
                 )
             })
     }
@@ -474,13 +479,13 @@ where
         &self,
         input: AgentInput,
         observer: &dyn AgentObserver,
-        armed: (&Whitelist, &[ToolDef], &str, TurnBudget),
+        armed: (&Whitelist, &[ToolDef], &str, TurnBudget, &MediaAllowance),
         run_start: Option<ToolRunStart>,
         usage_total: &mut TokenUsage,
         inference_calls: &mut Vec<nika_types::cost::InferenceCall>,
-        tools_cost_usd: &mut f64,
+        tools: &mut ToolSpend,
     ) -> Result<AgentOutput, VerbAgentError> {
-        let (whitelist, defs, model, budget) = armed;
+        let (whitelist, defs, model, budget, allowance) = armed;
         let (mut router, mut guard) = self.arm_loop(observer, model, defs);
         let mut st = turn::LoopState::new(opening_messages(&input));
         // Continuing turns check their budget before dispatch or re-asking;
@@ -548,7 +553,7 @@ where
                     continue;
                 }
                 TurnVerdict::Dispatch(tool_uses) => {
-                    *tools_cost_usd += self
+                    *tools += self
                         .dispatch_and_feed(
                             observer,
                             budget,
@@ -556,7 +561,7 @@ where
                             response,
                             (&mut router, &mut guard),
                             &mut st,
-                            (&input, run_start),
+                            (&input, run_start, allowance.after_turns(inference_calls)),
                         )
                         .await?;
                     continue;
@@ -566,7 +571,7 @@ where
                 observer,
                 output,
                 (st.turns, st.total_tokens),
-                (usage_total.clone(), model.to_owned(), *tools_cost_usd),
+                (usage_total.clone(), model.to_owned(), std::mem::take(tools)),
             ));
         }
     }
@@ -590,14 +595,14 @@ where
         response: InferResponse,
         intelligence: (&mut ToolRouter, &mut Guard),
         st: &mut turn::LoopState,
-        control: (&AgentInput, Option<ToolRunStart>),
-    ) -> Result<f64, VerbAgentError> {
+        control: (&AgentInput, Option<ToolRunStart>, &MediaAllowance),
+    ) -> Result<ToolSpend, VerbAgentError> {
         let (router, guard) = intelligence;
         budget.check(st.turns, &st.last_text)?;
         // All-whitelisted, non-sentinel tools · feed results back.
         st.messages
             .push(Message::new(Role::Assistant, response.content));
-        let (digest, batch_cost) = self
+        let (digest, batch_spend) = self
             .dispatch_turn(
                 observer,
                 st.turns,
@@ -610,7 +615,7 @@ where
             )
             .await?;
         st.last_observations = digest;
-        Ok(batch_cost)
+        Ok(batch_spend)
     }
 
     /// Validate + resolve one run's fixed parameters (params · whitelist ·
@@ -868,8 +873,8 @@ where
         guard: &mut Guard,
         messages: &mut Vec<Message>,
         last_text: &str,
-        control: (&AgentInput, Option<ToolRunStart>),
-    ) -> Result<(String, f64), VerbAgentError> {
+        control: (&AgentInput, Option<ToolRunStart>, &MediaAllowance),
+    ) -> Result<(String, ToolSpend), VerbAgentError> {
         let batch = self
             .run_batch(observer, turn, tool_uses, router, guard, control)
             .await?;
@@ -913,7 +918,7 @@ where
             }
         }
         messages.push(Message::new(Role::User, content));
-        Ok((batch.observations_digest, batch.tools_cost_usd))
+        Ok((batch.observations_digest, batch.tools))
     }
 
     /// Dispatch one turn's validated tool batch — CONCURRENTLY, results
@@ -950,7 +955,7 @@ where
         tool_uses: Vec<ToolUse>,
         router: &mut ToolRouter,
         guard: &mut Guard,
-        control: (&AgentInput, Option<ToolRunStart>),
+        control: (&AgentInput, Option<ToolRunStart>, &MediaAllowance),
     ) -> Result<BatchOutcome, VerbAgentError> {
         use futures_util::{StreamExt, TryStreamExt};
         let cap = self.config.max_parallel_tools.max(1);
@@ -975,7 +980,7 @@ where
             let batch = futures_util::stream::iter(gated.into_iter().map(|(u, gate)| {
                 let receipts = &receipts;
                 async move {
-                    self.resolve_tool(u, gate, (control.0, control.1, receipts))
+                    self.resolve_tool(u, gate, (control.0, control.1, receipts, control.2))
                         .await
                 }
             }))
@@ -1011,6 +1016,7 @@ where
             &AgentInput,
             Option<ToolRunStart>,
             &nika_verb_invoke::StoppedCallSlot,
+            &MediaAllowance,
         ),
     ) -> Result<Resolved, VerbAgentError> {
         stop_if_requested(control.0)?;
@@ -1039,10 +1045,13 @@ where
                 gate,
             ))
         } else {
-            let (block, cost_usd) = self
+            let (block, spent) = self
                 .dispatch(&u.id, &u.name, u.args.clone(), control)
                 .await?;
-            Ok(Resolved::new(block, u.name, u.args, cost_usd, None, gate))
+            Ok(
+                Resolved::new(block, u.name, u.args, spent.cost_usd, None, gate)
+                    .with_failed_unpriced(spent.failed_unpriced),
+            )
         }
     }
 
@@ -1131,10 +1140,27 @@ where
             &AgentInput,
             Option<ToolRunStart>,
             &nika_verb_invoke::StoppedCallSlot,
+            &MediaAllowance,
         ),
-    ) -> Result<(ContentBlock, Option<f64>), VerbAgentError> {
+    ) -> Result<(ContentBlock, CallSpend), VerbAgentError> {
         stop_if_requested(control.0)?;
-        let (input, run_start, receipts) = control;
+        let (input, run_start, receipts, allowance) = control;
+        // C-D3 · a paid media call meets the run's cost cap before its
+        // request, as an `invoke:` task does, and holds its floor while it
+        // runs: refused, it is fed back so the model can pick another
+        // provider or model, nothing sent and nothing billed.
+        let held = match allowance.admit(name, &args) {
+            Ok(held) => held,
+            Err(refused) => {
+                let block = ContentBlock::ToolResult {
+                    tool_use_id: id.to_owned(),
+                    content: refused,
+                    is_error: true,
+                };
+                return Ok((block, CallSpend::default()));
+            }
+        };
+        let unpriced = nika_check::analyzer::media_spend_unpriced(name, &args);
         let mut call = InvokeInput::new(name);
         call.stopped = Some(receipts.clone());
         call.args = args;
@@ -1143,26 +1169,17 @@ where
             Some(run_start) => self.invoke.run_at(call, run_start).await,
             None => self.invoke.run(call).await,
         };
+        let spent = CallSpend::of(&invoked, unpriced);
+        allowance.settle(held, spent.cost_usd, spent.unread);
         match invoked {
-            Ok(output) => {
-                // The honest-spend channel (the same filter the runtime's
-                // invoke path applies): a top-level finite non-negative
-                // `cost_usd` in the tool's structured output is REAL spend.
-                let cost_usd = output
-                    .structured
-                    .as_ref()
-                    .and_then(|v| v.get("cost_usd"))
-                    .and_then(serde_json::Value::as_f64)
-                    .filter(|c| c.is_finite() && *c >= 0.0);
-                Ok((
-                    ContentBlock::ToolResult {
-                        tool_use_id: id.to_owned(),
-                        content: output.content,
-                        is_error: false,
-                    },
-                    cost_usd,
-                ))
-            }
+            Ok(output) => Ok((
+                ContentBlock::ToolResult {
+                    tool_use_id: id.to_owned(),
+                    content: output.content,
+                    is_error: false,
+                },
+                spent,
+            )),
             Err(err) => {
                 if input
                     .cancel
@@ -1196,14 +1213,72 @@ where
                         spend: Box::default(), // decorated at the return seam
                     });
                 }
+                // A failed call's billed spend (C-D3) rides the fed-back
+                // error into the loop's tool spend.
                 Ok((
                     ContentBlock::ToolResult {
                         tool_use_id: id.to_owned(),
                         content: feedback_text(&err),
                         is_error: true,
                     },
-                    None,
+                    spent,
                 ))
+            }
+        }
+    }
+}
+
+/// What one dispatched tool call spent, read from its outcome (C-D3): the
+/// real USD it reported (a success's `cost_usd`, or the priced part of what
+/// a failed call had already billed), why the rest of what a failed call
+/// billed is unknown, and whether the call billed without a figure.
+#[derive(Debug, Clone, Copy, Default)]
+struct CallSpend {
+    cost_usd: Option<f64>,
+    failed_unpriced: Option<nika_types::cost::UnpricedReason>,
+    unread: bool,
+}
+
+impl CallSpend {
+    /// `invoked`'s spend; `unpriced` is why a paid media call's unknown spend
+    /// is unknown (its catalog price is missing, or it reported no usage),
+    /// `None` for a call that bills no provider.
+    fn of(
+        invoked: &Result<nika_verb_invoke::InvokeOutput, VerbInvokeError>,
+        unpriced: Option<nika_types::cost::UnpricedReason>,
+    ) -> Self {
+        let finite = |cost: &f64| cost.is_finite() && *cost >= 0.0;
+        match invoked {
+            // The honest-spend channel (the same filter the runtime's invoke
+            // path applies): a top-level finite non-negative `cost_usd` in the
+            // tool's structured output is REAL spend.
+            Ok(output) => {
+                let cost_usd = (output.structured.as_ref())
+                    .and_then(|v| v.get("cost_usd"))
+                    .and_then(serde_json::Value::as_f64)
+                    .filter(finite);
+                Self {
+                    cost_usd,
+                    failed_unpriced: None,
+                    unread: cost_usd.is_none() && unpriced.is_some(),
+                }
+            }
+            Err(err) => {
+                let spent = err.details().and_then(|details| details.spent);
+                let unread = spent
+                    .is_some_and(nika_kernel::runtime::tool_executor::SpentBeforeFailure::unpriced);
+                Self {
+                    cost_usd: spent
+                        .and_then(
+                            nika_kernel::runtime::tool_executor::SpentBeforeFailure::priced_usd,
+                        )
+                        .filter(finite),
+                    failed_unpriced: unread.then(|| {
+                        unpriced
+                            .unwrap_or(nika_types::cost::UnpricedReason::ProviderDidNotReportUsage)
+                    }),
+                    unread,
+                }
             }
         }
     }
@@ -1233,16 +1308,17 @@ fn finished(
     observer: &dyn AgentObserver,
     output: AgentOutput,
     turn_totals: (u32, u64),
-    spend: (TokenUsage, String, f64),
+    spend: (TokenUsage, String, ToolSpend),
 ) -> AgentOutput {
     let (turns, total_tokens) = turn_totals;
-    let (usage_total, model, tools_cost_usd) = spend;
+    let (usage_total, model, tools) = spend;
     observer.on_event(&AgentEvent::Finished {
         turns,
         total_tokens,
     });
     output
-        .with_tools_cost_usd((tools_cost_usd > 0.0).then_some(tools_cost_usd))
+        .with_tools_cost_usd((tools.usd > 0.0).then_some(tools.usd))
+        .with_tools_unpriced(tools.unpriced)
         .with_spend_identity(usage_total, model)
 }
 
@@ -1522,18 +1598,22 @@ fn feedback_text(err: &VerbInvokeError) -> String {
 /// one: the declared `permits:` boundary (`NIKA-SEC-004`) or the SSRF
 /// floor (`NIKA-SEC-005`). The code rides the tool's error-metadata
 /// channel end-to-end (`BuiltinFailure.code` → `ToolErrorMeta.spec_code`
-/// → `VerbInvokeError::ToolReportedError::spec_code` — the BUG-D seam),
-/// so it survives the builtin's text rendering intact. Anything else —
-/// a text-only tool error, a dispatch failure, a coded NON-security
-/// failure like `NIKA-BUILTIN-FETCH-001` — is `None`: ordinary feedback.
+/// → `VerbInvokeError::ToolReportedError::spec_code` — the BUG-D seam, or
+/// the detailed variant's meta when the failure also carries typed facts,
+/// such as what a paid media call had already billed), so it survives the
+/// builtin's text rendering intact. Anything else — a text-only tool
+/// error, a dispatch failure, a coded NON-security failure like
+/// `NIKA-BUILTIN-FETCH-001` — is `None`: ordinary feedback.
 fn security_boundary_code(err: &VerbInvokeError) -> Option<&str> {
-    match err {
+    let code = match err {
         VerbInvokeError::ToolReportedError {
             spec_code: Some(code),
             ..
-        } if matches!(code.as_str(), "NIKA-SEC-004" | "NIKA-SEC-005") => Some(code),
-        _ => None,
-    }
+        } => code,
+        VerbInvokeError::ToolReportedDetailed { meta, .. } => meta.spec_code.as_ref()?,
+        _ => return None,
+    };
+    matches!(code.as_str(), "NIKA-SEC-004" | "NIKA-SEC-005").then_some(code.as_str())
 }
 
 /// `images:` is a seat's field (spec 02 §Harness images): the engine's own loop gets its

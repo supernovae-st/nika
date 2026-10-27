@@ -59,6 +59,14 @@ pub struct AgentInput {
     pub cancel: Option<nika_kernel::CancelCtx>,
     /// Typed MCP witnesses kept outside a dropped agent/task attempt.
     pub stopped: Option<nika_verb_invoke::StoppedCallSlot>,
+    /// The run's USD left under its cost cap when this task dispatched (a
+    /// snapshot of the run's ledger) · `None` = the run has no cap. The loop
+    /// charges against it what it spends before the task returns (its model
+    /// turns at their known estimate, its returned tool calls, the floors of
+    /// its paid media calls in flight): a paid media tool call the catalog
+    /// cannot price, or whose per-call floor exceeds what is left, is refused
+    /// before its request and fed back (C-D3).
+    pub cost_remaining_usd: Option<f64>,
     /// `images:` (spec 02 §Harness images): the images the harness delivers on this task's
     /// own session become `.output.images`, written at `save` when one is given. `None`
     /// keeps the plain output; the native loop refuses it (its images are tool outputs).
@@ -102,6 +110,7 @@ impl AgentInput {
             requirement: None,
             cancel: None,
             stopped: None,
+            cost_remaining_usd: None,
             images: None,
         }
     }
@@ -183,6 +192,10 @@ pub struct AgentOutput {
     /// reported spend — never a fake zero. The LLM turns' own cost is
     /// folded by dispatch from [`Self::inference_calls`].
     pub tools_cost_usd: Option<f64>,
+    /// Why each tool call that billed without reporting spend is outside
+    /// [`Self::tools_cost_usd`] (C-D3 · a paid media call the catalog cannot
+    /// price), one entry per call · empty when every paid call reported.
+    pub tools_unpriced: Vec<nika_types::cost::UnpricedReason>,
     /// The absorbed usage split across every provider round-trip of the
     /// loop (turns + schema re-asks) — the input/output/cache meters the
     /// cost layer prices with the same resolver `infer` uses. Zero-valued
@@ -218,6 +231,7 @@ impl AgentOutput {
             turns,
             total_tokens,
             tools_cost_usd: None,
+            tools_unpriced: Vec::new(),
             usage: TokenUsage::default(),
             model_resolved: None,
             model_reported: None,
@@ -248,6 +262,13 @@ impl AgentOutput {
     #[must_use]
     pub fn with_tools_cost_usd(mut self, cost: Option<f64>) -> Self {
         self.tools_cost_usd = cost;
+        self
+    }
+
+    /// Attach why each billed tool call is outside the tool spend (builder).
+    #[must_use]
+    pub fn with_tools_unpriced(mut self, unpriced: Vec<nika_types::cost::UnpricedReason>) -> Self {
+        self.tools_unpriced = unpriced;
         self
     }
 

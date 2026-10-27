@@ -157,7 +157,10 @@ fn ladder_lines(raw: &str, report: &tier::TierReport) -> Vec<String> {
             nika_catalog::PRICING_SCHEMA,
             snapshot.as_of,
             snapshot.source_sha256_16,
-        ),
+        )
+        // C-D3 · the dated media table rides the same leg: a journal that
+        // pins other media rates refuses the cost-meaning replay.
+        .with_media(nika_catalog::media_pricing_record()),
     );
     lines.extend(leg.lines.iter().cloned());
     lines

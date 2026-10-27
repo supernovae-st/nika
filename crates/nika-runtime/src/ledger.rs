@@ -31,6 +31,13 @@
 //! success it received through its receipts (`UnreturnedSpend`), read or
 //! not. Remaining unmetered class: `on_finally` cleanups (best-effort
 //! lane · outcome dropped by design).
+//!
+//! Paid media (C-D3) is judged before its request against what the cap
+//! leaves at that instant, and the admitted call holds its floor on the
+//! ledger until it returns ([`MediaHold`]): siblings in flight cannot spend
+//! one remainder together. A call that billed without a figure leaves its
+//! floor counted consumed, never as spend; one dropped in flight is counted
+//! unpriced and its floor stays consumed.
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -55,6 +62,25 @@ struct LedgerInner {
     unpriced_calls: u32,
     tripped: bool,
     by_source: BTreeMap<String, f64>,
+    /// The floors the paid media calls in flight hold on the cap (C-D3): what
+    /// the cap leaves excludes them until each call returns ([`MediaHold`]).
+    held_usd: f64,
+    /// The floors of paid media calls that billed without a figure: each cost
+    /// at least its floor, so the cap counts them consumed, though no total
+    /// claims them as spend.
+    unread_usd: f64,
+    /// A paid media call billed without a figure: what the run spent is no
+    /// longer fully known, so the cap refuses a call billed only from what it
+    /// reports.
+    unread: bool,
+}
+
+impl LedgerInner {
+    /// What `budget` leaves: the spend, the floors in flight and the floors
+    /// billed without a figure excluded, floored at 0.
+    fn left(&self, budget: f64) -> f64 {
+        (budget - self.spent_usd - self.held_usd - self.unread_usd).max(0.0)
+    }
 }
 
 /// A point-in-time copy for the terminal frame + [`crate::RunOutcome`].
@@ -188,6 +214,24 @@ impl RunLedger {
             ok.cost_unpriced.is_some(),
             ok.usage.as_deref(),
         );
+        self.count_unpriced(ok.unpriced_inner_calls);
+    }
+
+    /// Count `calls` made inside one leaf whose spend is outside every
+    /// figure (C-D3 · an agent's paid media tools, a child run's unpriced
+    /// calls), so the settlement never reads `priced` while it holds them.
+    /// An agent leaf always carries its per-call split (the split branch of
+    /// [`Self::debit_observed`] ignores its own flag), and a child call sets
+    /// no own reason, so no call is counted twice.
+    pub(crate) fn count_unpriced(&self, calls: u32) {
+        if calls == 0 {
+            return;
+        }
+        let mut inner = match self.inner.lock() {
+            Ok(inner) => inner,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        inner.unpriced_calls = inner.unpriced_calls.saturating_add(calls);
     }
 
     /// Whether the budget has been crossed — the admission gates (wave
@@ -202,14 +246,45 @@ impl RunLedger {
 
     /// Budget minus spend at this instant, floored at 0 — what a child
     /// call may still spend (spec 14 law 6 · `min(parent remaining,
-    /// child declared)`). `None` = this run carries no cost budget.
+    /// child declared)`). The floors of the paid media calls in flight, and
+    /// of those that billed without a figure, are excluded (C-D3). `None` =
+    /// this run carries no cost budget.
     pub(crate) fn remaining_usd(&self) -> Option<f64> {
         let budget = self.budget?;
-        let inner = match self.inner.lock() {
+        Some(self.lock().left(budget))
+    }
+
+    /// Judge one paid media call before its request against what the cap
+    /// leaves at this instant (C-D3), and hold its floor while it runs.
+    /// `judge` reads what is left and whether an earlier paid call billed
+    /// without a figure: `Ok(Some(floor))` admits the call, holding `floor`,
+    /// `Ok(None)` is no paid media call, `Err` refuses it. The judgment and
+    /// the hold share one lock, so no sibling admitted in between can spend
+    /// the same remainder. `Ok(None)` without a cap: nothing to judge.
+    pub(crate) fn hold_media<E>(
+        &self,
+        judge: impl FnOnce(f64, bool) -> Result<Option<f64>, E>,
+    ) -> Result<Option<MediaHold<'_>>, E> {
+        let Some(budget) = self.budget else {
+            return Ok(None);
+        };
+        let mut inner = self.lock();
+        let Some(floor) = judge(inner.left(budget), inner.unread)? else {
+            return Ok(None);
+        };
+        inner.held_usd += floor;
+        Ok(Some(MediaHold {
+            ledger: self,
+            floor,
+            armed: true,
+        }))
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, LedgerInner> {
+        match self.inner.lock() {
             Ok(inner) => inner,
             Err(poisoned) => poisoned.into_inner(),
-        };
-        Some((budget - inner.spent_usd).max(0.0))
+        }
     }
 
     pub(crate) fn snapshot(&self) -> LedgerSnapshot {
@@ -304,6 +379,53 @@ impl Drop for UnreturnedSpend<'_> {
     }
 }
 
+/// The floor one paid media call holds on the run's cost cap while its
+/// request runs (C-D3): every sibling judged meanwhile sees the cap without
+/// it, so a capped fan-out cannot launch its items past the cap together.
+/// [`Self::settle`] releases it once the call returned, its outcome carrying
+/// what it cost; a call that billed without a figure leaves its floor
+/// counted consumed. Dropped unsettled (a `timeout:`, a `fail_fast` sibling
+/// or a Stop dropped the call in flight), the request may have rendered and
+/// billed: its floor stays consumed and the settlement counts one unpriced
+/// call, never a free one.
+#[must_use = "dropping it unsettled counts the call unpriced"]
+pub(crate) struct MediaHold<'l> {
+    ledger: &'l RunLedger,
+    floor: f64,
+    armed: bool,
+}
+
+impl MediaHold<'_> {
+    /// The call returned: its outcome carries its spend for the leaf debit.
+    /// `unread`: it billed without a figure (a paid call that reported no
+    /// usable spend), so its floor stays consumed and the cap no longer
+    /// knows what it leaves.
+    pub(crate) fn settle(mut self, unread: bool) {
+        self.armed = false;
+        self.release(unread, false);
+    }
+
+    fn release(&self, unread: bool, unpriced_call: bool) {
+        let mut inner = self.ledger.lock();
+        inner.held_usd = (inner.held_usd - self.floor).max(0.0);
+        if unread {
+            inner.unread_usd += self.floor;
+            inner.unread = true;
+        }
+        if unpriced_call {
+            inner.unpriced_calls = inner.unpriced_calls.saturating_add(1);
+        }
+    }
+}
+
+impl Drop for MediaHold<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            self.release(true, true);
+        }
+    }
+}
+
 /// Whole micro-USD (1e-6) — the budget-comparison grain.
 fn micro_usd(usd: f64) -> i64 {
     // REASON: budgets/spend are operator-scale dollars (≪ the i64 micro
@@ -345,6 +467,54 @@ mod tests {
         assert!((snap.by_source["openai/gpt-4o-mini"] - 0.03).abs() < 1e-12);
         assert!((snap.by_source["nika:image_generate"] - 0.04).abs() < 1e-12);
         assert!(!ledger.tripped(), "no budget → never trips");
+    }
+
+    /// C-D3 · a paid media call holds its floor while it runs: a sibling
+    /// judged meanwhile sees the cap without it; settled, the floor is
+    /// released (kept consumed when the call billed without a figure);
+    /// dropped unsettled, it stays consumed and one unpriced call is counted.
+    #[test]
+    fn a_media_hold_keeps_its_floor_from_siblings_until_it_settles() {
+        let ledger = RunLedger::new(Some(0.25));
+        let admit = |floor: f64| {
+            ledger.hold_media(|left, _| {
+                if micro_usd(floor) > micro_usd(left) {
+                    Err(left)
+                } else {
+                    Ok(Some(floor))
+                }
+            })
+        };
+        let first = admit(0.211).expect("fits").expect("held");
+        let left = admit(0.211).err().expect("the first holds its floor");
+        assert!((left - 0.039).abs() < 1e-12, "{left}");
+        assert!((ledger.remaining_usd().expect("capped") - 0.039).abs() < 1e-12);
+        first.settle(false);
+        assert!((ledger.remaining_usd().expect("capped") - 0.25).abs() < 1e-12);
+
+        let unread = admit(0.1).expect("fits").expect("held");
+        unread.settle(true);
+        assert!((ledger.remaining_usd().expect("capped") - 0.15).abs() < 1e-12);
+        let blind = ledger
+            .hold_media(|_, unread| if unread { Err(()) } else { Ok(Some(0.0)) })
+            .err();
+        assert_eq!(blind, Some(()), "the cap knows a call billed unread");
+
+        drop(admit(0.05).expect("fits").expect("held"));
+        let snapshot = ledger.snapshot();
+        assert_eq!(
+            snapshot.unpriced_calls, 1,
+            "the dropped call may have billed"
+        );
+        assert!((ledger.remaining_usd().expect("capped") - 0.1).abs() < 1e-12);
+        assert!(!ledger.tripped(), "held and unread floors are never spend");
+    }
+
+    #[test]
+    fn no_cap_holds_nothing() {
+        let ledger = RunLedger::new(None);
+        let hold = ledger.hold_media(|_, _| Ok::<_, ()>(Some(1.0)));
+        assert!(matches!(hold, Ok(None)));
     }
 
     #[test]

@@ -268,6 +268,7 @@ impl ChildRunner for SnapshotChildren {
                 ok: outcome.ok,
                 outputs: outcome.outputs,
                 cost_usd: None,
+                unpriced_calls: 0,
                 trace: None,
                 failure,
                 paused: None,

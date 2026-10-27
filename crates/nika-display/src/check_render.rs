@@ -741,10 +741,19 @@ fn est_clause(report: &CheckReport, t: Theme) -> String {
     // $0.0075). The card is the line people quote, so it is the line
     // that must not overreach.
     let at_most = crate::vocab::at_most(t.ascii);
-    format!(
+    let figure = format!(
         "est out {at_most}${}",
         crate::vocab::usd(report.cost.bounded_total_usd)
-    )
+    );
+    // C-D3 · paid media the figure cannot price rides beside it, never
+    // inside a `≤$0.0000` that reads as free.
+    match report.cost.media.iter().filter(|m| !m.priced).count() {
+        0 => figure,
+        n => format!(
+            "{figure} + {}",
+            crate::vocab::count(n, "unpriced paid media call")
+        ),
+    }
 }
 
 /// The one next move behind `risk unbounded` — the handle names the

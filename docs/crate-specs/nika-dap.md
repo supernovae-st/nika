@@ -450,3 +450,17 @@ An acquisition/read failure reports ANCHOR UNAVAILABLE, the attained SEALED tier
 and ENV exit, without claiming forgery. Captured oversize, invalid UTF-8, malformed
 or cryptographically invalid content retains its `Gap` classification. External
 matches must handle future variants without projecting them as success.
+
+## The media price table in the cost replay (C-D3 · 2026-10-27)
+
+`cost_replay::cost_replay_leg` judges the run's dated media price table
+beside its model pricing pin when the verifier's `PricingPin` carries one
+(`with_media`, which `nika trace verify` fills from
+`nika_catalog::media_pricing_record`). The boot frame's `media_pricing`
+record is compared with it row for row: the same table re-judges and says so
+on its own line; another table, even under the same date, refuses the
+cost-meaning replay (`CostReplay::MediaRefused`, naming both tables by schema,
+date and row count, the journal's side escaped); a journal from before the
+media table states it unrecorded and re-judges as before (its media spend, if
+any, was reported by the provider). Like the rest of the leg, the verdict is
+scoped and stated and never moves the chain verdict or the exit code.

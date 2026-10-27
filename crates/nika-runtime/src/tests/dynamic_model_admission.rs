@@ -1158,6 +1158,7 @@ impl crate::child::ChildRunner for ChildOnWires {
                 ok: outcome.ok,
                 outputs: outcome.outputs,
                 cost_usd: outcome.total_cost_usd,
+                unpriced_calls: outcome.unpriced_calls,
                 trace: None,
                 failure,
                 paused: None,
@@ -1216,6 +1217,7 @@ impl crate::child::ChildRunner for FailingChildWithTrace {
                 ok: false,
                 outputs: std::collections::BTreeMap::new(),
                 cost_usd: None,
+                unpriced_calls: 0,
                 trace: Some(crate::child::ChildRunSummary::new(
                     "./child.nika",
                     false,
