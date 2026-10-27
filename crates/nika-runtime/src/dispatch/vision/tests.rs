@@ -375,9 +375,12 @@ async fn symlink_and_dot_dot_escapes_are_judged_on_the_resolved_path() {
     assert!(climbed.wire.is_empty());
 }
 
-/// #1135 kept: a granted path with no file fails `NIKA-432` (`vision`) with zero provider calls.
+/// #1135 kept, in the read's own words: a granted path with no file fails the task with the
+/// read's canonical code (`NIKA-BUILTIN-READ-001`, the code `nika:read` itself fails with),
+/// never the engine-internal `NIKA-432`, and with zero provider calls. The read was judged and
+/// admitted first: one allowed fs frame.
 #[tokio::test]
-async fn a_missing_vision_file_fails_before_any_provider_call() {
+async fn a_missing_vision_file_fails_with_the_reads_code_before_any_provider_call() {
     let project = Project::new("missing");
     let ran = run(
         &project,
@@ -386,11 +389,55 @@ async fn a_missing_vision_file_fails_before_any_provider_call() {
     )
     .await;
     assert!(!ran.outcome.ok, "a missing image file is never a green run");
-    assert_eq!(ran.code("look"), "NIKA-432", "InvalidParam wire form");
-    assert!(
-        ran.message("look").contains("vision"),
-        "the vision param is named: {}",
+    assert_eq!(
+        ran.code("look"),
+        "NIKA-BUILTIN-READ-001",
+        "{}",
         ran.message("look")
     );
+    let message = ran.message("look");
+    assert!(
+        message.starts_with("a `vision:` file cannot be read: ")
+            && message.contains("./diagrams/absent.png")
+            && !message.contains("NIKA-432"),
+        "{message}"
+    );
     assert!(ran.wire.is_empty(), "the file gate fires first");
+    assert_eq!(
+        ran.fs_frames().iter().filter(|(_, d)| d == "allow").count(),
+        1,
+        "{:?}",
+        ran.fs_frames()
+    );
+}
+
+/// Any other read failure is the read's `NIKA-BUILTIN-READ-002` (a directory is no image file),
+/// and a path that renders empty names no file: `NIKA-BUILTIN-READ-001`, nothing opened. Both
+/// before any provider call, neither the engine-internal `NIKA-432`.
+#[tokio::test]
+async fn an_unreadable_or_empty_vision_path_fails_with_a_read_code() {
+    let project = Project::new("unreadable");
+    project.file("diagrams/flow.png", &png("flow"));
+    let directory = run(&project, &look(&grant("./**"), "./diagrams"), &[]).await;
+    assert_eq!(
+        directory.code("look"),
+        "NIKA-BUILTIN-READ-002",
+        "{}",
+        directory.message("look")
+    );
+    assert!(directory.wire.is_empty());
+    let empty = run(
+        &project,
+        &look(&grant("./**"), "${{ inputs.pic }}"),
+        &[("pic", "")],
+    )
+    .await;
+    assert_eq!(
+        empty.code("look"),
+        "NIKA-BUILTIN-READ-001",
+        "{}",
+        empty.message("look")
+    );
+    assert!(empty.fs_frames().is_empty(), "nothing was judged or opened");
+    assert!(empty.wire.is_empty());
 }

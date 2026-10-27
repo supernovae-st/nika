@@ -11,25 +11,32 @@
 //! re-judged at open with no symlink followed, anchored at the run's root (a rehearsal room's
 //! copy, a child's intersected boundary) and witnessed as one `permit_checked` fs frame. A
 //! path outside the boundary fails the task `NIKA-SEC-004`; a file that cannot be read fails it
-//! `NIKA-432` (`vision`), both before any provider call (#1135). The verb receives the bytes
-//! and never opens a file. A `source: url` is not an fs effect: the provider fetches it.
+//! with the read's own canonical code (`NIKA-BUILTIN-READ-001` when no file is there, `-002`
+//! for any other read failure, as `nika:read` itself fails), both before any provider call
+//! (#1135). The verb receives the bytes and never opens a file. A `source: url` is not an fs
+//! effect: the provider fetches it.
 
 use base64::Engine as _;
 use nika_error::traits::NikaErrorCode;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::Spanned;
 use nika_schema::raw::VisionInput;
-use nika_verb_infer::{VerbInferError, VisionPart};
+use nika_verb_infer::VisionPart;
 use nika_verb_invoke::{InvokeInput, VerbInvokeError};
 
-use super::Dispatched;
+use super::{Dispatched, FailedDispatch};
 use crate::Runtime;
 use crate::errors::RuntimeError;
 use crate::expr::{self, Scope};
+use crate::record::TaskErrorRecord;
 
 /// The builtin that reads a vision file, and the code its boundary refuses with.
 const READ: &str = "nika:read";
 const OUTSIDE: &str = "NIKA-SEC-004";
+/// The read's own canonical codes (stdlib `nika:read`): no file at the path, and any other
+/// read failure.
+const NOT_FOUND: &str = "NIKA-BUILTIN-READ-001";
+const READ_FAILED: &str = "NIKA-BUILTIN-READ-002";
 
 /// One `vision:` entry rendered over the scope; a file is not read yet.
 pub(super) enum Rendered {
@@ -99,7 +106,12 @@ where
     /// One file through `nika:read` (`binary: true`) on the runtime's own invoke verb.
     async fn read_vision_file(&self, path: &str, note: &str) -> Result<Vec<u8>, Box<Dispatched>> {
         if path.trim().is_empty() {
-            return Err(unreadable(note, "vision file path is empty".to_owned()));
+            return Err(unreadable(
+                note,
+                NOT_FOUND.to_owned(),
+                "the path rendered empty, so it names no file",
+                false,
+            ));
         }
         let mut call = InvokeInput::new(READ);
         call.args = serde_json::json!({ "path": path, "binary": true });
@@ -114,10 +126,14 @@ where
                     ),
                 )));
             }
+            // The read's own failure, under its own code: the voice `nika:read` itself
+            // fails with (`on_codes:` names it), never an engine-internal number.
             Err(err) => {
                 return Err(unreadable(
                     note,
-                    format!("cannot read image `{path}`: {}", refusal(&err)),
+                    err.spec_code(),
+                    &format!("`{path}`: {}", refusal(&err)),
+                    err.is_transient(),
                 ));
             }
         };
@@ -129,12 +145,21 @@ where
             .ok_or_else(|| {
                 unreadable(
                     note,
-                    format!("cannot read image `{path}`: `{READ}` returned no bytes"),
+                    READ_FAILED.to_owned(),
+                    &format!("`{path}`: `{READ}` returned no bytes"),
+                    false,
                 )
             })?;
         base64::engine::general_purpose::STANDARD
             .decode(encoded)
-            .map_err(|err| unreadable(note, format!("cannot read image `{path}`: {err}")))
+            .map_err(|err| {
+                unreadable(
+                    note,
+                    READ_FAILED.to_owned(),
+                    &format!("`{path}`: {err}"),
+                    false,
+                )
+            })
     }
 }
 
@@ -154,16 +179,18 @@ fn refusal(err: &VerbInvokeError) -> String {
         .to_owned()
 }
 
-/// A file the run cannot read (or a path naming no file): `NIKA-432` (`vision`), as the verb
-/// voices an invalid image, and never a provider call (#1135).
-fn unreadable(note: &str, detail: String) -> Box<Dispatched> {
-    Box::new(Dispatched::verb_err(
-        note.to_owned(),
-        &VerbInferError::InvalidParam {
-            param: "vision",
-            detail,
-        },
-    ))
+/// A file the run cannot read (or a path naming no file): the task fails with the read's code
+/// (`code`, canonical: spec 05 §Taxonomy ownership keeps engine-internal numbers out of
+/// `tasks.X.error`), and never a provider call (#1135).
+fn unreadable(note: &str, code: String, detail: &str, transient: bool) -> Box<Dispatched> {
+    Box::new(Dispatched {
+        note: note.to_owned(),
+        result: Err(FailedDispatch::unspent(TaskErrorRecord::new(
+            code,
+            format!("a `vision:` file cannot be read: {detail}"),
+            transient,
+        ))),
+    })
 }
 
 #[cfg(test)]

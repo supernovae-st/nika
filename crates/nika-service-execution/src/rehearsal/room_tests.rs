@@ -390,8 +390,8 @@ async fn a_nested_run_never_starts_and_is_counted() -> TestResult<()> {
 
 /// Spec 02 §Vision inputs in a room: a `vision:` file is a read through the workflow's
 /// boundary over the room's copy, never the process working directory. With no copy in the
-/// room the task fails `NIKA-432` although a decoy sits at the same relative path under the
-/// process directory; with a copy, the read passes and the run settles.
+/// room the task fails the read's own `NIKA-BUILTIN-READ-001` although a decoy sits at the same
+/// relative path under the process directory; with a copy, the read passes and the run settles.
 #[tokio::test]
 async fn a_vision_file_is_read_from_the_room_never_the_process_directory() -> TestResult<()> {
     const TEST: &str = concat!(
@@ -412,7 +412,7 @@ async fn a_vision_file_is_read_from_the_room_never_the_process_directory() -> Te
         .error
         .as_ref()
         .ok_or("a failure record")?;
-    assert_eq!(error.code, "NIKA-432", "{}", error.message);
+    assert_eq!(error.code, "NIKA-BUILTIN-READ-001", "{}", error.message);
     assert_eq!(denied, DeniedEffects::default(), "{denied:?}");
     let (_dir, _fs, end, _denied) =
         rehearsed(TEST, "copy", &source, &[], &[(rel.as_str(), "room image")]).await?;
