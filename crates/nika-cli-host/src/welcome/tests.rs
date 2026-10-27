@@ -1274,7 +1274,7 @@ mod front_door_oracle {
             },
         };
         front_door::render_with_context(
-            &machine_view(probe, counts()),
+            &machine_view(probe, counts(), None),
             glance,
             counts(),
             &view,

@@ -506,11 +506,17 @@ mod tests {
                 "no cap, no refusal: {tool} {{ {args} }}"
             );
         }
-        let wf = fixture("nika:tts_generate", "provider: mock, text: hi");
-        let report = nika_check::check(&wf);
-        assert_eq!(
-            preflight(&wf, &report, None, Some(0.0), false, false),
-            Ok(())
-        );
+        // The keyless `system` voice bills no provider: a beat keeps speech
+        // under its cap this way (the run counts it unpriced local work).
+        for args in ["provider: mock, text: hi", "provider: system, text: hi"] {
+            let wf = fixture("nika:tts_generate", args);
+            let report = nika_check::check(&wf);
+            assert!(report.is_clean(), "fixture checks clean: {report:?}");
+            assert_eq!(
+                preflight(&wf, &report, None, Some(0.0), false, false),
+                Ok(()),
+                "{args}"
+            );
+        }
     }
 }

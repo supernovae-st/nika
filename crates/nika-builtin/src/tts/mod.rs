@@ -15,6 +15,8 @@
 //! plus optional `NIKA_TTS_LOCAL_API_KEY`) and injected via
 //! [`crate::BuiltinDispatcher::with_tts_plane`]. Calls ride the SAME
 //! provider-plane http seam philosophy as `image_generate` and `infer:`.
+//! The keyless `system` voice ([`SystemVoice`]) is the host's own
+//! synthesizer, wired by [`crate::BuiltinDispatcher::with_system_voice`].
 
 pub(crate) mod args;
 pub(crate) mod elevenlabs;
@@ -22,12 +24,15 @@ pub(crate) mod local;
 pub(crate) mod mock;
 pub(crate) mod openai;
 pub(crate) mod sniff;
+pub(crate) mod system;
 pub(crate) mod types;
+
+pub use system::{SpeechFuture, SpeechRunner, SystemSynth, SystemVoice};
 
 use std::path::Path;
 
 use nika_kernel::io::clock::ClockDyn;
-use nika_kernel::io::fs::{FsReadDyn, FsWriteDyn};
+use nika_kernel::io::fs::{FsMetaDyn, FsReadDyn, FsWriteDyn};
 use nika_kernel::io::http::HttpPostDyn;
 use nika_kernel::secret::Secret;
 
@@ -93,23 +98,30 @@ impl TtsKeys {
     }
 }
 
+/// The provider planes one `nika:tts_generate` call may reach: the http
+/// client + keys (cloud · local server) and the host synthesizer (system).
+pub(crate) struct Planes<'p, H> {
+    pub(crate) http: Option<&'p H>,
+    pub(crate) keys: &'p TtsKeys,
+    pub(crate) system: Option<&'p SystemVoice>,
+}
+
 /// Run `nika:tts_generate` end-to-end (the wrapper owns the error event).
 pub(crate) async fn generate<F, H, C, Em>(
     fs: &F,
-    http: Option<&H>,
-    keys: &TtsKeys,
+    planes: &Planes<'_, H>,
     clock: &C,
     emitter: &Em,
     boundary: &FsBoundary,
     raw_args: &Args,
 ) -> BuiltinOutcome
 where
-    F: FsReadDyn + FsWriteDyn,
+    F: FsReadDyn + FsWriteDyn + FsMetaDyn,
     H: HttpPostDyn,
     C: ClockDyn,
     Em: Emitter,
 {
-    match run(fs, http, keys, clock, emitter, boundary, raw_args).await {
+    match run(fs, planes, clock, emitter, boundary, raw_args).await {
         Ok(value) => Ok(value),
         Err(failure) => {
             emitter.emit(
@@ -123,15 +135,14 @@ where
 
 async fn run<F, H, C, Em>(
     fs: &F,
-    http: Option<&H>,
-    keys: &TtsKeys,
+    planes: &Planes<'_, H>,
     clock: &C,
     emitter: &Em,
     boundary: &FsBoundary,
     raw_args: &Args,
 ) -> BuiltinOutcome
 where
-    F: FsReadDyn + FsWriteDyn,
+    F: FsReadDyn + FsWriteDyn + FsMetaDyn,
     H: HttpPostDyn,
     C: ClockDyn,
     Em: Emitter,
@@ -147,7 +158,11 @@ where
         }),
     );
 
-    let audio = call_provider(http, keys, &args).await?;
+    let audio = if args.provider == Provider::System {
+        system::generate(fs, planes.system, &args).await?
+    } else {
+        call_provider(planes.http, planes.keys, &args).await?
+    };
     let ProviderAudio {
         bytes,
         cost_usd,
@@ -194,9 +209,7 @@ where
             &created_at,
             endpoint_host.as_deref(),
         );
-        if let serde_json::Value::Object(map) = &mut manifest {
-            map.insert("content_credentials".into(), content_credentials.into());
-        }
+        annotate(&mut manifest, content_credentials, args.provider);
         Some(write_manifest(fs, boundary, &args, &saved, &manifest, emitter).await?)
     } else {
         None
@@ -212,10 +225,28 @@ where
         endpoint_host.as_deref(),
         manifest_path.as_deref(),
     );
-    if let serde_json::Value::Object(map) = &mut output {
-        map.insert("content_credentials".into(), content_credentials.into());
-    }
+    annotate(&mut output, content_credentials, args.provider);
     Ok(output)
+}
+
+/// The two receipt fields the manifest and the output both carry beside
+/// their base shape: the detected content credentials and, when the engine
+/// knows it, why `cost_usd` is null.
+fn annotate(record: &mut serde_json::Value, credentials: Option<&'static str>, provider: Provider) {
+    if let serde_json::Value::Object(map) = record {
+        map.insert("content_credentials".into(), credentials.into());
+        if let Some(reason) = unpriced_reason(provider) {
+            map.insert("cost_unpriced".into(), reason.into());
+        }
+    }
+}
+
+/// Why `cost_usd` is null, when the engine KNOWS (the honest-absence
+/// channel the run ledger reads): the host synthesizer is local compute —
+/// unpriced, never free, never a priced `0`. Other providers keep the
+/// unqualified null they had.
+fn unpriced_reason(provider: Provider) -> Option<&'static str> {
+    (provider == Provider::System).then_some("local_model")
 }
 
 /// Content credentials: Google's Lyria and the `ElevenLabs` stack already
@@ -313,6 +344,14 @@ async fn call_provider<H: HttpPostDyn>(
 ) -> Result<ProviderAudio, BuiltinFailure> {
     let wire = match args.provider {
         Provider::Mock => return Ok(mock::generate(args)),
+        // The host synthesizer never crosses this http plane (routed above);
+        // reaching here is a wiring slip, refused loudly — never a fallback.
+        Provider::System => {
+            return Err(BuiltinFailure::new(
+                C_PROVIDER_UNAVAILABLE,
+                "the system voice is routed to the host synthesizer, never the http plane",
+            ));
+        }
         Provider::Openai => Wire::Openai(
             keys.openai
                 .as_ref()
@@ -537,17 +576,14 @@ mod tests {
         let boundary = FsBoundary::unbounded();
         let keys = TtsKeys::new();
 
-        let out = generate::<_, MockHttp, _, _>(
-            &fs,
-            None,
-            &keys,
-            &clock,
-            &emitter,
-            &boundary,
-            &args_for(&root),
-        )
-        .await
-        .expect("mock synthesis");
+        let planes = Planes::<MockHttp> {
+            http: None,
+            keys: &keys,
+            system: None,
+        };
+        let out = generate(&fs, &planes, &clock, &emitter, &boundary, &args_for(&root))
+            .await
+            .expect("mock synthesis");
         let path = out["audio"]["path"].as_str().expect("path").to_owned();
         assert!(path.contains("accueil-mock-mock-tts-1-"), "{path}");
         assert!(
@@ -568,18 +604,89 @@ mod tests {
 
         // Idempotent re-run: same bytes → same name → no new files.
         let before = std::fs::read_dir(&root).expect("dir").count();
-        let _ = generate::<_, MockHttp, _, _>(
+        let _ = generate(&fs, &planes, &clock, &emitter, &boundary, &args_for(&root))
+            .await
+            .expect("re-run");
+        assert_eq!(std::fs::read_dir(&root).expect("dir").count(), before);
+    }
+
+    /// A `say` stand-in: writes a real WAV at its `-o` path.
+    #[derive(Debug, Clone, Copy)]
+    struct WritesWav;
+
+    impl nika_kernel::process::ShellRunDyn for WritesWav {
+        async fn run(
+            &self,
+            command: nika_kernel::process::ShellCommand,
+        ) -> Result<nika_kernel::process::ShellResult, nika_kernel::process::ShellError> {
+            let at = command.args.iter().position(|a| a == "-o").expect("-o");
+            std::fs::write(&command.args[at + 1], mock::render_wav("system", 1000))
+                .expect("scratch");
+            Ok(nika_kernel::process::ShellResult::new(
+                0,
+                "",
+                "",
+                std::time::Duration::ZERO,
+            ))
+        }
+    }
+
+    /// The system voice's receipt: a WAV under `output_dir`, the duration
+    /// from its bytes, the program as the model, and an UNPRICED cost that
+    /// says why — never a priced 0.
+    #[tokio::test]
+    async fn system_voice_lands_a_wav_with_an_unpriced_local_cost() {
+        let root = scratch();
+        let fs = TokioFs;
+        let keys = TtsKeys::new();
+        let voice = SystemVoice::new(
+            std::sync::Arc::new(WritesWav),
+            SystemSynth::say("/usr/bin/say", &root),
+        );
+        let planes = Planes::<MockHttp> {
+            http: None,
+            keys: &keys,
+            system: Some(&voice),
+        };
+        let serde_json::Value::Object(args) = serde_json::json!({
+            "provider": "system", "text": "Bonjour.", "output_dir": root.join("audio").to_string_lossy(),
+        }) else {
+            unreachable!()
+        };
+        let out = generate(
             &fs,
-            None,
-            &keys,
-            &clock,
-            &emitter,
-            &boundary,
-            &args_for(&root),
+            &planes,
+            &MockClock::default(),
+            &NullEmitter,
+            &FsBoundary::unbounded(),
+            &args,
         )
         .await
-        .expect("re-run");
-        assert_eq!(std::fs::read_dir(&root).expect("dir").count(), before);
+        .expect("the system voice speaks");
+        assert_eq!(out["provider"], "system");
+        assert_eq!(out["model"], types::SYSTEM_MODEL);
+        assert_eq!(out["voice"], "default");
+        assert_eq!(
+            out["cost_usd"],
+            serde_json::Value::Null,
+            "unpriced, never a priced 0"
+        );
+        assert_eq!(out["cost_unpriced"], "local_model");
+        assert_eq!(out["endpoint_host"], serde_json::Value::Null);
+        assert_eq!(out["audio"]["format"], "wav");
+        let path = out["audio"]["path"].as_str().expect("path");
+        let bytes = std::fs::read(path).expect("the audio landed");
+        assert_eq!(out["audio"]["sha256"], sha256_hex(&bytes));
+        assert_eq!(
+            out["audio"]["duration_ms"],
+            sniff::sniff(&bytes).expect("wav").duration_ms.expect("ms")
+        );
+        let manifest: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(out["manifest_path"].as_str().expect("manifest"))
+                .expect("manifest file"),
+        )
+        .expect("json");
+        assert_eq!(manifest["cost_unpriced"], "local_model");
     }
 
     #[tokio::test]
@@ -595,31 +702,26 @@ mod tests {
         }) else {
             unreachable!()
         };
-        let err = generate::<_, MockHttp, _, _>(
-            &fs,
-            None,
-            &TtsKeys::new(),
-            &clock,
-            &emitter,
-            &boundary,
-            &cloud,
-        )
-        .await
-        .expect_err("unwired");
+        let no_keys = TtsKeys::new();
+        let unwired = Planes::<MockHttp> {
+            http: None,
+            keys: &no_keys,
+            system: None,
+        };
+        let err = generate(&fs, &unwired, &clock, &emitter, &boundary, &cloud)
+            .await
+            .expect_err("unwired");
         assert!(err.code.ends_with("-002"), "{}", err.code);
 
         let http = MockHttp::new();
-        let err = generate(
-            &fs,
-            Some(&http),
-            &TtsKeys::new(),
-            &clock,
-            &emitter,
-            &boundary,
-            &cloud,
-        )
-        .await
-        .expect_err("no key");
+        let keyless = Planes {
+            http: Some(&http),
+            keys: &no_keys,
+            system: None,
+        };
+        let err = generate(&fs, &keyless, &clock, &emitter, &boundary, &cloud)
+            .await
+            .expect_err("no key");
         assert!(err.message.contains("OPENAI_API_KEY"), "{}", err.message);
     }
 }

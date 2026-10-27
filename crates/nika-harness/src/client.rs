@@ -32,7 +32,7 @@ use tokio::sync::mpsc;
 
 use crate::wire::{
     self, Incoming, InitializeParams, NewSessionParams, PermissionRequestIn, PermissionResult,
-    PromptParams, PromptResult, SessionUpdateParams, TextBlock,
+    PromptResult, SessionUpdateParams,
 };
 
 /// One incoming line may not exceed this (bounded reads · spec §4): a
@@ -201,6 +201,7 @@ where
         if let Some(completion) = self.completion {
             crate::authoring::acp::admit(&value, completion)?;
         }
+        prompt::admit_images(&value, &request.images)?;
         self.agent_name = value
             .pointer("/agentInfo/name")
             .and_then(Value::as_str)
@@ -243,10 +244,7 @@ where
         self.send_request(
             ID_PROMPT,
             wire::METHOD_SESSION_PROMPT,
-            &PromptParams {
-                session_id: session.session_id.clone(),
-                prompt: vec![TextBlock { kind: "text", text }],
-            },
+            &prompt::params(&session.session_id, &text, &request.images),
         )
         .await?;
         Milestone::PromptWritten.reached(self.progress.as_ref());
@@ -787,6 +785,10 @@ mod anchor;
 
 /// One ACP session kept open across turns (`crate::conversation`).
 pub(crate) mod conversation;
+
+/// The prompt's content blocks: its text, then the images an agent that advertises image
+/// prompts receives.
+mod prompt;
 
 /// The engine's verdict → the wire outcome. `AllowOnce` selects the
 /// agent's `allow_once` option; `allow_always` is NEVER selected even

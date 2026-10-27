@@ -8,8 +8,9 @@
 //! `session/new`), the `agent:` session under the agent's own; both apply
 //! the model and the effort and read them back before exactly one prompt;
 //! the ready API key is never dialed; each terminal carries the authored
-//! requirement and its own call's receipt. A `schema:` infer refuses with
-//! ZERO sessions: the profile's output level is text.
+//! requirement and its own call's receipt. A `schema:` infer rides the same
+//! one-shot: the profile's own level is text, so Nika carries the schema in
+//! the prompt and validates the answer (spec 02, conjunct 3).
 
 use std::future::Future;
 use std::pin::Pin;
@@ -194,6 +195,15 @@ async fn claude_peer(
                 json!({"configOptions":claude(&model, &effort, &mode)})
             }
             Some("session/prompt") => {
+                let asked = request["params"]["prompt"][0]["text"]
+                    .as_str()
+                    .unwrap_or("");
+                // Under a schema the scripted model answers in JSON, fenced like a real one.
+                let answer = if asked.contains("satisfies this JSON Schema") {
+                    "```json\n{\"a\": \"three invariants\"}\n```"
+                } else {
+                    answer
+                };
                 let chunk = json!({"jsonrpc":"2.0","method":"session/update","params":{
                     "sessionId":"s-claude","update":{"sessionUpdate":"agent_message_chunk",
                     "content":{"type":"text","text":answer}}}});
@@ -433,19 +443,36 @@ async fn one_declaration_serves_infer_and_agent_over_acp() {
     );
 }
 
+/// D2 · `schema:` on the seat: one one-shot session, the schema in its prompt, the answer
+/// validated by Nika and handed downstream as the object.
 #[tokio::test]
-async fn a_schema_infer_over_acp_refuses_with_zero_sessions() {
+async fn a_schema_infer_over_acp_is_validated_by_nika_on_one_session() {
     let (outcome, events, one_shot, seat, api_calls) = run(&workflow(SCHEMA)).await;
-    assert!(!outcome.ok);
-    assert_eq!(one_shot.opened.load(Ordering::SeqCst), 0, "zero sessions");
-    assert_eq!(seat.opened.load(Ordering::SeqCst), 0, "the agent never ran");
+    assert!(outcome.ok, "{events:?}");
+    assert_eq!(
+        one_shot.opened.load(Ordering::SeqCst),
+        1,
+        "a valid answer needs no repair"
+    );
     assert_eq!(api_calls, 0, "no substitute route");
-    let failed = terminal(&events, EventKind::TaskFailed, "draft");
-    let detail = text(failed, "detail").expect("detail");
+    let prompt = one_shot
+        .seen()
+        .into_iter()
+        .find(|r| r["method"] == "session/prompt")
+        .expect("one prompt");
     assert!(
-        detail.contains("`claude-code` over ACP is not infer-grade for json_schema")
-            && detail.contains("failed structured_output")
-            && detail.contains("nothing was sent"),
-        "{detail}"
+        prompt["params"]["prompt"][0]["text"]
+            .as_str()
+            .is_some_and(|t| t.contains("Reply with ONLY a JSON value")),
+        "{prompt}"
+    );
+    assert!(
+        seat.seen()
+            .iter()
+            .filter(|r| r["method"] == "session/prompt")
+            .any(|r| r["params"]["prompt"][0]["text"]
+                .as_str()
+                .is_some_and(|t| t.contains("{\"a\":\"three invariants\"}"))),
+        "the agent read the validated object, not the fenced text"
     );
 }

@@ -1,0 +1,29 @@
+# An agent application's images as values (spec 02 §Harness images): the
+# task runs on a seat and declares where Nika writes the bytes its session
+# sent; the next task binds the written path. A document edit elsewhere
+# keeps the images block whole.
+nika: seat-images
+model: openai/gpt-6-luna
+run:
+  access:
+    via: codex
+    protocol: acp
+permits:
+  tools: ["nika:image_fx"]
+  fs:
+    read: ["./out/**"]
+    write: ["./out/**"]
+tasks:
+  banner:
+    agent:
+      prompt: "Draw a 16:9 release banner, no text"
+      images:
+        save: "./out/banner.png"
+  halftone:
+    with:
+      banner: ${{ tasks.banner.output.images[0].path }}
+    invoke:
+      tool: "nika:image_fx"
+      args: { input: "${{ with.banner }}", out: "./out/banner-halftone.png", ops: [{ halftone: {} }] }
+outputs:
+  banner: ${{ tasks.banner.output.images[0].sha256 }}

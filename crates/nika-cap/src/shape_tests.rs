@@ -371,6 +371,227 @@ fn tts_enums_are_closed() {
     );
     assert!(only("nika:tts_generate", &json!({"format": "ogg"})).contains("`format: ogg`"));
     silent("nika:tts_generate", &json!({"provider": "${{ p }}"}));
+    // The keyless host voice is a member of the closed set.
+    silent("nika:tts_generate", &json!({"provider": "system"}));
+}
+
+#[test]
+fn a_literal_system_voice_is_judged_the_way_its_run_judges_it() {
+    // The model IS the synthesizer: its program name, or nothing.
+    for model in ["say", "espeak-ng"] {
+        silent(
+            "nika:tts_generate",
+            &json!({"provider": "system", "model": model}),
+        );
+    }
+    assert!(
+        only(
+            "nika:tts_generate",
+            &json!({"provider": "system", "model": "kokoro"})
+        )
+        .contains("no model choice")
+    );
+    // A host voice name: never an option, never a path or a command.
+    for voice in [
+        "Samantha",
+        "Eddy (English (UK))",
+        "Amélie",
+        "en-us+f3",
+        "${{ v }}",
+    ] {
+        silent(
+            "nika:tts_generate",
+            &json!({"provider": "system", "voice": voice}),
+        );
+    }
+    for voice in ["-o", "say; rm", "a/b", "x\ny", "v".repeat(65).as_str()] {
+        assert!(
+            only(
+                "nika:tts_generate",
+                &json!({"provider": "system", "voice": voice})
+            )
+            .contains("not a host voice name"),
+            "{voice}"
+        );
+    }
+    // Other providers keep their own model and voice spaces.
+    silent(
+        "nika:tts_generate",
+        &json!({"provider": "openai", "model": "kokoro", "voice": "-o"}),
+    );
+}
+
+// ── nika:image_compose ───────────────────────────────────────────
+
+#[test]
+fn image_compose_cookbook_shape_is_silent() {
+    silent(
+        "nika:image_compose",
+        &json!({
+            "inputs": ["./a.png", "./b.png", "./c.png", "./d.png"],
+            "out": "./sheet.png", "layout": "grid", "columns": 2, "rows": 2,
+            "scale": "fit", "cell": {"width": 256, "height": 256},
+            "gap": 6, "padding": 12, "background": "#10141c",
+        }),
+    );
+    silent(
+        "nika:image_compose",
+        &json!({"inputs": ["./a.png"], "out": "./s.png", "layout": "row"}),
+    );
+    silent(
+        "nika:image_compose",
+        &json!({"inputs": "${{ with.frames }}", "out": "./s.png"}),
+    );
+    silent(
+        "nika:image_compose",
+        &json!({"inputs": ["./a.png"], "out": "${{ with.dest }}"}),
+    );
+    silent(
+        "nika:image_compose",
+        &json!({"inputs": ["./a.png"], "out": "./s.png", "scale": "fill", "background": [16, 20, 28]}),
+    );
+    silent(
+        "nika:image_compose",
+        &json!({"inputs": ["./a.png"], "out": "./s.png", "layout": "${{ l }}", "columns": 3}),
+    );
+}
+
+#[test]
+fn image_compose_closed_enums_and_artifact_extension() {
+    let base = |extra: serde_json::Value| {
+        let mut a = json!({"inputs": ["./a.png", "./b.png"], "out": "./s.png"});
+        if let (Some(m), Some(e)) = (a.as_object_mut(), extra.as_object()) {
+            m.extend(e.clone());
+        }
+        a
+    };
+    assert!(
+        only("nika:image_compose", &base(json!({"layout": "diagonal"})))
+            .contains("`layout: diagonal` is not in the closed set")
+    );
+    assert!(
+        only("nika:image_compose", &base(json!({"scale": "stretch"}))).contains("`scale: stretch`")
+    );
+    assert!(
+        only("nika:image_compose", &base(json!({"out": "./s.jpg"}))).contains("must end in .png")
+    );
+    // The run refuses `.PNG` (its test is the exact extension), so the
+    // check does too: check and run never disagree on the same literal.
+    assert!(
+        only("nika:image_compose", &base(json!({"out": "./s.PNG"}))).contains("must end in .png")
+    );
+    assert!(
+        only("nika:image_compose", &base(json!({"layout": 3})))
+            .contains("`layout:` must be one of")
+    );
+}
+
+#[test]
+fn image_compose_grid_only_tracks_and_fit_fill_only_cell() {
+    let row_cols = only(
+        "nika:image_compose",
+        &json!({"inputs": ["./a.png", "./b.png"], "out": "./s.png", "layout": "row", "columns": 2}),
+    );
+    assert!(
+        row_cols.contains("`columns:` applies to `layout: grid` only (layout is row)"),
+        "{row_cols}"
+    );
+    let cell_none = only(
+        "nika:image_compose",
+        &json!({"inputs": ["./a.png"], "out": "./s.png", "cell": {"width": 8, "height": 8}}),
+    );
+    assert!(cell_none.contains("scale is none"), "{cell_none}");
+    let small = only(
+        "nika:image_compose",
+        &json!({"inputs": ["a", "b", "c", "d", "e"], "out": "./s.png", "columns": 2, "rows": 2}),
+    );
+    assert!(
+        small.contains("a 2x2 grid holds 4 cells · fewer than the 5 inputs"),
+        "{small}"
+    );
+}
+
+#[test]
+fn image_compose_literal_ranges_are_inclusive_at_both_ends() {
+    let with = |key: &str, v: serde_json::Value| {
+        let mut a = json!({"inputs": ["./a.png"], "out": "./s.png", "scale": "fit"});
+        a[key] = v;
+        a
+    };
+    for (key, lo, hi) in [
+        ("gap", 0, 1024),
+        ("padding", 0, 1024),
+        ("columns", 1, 64),
+        ("rows", 1, 64),
+    ] {
+        silent("nika:image_compose", &with(key, json!(lo)));
+        silent("nika:image_compose", &with(key, json!(hi)));
+        assert!(
+            only("nika:image_compose", &with(key, json!(hi + 1))).contains(&format!("{lo}..={hi}")),
+            "{key}"
+        );
+        assert!(
+            only("nika:image_compose", &with(key, json!(lo - 1))).contains(&format!("{lo}..={hi}")),
+            "{key}"
+        );
+    }
+    silent(
+        "nika:image_compose",
+        &with("cell", json!({"width": 1, "height": 16_384})),
+    );
+    assert!(
+        only(
+            "nika:image_compose",
+            &with("cell", json!({"width": 0, "height": 4}))
+        )
+        .contains("cell.width")
+    );
+    assert!(
+        only("nika:image_compose", &with("cell", json!({"width": 4})))
+            .contains("requires `height:`")
+    );
+    assert!(
+        only(
+            "nika:image_compose",
+            &with("cell", json!({"width": 4, "height": 4, "depth": 1}))
+        )
+        .contains("no key `depth`")
+    );
+    assert!(only("nika:image_compose", &with("background", json!("#12345"))).contains("#rrggbb"));
+    assert!(
+        only(
+            "nika:image_compose",
+            &with("background", json!([1, 2, 300]))
+        )
+        .contains("#rrggbb")
+    );
+    let none = f(
+        "nika:image_compose",
+        &json!({"inputs": [], "out": "./s.png"}),
+    );
+    assert!(none.iter().any(|m| m.contains("holds 0 paths")), "{none:?}");
+    let many: Vec<String> = (0..65).map(|i| format!("./{i}.png")).collect();
+    assert!(
+        only(
+            "nika:image_compose",
+            &json!({"inputs": many, "out": "./s.png"})
+        )
+        .contains("holds 65 paths")
+    );
+    assert!(
+        only(
+            "nika:image_compose",
+            &json!({"inputs": ["./a.png", ""], "out": "./s.png"})
+        )
+        .contains("`inputs[1]`")
+    );
+    assert!(
+        only(
+            "nika:image_compose",
+            &json!({"inputs": "./a.png", "out": "./s.png"})
+        )
+        .contains("must be a list")
+    );
 }
 
 #[test]

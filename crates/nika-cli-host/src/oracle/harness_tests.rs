@@ -68,7 +68,21 @@ fn a_harness_agent_task_is_told_its_boundary_and_keeps_its_bridged_grants() {
     assert_eq!(rows[0]["task"], "draw");
     assert_eq!(rows[0]["advice"], hints[0].2);
     let shown = seated.verdict.report_with_hints(&seated.report);
-    assert_eq!(shown.hints.len(), seated.report.hints.len() + 1);
+    // D2 · the seated task's `cost` hint (declare `max_tokens_total`) is withheld: the seat
+    // cannot carry it. The harness hint takes its place.
+    let cost = |hints: &[nika_check::Hint]| {
+        hints
+            .iter()
+            .filter(|h| h.kind == "cost" && h.task == "draw")
+            .count()
+    };
+    assert_eq!(
+        cost(&seated.report.hints),
+        1,
+        "the static report still names it"
+    );
+    assert_eq!(cost(&shown.hints), 0, "the verdict withholds it on a seat");
+    assert_eq!(shown.hints.len(), seated.report.hints.len());
     assert!(
         shown
             .hints

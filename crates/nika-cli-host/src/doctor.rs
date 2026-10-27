@@ -1390,7 +1390,12 @@ pub(crate) fn run_with_custody(
     custody: &nika_dap::seal::Custody,
 ) -> VerbOutput {
     let probe = crate::probe::collect(ping);
+    // #1614 · which `nika` this is and which others sit on PATH, right
+    // under the `binary` row (the existing rows keep their order).
+    let identity = crate::binary_identity::collect();
     let mut findings = diagnose_with(&probe, custody);
+    let at = usize::from(!findings.is_empty());
+    findings.splice(at..at, crate::binary_identity::doctor_findings(&identity));
     findings.extend(extra);
     // P3 B6 · every shipped agentic CLI runtime (always listed · label
     // `runtime`, never the MCP-wire `agent` column).
@@ -1403,14 +1408,17 @@ pub(crate) fn run_with_custody(
     let code = exit_code(&findings);
     VerbOutput {
         text: if json {
-            local_models::json(
-                with_cascade(render_json(
-                    &findings,
-                    crate::probe::adoption_state(&probe),
-                    &crate::probe::capability_receipts(&probe),
-                    &probe.census,
-                )),
-                &probe.providers,
+            crate::binary_identity::with_json(
+                local_models::json(
+                    with_cascade(render_json(
+                        &findings,
+                        crate::probe::adoption_state(&probe),
+                        &crate::probe::capability_receipts(&probe),
+                        &probe.census,
+                    )),
+                    &probe.providers,
+                ),
+                &identity,
             )
         } else {
             // The same sobriety seam the concierge rides: `--plain`

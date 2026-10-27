@@ -436,6 +436,15 @@ pub const NIKA_470: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "agent-final-cut",
 };
+/// NIKA-471: A task declaring `images: { save: }` received no image bytes on its own agent
+/// session, so the declared file cannot be written (wire `NIKA-AGENT-007` · spec 02 §Harness
+/// images).
+pub const NIKA_471: NikaCode = NikaCode {
+    num: 471,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "agent-no-image",
+};
 
 /// NIKA-999: Internal error (catch-all).
 pub const NIKA_999: NikaCode = NikaCode {
@@ -1046,8 +1055,8 @@ pub const ALL: &[NikaCode] = &[
     NIKA_016, NIKA_017, NIKA_018, NIKA_234, NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_434,
     NIKA_435, NIKA_436, NIKA_440, NIKA_441, NIKA_442, NIKA_450, NIKA_451, NIKA_452, NIKA_460,
     NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465, NIKA_466, NIKA_467, NIKA_468, NIKA_469,
-    NIKA_470, NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604, NIKA_605, NIKA_700, NIKA_750,
-    NIKA_800, NIKA_999, NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005,
+    NIKA_470, NIKA_471, NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604, NIKA_605, NIKA_700,
+    NIKA_750, NIKA_800, NIKA_999, NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003, NIKA_1004, NIKA_1005,
     NIKA_1006, NIKA_1007, NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102, NIKA_1103, NIKA_1104,
     NIKA_1105, NIKA_1106, NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201, NIKA_1202, NIKA_1203,
     NIKA_1204, NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303, NIKA_1304, NIKA_1305,

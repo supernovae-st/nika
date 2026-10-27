@@ -109,7 +109,11 @@ pub const AGENT_KEYS: &[&str] = &[
     "max_tokens_total",
     "temperature",
     "schema",
+    "images",
 ];
+
+/// `agent.images:` sub-fields (spec `02-verbs.md` §Harness images · `{ save }`).
+pub const AGENT_IMAGES_KEYS: &[&str] = &["save"];
 
 /// `thinking:` sub-fields (spec `02-verbs.md` · `{ enabled, budget_tokens }`).
 pub const THINKING_KEYS: &[&str] = &["enabled", "budget_tokens"];
@@ -130,6 +134,7 @@ pub fn known_child_keys(block_key: &str, parent: Option<&str>) -> Option<&'stati
         "invoke" => Some(INVOKE_KEYS),
         "agent" => Some(AGENT_KEYS),
         "thinking" => Some(THINKING_KEYS),
+        "images" if parent == Some("agent") => Some(AGENT_IMAGES_KEYS),
         "permits" => Some(PERMITS_KEYS),
         "fs" if parent == Some("permits") => Some(PERMITS_FS_KEYS),
         "net" if parent == Some("permits") => Some(PERMITS_NET_KEYS),

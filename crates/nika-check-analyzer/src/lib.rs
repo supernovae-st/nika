@@ -88,7 +88,7 @@ pub use thinking::{
     MIN_REASONING_MAX_TOKENS, REASONING_COMFORT_MAX_TOKENS, ThinkingFinding, catalog_knows,
     reasoning_cap_hints, thinking_findings,
 };
-pub use types_contract::{lowered_returns, returns_type};
+pub use types_contract::{images_outputs, lowered_returns, returns_type};
 
 /// The analyzer's output — the Graph IR plus its waves · lowering is
 /// the runtime's job.

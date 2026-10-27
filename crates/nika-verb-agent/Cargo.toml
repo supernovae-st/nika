@@ -44,13 +44,24 @@ err_prefix    = "NIKA-46x"
 workspace = true
 optional = true
 
+# The received bytes of a harness image, handed to `nika:write` (`images.save` · spec 02
+# §Harness images).
+[dependencies.base64]
+workspace = true
+optional = true
+
+# The digest of those received bytes, as written.
+[dependencies.sha2]
+workspace = true
+optional = true
+
 [features]
 # The harness access class (D-2026-08-04-N1 · P3 B4): agent tasks may
 # delegate to the user's own authenticated harness through the kernel
 # DynAgentBackend seam. DEFAULT OFF (feature-defaults law) — the native
 # loop is byte-unchanged without it; the runtime composer injects the
 # backend only when the feature is on AND an adapter is configured.
-access-harness = ["dep:futures-core"]
+access-harness = ["dep:futures-core", "dep:base64", "dep:sha2"]
 
 [lints]
 workspace = true

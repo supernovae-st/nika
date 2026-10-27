@@ -107,7 +107,7 @@ stay internal machinery per §Taxonomy ownership.
 | `NIKA-INVOKE` | `invoke:` verb errors | 001-099 |
 | `NIKA-AGENT` | `agent:` verb errors | 001-099 |
 | `NIKA-PROVIDER` | Provider adapter errors | 001-099 per provider |
-| `NIKA-BUILTIN-<BUILTIN>` | Builtin tool errors · per-builtin sub-namespace (`NIKA-BUILTIN-WAIT-001` · `NIKA-BUILTIN-NOTIFY-001` · `NIKA-BUILTIN-INSPECT-001` · `NIKA-BUILTIN-IMAGE_GENERATE-001..007` + `NIKA-BUILTIN-IMAGE_FX-001..006` — the §Media builtins' planes, stdlib page normative · `NIKA-BUILTIN-FETCH-001` — `nika:fetch`'s network/extraction errors, whose instances carry `category: network_error` though the namespace is the uniform `NIKA-BUILTIN`) | 001-099 per builtin |
+| `NIKA-BUILTIN-<BUILTIN>` | Builtin tool errors · per-builtin sub-namespace (`NIKA-BUILTIN-WAIT-001` · `NIKA-BUILTIN-NOTIFY-001` · `NIKA-BUILTIN-INSPECT-001` · `NIKA-BUILTIN-IMAGE_GENERATE-001..007` + `NIKA-BUILTIN-IMAGE_FX-001..006` + `NIKA-BUILTIN-IMAGE_COMPOSE-001..006` — the §Media builtins' planes, stdlib page normative · `NIKA-BUILTIN-FETCH-001` — `nika:fetch`'s network/extraction errors, whose instances carry `category: network_error` though the namespace is the uniform `NIKA-BUILTIN`) | 001-099 per builtin |
 | `NIKA-MCP` | MCP client errors | 001-099 |
 | `NIKA-SEC` | Security policy violations (SSRF · blocklist) | 001-099 |
 | `NIKA-TIMEOUT` | Task or step timeouts | 001-099 |
@@ -218,6 +218,7 @@ these from this file alone.
 | `NIKA-AGENT-004` | a `skills:` file is not a valid Agent Skill (no/unterminated/non-mapping frontmatter · missing/empty `name`/`description`) | `validation_error` | false |
 | `NIKA-AGENT-005` | the provider reported no token usage for a priced model — every budget and ledger reads the turn as free, so the loop fails closed (the usage-absence gate · R3-F1) | `budget_error` | false |
 | `NIKA-AGENT-006` | the agent's final message (no tool calls) stopped at the output cap (`max_tokens`) — the cut message is preserved at `error.details.partial_output`, never the task output (the rule of `NIKA-INFER-005`) | `budget_error` | false |
+| `NIKA-AGENT-007` | an `agent:` task declaring `images: { save: }` completed without receiving image bytes on its own session (no image, or only a path the application reported, which is never opened) — the declared file is never left unwritten behind a success ([02 §Harness images](./02-verbs.md#harness-images--images-normative)) | `validation_error` | false |
 | `NIKA-FILE-001` | the path of a project file (a `prompt:`/`system:`/`schema:` `{ file: }`) breaks the path law: a `${{ }}` template or a glob, an absolute path, a backslash, a drive or a URI scheme, a `..` or a hidden segment, or a symbolic link — judged before the read boundary and before any read ([02 §Project files](./02-verbs.md#project-files---file--normative)) | `validation_error` | false |
 | `NIKA-FILE-002` | a project file inside the read boundary is missing, unreadable or not a regular file at compose time — an ungranted path is `NIKA-AUTH-006` / `NIKA-SEC-004` before the file is opened | `validation_error` | false |
 | `NIKA-FILE-003` | a project file is not valid UTF-8 or holds more than 65,536 bytes | `validation_error` | false |

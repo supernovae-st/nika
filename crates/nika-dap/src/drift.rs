@@ -371,9 +371,9 @@ struct BodyUsage {
     has_exec: bool,
     /// An `agent:` whitelist exists (dynamic dispatch — suppresses tools/net/fs).
     has_agent_whitelist: bool,
-    /// An `agent:` task a harness can serve exists (no whitelist, no schema —
-    /// the two a harness refuses): on a bridged run its permission bridge
-    /// judges asks against `permits.exec` and `permits.fs`.
+    /// An `agent:` task a harness can serve exists (no `tools:` whitelist, which a
+    /// harness refuses · its `schema:` is validated on the seat's final message): on a
+    /// bridged run its permission bridge judges asks against `permits.exec` and `permits.fs`.
     has_bridge_agent: bool,
     /// Static `argv[0]`s of argv-form execs.
     programs: Option<BTreeSet<String>>,
@@ -478,12 +478,13 @@ impl BodyUsage {
                     None => {}
                 }
                 self.eat_multipart_parts(a);
+                self.eat_secondary_reads(a);
             }
             RawAction::Agent(a) => {
-                if !a.tools.is_empty() {
-                    self.has_agent_whitelist = true;
-                } else if a.schema.is_none() && a.schema_file.is_none() {
+                if a.tools.is_empty() {
                     self.has_bridge_agent = true;
+                } else {
+                    self.has_agent_whitelist = true;
                 }
             }
             // Infer is effect-free; a future verb joins deliberately (the
@@ -510,6 +511,25 @@ impl BodyUsage {
                 offer(&mut self.hosts, url_host(tok));
             } else if tok.starts_with("${{") {
                 offer(&mut self.hosts, None);
+            }
+        }
+    }
+
+    /// The read slots the single `path_arg` leaves out
+    /// ([`nika_cap::secondary_read_slots`] · `nika:image_compose`'s
+    /// `inputs[]`): each literal input is a read the run needs, so the grant
+    /// covering it is a USE — never `declared-but-unused` advice that would
+    /// order the removal of a read the run requires (the gauntlet's C-D1
+    /// class). A templated list or element poisons the set: no claim.
+    fn eat_secondary_reads(&mut self, a: &RawInvokeAction) {
+        let Some(tool) = a.tool() else { return };
+        let args = a.args.as_ref().map(|s| &s.value);
+        for (_, value) in nika_cap::secondary_read_slots(&tool.value, args) {
+            match value.as_str() {
+                Some(p) if !p.is_empty() && !p.contains("${{") => {
+                    offer(&mut self.reads, Some(p.to_owned()));
+                }
+                _ => offer(&mut self.reads, None),
             }
         }
     }
@@ -1050,7 +1070,8 @@ mod tests {
     }
 
     /// The negative control: not bridged, the same body still proves `cp` dead —
-    /// and a whitelisted or schema-bound agent is native-only, so it bridges nothing.
+    /// and a whitelisted agent is native-only, so it bridges nothing. A schema-bound
+    /// agent is served by the seat (its final message validated), so it bridges.
     #[test]
     fn without_a_servable_harness_agent_the_exec_drift_stands() {
         let unseated = scan(&bridged(""));
@@ -1060,20 +1081,21 @@ mod tests {
                 .any(|a| a.contains("`permits.exec` entry `cp` admits a program no task runs")),
             "{unseated:?}"
         );
-        for native in [
-            "      tools: [\"nika:read\"]\n",
-            "      schema: { type: object }\n",
+        for (body, servable) in [
+            ("      tools: [\"nika:read\"]\n", false),
+            ("      schema: { type: object }\n", true),
         ] {
             let yaml = BRIDGED.replace("RUN", "").replace(
                 "      max_turns: 6\n",
-                &format!("      max_turns: 6\n{native}"),
+                &format!("      max_turns: 6\n{body}"),
             );
             let wf = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
-            assert!(
+            assert_eq!(
                 scan_bridged(&wf, true)
                     .iter()
                     .any(|a| a.contains("`permits.exec` entry `cp`")),
-                "{native}"
+                !servable,
+                "{body}"
             );
         }
     }
@@ -1337,6 +1359,48 @@ mod tests {
     fn a_dynamic_multipart_part_poisons_the_read_set() {
         let advice = drifted(
             "nika: w\nconst:\n  p: \"./data/report.csv\"\npermits:\n  fs: { read: [\"./data/**\"] }\n  tools: [\"nika:fetch\"]\n  net: { http: [\"api.example.com\"] }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/up\", method: \"POST\", multipart: [{ name: \"file\", path: \"${{ const.p }}\" }] } }\n",
+        );
+        assert!(
+            !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
+            "{advice:?}"
+        );
+    }
+
+    /// The gauntlet's C-D1 class, never repeated: every `nika:image_compose`
+    /// input is a read the run needs, so the grant covering it is a use —
+    /// the drift scan must not advise removing it. The sheet's write is a
+    /// use of the write grant.
+    #[test]
+    fn image_compose_inputs_count_as_reads_and_out_as_a_write() {
+        let advice = drifted(
+            "nika: w\npermits:\n  tools: [\"nika:image_compose\"]\n  fs:\n    read: [\"./fx/**\"]\n    write: [\"./out/sheet.png\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:image_compose\", args: { inputs: [\"./fx/a.png\", \"./fx/b.png\"], out: \"./out/sheet.png\" } }\n",
+        );
+        assert!(
+            !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
+            "the read the inputs need is never drift: {advice:?}"
+        );
+        assert!(
+            !advice
+                .iter()
+                .any(|a| a.contains("`permits.fs.write` entry")),
+            "{advice:?}"
+        );
+        // A read entry no input touches is still named.
+        let spare = drifted(
+            "nika: w\npermits:\n  tools: [\"nika:image_compose\"]\n  fs:\n    read: [\"./fx/**\", \"./private/**\"]\n    write: [\"./out/sheet.png\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:image_compose\", args: { inputs: [\"./fx/a.png\"], out: \"./out/sheet.png\" } }\n",
+        );
+        assert!(
+            spare.iter().any(|a| a.contains("`./private/**`")),
+            "{spare:?}"
+        );
+        assert!(!spare.iter().any(|a| a.contains("`./fx/**`")), "{spare:?}");
+    }
+
+    /// A templated input list hides the read set: no claim, never wrong.
+    #[test]
+    fn a_dynamic_image_compose_list_poisons_the_read_set() {
+        let advice = drifted(
+            "nika: w\nconst:\n  frames: [\"./frames/a.png\"]\npermits:\n  tools: [\"nika:image_compose\"]\n  fs:\n    read: [\"./frames/**\"]\n    write: [\"./out/sheet.png\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:image_compose\", args: { inputs: \"${{ const.frames }}\", out: \"./out/sheet.png\" } }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),

@@ -2529,6 +2529,7 @@ dependencies = [
 name = "nika-verb-agent"
 version = "0.123.2"
 dependencies = [
+ "base64 0.23.1",
  "bytes",
  "futures-core",
  "futures-util",
@@ -2544,6 +2545,7 @@ dependencies = [
  "nika-types",
  "nika-verb-invoke",
  "serde_json",
+ "sha2",
  "thiserror",
  "tokio",
 ]

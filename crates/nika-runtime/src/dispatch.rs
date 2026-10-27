@@ -1086,11 +1086,10 @@ where
                 Err(refused) => return *refused,
             }
         }
-        // `model:` — the SAME render seam as infer's (#824 · one law).
-        input.model = match render_opt(action.model.as_ref(), scope) {
-            Ok(v) => v,
-            Err(err) => return Dispatched::template_err("agent · ?", &err),
-        };
+        // `model:` (the SAME render seam as infer's · #824) and `images.save`.
+        if let Err(err) = render_agent_fields(action, scope, &mut input) {
+            return Dispatched::template_err("agent · ?", &err);
+        }
         input.tools = action.tools.iter().map(|t| t.value.clone()).collect();
         // One Door · wave 1: the lane decides — an agent whose model's
         // lane is a provider path runs the native loop even when a seat
@@ -1243,6 +1242,21 @@ fn collect_vision(
 enum VisionErr {
     Template(RuntimeError),
     Unwired(String),
+}
+
+/// The agent fields rendered before the task's lane is known: `model:` (the same render seam
+/// as infer's, #824) and the `images.save` path (spec 02 §Harness images).
+fn render_agent_fields(
+    action: &nika_schema::raw::RawAgentAction,
+    scope: &Scope<'_>,
+    input: &mut AgentInput,
+) -> Result<(), RuntimeError> {
+    input.model = render_opt(action.model.as_ref(), scope)?;
+    if let Some(images) = &action.images {
+        let save = render_opt(images.value.save.as_ref(), scope)?;
+        input.images = Some(nika_verb_agent::AgentImages::new(save));
+    }
+    Ok(())
 }
 
 /// Render an optional spanned string field.

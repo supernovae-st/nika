@@ -293,6 +293,9 @@ pub struct Verdict {
     /// The child workflows the file names (`invoke: { workflow: … }`) — a
     /// child-blind lane must SAY it did not read them (W3-F2).
     pub children: Vec<String>,
+    /// The `infer:`/`agent:` tasks a seat serves: their `cost` hints (declare `max_tokens` /
+    /// `max_tokens_total`) are withheld — the field cannot ride an ACP session (D2).
+    pub seated: std::collections::BTreeSet<String>,
 }
 
 impl Verdict {
@@ -303,12 +306,29 @@ impl Verdict {
         &self,
         report: &'a CheckReport,
     ) -> std::borrow::Cow<'a, CheckReport> {
-        if self.harness.is_empty() {
+        let withheld = |hint: &nika_check::Hint| self.withholds(hint.kind, &hint.task);
+        if self.harness.is_empty() && !report.hints.iter().any(withheld) {
             return std::borrow::Cow::Borrowed(report);
         }
         let mut shown = report.clone();
+        shown.hints.retain(|hint| !withheld(hint));
         shown.hints.extend(self.harness.iter().cloned());
         std::borrow::Cow::Owned(shown)
+    }
+
+    /// Whether a hint of `kind` on `task` is withheld: a `cost` hint asks for `max_tokens` /
+    /// `max_tokens_total`, which a seated task cannot carry (the run would refuse it or price
+    /// the subscription as an API).
+    fn withholds(&self, kind: &str, task: &str) -> bool {
+        kind == "cost" && self.seated.contains(task)
+    }
+
+    /// [`Self::withholds`] over a machine `hints[]` row.
+    fn withholds_row(&self, hint: &Value) -> bool {
+        self.withholds(
+            hint["kind"].as_str().unwrap_or_default(),
+            hint["task"].as_str().unwrap_or_default(),
+        )
     }
 
     /// The operational gate: grade below High AND access ready (when a
@@ -418,6 +438,17 @@ pub fn native_hints(report: &CheckReport) -> usize {
         .count()
 }
 
+/// Whether the plan is judged over this machine's access rows: a task dials a model, the
+/// operator pins a route, or the file declares one (`run.access` naming a `via:` or a
+/// `protocol:`). The run door probes on the same facts (`lazy_plan`): a declared route judged
+/// over no rows reads as a binary built without agentic CLI adapters (measured on 0.123.2).
+fn needs_access_rows(wf: &RawWorkflow, access_pin: Option<&str>) -> bool {
+    dials_a_model(wf)
+        || access_pin.is_some()
+        || nika_service_execution::access::declared_requirement(wf)
+            .is_some_and(|requirement| requirement.selects_path())
+}
+
 /// Judge an already-checked workflow — the fold every door shares: the
 /// MODELS rung, the frozen plan under `access_pin`, the layered verdicts,
 /// the grade, the drift rows.
@@ -429,7 +460,7 @@ pub fn judge(
     judged: Judged,
     access_pin: Option<&str>,
 ) -> Verdict {
-    let probes = if dials_a_model(wf) || access_pin.is_some() {
+    let probes = if needs_access_rows(wf, access_pin) {
         nika_service_execution::access::access_probes_env()
     } else {
         Vec::new()
@@ -454,6 +485,9 @@ pub fn judge(
     if let Some(blocker) = project_files_blocker(wf, judged) {
         layers.blockers.push(blocker);
     }
+    // What a seat cannot honour blocks RUN READY here, as it refuses the run (D2).
+    let seats = seat_fields::judge(wf, report, &plan);
+    layers.blockers.extend(seats.blockers);
     let grade = nika_check::risk_grade(report);
     // A harness seat's permission bridge judges its asks against permits.exec and
     // permits.fs: on a run that seats one, those grants are never drift (NIK-266).
@@ -474,12 +508,14 @@ pub fn judge(
         harness,
         judged,
         children,
+        seated: seats.seated,
     }
 }
 
 /// The `agent:` tasks a harness seat serves, each with that seat, in file order (NIK-266):
 /// the plan's seat for the task's model, else the seat `run.access.via` declares. A task
-/// with a `tools:` whitelist or a `schema:` is native-only — a harness refuses both.
+/// with a `tools:` whitelist is native-only — a harness refuses it (its `schema:` is
+/// validated by Nika on the seat's final message).
 fn harness_agents(
     wf: &RawWorkflow,
     report: &CheckReport,
@@ -494,7 +530,7 @@ fn harness_agents(
             let nika_schema::raw::RawAction::Agent(agent) = &task.value.action else {
                 return None;
             };
-            if !agent.tools.is_empty() || agent.schema.is_some() || agent.schema_file.is_some() {
+            if !agent.tools.is_empty() {
                 return None;
             }
             let id = &task.value.id.value;
@@ -773,6 +809,7 @@ pub fn audit_json(
         Err(error) => return Err(format!("cannot serialize engine identity: {error}")),
     };
     if let Some(hints) = obj.get_mut("hints").and_then(Value::as_array_mut) {
+        hints.retain(|hint| !verdict.withholds_row(hint));
         push_advisory_hints(hints, &verdict.drift, &verdict.harness, wf);
     }
     // The lane refusals ride `findings[]` and `clean` reads them: the
@@ -893,6 +930,55 @@ mod tests {
             "{:?}",
             audit.verdict.layers.blockers
         );
+    }
+
+    /// Measured on 0.123.2 · a file that declares its route and dials no model. `nika run`
+    /// resolves the declared route over this machine's rows and exits 0; check judged it over
+    /// NO rows, so the route read as a binary built without agentic CLI adapters.
+    const DECLARED_ROUTE_BUILTIN_ONLY: &str = "nika: declared\nrun:\n  access: { via: codex, protocol: acp, fallback: none }\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  shape:\n    invoke: { tool: nika:jq, args: { input: [1, 2], expression: length } }\n";
+
+    /// The run door's probe law (`lazy_plan`): a flag, a dial or a declared route.
+    #[test]
+    fn a_declared_route_needs_this_machines_access_rows() {
+        let parse = |source: &str| {
+            nika_schema::parse(source, nika_schema::FileId::new(0), ParseMode::Strict)
+                .expect("the fixture parses")
+        };
+        let declared = parse(DECLARED_ROUTE_BUILTIN_ONLY);
+        assert!(needs_access_rows(&declared, None), "a declared route");
+        let undeclared = parse(&DECLARED_ROUTE_BUILTIN_ONLY.replace(
+            "run:\n  access: { via: codex, protocol: acp, fallback: none }\n",
+            "",
+        ));
+        assert!(undeclared.run.is_none(), "the fixture lost its `run:`");
+        assert!(!needs_access_rows(&undeclared, None), "nothing to judge");
+        assert!(needs_access_rows(&undeclared, Some("mock")), "a pin");
+        assert!(needs_access_rows(&parse(RUN_TIME_MODEL), None), "a dial");
+    }
+
+    /// With the adapters compiled in, a declared route is judged over the real rows: the only
+    /// refusal it can meet is the seat's own install or sign-in line.
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn a_declared_route_never_reads_as_a_binary_without_adapters() {
+        const NOT_COMPILED: &str = "built without agentic CLI adapters";
+        let audit = audit(DECLARED_ROUTE_BUILTIN_ONLY);
+        assert!(
+            audit.verdict.plan.requirement.is_some(),
+            "the plan carries the declared route"
+        );
+        assert!(
+            !audit
+                .verdict
+                .layers
+                .blockers
+                .iter()
+                .any(|line| line.contains(NOT_COMPILED)),
+            "{:?}",
+            audit.verdict.layers.blockers
+        );
+        let refusal = format!("{:?}", audit.verdict.plan.pin_refusal);
+        assert!(!refusal.contains(NOT_COMPILED), "{refusal}");
     }
 
     #[test]
@@ -1429,3 +1515,9 @@ mod tests {
 
 #[cfg(test)]
 mod harness_tests;
+
+/// What a seat cannot honour, judged from its declared capabilities (D2).
+mod seat_fields;
+
+#[cfg(test)]
+mod seat_fields_tests;

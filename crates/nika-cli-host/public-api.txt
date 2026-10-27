@@ -2072,6 +2072,7 @@ pub nika_cli_host::oracle::Verdict::judged: nika_cli_host::oracle::Judged
 pub nika_cli_host::oracle::Verdict::layers: nika_display::check_render::layers::VerdictLayers
 pub nika_cli_host::oracle::Verdict::models: nika_display::check_models::ModelsAudit
 pub nika_cli_host::oracle::Verdict::plan: nika_providers::plan::ExecutionAccessPlan
+pub nika_cli_host::oracle::Verdict::seated: alloc::collections::btree::set::BTreeSet<alloc::string::String>
 impl nika_cli_host::oracle::Verdict
 pub fn nika_cli_host::oracle::Verdict::lane_findings(&self, report: &nika_check::CheckReport, lanes: nika_cli_host::oracle::Lanes) -> alloc::vec::Vec<nika_cli_host::oracle::LaneFinding>
 pub fn nika_cli_host::oracle::Verdict::profile_clean(&self, operational: bool) -> bool

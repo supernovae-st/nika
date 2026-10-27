@@ -496,3 +496,78 @@ tasks:
         vec!["api.example.com".to_owned()]
     );
 }
+
+/// A parent with a private read and an egress, granting the fetch a child
+/// needs (a child runs inside its caller's boundary) and sending the child's
+/// output out (NIK-273 follow-up).
+const SENDS_THE_CHILD_OUT: &str = "\
+nika: parent
+permits:
+  fs: { read: [\"./note.txt\"] }
+  net: { http: [\"docs.example.com\", \"hooks.example.com\"] }
+  tools: [\"nika:fetch\", \"nika:read\", \"nika:notify\"]
+tasks:
+  call:
+    invoke: { workflow: \"./child.nika\" }
+    returns: { object: { report: string } }
+  note:
+    invoke: { tool: \"nika:read\", args: { path: \"./note.txt\" } }
+  send:
+    with: { page: \"${{ tasks.call.output.report }}\", note: \"${{ tasks.note.output }}\" }
+    invoke: { tool: \"nika:notify\", args: { channel: webhook, target: \"https://hooks.example.com/hook\", message: \"${{ with.page }} ${{ with.note }}\" } }
+";
+
+/// A plain `check()` resolves no child, so its report cannot vouch for one:
+/// the trust gate counts the call unresolved (fail-closed) and refuses the
+/// run before the prologue. The child never runs, so a fetching child can
+/// never reach the ungated `send`.
+#[tokio::test]
+async fn a_report_that_resolved_no_child_never_vouches_for_it() {
+    let (wf, report) = parse_and_check(SENDS_THE_CHILD_OUT);
+    assert!(
+        report.composed_calls.is_empty(),
+        "a plain check resolves no call"
+    );
+    let (runner, calls) = MockChildRunner::new(green_child(None));
+    let rt = runtime(RuntimeConfig::default()).with_child_runner(runner);
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let err = rt
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect_err("refused at the trust gate");
+    assert_eq!(err.spec_code(), "NIKA-1707");
+    let detail = err.to_string();
+    assert!(detail.contains("trifecta · task `send`"), "{detail}");
+    assert!(
+        detail.contains("unresolved child call · task `call`"),
+        "the call the report did not resolve is named: {detail}"
+    );
+    assert!(sink.into_events().is_empty(), "refused before the prologue");
+    assert!(
+        calls.lock().expect("lock").is_empty(),
+        "the child never ran"
+    );
+}
+
+/// The same workflow under a composed report that resolved its child: the
+/// gate re-derives over the same call and vouches, and the child runs.
+#[tokio::test]
+async fn a_composed_report_still_vouches_for_the_child_it_resolved() {
+    const PURE_CHILD: &str = "nika: pure\nmodel: mock/echo\npermits: {}\ntasks:\n  brief:\n    infer: { prompt: \"hi\", max_tokens: 8 }\noutputs:\n  report: { value: \"${{ tasks.brief.output }}\", type: string }\n";
+    let wf = parse(SENDS_THE_CHILD_OUT, FileId::new(0), ParseMode::Strict).expect("parses");
+    let report = nika_check::check_composed(&wf, "parent.nika", &mut |path| match path {
+        "child.nika" => Ok(PURE_CHILD.to_owned()),
+        other => Err(format!("no fixture for {other}")),
+    });
+    assert!(report.is_clean(), "{:#?}", report.findings);
+    assert_eq!(report.composed_calls.len(), 1);
+    let (runner, calls) = MockChildRunner::new(green_child(None));
+    let rt = runtime(RuntimeConfig::default()).with_child_runner(runner);
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    rt.run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("the composed report vouches");
+    assert_eq!(calls.lock().expect("lock").len(), 1, "the child ran");
+}

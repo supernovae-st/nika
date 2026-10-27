@@ -58,7 +58,7 @@ fn cost_composed_only(out: &mut String, report: &CheckReport, t: Theme) {
 /// that used to claim the whole bill from a lane that prices
 /// `infer:`/`agent:` and nothing else; the composed-children arm joins
 /// here (extracted under the fn-length law).
-fn cost_empty_arm(out: &mut String, report: &CheckReport, t: Theme) {
+fn cost_empty_arm(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     if !report.cost.composed.is_empty() {
         return cost_composed_only(out, report, t);
     }
@@ -68,11 +68,13 @@ fn cost_empty_arm(out: &mut String, report: &CheckReport, t: Theme) {
     // `exec: ["claude", "-p", "write a novel"]` printed
     // `✔ COST no inference tasks · $0.00` and
     // `✔ audited · est ≤$0.0000`. A paid media call is a provider's meter
-    // too (C-D3): it is counted here and named on its own row.
-    let summary = match media_summary(report) {
-        Some(media) => format!("no infer/agent tasks · {media} · exec + mcp spend unpriced"),
-        None => "no infer/agent tasks · $0.00 · exec + mcp spend unpriced".to_owned(),
-    };
+    // too (C-D3): it is counted here and named on its own row; the host
+    // voice's local compute is named unpriced, never free.
+    let summary = format!(
+        "no infer/agent tasks · {} · exec + mcp spend unpriced{}",
+        media_summary(report).unwrap_or_else(|| "$0.00".to_owned()),
+        voice_clause(wf)
+    );
     let unpriced = unpriced_media(report) > 0;
     let _ = writeln!(
         out,
@@ -163,6 +165,15 @@ fn cost_media_rows(out: &mut String, report: &CheckReport, t: Theme) {
     }
 }
 
+/// ` · system voice local work unpriced` when a task speaks through the host
+/// synthesizer: the `$0.00` above prices `infer:`/`agent:` only, and the
+/// voice's local compute is unpriced, never free.
+fn voice_clause(wf: &RawWorkflow) -> String {
+    crate::check_render::host_voice_unpriced(wf)
+        .map(|clause| format!(" · {clause}"))
+        .unwrap_or_default()
+}
+
 /// The per-task rows of [`cost()`] — a priced row at its cap, or the
 /// UNBOUNDED row with its named reason (extracted under the fn-length law).
 fn cost_task_rows(out: &mut String, report: &CheckReport, t: Theme) {
@@ -228,9 +239,15 @@ fn no_price_reason(model: &str) -> &'static str {
     }
 }
 
-pub(super) fn cost(out: &mut String, report: &CheckReport, t: Theme, layers: &VerdictLayers) {
+pub(super) fn cost(
+    out: &mut String,
+    report: &CheckReport,
+    wf: &RawWorkflow,
+    t: Theme,
+    layers: &VerdictLayers,
+) {
     if report.cost.tasks.is_empty() {
-        return cost_empty_arm(out, report, t);
+        return cost_empty_arm(out, report, wf, t);
     }
     // OUTPUT ceiling, and the word is load-bearing. `cost::ceiling` prices
     // `max_tokens`, which the spec defines as "Max OUTPUT tokens"
@@ -298,6 +315,21 @@ pub(super) fn cost(out: &mut String, report: &CheckReport, t: Theme, layers: &Ve
             },
         )
     };
+    let _ = writeln!(
+        out,
+        " {cost_mark} {}     {} {bound} {}",
+        t.paint(Role::Strong, "COST"),
+        t.paint(Role::Strong, &money),
+        t.paint(Role::Dim, &priced_tail(wf, media_unpriced)),
+    );
+    cost_task_rows(out, report, t);
+    cost_media_rows(out, report, t);
+}
+
+/// The dim tail of the priced COST rung: what its ceiling does not price
+/// (`media_unpriced` paid media calls among them), and the date of the price
+/// table it does.
+fn priced_tail(wf: &RawWorkflow, media_unpriced: usize) -> String {
     // The price table's date rides WITH the number. A ceiling is a
     // promise, and a promise computed against prices that have since
     // moved is a promise about the past — the `--json` lane has carried
@@ -308,32 +340,26 @@ pub(super) fn cost(out: &mut String, report: &CheckReport, t: Theme, layers: &Ve
     // This is not hypothetical drift: vendor intro pricing expires on
     // announced dates, so a workflow audited in one month can bill more
     // in the next with the file unchanged.
-    let snap = nika_catalog::pricing_snapshot();
-    let _ = writeln!(
-        out,
-        " {cost_mark} {}     {} {bound} {}",
-        t.paint(Role::Strong, "COST"),
-        t.paint(Role::Strong, &money),
-        t.paint(Role::Dim, &unpriced_trailer(media_unpriced, snap.as_of)),
-    );
-    cost_task_rows(out, report, t);
-    cost_media_rows(out, report, t);
-}
-
-/// What the inference ceiling leaves out, with the price table's date.
-/// `exec` + `mcp` join `prompts` in the unpriced list for the same reason
-/// the empty-cost branch names them: this ceiling sums `infer:`/`agent:`
-/// output tokens, so a workflow that mixes an `infer:` with an `exec:` gets
-/// a ceiling with the exec's whole bill missing — and the ✔ does not say
-/// so. An unpriced paid media call is counted beside them (C-D3).
-fn unpriced_trailer(media_unpriced: usize, as_of: &str) -> String {
-    match media_unpriced {
-        0 => format!("· prompts, exec + mcp unpriced · prices {as_of}"),
+    //
+    // `exec` + `mcp` join `prompts` in the unpriced list for the same
+    // reason the empty-cost branch above names them: this ceiling
+    // sums `infer:`/`agent:` output tokens, so a workflow that mixes
+    // an `infer:` with an `exec:` gets a ceiling with the exec's whole
+    // bill missing — and the ✔ does not say so. An unpriced paid media
+    // call is counted beside them (C-D3), and the host voice's local work
+    // is named last.
+    let unpriced = match media_unpriced {
+        0 => "prompts, exec + mcp".to_owned(),
         n => format!(
-            "· prompts, exec, mcp + {} unpriced · prices {as_of}",
-            crate::vocab::count(n, "paid media call"),
+            "prompts, exec, mcp + {}",
+            crate::vocab::count(n, "paid media call")
         ),
-    }
+    };
+    format!(
+        "· {unpriced} unpriced · prices {}{}",
+        nika_catalog::pricing_snapshot().as_of,
+        voice_clause(wf)
+    )
 }
 
 /// The tasks whose route bills reasoning beyond `max_tokens`, named, when there are any.
@@ -397,7 +423,13 @@ mod tests {
         let report = nika_check::check(&wf);
         let mut text = String::new();
         let layers = VerdictLayers::default();
-        cost(&mut text, &report, Theme::new(false, false, false), &layers);
+        cost(
+            &mut text,
+            &report,
+            &wf,
+            Theme::new(false, false, false),
+            &layers,
+        );
         text
     }
 
@@ -486,7 +518,13 @@ mod tests {
         assert!(!report.cost.composed.is_empty(), "the child is priced");
         let mut text = String::new();
         let layers = VerdictLayers::default();
-        cost(&mut text, &report, Theme::new(false, false, false), &layers);
+        cost(
+            &mut text,
+            &report,
+            &wf,
+            Theme::new(false, false, false),
+            &layers,
+        );
         assert!(text.contains("composed child call"), "{text}");
         assert!(
             text.contains("1 paid media call, 1 unpriced")
@@ -497,7 +535,7 @@ mod tests {
         assert!(!text.contains('✔'), "{text}");
     }
 
-    /// Local, mock and keyless media spend nothing: the card is unchanged.
+    /// Local and mock media spend nothing: the card is unchanged.
     #[test]
     fn unmetered_media_keeps_the_zero_line() {
         let text = media_card(
@@ -508,5 +546,36 @@ mod tests {
             "{text}"
         );
         assert!(!text.contains("paid media"), "{text}");
+    }
+
+    /// The keyless host voice bills no provider, so it is no paid media call
+    /// (no row, no cap refusal), yet its local work is named unpriced beside
+    /// the paid media a workflow makes, in both layouts.
+    #[test]
+    fn the_host_voice_is_named_beside_paid_media_never_counted_as_one() {
+        let speech = "permits: { tools: [\"nika:tts_generate\"] }\ntasks:\n  host:\n    invoke: { tool: \"nika:tts_generate\", args: { provider: system, text: hi, output_dir: ./out } }\n  cloud:\n    invoke: { tool: \"nika:tts_generate\", args: { provider: openai, text: hi, output_dir: ./out } }\n";
+        let text = media_card(&format!("nika: duo\n{speech}"));
+        let line = text.lines().next().unwrap_or_default();
+        assert!(
+            line.contains(
+                "no infer/agent tasks · 1 paid media call, 1 unpriced · exec + mcp spend \
+                 unpriced · system voice local work unpriced"
+            ),
+            "{text}"
+        );
+        assert!(
+            text.contains("nika:tts_generate · openai")
+                && !text.contains("nika:tts_generate · system"),
+            "only the paid call has a row: {text}"
+        );
+        let text = media_card(&format!(
+            "nika: trio\nmodel: anthropic/claude-sonnet-4-6\n{speech}  ask:\n    infer: {{ prompt: hi, max_tokens: 100 }}\n"
+        ));
+        let line = text.lines().next().unwrap_or_default();
+        assert!(
+            line.contains("· prompts, exec, mcp + 1 paid media call unpriced · prices ")
+                && line.ends_with("· system voice local work unpriced"),
+            "{text}"
+        );
     }
 }

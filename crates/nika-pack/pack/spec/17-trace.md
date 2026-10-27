@@ -216,6 +216,12 @@ local blob locator when stored, and `storage`: `stored`, `failed`, `none`
 (path-only) or `unconfirmed` (bytes received, no store answer observed, for
 instance a cancelled task; a blob may or may not exist). It carries no inline
 image payload. A peer-reported savedPath stays a claim, never file authority.
+When the task declares `images: { save: }`
+([02 §Harness images](./02-verbs.md#harness-images--images-normative)), the
+observation of an image the engine wrote also carries `saved_path`: the
+project-relative path of that write, whose bytes are the received ones, so the
+received digest is the file's. An image the engine did not write has no
+`saved_path`.
 
 A task terminal (completed, failed or skipped) carries `harness_media_count`,
 closing the image sequence of that observation leg; it carries no aggregate of
@@ -241,7 +247,13 @@ enforcement decisions live inside the builtin sinks (their refusals
 surface as typed task failures; their allow-side witness is the
 declared v1 residual · NEP-0007 law 2). The frame's fields name the `gate` (the
 bound consulted), the `decision` (`allow` \| `deny`), the `why` (the
-law applied), and the `task`. This is a CONFORMANCE requirement on the
+law applied), and the `task`. A builtin that starts an engine-fixed
+program as part of its own contract (`nika:tts_generate` with
+`provider: system` · [stdlib](../stdlib/builtins-v0.1.md)) is journaled as
+the BUILTIN's effect, never as an `exec:` decision: one frame with
+`plane: builtin`, the program as `gate`, `decision: allow`, and a `why`
+naming the builtin — no `permits.exec` grant is consulted or implied.
+This is a CONFORMANCE requirement on the
 ENGINE, not a wire bump: the frame grammar is unchanged (one more kind
 in the stream), so `trace_format` stays 2. A journal from an OLDER
 conformant engine simply lacks the frames: `nika trace verify` reports

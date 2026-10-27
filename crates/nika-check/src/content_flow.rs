@@ -7,9 +7,12 @@
 //! Sources: invoked `nika:fetch` · `mcp:*` (fail-closed) · `agent:` with an
 //! ingress whitelist · `exec:`. Propagation mirrors [`super::flow`] with three
 //! inversions: `infer:`/`agent:` outputs ARE tainted when their prompt sees
-//! it · an `exec:` is tainted when a tainted WRITER ran earlier under a
-//! declared `fs.read` (the file channel argv cannot see) · recover reads
-//! propagate. One sweep = the least fixpoint (the DAG is acyclic).
+//! it · under a declared `fs.read`, a task that reads a file a tainted
+//! WRITER left earlier is tainted (the file channel argv and bindings cannot
+//! see · [`super::file_channel`]): an `exec:` whatever the file, a builtin
+//! read (nika-cap's read slots) when its path may be one the writer wrote ·
+//! recover reads propagate. One sweep = the least fixpoint (the DAG is
+//! acyclic).
 //!
 //! An `invoke: workflow:` call is judged through what the composed check
 //! learned of its child closure ([`crate::ComposedCall`] · spec 14 ·
@@ -25,6 +28,7 @@ use std::collections::BTreeMap;
 
 use nika_cap::TaintWitness;
 
+use super::file_channel::{self, Written};
 use super::flow::{action_effect_fields, collect_json_strings, refs_in_str};
 use crate::ComposedCall;
 use nika_schema::expression::NamespaceRef;
@@ -44,7 +48,7 @@ pub(super) enum Entry {
     /// Only what `inputs.*` reads carry: the arguments a caller passes.
     Args,
     /// Only what the file channel carries when a tainted writer ran before
-    /// the first task: the files a caller's writers left.
+    /// the first task: the files a caller's writers left, at any path.
     Files,
 }
 
@@ -59,10 +63,10 @@ pub(super) struct Sources<'a> {
     pub(super) calls: &'a [ComposedCall],
     /// The content this pass follows.
     pub(super) entry: Entry,
-    /// Whether an `exec:` reads the file channel. `None`: when the workflow
+    /// Whether a task reads the file channel. `None`: when the workflow
     /// declares `fs.read` (the root). A child is judged with `Some(true)`:
     /// the trifecta needs the root's `fs.read` (leg ①), and under it the
-    /// child's subprocesses read what earlier writers left.
+    /// child's subprocesses and builtin reads read what earlier writers left.
     pub(super) exec_reads_files: Option<bool>,
 }
 
@@ -93,11 +97,44 @@ pub(super) struct ContentFlow {
 }
 
 /// Compute the per-task content-taint witness over `sources`.
+///
+/// A file outlives the run order: a reader in its writer's wave runs
+/// beside it (a retry waits for the file), and a reader the order puts
+/// first reads what the previous run left. So a builtin read meets every
+/// tainted write the check can locate (a literal path), earlier or not
+/// (NIK-273 review): each sweep reads the located writes the one before
+/// found. A write only adds taint, so the writers settle within one sweep
+/// per writer. A write the
+/// check cannot locate (a templated path · a subprocess · a server · a
+/// child closure) meets only later reads, as before: whatever the order,
+/// it would meet every read of the workflow. An `exec:` reads what it
+/// likes, so only a writer earlier in the sweep arms it, and so for a
+/// call whose closure reads files (its reads are not told apart).
 pub(super) fn analyze_content_flow(
     wf: &RawWorkflow,
     waves: &[Vec<usize>],
     sources: &Sources<'_>,
 ) -> ContentFlow {
+    let mut known: Vec<Written> = Vec::new();
+    loop {
+        let (flow, written) = sweep(wf, waves, sources, &known);
+        let located: Vec<Written> = written.iter().filter_map(Written::located).collect();
+        if located.len() <= known.len() {
+            return flow;
+        }
+        known = located;
+    }
+}
+
+/// One sweep in run order. `known`: every located tainted write the
+/// previous sweep found. Returns the flow and every tainted write this
+/// sweep found.
+fn sweep(
+    wf: &RawWorkflow,
+    waves: &[Vec<usize>],
+    sources: &Sources<'_>,
+    known: &[Written],
+) -> (ContentFlow, Vec<Written>) {
     let n = wf.tasks.len();
     let id_of: BTreeMap<&str, usize> = wf
         .tasks
@@ -117,8 +154,13 @@ pub(super) fn analyze_content_flow(
     // output[i] / effect[i] = the untrusted origin reaching each (None = clean).
     let mut output: Vec<Option<String>> = vec![None; n];
     let mut effect: Vec<Option<String>> = vec![None; n];
-    let mut any_writer_so_far: Option<String> =
-        (sources.entry == Entry::Files).then(|| FILES_ORIGIN.to_owned());
+    // Every tainted write so far, in run order (the first arms an `exec:`).
+    let mut channel: Vec<Written> = Vec::new();
+    if sources.entry == Entry::Files {
+        channel.push(Written::anywhere(FILES_ORIGIN.to_owned()));
+    }
+    // The writes of the tasks alone (the entry's seed is not one).
+    let mut written: Vec<Written> = Vec::new();
     let mut writer: Option<(String, String)> = None;
 
     for wave in waves {
@@ -139,7 +181,8 @@ pub(super) fn analyze_content_flow(
             let lens = Lens {
                 follows_born,
                 fs_read_declared,
-                armed: any_writer_so_far.as_ref(),
+                channel: &channel,
+                known,
             };
             let reached = match sources.call(&task.id.value, &task.action) {
                 Some(call) => lens.call(&task.id.value, call, arrived),
@@ -156,24 +199,26 @@ pub(super) fn analyze_content_flow(
                     .find_map(|r| refs.source_of(&r, &with_src, item_src.as_ref()));
             }
 
-            if any_writer_so_far.is_none()
-                && let Some(origin) = reached.written
-            {
-                writer = Some((task.id.value.clone(), origin.clone()));
-                any_writer_so_far = Some(origin);
+            if let Some(write) = reached.written {
+                if channel.is_empty() {
+                    writer = Some((task.id.value.clone(), write.origin.clone()));
+                }
+                written.push(write.clone());
+                channel.push(write);
             }
             effect[i] = effect_src;
             output[i] = out_src;
         }
     }
 
-    ContentFlow {
+    let flow = ContentFlow {
         witnesses: (0..n)
             .map(|i| TaintWitness::new(effect[i].is_some(), effect[i].clone()))
             .collect(),
         outputs: output,
         writer,
-    }
+    };
+    (flow, written)
 }
 
 /// What one task does with the untrusted content reaching it.
@@ -182,16 +227,18 @@ struct Reached {
     effect: Option<String>,
     /// The origin its output carries (before a recover read).
     output: Option<String>,
-    /// The origin it writes to a file (the channel's arming), if any.
-    written: Option<String>,
+    /// The origin it writes to a file and where (the channel's arming).
+    written: Option<Written>,
 }
 
-/// The pass's view at one task: which content it follows, and the file
-/// channel so far.
+/// The pass's view at one task: which content it follows, the file
+/// channel so far, and every located tainted write the previous sweep
+/// found.
 struct Lens<'a> {
     follows_born: bool,
     fs_read_declared: bool,
-    armed: Option<&'a String>,
+    channel: &'a [Written],
+    known: &'a [Written],
 }
 
 impl Lens<'_> {
@@ -202,10 +249,7 @@ impl Lens<'_> {
         arrived: Option<String>,
         mcp_trusted: &dyn Fn(&str) -> bool,
     ) -> Reached {
-        let mut effect = arrived;
-        if effect.is_none() && matches!(task.action, RawAction::Exec(_)) && self.fs_read_declared {
-            effect = self.armed.cloned();
-        }
+        let effect = arrived.or_else(|| self.file_read(&task.action));
         // Output taint: born-source wins; else effect flows out (inversion).
         let (born, writes) = classify(&task.action, mcp_trusted);
         let output = if born && self.follows_born {
@@ -216,7 +260,10 @@ impl Lens<'_> {
         // The file channel arms on ARRIVED taint (`effect`), never on born
         // output — the full story and its mutation-proven pin:
         // `trifecta::tests::two_execs_with_no_flow_between_them_pass`.
-        let written = effect.clone().filter(|_| writes);
+        let written = effect.clone().filter(|_| writes).map(|origin| Written {
+            origin,
+            spots: file_channel::written_spots(&task.action),
+        });
         Reached {
             effect,
             output,
@@ -224,15 +271,35 @@ impl Lens<'_> {
         }
     }
 
+    /// The origin a task reads through the file channel: an `exec:` reads
+    /// what the first earlier tainted writer left, a builtin read what an
+    /// earlier writer of a path it reads left, or a located writer of it
+    /// in any order.
+    fn file_read(&self, action: &RawAction) -> Option<String> {
+        if !self.fs_read_declared {
+            return None;
+        }
+        if matches!(action, RawAction::Exec(_)) {
+            return self.channel.first().map(|w| w.origin.clone());
+        }
+        let reads = file_channel::read_spots(action);
+        file_channel::first_met(self.channel, &reads)
+            .or_else(|| file_channel::first_met(self.known, &reads))
+            .cloned()
+    }
+
     /// A listed workflow call, through what its closure does with each
     /// entry: the call's arguments (`arrived`), the channel an earlier
-    /// writer armed (when an `exec:` of the closure reads files), and what
-    /// the closure brings in itself (the call's own id is that origin).
+    /// writer armed (when a task of the closure reads files, whatever the
+    /// path: the closure's reads, an `exec:` among them, are compared
+    /// neither by path nor by order across the call), and what the closure
+    /// brings in itself (the call's own id is that origin).
     fn call(&self, task_id: &str, call: &ComposedCall, arrived: Option<String>) -> Reached {
         let file = self
-            .armed
+            .channel
+            .first()
             .filter(|_| self.fs_read_declared && !call.files.is_empty())
-            .cloned();
+            .map(|w| w.origin.clone());
         let own = || Some(task_id.to_owned());
         let output = if self.follows_born && call.born.output.is_some() {
             own()
@@ -253,7 +320,8 @@ impl Lens<'_> {
             own()
         } else {
             arrived.filter(|_| call.args.file.is_some())
-        };
+        }
+        .map(Written::anywhere);
         Reached {
             effect,
             output,

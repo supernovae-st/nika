@@ -92,6 +92,12 @@ pub struct MachineView {
     pub state_cta: &'static str,
     pub drifted_kits: Vec<String>,
     pub wired_facet: String,
+    /// This binary's line under `this binary` (build · installer · path),
+    /// worded and abbreviated by the host. `None` renders no line.
+    pub binary: Option<String>,
+    /// The host's notice when `nika` on PATH runs another build, or other
+    /// copies on PATH differ; painted as an advisory under the line.
+    pub binary_notice: Option<String>,
 }
 
 /// The wired/unwired glyph pair — ✓/✗ with an ASCII column (`+`/`x`),
@@ -135,7 +141,7 @@ pub fn render_with_context(
     let mut s = String::new();
     identity_section(&mut s, probe, theme);
     machine_section(&mut s, probe, glance, ctx, theme);
-    binary_section(&mut s, counts, glance, ctx, &probe.wired_facet, theme);
+    binary_section(&mut s, probe, counts, glance, ctx, theme);
     learn_line(&mut s, theme);
     s
 }
@@ -412,13 +418,20 @@ fn workspace_facts(glance: Glance, theme: Theme) -> String {
 /// isolated example IS the sample's run).
 fn binary_section(
     s: &mut String,
+    probe: &MachineView,
     counts: EngineCounts,
     glance: Glance,
     ctx: &ContextView,
-    wired_facet: &str,
     theme: Theme,
 ) {
     let _ = writeln!(s, "{}", theme.paint(Role::Strong, "this binary"));
+    // #1614 · which binary this is, before what it carries.
+    if let Some(line) = &probe.binary {
+        let _ = writeln!(s, "  {line}");
+    }
+    if let Some(notice) = &probe.binary_notice {
+        let _ = writeln!(s, "  {} {notice}", theme.paint(Role::Warn, "⚠"));
+    }
     let _ = writeln!(
         s,
         "  4 verbs · {} builtins · {} providers · {} examples · {} templates",
@@ -430,7 +443,7 @@ fn binary_section(
     // #1398 — the facet's split on its own line (the card keeps its
     // eighty columns): the same sentence the catalog header and the
     // check refusal print, so the three surfaces cannot disagree.
-    let _ = writeln!(s, "  {wired_facet}");
+    let _ = writeln!(s, "  {}", probe.wired_facet);
     let _ = writeln!(s);
     // The stranger's moment is gated on a COMPLETE zero (P0-4) — a
     // partial scan cannot know the workspace is empty. Chat-only holds

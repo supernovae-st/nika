@@ -279,8 +279,9 @@ additive constants, and the crate keeps no jaq dependency.
 call and its task's stated reach. It returns findings for recognized, present filesystem
 slots that do not match the appropriate read/write list; `edit.path` must match both.
 Primary slots and directions come from `builtin_effect`; the same owner also checks
-`image_fx.input`, `chart.data.path`, `image_generate.image`/`images[]`/`mask`, string
-`decide.bundle` and `fetch.multipart[].path`. Present nonliteral, empty or malformed
+`image_fx.input`, each `image_compose.inputs[]` element, `chart.data.path`,
+`image_generate.image`/`images[]`/`mask`, string `decide.bundle` and
+`fetch.multipart[].path`. Present nonliteral, empty or malformed
 recognized slots are findings rather than silently omitted. Inline chart rows, an inline
 decision bundle and text multipart parts do not acquire filesystem meaning.
 
@@ -289,6 +290,16 @@ as its stated pattern, and `output_dir` as the stated directory; this is not glo
 general lexical normalization, filesystem resolution or a permits query. The helper does
 not independently enumerate the chart's derived `.vl.json` sibling; its existing derivation
 remains `chart_vl_sibling`. Findings name rules/slots without repeating proposed path values.
+
+`read_slot_paths(tool, args)` and `write_slot_paths(tool, args)` project the same slot list
+(one private enumerator feeds all three) onto where one call may read or write a file:
+each present slot becomes a `SlotPath::Literal { path, descends }` (a glob pattern as its
+walk root, descending; `grep.path` and an `output_dir` descend), and a template, a
+non-string, an empty string or a malformed read container becomes `SlotPath::Unknown`.
+The read side adds the root a `grep` without `path` searches (`.`, descending); the
+write side adds the chart's `.vl.json` sibling. The content-taint pass of `nika-check`
+reads them for its file channel: a builtin read of a path an earlier tainted write may have
+reached carries that content on (NIK-273 follow-up). Neither grants authority.
 
 Before fills, the Sketch door in `nika-compile-cognition` uses `required_fs_directions` to
 check unconditional read/write reach and `unbound_fs_args` to check graph-derived filesystem
@@ -311,6 +322,26 @@ trailing separator, a final `.` or `..`, a root or prefix without a file
 name); a templated path is deferred to the runtime's identical raw-shape
 check. The rule is lexical: wildcard-looking characters and a POSIX
 backslash are ordinary name characters, and nothing is trimmed.
+
+### 3.7 Composition reads (`nika:image_compose`)
+
+`builtin_effect("nika:image_compose")` is the `out` write, like `image_fx` and
+`chart`; `required_fs_directions` requires both a read and a write.
+`secondary_read_slots(tool, args)` lists the read slots the single `path_arg`
+leaves out, each as `(slot, value)`: every `inputs[k]` element of
+`nika:image_compose`, and one `inputs` slot when the list is templated or
+malformed, so a consumer never mistakes a hidden read set for an empty one.
+Check, inference and the drift scan read this one list; `unbound_fs_args`
+binds each element to the task's stated reads. Every other tool returns none.
+
+### 3.8 The host synthesizer names (`system_voice.rs`)
+
+`SYSTEM_VOICE_SAY` (`/usr/bin/say`), `SYSTEM_VOICE_ESPEAK` (`espeak-ng`),
+`system_voice_program()` (the program a `provider: system` call starts on
+this build's OS, or `None`) and `starts_system_voice(tool, args)` (a literal
+`provider: system` on `nika:tts_generate`) are the one home for the names
+the composition root probes and `nika check` prints. They grant nothing: the
+builtin starts the program itself, never through `exec:` or `permits.exec`.
 
 ## 4. Module structure with LOC estimates
 

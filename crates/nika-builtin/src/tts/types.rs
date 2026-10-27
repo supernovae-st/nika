@@ -8,7 +8,8 @@
 /// 001 — invalid arguments (empty text · over-cap · bad enum · mask-class
 /// refusals have no analogue here).
 pub(crate) const C_ARGS: &str = "NIKA-BUILTIN-TTS_GENERATE-001";
-/// 002 — provider unavailable (missing API key · tts plane not wired).
+/// 002 — provider unavailable (missing API key · tts plane not wired · no
+/// system synthesizer on this host).
 pub(crate) const C_PROVIDER_UNAVAILABLE: &str = "NIKA-BUILTIN-TTS_GENERATE-002";
 /// 003 — provider request failed (transport · HTTP status · rate limit).
 /// Transient per the spec status table (5xx/408/429 + timeout/connection).
@@ -30,6 +31,9 @@ pub(crate) enum Provider {
     /// Kokoro-FastAPI · Speaches · openedai-speech — one wire). The base
     /// URL is ENGINE CONFIG (`NIKA_TTS_LOCAL_URL`), never workflow data.
     Local,
+    /// The host's OWN synthesizer — keyless, offline, started by the engine
+    /// itself (macOS `say` · Linux `espeak-ng`), never the workflow's `exec:`.
+    System,
     /// `OpenAI` Audio API (`POST /v1/audio/speech`).
     Openai,
     /// `ElevenLabs` (`POST /v1/text-to-speech/{voice_id}`).
@@ -42,6 +46,7 @@ impl Provider {
     pub(crate) const fn id(self) -> &'static str {
         match self {
             Self::Local => "local",
+            Self::System => "system",
             Self::Openai => "openai",
             Self::Elevenlabs => "elevenlabs",
             Self::Mock => "mock",
@@ -55,6 +60,8 @@ impl Provider {
             // under simple names; other compat servers differ — set
             // `model:` explicitly alongside your base URL).
             Self::Local => "tts-1",
+            // No model choice: the model IS the host's synthesizer program.
+            Self::System => SYSTEM_MODEL,
             Self::Openai => "gpt-4o-mini-tts",
             Self::Elevenlabs => "eleven_multilingual_v2",
             Self::Mock => "mock-tts-1",
@@ -67,11 +74,24 @@ impl Provider {
     pub(crate) const fn default_voice(self) -> &'static str {
         match self {
             Self::Local | Self::Openai => "alloy",
+            // The host's own default voice (no `-v` is passed).
+            Self::System => "default",
             Self::Elevenlabs => "21m00Tcm4TlvDq8ikWAM",
             Self::Mock => "sine",
         }
     }
 }
+
+/// The `system` provider's model id: the synthesizer program this build
+/// speaks through (`say` on macOS, `espeak-ng` on Linux, `none` elsewhere —
+/// where the call refuses `-002`).
+pub(crate) const SYSTEM_MODEL: &str = if cfg!(target_os = "macos") {
+    "say"
+} else if cfg!(target_os = "linux") {
+    "espeak-ng"
+} else {
+    "none"
+};
 
 /// Output audio containers (closed · `format:` arg).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -122,6 +142,7 @@ mod tests {
     fn canon_ids_defaults_and_formats_hold() {
         for (p, id) in [
             (Provider::Local, "local"),
+            (Provider::System, "system"),
             (Provider::Openai, "openai"),
             (Provider::Elevenlabs, "elevenlabs"),
             (Provider::Mock, "mock"),

@@ -19,8 +19,9 @@
 //!    embedder can hand `run` a hand-built clean one (a skipped check
 //!    and a forged report are indistinguishable). Under a declared
 //!    `permits:` block the gate re-derives the PURE boundary subset —
-//!    permits-fit + trifecta (over the child calls the report resolved),
-//!    the cheap L0 lanes, never the whole check
+//!    permits-fit + trifecta (over the child calls the report resolved;
+//!    a call it did not resolve is untrusted, fail-closed), the cheap L0
+//!    lanes, never the whole check
 //!    ladder — and refuses when it disagrees with the report's lanes:
 //!    the report does not describe this workflow. Without a declared
 //!    boundary there is nothing to verify (today's posture · the SSRF
@@ -30,8 +31,8 @@
 //! The trust clauses are NOT a second check for the CLI, which re-checks
 //! right before run; they are the fail-closed word for every other driver.
 
-use nika_check::CheckReport;
-use nika_schema::raw::RawWorkflow;
+use nika_check::{CheckReport, ComposedCall};
+use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 
 use crate::errors::RuntimeError;
 
@@ -78,14 +79,13 @@ pub(crate) fn check_report(wf: &RawWorkflow, report: &CheckReport) -> Result<(),
     // report states it. That can only ADD sources, sinks and file writers
     // over the child-blind reading (a forged list cannot hide a flow the
     // bytes show, and no gate inside a child is credited), and an honest
-    // composed report's lanes, mitigations included, equal these.
+    // composed report's lanes, mitigations included, equal these. A call
+    // the report does not list was never judged through its child (a plain
+    // `check()` resolves none): it may bring anything in, so it counts as
+    // unresolved (NIK-273 · fail-closed), as an unreadable child does.
+    let (calls, unresolved) = judged_calls(wf, &report.composed_calls);
     let trifecta = match nika_check::analyze(wf) {
-        Ok(a) => nika_check::trifecta::scan_trifecta_composed(
-            wf,
-            &a.edges,
-            &a.topo_waves,
-            &report.composed_calls,
-        ),
+        Ok(a) => nika_check::trifecta::scan_trifecta_composed(wf, &a.edges, &a.topo_waves, &calls),
         Err(_) => nika_cap::TrifectaVerdict::default(),
     };
     let escapes = nika_check::permits_fit::scan_escapes(wf);
@@ -102,7 +102,7 @@ pub(crate) fn check_report(wf: &RawWorkflow, report: &CheckReport) -> Result<(),
     {
         return Ok(());
     }
-    let total = escapes.len() + trifecta.violations.len();
+    let total = escapes.len() + trifecta.violations.len() + unresolved.len();
     let mut named: Vec<String> = escapes
         .iter()
         .map(|e| format!("capability escape · task `{}`", e.task))
@@ -112,6 +112,9 @@ pub(crate) fn check_report(wf: &RawWorkflow, report: &CheckReport) -> Result<(),
                 .iter()
                 .map(|t| format!("trifecta · task `{}`", t.task)),
         )
+        .chain(unresolved.iter().map(|task| {
+            format!("unresolved child call · task `{task}` (the report judged no child for it)")
+        }))
         .take(MAX_NAMED)
         .collect();
     if total > named.len() {
@@ -120,6 +123,37 @@ pub(crate) fn check_report(wf: &RawWorkflow, report: &CheckReport) -> Result<(),
     Err(RuntimeError::ReportMismatch {
         detail: named.join(" · "),
     })
+}
+
+/// Every `invoke: workflow:` call of `wf` as the gate judges it: the
+/// report's entry for that task and target, else unresolved. The second
+/// list names the unresolved calls' tasks.
+fn judged_calls(wf: &RawWorkflow, listed: &[ComposedCall]) -> (Vec<ComposedCall>, Vec<String>) {
+    let mut calls = Vec::new();
+    let mut unresolved = Vec::new();
+    for task in &wf.tasks {
+        let RawAction::Invoke(invoke) = &task.value.action else {
+            continue;
+        };
+        let RawInvokeTarget::Workflow(target) = &invoke.target else {
+            continue;
+        };
+        let id = &task.value.id.value;
+        let listed_call = listed
+            .iter()
+            .find(|c| c.task == *id && c.target == target.value);
+        if let Some(call) = listed_call {
+            calls.push(call.clone());
+        } else {
+            unresolved.push(id.clone());
+            calls.push(ComposedCall::unresolved(
+                id.clone(),
+                target.value.clone(),
+                "the report judged no child for this call · untrusted (fail-closed)",
+            ));
+        }
+    }
+    (calls, unresolved)
 }
 
 #[cfg(test)]
@@ -339,7 +373,7 @@ mod tests {
     #[test]
     fn a_composed_report_and_the_gate_credit_the_same_child_gate() {
         const CHILD: &str = "nika: banner\npermits: { exec: [\"echo\"] }\ntasks:\n  banner:\n    exec: { command: [\"echo\", \"hi\"] }\noutputs:\n  text: { value: \"${{ tasks.banner.output }}\", type: string }\n";
-        const PARENT: &str = "nika: gated\npermits: { exec: [\"echo\"], fs: { read: [\"./note.txt\"], write: [\"./out/**\"] }, tools: [\"nika:read\", \"nika:write\", \"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { message: \"write?\" } }\n  call:\n    after: { ask: success }\n    invoke: { workflow: \"./child.nika\" }\n    returns: { object: { text: string } }\n  note:\n    after: { ask: success }\n    invoke: { tool: \"nika:read\", args: { path: \"./note.txt\" } }\n  leak:\n    with: { go: \"${{ tasks.ask.output }}\", banner: \"${{ tasks.call.output.text }}\", note: \"${{ tasks.note.output }}\" }\n    when: \"${{ with.go == true }}\"\n    invoke: { tool: \"nika:write\", args: { path: \"./out/leak.txt\", content: \"${{ with.banner }} ${{ with.note }}\" } }\n";
+        const PARENT: &str = "nika: gated\npermits: { exec: [\"echo\"], fs: { read: [\"./note.txt\"], write: [\"./out/**\"] }, tools: [\"nika:read\", \"nika:write\", \"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { message: \"write?\" } }\n  call:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: \"${{ with.go == true }}\"\n    invoke: { workflow: \"./child.nika\" }\n    returns: { object: { text: string } }\n  note:\n    after: { ask: success }\n    invoke: { tool: \"nika:read\", args: { path: \"./note.txt\" } }\n  leak:\n    with: { go: \"${{ tasks.ask.output }}\", banner: \"${{ tasks.call.output.text }}\", note: \"${{ tasks.note.output }}\" }\n    when: \"${{ with.go == true }}\"\n    invoke: { tool: \"nika:write\", args: { path: \"./out/leak.txt\", content: \"${{ with.banner }} ${{ with.note }}\" } }\n";
         let wf = parse(PARENT);
         let report = nika_check::check_composed(&wf, "parent.nika", &mut |path| match path {
             "child.nika" => Ok(CHILD.to_owned()),

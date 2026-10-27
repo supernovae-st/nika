@@ -33,6 +33,7 @@
 //! The digest law is the receipt family's own ([`crate::resume::jcs_blake3_hex`]
 //! · JCS + number-fold + blake3). DETERMINISTIC — never a judge-LLM.
 
+use nika_types::cost::UnpricedReason;
 use nika_verb_exec::{ExecCommand, ExecInput};
 use nika_verb_invoke::InvokeInput;
 use serde_json::{Value, json};
@@ -89,12 +90,15 @@ pub(super) fn stamp_mock_media_rehearsal(note: &str, value: &mut Value) -> Optio
 /// A returned tool call's spend for the run ledger: its self-reported REAL
 /// spend (a top-level finite, non-negative `cost_usd` in its structured
 /// output · absent or invalid stays absent, never a guess), the attribution
-/// key that spend folds under (the tool id), and why a paid media call's
-/// spend is absent (C-D3): the catalog has no price for the provider it
-/// called (`missing_catalog_price`), or a priced provider did not report
-/// what it billed (`provider_did_not_report_usage`). The provider is read
-/// off the tool's own output, which names the one it called; local, mock,
-/// keyless and every other tool's absent spend stays unmetered.
+/// key that spend folds under (the tool id), and why its spend is absent
+/// when the engine knows. A paid media call (C-D3): the catalog has no price
+/// for the provider it called (`missing_catalog_price`), or a priced provider
+/// did not report what it billed (`provider_did_not_report_usage`); the
+/// provider is read off the tool's own output, which names the one it
+/// called. The keyless `system` voice bills no provider, so no cap refuses
+/// it, but its local compute is unpriced, never free: it says so itself
+/// (`local_model`, [`builtin_unpriced`]). Local and mock media and every
+/// other tool's absent spend stay unmetered.
 fn tool_spend(
     note: &str,
     value: &Value,
@@ -109,11 +113,11 @@ fn tool_spend(
     if cost_usd.is_some() {
         return (cost_usd, Some(tool.to_owned()), None);
     }
-    (
-        None,
-        None,
-        nika_check::analyzer::media_spend_unpriced(tool, value),
-    )
+    // A paid provider's unknown spend speaks first: an engine builtin's own
+    // word never relabels a bill as local work.
+    let unpriced = nika_check::analyzer::media_spend_unpriced(tool, value)
+        .or_else(|| builtin_unpriced(note, value, None));
+    (None, None, unpriced)
 }
 
 /// The binding evidence of ONE fired step — the two digests, equal on an
@@ -271,7 +275,7 @@ where
                             });
                         }
                         // The tool's self-reported spend, its attribution, and
-                        // why a paid media call's spend is absent ([`tool_spend`]).
+                        // why its spend is absent when the engine knows ([`tool_spend`]).
                         let (cost_usd, cost_source, cost_unpriced) = tool_spend(&note, &value);
                         // Judge the final task value before publishing success.
                         // The call already fired: a contract rejection keeps its
@@ -463,6 +467,106 @@ pub(crate) fn gate(preview: &str, request: &Value) -> Option<CommitGate> {
             commit,
         })
     })
+}
+
+/// Why an engine builtin's spend is absent from `cost_usd`, when it says
+/// (`cost_unpriced` beside a null `cost_usd` · the `nika:tts_generate`
+/// `system` voice reports `local_model`: local compute is unpriced, never
+/// free). Only the ONE builtin that produces the field speaks into the run's
+/// ledger, only with no priced spend, and only in the closed vocabulary — a
+/// data-shaped builtin (`nika:jq` can emit any key) or an MCP server's output
+/// never labels the ledger, and an unknown word is no claim.
+fn builtin_unpriced(note: &str, value: &Value, cost_usd: Option<f64>) -> Option<UnpricedReason> {
+    let tool = note.trim_start_matches("invoke · ");
+    if cost_usd.is_some() || tool != "nika:tts_generate" {
+        return None;
+    }
+    match value.get("cost_unpriced")?.as_str()? {
+        "local_model" => Some(UnpricedReason::LocalModel),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod unpriced_tests {
+    use super::*;
+
+    #[test]
+    fn only_an_engine_builtin_without_a_price_names_why() {
+        let system =
+            json!({ "provider": "system", "cost_usd": null, "cost_unpriced": "local_model" });
+        assert_eq!(
+            builtin_unpriced("invoke · nika:tts_generate", &system, None),
+            Some(UnpricedReason::LocalModel)
+        );
+        // A priced spend is never relabelled.
+        assert_eq!(
+            builtin_unpriced("invoke · nika:tts_generate", &system, Some(0.02)),
+            None
+        );
+        // An MCP server's output never speaks into the ledger.
+        assert_eq!(
+            builtin_unpriced("invoke · mcp:srv/tool", &system, None),
+            None
+        );
+        // An unknown word, or none, is no claim.
+        let odd = json!({ "cost_unpriced": "free" });
+        assert_eq!(
+            builtin_unpriced("invoke · nika:tts_generate", &odd, None),
+            None
+        );
+        assert_eq!(
+            builtin_unpriced("invoke · nika:jq", &json!([1]), None),
+            None
+        );
+        // A data-shaped builtin can emit any key: its output is workflow
+        // data, never a word in the run's ledger.
+        for tool in ["nika:jq", "nika:json_merge_patch", "nika:fetch"] {
+            assert_eq!(
+                builtin_unpriced(&format!("invoke · {tool}"), &system, None),
+                None,
+                "{tool}"
+            );
+        }
+    }
+
+    /// The ledger's one reading of a returned tool call: reported spend is
+    /// metered under the tool id; a paid provider's absent spend is unknown
+    /// (C-D3); the keyless system voice keeps its own `local_model`; any
+    /// other absence stays unmetered.
+    #[test]
+    fn tool_spend_keeps_the_system_voice_local_and_paid_media_unknown() {
+        let speak = "invoke · nika:tts_generate";
+        let system =
+            json!({ "provider": "system", "cost_usd": null, "cost_unpriced": "local_model" });
+        assert_eq!(
+            tool_spend(speak, &system),
+            (None, None, Some(UnpricedReason::LocalModel))
+        );
+        let openai = json!({ "provider": "openai", "cost_usd": null });
+        assert_eq!(
+            tool_spend(speak, &openai),
+            (None, None, Some(UnpricedReason::MissingCatalogPrice))
+        );
+        // A paid provider's bill is never relabelled local work.
+        let mislabelled =
+            json!({ "provider": "elevenlabs", "cost_usd": null, "cost_unpriced": "local_model" });
+        assert_eq!(
+            tool_spend(speak, &mislabelled),
+            (None, None, Some(UnpricedReason::MissingCatalogPrice))
+        );
+        let xai = json!({ "provider": "xai", "cost_usd": 0.02 });
+        assert_eq!(
+            tool_spend("invoke · nika:image_generate", &xai),
+            (Some(0.02), Some("nika:image_generate".to_owned()), None)
+        );
+        for quiet in [
+            json!({ "provider": "mock", "cost_usd": null }),
+            json!({ "provider": "local", "cost_usd": null }),
+        ] {
+            assert_eq!(tool_spend(speak, &quiet), (None, None, None), "{quiet}");
+        }
+    }
 }
 
 /// The TOCTOU injection seam — compiled under `cfg(test)` ONLY: the

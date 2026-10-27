@@ -592,6 +592,7 @@ mod tests {
         let sources = [
             include_str!("../../../../nika-builtin/src/data.rs"),
             include_str!("../../../../nika-builtin/src/image_fx.rs"),
+            include_str!("../../../../nika-builtin/src/image_compose.rs"),
             include_str!("../../../../nika-builtin/src/image/types.rs"),
             include_str!("../../../../nika-builtin/src/tts/types.rs"),
         ];

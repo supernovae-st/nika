@@ -5,11 +5,14 @@
 //!
 //! Two event shapes record a written byte stream with its content hash:
 //! - `task_completed` of a builtin that saves files and reports each one's path, size and
-//!   sha256 (`nika:chart` · `nika:image_generate` · `nika:tts_generate` · `nika:image_fx`), on
+//!   sha256 (`nika:chart` · `nika:image_generate` · `nika:tts_generate` · `nika:image_fx` ·
+//!   `nika:image_compose`), on
 //!   its own successful invocation (`outcome` class `success`, cause `normal`: never a
 //!   recovered or author-shaped value);
 //! - `agent_image_observed` of an image the harness sent, stored as a blob under
-//!   `.nika/blobs` (`storage: stored`) with the sha256 of the bytes received.
+//!   `.nika/blobs` (`storage: stored`) with the sha256 of the bytes received; and, when the
+//!   task declared `images: { save: }`, the file the engine wrote from those very bytes
+//!   (`saved_path`, digest `received_sha256` · spec 02 §Harness images).
 //!
 //! `nika:write` and `nika:edit` journal no hash of what they wrote, so their files are not
 //! artifacts. A file qualifies only by a relative path inside the project whose name is not
@@ -99,6 +102,14 @@ pub(super) fn derive(events: &[Event]) -> Vec<Artifact> {
                     images = images.saturating_add(1);
                     slots.push(Some(image));
                 }
+                if let Some(file) = saved_image(event) {
+                    if let Some(earlier) = files.insert(file.at.clone(), slots.len())
+                        && let Some(slot) = slots.get_mut(earlier)
+                    {
+                        *slot = None;
+                    }
+                    slots.push(Some(file));
+                }
             }
             _ => {}
         }
@@ -136,7 +147,9 @@ fn written_files(event: &Event) -> Vec<Artifact> {
     for answer in answers {
         let saved: Vec<(&Value, &str, Option<&str>)> = match tool {
             "nika:chart" => vec![(answer, "bytes", Some("image/svg+xml"))],
-            "nika:image_fx" => vec![(answer, "size_bytes", format_mime(&answer["format"]))],
+            "nika:image_fx" | "nika:image_compose" => {
+                vec![(answer, "size_bytes", format_mime(&answer["format"]))]
+            }
             "nika:image_generate" => (answer["images"].as_array().into_iter().flatten())
                 .map(|image| (image, "size_bytes", None))
                 .collect(),
@@ -215,6 +228,29 @@ fn observed_image(event: &Event, ordinal: usize) -> Option<Artifact> {
     })
 }
 
+/// The file the engine wrote from an image's received bytes (`images: { save: }`): its
+/// `saved_path` inside the project, sized and digested as received — the bytes written ARE
+/// the received ones, and the download route re-checks them against this digest.
+fn saved_image(event: &Event) -> Option<Artifact> {
+    let observation: Value = serde_json::from_str(event.str_field("harness_image")?).ok()?;
+    let at = contained(observation["saved_path"].as_str()?)?;
+    let sha256 = digest(observation["received_sha256"].as_str()?)?;
+    let size = observation["received_bytes"].as_u64()?;
+    let mime = (observation["mime_type"].as_str())
+        .filter(|text| media_type(text) && text.starts_with("image/"))
+        .map_or_else(|| extension_mime(&at).to_owned(), str::to_owned);
+    Some(Artifact {
+        name: format!("{}/{at}", Kind::File.prefix()),
+        kind: Kind::File,
+        at,
+        size,
+        sha256,
+        mime,
+        task: event.str_field("task").map(str::to_owned),
+        event_id: event.id.uuid.to_string(),
+    })
+}
+
 /// `path` as a normalized project-relative path (`./out/a.png` → `out/a.png`), when it is
 /// one: relative, without `..`, not under a first directory named `.nika` in any ASCII case,
 /// within the path bound. Another spelling a filesystem folds onto `.nika` passes this name
@@ -261,7 +297,7 @@ fn media_type(text: &str) -> bool {
             .is_some_and(|(kind, sub)| token(kind) && token(sub))
 }
 
-/// The media type of an image format word (`nika:image_fx`'s `format`).
+/// The media type of an image format word (`nika:image_fx`'s and `nika:image_compose`'s `format`).
 fn format_mime(format: &Value) -> Option<&'static str> {
     match format.as_str()? {
         "png" => Some("image/png"),

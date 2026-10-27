@@ -137,6 +137,7 @@ mod exec_floor;
 #[cfg(test)]
 mod exec_read_path;
 mod failure_plan;
+mod file_channel;
 mod findings;
 mod flow;
 mod hints;
@@ -704,7 +705,7 @@ fn gated_scans(
     }
     (
         trifecta::scan_trifecta_composed(wf, edges, topo_waves, calls),
-        consent::scan_consent(wf, edges, topo_waves),
+        consent::scan_consent(wf, edges, topo_waves, calls),
         order::scan_order(wf, edges),
     )
 }

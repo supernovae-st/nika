@@ -222,6 +222,7 @@ fn check_action(
                     escapes_tool(id, "agent", &tool.value, out);
                 }
             }
+            check_images_save(id, a, permits, consts, out);
         }
         RawAction::Infer(_) => {}
         #[allow(
@@ -229,6 +230,44 @@ fn check_action(
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
         other => unreachable!("unknown action: {other:?}"),
+    }
+}
+
+/// `images: { save: }` (spec 02 §Harness images): the engine writes the received bytes there,
+/// so a literal path (or a bare const) is judged against `permits.fs.write` before the run —
+/// every path the save can take, the first and its `-n` siblings
+/// ([`nika_types::access::harness_image_paths`]): an exact-file grant holds the first image
+/// and not the second, which the run would refuse after writing the first. A rendered path
+/// stays the runtime's `NIKA-SEC-004`. Under an absent block the zero boundary refuses it
+/// (stamped `NIKA-AUTH-006` by the caller).
+fn check_images_save(
+    id: &str,
+    a: &nika_schema::raw::RawAgentAction,
+    permits: &Permits,
+    consts: &ConstStrings,
+    out: &mut Vec<CapabilityEscape>,
+) {
+    let Some(save) = a.images.as_ref().and_then(|i| i.value.save.as_ref()) else {
+        return;
+    };
+    let path = if save.value.contains("${{") {
+        match consts.resolve(&save.value) {
+            Some(path) => path.to_owned(),
+            None => return,
+        }
+    } else {
+        save.value.clone()
+    };
+    let outside = nika_types::access::harness_image_paths(&path)
+        .into_iter()
+        .enumerate()
+        .find(|(_, path)| !permits.allows_path(path, true));
+    if let Some((index, outside)) = outside {
+        let field = match index {
+            0 => "images.save".to_owned(),
+            n => format!("images.save · image {}", n + 1),
+        };
+        out.push(fs_escape(id, &field, &outside, "fs.write", permits, true));
     }
 }
 
@@ -733,6 +772,7 @@ fn check_builtin_effect(
         return; // a workflow: call is the composition lane's (COMP-002)
     };
     let tool = tool_ref.value.as_str();
+    check_secondary_reads(id, tool, a, permits, consts, out);
     match builtin_effect(a) {
         Some(BuiltinEffect::Net { url_arg }) => {
             check_net_effect(id, tool, a, permits, consts, url_arg, out);
@@ -773,6 +813,47 @@ fn check_builtin_effect(
         }
         None => {}
     }
+}
+
+/// The READ slots the single `path_arg` leaves out ([`nika_cap::secondary_read_slots`] ·
+/// `nika:image_compose`'s `inputs[]`): each literal or whole bare-const path
+/// is judged as a read against `permits.fs.read`, BEFORE anything runs —
+/// the gauntlet's C-D1 gap (a read the check never modelled, refused only
+/// at run) is not repeated. A templated element is the run's
+/// `NIKA-SEC-004`; the finding names the slot, so a sheet of many inputs
+/// says which one escapes.
+fn check_secondary_reads(
+    id: &str,
+    tool: &str,
+    a: &RawInvokeAction,
+    permits: &Permits,
+    consts: &ConstStrings,
+    out: &mut Vec<CapabilityEscape>,
+) {
+    for (slot, value) in nika_cap::secondary_read_slots(tool, a.args.as_ref().map(|s| &s.value)) {
+        let Some(path) = judgeable_value(consts, value) else {
+            continue;
+        };
+        if !permits.allows_path(&path, false) {
+            let mut esc = fs_escape(id, tool, &path, "fs.read", permits, false);
+            esc.detail =
+                esc.detail
+                    .replacen(&format!("`{tool}` "), &format!("`{tool}` `{slot}` "), 1);
+            out.push(esc);
+        }
+    }
+}
+
+/// A value this scan can JUDGE, wherever it sits (a list element, not only
+/// a top-level arg): a non-empty literal, or a whole bare
+/// `${{ const.<name> }}` resolved through the const table — the
+/// [`judgeable_arg`] law, over a value.
+pub(super) fn judgeable_value(consts: &ConstStrings, value: &serde_json::Value) -> Option<String> {
+    let s = value.as_str().filter(|s| !s.is_empty())?;
+    if s.contains("${{") {
+        return consts.resolve(s).map(str::to_owned);
+    }
+    Some(s.to_owned())
 }
 
 /// A computed host-path operand of a file-plumbing program — no literal

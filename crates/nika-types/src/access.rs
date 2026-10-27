@@ -613,9 +613,14 @@ pub use selection::{
 // client selects and the residual `nika check` states, one table for both.
 mod boundary;
 pub use boundary::{
-    HARNESS_SHARED_RESIDUAL, HARNESS_UNRESOLVED_PATH, HarnessBoundary, UNMEASURED_HARNESS_UNASKED,
-    unmeasured_check_advice,
+    HARNESS_IMAGES_ADVICE, HARNESS_SHARED_RESIDUAL, HARNESS_UNRESOLVED_PATH, HarnessBoundary,
+    UNMEASURED_HARNESS_UNASKED, unmeasured_check_advice,
 };
+
+// Where a seat's received images land under `images: { save: }` (spec 02 §Harness images):
+// one table for the writer, the static judges and the client's media bound.
+mod images;
+pub use images::{MAX_HARNESS_IMAGES, harness_image_path, harness_image_paths};
 
 /// How far a HARNESS seat's readiness is PROVEN — a rung, never a
 /// word, beside [`Trust`] (which grades identity). A seat on PATH is

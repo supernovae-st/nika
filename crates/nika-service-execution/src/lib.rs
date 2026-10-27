@@ -269,7 +269,10 @@ impl ServiceExecutionDriver {
     ///
     /// The cone and its fresh report are derived internally from the workflow
     /// admitted with this driver's snapshot. Callers can select a task but
-    /// cannot inject a replacement graph or report.
+    /// cannot inject a replacement graph or report. The cone is checked
+    /// composed over the same captured units as the admission, so the child
+    /// calls it keeps stay resolved: the run's trust gate counts a call its
+    /// report did not resolve as untrusted.
     ///
     /// # Errors
     ///
@@ -279,7 +282,14 @@ impl ServiceExecutionDriver {
             return Ok(self);
         };
         self.workflow = nika_runtime::scope_to_task(self.workflow, target)?;
-        self.report = nika_check::check(&self.workflow);
+        let snapshot = &self.snapshot;
+        let mut reader = |path: &str| {
+            snapshot
+                .text(path)
+                .map(str::to_owned)
+                .ok_or_else(|| format!("captured world has no unit `{path}`"))
+        };
+        self.report = nika_check::check_composed(&self.workflow, &self.root_logical, &mut reader);
         stamp_workflow_semantic(&self.workflow, &mut self.report);
         Ok(self)
     }

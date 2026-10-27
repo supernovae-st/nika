@@ -60,6 +60,11 @@ nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.123.2" }
 # dir; MockFs::canonicalize is a no-op, so the escape cases can only be proven
 # against the production impl. dev-only · L1.5→L1 downward (layering-clean).
 nika-fs          = { path = "../nika-fs", version = "0.123.2" }
+# test-only: the REAL exec runner (TokioShell) — the `system` voice's stubbed
+# synthesizer binaries are spawned through the production spawn path
+# (composed env · concurrent stdin · kill on drop), not a fake. dev-only ·
+# L1.5→L1 downward (layering-clean).
+nika-exec-runner = { path = "../nika-exec-runner", version = "0.123.2" }
 # test-only: an INDEPENDENT PNG decoder proving the mock image provider's
 # hand-rolled stored-deflate encoder emits spec-valid files (not just bytes
 # our own sniffer accepts).

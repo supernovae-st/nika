@@ -4430,6 +4430,7 @@ dependencies = [
  "nika-cap",
  "nika-catalog",
  "nika-chart",
+ "nika-exec-runner",
  "nika-extract",
  "nika-fs",
  "nika-fx",
@@ -5423,6 +5424,7 @@ dependencies = [
 name = "nika-runtime"
 version = "0.123.2"
 dependencies = [
+ "base64 0.23.1",
  "blake3",
  "bytes",
  "futures-util",
@@ -5459,6 +5461,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
+ "sha2 0.10.9",
  "tokio",
  "url",
 ]
@@ -5868,6 +5871,7 @@ dependencies = [
 name = "nika-verb-agent"
 version = "0.123.2"
 dependencies = [
+ "base64 0.23.1",
  "bytes",
  "futures-core",
  "futures-util",
@@ -5885,6 +5889,7 @@ dependencies = [
  "nika-verb-invoke",
  "proptest",
  "serde_json",
+ "sha2 0.10.9",
  "thiserror 2.0.20",
  "tokio",
 ]

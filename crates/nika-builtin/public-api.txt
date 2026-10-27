@@ -184,6 +184,84 @@ pub fn nika_builtin::permits::FsBoundary::as_any(&self) -> &(dyn core::any::Any 
 impl<T> typenum::type_operators::Same for nika_builtin::permits::FsBoundary
 pub type nika_builtin::permits::FsBoundary::Output = T
 pub mod nika_builtin::tts
+#[non_exhaustive] pub enum nika_builtin::tts::SystemSynth
+pub nika_builtin::tts::SystemSynth::EspeakNg
+pub nika_builtin::tts::SystemSynth::EspeakNg::program: std::path::PathBuf
+pub nika_builtin::tts::SystemSynth::Say
+pub nika_builtin::tts::SystemSynth::Say::program: std::path::PathBuf
+pub nika_builtin::tts::SystemSynth::Say::scratch_dir: std::path::PathBuf
+pub nika_builtin::tts::SystemSynth::Unavailable
+pub nika_builtin::tts::SystemSynth::Unavailable::missing: alloc::string::String
+impl nika_builtin::SystemSynth
+pub fn nika_builtin::SystemSynth::espeak_ng(program: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_builtin::SystemSynth::say(program: impl core::convert::Into<std::path::PathBuf>, scratch_dir: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_builtin::SystemSynth::unavailable(missing: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_builtin::SystemSynth
+pub fn nika_builtin::SystemSynth::clone(&self) -> nika_builtin::SystemSynth
+impl core::cmp::Eq for nika_builtin::SystemSynth
+impl core::cmp::PartialEq for nika_builtin::SystemSynth
+pub fn nika_builtin::SystemSynth::eq(&self, other: &nika_builtin::SystemSynth) -> bool
+impl core::fmt::Debug for nika_builtin::SystemSynth
+pub fn nika_builtin::SystemSynth::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_builtin::SystemSynth
+impl<D> owo_colors::OwoColorize for nika_builtin::SystemSynth
+impl<Q, K> equivalent::Equivalent<K> for nika_builtin::SystemSynth where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_builtin::SystemSynth::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_builtin::SystemSynth where U: core::convert::From<T>
+pub fn nika_builtin::SystemSynth::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::SystemSynth where U: core::convert::Into<T>
+pub type nika_builtin::SystemSynth::Error = core::convert::Infallible
+pub fn nika_builtin::SystemSynth::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::SystemSynth where U: core::convert::TryFrom<T>
+pub type nika_builtin::SystemSynth::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::SystemSynth::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_builtin::SystemSynth where T: core::clone::Clone
+pub type nika_builtin::SystemSynth::Owned = T
+pub fn nika_builtin::SystemSynth::clone_into(&self, target: &mut T)
+pub fn nika_builtin::SystemSynth::to_owned(&self) -> T
+impl<T> core::any::Any for nika_builtin::SystemSynth where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::SystemSynth::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::SystemSynth where T: ?core::marker::Sized
+pub fn nika_builtin::SystemSynth::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::SystemSynth where T: ?core::marker::Sized
+pub fn nika_builtin::SystemSynth::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_builtin::SystemSynth where T: core::clone::Clone
+pub unsafe fn nika_builtin::SystemSynth::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_builtin::SystemSynth
+pub fn nika_builtin::SystemSynth::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_builtin::SystemSynth where T: core::clone::Clone
+pub fn nika_builtin::SystemSynth::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_builtin::SystemSynth where T: 'static
+pub fn nika_builtin::SystemSynth::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_builtin::SystemSynth
+pub type nika_builtin::SystemSynth::Output = T
+pub struct nika_builtin::tts::SystemVoice
+impl nika_builtin::SystemVoice
+pub fn nika_builtin::SystemVoice::new(runner: alloc::sync::Arc<dyn nika_builtin::SpeechRunner>, synth: nika_builtin::SystemSynth) -> Self
+pub fn nika_builtin::SystemVoice::synth(&self) -> &nika_builtin::SystemSynth
+impl core::fmt::Debug for nika_builtin::SystemVoice
+pub fn nika_builtin::SystemVoice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_builtin::SystemVoice
+impl<T, U> core::convert::Into<U> for nika_builtin::SystemVoice where U: core::convert::From<T>
+pub fn nika_builtin::SystemVoice::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::SystemVoice where U: core::convert::Into<T>
+pub type nika_builtin::SystemVoice::Error = core::convert::Infallible
+pub fn nika_builtin::SystemVoice::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::SystemVoice where U: core::convert::TryFrom<T>
+pub type nika_builtin::SystemVoice::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::SystemVoice::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_builtin::SystemVoice where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::SystemVoice::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::SystemVoice where T: ?core::marker::Sized
+pub fn nika_builtin::SystemVoice::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::SystemVoice where T: ?core::marker::Sized
+pub fn nika_builtin::SystemVoice::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_builtin::SystemVoice
+pub fn nika_builtin::SystemVoice::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_builtin::SystemVoice where T: 'static
+pub fn nika_builtin::SystemVoice::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_builtin::SystemVoice
+pub type nika_builtin::SystemVoice::Output = T
 #[non_exhaustive] pub struct nika_builtin::tts::TtsKeys
 pub nika_builtin::tts::TtsKeys::elevenlabs: core::option::Option<nika_kernel_core::infra::secret::Secret>
 pub nika_builtin::tts::TtsKeys::local_api_key: core::option::Option<nika_kernel_core::infra::secret::Secret>
@@ -220,6 +298,11 @@ impl<T> nika_error::traits::AsAny for nika_builtin::tts::TtsKeys where T: 'stati
 pub fn nika_builtin::tts::TtsKeys::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_builtin::tts::TtsKeys
 pub type nika_builtin::tts::TtsKeys::Output = T
+pub trait nika_builtin::tts::SpeechRunner: core::marker::Send + core::marker::Sync
+pub fn nika_builtin::tts::SpeechRunner::run_speech(&self, command: nika_kernel_core::io::process::ShellCommand) -> nika_builtin::SpeechFuture<'_>
+impl<T: nika_kernel_core::io::process::ShellRunDyn + core::marker::Sync> nika_builtin::SpeechRunner for T
+pub fn T::run_speech(&self, command: nika_kernel_core::io::process::ShellCommand) -> nika_builtin::SpeechFuture<'_>
+pub type nika_builtin::tts::SpeechFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>> + core::marker::Send + 'a)>>
 pub mod nika_builtin::witness
 pub async fn nika_builtin::witness::scope_attempt_witness<F>(witness: alloc::sync::Arc<nika_cap::witness::PermitWitness>, fut: F) -> <F as core::future::future::Future>::Output where F: core::future::future::Future
 pub mod nika_builtin::write_origins
@@ -344,6 +427,57 @@ pub fn nika_builtin::write_origins::WriteOrigins::as_any(&self) -> &(dyn core::a
 impl<T> typenum::type_operators::Same for nika_builtin::write_origins::WriteOrigins
 pub type nika_builtin::write_origins::WriteOrigins::Output = T
 pub const nika_builtin::write_origins::ORIGINAL_COPY_MAX: u64
+#[non_exhaustive] pub enum nika_builtin::SystemSynth
+pub nika_builtin::SystemSynth::EspeakNg
+pub nika_builtin::SystemSynth::EspeakNg::program: std::path::PathBuf
+pub nika_builtin::SystemSynth::Say
+pub nika_builtin::SystemSynth::Say::program: std::path::PathBuf
+pub nika_builtin::SystemSynth::Say::scratch_dir: std::path::PathBuf
+pub nika_builtin::SystemSynth::Unavailable
+pub nika_builtin::SystemSynth::Unavailable::missing: alloc::string::String
+impl nika_builtin::SystemSynth
+pub fn nika_builtin::SystemSynth::espeak_ng(program: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_builtin::SystemSynth::say(program: impl core::convert::Into<std::path::PathBuf>, scratch_dir: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_builtin::SystemSynth::unavailable(missing: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_builtin::SystemSynth
+pub fn nika_builtin::SystemSynth::clone(&self) -> nika_builtin::SystemSynth
+impl core::cmp::Eq for nika_builtin::SystemSynth
+impl core::cmp::PartialEq for nika_builtin::SystemSynth
+pub fn nika_builtin::SystemSynth::eq(&self, other: &nika_builtin::SystemSynth) -> bool
+impl core::fmt::Debug for nika_builtin::SystemSynth
+pub fn nika_builtin::SystemSynth::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_builtin::SystemSynth
+impl<D> owo_colors::OwoColorize for nika_builtin::SystemSynth
+impl<Q, K> equivalent::Equivalent<K> for nika_builtin::SystemSynth where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_builtin::SystemSynth::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_builtin::SystemSynth where U: core::convert::From<T>
+pub fn nika_builtin::SystemSynth::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::SystemSynth where U: core::convert::Into<T>
+pub type nika_builtin::SystemSynth::Error = core::convert::Infallible
+pub fn nika_builtin::SystemSynth::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::SystemSynth where U: core::convert::TryFrom<T>
+pub type nika_builtin::SystemSynth::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::SystemSynth::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_builtin::SystemSynth where T: core::clone::Clone
+pub type nika_builtin::SystemSynth::Owned = T
+pub fn nika_builtin::SystemSynth::clone_into(&self, target: &mut T)
+pub fn nika_builtin::SystemSynth::to_owned(&self) -> T
+impl<T> core::any::Any for nika_builtin::SystemSynth where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::SystemSynth::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::SystemSynth where T: ?core::marker::Sized
+pub fn nika_builtin::SystemSynth::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::SystemSynth where T: ?core::marker::Sized
+pub fn nika_builtin::SystemSynth::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_builtin::SystemSynth where T: core::clone::Clone
+pub unsafe fn nika_builtin::SystemSynth::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_builtin::SystemSynth
+pub fn nika_builtin::SystemSynth::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_builtin::SystemSynth where T: core::clone::Clone
+pub fn nika_builtin::SystemSynth::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_builtin::SystemSynth where T: 'static
+pub fn nika_builtin::SystemSynth::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_builtin::SystemSynth
+pub type nika_builtin::SystemSynth::Output = T
 #[non_exhaustive] pub enum nika_builtin::WriteOrigin
 pub nika_builtin::WriteOrigin::Created
 pub nika_builtin::WriteOrigin::Created::file: core::option::Option<nika_builtin::write_origins::CreatedFile>
@@ -394,6 +528,7 @@ pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::new(fs: alloc::sync::
 pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::with_fs_boundary(self, boundary: nika_builtin::permits::FsBoundary) -> Self
 pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::with_image_plane(self, http: alloc::sync::Arc<H>, keys: nika_builtin::image::ImageKeys) -> Self
 pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::with_jq_clock(self, clock: nika_cap::expr::JqClock) -> Self
+pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::with_system_voice(self, voice: nika_builtin::SystemVoice) -> Self
 pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::with_tts_plane(self, http: alloc::sync::Arc<H>, keys: nika_builtin::tts::TtsKeys) -> Self
 pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::with_write_origins(self, origins: core::option::Option<alloc::sync::Arc<nika_builtin::write_origins::WriteOrigins>>) -> Self
 impl<F, H, C, Em, P, W> nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn for nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W> where F: nika_kernel_core::io::fs::FsReadDyn + nika_kernel_core::io::fs::FsWriteDyn + nika_kernel_core::io::fs::FsListDyn + nika_kernel_core::io::fs::FsMetaDyn + core::marker::Send + core::marker::Sync, H: nika_kernel_core::io::http::HttpGetDyn + nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync, C: nika_kernel_core::io::clock::ClockDyn + core::marker::Send + core::marker::Sync, Em: nika_builtin::Emitter, P: nika_builtin::Prompter, W: nika_builtin::WorkflowIntrospect
@@ -771,6 +906,33 @@ impl<T> outref::AsOut<T> for nika_builtin::NullEmitter where T: core::marker::Co
 pub fn nika_builtin::NullEmitter::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_builtin::NullEmitter
 pub type nika_builtin::NullEmitter::Output = T
+pub struct nika_builtin::SystemVoice
+impl nika_builtin::SystemVoice
+pub fn nika_builtin::SystemVoice::new(runner: alloc::sync::Arc<dyn nika_builtin::SpeechRunner>, synth: nika_builtin::SystemSynth) -> Self
+pub fn nika_builtin::SystemVoice::synth(&self) -> &nika_builtin::SystemSynth
+impl core::fmt::Debug for nika_builtin::SystemVoice
+pub fn nika_builtin::SystemVoice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_builtin::SystemVoice
+impl<T, U> core::convert::Into<U> for nika_builtin::SystemVoice where U: core::convert::From<T>
+pub fn nika_builtin::SystemVoice::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_builtin::SystemVoice where U: core::convert::Into<T>
+pub type nika_builtin::SystemVoice::Error = core::convert::Infallible
+pub fn nika_builtin::SystemVoice::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_builtin::SystemVoice where U: core::convert::TryFrom<T>
+pub type nika_builtin::SystemVoice::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_builtin::SystemVoice::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_builtin::SystemVoice where T: 'static + ?core::marker::Sized
+pub fn nika_builtin::SystemVoice::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_builtin::SystemVoice where T: ?core::marker::Sized
+pub fn nika_builtin::SystemVoice::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_builtin::SystemVoice where T: ?core::marker::Sized
+pub fn nika_builtin::SystemVoice::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_builtin::SystemVoice
+pub fn nika_builtin::SystemVoice::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_builtin::SystemVoice where T: 'static
+pub fn nika_builtin::SystemVoice::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_builtin::SystemVoice
+pub type nika_builtin::SystemVoice::Output = T
 #[non_exhaustive] pub struct nika_builtin::TtsKeys
 pub nika_builtin::TtsKeys::elevenlabs: core::option::Option<nika_kernel_core::infra::secret::Secret>
 pub nika_builtin::TtsKeys::local_api_key: core::option::Option<nika_kernel_core::infra::secret::Secret>
@@ -850,6 +1012,10 @@ impl nika_builtin::Prompter for nika_builtin::NonInteractive
 pub fn nika_builtin::NonInteractive::choice(&self, _message: &str, _choices: &[alloc::string::String]) -> core::option::Option<alloc::string::String>
 pub fn nika_builtin::NonInteractive::confirm(&self, _message: &str) -> core::option::Option<bool>
 pub fn nika_builtin::NonInteractive::input(&self, _message: &str) -> core::option::Option<alloc::string::String>
+pub trait nika_builtin::SpeechRunner: core::marker::Send + core::marker::Sync
+pub fn nika_builtin::SpeechRunner::run_speech(&self, command: nika_kernel_core::io::process::ShellCommand) -> nika_builtin::SpeechFuture<'_>
+impl<T: nika_kernel_core::io::process::ShellRunDyn + core::marker::Sync> nika_builtin::SpeechRunner for T
+pub fn T::run_speech(&self, command: nika_kernel_core::io::process::ShellCommand) -> nika_builtin::SpeechFuture<'_>
 pub trait nika_builtin::WorkflowIntrospect: core::marker::Send + core::marker::Sync
 pub fn nika_builtin::WorkflowIntrospect::cost(&self) -> serde_json::value::Value
 pub fn nika_builtin::WorkflowIntrospect::dag_info(&self) -> serde_json::value::Value
@@ -869,3 +1035,4 @@ pub fn nika_builtin::tool_defs() -> alloc::vec::Vec<nika_kernel_ai::provider::To
 pub fn nika_builtin::tools_json() -> serde_json::value::Value
 pub type nika_builtin::BuiltinOutcome = core::result::Result<nika_builtin::BuiltinValue, nika_builtin::BuiltinFailure>
 pub type nika_builtin::BuiltinValue = serde_json::value::Value
+pub type nika_builtin::SpeechFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>> + core::marker::Send + 'a)>>

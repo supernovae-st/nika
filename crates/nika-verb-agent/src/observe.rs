@@ -124,6 +124,15 @@ pub enum AgentEvent {
         /// The stored blob, or why storing was refused.
         stored: Result<nika_kernel::BlobMetadata, String>,
     },
+    /// The engine wrote the received bytes of one observed image at the task's
+    /// `images.save` path (spec 02 §Harness images): settles into that observation as
+    /// its `saved_path`, never a frame of its own.
+    HarnessImageSaved {
+        /// Peer-local operation id of the observation it settles.
+        tool_call_id: String,
+        /// The path written, as the task declared it (`-n` added for image n ≥ 2).
+        path: String,
+    },
     /// The loop started: resolved model + the whitelisted universe size.
     RunStarted {
         /// Resolved model id.
@@ -256,6 +265,7 @@ impl AgentEvent {
             Self::HarnessImageActivity { .. }
                 | Self::HarnessImageObserved { .. }
                 | Self::HarnessImageStored { .. }
+                | Self::HarnessImageSaved { .. }
         )
     }
 
@@ -270,8 +280,10 @@ impl AgentEvent {
     /// its observation in place (one row per image; an unanswered store keeps
     /// `storage: unconfirmed`), anything else is appended.
     pub fn record_into(log: &mut Vec<Self>, event: &Self) {
-        let settled = matches!(event, Self::HarnessImageStored { .. })
-            && log.iter_mut().rev().any(|seen| seen.settle_image(event));
+        let settled = matches!(
+            event,
+            Self::HarnessImageStored { .. } | Self::HarnessImageSaved { .. }
+        ) && log.iter_mut().rev().any(|seen| seen.settle_image(event));
         if !settled {
             log.push(event.clone());
         }
@@ -281,6 +293,18 @@ impl AgentEvent {
     /// the same operation. Returns whether it was absorbed; anything else is left
     /// untouched (a disposition never invents an observation).
     pub fn settle_image(&mut self, later: &Self) -> bool {
+        if let (
+            Self::HarnessImageObserved { image },
+            Self::HarnessImageSaved { tool_call_id, path },
+        ) = (&mut *self, later)
+        {
+            // Only an observation whose bytes were received names where they were written.
+            if image.tool_call_id != *tool_call_id || image.saved_path.is_some() {
+                return false;
+            }
+            image.saved_path = Some(path.clone());
+            return true;
+        }
         let (
             Self::HarnessImageObserved { image },
             Self::HarnessImageStored {

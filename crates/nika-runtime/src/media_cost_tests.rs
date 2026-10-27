@@ -18,7 +18,9 @@
 //! - an `agent:` loop's paid media tool calls meet the same cap before their
 //!   request, and a returned unpriced one is counted by the settlement;
 //! - a returned media call that billed with no report, or whose output fails
-//!   its `returns:` contract, still names why its spend is unpriced.
+//!   its `returns:` contract, still names why its spend is unpriced;
+//! - the keyless `system` voice bills no provider: a capped run admits it,
+//!   and it settles as unpriced local work (`local_model`), never free.
 
 #![allow(clippy::expect_used, clippy::panic)]
 
@@ -57,6 +59,17 @@ fn media_runtime(http: &MockHttp, budget: Option<f64>) -> MediaRuntime {
 
 /// [`media_runtime`] whose `agent:` loop asks `agent` for its turns.
 fn media_runtime_with(http: &MockHttp, budget: Option<f64>, agent: MockProvider) -> MediaRuntime {
+    media_runtime_voiced(http, budget, agent, None)
+}
+
+/// [`media_runtime_with`] whose speech plane also has the keyless `system`
+/// provider's host synthesizer, `voice`.
+fn media_runtime_voiced(
+    http: &MockHttp,
+    budget: Option<f64>,
+    agent: MockProvider,
+    voice: Option<nika_builtin::SystemVoice>,
+) -> MediaRuntime {
     let images = nika_builtin::ImageKeys::new()
         .with_openai(key())
         .with_gemini(key())
@@ -64,18 +77,20 @@ fn media_runtime_with(http: &MockHttp, budget: Option<f64>, agent: MockProvider)
     let speech = nika_builtin::TtsKeys::new()
         .with_openai(key())
         .with_elevenlabs(key());
-    let dispatcher = Arc::new(
-        nika_builtin::BuiltinDispatcher::new(
-            Arc::new(MockFs::new()),
-            Arc::new(http.clone()),
-            Arc::new(nika_kernel_mock::MockClock::new()),
-            Arc::new(nika_builtin::NullEmitter::default()),
-            Arc::new(nika_builtin::NonInteractive::default()),
-            Arc::new(nika_builtin::NoWorkflow::default()),
-        )
-        .with_image_plane(Arc::new(http.clone()), images)
-        .with_tts_plane(Arc::new(http.clone()), speech),
-    );
+    let mut dispatcher = nika_builtin::BuiltinDispatcher::new(
+        Arc::new(MockFs::new()),
+        Arc::new(http.clone()),
+        Arc::new(nika_kernel_mock::MockClock::new()),
+        Arc::new(nika_builtin::NullEmitter::default()),
+        Arc::new(nika_builtin::NonInteractive::default()),
+        Arc::new(nika_builtin::NoWorkflow::default()),
+    )
+    .with_image_plane(Arc::new(http.clone()), images)
+    .with_tts_plane(Arc::new(http.clone()), speech);
+    if let Some(voice) = voice {
+        dispatcher = dispatcher.with_system_voice(voice);
+    }
+    let dispatcher = Arc::new(dispatcher);
     let invoke = Arc::new(InvokeVerb::new(Arc::clone(&dispatcher)));
     let registry = Arc::new(nika_providers::ProviderRegistry::without_http(
         nika_providers::ProvidersConfig::default(),
@@ -115,6 +130,18 @@ async fn settle_with(
     http: &MockHttp,
     budget: Option<f64>,
 ) -> (Result<RunOutcome, RuntimeError>, VecSink) {
+    settle_on(media_runtime(http, budget), tool, args, header).await
+}
+
+/// One media task (`tool` with `args`, `header` on the task) run by
+/// `runtime`, the report checked clean first: the run's own Result and its
+/// frames.
+async fn settle_on(
+    runtime: MediaRuntime,
+    tool: &str,
+    args: &str,
+    header: &str,
+) -> (Result<RunOutcome, RuntimeError>, VecSink) {
     let yaml = format!(
         "nika: c-d3\ninputs:\n  provider: {{ type: string, default: openai }}\npermits:\n  tools: [\"{tool}\"]\n  fs: {{ write: [\"./out/**\"] }}\ntasks:\n  media:\n{header}    invoke:\n      tool: \"{tool}\"\n      args: {{ {args}, output_dir: \"./out\" }}\noutputs:\n  media: ${{{{ tasks.media.output }}}}\n"
     );
@@ -128,9 +155,7 @@ async fn settle_with(
     assert!(report.is_clean(), "fixture checks clean: {report:#?}");
     let mut stamper = DeterministicStamper::new();
     let mut sink = VecSink::new();
-    let result = media_runtime(http, budget)
-        .run(&wf, &report, &mut stamper, &mut sink)
-        .await;
+    let result = runtime.run(&wf, &report, &mut stamper, &mut sink).await;
     (result, sink)
 }
 
@@ -534,4 +559,79 @@ async fn a_contract_rejected_media_call_keeps_its_unpriced_spend() {
         media_frame_field(&sink, "cost_unpriced"),
         Some("missing_catalog_price")
     );
+}
+
+/// A WAV the fake host synthesizer streams: 16-bit mono PCM at 22.05 kHz, a
+/// tenth of a second of silence (the builtin judges the bytes' format only).
+fn host_wav() -> Vec<u8> {
+    let pcm = vec![0u8; 4_410];
+    let data_len = u32::try_from(pcm.len()).expect("a tenth of a second");
+    let mut wav = Vec::with_capacity(44 + pcm.len());
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36 + data_len).to_le_bytes());
+    wav.extend_from_slice(b"WAVEfmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes()); // PCM
+    wav.extend_from_slice(&1u16.to_le_bytes()); // mono
+    wav.extend_from_slice(&22_050u32.to_le_bytes());
+    wav.extend_from_slice(&44_100u32.to_le_bytes()); // byte rate
+    wav.extend_from_slice(&2u16.to_le_bytes()); // block align
+    wav.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&data_len.to_le_bytes());
+    wav.extend_from_slice(&pcm);
+    wav
+}
+
+/// The keyless `system` voice bills no provider, so no cap refuses it (a
+/// beat keeps speech under its `plafond:` this way), yet its local compute
+/// is unpriced, never free: a capped run, a zero cap included, starts the
+/// host synthesizer once, sends no provider request and settles `unpriced`
+/// with `local_model` on the task's frame, as a run with no cap does.
+#[tokio::test]
+async fn the_keyless_system_voice_runs_under_a_cap_and_settles_as_unpriced_local_work() {
+    for cap in [Some(0.0), Some(1.0), None] {
+        let http = MockHttp::new();
+        let synth = MockShell::new().enqueue_result(
+            nika_kernel::process::ShellResult::new(0, "", "", std::time::Duration::ZERO)
+                .with_raw(host_wav(), Vec::new()),
+        );
+        let voice = nika_builtin::SystemVoice::new(
+            Arc::new(synth.clone()),
+            nika_builtin::SystemSynth::espeak_ng("/usr/bin/espeak-ng"),
+        );
+        let runtime = media_runtime_voiced(&http, cap, MockProvider::new("mock"), Some(voice));
+        let (result, sink) = settle_on(
+            runtime,
+            "nika:tts_generate",
+            "provider: system, text: \"Budget zero.\"",
+            "",
+        )
+        .await;
+        let outcome = result.expect("no cap refuses a voice that bills no provider");
+        assert!(outcome.ok, "{cap:?}: {:?}", outcome.records["media"].error);
+        let started = synth.executed_commands();
+        assert_eq!(started.len(), 1, "{cap:?}: the host synthesizer spoke once");
+        assert_eq!(started[0].program, "/usr/bin/espeak-ng", "{cap:?}");
+        assert!(
+            http.sent_requests().is_empty(),
+            "{cap:?}: no provider request"
+        );
+        assert_eq!(
+            (outcome.priced_calls, outcome.unpriced_calls),
+            (0, 1),
+            "{cap:?}: one unpriced local call"
+        );
+        assert_eq!(outcome.total_cost_usd, None, "{cap:?}: never a priced zero");
+        assert_eq!(
+            outcome.settlement.spend.qualifier,
+            CostQualifier::Unpriced,
+            "{cap:?}: local work is unpriced, never unmetered"
+        );
+        assert_eq!(
+            media_frame_field(&sink, "cost_unpriced"),
+            Some("local_model"),
+            "{cap:?}: the frame names why the spend is absent"
+        );
+    }
 }

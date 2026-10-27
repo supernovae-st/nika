@@ -96,3 +96,38 @@ fn agent_media_tools_require_only_their_unconditional_fs_directions() {
         assert!(escapes(tool, "  fs: {write: [out/**]}", true).is_empty());
     }
 }
+
+/// Spec 02 §Harness images · every path an `images.save` can take is judged before the run:
+/// an exact-file grant holds the first image and not `banner-2.png`, which the run would
+/// refuse after writing the first, so the check names the sibling.
+#[test]
+fn an_images_save_is_judged_on_every_path_it_can_write() {
+    let save = |write: &str| {
+        let yaml = format!(
+            "nika: agent-images\npermits:\n  fs: {{ write: {write} }}\ntasks:\n  draw:\n    \
+             agent:\n      prompt: draw\n      images: {{ save: ./out/banner.png }}\n"
+        );
+        scan_escapes(&parse(&yaml, FileId::new(0), ParseMode::Strict).expect("fixture"))
+    };
+    let exact = save("[\"./out/banner.png\"]");
+    assert_eq!(exact.len(), 1, "{exact:?}");
+    assert!(
+        exact[0]
+            .detail
+            .contains("`images.save · image 2` path `./out/banner-2.png`"),
+        "{}",
+        exact[0].detail
+    );
+    assert!(
+        save("[\"./out/**\"]").is_empty(),
+        "a directory holds every sibling"
+    );
+    assert!(
+        save(
+            "[\"./out/banner.png\", \"./out/banner-2.png\", \"./out/banner-3.png\", \
+             \"./out/banner-4.png\"]"
+        )
+        .is_empty(),
+        "the four files the client can deliver"
+    );
+}

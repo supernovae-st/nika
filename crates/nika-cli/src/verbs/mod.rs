@@ -445,6 +445,40 @@ mod tests {
         );
     }
 
+    /// #1608 · a YAML syntax refusal carries its site like every other
+    /// PARSE code: the caret frame in the plain verdict and a `span` on the
+    /// `--json` finding, the shape CONFORM findings already carry.
+    #[test]
+    fn parse_fatal_yaml_syntax_carries_its_site() {
+        let path = std::env::temp_dir().join(format!("nika-colon-{}.nika", std::process::id()));
+        std::fs::write(
+            &path,
+            "nika: p\nmodel: mock/echo\ntasks:\n  a:\n    infer:\n      prompt: Note: this has a colon: here\n",
+        )
+        .expect("fixture written");
+        let display = path.to_str().expect("utf-8 tmp path");
+        let plain = load_checked(display).expect_err("a colon in a plain value must refuse");
+        let source = RunSource::capture(display).expect("fixture captured");
+        let typed = parse_checked(&source).expect_err("the same refusal, typed");
+        std::fs::remove_file(&path).ok();
+        assert!(
+            plain.text.starts_with("PARSE ✗  [NIKA-PARSE-001]"),
+            "{}",
+            plain.text
+        );
+        assert!(
+            plain.text.contains("-->"),
+            "the caret frame:\n{}",
+            plain.text
+        );
+        let json = check::parse_fatal_json(&schema_refusal(&typed, &source), Some(&typed));
+        let payload: serde_json::Value = serde_json::from_str(&json.text).expect("json verdict");
+        let span = &payload["findings"][0]["span"];
+        let start = span["start"].as_u64().expect("span.start");
+        let end = span["end"].as_u64().expect("span.end");
+        assert!(start > 0 && end >= start, "{payload:#}");
+    }
+
     #[test]
     fn invalid_utf8_workflow_is_a_coded_schema_refusal_not_an_environment_error() {
         let path =
