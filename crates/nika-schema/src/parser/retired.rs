@@ -236,6 +236,26 @@ pub(super) fn envelope_key_at_task_level(key: &str) -> Option<&'static str> {
     )
 }
 
+/// A builtin tool's name written as a task key (`fetch:` · #1600). The
+/// author knows the tool and not the verb that calls it: a builtin is the
+/// `invoke:` verb's `tool:`, its arguments one level down in `args:`. The
+/// argument shown is the builtin's first required one, else its first
+/// declared one — the catalog `nika check` validates `args:` against. The
+/// key is read with or without its `nika:` prefix (`nika:fetch:`).
+pub(super) fn builtin_as_task_key(key: &str) -> Option<String> {
+    let builtin = nika_catalog::find_builtin(key.strip_prefix("nika:").unwrap_or(key))?;
+    let arg = builtin
+        .required
+        .first()
+        .or_else(|| builtin.args.first())
+        .map_or_else(|| "…".to_owned(), |arg| format!("{arg}: …"));
+    Some(format!(
+        "`nika:{name}` is a builtin tool, and a tool is called by the `invoke:` \
+         verb — `invoke: {{ tool: nika:{name}, args: {{ {arg} }} }}`",
+        name = builtin.name
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use crate::parser::{ParseMode, parse};

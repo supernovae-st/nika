@@ -418,6 +418,17 @@ pub fn native_hints(report: &CheckReport) -> usize {
         .count()
 }
 
+/// Whether the plan is judged over this machine's access rows: a task dials a model, the
+/// operator pins a route, or the file declares one (`run.access` naming a `via:` or a
+/// `protocol:`). The run door probes on the same facts (`lazy_plan`): a declared route judged
+/// over no rows reads as a binary built without agentic CLI adapters (measured on 0.123.2).
+fn needs_access_rows(wf: &RawWorkflow, access_pin: Option<&str>) -> bool {
+    dials_a_model(wf)
+        || access_pin.is_some()
+        || nika_service_execution::access::declared_requirement(wf)
+            .is_some_and(|requirement| requirement.selects_path())
+}
+
 /// Judge an already-checked workflow — the fold every door shares: the
 /// MODELS rung, the frozen plan under `access_pin`, the layered verdicts,
 /// the grade, the drift rows.
@@ -429,7 +440,7 @@ pub fn judge(
     judged: Judged,
     access_pin: Option<&str>,
 ) -> Verdict {
-    let probes = if dials_a_model(wf) || access_pin.is_some() {
+    let probes = if needs_access_rows(wf, access_pin) {
         nika_service_execution::access::access_probes_env()
     } else {
         Vec::new()
@@ -893,6 +904,55 @@ mod tests {
             "{:?}",
             audit.verdict.layers.blockers
         );
+    }
+
+    /// Measured on 0.123.2 · a file that declares its route and dials no model. `nika run`
+    /// resolves the declared route over this machine's rows and exits 0; check judged it over
+    /// NO rows, so the route read as a binary built without agentic CLI adapters.
+    const DECLARED_ROUTE_BUILTIN_ONLY: &str = "nika: declared\nrun:\n  access: { via: codex, protocol: acp, fallback: none }\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  shape:\n    invoke: { tool: nika:jq, args: { input: [1, 2], expression: length } }\n";
+
+    /// The run door's probe law (`lazy_plan`): a flag, a dial or a declared route.
+    #[test]
+    fn a_declared_route_needs_this_machines_access_rows() {
+        let parse = |source: &str| {
+            nika_schema::parse(source, nika_schema::FileId::new(0), ParseMode::Strict)
+                .expect("the fixture parses")
+        };
+        let declared = parse(DECLARED_ROUTE_BUILTIN_ONLY);
+        assert!(needs_access_rows(&declared, None), "a declared route");
+        let undeclared = parse(&DECLARED_ROUTE_BUILTIN_ONLY.replace(
+            "run:\n  access: { via: codex, protocol: acp, fallback: none }\n",
+            "",
+        ));
+        assert!(undeclared.run.is_none(), "the fixture lost its `run:`");
+        assert!(!needs_access_rows(&undeclared, None), "nothing to judge");
+        assert!(needs_access_rows(&undeclared, Some("mock")), "a pin");
+        assert!(needs_access_rows(&parse(RUN_TIME_MODEL), None), "a dial");
+    }
+
+    /// With the adapters compiled in, a declared route is judged over the real rows: the only
+    /// refusal it can meet is the seat's own install or sign-in line.
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn a_declared_route_never_reads_as_a_binary_without_adapters() {
+        const NOT_COMPILED: &str = "built without agentic CLI adapters";
+        let audit = audit(DECLARED_ROUTE_BUILTIN_ONLY);
+        assert!(
+            audit.verdict.plan.requirement.is_some(),
+            "the plan carries the declared route"
+        );
+        assert!(
+            !audit
+                .verdict
+                .layers
+                .blockers
+                .iter()
+                .any(|line| line.contains(NOT_COMPILED)),
+            "{:?}",
+            audit.verdict.layers.blockers
+        );
+        let refusal = format!("{:?}", audit.verdict.plan.pin_refusal);
+        assert!(!refusal.contains(NOT_COMPILED), "{refusal}");
     }
 
     #[test]

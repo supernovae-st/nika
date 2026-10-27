@@ -932,6 +932,8 @@ mod provenance_tests {
             ("openai", "o3-mini"),
             ("openai", "o4-mini"),
             ("openai", "gpt-5"),
+            ("openai", "gpt-5-mini"),
+            ("openai", "gpt-5-nano"),
             ("openai", "gpt-5-turbo"),
             ("openai", "gpt-5.1"),
             // OpenRouter — aliased API surface.
