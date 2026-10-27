@@ -35,7 +35,8 @@
 //! - **the seat fixes its sampling** — a `temperature:` other than the
 //!   default (on an `infer:` or an `agent:` task) on a catalog-known seat
 //!   whose provider refuses it ([`nika_catalog::refuses_sampling`]: the
-//!   Claude 5 models on Anthropic's API) is an HTTP 400 at run.
+//!   Claude 5 models on Anthropic's API, the o-series and GPT-5, GPT-5 mini
+//!   and GPT-5 nano on the `openai` provider's) is an HTTP 400 at run.
 //! - **the seat thinks adaptively** — a `thinking.budget_tokens` on a
 //!   catalog-known seat whose provider refuses a budget
 //!   ([`nika_catalog::refuses_thinking_budget`]) is an HTTP 400 at run; the
@@ -274,7 +275,8 @@ const DEFAULT_TEMPERATURE: f64 = 1.0;
 
 /// The fixed-sampling law: a task's `temperature:` other than the default on a catalog-known
 /// seat whose provider refuses it ([`nika_catalog::refuses_sampling`]: the Claude 5 models on
-/// Anthropic's API answer HTTP 400). The declared value is never dropped: the check names it.
+/// Anthropic's API and the `openai` reasoning models on their provider's answer HTTP 400). The
+/// declared value is never dropped: the check names it.
 fn fixed_sampling(
     wf: &RawWorkflow,
     id: &str,
@@ -645,6 +647,41 @@ mod tests {
                 "no tiny-cap refusal here: {f:?}\n{yaml}"
             );
         }
+    }
+
+    /// Measured on 0.123.2 · the `openai` reasoning seats fix their sampling on their
+    /// provider's API: `temperature: 0` on GPT-5 mini or o3 checked clean and the provider
+    /// answered HTTP 400 at run. The default temperature and a model that takes a temperature
+    /// stay clean.
+    #[test]
+    fn an_openai_reasoning_seat_refuses_a_temperature_at_check() {
+        let temp = |model: &str, value: &str| {
+            findings_of(&format!(
+                "nika: w\ntasks:\n  t:\n    infer:\n      prompt: hi\n      model: {model}\n      \
+                 temperature: {value}\n"
+            ))
+        };
+        for model in ["openai/gpt-5-mini", "openai/o3"] {
+            let f = temp(model, "0");
+            assert_eq!(f.len(), 1, "{model}: {f:?}");
+            assert_eq!((f[0].task.as_str(), f[0].model.as_str()), ("t", model));
+            assert!(
+                f[0].why.contains("`temperature: 0`")
+                    && f[0].why.contains(&format!("seats `{model}`"))
+                    && f[0].why.contains("fixes its sampling")
+                    && f[0].why.contains("HTTP 400"),
+                "{}",
+                f[0].why
+            );
+            assert!(
+                temp(model, "1").is_empty(),
+                "{model}: the default is accepted"
+            );
+        }
+        assert!(
+            temp("openai/gpt-4o", "0").is_empty(),
+            "gpt-4o takes a temperature"
+        );
     }
 
     /// The Claude 5 models fix their sampling and think adaptively on Anthropic's API: a

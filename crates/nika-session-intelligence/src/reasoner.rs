@@ -457,7 +457,8 @@ impl SessionReasoner for ProviderReasoner {
 
 /// The temperature a ceilinged call asks of `model` (`provider/name`, a nickname included): zero,
 /// except on a model whose provider refuses any temperature but its default
-/// ([`nika_catalog::refuses_sampling`]: the Claude 5 models), which gets none and its own default.
+/// ([`nika_catalog::refuses_sampling`]: the Claude 5 models, the `openai` o-series and GPT-5),
+/// which gets none and its own default.
 fn label_temperature(model: &str) -> Option<f32> {
     let refused = model
         .split_once('/')

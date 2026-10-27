@@ -848,6 +848,14 @@ wherever the catalog records no such refusal, an unrecorded model and a
 provider that does not speak the Messages API included. The Claude 5 models
 above refuse both.
 
+`refuses_sampling` also covers OpenAI's own API (the `openai` provider and its
+alias) whose model takes no temperature: the o-series and GPT-5, GPT-5 mini
+and GPT-5 nano answer a `temperature` other than 1 with HTTP 400. `nika check`
+names it, and a Session label call sends none. Another OpenAI-compatible
+route, OpenRouter included, drops the control instead, so no refusal is
+claimed there; the OpenAI-compatible adapter itself sends the request as
+declared.
+
 The Anthropic adapter judges the controls its body would carry: the typed
 value, else a provider extra of the same key, since the typed one is written
 first and an extra never overrides it. A refused control, typed or raw,

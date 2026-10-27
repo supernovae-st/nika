@@ -19,6 +19,7 @@ use crate::source::Spanned;
 use crate::types::{CaptureMode, DecodeMode};
 
 use super::envelope::parse_string_map;
+use super::scalar_body::scalar_body_teaching;
 use super::value::json_value;
 use super::{Cx, refuse_ambiguous_plain_scalar, tasks::parse_string_list};
 
@@ -111,7 +112,12 @@ pub(super) fn parse_verb(
             message: if verb == "exec" {
                 nika_error::codes::EXEC_BODY_HELP.to_owned()
             } else {
-                format!("`{verb}:` body must be a YAML mapping")
+                scalar_body_teaching(
+                    verb,
+                    body_node
+                        .as_scalar()
+                        .map(marked_yaml::types::MarkedScalarNode::as_str),
+                )
             },
             span: cx.span(body_node.span()),
         });
