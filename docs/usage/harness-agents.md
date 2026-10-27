@@ -133,11 +133,20 @@ halftone:
   task cannot pick up another session's image. Do not ask the application to
   copy its image into the project; declare `save:` instead.
 - With `save:`, Nika writes the received bytes at that path through
-  `nika:write`, inside `permits.fs.write` (`NIKA-SEC-004` outside it,
-  statically for a literal path). A second image lands at `banner-2.png`, a
-  third at `banner-3.png`. The written file has the digest of the received
-  bytes. A task whose session delivered no image fails `NIKA-AGENT-007`
-  instead of succeeding with no file.
+  `nika:write`, inside `permits.fs.write` (`NIKA-SEC-004` outside it). A
+  second image lands at `banner-2.png`, a third at `banner-3.png`, up to
+  four. Every path is judged before any file is written: `nika check` judges
+  all four for a literal path (grant the directory, `./out/release/**`, or
+  the four files `--infer-permits` lists), and the run judges the received
+  ones before the first write. The written file has the digest of the
+  received bytes. A task whose session delivered no image fails
+  `NIKA-AGENT-007` instead of succeeding with no file.
+- A save is a write: two tasks that can run at the same time and save on one
+  path, a `for_each` task that saves one path, or a save beside a
+  `nika:write` of one of its files are refused (`NIKA-SEC-012`), like two
+  `nika:write` tasks. Order them with `after:` or give each its own path.
+- Nika recognises the image tool of Codex. On another application,
+  `images: { save: }` receives nothing and fails `NIKA-AGENT-007`.
 - `images:` belongs to a task on a seat. On an API or local model, `nika
   check` names it as a blocker and the run refuses it (`NIKA-465`): the
   engine's own loop gets its images from `nika:image_generate`.
@@ -158,13 +167,16 @@ turn. It carries:
   prompt on your subscription.
 - `vision:` files, sent as ACP image blocks, when the application declares
   image prompts at `initialize` (codex-acp and claude-agent-acp do). An
-  application that does not is refused before the session starts.
+  application that does not is refused before the session starts, and so is
+  a file whose bytes do not start with a PNG, JPEG, GIF or WebP signature.
+  As on an API route, a `vision:` file is read without a `permits.fs.read`
+  check: point it only at files you mean to send to the model.
 
-It cannot carry `temperature`, `max_tokens`, `thinking` or a `vision:` URL
-(Nika does not fetch it). The run refuses those before anything is sent
-(`NIKA-432`), and `nika check` names them as blockers instead of reporting the
-file run-ready. On a seated task, `check` also stops suggesting `max_tokens`
-or `max_tokens_total`.
+It cannot carry `temperature`, `max_tokens`, an enabled `thinking` budget or
+a `vision:` URL (Nika does not fetch it). The run refuses those before
+anything is sent (`NIKA-432`), and `nika check` names them as blockers instead
+of reporting the file run-ready. On a seated task, `check` also stops
+suggesting `max_tokens` or `max_tokens_total`.
 
 ## Reading the trace
 
