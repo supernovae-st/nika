@@ -2480,6 +2480,8 @@ impl<T> tracing::instrument::WithSubscriber for nika_display::front_door::Infere
 impl<T> typenum::type_operators::Same for nika_display::front_door::InferenceChoice
 pub type nika_display::front_door::InferenceChoice::Output = T
 pub struct nika_display::front_door::MachineView
+pub nika_display::front_door::MachineView::binary: core::option::Option<alloc::string::String>
+pub nika_display::front_door::MachineView::binary_notice: core::option::Option<alloc::string::String>
 pub nika_display::front_door::MachineView::clients: alloc::vec::Vec<(alloc::string::String, bool)>
 pub nika_display::front_door::MachineView::drifted_kits: alloc::vec::Vec<alloc::string::String>
 pub nika_display::front_door::MachineView::endpoints: alloc::vec::Vec<(alloc::string::String, alloc::string::String, alloc::string::String)>

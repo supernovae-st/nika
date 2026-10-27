@@ -379,6 +379,38 @@ Diagnose-only + **print the exact fix command** (never auto-mutate):
   fix: nika completions zsh > ~/.zfunc/_nika
 ```
 
+The rows after `binary` name the executable itself (#1614). `running` gives
+its resolved path, `nika <version> (<commit>)` and the installer read from
+that path alone (`install.sh` · `homebrew` · `npm-global` · `npm-payload` ·
+`cargo` · `nix` · `release-dir` · `source-build`, else `unknown`). The
+first `path` row says what typing `nika` runs: this binary, the same build
+through another file (a launcher or a copy), or another build, which warns
+with its repair. Every other `nika` on PATH follows with the version it
+reports: each is asked `--version` concurrently under a two-second
+deadline, a copy that hangs is `unknown`, one that fails warns. A relative
+PATH entry, or one written with a literal `~` (bash expands it, zsh does
+not), is listed but never executed. A copy that is asked runs contained:
+an allow-listed environment (identity, locale, XDG and `NIKA*` settings,
+never a name carrying `KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `CREDENTIAL` or
+`AUTH`), a PATH of the absolute entries only, `/` as its working directory,
+and its own process group, killed once its first line is read or at the
+deadline. Its answer is that first line, `nika <version> [(<commit>)]` in
+plain characters; anything else is no answer. A removal is suggested only
+for a known layout (`install.sh`, `release-dir`, Homebrew, npm, cargo),
+never for an `unknown` file or on a source build's account. At most 16
+other copies are listed (the running binary is still found beyond them).
+`--json` adds
+`running.{path,path_error,version,commit,installer,on_path,first_on_path}`,
+`others_truncated` and `others[]` (`path` · `resolved` · `installer` ·
+`executable` · `first_on_path` · `shadows_running` · `running_shadows_this`
+· `probe` · `version` · `commit` · `same_build` · `order` · `detail`).
+`shadows_running` is true for a copy before this binary on PATH or, when a
+launcher started this binary from outside PATH, for the copy that runs if
+it reports another build. Consumers select `findings[]` rows by `label`;
+their positions are not a contract. `nika welcome` prints the same facts
+in one line under `this binary`, with an advisory that names this binary's
+own `doctor` when another build answers to `nika`, and carries the same keys.
+
 `--fix` stays REFUSED v1 (auto-mutating PATH/shell config from a CLI is the
 class of magic we refuse; the printed command is the contract). Revisit only
 on repeated operator demand.

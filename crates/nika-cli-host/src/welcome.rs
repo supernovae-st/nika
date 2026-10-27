@@ -29,6 +29,7 @@ use std::path::Path;
 
 use nika_providers::probe::ExecutionLocus;
 
+use crate::binary_identity::BinaryIdentity;
 use crate::context_envelope::{self, ContextEnvelope, ContextMode, EnvFacts, EvidenceSource};
 use crate::display::theme::Theme;
 use crate::door::DoorId;
@@ -195,6 +196,9 @@ struct Mirror {
     /// exactly one workflow.
     gate: Option<RunGate>,
     ctx: ContextView,
+    /// #1614 · this binary's path, build and installer, and the other
+    /// `nika` on PATH: the same facts `doctor` lists, in one line here.
+    identity: BinaryIdentity,
 }
 
 impl Mirror {
@@ -205,6 +209,7 @@ impl Mirror {
         };
         let envelope = context_envelope::resolve(candidate, &facts);
         let probe = probe::collect(false);
+        let identity = crate::binary_identity::collect();
         let counts = EngineCounts {
             builtins: nika_builtin::tool_defs().len(),
             locals: probe.providers.iter().filter(|p| !p.requires_key).count(),
@@ -223,6 +228,7 @@ impl Mirror {
                     chat_only: true,
                     ..ContextView::legacy()
                 },
+                identity,
             };
         }
         let root = envelope.project_root.clone();
@@ -244,6 +250,7 @@ impl Mirror {
             glance,
             gate,
             ctx,
+            identity,
         }
     }
 
@@ -256,7 +263,7 @@ impl Mirror {
 
     fn render_body(&self, theme: Theme) -> String {
         front_door::render_with_context(
-            &machine_view(&self.probe, self.counts),
+            &machine_view(&self.probe, self.counts, Some(&self.identity)),
             self.glance,
             self.counts,
             &self.ctx,
@@ -267,23 +274,27 @@ impl Mirror {
     fn render_json(&self, next: &str) -> serde_json::Value {
         let experience =
             experience_block(&self.probe, &self.envelope, self.glance, self.gate.as_ref());
-        if self.envelope.mode == ContextMode::ChatOnly {
-            return front_door::render_chat_only_json(
+        let mut v = if self.envelope.mode == ContextMode::ChatOnly {
+            front_door::render_chat_only_json(
                 &self.probe.version,
                 machine_json(&self.probe),
                 self.counts,
                 experience,
                 next,
-            );
-        }
-        front_door::render_json(
-            &self.probe.version,
-            machine_json(&self.probe),
-            self.glance,
-            self.counts,
-            experience,
-            next,
-        )
+            )
+        } else {
+            front_door::render_json(
+                &self.probe.version,
+                machine_json(&self.probe),
+                self.glance,
+                self.counts,
+                experience,
+                next,
+            )
+        };
+        // Additive against `welcome_version: 1`: the keys `doctor --json` carries.
+        crate::binary_identity::insert_json(&mut v, &self.identity);
+        v
     }
 
     fn record_session(&self) {
@@ -403,7 +414,12 @@ fn run_gate(root: &Path, rel: &Path) -> RunGate {
 }
 
 /// Build passive display facts after all host selection and redaction.
-fn machine_view(probe: &Probe, counts: EngineCounts) -> front_door::MachineView {
+/// `identity` is `None` only in the legacy test render (no binary line).
+fn machine_view(
+    probe: &Probe,
+    counts: EngineCounts,
+    identity: Option<&BinaryIdentity>,
+) -> front_door::MachineView {
     let unwired: Vec<&str> = probe
         .clients
         .iter()
@@ -426,6 +442,11 @@ fn machine_view(probe: &Probe, counts: EngineCounts) -> front_door::MachineView 
         }
     });
     let state = probe::adoption_state(probe);
+    let show = |p: &Path| under_home(&p.display().to_string());
+    let (binary, binary_notice) = identity.map_or((None, None), |id| {
+        let (line, notice) = crate::binary_identity::welcome_lines(id, &show);
+        (Some(line), notice)
+    });
     front_door::MachineView {
         version: probe.version.clone(),
         clients: probe
@@ -464,6 +485,8 @@ fn machine_view(probe: &Probe, counts: EngineCounts) -> front_door::MachineView 
             .map(|k| format!("{} {}", k.client, k.version))
             .collect(),
         wired_facet: nika_providers::wired_facet(counts.locals + counts.clouds, counts.locals),
+        binary,
+        binary_notice,
     }
 }
 
@@ -482,7 +505,7 @@ fn machine_json(probe: &Probe) -> serde_json::Value {
 #[cfg(test)]
 fn render_human(probe: &Probe, glance: Glance, counts: EngineCounts, theme: Theme) -> String {
     front_door::render_with_context(
-        &machine_view(probe, counts),
+        &machine_view(probe, counts, None),
         glance,
         counts,
         &ContextView::legacy(),
