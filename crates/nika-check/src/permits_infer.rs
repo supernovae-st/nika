@@ -297,37 +297,7 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
             for tool in a.tools.iter().filter(|tool| !tool.value.starts_with('!')) {
                 c.tools.insert(tool.value.clone());
             }
-            // `images: { save: }` (spec 02 §Harness images): the engine writes the received
-            // bytes at a literal path (or a bare const) and its `-n` siblings, so the boundary
-            // names every one of them; a rendered path is the runtime's, and names the fs face
-            // partial (never an empty write set presented as the answer).
-            if let Some(save) = a.images.as_ref().and_then(|i| i.value.save.as_ref()) {
-                let path = if save.value.contains("${{") {
-                    c.consts.resolve(&save.value).map(str::to_owned)
-                } else {
-                    Some(save.value.clone())
-                };
-                match path {
-                    Some(path) if path_escapes_workspace(&path) => {
-                        c.partial.fs = true;
-                        c.notes.push(format!(
-                            "task `{id}` saves its images at `{path}` — that path escapes the \
-                             workspace, so no `permits.fs.write` entry is inferred"
-                        ));
-                    }
-                    Some(path) => {
-                        c.writes
-                            .extend(nika_types::access::harness_image_paths(&path));
-                    }
-                    None => {
-                        c.partial.fs = true;
-                        c.notes.push(format!(
-                            "task `{id}` saves its images at a dynamic path — `fs` cannot \
-                             express 'any path'; add the resolved path(s) before running"
-                        ));
-                    }
-                }
-            }
+            collect_images_save(c, id, a);
         }
         RawAction::Infer(a) => collect_vision_reads(c, id, a),
         #[allow(
@@ -335,6 +305,41 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
         other => unreachable!("unknown action: {other:?}"),
+    }
+}
+
+/// `images: { save: }` (spec 02 §Harness images): the engine writes the received bytes at a
+/// literal path (or a bare const) and its `-n` siblings, so the boundary names every one of
+/// them; a rendered path is the runtime's, and names the fs face partial (never an empty write
+/// set presented as the answer).
+fn collect_images_save(c: &mut Collector, id: &str, a: &nika_schema::raw::RawAgentAction) {
+    let Some(save) = a.images.as_ref().and_then(|i| i.value.save.as_ref()) else {
+        return;
+    };
+    let path = if save.value.contains("${{") {
+        c.consts.resolve(&save.value).map(str::to_owned)
+    } else {
+        Some(save.value.clone())
+    };
+    match path {
+        Some(path) if path_escapes_workspace(&path) => {
+            c.partial.fs = true;
+            c.notes.push(format!(
+                "task `{id}` saves its images at `{path}` — that path escapes the workspace, so \
+                 no `permits.fs.write` entry is inferred"
+            ));
+        }
+        Some(path) => {
+            c.writes
+                .extend(nika_types::access::harness_image_paths(&path));
+        }
+        None => {
+            c.partial.fs = true;
+            c.notes.push(format!(
+                "task `{id}` saves its images at a dynamic path — `fs` cannot express 'any \
+                 path'; add the resolved path(s) before running"
+            ));
+        }
     }
 }
 
