@@ -321,6 +321,38 @@ async fn a_save_the_boundary_refuses_fails_with_its_code() {
     );
 }
 
+/// Spec 02 §Harness images · every path is judged before any byte: a grant that holds the
+/// first image and not its `-2` sibling refuses the delivery with NIKA-SEC-004, and the first
+/// image is never written either.
+#[tokio::test]
+async fn a_second_image_outside_the_grant_refuses_before_the_first_is_written() {
+    let (verb, _, tools) = seated(
+        vec![
+            received("ig-1", &png(b"first")),
+            received("ig-2", &png(b"second")),
+            completed("two banners"),
+        ],
+        MockToolExecutor::new(),
+    );
+    let mut input = saving("./out/banner.png");
+    let mut permits = nika_schema::types::Permits::new();
+    permits.fs = Some(nika_schema::types::FsPermits::new(
+        Vec::new(),
+        vec!["./out/banner.png".to_owned()],
+    ));
+    input.permits = Some(permits);
+    let err = verb.run(input).await.expect_err("no room for banner-2.png");
+    assert_eq!(err.spec_code(), "NIKA-SEC-004");
+    assert!(
+        matches!(&err, VerbAgentError::SecurityBoundary { tool, .. } if tool == "nika:write"),
+        "{err:?}"
+    );
+    assert!(
+        tools.captured_calls().is_empty(),
+        "nothing is written when any path is outside"
+    );
+}
+
 /// `images:` is a seat's field: the engine's own loop refuses it before any model call.
 #[tokio::test]
 async fn the_native_loop_refuses_images_before_any_call() {

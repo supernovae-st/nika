@@ -95,19 +95,30 @@ pub(crate) fn validated(
         })
 }
 
-/// Where image `index` (0-based) lands under `save`: the path itself for the first, then the
-/// path with `-n` (n = index + 1) inserted before the extension of its last component.
-pub(crate) fn nth_path(save: &str, index: usize) -> String {
-    if index == 0 {
-        return save.to_owned();
+/// Every received image's path is judged against the declared `permits.fs.write` before the
+/// first byte is written (spec 02 §Harness images): a sibling path the grant cannot hold while
+/// it holds the first one (an exact-file grant, say, that has no room for `-2`) refuses the
+/// whole delivery with `NIKA-SEC-004` and nothing written. The judge is the lexical fit
+/// `nika check` and the harness permission bridge apply. A first path that fit cannot judge
+/// (an absolute or home spelling) is left, with its siblings, to the write builtin's own
+/// boundary, which judges each path on the resolved filesystem.
+fn refuse_unheld_siblings(
+    paths: &[String],
+    permits: Option<&nika_schema::types::Permits>,
+) -> Result<(), VerbAgentError> {
+    let (Some(permits), Some(first)) = (permits, paths.first()) else {
+        return Ok(());
+    };
+    if !permits.allows_path(first, true) {
+        return Ok(());
     }
-    let n = index + 1;
-    let (dir, file) = save
-        .rfind('/')
-        .map_or(("", save), |cut| save.split_at(cut + 1));
-    match file.rfind('.').filter(|&dot| dot > 0) {
-        Some(dot) => format!("{dir}{}-{n}{}", &file[..dot], &file[dot..]),
-        None => format!("{dir}{file}-{n}"),
+    match paths.iter().find(|path| !permits.allows_path(path, true)) {
+        Some(_) => Err(VerbAgentError::SecurityBoundary {
+            tool: "nika:write".to_owned(),
+            code: "NIKA-SEC-004".to_owned(),
+            spend: Box::default(),
+        }),
+        None => Ok(()),
     }
 }
 
@@ -134,6 +145,7 @@ where
     pub(crate) async fn deliver_images(
         &self,
         request: &AgentImages,
+        permits: Option<&nika_schema::types::Permits>,
         run: HarnessRun,
         observer: &dyn AgentObserver,
     ) -> Result<AgentOutput, VerbAgentError> {
@@ -153,11 +165,17 @@ where
                 spend: Box::default(),
             });
         }
+        let paths: Vec<String> = (request.save.iter())
+            .flat_map(|save| {
+                (0..received.len()).map(|index| nika_types::access::harness_image_path(save, index))
+            })
+            .collect();
+        refuse_unheld_siblings(&paths, permits)?;
         let mut images = Vec::with_capacity(received.len());
         for (index, image) in received.iter().enumerate() {
-            let path = match &request.save {
-                Some(save) => {
-                    let path = nth_path(save, index);
+            let path = match paths.get(index) {
+                Some(path) => {
+                    let path = path.clone();
                     self.write_image(&path, image).await?;
                     observer.on_event(&AgentEvent::HarnessImageSaved {
                         tool_call_id: image.tool_call_id.clone(),
@@ -204,6 +222,7 @@ where
         }
         Err(VerbAgentError::ImageWrite {
             path: path.to_owned(),
+            internal: nika_error::traits::NikaErrorCode::nika_code(&error),
             code: nika_error::traits::NikaErrorCode::spec_code(&error),
             detail: error.to_string(),
             spend: Box::default(),
@@ -215,14 +234,36 @@ where
 mod tests {
     use super::*;
 
+    fn permits(write: &[&str]) -> nika_schema::types::Permits {
+        let mut permits = nika_schema::types::Permits::new();
+        permits.fs = Some(nika_schema::types::FsPermits::new(
+            Vec::new(),
+            write.iter().map(|w| (*w).to_owned()).collect(),
+        ));
+        permits
+    }
+
+    /// An exact-file grant holds the first image and not its `-2` sibling: refused before any
+    /// write. A directory grant holds both; a first path the lexical fit cannot judge is the
+    /// write builtin's to judge, and an undeclared block is the zero boundary's.
     #[test]
-    fn further_images_take_a_numbered_sibling_of_the_declared_path() {
-        assert_eq!(nth_path("./out/banner.png", 0), "./out/banner.png");
-        assert_eq!(nth_path("./out/banner.png", 1), "./out/banner-2.png");
-        assert_eq!(nth_path("./out/banner.png", 3), "./out/banner-4.png");
-        assert_eq!(nth_path("out/v1.2/banner", 1), "out/v1.2/banner-2");
-        assert_eq!(nth_path(".hidden", 1), ".hidden-2");
-        assert_eq!(nth_path("banner.final.png", 1), "banner.final-2.png");
+    fn a_sibling_the_grant_cannot_hold_refuses_before_any_write() {
+        let two = ["./out/a.png".to_owned(), "./out/a-2.png".to_owned()];
+        let refused = refuse_unheld_siblings(&two, Some(&permits(&["./out/a.png"])))
+            .expect_err("no room for the sibling");
+        assert!(
+            matches!(&refused, VerbAgentError::SecurityBoundary { tool, code, .. }
+                if tool == "nika:write" && code == "NIKA-SEC-004"),
+            "{refused:?}"
+        );
+        assert!(refuse_unheld_siblings(&two, Some(&permits(&["./out/**"]))).is_ok());
+        assert!(refuse_unheld_siblings(&two[..1], Some(&permits(&["./out/a.png"]))).is_ok());
+        let absolute = [
+            "/srv/p/out/a.png".to_owned(),
+            "/srv/p/out/a-2.png".to_owned(),
+        ];
+        assert!(refuse_unheld_siblings(&absolute, Some(&permits(&["./out/a.png"]))).is_ok());
+        assert!(refuse_unheld_siblings(&two, None).is_ok());
     }
 
     #[test]

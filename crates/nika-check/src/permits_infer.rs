@@ -298,7 +298,8 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
                 c.tools.insert(tool.value.clone());
             }
             // `images: { save: }` (spec 02 §Harness images): the engine writes the received
-            // bytes at a literal path (or a bare const); a rendered one stays the runtime's.
+            // bytes at a literal path (or a bare const) and its `-n` siblings, so the boundary
+            // names every one of them; a rendered path stays the runtime's.
             if let Some(save) = a.images.as_ref().and_then(|i| i.value.save.as_ref()) {
                 let path = if save.value.contains("${{") {
                     c.consts.resolve(&save.value).map(str::to_owned)
@@ -314,7 +315,8 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
                         ));
                     }
                     Some(path) => {
-                        c.writes.insert(path);
+                        c.writes
+                            .extend(nika_types::access::harness_image_paths(&path));
                     }
                     None => {}
                 }
@@ -865,6 +867,26 @@ tasks:
         assert!(r.permits.fs.is_none() && r.permits.net.is_none());
         assert!(r.permits.tools.is_none());
         assert!(r.notes.is_empty());
+    }
+
+    /// Spec 02 §Harness images · the inferred boundary names every file an `images.save` can
+    /// write (the first and its `-n` siblings), so it re-checks clean.
+    #[test]
+    fn an_images_save_infers_every_path_it_can_write() {
+        let yaml = "nika: w\ntasks:\n  draw:\n    agent:\n      prompt: draw\n      images: { save: ./out/a.png }\n";
+        let r = infer_of(yaml);
+        let fs = r.permits.fs.as_ref().expect("fs");
+        assert_eq!(
+            fs.write,
+            vec![
+                "./out/a-2.png",
+                "./out/a-3.png",
+                "./out/a-4.png",
+                "./out/a.png"
+            ]
+        );
+        assert!(fs.read.is_empty());
+        assert_round_trips_clean(yaml);
     }
 
     /// Every literal `nika:image_compose` input is a read the inferred

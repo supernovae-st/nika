@@ -258,14 +258,16 @@ pub enum VerbAgentError {
     },
 
     /// The engine could not write a received image at the task's `images.save` path
-    /// (NIKA-471 · spec 02 §Harness images): the write builtin's own failure, its spec code
-    /// on the wire (`NIKA-BUILTIN-WRITE-001` …). A boundary refusal is
+    /// (spec 02 §Harness images): the write builtin's own failure, its internal and spec
+    /// codes (`NIKA-BUILTIN-WRITE-001` …) both the write's. A boundary refusal is
     /// [`Self::SecurityBoundary`] instead.
     #[error("the received image could not be written at `{path}`: {detail}")]
     #[diagnostic(code(nika::verb::agent_image_write))]
     ImageWrite {
         /// The path the task declared (with `-n` for image n ≥ 2).
         path: String,
+        /// The write's own internal code: the image was received, the write failed.
+        internal: NikaCode,
         /// The write's own spec code.
         code: String,
         /// The write's own words.
@@ -398,7 +400,8 @@ impl NikaErrorCode for VerbAgentError {
             Self::MaxTurns { .. } => NIKA_460,
             Self::MaxTokens { .. } => NIKA_461,
             Self::FinalCut { .. } => NIKA_470,
-            Self::NoImage { .. } | Self::ImageWrite { .. } => NIKA_471,
+            Self::NoImage { .. } => NIKA_471,
+            Self::ImageWrite { internal, .. } => *internal,
             Self::WhitelistViolation { .. } => NIKA_462,
             Self::Inference { .. } | Self::TurnInterrupted { .. } => NIKA_463,
             Self::SchemaValidation { .. } => NIKA_464,
@@ -560,6 +563,22 @@ mod tests {
             assert_eq!(err.nika_code().num, num, "{err}");
             assert!(!err.is_transient(), "{err} is a verdict, not transient");
         }
+    }
+
+    /// A received image the write could not store speaks the write's own codes, never the
+    /// « no image delivered » row (NIKA-471 names the opposite cause).
+    #[test]
+    fn an_image_write_failure_keeps_the_write_codes() {
+        let err = VerbAgentError::ImageWrite {
+            path: "./out/a.png".to_owned(),
+            internal: nika_error::codes::NIKA_451,
+            code: "NIKA-BUILTIN-WRITE-001".to_owned(),
+            detail: "is a directory".to_owned(),
+            spend: Box::default(),
+        };
+        assert_eq!(err.nika_code(), nika_error::codes::NIKA_451);
+        assert_ne!(err.nika_code(), NIKA_471);
+        assert_eq!(err.spec_code(), "NIKA-BUILTIN-WRITE-001");
     }
 
     #[test]

@@ -409,12 +409,15 @@ where
             input
                 .model
                 .get_or_insert_with(|| self.default_model.clone());
-            let images = input.images.clone();
+            let (images, permits) = (input.images.clone(), input.permits.clone());
             let run =
                 harness_path::run_on_harness(seat, input, observer, self.harness_images.as_ref())
                     .await?;
             return match images {
-                Some(request) => self.deliver_images(&request, run, observer).await,
+                Some(request) => {
+                    self.deliver_images(&request, permits.as_ref(), run, observer)
+                        .await
+                }
                 None => Ok(run.output),
             };
         }

@@ -135,6 +135,7 @@ pub nika_verb_agent::errors::VerbAgentError::HarnessGate::spend: alloc::boxed::B
 pub nika_verb_agent::errors::VerbAgentError::ImageWrite
 pub nika_verb_agent::errors::VerbAgentError::ImageWrite::code: alloc::string::String
 pub nika_verb_agent::errors::VerbAgentError::ImageWrite::detail: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::ImageWrite::internal: nika_error::codes::NikaCode
 pub nika_verb_agent::errors::VerbAgentError::ImageWrite::path: alloc::string::String
 pub nika_verb_agent::errors::VerbAgentError::ImageWrite::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::Inference
@@ -782,6 +783,7 @@ pub nika_verb_agent::VerbAgentError::HarnessGate::spend: alloc::boxed::Box<nika_
 pub nika_verb_agent::VerbAgentError::ImageWrite
 pub nika_verb_agent::VerbAgentError::ImageWrite::code: alloc::string::String
 pub nika_verb_agent::VerbAgentError::ImageWrite::detail: alloc::string::String
+pub nika_verb_agent::VerbAgentError::ImageWrite::internal: nika_error::codes::NikaCode
 pub nika_verb_agent::VerbAgentError::ImageWrite::path: alloc::string::String
 pub nika_verb_agent::VerbAgentError::ImageWrite::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::Inference

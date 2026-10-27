@@ -617,6 +617,11 @@ pub use boundary::{
     UNMEASURED_HARNESS_UNASKED, unmeasured_check_advice,
 };
 
+// Where a seat's received images land under `images: { save: }` (spec 02 §Harness images):
+// one table for the writer, the static judges and the client's media bound.
+mod images;
+pub use images::{MAX_HARNESS_IMAGES, harness_image_path, harness_image_paths};
+
 /// How far a HARNESS seat's readiness is PROVEN — a rung, never a
 /// word, beside [`Trust`] (which grades identity). A seat on PATH is
 /// `installed`; a seat whose own login/identity command answered 0 at
