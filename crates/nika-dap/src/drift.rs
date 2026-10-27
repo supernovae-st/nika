@@ -371,9 +371,9 @@ struct BodyUsage {
     has_exec: bool,
     /// An `agent:` whitelist exists (dynamic dispatch — suppresses tools/net/fs).
     has_agent_whitelist: bool,
-    /// An `agent:` task a harness can serve exists (no whitelist, no schema —
-    /// the two a harness refuses): on a bridged run its permission bridge
-    /// judges asks against `permits.exec` and `permits.fs`.
+    /// An `agent:` task a harness can serve exists (no `tools:` whitelist, which a
+    /// harness refuses · its `schema:` is validated on the seat's final message): on a
+    /// bridged run its permission bridge judges asks against `permits.exec` and `permits.fs`.
     has_bridge_agent: bool,
     /// Static `argv[0]`s of argv-form execs.
     programs: Option<BTreeSet<String>>,
@@ -481,10 +481,10 @@ impl BodyUsage {
                 self.eat_secondary_reads(a);
             }
             RawAction::Agent(a) => {
-                if !a.tools.is_empty() {
-                    self.has_agent_whitelist = true;
-                } else if a.schema.is_none() && a.schema_file.is_none() {
+                if a.tools.is_empty() {
                     self.has_bridge_agent = true;
+                } else {
+                    self.has_agent_whitelist = true;
                 }
             }
             // Infer is effect-free; a future verb joins deliberately (the
@@ -1070,7 +1070,8 @@ mod tests {
     }
 
     /// The negative control: not bridged, the same body still proves `cp` dead —
-    /// and a whitelisted or schema-bound agent is native-only, so it bridges nothing.
+    /// and a whitelisted agent is native-only, so it bridges nothing. A schema-bound
+    /// agent is served by the seat (its final message validated), so it bridges.
     #[test]
     fn without_a_servable_harness_agent_the_exec_drift_stands() {
         let unseated = scan(&bridged(""));
@@ -1080,20 +1081,21 @@ mod tests {
                 .any(|a| a.contains("`permits.exec` entry `cp` admits a program no task runs")),
             "{unseated:?}"
         );
-        for native in [
-            "      tools: [\"nika:read\"]\n",
-            "      schema: { type: object }\n",
+        for (body, servable) in [
+            ("      tools: [\"nika:read\"]\n", false),
+            ("      schema: { type: object }\n", true),
         ] {
             let yaml = BRIDGED.replace("RUN", "").replace(
                 "      max_turns: 6\n",
-                &format!("      max_turns: 6\n{native}"),
+                &format!("      max_turns: 6\n{body}"),
             );
             let wf = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
-            assert!(
+            assert_eq!(
                 scan_bridged(&wf, true)
                     .iter()
                     .any(|a| a.contains("`permits.exec` entry `cp`")),
-                "{native}"
+                !servable,
+                "{body}"
             );
         }
     }
