@@ -354,13 +354,22 @@ fn a_probed_copy_never_receives_credentials() {
     let got = std::fs::read_to_string(&names).expect("the spy ran");
     let got: Vec<&str> = got.lines().collect();
     assert!(got.contains(&"HOME"), "{got:?}");
-    for secret in [
+    // Names only: the spy records no value, and the values are fakes.
+    let withheld = [
         "FAKE_PROVIDER_API_KEY",
         "NIKA_FAKE_API_KEY",
         "FAKE_SERVICE_TOKEN",
-    ] {
-        assert!(!got.contains(&secret), "{secret} crossed: {got:?}");
-    }
+    ];
+    let crossed: Vec<&str> = got
+        .iter()
+        .copied()
+        .filter(|name| withheld.contains(name))
+        .collect();
+    assert_eq!(
+        crossed,
+        Vec::<&str>::new(),
+        "variables that reached the copy"
+    );
 }
 
 /// A copy that hangs without `exec` keeps a child of its own: the whole
