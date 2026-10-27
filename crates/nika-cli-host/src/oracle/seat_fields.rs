@@ -7,8 +7,9 @@
 //!
 //! - an `infer:` over ACP carries the prompt, system, model, native effort, a `schema:` the
 //!   verb validates and `vision:` files (as image blocks, on a route whose adapter reads
-//!   images) — `temperature`, `max_tokens`, `thinking` and a `vision:` URL refuse at run
-//!   (NIKA-432), so they block RUN READY here;
+//!   images) — `temperature`, `max_tokens`, an enabled `thinking` budget and a `vision:` URL
+//!   refuse at run (NIKA-432), so they block RUN READY here. A seat with no audited ACP
+//!   one-shot is the access line's refusal, judged there, never here;
 //! - an `agent:` on a seat refuses a `tools:` whitelist (NIKA-465): the harness runs its own;
 //! - `images:` is a seat's field: an `agent:` the plan does not seat refuses it (NIKA-465).
 //!
@@ -55,6 +56,9 @@ pub(super) fn judge(
                 if !acp {
                     continue;
                 }
+                let Some(reads_images) = one_shot(seat) else {
+                    continue;
+                };
                 let mut named: Vec<&str> = Vec::new();
                 if infer.temperature.is_some() {
                     named.push("`temperature`");
@@ -62,7 +66,10 @@ pub(super) fn judge(
                 if infer.max_tokens.is_some() {
                     named.push("`max_tokens`");
                 }
-                if infer.thinking.is_some() {
+                // The run's own predicate: an enabled budget is what reaches the session.
+                if (infer.thinking.as_ref())
+                    .is_some_and(|t| t.value.enabled && t.value.budget_tokens.is_some())
+                {
                     named.push("`thinking`");
                 }
                 if infer
@@ -71,7 +78,7 @@ pub(super) fn judge(
                     .any(|v| matches!(v.value, VisionInput::Url { .. }))
                 {
                     named.push("a `vision:` URL (Nika does not fetch it: use a local file)");
-                } else if !infer.vision.is_empty() && !reads_images(seat) {
+                } else if !infer.vision.is_empty() && !reads_images {
                     named.push("`vision:` (its adapter advertises no image prompts)");
                 }
                 if !named.is_empty() {
@@ -108,14 +115,17 @@ pub(super) fn judge(
     out
 }
 
-/// Whether `seat`'s audited ACP one-shot reads images (its measured `initialize`).
+/// `seat`'s audited ACP one-shot, as whether it reads images (its measured `initialize`):
+/// `None` when it has none, which the access line refuses before anything is sent.
 #[cfg(feature = "access-harness")]
-fn reads_images(seat: &str) -> bool {
-    nika_harness::meet_acp_one_shot(seat).is_ok_and(nika_harness::AcpOneShot::image_prompts)
+fn one_shot(seat: &str) -> Option<bool> {
+    nika_harness::meet_acp_one_shot(seat)
+        .ok()
+        .map(nika_harness::AcpOneShot::image_prompts)
 }
 
 /// Without the adapters there is no ACP one-shot: the access line already refuses it.
 #[cfg(not(feature = "access-harness"))]
-const fn reads_images(_seat: &str) -> bool {
-    true
+const fn one_shot(_seat: &str) -> Option<bool> {
+    None
 }

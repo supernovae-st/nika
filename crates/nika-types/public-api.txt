@@ -640,6 +640,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessRequireme
 #[non_exhaustive] pub struct nika_types::access::HarnessBoundary
 pub nika_types::access::HarnessBoundary::agents: &'static [&'static str]
 pub nika_types::access::HarnessBoundary::asked_command_leaves_sandbox: bool
+pub nika_types::access::HarnessBoundary::delivers_images: bool
 pub nika_types::access::HarnessBoundary::fetches_unasked: core::option::Option<&'static str>
 pub nika_types::access::HarnessBoundary::loads_unasked: core::option::Option<&'static str>
 pub nika_types::access::HarnessBoundary::measured_on: &'static str
@@ -853,7 +854,10 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::access::SelectionEviden
 pub const nika_types::access::HARNESS_IMAGES_ADVICE: &str
 pub const nika_types::access::HARNESS_SHARED_RESIDUAL: &str
 pub const nika_types::access::HARNESS_UNRESOLVED_PATH: &str
+pub const nika_types::access::MAX_HARNESS_IMAGES: usize
 pub const nika_types::access::UNMEASURED_HARNESS_UNASKED: &str
+pub fn nika_types::access::harness_image_path(save: &str, index: usize) -> alloc::string::String
+pub fn nika_types::access::harness_image_paths(save: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_types::access::unmeasured_check_advice(seat: &str) -> alloc::string::String
 pub mod nika_types::baggage
 #[non_exhaustive] pub struct nika_types::baggage::Baggage

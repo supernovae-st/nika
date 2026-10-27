@@ -46,6 +46,11 @@ pub struct HarnessBoundary {
     /// asking, so a command it asks about asks to LEAVE that sandbox (NIK-274): the client
     /// sends such an ask as an escalation, which no grant answers, `exec: true` included.
     pub asked_command_leaves_sandbox: bool,
+    /// Whether the client recognises this adapter's image tool, so an image the harness
+    /// generates reaches the task with its bytes through `images:` (spec 02 §Harness images).
+    /// Only a recognised tool's bytes are received; on another adapter `images: { save: }`
+    /// can only end in `NIKA-AGENT-007`.
+    pub delivers_images: bool,
 }
 
 impl HarnessBoundary {
@@ -85,6 +90,7 @@ impl HarnessBoundary {
              and Codex plugins",
         ),
         asked_command_leaves_sandbox: true,
+        delivers_images: true,
     };
 
     /// claude-agent-acp 0.81.1 (Claude Code 2.1.280). Its modes: `default` ("Manual": every
@@ -107,6 +113,7 @@ impl HarnessBoundary {
         fetches_unasked: Some("documentation hosts Claude Code pre-approves"),
         loads_unasked: None,
         asked_command_leaves_sandbox: false,
+        delivers_images: false,
     };
 
     /// gemini-cli 0.62.0. Legacy modes only (`session/set_mode`, no mode config option):
@@ -126,6 +133,7 @@ impl HarnessBoundary {
         fetches_unasked: Some("Google web searches"),
         loads_unasked: None,
         asked_command_leaves_sandbox: false,
+        delivers_images: false,
     };
 
     /// Every measured adapter, in the registry's order (gemini first · Anthropic last).
@@ -198,22 +206,30 @@ impl HarnessBoundary {
     }
 
     /// The `nika check` advice for an `agent:` task this seat serves (one line, task-free so
-    /// the renderer folds every task of one seat into one row with its site count).
+    /// the renderer folds every task of one seat into one row with its site count), ending
+    /// with [`HARNESS_IMAGES_ADVICE`] on an adapter that [`Self::delivers_images`].
     #[must_use]
     pub fn check_advice(&self, writes_granted: bool) -> String {
-        format!(
+        let advice = format!(
             "an `agent:` task on {} runs in mode `{}`: Nika judges each approval it asks \
              (journaled permit_checked), but without asking it {} — permits: does not bound \
-             that (`nika explain harness`). {HARNESS_IMAGES_ADVICE}",
+             that (`nika explain harness`)",
             self.seat,
             self.mode_for_writes(writes_granted),
             self.unasked_clause(writes_granted)
-        )
+        );
+        if self.delivers_images {
+            format!("{advice}. {HARNESS_IMAGES_ADVICE}")
+        } else {
+            advice
+        }
     }
 }
 
 /// How an image a seat generates reaches the workflow (spec 02 §Harness images): the bytes
 /// this session sent, never a copy out of a folder the harness shares with other sessions.
+/// Stated only for an adapter whose image tool the client recognises
+/// ([`HarnessBoundary::delivers_images`]).
 pub const HARNESS_IMAGES_ADVICE: &str = "An image it generates reaches the workflow through \
      `images: { save: <path> }`: Nika writes the bytes this session sent, never a file the \
      harness reports or a copy from its shared images folder.";
@@ -248,7 +264,7 @@ pub fn unmeasured_check_advice(seat: &str) -> String {
     format!(
         "an `agent:` task on {seat} runs in a mode Nika has not measured: Nika judges only the \
          permissions it asks for (journaled permit_checked); whatever it reads, writes, runs or \
-         fetches unasked is outside permits: (`nika explain harness`). {HARNESS_IMAGES_ADVICE}"
+         fetches unasked is outside permits: (`nika explain harness`)"
     )
 }
 
@@ -353,12 +369,8 @@ mod tests {
         assert!(witness.ends_with(HARNESS_SHARED_RESIDUAL), "{witness}");
         let claude = HarnessBoundary::CLAUDE_AGENT_ACP.check_advice(true);
         assert!(claude.contains("in mode `default`"), "{claude}");
-        // The unasked clause, before the image advice every row ends with.
-        let unasked = claude
-            .strip_suffix(HARNESS_IMAGES_ADVICE)
-            .unwrap_or(&claude);
         assert!(
-            !unasked.contains("writes"),
+            !claude.contains("writes"),
             "every Claude Code edit asks: {claude}"
         );
         assert!(
@@ -378,9 +390,12 @@ mod tests {
             unmeasured.contains("on kimi-code runs in a mode Nika has not measured"),
             "{unmeasured}"
         );
-        // B-D18 · every seat's row teaches the one way an image reaches the workflow.
-        for advice in [codex.check_advice(true), claude, unmeasured] {
-            assert!(advice.ends_with(HARNESS_IMAGES_ADVICE), "{advice}");
+        // B-D18 · the one way an image reaches the workflow, taught only where the client
+        // recognises the adapter's image tool (Codex): elsewhere `images:` receives nothing.
+        assert!(codex.check_advice(true).ends_with(HARNESS_IMAGES_ADVICE));
+        let gemini = HarnessBoundary::GEMINI_CLI.check_advice(true);
+        for advice in [claude, gemini, unmeasured] {
+            assert!(!advice.contains("images:"), "{advice}");
         }
     }
 }

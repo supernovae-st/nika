@@ -82,6 +82,42 @@ fn what_the_seat_cannot_carry_is_not_run_ready() {
     }
 }
 
+/// `thinking:` blocks exactly where the run refuses it: an enabled budget reaches the
+/// session's refusal (NIKA-432); a disabled block, or one with no budget, is never sent.
+#[test]
+fn thinking_blocks_only_where_the_run_refuses_it() {
+    for body in [
+        "      thinking: { enabled: false }\n",
+        "      thinking: { enabled: false, budget_tokens: 2000 }\n",
+        "      thinking: { enabled: true }\n",
+    ] {
+        let judged = audit(&seat_infer(body));
+        assert!(
+            seat_blockers(&judged).is_empty(),
+            "{body}: {:?}",
+            judged.verdict.layers.blockers
+        );
+    }
+}
+
+/// A seat with no audited ACP one-shot (gemini-cli) is the access line's refusal: the seat
+/// rung adds no field blocker claiming what that seat would carry.
+#[test]
+fn a_seat_with_no_one_shot_profile_is_left_to_the_access_line() {
+    let source = seat_infer("      temperature: 0.2\n").replace("via: codex", "via: gemini-cli");
+    let judged = audit(&source);
+    assert!(
+        seat_blockers(&judged).is_empty(),
+        "{:?}",
+        judged.verdict.layers.blockers
+    );
+    assert_eq!(
+        judged.verdict.layers.run_ready(),
+        Some(false),
+        "the access line refuses"
+    );
+}
+
 #[test]
 fn an_agent_whitelist_on_a_seat_and_images_without_one_block() {
     let whitelist = audit(
