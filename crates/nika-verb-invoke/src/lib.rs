@@ -287,7 +287,7 @@ where
         } else {
             let result = self.executor.execute(call).await;
             if let (Some(slot), Ok(result)) = (&input.stopped, &result) {
-                slot.record_success_cost(result);
+                slot.record_cost_of(result);
             }
             result
         }

@@ -119,17 +119,31 @@ the dated media table (`nika_catalog::builtin_media_price` with the parsed
 token rates × the usage the response reported (the `OpenAI` adapter reads
 `input_tokens_details` and `output_tokens_details`, the Gemini adapter its
 per-modality counts and thinking tokens; an unsplit axis is billed at the
-highest rate it could fall under), or, when the response reports no usage,
-the per-image price of the requested size class and quality × the images
-delivered; `tts_generate` bills the per-character rate × the characters of
-the trimmed text it sent. The output and the manifest carry `cost_basis` and
-the rates' date (`cost_as_of`) beside `cost_usd`. A model the table does not
-price (`gpt-4o-mini-tts`, `gpt-image-1.5`, an unknown id), and a
-token-priced model whose response reports no usage, report no `cost_usd`:
-the runtime counts it unpriced, never free. The usage split stays internal:
-the output's `usage` keeps its four spec axes. Tests pin the catalog's
-default models and its aspect-ratio and Gemini resolution-class reading to
-this crate's adapters.
+highest rate it could fall under), or, for the images of a response that
+reports no usage, the per-image price of the requested size class and
+quality (the dearest row over what the request leaves open, such as
+`quality: auto`) × those images; each response of a Gemini `n:` batch is
+billed on its own, and one without usage adds a `usage_unreported` warning;
+`tts_generate` bills the per-character rate × the characters of the trimmed
+text it sent. The output and the manifest carry `cost_basis` and the rates'
+date (`cost_as_of`) beside `cost_usd`. A model the table does not price
+(`gpt-4o-mini-tts`, `gpt-image-1.5`, an unknown id), and a token-priced
+model whose response reports no usage, report no `cost_usd`: the runtime
+counts it unpriced, never free. The usage split stays internal: the output's
+`usage` keeps its four spec axes. Tests pin the catalog's default models and
+its aspect-ratio and Gemini resolution-class reading to this crate's
+adapters.
+
+A paid call that fails after its provider billed keeps what it billed on its
+`BuiltinFailure` (`spent`, projected onto the error's typed details as
+`ToolErrorDetails::spent`): a Gemini `n:` batch whose later request fails
+keeps the bill of the images already answered, and a failure after the
+provider answered (decode validation, the save, the manifest, an empty
+speech payload) keeps the call's bill, or an unpriced part when it has none.
+A request that broke after it left (any transport failure but a refused host
+or an unsupported call), and a 2xx answer the adapter cannot use, add an
+unpriced part: it may have rendered. An error status bills nothing. Local,
+mock and the keyless voice never carry a spend.
 
 ### Honest gaps (delegations, not omissions)
 

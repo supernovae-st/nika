@@ -10,6 +10,11 @@
 //! no usage, its per-character rate times the characters sent. A model the
 //! table does not price reports no `cost_usd`: unknown, never free.
 
+use nika_kernel::io::http::HttpError;
+use nika_kernel::runtime::tool_executor::SpentBeforeFailure;
+
+use crate::BuiltinFailure;
+
 /// How a media call's `cost_usd` was computed: the output's `cost_basis`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CostBasis {
@@ -79,6 +84,65 @@ impl MediaBill {
 /// The `cost_usd` of an optional bill (absent stays absent).
 pub(crate) fn usd(bill: Option<MediaBill>) -> Option<f64> {
     bill.map(|bill| bill.usd)
+}
+
+/// Whether `provider` bills a call of the media builtin `tool`: every
+/// provider but a local server, the mock and the keyless voice.
+pub(crate) fn is_paid(tool: &str, provider: &str) -> bool {
+    !matches!(
+        nika_catalog::builtin_media_price(tool, provider, None),
+        nika_catalog::MediaPrice::Unmetered
+    )
+}
+
+/// What a paid call whose provider answered had billed (C-D3): its bill, or,
+/// when it has none (a model the table does not price, a usage the call could
+/// not read), a request billed without a figure. Nothing for an unmetered
+/// provider.
+pub(crate) fn answered(bill: Option<MediaBill>, paid: bool) -> Option<SpentBeforeFailure> {
+    match bill {
+        Some(bill) => SpentBeforeFailure::new(Some(bill.usd), false),
+        None => SpentBeforeFailure::new(None, paid),
+    }
+}
+
+/// A failed exchange with a paid provider that may have rendered and billed
+/// (C-D3): the provider answered 2xx with a body the adapter could not use,
+/// or the transport broke after the request left. Its bill is unknown, never
+/// free: the failure carries an unpriced request.
+pub(crate) fn may_have_billed(failure: BuiltinFailure) -> BuiltinFailure {
+    failure.with_spent(SpentBeforeFailure::new(None, true))
+}
+
+/// The failure of a paid provider's transport, mapped by its adapter's
+/// `map`: unpriced spend unless the failure proves the request never left
+/// the engine (a refused host or address, an unsupported call).
+pub(crate) fn transport_failure(
+    error: HttpError,
+    map: fn(HttpError) -> BuiltinFailure,
+) -> BuiltinFailure {
+    let never_sent = matches!(
+        error,
+        HttpError::SsrfBlocked { .. }
+            | HttpError::HostNotAllowed { .. }
+            | HttpError::Unsupported { .. }
+    );
+    let failure = map(error);
+    if never_sent {
+        failure
+    } else {
+        may_have_billed(failure)
+    }
+}
+
+/// A paid provider's answer `status` the adapter failed to use: a 2xx means
+/// it rendered and billed (unpriced spend); an error status billed nothing.
+pub(crate) fn unusable_answer(status: u16, failure: BuiltinFailure) -> BuiltinFailure {
+    if (200..300).contains(&status) {
+        may_have_billed(failure)
+    } else {
+        failure
+    }
 }
 
 #[cfg(test)]

@@ -1512,6 +1512,7 @@ pub nika_catalog::lookup::MediaModel::tool: &'static str
 impl nika_catalog::MediaModel
 pub fn nika_catalog::MediaModel::as_of(self) -> &'static str
 pub fn nika_catalog::MediaModel::character_rate(self) -> core::option::Option<&'static nika_catalog::MediaRate>
+pub fn nika_catalog::MediaModel::image_ceiling(self, request: &nika_catalog::ImageRequest<'_>) -> core::option::Option<&'static nika_catalog::MediaRate>
 pub fn nika_catalog::MediaModel::image_floor(self, request: &nika_catalog::ImageRequest<'_>) -> core::option::Option<&'static nika_catalog::MediaRate>
 pub fn nika_catalog::MediaModel::image_usage_usd(self, usage: &nika_catalog::ImageUsage) -> core::option::Option<f64>
 pub fn nika_catalog::MediaModel::rates(self) -> impl core::iter::traits::iterator::Iterator<Item = &'static nika_catalog::MediaRate>
@@ -9778,6 +9779,7 @@ pub nika_catalog::MediaModel::tool: &'static str
 impl nika_catalog::MediaModel
 pub fn nika_catalog::MediaModel::as_of(self) -> &'static str
 pub fn nika_catalog::MediaModel::character_rate(self) -> core::option::Option<&'static nika_catalog::MediaRate>
+pub fn nika_catalog::MediaModel::image_ceiling(self, request: &nika_catalog::ImageRequest<'_>) -> core::option::Option<&'static nika_catalog::MediaRate>
 pub fn nika_catalog::MediaModel::image_floor(self, request: &nika_catalog::ImageRequest<'_>) -> core::option::Option<&'static nika_catalog::MediaRate>
 pub fn nika_catalog::MediaModel::image_usage_usd(self, usage: &nika_catalog::ImageUsage) -> core::option::Option<f64>
 pub fn nika_catalog::MediaModel::rates(self) -> impl core::iter::traits::iterator::Iterator<Item = &'static nika_catalog::MediaRate>

@@ -67,8 +67,8 @@ use nika_kernel::io::clock::ClockDyn;
 use nika_kernel::io::fs::{FsListDyn, FsMetaDyn, FsReadDyn, FsWriteDyn};
 use nika_kernel::io::http::{HttpGetDyn, HttpPostDyn};
 use nika_kernel::runtime::tool_executor::{
-    ToolBatchDyn, ToolCall, ToolErrorDetails, ToolErrorMeta, ToolExecError, ToolExecuteDyn,
-    ToolResult,
+    SpentBeforeFailure, ToolBatchDyn, ToolCall, ToolErrorDetails, ToolErrorMeta, ToolExecError,
+    ToolExecuteDyn, ToolResult,
 };
 
 pub use defs::{TOOLS_EXPORT_VERSION, tool_defs, tools_json};
@@ -102,6 +102,11 @@ pub struct BuiltinFailure {
     /// builtins-v0.1.md §fetch, normative). Machine-readable where the
     /// message is human-readable; same projection story as `transient`.
     pub details: Option<serde_json::Value>,
+    /// What a paid media call had already billed when it failed (C-D3 · a
+    /// batch whose later request failed, a render that failed after its
+    /// provider answered): it crosses to the run's ledger on the error's
+    /// typed details, so a failed call's spend is never invisible.
+    pub(crate) spent: Option<SpentBeforeFailure>,
 }
 
 impl BuiltinFailure {
@@ -113,7 +118,19 @@ impl BuiltinFailure {
             message: message.into(),
             transient: false,
             details: None,
+            spent: None,
         }
+    }
+
+    /// Add what the call had already billed when it failed (C-D3): two
+    /// spends of one call add, an unpriced part keeps it unpriced.
+    #[must_use]
+    pub(crate) fn with_spent(mut self, spent: Option<SpentBeforeFailure>) -> Self {
+        self.spent = match (self.spent, spent) {
+            (Some(held), Some(more)) => Some(held.and(more)),
+            (held, more) => held.or(more),
+        };
+        self
     }
 
     /// Mark this failure transient (retryable per the spec contract).
@@ -788,10 +805,16 @@ fn render(call_id: &str, outcome: BuiltinOutcome) -> ToolResult {
             // own code (`NIKA-BUILTIN-FETCH-001`), instead of every tool
             // error flattening to a non-retryable `NIKA-451`. `content` keeps
             // the `<code> · <message>` text view the agent loop reads.
+            // What the call had already billed rides the same typed details
+            // (C-D3): the run's ledger debits it, the cap sees it.
+            let mut details = public_details(failure.details.as_ref());
+            if let Some(spent) = failure.spent {
+                details = details.with_spent(spent);
+            }
             ToolResult::error(call_id, format!("{} · {}", failure.code, failure.message))
                 .with_error_meta(
                     ToolErrorMeta::new(Some(failure.code.to_owned()), failure.transient)
-                        .with_details(public_details(failure.details.as_ref())),
+                        .with_details(details),
                 )
         }
     }

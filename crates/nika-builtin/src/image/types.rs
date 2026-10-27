@@ -300,6 +300,14 @@ impl Usage {
         }
     }
 
+    /// Whether the response reported its output, the bulk of an image bill
+    /// (C-D3): what the dated table needs to bill it from its usage.
+    pub(crate) fn reports_output(self) -> bool {
+        self.output_tokens.is_some()
+            || self.output_image_tokens.is_some()
+            || self.output_text_tokens.is_some()
+    }
+
     /// The usage as the dated media table prices it (C-D3).
     pub(crate) fn to_catalog(self) -> nika_catalog::ImageUsage {
         nika_catalog::ImageUsage::new()
@@ -342,7 +350,13 @@ pub(crate) struct RawImage {
 #[derive(Debug, Default)]
 pub(crate) struct ProviderBatch {
     pub(crate) images: Vec<RawImage>,
+    /// The usage of the responses that reported their output (a gemini `n:`
+    /// batch is `n` responses, each billed on its own · C-D3).
     pub(crate) usage: Usage,
+    /// The images whose response reported no usage, billed at the dated
+    /// per-image price (a single response's adapter leaves it 0: no usage
+    /// at all bills every image so).
+    pub(crate) unreported_images: usize,
     /// REAL spend in USD when the provider reports it exactly (xai bills
     /// `cost_in_usd_ticks` in the response body) — `None` otherwise, and the
     /// builtin bills the call from the dated media table instead when it

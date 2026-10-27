@@ -60,9 +60,12 @@ pub struct AgentInput {
     /// Typed MCP witnesses kept outside a dropped agent/task attempt.
     pub stopped: Option<nika_verb_invoke::StoppedCallSlot>,
     /// The run's USD left under its cost cap when this task dispatched (a
-    /// snapshot, never a reservation) · `None` = the run has no cap. A paid
-    /// media tool call the catalog cannot price, or whose per-call floor
-    /// exceeds it, is refused before its request and fed back (C-D3).
+    /// snapshot of the run's ledger) · `None` = the run has no cap. The loop
+    /// charges against it what it spends before the task returns (its model
+    /// turns at their known estimate, its returned tool calls, the floors of
+    /// its paid media calls in flight): a paid media tool call the catalog
+    /// cannot price, or whose per-call floor exceeds what is left, is refused
+    /// before its request and fed back (C-D3).
     pub cost_remaining_usd: Option<f64>,
     /// `images:` (spec 02 §Harness images): the images the harness delivers on this task's
     /// own session become `.output.images`, written at `save` when one is given. `None`

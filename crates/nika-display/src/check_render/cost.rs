@@ -119,8 +119,9 @@ fn media_mark(t: Theme, unpriced: bool) -> String {
 }
 
 /// One row per paid media call: its floor, the catalog rate that sets it and
-/// the date that rate was read; METERED for a call billed from the usage it
-/// reports (no floor before the call); UNPRICED with what an armed cap does
+/// the date that rate was read; METERED for a call whose floor only the run
+/// knows (an image model billed from the usage it reports, speech billed per
+/// character of the text the run renders); UNPRICED with what an armed cap does
 /// with it (the run's own refusal, NIKA-1709); or DECIDED AT RUN for a
 /// provider or model only the run resolves (judged before its request,
 /// NIKA-1704).
@@ -141,14 +142,20 @@ fn cost_media_rows(out: &mut String, report: &CheckReport, t: Theme) {
                 crate::vocab::usd(floor),
                 t.paint(Role::Dim, &dated(rate))
             ),
-            (true, None) => format!(
-                "{} {}",
-                t.paint(Role::Strong, "METERED"),
-                t.paint(
-                    Role::Dim,
-                    &format!("— billed from what it reports · {}", dated(rate))
-                ),
-            ),
+            (true, None) => {
+                // Speech bills its text per character; only an image model
+                // without a per-image price bills what its response reports.
+                let billed = if call.tool.ends_with("tts_generate") {
+                    "billed per character of the text the run renders"
+                } else {
+                    "billed from the usage it reports"
+                };
+                format!(
+                    "{} {}",
+                    t.paint(Role::Strong, "METERED"),
+                    t.paint(Role::Dim, &format!("— {billed} · {}", dated(rate))),
+                )
+            }
             (false, _) if call.run_decided => format!(
                 "{} {}",
                 t.paint(Role::Warn, "DECIDED AT RUN"),
@@ -497,12 +504,14 @@ mod tests {
     }
 
     /// C-D3 · a priced call's row shows its floor, the rate that sets it and
-    /// the date the rate was read; a call billed from its usage reads
-    /// METERED with its rate; nothing priced puts the card under a warning.
+    /// the date the rate was read; a call whose floor only the run knows reads
+    /// METERED with its rate and what bills it (an image model's reported
+    /// usage, speech's rendered text, never a usage speech providers do not
+    /// report); nothing priced puts the card under a warning.
     #[test]
     fn priced_media_rows_show_the_floor_its_unit_and_the_table_date() {
         let text = media_card(
-            "nika: priced\npermits: { tools: [\"nika:image_generate\", \"nika:tts_generate\"] }\ntasks:\n  poster:\n    invoke: { tool: \"nika:image_generate\", args: { provider: openai, size: 1024x1024, quality: high, prompt: a star, output_dir: ./out } }\n  narrate:\n    invoke: { tool: \"nika:tts_generate\", args: { model: tts-1-hd, text: \"hello world\", output_dir: ./out } }\n  flare:\n    invoke: { tool: \"nika:image_generate\", args: { model: gpt-image-2.5-flare, prompt: a star, output_dir: ./out } }\n",
+            "nika: priced\ninputs:\n  line: { type: string, default: hi }\npermits: { tools: [\"nika:image_generate\", \"nika:tts_generate\"] }\ntasks:\n  poster:\n    invoke: { tool: \"nika:image_generate\", args: { provider: openai, size: 1024x1024, quality: high, prompt: a star, output_dir: ./out } }\n  narrate:\n    invoke: { tool: \"nika:tts_generate\", args: { model: tts-1-hd, text: \"hello world\", output_dir: ./out } }\n  flare:\n    invoke: { tool: \"nika:image_generate\", args: { model: gpt-image-2.5-flare, prompt: a star, output_dir: ./out } }\n  read:\n    invoke: { tool: \"nika:tts_generate\", args: { model: tts-1, text: \"${{ inputs.line }}\", output_dir: ./out } }\n",
         );
         let date = nika_catalog::MEDIA_PRICING_AS_OF;
         assert!(
@@ -519,12 +528,18 @@ mod tests {
         );
         assert!(
             text.contains(&format!(
-                "flare  nika:image_generate · openai gpt-image-2.5-flare  METERED — billed from what it reports · $30 per 1M image output tokens · prices {date}"
+                "flare  nika:image_generate · openai gpt-image-2.5-flare  METERED — billed from the usage it reports · $30 per 1M image output tokens · prices {date}"
             )),
             "{text}"
         );
         assert!(
-            text.contains("3 paid media calls at catalog prices"),
+            text.contains(&format!(
+                "read  nika:tts_generate · openai tts-1  METERED — billed per character of the text the run renders · $15 per 1M characters · prices {date}"
+            )),
+            "{text}"
+        );
+        assert!(
+            text.contains("4 paid media calls at catalog prices"),
             "{text}"
         );
         assert!(text.contains('✔'), "nothing unpriced: {text}");

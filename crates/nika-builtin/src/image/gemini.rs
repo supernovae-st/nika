@@ -14,6 +14,7 @@
 //! `candidateCount` path → `n:` runs n sequential calls (documented).
 
 use nika_kernel::io::http::{HttpError, HttpPostDyn, HttpRequest};
+use nika_kernel::runtime::tool_executor::SpentBeforeFailure;
 use nika_kernel::secret::Secret;
 
 use crate::BuiltinFailure;
@@ -61,14 +62,26 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     let mut texts = Vec::new();
 
     for call_index in 0..args.n {
-        let request = wire_request(args, key, &body)?;
-        let response = http.post(request).await.map_err(map_transport)?;
-        let call = parse_response(response.status, &response.body)?;
+        // The calls already answered rendered and billed: a later call's
+        // failure keeps their bill (C-D3).
+        let call = match one_call(http, key, args, &body).await {
+            Ok(call) => call,
+            Err(failure) => return Err(failure.with_spent(answered_so_far(args, &batch))),
+        };
         if call.images.len() > 1 {
             batch.warnings.push(format!(
                 "gemini_extra_images: call {call_index} returned {} image parts for one \
                  request — all kept",
                 call.images.len()
+            ));
+        }
+        // Each response is billed on its own (C-D3): a response that reported
+        // no output bills its images at the dated price per image.
+        if !call.usage.reports_output() {
+            batch.unreported_images += call.images.len();
+            batch.warnings.push(format!(
+                "usage_unreported: gemini call {call_index} reported no usage — its image(s) \
+                 are billed at the dated catalog price per image"
             ));
         }
         batch.images.extend(call.images);
@@ -98,6 +111,36 @@ pub(crate) async fn generate<H: HttpPostDyn>(
         ));
     }
     Ok(batch)
+}
+
+/// One `generateContent` exchange. A transport failure after the request
+/// left, or a 2xx answer this adapter cannot use, may have rendered and
+/// billed: the failure carries an unpriced request (C-D3).
+async fn one_call<H: HttpPostDyn>(
+    http: &H,
+    key: &Secret,
+    args: &ImageArgs,
+    body: &serde_json::Value,
+) -> Result<CallResult, BuiltinFailure> {
+    let request = wire_request(args, key, body)?;
+    let response = (http.post(request).await)
+        .map_err(|error| crate::media::cost::transport_failure(error, map_transport))?;
+    parse_response(response.status, &response.body)
+        .map_err(|failure| crate::media::cost::unusable_answer(response.status, failure))
+}
+
+/// What the batch's answered calls billed: their bill, or an unpriced spend
+/// when the table cannot price it; nothing before the first answer.
+fn answered_so_far(args: &ImageArgs, batch: &ProviderBatch) -> Option<SpentBeforeFailure> {
+    if batch.images.is_empty() {
+        return None;
+    }
+    let delivered = super::Delivered {
+        usage: batch.usage,
+        count: batch.images.len(),
+        unreported: batch.unreported_images,
+    };
+    crate::media::cost::answered(super::bill(args, None, delivered), true)
 }
 
 /// « Assets, not blobs » applies to TEXT too: a multimodal response can
@@ -605,6 +648,78 @@ mod tests {
         assert_eq!(http.sent_requests().len(), 2, "n=2 → two wire calls");
         assert_eq!(batch.usage.total_tokens, Some(2 * 1478));
         assert_eq!(batch.usage.thoughts_tokens, Some(2 * 312));
+    }
+
+    /// C-D3 · a batch whose later request fails already rendered
+    /// and billed the images answered before it: the failure keeps their bill
+    /// (an error status billed nothing more), and a request that broke after
+    /// it left adds an unpriced part (it may have rendered).
+    #[tokio::test]
+    async fn a_failed_batch_keeps_the_bill_of_the_calls_already_answered() {
+        let (b64, _) = wire_png_b64();
+        let args = parsed(serde_json::json!({ "n": 3 }));
+        let one_image = || {
+            let mut batch = ProviderBatch::default();
+            batch.images.push(RawImage {
+                bytes: Vec::new(),
+                revised_prompt: None,
+                seed: None,
+            });
+            batch.usage = parse_response(200, &ok_response(&b64))
+                .expect("parses")
+                .usage;
+            answered_so_far(&args, &batch)
+        };
+        let expected =
+            (one_image().and_then(SpentBeforeFailure::priced_usd)).expect("priced from its usage");
+
+        let http = MockHttp::new()
+            .enqueue_ok(200, ok_response(&b64))
+            .enqueue_ok(429, br#"{"error":{"code":429,"message":"quota"}}"#.to_vec());
+        let failure = generate(&http, &key(), &args).await.expect_err("429");
+        assert_eq!(http.sent_requests().len(), 2, "the batch stops at the 429");
+        let spent = failure.spent.expect("the answered call's bill");
+        assert_eq!(spent.priced_usd(), Some(expected));
+        assert!(!spent.unpriced(), "an error status billed nothing");
+
+        let http = MockHttp::new()
+            .enqueue_ok(200, ok_response(&b64))
+            .enqueue_err(HttpError::Timeout { duration_ms: 5 });
+        let failure = generate(&http, &key(), &args).await.expect_err("timeout");
+        let spent = failure.spent.expect("billed");
+        assert_eq!(spent.priced_usd(), Some(expected));
+        assert!(spent.unpriced(), "the request that broke may have rendered");
+
+        let http = MockHttp::new().enqueue_ok(429, br#"{"error":{"code":429}}"#.to_vec());
+        let failure = generate(&http, &key(), &args).await.expect_err("429");
+        assert_eq!(failure.spent, None, "nothing answered, nothing billed");
+    }
+
+    /// C-D3 · a response without usage among responses with it
+    /// is billed on its own, at the price per image, with a warning.
+    #[tokio::test]
+    async fn a_response_without_usage_is_counted_apart() {
+        let (b64, _) = wire_png_b64();
+        let without = serde_json::json!({
+            "candidates": [{ "content": { "parts": [
+                { "inlineData": { "mimeType": "image/png", "data": b64 } }
+            ] } }]
+        });
+        let http = MockHttp::new()
+            .enqueue_ok(200, ok_response(&b64))
+            .enqueue_ok(200, without.to_string().into_bytes());
+        let batch = generate(&http, &key(), &parsed(serde_json::json!({ "n": 2 })))
+            .await
+            .expect("generates");
+        assert_eq!((batch.images.len(), batch.unreported_images), (2, 1));
+        assert!(
+            batch
+                .warnings
+                .iter()
+                .any(|w| w.starts_with("usage_unreported: gemini call 1")),
+            "{:?}",
+            batch.warnings
+        );
     }
 
     /// C-D3 · the catalog bills an exact size at the resolution class this

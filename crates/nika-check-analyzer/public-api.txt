@@ -553,6 +553,9 @@ pub nika_check_analyzer::MediaCapRefusal::OverFloor::provider: &'a str
 pub nika_check_analyzer::MediaCapRefusal::Unpriced
 pub nika_check_analyzer::MediaCapRefusal::Unpriced::model: core::option::Option<&'a str>
 pub nika_check_analyzer::MediaCapRefusal::Unpriced::provider: &'a str
+pub nika_check_analyzer::MediaCapRefusal::Unread
+pub nika_check_analyzer::MediaCapRefusal::Unread::model: core::option::Option<&'a str>
+pub nika_check_analyzer::MediaCapRefusal::Unread::provider: &'a str
 impl nika_check_analyzer::MediaCapRefusal<'_>
 pub fn nika_check_analyzer::MediaCapRefusal<'_>::reason(&self, tool: &str, remaining_usd: f64) -> alloc::string::String
 impl<'a> core::clone::Clone for nika_check_analyzer::MediaCapRefusal<'a>
@@ -1008,7 +1011,9 @@ pub fn nika_check_analyzer::images_outputs(wf: &nika_schema::raw::workflow::RawW
 pub fn nika_check_analyzer::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub fn nika_check_analyzer::media_call_provider<'a>(tool: &str, args: &'a serde_json::value::Value) -> core::option::Option<&'a str>
 pub fn nika_check_analyzer::media_call_template<'a>(tool: &str, args: &'a serde_json::value::Value) -> core::option::Option<&'a str>
+pub fn nika_check_analyzer::media_cap_hold<'a>(tool: &str, args: &'a serde_json::value::Value, remaining_usd: f64, unread: bool) -> core::result::Result<core::option::Option<f64>, nika_check_analyzer::MediaCapRefusal<'a>>
 pub fn nika_check_analyzer::media_cap_refusal<'a>(tool: &str, args: &'a serde_json::value::Value, remaining_usd: f64) -> core::option::Option<nika_check_analyzer::MediaCapRefusal<'a>>
+pub fn nika_check_analyzer::media_cap_remedy() -> alloc::string::String
 pub fn nika_check_analyzer::media_quote<'a>(tool: &str, args: &'a serde_json::value::Value) -> nika_check_analyzer::MediaQuote<'a>
 pub fn nika_check_analyzer::media_spend_unpriced(tool: &str, value: &serde_json::value::Value) -> core::option::Option<nika_types::cost::UnpricedReason>
 pub fn nika_check_analyzer::priced_builtin_floor(wf: &nika_schema::raw::workflow::RawWorkflow) -> f64

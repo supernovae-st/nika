@@ -78,7 +78,7 @@ pub use capacity::{CapacityFinding, capacity_findings};
 pub use edges::{Edge, EdgeKind, RecoveryRead, Route, SettledState, role_of_field, witness_routes};
 pub use media_quote::{
     MediaCapRefusal, MediaFloor, MediaQuote, media_call_provider, media_call_template,
-    media_cap_refusal, media_quote, media_spend_unpriced,
+    media_cap_hold, media_cap_refusal, media_cap_remedy, media_quote, media_spend_unpriced,
 };
 pub use rendered::{
     effective_workflow, rendered_collections, rendered_models, resolve_model_expr,

@@ -119,6 +119,15 @@ pub enum MediaCapRefusal<'a> {
         /// The model it bills, when its price depends on one.
         model: Option<&'a str>,
     },
+    /// It is billed only from the usage it reports, and an earlier paid
+    /// media call of the run billed without a figure: what the cap leaves is
+    /// no longer known, so nothing bounds this one.
+    Unread {
+        /// The provider it bills.
+        provider: &'a str,
+        /// The model it bills, when its price depends on one.
+        model: Option<&'a str>,
+    },
 }
 
 impl MediaCapRefusal<'_> {
@@ -149,7 +158,29 @@ impl MediaCapRefusal<'_> {
                  left (${remaining_usd:.6})",
                 callee(provider, model)
             ),
+            Self::Unread { provider, model } => format!(
+                "{} is billed from the usage it reports, and an earlier paid media call billed \
+                 without a figure, so the run's cost cap no longer knows what it leaves",
+                callee(provider, model)
+            ),
         }
+    }
+}
+
+/// How a call's arguments are read: as written (the launch floor and the
+/// check, where a `${{ … }}` is a template only the run renders), or as the
+/// run rendered them (the dispatch guard, an `agent:` loop's tool call, a
+/// returned call's output), where every value is final and a `${{` is text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Read {
+    Literal,
+    Rendered,
+}
+
+impl Read {
+    /// Whether `value` is left to the run: a template, read as written.
+    fn leaves_to_run(self, value: &str) -> bool {
+        self == Self::Literal && is_template(value)
     }
 }
 
@@ -158,6 +189,11 @@ impl MediaCapRefusal<'_> {
 /// `agent:` loop). `tool` accepts the `nika:` prefix.
 #[must_use]
 pub fn media_quote<'a>(tool: &str, args: &'a Value) -> MediaQuote<'a> {
+    quote(tool, args, Read::Literal)
+}
+
+/// [`media_quote`], reading `args` as `read` says.
+fn quote<'a>(tool: &str, args: &'a Value, read: Read) -> MediaQuote<'a> {
     let provider = args.get("provider").and_then(Value::as_str);
     let model = args.get("model").and_then(Value::as_str);
     let decider = provider.or(model);
@@ -166,7 +202,7 @@ pub fn media_quote<'a>(tool: &str, args: &'a Value) -> MediaQuote<'a> {
     if !paid_tool {
         return MediaQuote::Unmetered;
     }
-    if let Some(template) = decider.filter(|d| is_template(d)) {
+    if let Some(template) = decider.filter(|d| read.leaves_to_run(d)) {
         return MediaQuote::RunDecided(template);
     }
     let Some(provider) = nika_catalog::builtin_media_provider(tool, provider, model) else {
@@ -174,7 +210,7 @@ pub fn media_quote<'a>(tool: &str, args: &'a Value) -> MediaQuote<'a> {
         // before any request.
         return MediaQuote::Unmetered;
     };
-    if let Some(template) = model.filter(|m| is_template(m)) {
+    if let Some(template) = model.filter(|m| read.leaves_to_run(m)) {
         // Only the run decides the model: its price too, unless the provider
         // bills alike whatever the model.
         return match nika_catalog::builtin_media_price(tool, provider, None) {
@@ -189,7 +225,7 @@ pub fn media_quote<'a>(tool: &str, args: &'a Value) -> MediaQuote<'a> {
         MediaPrice::Rated(rated) => MediaQuote::Priced {
             provider,
             model: Some(model.unwrap_or(rated.model)),
-            floor: rated_floor(rated, args),
+            floor: rated_floor(rated, args, read),
         },
         _ => MediaQuote::Unpriced {
             provider,
@@ -213,12 +249,13 @@ fn priced_per_call<'a>(provider: &'a str, per: f64, args: &Value) -> MediaQuote<
 /// The floor of a call on a model the dated table prices: per image × `n:`
 /// at the size class and quality it asks for, or per character × the text it
 /// sends; metered when the table prices the model from usage only, or when
-/// only the run renders the text.
-fn rated_floor(rated: nika_catalog::MediaModel, args: &Value) -> MediaFloor {
+/// only the run renders the text (read as written: a rendered text is the
+/// text the provider bills, whatever it holds).
+fn rated_floor(rated: nika_catalog::MediaModel, args: &Value, read: Read) -> MediaFloor {
     let arg = |key: &str| args.get(key).and_then(Value::as_str);
     if rated.tool == "tts_generate" {
         let rate = rated.character_rate();
-        let text = arg("text").filter(|text| !is_template(text));
+        let text = arg("text").filter(|text| !read.leaves_to_run(text));
         let usd = text.and_then(|text| {
             let characters = u64::try_from(text.trim().chars().count()).ok()?;
             rated.speech_usd(characters)
@@ -287,39 +324,66 @@ pub fn media_call_template<'a>(tool: &str, args: &'a Value) -> Option<&'a str> {
 
 /// The paid-media call an armed cap must refuse before its request (C-D3),
 /// judged on arguments that are already rendered, against `remaining_usd`
-/// (what the cap leaves at call time · a snapshot, never a reservation): a
-/// call no catalog rate prices, a floor above what is left, or a priced call
-/// when nothing is left. `None` when the call is not paid media, is
-/// unmetered, or fits. The runtime's dispatch guard and the `agent:` loop's
-/// tool calls speak their refusals from this one verdict.
+/// (what the cap leaves at call time): a call no catalog rate prices, a
+/// floor above what is left, or a priced call when nothing is left. `None`
+/// when the call is not paid media, is unmetered, or fits. [`media_cap_hold`]
+/// with no unread spend.
 #[must_use]
 pub fn media_cap_refusal<'a>(
     tool: &str,
     args: &'a Value,
     remaining_usd: f64,
 ) -> Option<MediaCapRefusal<'a>> {
-    match media_quote(tool, args) {
+    media_cap_hold(tool, args, remaining_usd, false).err()
+}
+
+/// The verdict an armed cap owes one paid-media call before its request
+/// (C-D3), judged on arguments that are already rendered (a `${{` in them is
+/// text the provider receives, never a template), against `remaining_usd`
+/// (what the cap leaves at call time, the floors of the run's paid calls
+/// still in flight excluded): `Ok(Some(floor))` admits a paid call and is
+/// the USD it holds on the cap while it runs (zero when billed from its
+/// usage only), `Ok(None)` is not paid media (another tool, a local server,
+/// the mock, the keyless voice). A call no catalog rate prices, a floor
+/// above what is left, a call billed from its usage when nothing is left,
+/// or, once `unread` (an earlier paid call billed without a figure), any
+/// call billed from its usage, is refused. The runtime's dispatch guard and
+/// the `agent:` loop's tool calls speak their refusals from this one verdict.
+///
+/// # Errors
+///
+/// The [`MediaCapRefusal`] that refuses the call.
+pub fn media_cap_hold<'a>(
+    tool: &str,
+    args: &'a Value,
+    remaining_usd: f64,
+    unread: bool,
+) -> Result<Option<f64>, MediaCapRefusal<'a>> {
+    match quote(tool, args, Read::Rendered) {
         MediaQuote::Unpriced { provider, model } => {
-            Some(MediaCapRefusal::Unpriced { provider, model })
+            Err(MediaCapRefusal::Unpriced { provider, model })
         }
         MediaQuote::Priced {
             provider,
             model,
             floor,
         } => match floor.usd() {
-            Some(floor_usd) => (micro_usd(floor_usd) > micro_usd(remaining_usd)).then_some(
-                MediaCapRefusal::OverFloor {
+            Some(floor_usd) if micro_usd(floor_usd) > micro_usd(remaining_usd) => {
+                Err(MediaCapRefusal::OverFloor {
                     provider,
                     model,
                     floor_usd,
-                },
-            ),
-            None => (micro_usd(remaining_usd) <= 0)
-                .then_some(MediaCapRefusal::NothingLeft { provider, model }),
+                })
+            }
+            Some(floor_usd) => Ok(Some(floor_usd)),
+            None if micro_usd(remaining_usd) <= 0 => {
+                Err(MediaCapRefusal::NothingLeft { provider, model })
+            }
+            None if unread => Err(MediaCapRefusal::Unread { provider, model }),
+            None => Ok(Some(0.0)),
         },
-        // A rendered call carries no template; a literal one is the launch
-        // gates' to judge.
-        MediaQuote::RunDecided(_) | MediaQuote::Unmetered => None,
+        // Read as rendered, no call is left to the run.
+        MediaQuote::RunDecided(_) | MediaQuote::Unmetered => Ok(None),
     }
 }
 
@@ -332,12 +396,56 @@ pub fn media_cap_refusal<'a>(
 /// model the way the builtin resolved them.
 #[must_use]
 pub fn media_spend_unpriced(tool: &str, value: &Value) -> Option<nika_types::cost::UnpricedReason> {
-    match media_quote(tool, value) {
+    match quote(tool, value, Read::Rendered) {
         MediaQuote::Unpriced { .. } => Some(nika_types::cost::UnpricedReason::MissingCatalogPrice),
         MediaQuote::Priced { .. } => {
             Some(nika_types::cost::UnpricedReason::ProviderDidNotReportUsage)
         }
         MediaQuote::RunDecided(_) | MediaQuote::Unmetered => None,
+    }
+}
+
+/// What a capped run can call instead of a paid media call the catalog
+/// cannot price, named from the dated table itself so the advice never
+/// drifts from it: every model it prices, by builtin and provider, any `xai`
+/// image (priced per image whatever the model), the keyless `system` voice
+/// for speech, or a local server and the mock.
+#[must_use]
+pub fn media_cap_remedy() -> String {
+    let priced = |tool: &str| {
+        let mut providers: Vec<(&str, Vec<&str>)> = Vec::new();
+        for rate in nika_catalog::media_rates()
+            .iter()
+            .filter(|r| r.tool == tool)
+        {
+            match providers.iter_mut().find(|(p, _)| *p == rate.provider) {
+                Some((_, models)) if !models.contains(&rate.model) => models.push(rate.model),
+                Some(_) => {}
+                None => providers.push((rate.provider, vec![rate.model])),
+            }
+        }
+        let named: Vec<String> = (providers.iter())
+            .map(|(provider, models)| {
+                let models: Vec<String> = models.iter().map(|m| format!("`{m}`")).collect();
+                format!("{provider} {}", or_list(&models))
+            })
+            .collect();
+        named.join(", ")
+    };
+    format!(
+        "Use a model the catalog prices (images: {}, or any `xai` model; speech: {}), the \
+         keyless `system` voice for speech, or `local` / `mock`",
+        priced("image_generate"),
+        priced("tts_generate")
+    )
+}
+
+/// `a`, `a or b`, `a, b or c`.
+fn or_list(items: &[String]) -> String {
+    match items {
+        [] => String::new(),
+        [one] => one.clone(),
+        [rest @ .., last] => format!("{} or {last}", rest.join(", ")),
     }
 }
 
@@ -602,6 +710,113 @@ mod tests {
         ] {
             assert_eq!(media_cap_refusal(IMAGE, &args, 0.0), None, "{args}");
         }
+    }
+
+    /// A rendered call holds no template: a `text:` that renders to words
+    /// holding `${{` is text the provider bills per character, so the cap
+    /// floors it like any other (C-D3 · such a 3,045-character speech
+    /// passed a $0.001 cap and billed 45 times it). Read as written, the
+    /// launch floor still leaves a templated text to the run.
+    #[test]
+    fn a_rendered_text_holding_a_template_marker_is_floored_per_character() {
+        let text = format!(
+            "Write ${{{{ secrets.token }}}} in your workflow. {}",
+            "x".repeat(3000)
+        );
+        #[allow(clippy::cast_precision_loss)] // a 3,045-character text
+        let characters = text.trim().chars().count() as f64;
+        let args = json!({ "provider": "openai", "model": "tts-1", "text": text });
+        match media_cap_refusal(SPEECH, &args, 0.001) {
+            Some(MediaCapRefusal::OverFloor {
+                provider,
+                model,
+                floor_usd,
+            }) => {
+                assert_eq!((provider, model), ("openai", Some("tts-1")));
+                approx(floor_usd, 15.0 * characters / 1e6);
+            }
+            other => panic!("the rendered text is floored: {other:?}"),
+        }
+        let held = media_cap_hold(SPEECH, &args, 1.0, false).expect("fits $1");
+        approx(
+            held.expect("a paid call holds its floor"),
+            15.0 * characters / 1e6,
+        );
+        // A rendered provider or model holding the marker is no template either:
+        // an unknown model is unpriced, an unknown provider is no paid call.
+        let model = json!({ "provider": "openai", "model": "${{ m }}", "text": "hi" });
+        assert!(matches!(
+            media_cap_refusal(SPEECH, &model, 1.0),
+            Some(MediaCapRefusal::Unpriced { .. })
+        ));
+        assert!(matches!(
+            media_quote(SPEECH, &args),
+            MediaQuote::Priced {
+                floor: MediaFloor::Metered { .. },
+                ..
+            }
+        ));
+    }
+
+    /// The cap holds a paid call's floor while it runs; a call billed from
+    /// its usage holds nothing, and once an earlier paid call billed without
+    /// a figure the cap no longer knows what it leaves: such a call is
+    /// refused. Unmetered media holds nothing and is never refused.
+    #[test]
+    fn the_cap_holds_a_floor_and_refuses_usage_billing_once_spend_is_unread() {
+        let high = json!({ "provider": "openai", "size": "1024x1024", "quality": "high" });
+        let held = media_cap_hold(IMAGE, &high, 1.0, false).expect("fits");
+        approx(held.expect("held"), 0.211);
+        let flare = json!({ "model": "gpt-image-2.5-flare", "prompt": "a star" });
+        assert_eq!(media_cap_hold(IMAGE, &flare, 1.0, false), Ok(Some(0.0)));
+        assert_eq!(
+            media_cap_hold(IMAGE, &flare, 1.0, true),
+            Err(MediaCapRefusal::Unread {
+                provider: "openai",
+                model: Some("gpt-image-2.5-flare")
+            })
+        );
+        assert_eq!(
+            media_cap_hold(IMAGE, &high, 1.0, true).map(|h| h.is_some()),
+            Ok(true),
+            "a floored call stays judged by its floor"
+        );
+        for args in [
+            json!({ "provider": "mock", "prompt": "a star" }),
+            json!({ "provider": "system", "text": "hi" }),
+        ] {
+            assert_eq!(media_cap_hold(IMAGE, &args, 0.0, true), Ok(None), "{args}");
+        }
+        assert_eq!(
+            media_cap_hold("nika:fetch", &json!({ "url": "https://x" }), 0.0, true),
+            Ok(None)
+        );
+    }
+
+    /// The remedy names exactly the models the dated table prices (C-D3
+    /// review · "the gemini image models" also named unpriced preview ids),
+    /// read from the table, and the keyless voice.
+    #[test]
+    fn the_remedy_names_every_priced_model_and_only_those() {
+        let remedy = media_cap_remedy();
+        for rate in nika_catalog::media_rates() {
+            assert!(
+                remedy.contains(&format!("`{}`", rate.model)),
+                "{} missing from {remedy}",
+                rate.model
+            );
+        }
+        for unpriced in [
+            "gpt-4o-mini-tts",
+            "gpt-image-1.5",
+            "gemini-3-pro-image-preview",
+            "eleven_multilingual_v1",
+            "gpt-image-2.5-*",
+        ] {
+            assert!(!remedy.contains(&format!("`{unpriced}`")), "{unpriced}");
+        }
+        assert!(remedy.contains("openai `gpt-image-2`, `gpt-image-2.5-sunburst` or"));
+        assert!(remedy.contains("`system` voice"), "{remedy}");
     }
 
     #[test]

@@ -50,8 +50,11 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     args: &ImageArgs,
 ) -> Result<ProviderBatch, BuiltinFailure> {
     let (request, warnings) = build_request(args, key)?;
-    let response = http.post(request).await.map_err(map_transport)?;
-    let mut batch = parse_response(response.status, &response.body, args)?;
+    // A request that left may have rendered and billed (C-D3).
+    let response = (http.post(request).await)
+        .map_err(|error| crate::media::cost::transport_failure(error, map_transport))?;
+    let mut batch = parse_response(response.status, &response.body, args)
+        .map_err(|failure| crate::media::cost::unusable_answer(response.status, failure))?;
     batch.warnings.splice(0..0, warnings);
     Ok(batch)
 }
@@ -271,6 +274,7 @@ fn parse_response(
     Ok(ProviderBatch {
         images,
         usage: Usage::default(),
+        unreported_images: 0,
         cost_usd,
         endpoint_host: Some("api.x.ai".to_owned()),
         provider_text: None,

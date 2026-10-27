@@ -21,12 +21,16 @@ pub(crate) struct Resolved {
     pub(crate) name: String,
     pub(crate) args: serde_json::Value,
     /// Real spend the tool reported (top-level `cost_usd` in its
-    /// structured output) — summed into the batch.
+    /// structured output, or the priced part of what a failed call had
+    /// already billed) — summed into the batch.
     pub(crate) cost_usd: Option<f64>,
     pub(crate) compose: Option<ComposeOutcome>,
     /// The effect memory's verdict on this call (#1470) — what the fold
     /// remembers (`Fresh`) or reports as refused (`Replay`).
     pub(crate) gate: EffectGate,
+    /// Why part of what a failed call had already billed is unknown (C-D3 ·
+    /// a paid media request that broke after it left).
+    pub(crate) failed_unpriced: Option<UnpricedReason>,
 }
 
 impl Resolved {
@@ -45,7 +49,14 @@ impl Resolved {
             cost_usd,
             compose,
             gate,
+            failed_unpriced: None,
         }
+    }
+
+    /// Name why part of what this failed call billed is unknown (builder).
+    pub(crate) fn with_failed_unpriced(mut self, reason: Option<UnpricedReason>) -> Self {
+        self.failed_unpriced = reason;
+        self
     }
 }
 
@@ -124,6 +135,11 @@ impl BatchFold {
         if let Some(cost) = r.cost_usd {
             self.tools.usd += cost;
         } else if let Some(reason) = unpriced_paid_call(&r) {
+            self.tools.unpriced.push(reason);
+        }
+        // A failed call's priced part is in `cost_usd` above; its unknown
+        // part is counted apart (C-D3).
+        if let Some(reason) = r.failed_unpriced {
             self.tools.unpriced.push(reason);
         }
         // An intrinsic reports ComposeChecked; a real dispatch reports

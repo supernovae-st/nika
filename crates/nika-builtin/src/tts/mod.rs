@@ -173,8 +173,41 @@ where
     // What the call cost: the provider's own report, else the dated media
     // table's per-character rate × the characters sent (C-D3).
     let bill = bill(&args, reported);
-    let cost_usd = crate::media::cost::usd(bill);
     warnings.extend(adapter_warnings);
+    // The provider answered and billed: a failure from here on keeps what
+    // the call cost, so the run's ledger and its cap still see it (C-D3).
+    let spent = crate::media::cost::answered(
+        bill,
+        crate::media::cost::is_paid("tts_generate", args.provider.id()),
+    );
+    let answer = (bytes, bill, endpoint_host);
+    deliver(
+        fs, clock, emitter, boundary, &args, answer, warnings, started,
+    )
+    .await
+    .map_err(|failure| failure.with_spent(spent))
+}
+
+/// Everything after the provider answered (validation, the save, the
+/// manifest, the output) — billed work: its caller keeps the bill on any
+/// failure.
+#[allow(clippy::too_many_arguments)] // the pipeline's seams, threaded once
+async fn deliver<F, C, Em>(
+    fs: &F,
+    clock: &C,
+    emitter: &Em,
+    boundary: &FsBoundary,
+    args: &TtsArgs,
+    (bytes, bill, endpoint_host): (Vec<u8>, Option<MediaBill>, Option<String>),
+    mut warnings: Vec<String>,
+    started: std::time::Instant,
+) -> BuiltinOutcome
+where
+    F: FsReadDyn + FsWriteDyn + FsMetaDyn,
+    C: ClockDyn,
+    Em: Emitter,
+{
+    let cost_usd = crate::media::cost::usd(bill);
     if bytes.is_empty() {
         return Err(BuiltinFailure::new(
             C_NO_AUDIO,
@@ -196,7 +229,7 @@ where
         ));
     }
 
-    let saved = save_audio(fs, boundary, &args, &bytes, sniffed).await?;
+    let saved = save_audio(fs, boundary, args, &bytes, sniffed).await?;
     emitter.emit(
         "tts_generation.saved",
         serde_json::json!({
@@ -207,7 +240,7 @@ where
     let created_at = rfc3339_now(clock);
     let manifest_path = if args.manifest {
         let mut manifest = manifest_json(
-            &args,
+            args,
             &saved,
             cost_usd,
             &warnings,
@@ -215,14 +248,14 @@ where
             endpoint_host.as_deref(),
         );
         annotate(&mut manifest, content_credentials, args.provider, bill);
-        Some(write_manifest(fs, boundary, &args, &saved, &manifest, emitter).await?)
+        Some(write_manifest(fs, boundary, args, &saved, &manifest, emitter).await?)
     } else {
         None
     };
 
     emit_closing_events(emitter, clock, started, &saved, cost_usd, &warnings);
     let mut output = output_json(
-        &args,
+        args,
         &saved,
         cost_usd,
         &warnings,
@@ -579,6 +612,7 @@ async fn write_manifest<F: FsReadDyn + FsWriteDyn, Em: Emitter>(
 #[cfg(test)]
 mod tests {
     use nika_fs::TokioFs;
+    use nika_kernel::runtime::tool_executor::SpentBeforeFailure;
     use nika_kernel_mock::{MockClock, MockHttp};
 
     use crate::NullEmitter;
@@ -646,6 +680,53 @@ mod tests {
             .await
             .expect("re-run");
         assert_eq!(std::fs::read_dir(&root).expect("dir").count(), before);
+    }
+
+    /// C-D3 · a speech call that fails after its provider answered
+    /// (an empty payload, no audio) already billed: the failure keeps the
+    /// bill of a priced voice, an unpriced part for the default `OpenAI`
+    /// voice, and nothing for a 4xx (no speech was rendered).
+    #[tokio::test]
+    async fn a_speech_failure_after_the_answer_keeps_what_it_billed() {
+        let root = scratch();
+        let keys = TtsKeys::new().with_openai(Secret::new("sk-fake".to_owned()));
+        for (model, status, expected) in [
+            (
+                Some("tts-1"),
+                200,
+                SpentBeforeFailure::new(Some(15.0 * 6.0 / 1e6), false),
+            ),
+            (None, 200, SpentBeforeFailure::new(None, true)),
+            (Some("tts-1"), 400, None),
+        ] {
+            let http = MockHttp::new().enqueue_ok(status, Vec::new());
+            let planes = Planes {
+                http: Some(&http),
+                keys: &keys,
+                system: None,
+            };
+            let mut args = serde_json::json!({
+                "provider": "openai", "text": "Hello.", "output_dir": root.to_string_lossy(),
+            });
+            if let (Some(model), Some(map)) = (model, args.as_object_mut()) {
+                map.insert("model".into(), model.into());
+            }
+            let serde_json::Value::Object(args) = args else {
+                unreachable!()
+            };
+            let failure = generate(
+                &TokioFs,
+                &planes,
+                &MockClock::default(),
+                &NullEmitter,
+                &FsBoundary::unbounded(),
+                &args,
+            )
+            .await
+            .expect_err("no audio");
+            assert_eq!(failure.spent, expected, "{model:?} {status}");
+        }
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// C-D3 · a priced voice is billed per character from the dated media

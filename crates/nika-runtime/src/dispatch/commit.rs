@@ -252,6 +252,11 @@ where
             Some(CommitGate::Fire(attestation)) => {
                 let retry_forbidden = fetch_retry_forbidden(&input);
                 let stopped_slot = input.stopped.clone();
+                // Why a failure's unpriced spend is unknown, read before the
+                // call takes its arguments (C-D3).
+                let failed_unpriced =
+                    nika_check::analyzer::media_spend_unpriced(&input.tool, &input.args);
+                let tool = input.tool.clone();
                 match self.invoke.run_at(input, run_start).await {
                     // A tool's typed value (builtins · MCP `structuredContent`)
                     // flows to tasks.X.output AS ITSELF (spec 04 §tasks.X.output);
@@ -307,6 +312,7 @@ where
                         .with_commit(attestation)
                     }
                     Err(err) => super::Dispatched::verb_err(note, &err)
+                        .with_failure_spend(&tool, &err, failed_unpriced)
                         .with_operator_cancelled(
                             self.invoke_stopped_by_operator(&err, stopped_slot.as_ref()),
                         )

@@ -22,7 +22,9 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     args: &TtsArgs,
 ) -> Result<ProviderAudio, BuiltinFailure> {
     let (request, warnings) = build_request(args, key)?;
-    let response = http.post(request).await.map_err(map_transport)?;
+    // A request that left may have rendered and billed (C-D3).
+    let response = (http.post(request).await)
+        .map_err(|error| crate::media::cost::transport_failure(error, map_transport))?;
     if !(200..300).contains(&response.status) {
         return Err(map_error_status(response.status, &response.body));
     }

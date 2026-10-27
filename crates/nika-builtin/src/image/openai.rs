@@ -39,8 +39,11 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     args: &ImageArgs,
 ) -> Result<ProviderBatch, BuiltinFailure> {
     let (request, warnings) = build_request(args, key)?;
-    let response = http.post(request).await.map_err(map_transport)?;
-    let mut batch = parse_response(response.status, &response.body, args)?;
+    // A request that left may have rendered and billed (C-D3).
+    let response = (http.post(request).await)
+        .map_err(|error| crate::media::cost::transport_failure(error, map_transport))?;
+    let mut batch = parse_response(response.status, &response.body, args)
+        .map_err(|failure| crate::media::cost::unusable_answer(response.status, failure))?;
     batch.warnings.splice(0..0, warnings);
     Ok(batch)
 }
@@ -60,8 +63,11 @@ pub(crate) async fn edit<H: HttpPostDyn>(
     inputs: &[super::types::InputImage],
 ) -> Result<ProviderBatch, BuiltinFailure> {
     let (request, warnings) = build_edit_request(args, inputs, key)?;
-    let response = http.post(request).await.map_err(map_transport)?;
-    let mut batch = parse_response(response.status, &response.body, args)?;
+    // A request that left may have rendered and billed (C-D3).
+    let response = (http.post(request).await)
+        .map_err(|error| crate::media::cost::transport_failure(error, map_transport))?;
+    let mut batch = parse_response(response.status, &response.body, args)
+        .map_err(|failure| crate::media::cost::unusable_answer(response.status, failure))?;
     batch.warnings.splice(0..0, warnings);
     Ok(batch)
 }
@@ -420,6 +426,7 @@ fn parse_response(
     Ok(ProviderBatch {
         images,
         usage,
+        unreported_images: 0, // one response: no usage bills every image per image
         endpoint_host: Some("api.openai.com".to_owned()),
         // Token-billed with no USD in the response: the dated media table
         // prices it from this usage (`image::bill` · C-D3).

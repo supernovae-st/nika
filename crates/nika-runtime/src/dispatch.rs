@@ -305,6 +305,48 @@ impl Dispatched {
         dispatched
     }
 
+    /// What a failed tool call had already billed (C-D3 · its error's typed
+    /// details: a paid media batch whose later request failed, a render that
+    /// failed after its provider answered): the priced part is the leaf's
+    /// `cost_usd` under the tool's key, and an unpriced part names why
+    /// (`unpriced`, the call's own reason; a priced call that could not read
+    /// its bill otherwise).
+    fn with_failure_spend(
+        mut self,
+        tool: &str,
+        err: &nika_verb_invoke::VerbInvokeError,
+        unpriced: Option<UnpricedReason>,
+    ) -> Self {
+        let Some(spent) = err.details().and_then(|details| details.spent) else {
+            return self;
+        };
+        if let Err(failed) = &mut self.result {
+            failed.cost_usd = spent.priced_usd();
+            failed.cost_source = failed.cost_usd.map(|_| tool.to_owned());
+            failed.cost_unpriced = spent
+                .unpriced()
+                .then(|| unpriced.unwrap_or(UnpricedReason::ProviderDidNotReportUsage));
+        }
+        self
+    }
+
+    /// Whether this dispatch billed a paid call without a figure (C-D3): its
+    /// outcome names why its spend is unknown, a paid provider's reason, and
+    /// carries no `cost_usd` beside it on a success.
+    pub(crate) fn billed_unread(&self) -> bool {
+        let (cost, unpriced) = match &self.result {
+            Ok(ok) => (ok.cost_usd, ok.cost_unpriced),
+            Err(failed) => (None, failed.cost_unpriced),
+        };
+        cost.is_none()
+            && matches!(
+                unpriced,
+                Some(
+                    UnpricedReason::MissingCatalogPrice | UnpricedReason::ProviderDidNotReportUsage
+                )
+            )
+    }
+
     /// Count the calls inside a failed leaf whose spend is outside every
     /// figure (an agent's paid media tools · C-D3), one reason per call, and
     /// name the first on the frame when the leaf's own spend is priced.
@@ -782,12 +824,6 @@ where
         if let Some(denial) = permits::check_fetch_sink(inert, &note, &tool, &args, witness) {
             return denial;
         }
-        // C-D3 · under a cap, every paid media call is judged on its rendered
-        // arguments before its request (NIKA-1704): what only the run decides
-        // for the first time, a literal call against what the cap leaves now.
-        if let Some(why) = crate::admit::media_dispatch_refusal(&tool, &args, ctx.child_budget) {
-            return Dispatched::comp_refusal(&note, "NIKA-1704", why).with_retry_forbidden(true);
-        }
         // F-O1 PR-2 · the mcp border re-gate (NEP-0004 law 2): the grant
         // of the tool IS the boundary, and a tainted path/host in its args
         // slipped through — the resolved value is canonicalized then
@@ -809,6 +845,19 @@ where
         {
             return denial;
         }
+        // C-D3 · under a cap, every paid media call is judged on its rendered
+        // arguments before its request (NIKA-1704), against what the cap
+        // leaves now (the spend and the floors of the paid media calls still
+        // in flight), and holds its own floor until it returns. Taken last:
+        // nothing returns between the hold and the call. What only the run
+        // decides is judged for the first time, a literal call again.
+        let hold = match crate::admit::media_dispatch_hold(&tool, &args, ctx) {
+            Ok(hold) => hold,
+            Err(why) => {
+                return Dispatched::comp_refusal(&note, "NIKA-1704", why)
+                    .with_retry_forbidden(true);
+            }
+        };
         let mut input = InvokeInput::new(tool);
         input.args = args;
         input.stopped.clone_from(&ctx.stopped);
@@ -816,8 +865,16 @@ where
         input.timeout = ctx.deadline;
         // F-P6 · the gated firing lane (PREVIEW → tamper seam → COMMIT
         // gate → run · `dispatch/commit.rs` owns the binding).
-        self.run_invoke_gated(note, input, ctx.run_start, contract)
-            .await
+        let dispatched = self
+            .run_invoke_gated(note, input, ctx.run_start, contract)
+            .await;
+        // The call returned: its outcome carries what it cost, debited by the
+        // attempt loop with no await in between, so the floor it held is
+        // released (kept consumed when it billed without a figure).
+        if let Some(hold) = hold {
+            hold.settle(dispatched.billed_unread());
+        }
+        dispatched
     }
 
     /// ADR-095 Layer 6 — derive the OS jail from the declared boundary. F-O8

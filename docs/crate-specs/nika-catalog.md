@@ -486,7 +486,8 @@ image input, image output, and text and thinking output where the page gives
 one). `find_media_model(tool, provider, model)` returns the `MediaModel`
 handle; `image_floor` picks the listed row of a request's size class and
 quality, else the lowest listed over what the request leaves open (`quality:
-auto`, an unlisted size); `image_usage_usd` bills each reported axis at its
+auto`, an unlisted size), and `image_ceiling` the highest (what an image
+whose response reports no usage is billed at); `image_usage_usd` bills each reported axis at its
 rate and an unsplit remainder at the highest rate it could fall under, never
 below; `speech_usd` is rate × characters. `builtin_media_price(tool,
 provider, model)` classifies a call: `Unmetered` (local · mock · `system`),

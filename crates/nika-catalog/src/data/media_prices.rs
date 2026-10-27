@@ -486,6 +486,24 @@ impl MediaModel {
     /// auto`, an unlisted size). `None` for a model priced by tokens only.
     #[must_use]
     pub fn image_floor(self, request: &ImageRequest<'_>) -> Option<&'static MediaRate> {
+        (self.image_rows(request).into_iter()).min_by(|a, b| a.usd.total_cmp(&b.usd))
+    }
+
+    /// The dearest per-image row `request` can be billed at: the row of its
+    /// size class and quality when the source lists that pair, else the
+    /// highest the source lists over what the request leaves open. What an
+    /// image is billed when its response reports no usage: never below the
+    /// price of what the provider may have rendered. `None` for a model
+    /// priced by tokens only.
+    #[must_use]
+    pub fn image_ceiling(self, request: &ImageRequest<'_>) -> Option<&'static MediaRate> {
+        (self.image_rows(request).into_iter()).max_by(|a, b| a.usd.total_cmp(&b.usd))
+    }
+
+    /// The per-image rows `request` can be billed at: narrowed to its size
+    /// class and its quality wherever the source lists them, every row the
+    /// request leaves open otherwise.
+    fn image_rows(self, request: &ImageRequest<'_>) -> Vec<&'static MediaRate> {
         let images: Vec<&'static MediaRate> = self
             .rates()
             .filter(|r| matches!(r.unit, MediaUnit::Image { .. }))
@@ -508,14 +526,13 @@ impl MediaModel {
             ),
             None => images,
         };
-        let images = match quality {
+        match quality {
             Some(level) => narrowed(
                 images,
                 &|unit| matches!(unit, MediaUnit::Image { quality, .. } if *quality == level),
             ),
             None => images,
-        };
-        images.into_iter().min_by(|a, b| a.usd.total_cmp(&b.usd))
+        }
     }
 
     /// What `characters` of speech cost at the model's per-character rate.
@@ -864,6 +881,51 @@ mod tests {
             ),
             0.039,
         );
+    }
+
+    /// What an image whose response reports no usage is billed at: the listed
+    /// (size, quality) row when the request names both, else the dearest row
+    /// over what it leaves open, never the cheapest (C-D3 · a default
+    /// `quality: auto` request billed at $0.005 for an image listed at up to
+    /// $0.211).
+    #[test]
+    fn the_image_ceiling_bills_what_the_request_leaves_open_at_its_dearest() {
+        let m = model("image_generate", "openai", "gpt-image-2");
+        let ceiling = |request: ImageRequest<'_>| m.image_ceiling(&request).expect("listed").usd;
+        approx(
+            ceiling(
+                ImageRequest::new()
+                    .with_size(Some("1024x1024"))
+                    .with_quality(Some("low")),
+            ),
+            0.006,
+        );
+        approx(ceiling(ImageRequest::new()), 0.211);
+        approx(
+            ceiling(ImageRequest::new().with_quality(Some("high"))),
+            0.211,
+        );
+        approx(
+            ceiling(ImageRequest::new().with_size(Some("1536x1024"))),
+            0.165,
+        );
+        approx(
+            ceiling(
+                ImageRequest::new()
+                    .with_size(Some("1024x1024"))
+                    .with_quality(Some("auto")),
+            ),
+            0.211,
+        );
+        let flash = model("image_generate", "gemini", "gemini-3.1-flash-image");
+        approx(
+            flash.image_ceiling(&ImageRequest::new()).expect("1K").usd,
+            0.067,
+        );
+        for name in ["gpt-image-2.5-sunburst", "gpt-image-2.5-flare"] {
+            let token_only = model("image_generate", "openai", name);
+            assert_eq!(token_only.image_ceiling(&ImageRequest::new()), None);
+        }
     }
 
     /// GPT Image 2.5 publishes token rates only: no per-image floor.
