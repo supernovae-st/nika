@@ -844,6 +844,55 @@ mod tests {
         );
     }
 
+    /// Spec 02 §Vision inputs · the `vision:` entries are part of an `infer:`'s effect surface:
+    /// untrusted content that picks the file (or the URL) picks what the model sees, so the
+    /// answer carries it, exactly as a `nika:read` whose path it picks. Here a fetched body names
+    /// the file, and the answer reaches an egress write: the trifecta completes. The same flow
+    /// with an authored path stays clean.
+    #[test]
+    fn untrusted_content_that_picks_a_vision_entry_reaches_the_answer() {
+        let flow = |entry: &str| {
+            format!(
+                "nika: t\nmodel: mock/echo\npermits:\n  tools: [\"nika:fetch\", \"nika:write\", \
+                 \"nika:read\"]\n  net: {{ http: [\"api.example.com\"] }}\n  fs:\n    read: \
+                 [\"./**\"]\n    write: [\"/tmp/out/**\"]\ntasks:\n  page:\n    invoke: {{ tool: \
+                 \"nika:fetch\", args: {{ url: \"https://api.example.com/p\", mode: raw }} }}\n  \
+                 look:\n    with: {{ p: \"${{{{ tasks.page.output }}}}\" }}\n    infer: {{ prompt: \
+                 \"describe the image\", max_tokens: 64, vision: [{entry}] }}\n  leak:\n    with: \
+                 {{ a: \"${{{{ tasks.look.output }}}}\" }}\n    invoke: {{ tool: \"nika:write\", \
+                 args: {{ path: \"/tmp/out/leak.txt\", content: \"${{{{ with.a }}}}\" }} }}\n"
+            )
+        };
+        for entry in [
+            "{ source: file, path: \"${{ with.p }}\" }",
+            "{ source: url, url: \"${{ with.p }}\" }",
+        ] {
+            let r = report(&flow(entry));
+            assert!(r.conformance.is_empty(), "{entry}: {:?}", r.conformance);
+            let found: Vec<(&str, Option<&str>)> = r
+                .trifecta_findings
+                .iter()
+                .map(|v| (v.task.as_str(), v.source.as_deref()))
+                .collect();
+            assert_eq!(
+                found,
+                [("leak", Some("page"))],
+                "{entry}: the fetched body picks the image"
+            );
+        }
+        let authored = report(&flow("{ source: file, path: \"./diagrams/flow.png\" }"));
+        assert!(
+            authored.conformance.is_empty(),
+            "{:?}",
+            authored.conformance
+        );
+        assert!(
+            authored.trifecta_findings.is_empty(),
+            "an authored vision path carries no fetched content: {:?}",
+            authored.trifecta_findings
+        );
+    }
+
     /// The two-exec pin (F2 regression · 2026-07-30): born-ingress must
     /// NOT arm the file channel by itself. When exec became born-ingress
     /// AND a writer, the writer clause — armed on OUTPUT taint — made any
