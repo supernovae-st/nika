@@ -186,37 +186,6 @@ async fn url_vision_reaches_the_openai_compat_image_url_part() {
     );
 }
 
-/// #1135 · pointing at a file that does not exist used to run green.
-#[tokio::test]
-async fn missing_vision_file_fails_the_run() {
-    let (outcome, captured) = super::infer_deadline_tests::run_capture(
-        "nika: vision-file-probe\n\
-         model: ollama/llama3.2\n\
-         tasks:\n  \
-         look:\n    \
-         infer:\n      \
-         prompt: \"MARKER-FILE-PROBE\"\n      \
-         max_tokens: 16\n      \
-         vision:\n        \
-         - source: file\n          \
-         path: \"./this-file-does-not-exist.png\"\n",
-    )
-    .await;
-    assert!(!outcome.ok, "a missing image file is no longer a green run");
-    let rec = &outcome.records["look"];
-    let err = rec.error.as_ref().expect("the failure carries its record");
-    assert_eq!(err.code, "NIKA-432", "InvalidParam wire form");
-    assert!(
-        err.message.contains("vision"),
-        "the vision param is named: {}",
-        err.message
-    );
-    assert!(
-        captured.is_empty(),
-        "zero provider calls — the file gate fires first"
-    );
-}
-
 /// #1135 sibling · `thinking.budget_tokens` parsed then vanished before
 /// `InferRequest`. The anthropic wire is the observation point (openai-compat
 /// has no thinking field).

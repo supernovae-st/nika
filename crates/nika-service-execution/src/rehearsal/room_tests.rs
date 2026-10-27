@@ -388,6 +388,39 @@ async fn a_nested_run_never_starts_and_is_counted() -> TestResult<()> {
     Ok(())
 }
 
+/// Spec 02 §Vision inputs in a room: a `vision:` file is a read through the workflow's
+/// boundary over the room's copy, never the process working directory. With no copy in the
+/// room the task fails `NIKA-432` although a decoy sits at the same relative path under the
+/// process directory; with a copy, the read passes and the run settles.
+#[tokio::test]
+async fn a_vision_file_is_read_from_the_room_never_the_process_directory() -> TestResult<()> {
+    const TEST: &str = concat!(
+        module_path!(),
+        "::a_vision_file_is_read_from_the_room_never_the_process_directory"
+    );
+    let p = prefix();
+    let rel = format!("{p}/in/flow.png");
+    let _decoy = Decoy::new(&p, &[("in/flow.png", "decoy image")])?;
+    let source = format!(
+        "nika: v\nmodel: mock/echo\npermits:\n  fs: {{ read: [\"./{rel}\"] }}\ntasks:\n  look:\n    \
+         infer: {{ prompt: hi, max_tokens: 8, vision: [{{ source: file, path: \"./{rel}\" }}] }}\n"
+    );
+    let (_dir, _fs, end, denied) = rehearsed(TEST, "no copy", &source, &[], &[]).await?;
+    let outcome = end?;
+    assert!(!outcome.ok, "the decoy was never read");
+    let error = outcome.records["look"]
+        .error
+        .as_ref()
+        .ok_or("a failure record")?;
+    assert_eq!(error.code, "NIKA-432", "{}", error.message);
+    assert_eq!(denied, DeniedEffects::default(), "{denied:?}");
+    let (_dir, _fs, end, _denied) =
+        rehearsed(TEST, "copy", &source, &[], &[(rel.as_str(), "room image")]).await?;
+    let outcome = end?;
+    assert!(outcome.ok, "the room's copy is read: {outcome:?}");
+    Ok(())
+}
+
 /// The room, each read first running one slow operation registered in the room's ledger, the
 /// way the room registers its own; the operation marks `done` when it finishes.
 struct Slow {
