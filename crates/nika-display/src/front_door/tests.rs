@@ -72,7 +72,7 @@ fn the_binary_line_and_its_notice_open_this_binary() {
     let mut prepared = view();
     prepared.binary = Some("v0.0.0-test · installer: homebrew · /opt/nika".to_owned());
     prepared.binary_notice =
-        Some("`nika` runs another build, /old/nika (nika 0.0.1) → nika doctor".to_owned());
+        Some("`nika` runs another build, /old/nika (nika 0.0.1) → /opt/nika doctor".to_owned());
     let text = render_with_context(
         &prepared,
         empty,
@@ -83,7 +83,7 @@ fn the_binary_line_and_its_notice_open_this_binary() {
     assert!(
         text.contains(
             "this binary\n  v0.0.0-test · installer: homebrew · /opt/nika\n  ⚠ `nika` runs \
-             another build, /old/nika (nika 0.0.1) → nika doctor\n  4 verbs · 7 builtins"
+             another build, /old/nika (nika 0.0.1) → /opt/nika doctor\n  4 verbs · 7 builtins"
         ),
         "{text}"
     );

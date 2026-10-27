@@ -11,12 +11,16 @@
 //! its `--version`, all under one deadline: a copy that hangs or fails is
 //! reported, never fatal.
 //!
-//! Two limits are deliberate. A relative PATH entry is listed but never
-//! executed: looking at a project directory must not run its code. The
-//! installer is read from the path alone (a Homebrew Cellar, an npm
-//! package, a cargo bin directory, `~/.nika/releases`, the `install.sh`
-//! default, a Nix store, a cargo `target` directory); any other layout is
-//! `unknown`, never a guess.
+//! Three limits are deliberate. A relative PATH entry, or one spelled with
+//! a literal `~` (bash expands it, zsh does not), is listed but never
+//! executed: looking at a project directory must not run its code. Each
+//! copy that is asked runs contained (see [`ask`]): an allow-listed
+//! environment without credentials, a PATH of absolute entries only, `/`
+//! as its working directory, and its whole process group killed after the
+//! answer. The installer is read from the path alone (a Homebrew Cellar,
+//! an npm package, a cargo bin directory, `~/.nika/releases`, the
+//! `install.sh` default, a Nix store, a cargo `target` directory); any
+//! other layout is `unknown`, never a guess.
 
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
@@ -24,6 +28,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+mod ask;
 mod render;
 
 pub(crate) use render::{doctor_findings, insert_json, welcome_lines, with_json};
@@ -32,11 +37,12 @@ pub(crate) use render::{doctor_findings, insert_json, welcome_lines, with_json};
 /// as not answering (and killed).
 pub(crate) const VERSION_DEADLINE: Duration = Duration::from_secs(2);
 
-/// The most stdout read from one `--version` answer: a version is one line.
-const VERSION_OUTPUT_CAP: u64 = 4096;
+/// The most distinct `nika` files listed from PATH (the running binary is
+/// still looked for beyond them).
+pub(crate) const MAX_ENTRIES: usize = 16;
 
-/// The most distinct `nika` files examined on PATH.
-const MAX_ENTRIES: usize = 16;
+/// The longest version or commit word read from another copy.
+const MAX_WORD: usize = 64;
 
 /// A version and the commit it was built from, as `nika --version` prints
 /// them (`nika 0.123.2 (5591478a7)`).
@@ -87,7 +93,9 @@ impl Build {
 }
 
 /// Read `nika --version` output: the first non-empty line, `nika <version>`
-/// with an optional `(<commit>)`. Anything else is not a nika answer.
+/// with an optional `(<commit>)`. Anything else is not a nika answer, and
+/// neither is a version or commit word outside its plain characters (this
+/// text reaches a terminal: an escape sequence is never echoed).
 pub(crate) fn parse_version_output(stdout: &str) -> Option<Build> {
     let line = stdout.lines().map(str::trim).find(|l| !l.is_empty())?;
     let mut words = line.split_whitespace();
@@ -95,18 +103,29 @@ pub(crate) fn parse_version_output(stdout: &str) -> Option<Build> {
         return None;
     }
     let version = words.next()?.trim_start_matches('v');
-    if !version.starts_with(|c: char| c.is_ascii_digit()) {
+    if !version.starts_with(|c: char| c.is_ascii_digit()) || !plain_word(version, ".-+") {
         return None;
     }
-    let commit = words
+    let commit = match words
         .next()
         .and_then(|w| w.strip_prefix('(')?.strip_suffix(')'))
-        .filter(|c| !c.is_empty())
-        .map(str::to_owned);
+    {
+        Some(commit) if !plain_word(commit, "-") => return None,
+        commit => commit.map(str::to_owned),
+    };
     Some(Build {
         version: version.to_owned(),
         commit,
     })
+}
+
+/// A non-empty word of at most [`MAX_WORD`] ASCII letters, digits and `extra`.
+fn plain_word(word: &str, extra: &str) -> bool {
+    !word.is_empty()
+        && word.len() <= MAX_WORD
+        && word
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || extra.contains(c))
 }
 
 /// `a` against `b` as release versions (`MAJOR.MINOR.PATCH[-pre]`): a
@@ -188,6 +207,11 @@ pub(crate) struct Places {
 }
 
 impl Places {
+    /// The home directory as given, when there is one.
+    fn home(&self) -> Option<&Path> {
+        self.homes.first().map(PathBuf::as_path)
+    }
+
     pub(crate) fn new(home: Option<&Path>, cargo_home: Option<&Path>) -> Self {
         let both = |p: &Path| {
             let mut out = vec![p.to_path_buf()];
@@ -269,6 +293,9 @@ pub(crate) enum Answer {
     NotExecutable,
     /// It sits in a relative PATH entry: listed, never executed here.
     Relative,
+    /// It sits in a PATH entry spelled with a literal `~`: bash expands it
+    /// when it looks a command up, zsh does not. Listed, never executed.
+    LiteralTilde,
 }
 
 /// One distinct `nika` file on PATH.
@@ -282,6 +309,8 @@ pub(crate) struct Entry {
     pub(crate) executable: bool,
     /// The same file as the running binary.
     pub(crate) running: bool,
+    /// Found through a `~` or `~/…` PATH entry, expanded against the home.
+    pub(crate) literal_tilde: bool,
     pub(crate) answer: Answer,
 }
 
@@ -293,8 +322,11 @@ pub(crate) struct BinaryIdentity {
     pub(crate) build: Build,
     pub(crate) installer: Installer,
     /// Every distinct `nika` file on PATH in PATH order, the running binary
-    /// included (flagged), at most [`MAX_ENTRIES`].
+    /// included (flagged): at most [`MAX_ENTRIES`], plus the running binary
+    /// when it stands beyond them.
     pub(crate) entries: Vec<Entry>,
+    /// More `nika` files sit on PATH than [`MAX_ENTRIES`]; the rest are not listed.
+    pub(crate) truncated: bool,
 }
 
 impl BinaryIdentity {
@@ -308,13 +340,22 @@ impl BinaryIdentity {
         self.entries.iter().position(|e| e.running)
     }
 
-    /// Entry `i` comes before the running binary when `nika` is typed (or the
-    /// running binary is not on PATH at all).
+    /// Entry `i` stands in the running binary's way when `nika` is typed: it
+    /// comes before it on PATH or, when a launcher started this binary from
+    /// outside PATH, it is the copy that runs and does not report this build.
     pub(crate) fn shadows_running(&self, i: usize) -> bool {
-        self.entries
-            .get(i)
-            .is_some_and(|e| e.executable && !e.running)
-            && self.running_at().is_none_or(|r| i < r)
+        let Some(e) = self.entries.get(i).filter(|e| e.executable && !e.running) else {
+            return false;
+        };
+        match self.running_at() {
+            Some(r) => i < r,
+            None => Some(i) == self.winner() && !self.reports_this_build(e),
+        }
+    }
+
+    /// `e` answered with this binary's own build.
+    pub(crate) fn reports_this_build(&self, e: &Entry) -> bool {
+        matches!(&e.answer, Answer::Reported(build) if build.same_build(&self.build))
     }
 
     /// The running binary comes before entry `i` on PATH.
@@ -332,6 +373,8 @@ pub(crate) struct Inputs {
     pub(crate) build: Build,
     pub(crate) places: Places,
     pub(crate) deadline: Duration,
+    /// The environment the probed copies' own is drawn from ([`ask::probe_env`]).
+    pub(crate) env: Vec<(OsString, OsString)>,
 }
 
 /// Observe this process: its own executable, its PATH, its home.
@@ -353,6 +396,8 @@ pub(crate) fn collect() -> BinaryIdentity {
         build: Build::current(),
         places: Places::new(crate::probe::home_dir().as_deref(), cargo_home.as_deref()),
         deadline: VERSION_DEADLINE,
+        // Only the allow-listed, credential-free part ever reaches a copy.
+        env: std::env::vars_os().collect(),
     })
 }
 
@@ -361,13 +406,15 @@ pub(crate) fn collect() -> BinaryIdentity {
 #[must_use]
 pub(crate) fn collect_from(inputs: Inputs) -> BinaryIdentity {
     let running = inputs.running.as_ref().ok().map(PathBuf::as_path);
-    let mut entries = scan(inputs.path_var.as_deref(), running, &inputs.places);
+    let (mut entries, truncated) = scan(inputs.path_var.as_deref(), running, &inputs.places);
     let mut asked = Vec::new();
     for (i, entry) in entries.iter_mut().enumerate() {
         if entry.running {
             entry.answer = Answer::Reported(inputs.build.clone());
         } else if !entry.executable {
             entry.answer = Answer::NotExecutable;
+        } else if entry.literal_tilde {
+            entry.answer = Answer::LiteralTilde;
         } else if entry.path.is_relative() {
             entry.answer = Answer::Relative;
         } else {
@@ -375,7 +422,8 @@ pub(crate) fn collect_from(inputs: Inputs) -> BinaryIdentity {
             asked.push((i, entry.path.clone()));
         }
     }
-    for (i, answer) in ask_all(asked, inputs.deadline) {
+    let env = ask::probe_env(&inputs.env, inputs.path_var.as_deref());
+    for (i, answer) in ask::ask_all(asked, inputs.deadline, &env) {
         if let Some(entry) = entries.get_mut(i) {
             entry.answer = answer;
         }
@@ -386,28 +434,30 @@ pub(crate) fn collect_from(inputs: Inputs) -> BinaryIdentity {
         build: inputs.build,
         installer,
         entries,
+        truncated,
     }
 }
 
-/// Every distinct `nika` file on PATH, in order. A directory, a dangling
-/// link or a missing file is no command; two entries that resolve to one
-/// file are one entry (the first wins, as in the shell).
-fn scan(path_var: Option<&OsStr>, running: Option<&Path>, places: &Places) -> Vec<Entry> {
+/// Every distinct `nika` file on PATH, in order, and whether more stood
+/// beyond [`MAX_ENTRIES`]. A directory, a dangling link or a missing file is
+/// no command; two entries that resolve to one file are one entry (the
+/// first wins, as in the shell). Past the cap only the running binary is
+/// still looked for, so where it stands is never lost.
+fn scan(path_var: Option<&OsStr>, running: Option<&Path>, places: &Places) -> (Vec<Entry>, bool) {
     let Some(path_var) = path_var else {
-        return Vec::new();
+        return (Vec::new(), false);
     };
     let file = format!("nika{}", std::env::consts::EXE_SUFFIX);
     let mut seen = BTreeSet::new();
     let mut entries = Vec::new();
+    let mut truncated = false;
     for dir in std::env::split_paths(path_var) {
-        if entries.len() >= MAX_ENTRIES {
-            break;
-        }
-        // An empty PATH entry is the current directory, as in the shell.
-        let path = if dir.as_os_str().is_empty() {
-            PathBuf::from(&file)
-        } else {
-            dir.join(&file)
+        let tilde = tilde_entry(&dir, places.home());
+        let path = match &tilde {
+            Some(expanded) => expanded.join(&file),
+            // An empty PATH entry is the current directory, as in the shell.
+            None if dir.as_os_str().is_empty() => PathBuf::from(&file),
+            None => dir.join(&file),
         };
         let Ok(meta) = std::fs::metadata(&path) else {
             continue;
@@ -419,17 +469,36 @@ fn scan(path_var: Option<&OsStr>, running: Option<&Path>, places: &Places) -> Ve
         if !seen.insert(resolved.clone().unwrap_or_else(|| path.clone())) {
             continue;
         }
+        let is_running = resolved.is_some() && resolved.as_deref() == running;
+        if entries.len() >= MAX_ENTRIES && !is_running {
+            truncated = true;
+            continue;
+        }
         let installer = places.installer(&path, resolved.as_deref().unwrap_or(&path));
         entries.push(Entry {
-            running: resolved.is_some() && resolved.as_deref() == running,
+            running: is_running,
             executable: is_executable(&path),
+            literal_tilde: tilde.is_some(),
             installer,
             resolved,
             path,
             answer: Answer::NotExecutable,
         });
     }
-    entries
+    (entries, truncated)
+}
+
+/// A PATH entry spelled `~` or `~/…`, expanded against `home` the way bash
+/// does when it looks a command up. `None` for any other entry, or with
+/// no home (the entry then reads as relative).
+fn tilde_entry(dir: &Path, home: Option<&Path>) -> Option<PathBuf> {
+    let text = dir.to_str()?;
+    let rest = if text == "~" {
+        ""
+    } else {
+        text.strip_prefix("~/")?
+    };
+    Some(home?.join(rest))
 }
 
 #[cfg(unix)]
@@ -440,82 +509,6 @@ fn is_executable(path: &Path) -> bool {
 #[cfg(not(unix))]
 fn is_executable(_path: &Path) -> bool {
     true
-}
-
-/// Ask each `(index, path)` for its version, concurrently, on a private
-/// runtime. A caller already inside a runtime cannot block on one: every
-/// copy is then reported as not asked, never a panic.
-fn ask_all(asked: Vec<(usize, PathBuf)>, deadline: Duration) -> Vec<(usize, Answer)> {
-    if asked.is_empty() {
-        return Vec::new();
-    }
-    let refuse = |asked: Vec<(usize, PathBuf)>, why: &str| -> Vec<(usize, Answer)> {
-        asked
-            .into_iter()
-            .map(|(i, _)| (i, Answer::Failed(why.to_owned())))
-            .collect()
-    };
-    if tokio::runtime::Handle::try_current().is_ok() {
-        return refuse(asked, "not asked from inside an async runtime");
-    }
-    let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    else {
-        return refuse(asked, "the probe runtime did not start");
-    };
-    runtime.block_on(async move {
-        let mut set = tokio::task::JoinSet::new();
-        for (i, path) in asked {
-            set.spawn(async move { (i, ask_version(&path, deadline).await) });
-        }
-        let mut answers = Vec::new();
-        while let Some(joined) = set.join_next().await {
-            answers.push(joined.unwrap_or_else(|e| (usize::MAX, Answer::Failed(e.to_string()))));
-        }
-        answers
-    })
-}
-
-/// `<path> --version`, bounded: stdin closed, stderr discarded, at most
-/// [`VERSION_OUTPUT_CAP`] bytes of stdout read, the whole exchange within
-/// `deadline`. A copy still running at the deadline is killed on drop.
-///
-/// CANCEL SAFETY: dropping this future kills the child (`kill_on_drop`).
-async fn ask_version(path: &Path, deadline: Duration) -> Answer {
-    use tokio::io::AsyncReadExt as _;
-    let spawned = tokio::process::Command::new(path)
-        .arg("--version")
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .kill_on_drop(true)
-        .spawn();
-    let mut child = match spawned {
-        Ok(child) => child,
-        Err(e) => return Answer::Failed(format!("could not start: {e}")),
-    };
-    let Some(stdout) = child.stdout.take() else {
-        return Answer::Failed("no stdout".to_owned());
-    };
-    let exchange = async {
-        let mut bytes = Vec::new();
-        let mut limited = stdout.take(VERSION_OUTPUT_CAP);
-        limited.read_to_end(&mut bytes).await?;
-        // Closing the pipe ends a copy that keeps writing past the cap.
-        drop(limited);
-        let status = child.wait().await?;
-        Ok::<_, std::io::Error>((status, bytes))
-    };
-    match tokio::time::timeout(deadline, exchange).await {
-        Err(_) => Answer::TimedOut,
-        Ok(Err(e)) => Answer::Failed(e.to_string()),
-        Ok(Ok((status, _))) if !status.success() => Answer::Failed(status.to_string()),
-        Ok(Ok((_, bytes))) => parse_version_output(&String::from_utf8_lossy(&bytes)).map_or_else(
-            || Answer::Failed("printed no `nika <version>` line".to_owned()),
-            Answer::Reported,
-        ),
-    }
 }
 
 #[cfg(test)]

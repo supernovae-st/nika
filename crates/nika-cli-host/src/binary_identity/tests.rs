@@ -4,16 +4,19 @@
 //! #1614 · the running binary and the other `nika` on PATH, observed over a
 //! PATH made of stub scripts: a shadowing copy, the same build, another
 //! version behind this binary, a hanging copy, a failing one, a file that is
-//! not executable and a relative entry that must never run.
+//! not executable and a relative entry that must never run. Then the probe's
+//! containment: what a copy receives, and what it leaves behind.
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
 use std::cmp::Ordering;
+use std::collections::BTreeSet;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use super::{
-    Answer, BinaryIdentity, Build, Inputs, Installer, Places, collect_from, doctor_findings,
-    insert_json, parse_version_output, version_order, welcome_lines,
+    Answer, BinaryIdentity, Build, Inputs, Installer, MAX_ENTRIES, Places, collect_from,
+    doctor_findings, insert_json, parse_version_output, version_order, welcome_lines,
 };
 use crate::doctor::Level;
 
@@ -64,15 +67,38 @@ impl Machine {
     }
 
     fn observe(&self, path: &[&PathBuf], deadline: Duration) -> BinaryIdentity {
-        collect_from(Inputs {
-            path_var: Some(std::env::join_paths(path).expect("PATH")),
-            running: Ok(self.running_path()),
-            build: this_build(),
-            places: Places::default(),
-            deadline,
-        })
+        observe_on(path, deadline, self.running_path(), Places::default())
+    }
+
+    /// `<root>/<rel>`, resolved (the scratch root may sit behind a link).
+    fn at(&self, rel: &str) -> PathBuf {
+        std::fs::canonicalize(self.root.path())
+            .expect("scratch root")
+            .join(rel)
     }
 }
+
+/// Observe `path` with `running` as this binary, under `places`.
+fn observe_on(
+    path: &[&PathBuf],
+    deadline: Duration,
+    running: PathBuf,
+    places: Places,
+) -> BinaryIdentity {
+    collect_from(Inputs {
+        path_var: Some(std::env::join_paths(path).expect("PATH")),
+        running: Ok(running),
+        build: this_build(),
+        places,
+        deadline,
+        env: Vec::new(),
+    })
+}
+
+/// The fix when the order of two copies cannot be judged, or the layout's
+/// removal is not known.
+const SORT_FIX: &str =
+    "which -a nika   # the first one runs: keep one copy, remove the others, then hash -r";
 
 const DEADLINE: Duration = Duration::from_secs(10);
 
@@ -118,17 +144,9 @@ fn a_shadowing_copy_first_on_path_warns_and_names_what_typing_nika_runs() {
             old.join("nika").display()
         )
     );
-    // This binary is newer: the older copy goes.
-    assert_eq!(
-        first.fix.as_deref(),
-        Some(
-            format!(
-                "rm {} && hash -r   # the older copy runs first on PATH",
-                old.join("nika").display()
-            )
-            .as_str()
-        )
-    );
+    // This binary is newer, but a file of no known layout (a launcher, a
+    // shim, another package manager's) is never removed on a guess.
+    assert_eq!(first.fix.as_deref(), Some(SORT_FIX));
     // The shadowing copy is the summary row, never listed twice.
     assert_eq!(rows.len(), 2, "{rows:#?}");
 
@@ -190,16 +208,7 @@ fn another_version_behind_this_binary_warns_with_its_removal() {
             .ends_with("nika 0.123.2 (ccccccccc) · installer: unknown · shadowed by this binary · older than this binary"),
         "{older:#?}"
     );
-    assert_eq!(
-        older.fix.as_deref(),
-        Some(
-            format!(
-                "rm {} && hash -r   # the older copy",
-                old.join("nika").display()
-            )
-            .as_str()
-        )
-    );
+    assert_eq!(older.fix.as_deref(), Some(SORT_FIX), "an unknown layout");
     let newer_row = &rows[2];
     assert_eq!(newer_row.level, Level::Warn);
     assert!(
@@ -323,6 +332,7 @@ fn a_relative_path_entry_is_listed_and_never_executed() {
         build: this_build(),
         places: Places::default(),
         deadline: DEADLINE,
+        env: Vec::new(),
     });
     assert!(!marker.exists(), "a relative entry never runs");
     assert_eq!(id.entries.len(), 2, "{id:#?}");
@@ -382,11 +392,14 @@ fn the_welcome_line_names_build_installer_and_path_and_the_shadow() {
             m.running_path().display()
         )
     );
+    // Typing `nika doctor` would run that older copy: the notice names
+    // this binary's own doctor by its path.
     assert_eq!(
         notice,
         Some(format!(
-            "`nika` runs another build, {} (nika 0.122.0 (bbbbbbbbb)) → nika doctor",
-            old.join("nika").display()
+            "`nika` runs another build, {} (nika 0.122.0 (bbbbbbbbb)) → {} doctor",
+            old.join("nika").display(),
+            m.running_path().display()
         ))
     );
 }
@@ -399,6 +412,7 @@ fn an_unreadable_running_path_is_unknown_never_a_guess() {
         build: this_build(),
         places: Places::default(),
         deadline: DEADLINE,
+        env: Vec::new(),
     });
     let rows = doctor_findings(&id);
     assert_eq!(rows[0].level, Level::Unknown);
@@ -425,10 +439,30 @@ fn version_output_is_read_from_its_first_line() {
             commit: None
         })
     );
+    assert_eq!(
+        read("nika 0.123.2 (5591478a7-dirty)\n"),
+        Some(Build {
+            version: "0.123.2".to_owned(),
+            commit: Some("5591478a7-dirty".to_owned())
+        })
+    );
     assert_eq!(read("nika-cli 0.1.0"), None);
     assert_eq!(read("nika version"), None);
     assert_eq!(read(""), None);
     assert_eq!(read("usage: nika"), None);
+}
+
+#[test]
+fn a_version_answer_carrying_terminal_controls_is_no_answer() {
+    let read = |s: &str| parse_version_output(s);
+    // A title, a screen clear and a colour hidden in the version word.
+    assert_eq!(
+        read("nika 1.0.0\u{1b}]0;PWNED\u{7}\u{1b}[2J\u{1b}[31mRED (abc)\n"),
+        None
+    );
+    assert_eq!(read("nika 1.0.0 (abc\u{1b}[5mBLINK)\n"), None);
+    let long = format!("nika 1.{}", "0".repeat(80));
+    assert_eq!(read(&long), None, "a version is a short word");
 }
 
 #[test]
@@ -523,20 +557,344 @@ fn the_installer_is_read_from_the_path_alone() {
 }
 
 #[test]
-fn shell_words_quote_only_what_the_shell_would_split() {
+fn an_older_install_sh_copy_is_removed_by_its_path_quoted_when_needed() {
     let m = Machine::new();
-    let spaced = m.answering("with space", "nika 0.1.0");
+    let home = m.at("with space");
+    let old =
+        std::fs::canonicalize(m.answering("with space/.nika/bin", "nika 0.1.0")).expect("old");
     let me = m.running_dir();
-    let id = m.observe(&[&spaced, &me], DEADLINE);
+    let places = Places::new(Some(&home), None);
+    let id = observe_on(&[&old, &me], DEADLINE, m.running_path(), places);
+    assert_eq!(id.entries[0].installer, Installer::InstallSh);
     let rows = path_rows(&id);
     assert_eq!(
         rows[0].fix.as_deref(),
         Some(
             format!(
                 "rm '{}' && hash -r   # the older copy runs first on PATH",
-                spaced.join("nika").display()
+                old.join("nika").display()
             )
             .as_str()
         )
+    );
+}
+
+/// The copy that runs first is older but this binary is a source build:
+/// the installed copies are the person's own, and nothing is removed on
+/// this build's account.
+#[test]
+fn a_source_build_never_suggests_removing_an_installed_copy() {
+    let m = Machine::new();
+    let home = m.at("home");
+    let first = std::fs::canonicalize(m.answering("home/.nika/bin", "nika 0.122.0 (bbbbbbbbb)"))
+        .expect("first");
+    let behind = m.answering("behind", "nika 0.123.2 (ccccccccc)");
+    m.stub("src/target/debug", "exit 9", 0o755);
+    let me = m.at("src/target/debug");
+    let running = me.join("nika");
+    let places = Places::new(Some(&home), None);
+    let id = observe_on(&[&first, &me, &behind], DEADLINE, running, places);
+    assert_eq!(id.installer, Installer::SourceBuild);
+    assert_eq!(id.entries[0].installer, Installer::InstallSh);
+    let rows = path_rows(&id);
+    let source_fix =
+        "which -a nika   # this source build runs by its path; `nika` runs the first copy listed";
+    assert_eq!(rows[0].level, Level::Warn, "{rows:#?}");
+    assert_eq!(rows[0].fix.as_deref(), Some(source_fix), "{rows:#?}");
+    assert_eq!(rows[1].fix.as_deref(), Some(source_fix), "{rows:#?}");
+}
+
+#[test]
+fn an_older_npm_payload_is_uninstalled_from_its_project() {
+    let m = Machine::new();
+    let bin =
+        std::fs::canonicalize(m.answering("app/node_modules/.bin", "nika 0.1.0")).expect("bin");
+    let me = m.running_dir();
+    let id = m.observe(&[&bin, &me], DEADLINE);
+    assert_eq!(id.entries[0].installer, Installer::NpmPayload);
+    assert_eq!(
+        path_rows(&id)[0].fix.as_deref(),
+        Some(
+            format!(
+                "(cd {} && npm uninstall @supernovae-st/nika) && hash -r   # the older copy runs first on PATH",
+                m.at("app").display()
+            )
+            .as_str()
+        )
+    );
+}
+
+/// A launcher started this binary from outside PATH: the launcher that
+/// reports this same build does not shadow it, and neither does a copy
+/// further down.
+#[test]
+fn a_binary_started_by_a_launcher_is_shadowed_only_by_another_build_that_runs() {
+    let m = Machine::new();
+    m.running_dir();
+    let launcher = m.answering("launcher", "nika 0.124.0 (aaaaaaaaa)");
+    let old = m.answering("old", "nika 0.122.0 (bbbbbbbbb)");
+    let id = m.observe(&[&launcher, &old], DEADLINE);
+    assert_eq!(id.running_at(), None);
+    let v = json(&id);
+    assert_eq!(v["running"]["on_path"], false);
+    assert_eq!(v["others"][0]["same_build"], true);
+    assert_eq!(
+        v["others"][0]["shadows_running"], false,
+        "{:#}",
+        v["others"]
+    );
+    assert_eq!(
+        v["others"][1]["shadows_running"], false,
+        "{:#}",
+        v["others"]
+    );
+    let rows = path_rows(&id);
+    assert!(rows[1].detail.contains("further down PATH"), "{rows:#?}");
+
+    // Another build that runs first does stand in its way.
+    let id = m.observe(&[&old, &launcher], DEADLINE);
+    let v = json(&id);
+    assert_eq!(v["others"][0]["shadows_running"], true, "{:#}", v["others"]);
+    assert_eq!(
+        v["others"][1]["shadows_running"], false,
+        "{:#}",
+        v["others"]
+    );
+}
+
+/// `PATH="~/.nika/bin:$PATH"` (a quoting slip): bash expands the `~` when
+/// it looks `nika` up, zsh does not. The copy is found, named, never run.
+#[test]
+fn a_literal_tilde_entry_is_found_named_and_never_executed() {
+    let m = Machine::new();
+    let marker = m.at("tilde-ran");
+    m.stub(
+        "home/.nika/bin",
+        &format!(
+            ": > '{}'; echo 'nika 0.122.0 (f11eb4ec7)'",
+            marker.display()
+        ),
+        0o755,
+    );
+    let me = m.running_dir();
+    let places = Places::new(Some(&m.at("home")), None);
+    let tilde = PathBuf::from("~/.nika/bin");
+    let id = observe_on(&[&tilde, &me], DEADLINE, m.running_path(), places);
+    assert!(!marker.exists(), "a literal `~` entry never runs");
+    assert_eq!(id.entries.len(), 2, "{id:#?}");
+    assert_eq!(id.entries[0].answer, Answer::LiteralTilde);
+    assert_eq!(id.entries[0].path, m.at("home/.nika/bin/nika"));
+    let rows = path_rows(&id);
+    assert_eq!(rows[0].level, Level::Warn, "{rows:#?}");
+    assert!(
+        rows[0]
+            .detail
+            .contains("through a literal `~` PATH entry that zsh does not expand"),
+        "{rows:#?}"
+    );
+    assert_eq!(
+        rows[0].fix.as_deref(),
+        Some(
+            "echo \"$PATH\"   # write $HOME in place of the literal ~ in that entry, then hash -r"
+        )
+    );
+    assert_eq!(json(&id)["others"][0]["probe"], "not_probed");
+}
+
+/// More copies than the cap: the running binary beyond them is still
+/// found, and the truncation is said.
+#[test]
+fn the_running_binary_beyond_the_listing_cap_is_still_found() {
+    let m = Machine::new();
+    let mut path: Vec<PathBuf> = (0..=MAX_ENTRIES)
+        .map(|i| m.answering(&format!("copy{i}"), "nika 0.124.0 (aaaaaaaaa)"))
+        .collect();
+    path.push(m.running_dir());
+    let refs: Vec<&PathBuf> = path.iter().collect();
+    let id = m.observe(&refs, DEADLINE);
+    assert!(id.truncated);
+    assert_eq!(
+        id.entries.len(),
+        MAX_ENTRIES + 1,
+        "the cap, then this binary"
+    );
+    assert_eq!(id.running_at(), Some(MAX_ENTRIES));
+    let v = json(&id);
+    assert_eq!(v["others_truncated"], true);
+    assert_eq!(v["running"]["on_path"], true);
+    let rows = path_rows(&id);
+    assert!(
+        rows[0].detail.ends_with(&format!(
+            "only the first {MAX_ENTRIES} `nika` files on PATH are listed"
+        )),
+        "{rows:#?}"
+    );
+    assert!(
+        rows[1].detail.contains("before this binary on PATH"),
+        "{rows:#?}"
+    );
+}
+
+/// The environment a probed copy gets: no credential-shaped variable, no
+/// unlisted one, nika's own settings kept, PATH without its relative and
+/// empty entries.
+#[test]
+fn the_probe_environment_is_allow_listed_and_credential_free() {
+    let pair = |k: &str, v: &str| (OsString::from(k), OsString::from(v));
+    let parent = vec![
+        pair("HOME", "/home/ada"),
+        pair("PATH", "/ignored"),
+        pair("LANG", "C.UTF-8"),
+        pair("LC_ALL", "C"),
+        pair("XDG_CONFIG_HOME", "/home/ada/.config"),
+        pair("NIKA_BUILD_SELECTOR", "wave"),
+        pair("NIKA_EXAMPLE_API_KEY", "redacted"),
+        pair("OPENAI_API_KEY", "redacted"),
+        pair("AWS_SECRET_ACCESS_KEY", "redacted"),
+        pair("GITHUB_TOKEN", "redacted"),
+        pair("SSH_AUTH_SOCK", "/tmp/agent"),
+        pair("EDITOR", "vi"),
+    ];
+    let env = super::ask::probe_env(
+        &parent,
+        Some(OsStr::new(".:/abs/one::rel/dir:/abs/two:~/bin")),
+    );
+    let names: BTreeSet<&str> = env.iter().filter_map(|(k, _)| k.to_str()).collect();
+    assert_eq!(
+        names,
+        BTreeSet::from([
+            "HOME",
+            "LANG",
+            "LC_ALL",
+            "NIKA_BUILD_SELECTOR",
+            "PATH",
+            "XDG_CONFIG_HOME"
+        ])
+    );
+    let path = env
+        .iter()
+        .find(|(k, _)| k == "PATH")
+        .map(|(_, v)| v.clone());
+    assert_eq!(path, Some(OsString::from("/abs/one:/abs/two")));
+}
+
+/// What a probed copy actually receives: the allow-listed environment, the
+/// absolute PATH entries and `/` as its working directory.
+#[test]
+fn a_probed_copy_runs_from_root_without_credentials_or_relative_path() {
+    let m = Machine::new();
+    let env_file = m.at("env.txt");
+    let cwd_file = m.at("cwd.txt");
+    let spy = m.stub(
+        "spy",
+        &format!(
+            "/usr/bin/env > '{}'; pwd > '{}'; echo 'nika 0.124.0 (aaaaaaaaa)'",
+            env_file.display(),
+            cwd_file.display()
+        ),
+        0o755,
+    );
+    let me = m.running_dir();
+    let cwd = std::fs::canonicalize(std::env::current_dir().expect("cwd")).expect("cwd");
+    let up: PathBuf = cwd.components().skip(1).map(|_| "..").collect();
+    let relative = up.join("bin");
+    let pair = |k: &str, v: &str| (OsString::from(k), OsString::from(v));
+    let id = collect_from(Inputs {
+        path_var: Some(std::env::join_paths([&me, &relative, &spy]).expect("PATH")),
+        running: Ok(m.running_path()),
+        build: this_build(),
+        places: Places::default(),
+        deadline: DEADLINE,
+        env: vec![
+            pair("HOME", "/home/ada"),
+            pair("FAKE_PROVIDER_API_KEY", "redacted"),
+            pair("NIKA_FAKE_API_KEY", "redacted"),
+            pair("NIKA_BUILD_SELECTOR", "wave"),
+        ],
+    });
+    assert!(id.reports_this_build(&id.entries[1]), "{id:#?}");
+    let recorded = std::fs::read_to_string(&env_file).expect("the spy ran");
+    let names: BTreeSet<&str> = recorded
+        .lines()
+        .filter_map(|l| l.split('=').next())
+        .collect();
+    assert!(names.contains("HOME"), "{recorded}");
+    assert!(names.contains("NIKA_BUILD_SELECTOR"), "{recorded}");
+    assert!(!names.contains("FAKE_PROVIDER_API_KEY"), "{recorded}");
+    assert!(!names.contains("NIKA_FAKE_API_KEY"), "{recorded}");
+    let path_line = recorded.lines().find(|l| l.starts_with("PATH="));
+    assert_eq!(
+        path_line.map(str::to_owned),
+        Some(format!("PATH={}:{}", me.display(), spy.display())),
+        "the relative entry is gone"
+    );
+    let ran_in = std::fs::read_to_string(&cwd_file).expect("the spy ran");
+    assert_eq!(ran_in.trim(), "/");
+}
+
+/// A copy that answers, then leaves a child holding its stdout: the answer
+/// is taken from its line at once, and the child dies with its group.
+#[test]
+fn a_copy_that_forks_after_answering_is_heard_and_leaves_nothing_behind() {
+    let m = Machine::new();
+    let marker = m.at("late");
+    let me = m.running_dir();
+    let forker = m.stub(
+        "forker",
+        &format!(
+            "echo 'nika 0.122.0 (bbbbbbbbb)'\n( /bin/sleep 2; : > '{}' ) &",
+            marker.display()
+        ),
+        0o755,
+    );
+    let id = m.observe(&[&me, &forker], DEADLINE);
+    assert_eq!(
+        id.entries[1].answer,
+        Answer::Reported(Build {
+            version: "0.122.0".to_owned(),
+            commit: Some("bbbbbbbbb".to_owned())
+        })
+    );
+    std::thread::sleep(Duration::from_secs(3));
+    assert!(!marker.exists(), "the forked child outlived the probe");
+}
+
+/// A copy that hangs without `exec`: its own child sleeps on, unless the
+/// whole group is killed at the deadline.
+#[test]
+fn a_hanging_copy_and_everything_it_forked_are_killed_at_the_deadline() {
+    let m = Machine::new();
+    let marker = m.at("orphan");
+    let me = m.running_dir();
+    let hang = m.stub(
+        "hang",
+        &format!(
+            "( /bin/sleep 1; : > '{}' ) &\n/bin/sleep 30",
+            marker.display()
+        ),
+        0o755,
+    );
+    let id = m.observe(&[&me, &hang], Duration::from_millis(400));
+    assert_eq!(id.entries[1].answer, Answer::TimedOut);
+    std::thread::sleep(Duration::from_secs(2));
+    assert!(!marker.exists(), "an orphan outlived the probe");
+}
+
+/// A copy that prints its version line and then much more is heard by its
+/// line; closing the pipe on the rest is no failure.
+#[test]
+fn a_version_line_followed_by_more_than_the_cap_is_still_an_answer() {
+    let m = Machine::new();
+    let me = m.running_dir();
+    let noisy = m.stub(
+        "noisy",
+        "echo 'nika 0.122.0 (bbbbbbbbb)'\ni=0\nwhile [ $i -lt 400 ]; do echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx; i=$((i+1)); done",
+        0o755,
+    );
+    let id = m.observe(&[&me, &noisy], DEADLINE);
+    assert!(
+        matches!(&id.entries[1].answer, Answer::Reported(b) if b.version == "0.122.0"),
+        "{:#?}",
+        id.entries[1]
     );
 }

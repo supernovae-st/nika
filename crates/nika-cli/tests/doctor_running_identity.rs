@@ -9,6 +9,8 @@
 //! which other `nika` sits on PATH. Before, a shadowed install read `11 ok`:
 //! no path, no installer, no other copy. Each case runs the built binary with
 //! an empty environment and a PATH of stub scripts beside a link to itself.
+//! The last cases pin the probe's containment: looking at a directory runs
+//! none of its code, no credential reaches a copy, nothing it forks survives.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -46,6 +48,17 @@ impl Machine {
     }
 
     fn run(&self, path: &[PathBuf], args: &[&str]) -> Output {
+        self.run_in(&self.dir("home"), path, args, &[])
+    }
+
+    /// The built binary from `cwd`, with `extra` variables set.
+    fn run_in(
+        &self,
+        cwd: &Path,
+        path: &[PathBuf],
+        args: &[&str],
+        extra: &[(&str, &str)],
+    ) -> Output {
         Command::new(bin())
             .args(args)
             .env_clear()
@@ -53,9 +66,21 @@ impl Machine {
             .env("PATH", std::env::join_paths(path).expect("PATH"))
             .env("NIKA_KEYCHAIN", "off")
             .env("NO_COLOR", "1")
-            .current_dir(self.dir("home"))
+            .envs(extra.iter().copied())
+            .current_dir(cwd)
             .output()
             .expect("the built binary runs")
+    }
+
+    /// `<root>/<name>/<file>` holding `body` verbatim, mode `mode`.
+    fn file(&self, name: &str, file: &str, body: &str, mode: u32) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt as _;
+        let dir = self.dir(name);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let path = dir.join(file);
+        std::fs::write(&path, body).expect("file");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).expect("chmod");
+        path
     }
 
     fn json(&self, path: &[PathBuf], args: &[&str]) -> serde_json::Value {
@@ -180,17 +205,15 @@ fn doctor_warns_about_another_version_behind_this_binary() {
         .expect("the other copy is listed");
     let lines: Vec<&str> = text.lines().collect();
     assert!(lines[behind].starts_with('⚠'), "{text}");
-    assert_eq!(
-        lines.get(behind + 1).copied(),
-        Some(
-            format!(
-                "  fix: rm {} && hash -r   # the older copy",
-                old.join("nika").display()
-            )
-            .as_str()
-        ),
-        "{text}"
-    );
+    // A stub of no known layout is never removed on a guess, and a source
+    // build never asks for an installed copy to go.
+    let fix = if is_target_build() {
+        "  fix: which -a nika   # this source build runs by its path; `nika` runs the first copy listed"
+    } else {
+        "  fix: which -a nika   # the first one runs: keep one copy, remove the others, then hash -r"
+    };
+    assert_eq!(lines.get(behind + 1).copied(), Some(fix), "{text}");
+    assert!(!text.contains("fix: rm "), "{text}");
 }
 
 #[test]
@@ -258,17 +281,107 @@ fn welcome_says_the_same_facts_under_this_binary() {
     if is_target_build() {
         assert!(line.contains(" · installer: source-build · "), "{text}");
     }
+    // `nika doctor` would run that older copy: the notice names this
+    // binary's own doctor.
     assert_eq!(
         lines.get(at + 2).copied(),
         Some(
             format!(
-                "  ⚠ `nika` runs another build, {} (nika 0.1.0 (0000000aa)) → nika doctor",
-                old.join("nika").display()
+                "  ⚠ `nika` runs another build, {} (nika 0.1.0 (0000000aa)) → {} doctor",
+                old.join("nika").display(),
+                resolved_bin()
             )
             .as_str()
         ),
         "{text}"
     );
+}
+
+/// Doctor from a project directory, `.` first on PATH: an npm-style
+/// launcher (`#!/usr/bin/env <interpreter>`) must not find its interpreter
+/// in that project. The project's interpreter forges this very build.
+#[test]
+fn a_launcher_never_resolves_its_interpreter_from_the_working_directory() {
+    let m = Machine::new();
+    let marker = m.dir("home").join("project-code-ran");
+    m.file(
+        "project",
+        "nika-test-interp",
+        &format!(
+            "#!/bin/sh\n: > '{}'\necho '{}'\n",
+            marker.display(),
+            own_version_line()
+        ),
+        0o755,
+    );
+    let shim = m.dir("shim");
+    m.file("shim", "nika", "#!/usr/bin/env nika-test-interp\n", 0o755);
+    let path = [PathBuf::from("."), shim, m.dir("self")];
+    let out = m.run_in(&m.dir("project"), &path, &["doctor", "--json"], &[]);
+    assert!(out.status.success(), "{out:?}");
+    assert!(!marker.exists(), "the project's code ran");
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).expect("one JSON document");
+    assert_eq!(v["others"][0]["probe"], "failed", "{:#}", v["others"]);
+    assert_eq!(v["others"][0]["same_build"], serde_json::Value::Null);
+}
+
+/// A copy behind this binary records the names of the variables it got:
+/// none of the credentials doctor holds reaches it.
+#[test]
+fn a_probed_copy_never_receives_credentials() {
+    let m = Machine::new();
+    let names = m.dir("home").join("spy-env.txt");
+    let spy = m.stub(
+        "spy",
+        &format!(
+            "/usr/bin/env | /usr/bin/cut -d= -f1 > '{}'\necho 'nika 0.1.0'",
+            names.display()
+        ),
+        0o755,
+    );
+    let path = [m.dir("self"), spy];
+    let out = m.run_in(
+        &m.dir("home"),
+        &path,
+        &["doctor", "--json"],
+        &[
+            ("FAKE_PROVIDER_API_KEY", "redacted"),
+            ("NIKA_FAKE_API_KEY", "redacted"),
+            ("FAKE_SERVICE_TOKEN", "redacted"),
+        ],
+    );
+    assert!(out.status.success(), "{out:?}");
+    let got = std::fs::read_to_string(&names).expect("the spy ran");
+    let got: Vec<&str> = got.lines().collect();
+    assert!(got.contains(&"HOME"), "{got:?}");
+    for secret in [
+        "FAKE_PROVIDER_API_KEY",
+        "NIKA_FAKE_API_KEY",
+        "FAKE_SERVICE_TOKEN",
+    ] {
+        assert!(!got.contains(&secret), "{secret} crossed: {got:?}");
+    }
+}
+
+/// A copy that hangs without `exec` keeps a child of its own: the whole
+/// group dies at the deadline, so no orphan finishes its work later.
+#[test]
+fn a_hanging_copy_leaves_no_orphan_behind() {
+    let m = Machine::new();
+    let marker = m.dir("home").join("orphan-ran");
+    let hang = m.stub(
+        "hang",
+        &format!(
+            "( /bin/sleep 4; : > '{}' ) &\n/bin/sleep 60",
+            marker.display()
+        ),
+        0o755,
+    );
+    let path = [m.dir("self"), hang];
+    let v = m.json(&path, &["doctor", "--json"]);
+    assert_eq!(v["others"][0]["probe"], "timed_out", "{:#}", v["others"]);
+    std::thread::sleep(Duration::from_secs(5));
+    assert!(!marker.exists(), "an orphan of the probe outlived doctor");
 }
 
 /// The binary under test sits in a cargo `target/{debug,release}` directory.

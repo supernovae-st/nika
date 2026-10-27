@@ -12,7 +12,9 @@ use std::cmp::Ordering;
 use std::fmt::Write as _;
 use std::path::Path;
 
-use super::{Answer, BinaryIdentity, Entry, Installer, VERSION_DEADLINE, version_order};
+use super::{
+    Answer, BinaryIdentity, Entry, Installer, MAX_ENTRIES, VERSION_DEADLINE, version_order,
+};
 use crate::doctor::{Finding, Level};
 
 /// The fix when the order of two copies cannot be judged.
@@ -23,12 +25,28 @@ const SORT_FIX: &str =
 const RELATIVE_FIX: &str =
     "echo \"$PATH\"   # replace the relative entry with an absolute directory, then hash -r";
 
+/// The fix for a copy reached through a PATH entry with a literal `~`.
+const TILDE_FIX: &str =
+    "echo \"$PATH\"   # write $HOME in place of the literal ~ in that entry, then hash -r";
+
+/// In place of a removal when this binary is a source build: it runs by its
+/// path, and the installed copies are the person's own to keep.
+const SOURCE_FIX: &str =
+    "which -a nika   # this source build runs by its path; `nika` runs the first copy listed";
+
 /// The doctor rows, after the `binary` row: the running binary, what typing
 /// `nika` runs, then every other copy on PATH (a fix under each problem).
 pub(crate) fn doctor_findings(id: &BinaryIdentity) -> Vec<Finding> {
     let show = |p: &Path| p.display().to_string();
     let winner = id.winner();
-    let mut out = vec![running_finding(id, &show), first_finding(id, &show)];
+    let mut first = first_finding(id, &show);
+    if id.truncated {
+        let _ = write!(
+            first.detail,
+            " · only the first {MAX_ENTRIES} `nika` files on PATH are listed"
+        );
+    }
+    let mut out = vec![running_finding(id, &show), first];
     out.extend(
         id.entries
             .iter()
@@ -65,17 +83,20 @@ fn welcome_notice(id: &BinaryIdentity, show: &dyn Fn(&Path) -> String) -> Option
     let first = id.winner().and_then(|w| id.entries.get(w));
     if let Some(first) = first
         && !first.running
-        && !same_build(first, id)
+        && !id.reports_this_build(first)
     {
+        // Typing `nika` runs that other copy: only this binary's own path
+        // reaches the doctor that says so.
         let at = show(&first.path);
+        let doctor = own_doctor(id, show);
         return Some(match &first.answer {
             Answer::Reported(build) => {
                 format!(
-                    "`nika` runs another build, {at} ({}) → nika doctor",
+                    "`nika` runs another build, {at} ({}) → {doctor}",
                     build.label()
                 )
             }
-            _ => format!("`nika` runs {at}, not this binary → nika doctor"),
+            _ => format!("`nika` runs {at}, not this binary → {doctor}"),
         });
     }
     let differing = id
@@ -86,7 +107,7 @@ fn welcome_notice(id: &BinaryIdentity, show: &dyn Fn(&Path) -> String) -> Option
                 && match &e.answer {
                     Answer::Reported(build) => !build.same_build(&id.build),
                     Answer::TimedOut | Answer::Failed(_) => true,
-                    Answer::NotExecutable | Answer::Relative => false,
+                    Answer::NotExecutable | Answer::Relative | Answer::LiteralTilde => false,
                 }
         })
         .count();
@@ -118,6 +139,7 @@ pub(crate) fn insert_json(value: &mut serde_json::Value, id: &BinaryIdentity) {
             "first_on_path": running_at.is_some() && running_at == id.winner(),
         }),
     );
+    document.insert("others_truncated".to_owned(), id.truncated.into());
     let others: Vec<serde_json::Value> = id
         .entries
         .iter()
@@ -148,6 +170,11 @@ fn other_json(id: &BinaryIdentity, i: usize, e: &Entry) -> serde_json::Value {
             "not_probed",
             None,
             Some("a relative PATH entry is never executed"),
+        ),
+        Answer::LiteralTilde => (
+            "not_probed",
+            None,
+            Some("a literal `~` PATH entry is never executed: bash expands it, zsh does not"),
         ),
     };
     serde_json::json!({
@@ -258,6 +285,13 @@ fn first_finding(id: &BinaryIdentity, show: &dyn Fn(&Path) -> String) -> Finding
             ),
             Some(RELATIVE_FIX.to_owned()),
         ),
+        Answer::LiteralTilde => row(
+            Level::Warn,
+            format!(
+                "typing `nika` in bash runs {at}, through a literal `~` PATH entry that zsh does not expand · not executed here"
+            ),
+            Some(TILDE_FIX.to_owned()),
+        ),
         other => row(
             Level::Warn,
             format!(
@@ -278,10 +312,7 @@ fn first_fix(
     show: &dyn Fn(&Path) -> String,
 ) -> String {
     match version_order(&id.build.version, version) {
-        Some(Ordering::Greater) => remove_hint(first, show).map_or_else(
-            || SORT_FIX.to_owned(),
-            |remove| format!("{remove} && hash -r   # the older copy runs first on PATH"),
-        ),
+        Some(Ordering::Greater) => removal(id, first, show, "the older copy runs first on PATH"),
         Some(Ordering::Less) => format!(
             "{} doctor   # the newer copy that `nika` runs; this one is older",
             shell_word(&show(&first.path))
@@ -328,24 +359,27 @@ fn entry_finding(
                 Some(Ordering::Greater) => " · newer than this binary",
                 _ => " · another build",
             });
-            (Level::Warn, Some(other_fix(e, order, show)))
+            (Level::Warn, Some(other_fix(id, e, order, show)))
         }
         Answer::TimedOut => (Level::Unknown, None),
         Answer::Failed(_) => (Level::Warn, Some(SORT_FIX.to_owned())),
         Answer::NotExecutable => (Level::Ok, None),
         Answer::Relative => (Level::Warn, Some(RELATIVE_FIX.to_owned())),
+        Answer::LiteralTilde => (Level::Warn, Some(TILDE_FIX.to_owned())),
     };
     row(level, detail, fix)
 }
 
 /// The repair for a copy behind the one that runs: an older one goes, a
 /// newer one is moved ahead.
-fn other_fix(e: &Entry, order: Option<Ordering>, show: &dyn Fn(&Path) -> String) -> String {
+fn other_fix(
+    id: &BinaryIdentity,
+    e: &Entry,
+    order: Option<Ordering>,
+    show: &dyn Fn(&Path) -> String,
+) -> String {
     match order {
-        Some(Ordering::Less) => remove_hint(e, show).map_or_else(
-            || SORT_FIX.to_owned(),
-            |remove| format!("{remove} && hash -r   # the older copy"),
-        ),
+        Some(Ordering::Less) => removal(id, e, show, "the older copy"),
         Some(Ordering::Greater) => {
             let dir = e.path.parent().unwrap_or(&e.path);
             format!(
@@ -357,20 +391,66 @@ fn other_fix(e: &Entry, order: Option<Ordering>, show: &dyn Fn(&Path) -> String)
     }
 }
 
+/// The repair that removes an older copy, `why` its comment: never on a
+/// source build's account, and only for a layout whose removal is known.
+fn removal(id: &BinaryIdentity, e: &Entry, show: &dyn Fn(&Path) -> String, why: &str) -> String {
+    if id.installer == Installer::SourceBuild {
+        return SOURCE_FIX.to_owned();
+    }
+    remove_hint(e, show).map_or_else(
+        || SORT_FIX.to_owned(),
+        |remove| format!("{remove} && hash -r   # {why}"),
+    )
+}
+
 /// The command that removes one copy, by its installer. A Nix store path
-/// is removed from its profile, which this path does not name.
+/// is removed from its profile, which this path does not name; a source
+/// build, or an unknown layout (a launcher, a version manager's shim,
+/// another package manager's file), is never removed on a guess.
 fn remove_hint(e: &Entry, show: &dyn Fn(&Path) -> String) -> Option<String> {
     Some(match e.installer {
         Installer::Homebrew => "brew uninstall nika".to_owned(),
         Installer::NpmGlobal => "npm uninstall -g @supernovae-st/nika".to_owned(),
-        Installer::NpmPayload => "npm uninstall @supernovae-st/nika".to_owned(),
+        Installer::NpmPayload => format!(
+            "(cd {} && npm uninstall @supernovae-st/nika)",
+            shell_word(&show(&npm_project(e)?))
+        ),
         Installer::Cargo => "cargo uninstall nika-cli".to_owned(),
-        Installer::Nix => return None,
-        Installer::InstallSh
-        | Installer::ReleaseDir
-        | Installer::SourceBuild
-        | Installer::Unknown => format!("rm {}", shell_word(&show(&e.path))),
+        Installer::InstallSh | Installer::ReleaseDir => {
+            format!("rm {}", shell_word(&show(&e.path)))
+        }
+        Installer::Nix | Installer::SourceBuild | Installer::Unknown => return None,
     })
+}
+
+/// The project an npm payload belongs to: the directory that holds its
+/// `node_modules`, as PATH names it (else as it resolves).
+fn npm_project(e: &Entry) -> Option<std::path::PathBuf> {
+    let project = |p: &Path| {
+        p.ancestors()
+            .find(|a| a.file_name().is_some_and(|n| n == "node_modules"))
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+    };
+    project(&e.path).or_else(|| e.resolved.as_deref().and_then(project))
+}
+
+/// This binary's own `doctor`, as a command to type.
+fn own_doctor(id: &BinaryIdentity, show: &dyn Fn(&Path) -> String) -> String {
+    match &id.path {
+        Ok(path) => {
+            let shown = show(path);
+            // `~/…` pastes back only unquoted; a path that needs quoting is
+            // written in full.
+            let typed = if is_plain(&shown) {
+                shown
+            } else {
+                shell_word(&path.display().to_string())
+            };
+            format!("{typed} doctor")
+        }
+        Err(_) => "the doctor of this binary, by its path".to_owned(),
+    }
 }
 
 /// What one copy answered, in words.
@@ -384,21 +464,24 @@ fn answer_words(answer: &Answer) -> String {
         Answer::Failed(why) => format!("`--version` failed: {why}"),
         Answer::NotExecutable => "not executable, the shell skips it".to_owned(),
         Answer::Relative => "a relative PATH entry, not executed here".to_owned(),
+        Answer::LiteralTilde => {
+            "a literal `~` PATH entry: bash expands it, zsh does not · not executed here".to_owned()
+        }
     }
 }
 
-/// The first copy reports this binary's build.
-fn same_build(e: &Entry, id: &BinaryIdentity) -> bool {
-    matches!(&e.answer, Answer::Reported(build) if build.same_build(&id.build))
+/// The shell takes `text` as one word, unquoted.
+fn is_plain(text: &str) -> bool {
+    !text.is_empty()
+        && text
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "/._-+@%:,=~".contains(c))
 }
 
 /// A path as one shell word: quoted only when it carries a character the
 /// shell would split or expand.
 fn shell_word(text: &str) -> String {
-    let plain = text
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || "/._-+@%:,=~".contains(c));
-    if plain && !text.is_empty() {
+    if is_plain(text) {
         text.to_owned()
     } else {
         format!("'{}'", text.replace('\'', "'\\''"))
