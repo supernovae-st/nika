@@ -1,8 +1,8 @@
-- **`nika check` refuses a `temperature:` that OpenAI's reasoning models
-  reject.** `openai/gpt-5`, `gpt-5-mini`, `gpt-5-nano` and the o-series accept
-  only the default temperature, and OpenAI answers any other value with
-  HTTP 400 at run (« Only the default (1) value is supported »), while check
-  showed `capacity fit ✔`. The catalog now records that GPT-5, GPT-5 mini and
+- **`nika check` refuses a `temperature:` on `openai/gpt-5`, `gpt-5-mini`,
+  `gpt-5-nano` and the o-series.** These models accept only the default
+  temperature, and OpenAI answers any other value with HTTP 400 at run
+  (« Only the default (1) value is supported »), while check showed
+  `capacity fit ✔`. The catalog now records that GPT-5, GPT-5 mini and
   GPT-5 nano (and their 2025-08-07 snapshots) take no temperature, as it
   already did for the o-series, and the fixed-sampling finding covers
   OpenAI's own API beside Anthropic's for the models the catalog lists. A

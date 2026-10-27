@@ -1,4 +1,4 @@
-- **The embedded language pack follows nika-spec `<final pin>`.** `SPEC_PIN`
+- **The embedded language pack follows nika-spec `5cd95cd`.** `SPEC_PIN`
   and `crates/nika-pack/pack` advance together from `c5dcd97`, the commit
   0.123.2 embeds. nika-spec#397 (`aac8de5`) adds the contract of
   `nika:image_compose` and the keyless `system` voice: `canon.yaml` counts 30
@@ -11,12 +11,19 @@
   gains `images: { save: }`, chapter 02 its §Harness images, chapter 17 the
   `saved_path` of a saved image and the error registry `NIKA-AGENT-007` (112
   codes), and a seat's `infer:` meets a JSON or JSON Schema need when the
-  engine validates its answer. nika-spec#400 makes an `infer:` `vision:` file
-  a read under `permits.fs.read` (`NIKA-AUTH-006` under an absent block,
-  `NIKA-SEC-004` outside a declared one; a `source: url` entry needs no
-  grant) and bounds an `images: { save: }` to four files under the same-path
-  law (`NIKA-SEC-012`).
-  <!-- TODO(nika-spec#400): name the final SPEC_PIN in the headline (the
-  commit nika-spec#400 merges as, or a later one if the media cost cap of
-  #1846 also moves the spec), re-check the nika-spec#400 sentence against
-  the merged text, then delete this comment. -->
+  engine validates its answer. nika-spec#400 (`479b0bc`) makes an `infer:`
+  `vision:` file a read under `permits.fs.read` (`NIKA-AUTH-006` under an
+  absent block, `NIKA-SEC-004` outside a declared one, and a refusal at
+  check, whatever the path's form, under a boundary that admits no read; a
+  `source: url` entry needs no grant), makes every `vision:` entry a
+  provider-egress sink of its task (`NIKA-SEC-006`, `NIKA-SEC-009`), and
+  bounds an `images: { save: }` to four files and names it in the same-path
+  law (`NIKA-SEC-012`). nika-spec#401 (`5cd95cd`) lets the `cost_usd` of
+  `nika:image_generate` and `nika:tts_generate` come from the engine's dated
+  price catalog, marked by `cost_basis` with the rates' date in
+  `cost_as_of`, and keeps it `null` when neither the provider's report nor
+  the catalog yields a figure.
+  <!-- TODO(0.124.0): #1851 merged as 14073c081 and set this pin, so the
+  rebased branch carries `5cd95cd` with no pin move of its own. After the
+  rebase, delete the last sentence of `vision-file-reads.security.md` (or
+  the #400 sentence here), which says the same, then delete this comment. -->

@@ -28,51 +28,70 @@ contact sheet or a narration no longer needs `exec magick montage` or `exec /usr
 `nika:image_compose`, the 30th builtin, lays 1 to 64 PNG images out as one grid, row or column,
 and `nika:tts_generate` speaks with no key, offline, through `provider: system`. An `agent:` task
 on a Codex seat hands the images it generates to the next task as values (`images:`, saved inside
-`permits.fs.write` from the bytes its own session received), an `infer:` task on a Codex or
-Claude Code seat over ACP carries a `schema:` and its `vision:` files, and `nika check` blocks
-what a seat cannot carry instead of passing what the run refuses. `nika doctor` and
-`nika welcome` name the `nika` that is running and every other copy on `PATH`, and the first
-parse refusals a newcomer meets teach the shape they refused and point at the line.
+`permits.fs.write` from the bytes its own session received). Over ACP
+(`run.access.protocol: acp`), an `infer:` task on a Codex or Claude Code seat carries a `schema:`
+and its `vision:` files, and `nika check` blocks what the seat cannot carry instead of passing
+what the run refuses; on a direct seat route, without that protocol, the run still sends no
+`vision:`, `temperature`, `max_tokens` or `thinking`, and `nika check` does not say so.
+`nika doctor` and `nika welcome` name the `nika` that is running and every other copy on `PATH`,
+and the first parse refusals a newcomer meets teach the shape they refused and point at the line.
 
-Some workflows that 0.123.2 checked clean are now refused. `NIKA-SEC-009` follows untrusted
-content through a child workflow call and through a file a builtin reads, `NIKA-SEC-014` holds a
-confirm gate in front of a child workflow that acts, and `nika check` refuses a `temperature:`
-that OpenAI's GPT-5 and o-series models reject. On a Codex seat, a command that asks to leave its
-sandbox always pauses for you, under `permits.exec: true` too, and a turn Codex reports as failed
-fails its task instead of succeeding with the error as its output.
-
-<!-- TODO(0.124.0): written from #1851 and nika-spec#400 while both are open. Re-check it
-against the merged PR and its fragments. If #1851 misses the tag, delete this paragraph and
-state the ungated `vision:` file read (API routes, and ACP seats since 0.124.0) as a security
-limit instead. -->
+Some workflows that 0.123.2 checked clean or ran unattended are now refused or paused.
+`NIKA-SEC-009` follows untrusted content through a child workflow call and through a file a
+builtin reads; a blocking `nika:prompt` that dominates the path still clears it, but a gate
+inside the child does not count for its caller: put the gate in front of the call.
+`NIKA-SEC-014` holds a confirm gate in front of a child workflow that acts: a bare
+`after: { ask: success }` edge still runs the child on « no », so bind the answer on the call
+(`with: { go: "${{ tasks.ask.output }}" }` and `when: ${{ with.go == true }}`), as an inline
+effect already needs. On the `openai` provider, `nika check` refuses a `temperature:` on
+`gpt-5`, `gpt-5-mini`, `gpt-5-nano` and the o-series, which accept only the default: drop it
+there. On a Codex seat, a command that asks to leave its sandbox always pauses for you, under
+`permits.exec: true` too, and a turn Codex reports as failed fails its task instead of
+succeeding with the error as its output; what Codex does without asking, such as opening pages
+with its hosted web tool or calling MCP tools marked read-only, is stated by `nika check`, not
+bounded by `permits:`. On a seat, one `--answer` now decides one ask per task: an attempt that
+`retry:` replays pauses on its ask instead of reusing the answer.
 
 A `vision:` file is now a read inside `permits.fs.read`, a breaking change. 0.123.2 sent any file
 an `infer:` task named to the model provider, under any `permits:` or none, and read a relative
 path from the process directory. The run now reads each file under the workflow's own boundary,
-on its resolved path, before any provider call, and fails `NIKA-SEC-004` outside it; `nika check`
+on its resolved path, before any provider call, and fails `NIKA-SEC-004` outside it. `nika check`
 refuses an ungranted literal path (`NIKA-AUTH-006` with no `permits:` block, `NIKA-SEC-004`
-outside a declared one). Grant each file in `permits.fs.read`: `nika check --infer-permits`
-prints the block. A `source: url` entry needs no grant, and a secret in a vision entry now needs
-`egress: [{ to: "infer" }]`, like one in a prompt.
-
-<!-- TODO(0.124.0): written from #1846 and nika-spec#401 while both are open. Re-check the
-priced and refused models, the codes and the ways out against the merged PR. If #1846 misses
-the tag, delete this paragraph and state instead that paid media escapes `--max-cost-usd` and
-that a settlement can read priced while it holds unpriced media spend. -->
+outside a declared one), and refuses a computed path, or a computed `images: { save: }`, under a
+boundary that grants no path at all (no block, `permits: {}`, an empty `fs.read` or `fs.write`).
+Grant each file in `permits.fs.read`: `nika check --infer-permits` prints the block for a literal
+path, but for a computed one only a note and a partial `fs`, so the grant must cover every file
+the run may name, for example `fs: { read: ["./in/**"] }`. A `source: url` entry needs no grant,
+a secret in a vision entry now needs `egress: [{ to: "infer" }]` like one in a prompt, and
+`NIKA-SEC-009` follows untrusted content that picks a vision file, as for a `nika:read` path.
 
 A run under a cost cap now bills paid media at dated public prices and refuses what it cannot
 price, a breaking change for capped runs, scheduled beats included: a beat always runs under
-its `plafond:`, and a project `ceiling:` caps a plain `nika run`. `nika:image_generate` on
-`gpt-image-2` or the Gemini image models the catalog lists and `nika:tts_generate` on `tts-1`,
-`tts-1-hd` or ElevenLabs are floored at launch and billed against the cap, where 0.123.2 ran
-every paid media call with no bound, and `nika check` shows each call's floor, rate and price
-date. A paid call the catalog cannot price is refused before any request (`NIKA-1709`),
-OpenAI's default voice `gpt-4o-mini-tts` included, so a beat on it reads UNREADY at `nika arm`:
-set `model: tts-1` or `tts-1-hd`, use `provider: elevenlabs`, the keyless `provider: system`
-voice, or `local` / `mock`. Only a run with no cap makes an unpriced call.
+its `plafond:`, and a project `ceiling:` caps a plain `nika run`. Under a cap,
+`nika:image_generate` on OpenAI `gpt-image-2` or one of the five Gemini image models the catalog
+prices, and `nika:tts_generate` on OpenAI `tts-1` or `tts-1-hd` or a priced ElevenLabs model, are
+floored at launch and billed against the cap; OpenAI's `gpt-image-2.5-sunburst` and
+`gpt-image-2.5-flare` publish token rates only, so they are billed from the usage they report and
+refused at launch only under a zero cap. 0.123.2 ran these OpenAI, Gemini and ElevenLabs calls
+with no bound (xAI images were already floored and metered). `nika check` shows each paid media
+call's floor, rate and price date, or says it is `METERED`, `UNPRICED` or `DECIDED AT RUN`. A
+paid call the catalog cannot price is refused before any request, with `NIKA-1709` at launch, or
+with `NIKA-1704` when only the run decides its provider or model or an `agent:` makes it through
+its tools: OpenAI's default voice `gpt-4o-mini-tts`, `gpt-image-1.5` and `gpt-image-1-mini`
+(which OpenAI shuts down on 2026-12-01), and any model id the catalog does not list. `nika arm`
+shows a beat on one of them UNREADY. For speech, set `model: tts-1` or `tts-1-hd` (OpenAI shuts
+all three of its speech models down on 2027-01-06), use a priced `elevenlabs` model, the keyless
+`provider: system` voice, which bills no provider and runs under any cap as unpriced local work,
+or `local` / `mock`; for images, use `gpt-image-2` (the default) or a 2.5 model. A paid call the
+catalog cannot price runs only with no cap, and the settlement then counts it unpriced.
 
 <!-- TODO(0.124.0): the stance sentence below waits for the maintainer's confirmation; keep it
 word for word with README.md, ROADMAP.md and llms.txt. -->
+
+<!-- TODO(0.124.0): the link below names the docs page « Known limits in 0.124 », the title it
+carries only once nika-docs#228 (a draft at 0b71df398) is merged and deployed: the live page
+still reads « Known limits in 0.123 » and holds none of the 0.124 limits. Before the tag, check
+the live title and that the page carries the seat, paid-media and vision limits. -->
 
 The file format and its nine top-level keys are unchanged and the SDK machine protocol stays 2;
 the language gains `nika:image_compose`, `provider: system` and the `images:` field of `agent:`.
