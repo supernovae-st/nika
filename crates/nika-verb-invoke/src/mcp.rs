@@ -164,9 +164,11 @@ impl StoppedCallSlot {
             .clone()
     }
 
-    /// Successful physical calls' finite non-negative cost reports, once per
-    /// call. This subtotal survives a ready result whose future is dropped;
-    /// it does not imply an unread task or iteration succeeded.
+    /// Physical calls' finite non-negative cost reports, once per call: a
+    /// success's `cost_usd`, and the priced part of what a failed call had
+    /// already billed (C-D3). This subtotal survives a ready result whose
+    /// future is dropped; it does not imply an unread task or iteration
+    /// succeeded.
     #[must_use]
     pub fn reported_cost_usd(&self) -> Option<f64> {
         let cost = self
@@ -192,16 +194,22 @@ impl StoppedCallSlot {
     }
 
     /// The physical completion owner calls this exactly once, before giving
-    /// away or discarding its result. Keep only the existing monetary fact.
-    pub(crate) fn record_success_cost(&self, result: &ToolResult) {
-        if !result.is_error
-            && let Some(cost) = result
-                .structured
-                .as_ref()
+    /// away or discarding its result. Keep only the existing monetary fact:
+    /// a success's reported `cost_usd`, or the priced part of what a failed
+    /// call had already billed (C-D3 · a paid media batch whose later
+    /// request failed).
+    pub(crate) fn record_cost_of(&self, result: &ToolResult) {
+        let cost = if result.is_error {
+            (result.error_meta.as_ref())
+                .and_then(|meta| meta.details.as_ref())
+                .and_then(|details| details.spent)
+                .and_then(nika_kernel::tool_executor::SpentBeforeFailure::priced_usd)
+        } else {
+            (result.structured.as_ref())
                 .and_then(|value| value.get("cost_usd"))
                 .and_then(serde_json::Value::as_f64)
-                .filter(|cost| cost.is_finite() && *cost >= 0.0)
-        {
+        };
+        if let Some(cost) = cost.filter(|cost| cost.is_finite() && *cost >= 0.0) {
             self.record_cost(cost);
         }
     }
@@ -316,12 +324,13 @@ impl Drop for Offloaded {
 
 /// The sole returned-result receipt path for both polling and dropping.
 /// Only matching typed metadata can name a stopped physical call; arbitrary
-/// content and ordinary failures grant no control or success-cost credit.
+/// content grants no control or cost. A failure records only the typed spend
+/// it had already billed, which can only tighten a cost cap.
 fn record_returned(witness: Option<(StoppedCallSlot, String, String)>, value: &Outcome) {
     let (Some((slot, tool, call_id)), Ok(result)) = (witness, value) else {
         return;
     };
-    slot.record_success_cost(result);
+    slot.record_cost_of(result);
     if result.is_error
         && let Some(call) = result
             .error_meta

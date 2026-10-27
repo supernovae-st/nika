@@ -39,8 +39,11 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     args: &ImageArgs,
 ) -> Result<ProviderBatch, BuiltinFailure> {
     let (request, warnings) = build_request(args, key)?;
-    let response = http.post(request).await.map_err(map_transport)?;
-    let mut batch = parse_response(response.status, &response.body, args)?;
+    // A request that left may have rendered and billed (C-D3).
+    let response = (http.post(request).await)
+        .map_err(|error| crate::media::cost::transport_failure(error, map_transport))?;
+    let mut batch = parse_response(response.status, &response.body, args)
+        .map_err(|failure| crate::media::cost::unusable_answer(response.status, failure))?;
     batch.warnings.splice(0..0, warnings);
     Ok(batch)
 }
@@ -60,8 +63,11 @@ pub(crate) async fn edit<H: HttpPostDyn>(
     inputs: &[super::types::InputImage],
 ) -> Result<ProviderBatch, BuiltinFailure> {
     let (request, warnings) = build_edit_request(args, inputs, key)?;
-    let response = http.post(request).await.map_err(map_transport)?;
-    let mut batch = parse_response(response.status, &response.body, args)?;
+    // A request that left may have rendered and billed (C-D3).
+    let response = (http.post(request).await)
+        .map_err(|error| crate::media::cost::transport_failure(error, map_transport))?;
+    let mut batch = parse_response(response.status, &response.body, args)
+        .map_err(|failure| crate::media::cost::unusable_answer(response.status, failure))?;
     batch.warnings.splice(0..0, warnings);
     Ok(batch)
 }
@@ -394,17 +400,22 @@ fn parse_response(
         });
     }
 
-    let read = |path: &str| {
-        parsed
-            .get("usage")
-            .and_then(|u| u.get(path))
+    let read = |path: &[&str]| {
+        path.iter()
+            .try_fold(parsed.get("usage")?, |value, key| value.get(key))
             .and_then(serde_json::Value::as_u64)
     };
+    // The details split the input by modality (and, when present, the
+    // output): the dated media table prices each at its own rate (C-D3).
     let usage = Usage {
-        input_tokens: read("input_tokens"),
-        output_tokens: read("output_tokens"),
-        total_tokens: read("total_tokens"),
+        input_tokens: read(&["input_tokens"]),
+        output_tokens: read(&["output_tokens"]),
+        total_tokens: read(&["total_tokens"]),
         thoughts_tokens: None,
+        input_text_tokens: read(&["input_tokens_details", "text_tokens"]),
+        input_image_tokens: read(&["input_tokens_details", "image_tokens"]),
+        output_image_tokens: read(&["output_tokens_details", "image_tokens"]),
+        output_text_tokens: read(&["output_tokens_details", "text_tokens"]),
     };
 
     let raw_debug = args.debug.then(|| {
@@ -415,8 +426,11 @@ fn parse_response(
     Ok(ProviderBatch {
         images,
         usage,
+        unreported_images: 0, // one response: no usage bills every image per image
         endpoint_host: Some("api.openai.com".to_owned()),
-        cost_usd: None, // token-priced · image models unpriced in the catalog (roadmap)
+        // Token-billed with no USD in the response: the dated media table
+        // prices it from this usage (`image::bill` · C-D3).
+        cost_usd: None,
         provider_text: None,
         warnings,
         raw_debug,
@@ -658,6 +672,12 @@ mod tests {
         assert_eq!(batch.usage.input_tokens, Some(12));
         assert_eq!(batch.usage.total_tokens, Some(4172));
         assert_eq!(batch.usage.thoughts_tokens, None);
+        assert_eq!(batch.usage.input_text_tokens, Some(12));
+        assert_eq!(batch.usage.input_image_tokens, Some(0));
+        assert_eq!(
+            batch.usage.output_image_tokens, None,
+            "not in this response"
+        );
 
         let sent = http.sent_requests();
         assert_eq!(sent.len(), 1);

@@ -388,8 +388,10 @@ pub(crate) fn check_with(
         .extend(tools::scan_mcp_against_registry(wf, read));
     // Beside it, advice that never blocks: a registered server whose pins the run would refuse.
     report.hints.extend(tools::scan_mcp_against_pins(wf, read));
-    // Re-fold the class-erased list over the finished lane (one truth).
+    // Re-fold the class-erased list over the finished lane (one truth), and
+    // the failure plan over the folded envelope (a child's paid media).
     report.findings = findings::collect(&report);
+    report.failure_plan = crate::failure_plan::collect(wf, &report);
     report
 }
 

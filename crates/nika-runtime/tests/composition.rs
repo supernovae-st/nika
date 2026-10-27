@@ -89,6 +89,7 @@ fn green_child(cost_usd: Option<f64>) -> Respond {
             ok: true,
             outputs: BTreeMap::from([("report".to_owned(), json!("done"))]),
             cost_usd,
+            unpriced_calls: 0,
             trace: Some(ChildRunSummary::new(
                 call.target.clone(),
                 true,
@@ -343,6 +344,43 @@ async fn child_spend_crossing_the_budget_trips_the_parent() {
     assert!(outcome.budget_exceeded, "the parent ledger tripped");
 }
 
+/// C-D3 · a child's unpriced calls reach the parent's settlement: a child
+/// that billed an unpriced media call (and a priced one) makes the parent
+/// `partially_priced`, never `priced`; a failed child keeps them too.
+#[tokio::test]
+async fn a_childs_unpriced_calls_reach_the_parents_settlement() {
+    for ok in [true, false] {
+        let (runner, _) = MockChildRunner::new(Box::new(move |call| {
+            Ok(ChildOutcome {
+                ok,
+                outputs: BTreeMap::from([("report".to_owned(), json!("done"))]),
+                cost_usd: Some(0.1),
+                unpriced_calls: 1,
+                trace: Some(ChildRunSummary::new(
+                    call.target.clone(),
+                    ok,
+                    (None, None, None),
+                )),
+                failure: (!ok).then(|| ("NIKA-EXEC-002".to_owned(), "exit 3".to_owned())),
+                paused: None,
+            })
+        }));
+        let rt = runtime(RuntimeConfig::default()).with_child_runner(runner);
+        let (outcome, _) = drive(CALL, rt).await;
+        assert_eq!(outcome.ok, ok);
+        assert_eq!(
+            (outcome.priced_calls, outcome.unpriced_calls),
+            (1, 1),
+            "ok={ok}: the child's unpriced call is the parent's"
+        );
+        assert_eq!(
+            outcome.settlement.spend.qualifier,
+            nika_event::settlement::CostQualifier::PartiallyPriced,
+            "ok={ok}"
+        );
+    }
+}
+
 /// Law 2, run half: the parent's `returns:` judges the child's outputs
 /// object with the ONE type core — a misfit is the SAME `NIKA-TYPE-101`
 /// every verb speaks.
@@ -373,6 +411,7 @@ async fn child_failure_surfaces_the_child_code() {
             ok: false,
             outputs: BTreeMap::new(),
             cost_usd: Some(0.1),
+            unpriced_calls: 0,
             trace: Some(ChildRunSummary::new(
                 call.target.clone(),
                 false,

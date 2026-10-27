@@ -42,7 +42,8 @@
 /// A pricing table identity — the triple the F-P18 boot pin journals
 /// (`pricing` = `{schema, as_of, sha256_16}`). Owned: the pinned half
 /// is parsed out of the journal, the local half is injected from the
-/// verifying engine's compile-time catalog.
+/// verifying engine's compile-time catalog, with its dated media price
+/// table (C-D3 · the boot frame's `media_pricing` record) when it has one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct PricingPin {
@@ -52,6 +53,10 @@ pub struct PricingPin {
     pub as_of: String,
     /// First 16 hex chars of the upstream payload's sha256.
     pub sha256_16: String,
+    /// The dated media price table, row for row (`{schema, as_of, rates}`)
+    /// · `None` when this identity names none (a pin read from `pricing`,
+    /// or a verifier that judges the model table only).
+    pub media: Option<serde_json::Value>,
 }
 
 impl PricingPin {
@@ -62,7 +67,23 @@ impl PricingPin {
             schema: schema.to_owned(),
             as_of: as_of.to_owned(),
             sha256_16: sha256_16.to_owned(),
+            media: None,
         }
+    }
+
+    /// With the verifying engine's dated media price table: the leg then
+    /// refuses a journal that pins another one (C-D3 · spec 15).
+    #[must_use]
+    pub fn with_media(mut self, media: serde_json::Value) -> Self {
+        self.media = Some(media);
+        self
+    }
+
+    /// Whether `other` names the same model pricing table: its schema, date
+    /// and digest (the media table is judged on its own).
+    fn same_table(&self, other: &Self) -> bool {
+        (&self.schema, &self.as_of, &self.sha256_16)
+            == (&other.schema, &other.as_of, &other.sha256_16)
     }
 }
 
@@ -85,6 +106,16 @@ pub enum CostReplay {
     },
     /// Pinned ≡ local — the journaled cost story re-judged.
     Rejudged(Rejudged),
+    /// The pinned media price table (`media_pricing`) is not this engine's
+    /// (C-D3): cost-replay REFUSES — a media cost is read against the rates
+    /// it was billed at, never silently re-priced.
+    MediaRefused {
+        /// The journal's table, rendered (`schema · as_of · N rates`) ·
+        /// `None` = unreadable.
+        pinned: Option<String>,
+        /// This engine's, rendered.
+        local: String,
+    },
 }
 
 /// The consistency-grade re-judgment over the journaled dollars.
@@ -291,10 +322,22 @@ pub fn cost_replay_leg(raw: &str, local: &PricingPin) -> CostReplayLeg {
         BootPin::Unreadable => return refused(None, local),
         BootPin::Pinned(pin) => pin,
     };
-    if pinned != *local {
+    if !pinned.same_table(local) {
         return refused(Some(pinned), local);
     }
-    rejudged(
+    let media = match media_judgment(&boot, local) {
+        MediaPin::Differs { pinned, local } => return media_refused(pinned, local),
+        MediaPin::Same(table) => Some(format!(
+            "  media prices: the pinned table is this engine's ({table})"
+        )),
+        MediaPin::Unrecorded => Some(
+            "  media prices: unrecorded (a journal from before the dated media table; its \
+             media spend, if any, was reported by the provider)"
+                .to_owned(),
+        ),
+        MediaPin::NotJudged => None,
+    };
+    let mut leg = rejudged(
         &pinned,
         journaled_budget(&boot),
         spent_usd,
@@ -302,7 +345,87 @@ pub fn cost_replay_leg(raw: &str, local: &PricingPin) -> CostReplayLeg {
         end,
         journaled_total,
         journaled_qualifier.as_deref(),
+    );
+    if let Some(line) = media {
+        leg.lines.insert(1, line);
+    }
+    leg
+}
+
+/// The media price table a boot frame pins, judged against this engine's.
+enum MediaPin {
+    /// The verifier carries no media table: nothing to judge.
+    NotJudged,
+    /// The boot frame pins none (it predates the dated media table).
+    Unrecorded,
+    /// The pinned table is this engine's (rendered).
+    Same(String),
+    /// It is not (both rendered; `pinned: None` = unreadable).
+    Differs {
+        pinned: Option<String>,
+        local: String,
+    },
+}
+
+/// Compare the boot frame's `media_pricing` record with the verifier's table,
+/// row for row: a table with the same date but other rates differs too.
+fn media_judgment(boot: &serde_json::Value, local: &PricingPin) -> MediaPin {
+    let Some(table) = &local.media else {
+        return MediaPin::NotJudged;
+    };
+    let Some(raw) = field(boot, "media_pricing") else {
+        return MediaPin::Unrecorded;
+    };
+    let pinned = raw
+        .as_str()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(text).ok());
+    if pinned.as_ref() == Some(table) {
+        return MediaPin::Same(render_media(table));
+    }
+    let local = render_media(table);
+    let pinned = pinned.map(|pinned| match render_media(&pinned) {
+        same if same == local => format!("{same} (same date, other rates)"),
+        other => other,
+    });
+    MediaPin::Differs { pinned, local }
+}
+
+/// `{schema} · as_of {date} · {N} rates` — a media table's identity, read
+/// off the record itself.
+fn render_media(table: &serde_json::Value) -> String {
+    let text = |key: &str| {
+        table
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("?")
+            .to_owned()
+    };
+    let rates = table
+        .get("rates")
+        .and_then(serde_json::Value::as_array)
+        .map_or(0, Vec::len);
+    format!(
+        "{} · as_of {} · {rates} rates",
+        text("schema"),
+        text("as_of")
     )
+}
+
+/// The media table's negative case: the journal pins rates this engine does
+/// not carry — cost-replay REFUSES, naming both tables. The pinned render is
+/// journal-originated and escaped at birth (NEP-0012 law 2).
+fn media_refused(pinned: Option<String>, local: String) -> CostReplayLeg {
+    let pinned_render = crate::escape_tty(
+        pinned
+            .as_deref()
+            .unwrap_or("unreadable (the `media_pricing` record is not a JSON table)"),
+    );
+    CostReplayLeg {
+        lines: vec![format!(
+            "COST-REPLAY — REFUSED · the pinned media price table is not this engine's: a media\n  cost is read against the rates it was billed at, never silently re-priced (C-D3 · spec 15)\n  pinned: {pinned_render}\n  local:  {local}"
+        )],
+        verdict: CostReplay::MediaRefused { pinned, local },
+    }
 }
 
 /// The pre-law posture — stated, never a failure of the trace itself.
@@ -772,6 +895,86 @@ mod tests {
             "escaped at birth (the line's own newlines excepted): {text:?}"
         );
         assert!(text.contains("2031-]52;;x01"), "sanitized head: {text}");
+    }
+
+    /// A boot frame carrying a `media_pricing` record (C-D3).
+    fn boot_with_media(pin: &PricingPin, media: &serde_json::Value) -> String {
+        frame(
+            "workflow_started",
+            &[
+                ("pricing", serde_json::Value::String(pin_field(pin))),
+                (
+                    "media_pricing",
+                    serde_json::Value::String(media.to_string()),
+                ),
+            ],
+        )
+    }
+
+    fn media_table(usd: f64) -> serde_json::Value {
+        serde_json::json!({
+            "schema": "nika/media-pricing@1",
+            "as_of": "2026-10-27",
+            "rates": [{
+                "tool": "tts_generate", "provider": "openai", "model": "tts-1",
+                "unit": "million_characters", "usd": usd,
+                "source": "https://example.test/pricing", "as_of": "2026-10-27"
+            }]
+        })
+    }
+
+    /// C-D3 · spec 15: a replay reads media spend against the table its run
+    /// pinned. The same table re-judges and says so; another table (here the
+    /// same date with another rate) refuses, naming both; a journal from
+    /// before the media table states it unrecorded and still re-judges.
+    #[test]
+    fn a_replay_reads_the_pinned_media_table() {
+        let local = local().with_media(media_table(15.0));
+        let raw = journal(&[
+            boot_with_media(&local, &media_table(15.0)),
+            task_completed(0.015),
+            completed(0.015),
+        ]);
+        let leg = cost_replay_leg(&raw, &local);
+        assert!(matches!(leg.verdict, CostReplay::Rejudged(_)), "{leg:?}");
+        let text = leg.lines.join("\n");
+        assert!(
+            text.contains("media prices: the pinned table is this engine's (nika/media-pricing@1 · as_of 2026-10-27 · 1 rates)"),
+            "{text}"
+        );
+
+        let raw = journal(&[
+            boot_with_media(&local, &media_table(30.0)),
+            task_completed(0.03),
+            completed(0.03),
+        ]);
+        let leg = cost_replay_leg(&raw, &local);
+        let CostReplay::MediaRefused {
+            pinned,
+            local: mine,
+        } = &leg.verdict
+        else {
+            panic!("another media table refuses the cost-meaning replay: {leg:?}");
+        };
+        assert_eq!(
+            pinned.as_deref(),
+            Some("nika/media-pricing@1 · as_of 2026-10-27 · 1 rates (same date, other rates)")
+        );
+        assert_eq!(mine, "nika/media-pricing@1 · as_of 2026-10-27 · 1 rates");
+        let text = leg.lines.join("\n");
+        assert!(text.contains("COST-REPLAY — REFUSED"), "{text}");
+        assert!(text.contains("never silently re-priced"), "{text}");
+
+        let raw = journal(&[boot(&local, None), task_completed(0.01), completed(0.01)]);
+        let leg = cost_replay_leg(&raw, &local);
+        assert!(matches!(leg.verdict, CostReplay::Rejudged(_)));
+        assert!(leg.lines.join("\n").contains("media prices: unrecorded"));
+
+        // A verifier without a media table judges the model table only.
+        let raw = journal(&[boot_with_media(&local, &media_table(30.0)), completed(0.0)]);
+        let leg = cost_replay_leg(&raw, &super::tests::local());
+        assert!(matches!(leg.verdict, CostReplay::Rejudged(_)));
+        assert!(!leg.lines.join("\n").contains("media prices"));
     }
 
     /// The re-sum never double-counts: the workflow terminal's

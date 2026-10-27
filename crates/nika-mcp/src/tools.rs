@@ -417,7 +417,12 @@ fn affirmative_contract(report: &nika_check::CheckReport) -> String {
     let spend = if report.cost.has_unbounded {
         "est out UNBOUNDED (a local or unpriced model is never $0)".to_owned()
     } else {
-        format!("est out ≤${:.4}", report.cost.bounded_total_usd)
+        let figure = format!("est out ≤${:.4}", report.cost.bounded_total_usd);
+        // C-D3 · unpriced paid media is named beside the figure, never in it.
+        match report.cost.media.iter().filter(|m| !m.priced).count() {
+            0 => figure,
+            n => format!("{figure} + {n} unpriced paid media call(s)"),
+        }
     };
     let journey = &report.data_journey;
     format!(

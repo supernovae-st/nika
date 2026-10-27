@@ -14,5 +14,6 @@
 //! Grows by RE-HOMING only (behavior-free moves pinned by the mock's
 //! byte-stable goldens) — never by speculation.
 
+pub(crate) mod cost;
 pub(crate) mod png;
 pub(crate) mod time;

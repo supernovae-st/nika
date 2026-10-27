@@ -10,7 +10,8 @@
 //! that shares them. The runtime's launch gates still own every refusal.
 
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
-use serde_json::Value;
+
+use crate::media_quote::MediaQuote;
 
 /// A recognized third-party cloud seat with no snapshot row. Unknown
 /// providers stay unknown (never promoted to cloud — but NOT spared:
@@ -41,8 +42,11 @@ pub fn unpriced_cloud_seat(model: &str) -> bool {
 
 /// Unavoidable catalog spend of priced `invoke:` tasks (cheapest path:
 /// `when:` closed → $0 · first-try · known `n:` · known `for_each`
-/// length). Templated provider/`n` and expression `for_each` stay off
-/// this floor — the mid-run ledger still owns what statics cannot see.
+/// length): each paid media call's floor ([`crate::media_quote()`] · xAI's
+/// per-image price, or the dated table's per-image or per-character rate).
+/// A provider or model only the run decides, a call priced from usage only
+/// and an expression `for_each` stay off this floor — the dispatch guard
+/// and the mid-run ledger own what statics cannot see.
 #[must_use]
 pub fn priced_builtin_floor(wf: &RawWorkflow) -> f64 {
     wf.tasks.iter().map(|t| invoke_static_floor(&t.value)).sum()
@@ -61,33 +65,10 @@ fn invoke_static_floor(task: &RawTask) -> f64 {
     let Some(args) = inv.args.as_ref() else {
         return 0.0;
     };
-    let Some(provider) = static_provider(&args.value) else {
-        return 0.0;
-    };
-    let Some(per) = nika_catalog::builtin_provider_floor_usd(&tool.value, provider) else {
-        return 0.0;
-    };
-    per * static_n(&args.value) * static_iterations(task)
-}
-
-fn static_provider(args: &Value) -> Option<&str> {
-    if let Some(provider) = args.get("provider").and_then(Value::as_str) {
-        return static_literal(provider);
+    match crate::media_quote(&tool.value, &args.value) {
+        MediaQuote::Priced { floor, .. } => floor.usd().unwrap_or(0.0) * static_iterations(task),
+        _ => 0.0,
     }
-    let model = args.get("model").and_then(Value::as_str)?;
-    let model = static_literal(model)?;
-    model.contains("grok-imagine").then_some("xai")
-}
-
-fn static_literal(s: &str) -> Option<&str> {
-    (!s.contains("${{")).then_some(s)
-}
-
-fn static_n(args: &Value) -> f64 {
-    #[allow(clippy::cast_precision_loss)] // image `n:` is capped at 10
-    args.get("n")
-        .and_then(Value::as_u64)
-        .map_or(1.0, |n| n.max(1) as f64)
 }
 
 fn static_iterations(task: &RawTask) -> f64 {

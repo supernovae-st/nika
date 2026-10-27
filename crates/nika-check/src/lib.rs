@@ -172,7 +172,7 @@ pub use certificate::{Bound, CertTerm, RunCertificate};
 pub use composed_call::{CallFlow, ComposedCall};
 pub use composition::CompositionFinding;
 pub use consent::ConsentFinding;
-pub use cost::{ComposedCost, CostCeiling, TaskCost, UnboundedReason, floor_refusal};
+pub use cost::{ComposedCost, CostCeiling, MediaCost, TaskCost, UnboundedReason, floor_refusal};
 pub use data_journey::{
     DataClassification, DataJourney, EndpointLocus, JourneyConsent, JourneyEndpoint, ModelEndpoint,
     RetentionFact, SecretUse,

@@ -455,6 +455,7 @@ fn replay_veto_debits_the_attempt_and_preserves_its_failure() {
         cost_usd: Some(0.25),
         cost_source: Some("fixture".to_owned()),
         cost_unpriced: None,
+        unpriced_inner_calls: 0,
         evidence: Some(evidence.clone()),
         access: None,
         child: None,

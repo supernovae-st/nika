@@ -209,6 +209,7 @@ impl ChildRunner for NestedRunner {
                 ok: outcome.ok,
                 outputs: outcome.outputs.clone(),
                 cost_usd: outcome.total_cost_usd,
+                unpriced_calls: outcome.unpriced_calls,
                 trace: Some(ChildRunSummary::new(call.target.clone(), outcome.ok, row)),
                 failure,
                 paused: None,

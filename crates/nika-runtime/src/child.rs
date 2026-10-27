@@ -127,6 +127,10 @@ pub struct ChildOutcome {
     /// The child run's total metered spend — the parent ledger debits it
     /// (law 5/6 · resources summed · one count, attributed to the call).
     pub cost_usd: Option<f64>,
+    /// How many of the child run's calls spent outside `cost_usd` (its
+    /// settlement's `unpriced_calls` · C-D3): the parent ledger counts them,
+    /// so the parent never settles `priced` over a child's unknown spend.
+    pub unpriced_calls: u32,
     /// The trace-forest row (absent when the runner kept no trace —
     /// e.g. a hermetic test runner).
     pub trace: Option<ChildRunSummary>,

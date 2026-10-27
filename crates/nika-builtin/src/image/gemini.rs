@@ -14,6 +14,7 @@
 //! `candidateCount` path → `n:` runs n sequential calls (documented).
 
 use nika_kernel::io::http::{HttpError, HttpPostDyn, HttpRequest};
+use nika_kernel::runtime::tool_executor::SpentBeforeFailure;
 use nika_kernel::secret::Secret;
 
 use crate::BuiltinFailure;
@@ -61,14 +62,26 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     let mut texts = Vec::new();
 
     for call_index in 0..args.n {
-        let request = wire_request(args, key, &body)?;
-        let response = http.post(request).await.map_err(map_transport)?;
-        let call = parse_response(response.status, &response.body)?;
+        // The calls already answered rendered and billed: a later call's
+        // failure keeps their bill (C-D3).
+        let call = match one_call(http, key, args, &body).await {
+            Ok(call) => call,
+            Err(failure) => return Err(failure.with_spent(answered_so_far(args, &batch))),
+        };
         if call.images.len() > 1 {
             batch.warnings.push(format!(
                 "gemini_extra_images: call {call_index} returned {} image parts for one \
                  request — all kept",
                 call.images.len()
+            ));
+        }
+        // Each response is billed on its own (C-D3): a response that reported
+        // no output bills its images at the dated price per image.
+        if !call.usage.reports_output() {
+            batch.unreported_images += call.images.len();
+            batch.warnings.push(format!(
+                "usage_unreported: gemini call {call_index} reported no usage — its image(s) \
+                 are billed at the dated catalog price per image"
             ));
         }
         batch.images.extend(call.images);
@@ -82,8 +95,9 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     }
 
     batch.warnings.splice(0..0, warnings.drain(..));
-    // cost_usd stays None (Default): gemini bills image output in tokens,
-    // and the image model ids are unpriced in the catalog (roadmap).
+    // cost_usd stays None (Default): gemini bills image output in tokens
+    // with no USD in the response — the dated media table prices it from
+    // the usage (`image::bill` · C-D3).
     batch.endpoint_host = Some("generativelanguage.googleapis.com".to_owned());
     batch.provider_text = (!texts.is_empty()).then(|| texts.join("\n"));
     clamp_provider_text(&mut batch);
@@ -97,6 +111,36 @@ pub(crate) async fn generate<H: HttpPostDyn>(
         ));
     }
     Ok(batch)
+}
+
+/// One `generateContent` exchange. A transport failure after the request
+/// left, or a 2xx answer this adapter cannot use, may have rendered and
+/// billed: the failure carries an unpriced request (C-D3).
+async fn one_call<H: HttpPostDyn>(
+    http: &H,
+    key: &Secret,
+    args: &ImageArgs,
+    body: &serde_json::Value,
+) -> Result<CallResult, BuiltinFailure> {
+    let request = wire_request(args, key, body)?;
+    let response = (http.post(request).await)
+        .map_err(|error| crate::media::cost::transport_failure(error, map_transport))?;
+    parse_response(response.status, &response.body)
+        .map_err(|failure| crate::media::cost::unusable_answer(response.status, failure))
+}
+
+/// What the batch's answered calls billed: their bill, or an unpriced spend
+/// when the table cannot price it; nothing before the first answer.
+fn answered_so_far(args: &ImageArgs, batch: &ProviderBatch) -> Option<SpentBeforeFailure> {
+    if batch.images.is_empty() {
+        return None;
+    }
+    let delivered = super::Delivered {
+        usage: batch.usage,
+        count: batch.images.len(),
+        unreported: batch.unreported_images,
+    };
+    crate::media::cost::answered(super::bill(args, None, delivered), true)
 }
 
 /// « Assets, not blobs » applies to TEXT too: a multimodal response can
@@ -390,17 +434,7 @@ fn parse_response(status: u16, body: &[u8]) -> Result<CallResult, BuiltinFailure
         return Err(no_image_failure(candidate));
     }
 
-    let meta = parsed.get("usageMetadata");
-    let read = |key: &str| {
-        meta.and_then(|m| m.get(key))
-            .and_then(serde_json::Value::as_u64)
-    };
-    let usage = Usage {
-        input_tokens: read("promptTokenCount"),
-        output_tokens: read("candidatesTokenCount"),
-        total_tokens: read("totalTokenCount"),
-        thoughts_tokens: read("thoughtsTokenCount"),
-    };
+    let usage = usage_of(parsed.get("usageMetadata"));
     let mut raw = parsed;
     sanitize_raw(&mut raw);
     Ok(CallResult {
@@ -409,6 +443,37 @@ fn parse_response(status: u16, body: &[u8]) -> Result<CallResult, BuiltinFailure
         text: (!texts.is_empty()).then(|| texts.join("\n")),
         raw,
     })
+}
+
+/// The usage one `generateContent` response reports. `*TokensDetails` split
+/// a count by modality (`{modality, tokenCount}`): the dated media table
+/// prices image output and text output at their own rates (C-D3); absent
+/// details leave the split unknown.
+fn usage_of(meta: Option<&serde_json::Value>) -> Usage {
+    let read = |key: &str| {
+        meta.and_then(|m| m.get(key))
+            .and_then(serde_json::Value::as_u64)
+    };
+    let modality = |key: &str, wanted: &str| {
+        let details = meta?.get(key)?.as_array()?;
+        Some(
+            details
+                .iter()
+                .filter(|d| d.get("modality").and_then(serde_json::Value::as_str) == Some(wanted))
+                .filter_map(|d| d.get("tokenCount").and_then(serde_json::Value::as_u64))
+                .fold(0_u64, u64::saturating_add),
+        )
+    };
+    Usage {
+        input_tokens: read("promptTokenCount"),
+        output_tokens: read("candidatesTokenCount"),
+        total_tokens: read("totalTokenCount"),
+        thoughts_tokens: read("thoughtsTokenCount"),
+        input_text_tokens: modality("promptTokensDetails", "TEXT"),
+        input_image_tokens: modality("promptTokensDetails", "IMAGE"),
+        output_image_tokens: modality("candidatesTokensDetails", "IMAGE"),
+        output_text_tokens: modality("candidatesTokensDetails", "TEXT"),
+    }
 }
 
 /// Map an image-less candidate to the right plane — safety finish reasons
@@ -583,6 +648,131 @@ mod tests {
         assert_eq!(http.sent_requests().len(), 2, "n=2 → two wire calls");
         assert_eq!(batch.usage.total_tokens, Some(2 * 1478));
         assert_eq!(batch.usage.thoughts_tokens, Some(2 * 312));
+    }
+
+    /// C-D3 · a batch whose later request fails already rendered
+    /// and billed the images answered before it: the failure keeps their bill
+    /// (an error status billed nothing more), and a request that broke after
+    /// it left adds an unpriced part (it may have rendered).
+    #[tokio::test]
+    async fn a_failed_batch_keeps_the_bill_of_the_calls_already_answered() {
+        let (b64, _) = wire_png_b64();
+        let args = parsed(serde_json::json!({ "n": 3 }));
+        let one_image = || {
+            let mut batch = ProviderBatch::default();
+            batch.images.push(RawImage {
+                bytes: Vec::new(),
+                revised_prompt: None,
+                seed: None,
+            });
+            batch.usage = parse_response(200, &ok_response(&b64))
+                .expect("parses")
+                .usage;
+            answered_so_far(&args, &batch)
+        };
+        let expected =
+            (one_image().and_then(SpentBeforeFailure::priced_usd)).expect("priced from its usage");
+
+        let http = MockHttp::new()
+            .enqueue_ok(200, ok_response(&b64))
+            .enqueue_ok(429, br#"{"error":{"code":429,"message":"quota"}}"#.to_vec());
+        let failure = generate(&http, &key(), &args).await.expect_err("429");
+        assert_eq!(http.sent_requests().len(), 2, "the batch stops at the 429");
+        let spent = failure.spent.expect("the answered call's bill");
+        assert_eq!(spent.priced_usd(), Some(expected));
+        assert!(!spent.unpriced(), "an error status billed nothing");
+
+        let http = MockHttp::new()
+            .enqueue_ok(200, ok_response(&b64))
+            .enqueue_err(HttpError::Timeout { duration_ms: 5 });
+        let failure = generate(&http, &key(), &args).await.expect_err("timeout");
+        let spent = failure.spent.expect("billed");
+        assert_eq!(spent.priced_usd(), Some(expected));
+        assert!(spent.unpriced(), "the request that broke may have rendered");
+
+        let http = MockHttp::new().enqueue_ok(429, br#"{"error":{"code":429}}"#.to_vec());
+        let failure = generate(&http, &key(), &args).await.expect_err("429");
+        assert_eq!(failure.spent, None, "nothing answered, nothing billed");
+    }
+
+    /// C-D3 · a response without usage among responses with it
+    /// is billed on its own, at the price per image, with a warning.
+    #[tokio::test]
+    async fn a_response_without_usage_is_counted_apart() {
+        let (b64, _) = wire_png_b64();
+        let without = serde_json::json!({
+            "candidates": [{ "content": { "parts": [
+                { "inlineData": { "mimeType": "image/png", "data": b64 } }
+            ] } }]
+        });
+        let http = MockHttp::new()
+            .enqueue_ok(200, ok_response(&b64))
+            .enqueue_ok(200, without.to_string().into_bytes());
+        let batch = generate(&http, &key(), &parsed(serde_json::json!({ "n": 2 })))
+            .await
+            .expect("generates");
+        assert_eq!((batch.images.len(), batch.unreported_images), (2, 1));
+        assert!(
+            batch
+                .warnings
+                .iter()
+                .any(|w| w.starts_with("usage_unreported: gemini call 1")),
+            "{:?}",
+            batch.warnings
+        );
+    }
+
+    /// C-D3 · the catalog bills an exact size at the resolution class this
+    /// adapter sends for it: the floor of the size is the floor of the class.
+    #[test]
+    fn the_catalog_reads_the_class_this_adapter_sends() {
+        let model =
+            nika_catalog::find_media_model("image_generate", "gemini", "gemini-3.1-flash-image")
+                .expect("priced");
+        for size in ["512x512", "1024x1024", "1536x864", "2048x1152", "4096x2304"] {
+            let (body, _) =
+                build_body(&parsed(serde_json::json!({ "size": size }))).expect("builds");
+            let class = body["generationConfig"]["imageConfig"]["imageSize"]
+                .as_str()
+                .expect("a class");
+            assert_eq!(
+                model.image_floor(&nika_catalog::ImageRequest::new().with_size(Some(size))),
+                model.image_floor(&nika_catalog::ImageRequest::new().with_image_size(Some(class))),
+                "{size} → {class}"
+            );
+        }
+    }
+
+    /// The per-modality counts split the output: image tokens and text
+    /// tokens price at their own rates (C-D3).
+    #[test]
+    fn usage_metadata_splits_the_output_by_modality() {
+        let body = serde_json::json!({
+            "candidates": [{ "content": { "parts": [
+                { "inlineData": { "mimeType": "image/png", "data": "iVBORw0KGgo=" } }
+            ] } }],
+            "usageMetadata": {
+                "promptTokenCount": 12, "candidatesTokenCount": 1130,
+                "thoughtsTokenCount": 40, "totalTokenCount": 1182,
+                "promptTokensDetails": [{ "modality": "TEXT", "tokenCount": 12 }],
+                "candidatesTokensDetails": [
+                    { "modality": "IMAGE", "tokenCount": 1120 },
+                    { "modality": "TEXT", "tokenCount": 10 }
+                ]
+            }
+        });
+        let call = parse_response(200, body.to_string().as_bytes()).expect("parses");
+        assert_eq!(call.usage.output_image_tokens, Some(1120));
+        assert_eq!(call.usage.output_text_tokens, Some(10));
+        assert_eq!(call.usage.input_text_tokens, Some(12));
+        assert_eq!(call.usage.input_image_tokens, Some(0));
+        assert_eq!(call.usage.thoughts_tokens, Some(40));
+        let without = serde_json::json!({
+            "candidates": body["candidates"].clone(),
+            "usageMetadata": { "candidatesTokenCount": 1120 }
+        });
+        let call = parse_response(200, without.to_string().as_bytes()).expect("parses");
+        assert_eq!(call.usage.output_image_tokens, None, "no details, no split");
     }
 
     #[test]

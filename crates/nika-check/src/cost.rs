@@ -21,6 +21,7 @@
 //! emit fewer tokens than `max_tokens`, so the cheapest-path figure is
 //! the floor of your *exposure*, not of the actual spend.
 
+use nika_check_analyzer::{MediaFloor, MediaQuote};
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 
 /// `Some(refusal)` when the `--max-cost-usd` floor exceeds the budget —
@@ -112,6 +113,74 @@ pub struct CostCeiling {
     /// never loads files, so the pure half stays child-blind BY DESIGN).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub composed: Vec<ComposedCost>,
+    /// Paid-media builtin calls, the spend the token envelope above does not
+    /// price: each one priced per call by the catalog, or unpriced. Never
+    /// folded into the totals; `--max-cost-usd` refuses an unpriced one.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub media: Vec<MediaCost>,
+}
+
+/// One paid-media builtin call (`nika:image_generate` · `nika:tts_generate`
+/// on a provider that may bill). Priced when the catalog carries a rate for
+/// it (xAI's per-image price, or the dated media table's per-image,
+/// per-character and per-token rates), unpriced otherwise: never a free call.
+/// Local, mock and keyless providers are not listed. A literal provider and
+/// model are judged here; a templated one is listed as decided at run
+/// (`run_decided`), which the run judges before its request. A composed
+/// child's paid media is listed under the calling task.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[non_exhaustive]
+pub struct MediaCost {
+    /// The calling task's id.
+    pub task: String,
+    /// The builtin as written (`nika:image_generate` · `nika:tts_generate`).
+    pub tool: String,
+    /// The provider the call bills (explicit, or inferred from `model:`), or
+    /// the template that decides it when `run_decided`.
+    pub provider: String,
+    /// The model the call bills (explicit, or the provider's default) ·
+    /// absent when its price does not depend on the model (xAI) or when only
+    /// the run decides it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// The catalog prices the call: it is floored at launch and metered
+    /// against a cap. `false` and not `run_decided` = no catalog price: the
+    /// spend is real and unknown, and a cap cannot bound it.
+    pub priced: bool,
+    /// The least the call costs, USD (every image of its `n:`, every
+    /// character of its text) · `None` when no floor is known before the
+    /// call: unpriced, decided at run, or billed from the usage it reports.
+    pub usd_per_call: Option<f64>,
+    /// The rate its floor or its bill reads, as the catalog states it
+    /// (`$0.067 per image (1K)` · `$15 per 1M characters`) · absent when
+    /// unpriced.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rate: Option<String>,
+    /// The date that rate was read from its source · absent for xAI's
+    /// per-image price and when unpriced.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub as_of: Option<String>,
+    /// Only the run resolves the provider or the model (a templated
+    /// `provider:` or `model:`): the launch gates cannot judge it, and under a
+    /// cap the run judges it before its request (NIKA-1704).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub run_decided: bool,
+}
+
+impl MediaCost {
+    /// Whether the cap must refuse it at launch: real spend no catalog rate
+    /// prices (never a call only the run decides).
+    #[must_use]
+    pub fn unpriced(&self) -> bool {
+        !self.priced && !self.run_decided
+    }
+
+    /// Whether it is priced but billed from what only the call reports: its
+    /// floor is above zero and of unknown size.
+    #[must_use]
+    pub fn metered(&self) -> bool {
+        self.priced && self.usd_per_call.is_none()
+    }
 }
 
 /// One composed child's priced contribution — the call's task/target and
@@ -170,6 +239,14 @@ impl CostCeiling {
         self.bounded_total_usd += worst;
         let unbounded = child.has_unbounded || iterations.is_none();
         self.has_unbounded |= unbounded;
+        // The child's paid media is the calling task's: a call that never
+        // runs (a literal empty fan) bills nothing.
+        if iterations != Some(0) {
+            self.media.extend(child.media.iter().map(|call| MediaCost {
+                task: task.clone(),
+                ..call.clone()
+            }));
+        }
         self.composed.push(ComposedCost {
             task,
             target,
@@ -291,7 +368,105 @@ pub(super) fn ceiling(wf: &RawWorkflow) -> CostCeiling {
         min_path_total_usd,
         has_unbounded,
         composed: Vec::new(),
+        media: media_costs(wf),
     }
+}
+
+/// The paid-media builtin calls of `wf` ([`MediaCost`]): a literal provider
+/// that bills, a templated one only the run decides, or the paid media an
+/// `agent:` may call through its tools, on a task that can run (a literal
+/// empty `for_each` never does: a proven zero is not an unknown).
+fn media_costs(wf: &RawWorkflow) -> Vec<MediaCost> {
+    wf.tasks
+        .iter()
+        .map(|task| &task.value)
+        .filter(|task| iteration_count(wf, task) != Some(0))
+        .flat_map(|task| match &task.action {
+            RawAction::Invoke(invoke) => invoke_media(task, invoke).into_iter().collect(),
+            RawAction::Agent(agent) => agent_media(wf, task, agent),
+            _ => Vec::new(),
+        })
+        .collect()
+}
+
+/// One `invoke:` task's paid-media call, priced, unpriced or decided at run.
+fn invoke_media(task: &RawTask, invoke: &nika_schema::raw::RawInvokeAction) -> Option<MediaCost> {
+    let (tool, args) = (invoke.tool()?, invoke.args.as_ref()?);
+    let quote = nika_check_analyzer::media_quote(&tool.value, &args.value);
+    let (provider, model, floor, run_decided) = match quote {
+        MediaQuote::Priced {
+            provider,
+            model,
+            floor,
+        } => (provider, model, Some(floor), false),
+        MediaQuote::Unpriced { provider, model } => (provider, model, None, false),
+        MediaQuote::RunDecided(template) => (template, None, None, true),
+        _ => return None,
+    };
+    let rate = floor.map(|floor| match floor.rate() {
+        Some(rate) => format!("${} per {}", rate.usd, rate.unit.label()),
+        // xAI: one price per image whatever the model.
+        None => nika_catalog::builtin_provider_floor_usd(&tool.value, provider)
+            .map_or_else(|| "per image".to_owned(), |usd| format!("${usd} per image")),
+    });
+    Some(MediaCost {
+        task: task.id.value.clone(),
+        tool: tool.value.clone(),
+        provider: provider.to_owned(),
+        model: model.map(str::to_owned),
+        priced: floor.is_some(),
+        usd_per_call: floor.and_then(MediaFloor::usd),
+        rate,
+        as_of: floor
+            .and_then(MediaFloor::rate)
+            .map(|rate| rate.as_of.to_owned()),
+        run_decided,
+    })
+}
+
+/// The paid-media builtins an `agent:` may call through its tools: the model
+/// picks the provider at run, so each is decided at run, judged before its
+/// request under a cap (C-D3). A tool is reachable when the `tools:`
+/// whitelist admits it (the last matching rule decides, `!` excludes; the
+/// grant forms `nika:*` and the exact name, read with the permits glob) and
+/// `permits.tools` grants it.
+fn agent_media(
+    wf: &RawWorkflow,
+    task: &RawTask,
+    agent: &nika_schema::raw::RawAgentAction,
+) -> Vec<MediaCost> {
+    let Some(permits) = wf.permits.as_ref() else {
+        return Vec::new(); // an undeclared block grants no tool
+    };
+    ["nika:image_generate", "nika:tts_generate"]
+        .into_iter()
+        .filter(|tool| {
+            let admitted = agent.tools.iter().fold(false, |verdict, rule| {
+                let (negated, glob) = match rule.value.strip_prefix('!') {
+                    Some(glob) => (true, glob),
+                    None => (false, rule.value.as_str()),
+                };
+                // A bare `*` admits no namespaced tool in a whitelist.
+                if glob != "*" && nika_cap::glob_matches(glob, tool) {
+                    !negated
+                } else {
+                    verdict
+                }
+            });
+            admitted && permits.value.allows_tool(tool)
+        })
+        .map(|tool| MediaCost {
+            task: task.id.value.clone(),
+            tool: tool.to_owned(),
+            provider: "chosen by the agent".to_owned(),
+            model: None,
+            priced: false,
+            usd_per_call: None,
+            rate: None,
+            as_of: None,
+            run_decided: true,
+        })
+        .collect()
 }
 
 /// A task's `for_each` fan-out multiplier — the count the pricing arm
@@ -374,6 +549,254 @@ mod tests {
 
     fn ceiling_of(yaml: &str) -> CostCeiling {
         ceiling(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
+    }
+
+    /// One task per paid-media shape C-D3 tells apart, and the work that is
+    /// not paid media (mock, local, image processing, an empty fan).
+    const MEDIA_ENVELOPE: &str = "\
+nika: media
+inputs:
+  voice: { type: string, default: openai }
+permits: { tools: [\"nika:image_generate\", \"nika:tts_generate\", \"nika:image_fx\"] }
+tasks:
+  speak:
+    invoke: { tool: \"nika:tts_generate\", args: { provider: openai, text: hi, output_dir: ./out } }
+  narrate:
+    invoke: { tool: \"nika:tts_generate\", args: { model: eleven_multilingual_v2, text: hi, output_dir: ./out } }
+  legacy:
+    invoke: { tool: \"nika:tts_generate\", args: { model: eleven_multilingual_v1, text: hi, output_dir: ./out } }
+  cover:
+    invoke: { tool: \"nika:image_generate\", args: { model: gpt-image-1-mini, prompt: a star, output_dir: ./out } }
+  poster:
+    invoke: { tool: \"nika:image_generate\", args: { provider: openai, size: 1024x1024, quality: high, prompt: a star, output_dir: ./out } }
+  flare:
+    invoke: { tool: \"nika:image_generate\", args: { model: gpt-image-2.5-flare, prompt: a star, output_dir: ./out } }
+  banner:
+    invoke: { tool: \"nika:image_generate\", args: { provider: xai, prompt: a star, output_dir: ./out } }
+  draft:
+    invoke: { tool: \"nika:image_generate\", args: { provider: mock, prompt: a star, output_dir: ./out } }
+  local:
+    invoke: { tool: \"nika:tts_generate\", args: { provider: local, text: hi, output_dir: ./out } }
+  chosen:
+    invoke: { tool: \"nika:tts_generate\", args: { provider: \"${{ inputs.voice }}\", text: hi, output_dir: ./out } }
+  none:
+    for_each: { items: [] }
+    invoke: { tool: \"nika:tts_generate\", args: { provider: openai, text: hi, output_dir: ./out } }
+  halftone:
+    invoke: { tool: \"nika:image_fx\", args: { input: ./out/a.png, effect: halftone, output: ./out/b.png } }
+";
+
+    /// C-D3 · the envelope names every paid media call outside the token
+    /// ceiling: priced from the catalog (xAI's per-image price, or the dated
+    /// media table's: `OpenAI`'s `gpt-image-2` and GPT Image 2.5, `ElevenLabs`'
+    /// default), unpriced otherwise (`OpenAI`'s default voice, an older image
+    /// model, an `ElevenLabs` id outside its price families). Local, mock,
+    /// keyless and image-processing work is not paid media; a templated
+    /// provider is the run's to judge; a literal empty fan never calls.
+    #[test]
+    fn paid_media_calls_ride_the_envelope_priced_or_unpriced() {
+        type Row<'a> = (
+            &'a str,
+            &'a str,
+            Option<&'a str>,
+            bool,
+            Option<&'a str>,
+            bool,
+        );
+        let c = ceiling_of(MEDIA_ENVELOPE);
+        let media: Vec<Row<'_>> = (c.media.iter())
+            .map(|m| {
+                let model = m.model.as_deref();
+                let rate = m.rate.as_deref();
+                (
+                    m.task.as_str(),
+                    m.provider.as_str(),
+                    model,
+                    m.priced,
+                    rate,
+                    m.run_decided,
+                )
+            })
+            .collect();
+        let narrate = Some("$80 per 1M characters");
+        let poster = Some("$0.211 per image (1024x1024, high)");
+        let flare = Some("$30 per 1M image output tokens");
+        assert_eq!(
+            media,
+            [
+                (
+                    "speak",
+                    "openai",
+                    Some("gpt-4o-mini-tts"),
+                    false,
+                    None,
+                    false
+                ),
+                (
+                    "narrate",
+                    "elevenlabs",
+                    Some("eleven_multilingual_v2"),
+                    true,
+                    narrate,
+                    false
+                ),
+                (
+                    "legacy",
+                    "elevenlabs",
+                    Some("eleven_multilingual_v1"),
+                    false,
+                    None,
+                    false
+                ),
+                (
+                    "cover",
+                    "openai",
+                    Some("gpt-image-1-mini"),
+                    false,
+                    None,
+                    false
+                ),
+                ("poster", "openai", Some("gpt-image-2"), true, poster, false),
+                (
+                    "flare",
+                    "openai",
+                    Some("gpt-image-2.5-flare"),
+                    true,
+                    flare,
+                    false
+                ),
+                ("banner", "xai", None, true, Some("$0.02 per image"), false),
+                // Only the run resolves it: listed, never judged at launch.
+                ("chosen", "${{ inputs.voice }}", None, false, None, true),
+            ]
+        );
+        assert!(c.tasks.is_empty(), "media never joins the token rows");
+        assert_eq!(
+            c.bounded_total_usd, 0.0,
+            "media never folds into the totals"
+        );
+    }
+
+    /// The floor of each priced call (per character × its text, per image ×
+    /// its `n:`, none for a call billed from its usage), its date, and the
+    /// JSON the check report carries.
+    #[test]
+    fn paid_media_rows_carry_their_floor_date_and_json() {
+        let c = ceiling_of(MEDIA_ENVELOPE);
+        let floors: Vec<Option<f64>> = c.media.iter().map(|m| m.usd_per_call).collect();
+        assert_eq!(floors[0], None, "unpriced: no floor");
+        assert!((floors[1].expect("two characters") - 80.0 * 2.0 / 1e6).abs() < 1e-15);
+        assert_eq!(floors[4], Some(0.211));
+        assert_eq!(
+            floors[5], None,
+            "metered from usage: no floor before the call"
+        );
+        assert!(c.media[5].metered() && !c.media[4].metered());
+        assert_eq!(floors[6], Some(0.02));
+        let unpriced: Vec<&str> = (c.media.iter())
+            .filter(|m| m.unpriced())
+            .map(|m| m.task.as_str())
+            .collect();
+        assert_eq!(unpriced, ["speak", "legacy", "cover"]);
+        let date = nika_catalog::MEDIA_PRICING_AS_OF;
+        assert_eq!(c.media[1].as_of.as_deref(), Some(date));
+        assert_eq!(
+            c.media[6].as_of, None,
+            "xAI's price is not a dated table row"
+        );
+        let json = serde_json::to_value(&c).expect("cost json");
+        assert_eq!(json["media"][0]["usd_per_call"], serde_json::Value::Null);
+        assert_eq!(json["media"][0]["priced"], false);
+        assert_eq!(json["media"][0].get("rate"), None, "omitted when unpriced");
+        assert_eq!(json["media"][6]["usd_per_call"], 0.02);
+        assert_eq!(json["media"][4]["as_of"], date);
+        assert_eq!(
+            json["media"][6].get("run_decided"),
+            None,
+            "omitted when false"
+        );
+        assert_eq!(json["media"][7]["run_decided"], true);
+    }
+
+    /// An `agent:` granted a paid-media builtin may bill it through its tools:
+    /// the model picks the provider at run, so the call is listed as decided
+    /// at run (never a launch refusal), and only where the whitelist admits
+    /// it and `permits.tools` grants it.
+    #[test]
+    fn an_agents_paid_media_tools_are_decided_at_run() {
+        let c = ceiling_of(
+            "\
+nika: draw
+model: anthropic/claude-sonnet-4-6
+permits: { tools: [\"nika:*\"] }
+tasks:
+  every:
+    agent: { prompt: draw, tools: [\"nika:*\"] }
+  images:
+    agent: { prompt: draw, tools: [\"nika:*\", \"!nika:tts_generate\"] }
+  reads:
+    agent: { prompt: read, tools: [\"nika:read\"] }
+",
+        );
+        let media: Vec<(&str, &str, &str, bool)> = (c.media.iter())
+            .map(|m| {
+                (
+                    m.task.as_str(),
+                    m.tool.as_str(),
+                    m.provider.as_str(),
+                    m.run_decided,
+                )
+            })
+            .collect();
+        let chosen = "chosen by the agent";
+        assert_eq!(
+            media,
+            [
+                ("every", "nika:image_generate", chosen, true),
+                ("every", "nika:tts_generate", chosen, true),
+                ("images", "nika:image_generate", chosen, true),
+            ]
+        );
+        assert!(c.media.iter().all(|m| m.usd_per_call.is_none()));
+    }
+
+    /// A composed child's paid media rides the parent's envelope under the
+    /// calling task (`nika check` on the parent no longer prints a free
+    /// `$0.00` over a child the run refuses under a cap); a call that never
+    /// runs (a literal empty fan) brings none.
+    #[test]
+    fn a_composed_childs_paid_media_is_the_calling_tasks() {
+        let child = ceiling_of(
+            "\
+nika: child
+permits: { tools: [\"nika:tts_generate\"] }
+tasks:
+  speak:
+    invoke: { tool: \"nika:tts_generate\", args: { provider: openai, text: hi, output_dir: ./out } }
+",
+        );
+        let mut parent =
+            ceiling_of("nika: parent\ntasks:\n  noop:\n    exec: { command: [\"true\"] }\n");
+        parent.fold_composed(
+            "call".into(),
+            "./child.nika".into(),
+            &child,
+            Some(1),
+            1,
+            false,
+        );
+        parent.fold_composed(
+            "never".into(),
+            "./child.nika".into(),
+            &child,
+            Some(0),
+            1,
+            false,
+        );
+        let media: Vec<(&str, &str, Option<f64>)> = (parent.media.iter())
+            .map(|m| (m.task.as_str(), m.provider.as_str(), m.usd_per_call))
+            .collect();
+        assert_eq!(media, [("call", "openai", None)]);
     }
 
     #[test]

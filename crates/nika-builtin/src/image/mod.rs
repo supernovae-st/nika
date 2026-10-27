@@ -47,13 +47,14 @@ use nika_kernel::io::fs::{FsReadDyn, FsWriteDyn};
 use nika_kernel::io::http::HttpPostDyn;
 use nika_kernel::secret::Secret;
 
+use crate::media::cost::{CostBasis, MediaBill};
 use crate::media::time::rfc3339_now;
 use crate::permits::{FsAccess, FsBoundary};
 use crate::{Args, BuiltinFailure, BuiltinOutcome, Emitter};
 
 use self::args::ImageArgs;
 use self::save::SavedImage;
-use self::types::{C_PROVIDER_UNAVAILABLE, Provider, ProviderBatch};
+use self::types::{C_PROVIDER_UNAVAILABLE, Provider, ProviderBatch, SizeSpec};
 
 /// The image-plane connection config, resolved by the composition root
 /// (the sanctioned env boundary — `NIKA_OPENAI_API_KEY` → `OPENAI_API_KEY`
@@ -126,13 +127,16 @@ impl ImageKeys {
     }
 }
 
-/// Catalog USD floor for one `nika:image_generate` call.
+/// Catalog USD floor for one `nika:image_generate` call on a provider priced
+/// whatever the model.
 ///
 /// xAI's workhorse (`grok-imagine-image`) bills $0.02 per image; mock and
-/// local are unpriced (`None`). `n` scales the floor when it is a known
-/// integer (≥ 1). The runtime admission gate (NIKA-1709) consults the
-/// same catalog row so check-skip of `invoke:` cannot spend-then-abort
-/// (B24 / issue 1296).
+/// local are unpriced (`None`), and `OpenAI` and Gemini images are priced per
+/// model, size class and quality from the dated media table
+/// (`nika_catalog::MediaModel::image_floor`), never by this provider-wide
+/// floor. `n` scales the floor when it is a known integer (≥ 1). The runtime
+/// admission gate (NIKA-1709) consults the same catalog row so check-skip of
+/// `invoke:` cannot spend-then-abort (B24 / issue 1296).
 #[must_use]
 pub fn static_floor_usd(provider: &str, n: u32) -> Option<f64> {
     let per = nika_catalog::builtin_provider_floor_usd("image_generate", provider)?;
@@ -205,7 +209,8 @@ where
     let ProviderBatch {
         images,
         usage,
-        cost_usd,
+        unreported_images,
+        cost_usd: reported,
         endpoint_host,
         provider_text,
         warnings: batch_warnings,
@@ -213,14 +218,84 @@ where
     } = batch;
     warnings.extend(batch_warnings);
     push_count_shortfall(&args, images.len(), &mut warnings);
+    let delivered = Delivered {
+        usage,
+        count: images.len(),
+        unreported: unreported_images,
+    };
+    let bill = bill(&args, reported, delivered); // C-D3 · what it cost
+    // The provider rendered and billed: a failure from here on keeps what the
+    // call cost, so the run's ledger and its cap still see it (C-D3).
+    let spent = crate::media::cost::answered(
+        bill,
+        crate::media::cost::is_paid("image_generate", args.provider.id()),
+    );
+    let answer = Answer {
+        usage,
+        bill,
+        endpoint_host,
+        provider_text,
+        raw_debug,
+    };
+    deliver(
+        fs,
+        clock,
+        emitter,
+        boundary,
+        (&args, &inputs),
+        images,
+        answer,
+        warnings,
+        started,
+    )
+    .await
+    .map_err(|failure| failure.with_spent(spent))
+}
 
+/// What the provider answered beside its images: the usage it reported, the
+/// call's bill, and the provenance the output and the manifest carry.
+struct Answer {
+    usage: types::Usage,
+    bill: Option<MediaBill>,
+    endpoint_host: Option<String>,
+    provider_text: Option<String>,
+    raw_debug: Option<serde_json::Value>,
+}
+
+/// Everything after the provider answered (decode validation, saves, the
+/// manifest, the output) — billed work: its caller keeps the bill on any
+/// failure.
+#[allow(clippy::too_many_arguments)] // the pipeline's seams, threaded once
+async fn deliver<F, C, Em>(
+    fs: &F,
+    clock: &C,
+    emitter: &Em,
+    boundary: &FsBoundary,
+    (args, inputs): (&ImageArgs, &[types::InputImage]),
+    images: Vec<types::RawImage>,
+    answer: Answer,
+    mut warnings: Vec<String>,
+    started: std::time::Instant,
+) -> BuiltinOutcome
+where
+    F: FsReadDyn + FsWriteDyn,
+    C: ClockDyn,
+    Em: Emitter,
+{
+    let Answer {
+        usage,
+        bill,
+        endpoint_host,
+        provider_text,
+        raw_debug,
+    } = answer;
     // ── decode validation (header-only · magic authority) ───────────────
-    let mut decoded = validate_decoded(images, &args, emitter, &mut warnings)?;
+    let mut decoded = validate_decoded(images, args, emitter, &mut warnings)?;
 
-    let content_credentials = detect_and_preserve_credentials(&mut decoded, &args, emitter);
+    let content_credentials = detect_and_preserve_credentials(&mut decoded, args, emitter);
 
     // ── save (boundary-gated · atomic · cleanup on partial failure) ─────
-    let saved = save::save_all(fs, boundary, &args, decoded).await?;
+    let saved = save::save_all(fs, boundary, args, decoded).await?;
     for image in &saved {
         emitter.emit(
             "image_generation.saved",
@@ -237,11 +312,11 @@ where
     let manifest_path = write_manifest(
         fs,
         boundary,
-        &args,
-        &inputs,
+        args,
+        inputs,
         &saved,
         usage,
-        cost_usd,
+        bill,
         content_credentials,
         &warnings,
         &created_at,
@@ -252,13 +327,14 @@ where
     )
     .await?;
 
+    let cost_usd = crate::media::cost::usd(bill);
     emit_closing_events(emitter, clock, started, &saved, cost_usd, &warnings);
 
     Ok(output_json(
-        &args,
+        args,
         &saved,
         usage,
-        cost_usd,
+        bill,
         content_credentials,
         &warnings,
         &created_at,
@@ -268,6 +344,97 @@ where
         manifest_path.as_deref(),
         raw_debug,
     ))
+}
+
+/// The images a provider delivered, and the usage the responses that
+/// reported one carried (a gemini `n:` batch is `n` responses).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Delivered {
+    /// The usage of the responses that reported their output.
+    pub(crate) usage: types::Usage,
+    /// Every image delivered.
+    pub(crate) count: usize,
+    /// The images whose response reported no usage (every one when no
+    /// response reported its output).
+    pub(crate) unreported: usize,
+}
+
+/// What this call cost (C-D3): the provider's own report when it gives one
+/// (xAI's cost ticks), else the dated media table's price of its model, each
+/// response billed on its own — its rates applied to the usage it reported,
+/// or, for the images of a response that reported none, the per-image price
+/// at the requested size class and quality (the dearest the table lists over
+/// what the request leaves open: never below what the provider may have
+/// rendered). `None` for a model the table does not price, and for a token-
+/// priced model whose response reports no usage (the spend is real and
+/// unknown, never free), and for unmetered providers.
+pub(crate) fn bill(
+    args: &ImageArgs,
+    reported: Option<f64>,
+    delivered: Delivered,
+) -> Option<MediaBill> {
+    if let Some(usd) = reported {
+        return Some(MediaBill::reported(usd));
+    }
+    let nika_catalog::MediaPrice::Rated(model) =
+        nika_catalog::builtin_media_price("image_generate", args.provider.id(), Some(&args.model))
+    else {
+        return None;
+    };
+    let unreported = if delivered.usage.reports_output() {
+        delivered.unreported.min(delivered.count)
+    } else {
+        delivered.count
+    };
+    let by_usage = match delivered.count - unreported {
+        0 => None,
+        _ => Some(model.image_usage_usd(&delivered.usage.to_catalog())?),
+    };
+    let by_image = match unreported {
+        0 => None,
+        images => {
+            let rate = image_ceiling(args, model)?;
+            #[allow(clippy::cast_precision_loss)] // `n:` is capped at 10 images a call
+            Some((rate.usd * images as f64, rate.as_of))
+        }
+    };
+    match (by_usage, by_image) {
+        (Some(usage_usd), images) => Some(MediaBill::catalog(
+            usage_usd + images.map_or(0.0, |(usd, _)| usd),
+            CostBasis::RateTimesUsage,
+            model.as_of(),
+        )),
+        (None, Some((usd, as_of))) => {
+            Some(MediaBill::catalog(usd, CostBasis::PriceTimesImages, as_of))
+        }
+        (None, None) => None,
+    }
+}
+
+/// The dearest per-image row of `model` the request can be billed at: its
+/// size class and quality as the dated table reads them.
+fn image_ceiling(
+    args: &ImageArgs,
+    model: nika_catalog::MediaModel,
+) -> Option<&'static nika_catalog::MediaRate> {
+    let size = match args.size {
+        SizeSpec::Exact { width, height } => Some(format!("{width}x{height}")),
+        SizeSpec::Aspect(_) | SizeSpec::Auto => None,
+    };
+    let aspect = match args.size {
+        SizeSpec::Aspect(ratio) => Some(ratio.name()),
+        SizeSpec::Exact { .. } | SizeSpec::Auto => None,
+    };
+    let request = nika_catalog::ImageRequest::new()
+        .with_size(size.as_deref())
+        .with_aspect_ratio(aspect)
+        .with_image_size(
+            args.provider_options
+                .get("image_size")
+                .and_then(serde_json::Value::as_str),
+        )
+        .with_quality(Some(args.quality.name()));
+    model.image_ceiling(&request)
 }
 
 /// The batch's closing telemetry — every accumulated warning as its own
@@ -309,7 +476,7 @@ async fn write_manifest<F, Em>(
     inputs: &[types::InputImage],
     saved: &[SavedImage],
     usage: types::Usage,
-    cost_usd: Option<f64>,
+    bill: Option<MediaBill>,
     content_credentials: Option<&str>,
     warnings: &[String],
     created_at: &str,
@@ -325,12 +492,12 @@ where
     if !args.manifest {
         return Ok(None);
     }
-    let document = manifest::build(
+    let mut document = manifest::build(
         args,
         inputs,
         saved,
         usage,
-        cost_usd,
+        crate::media::cost::usd(bill),
         content_credentials,
         warnings,
         created_at,
@@ -338,6 +505,9 @@ where
         provider_text,
         endpoint_host,
     );
+    if let Some(bill) = bill {
+        bill.annotate(&mut document);
+    }
     let path = manifest::write(fs, boundary, args, saved, &document).await?;
     emitter.emit(
         "image_generation.manifest_written",
@@ -646,14 +816,15 @@ where
 }
 
 /// Assemble the normalized output object — paths + hashes + usage, never
-/// bytes. `raw_provider_response` appears ONLY under `debug: true` (and is
+/// bytes; a billed call's `cost_usd` with its `cost_basis` and `cost_as_of`
+/// (C-D3). `raw_provider_response` appears ONLY under `debug: true` (and is
 /// pre-sanitized by the adapters).
 #[allow(clippy::too_many_arguments)] // a pure projection of the pipeline's products
 fn output_json(
     args: &ImageArgs,
     saved: &[SavedImage],
     usage: types::Usage,
-    cost_usd: Option<f64>,
+    bill: Option<MediaBill>,
     content_credentials: Option<&str>,
     warnings: &[String],
     created_at: &str,
@@ -697,12 +868,15 @@ fn output_json(
         "count": saved.len(),
         "images": images,
         "usage": usage.to_json(),
-        "cost_usd": cost_usd,
+        "cost_usd": crate::media::cost::usd(bill),
         "content_credentials": content_credentials,
         "warnings": warnings,
         "manifest_path": manifest_path,
         "output_dir": args.output_dir,
     });
+    if let Some(bill) = bill {
+        bill.annotate(&mut output);
+    }
     if let (Some(map), Some(raw)) = (output.as_object_mut(), raw_debug) {
         map.insert("raw_provider_response".to_owned(), raw);
     }
@@ -783,6 +957,148 @@ mod tests {
             None,
         );
         assert_eq!(out["mode"], "generate");
+    }
+
+    fn approx(actual: f64, expected: f64) {
+        assert!((actual - expected).abs() < 1e-12, "{expected} ≠ {actual}");
+    }
+
+    /// `count` images delivered, `unreported` of them by a response that
+    /// reported no usage, the others' usage `usage`.
+    fn delivered(usage: types::Usage, count: usize, unreported: usize) -> Delivered {
+        Delivered {
+            usage,
+            count,
+            unreported,
+        }
+    }
+
+    /// C-D3 · a priced image is billed from the dated media table: its
+    /// token rates × the usage the response reported, else (no usage) its
+    /// per-image price at the requested size class and quality × the images
+    /// delivered; the provider's own report wins; an unpriced model, and a
+    /// token-priced one with no usage, bill nothing (unknown, never free).
+    #[test]
+    fn a_priced_image_is_billed_from_its_usage_else_its_per_image_price() {
+        let high = parsed(serde_json::json!({ "size": "1024x1024", "quality": "high" }));
+        let usage = types::Usage {
+            input_tokens: Some(10),
+            input_text_tokens: Some(10),
+            input_image_tokens: Some(0),
+            output_tokens: Some(1_000),
+            ..types::Usage::default()
+        };
+        let none = types::Usage::default();
+        let billed = bill(&high, None, delivered(usage, 1, 0)).expect("gpt-image-2 is priced");
+        approx(billed.usd, 10.0 * 5.0 / 1e6 + 1_000.0 * 30.0 / 1e6);
+        assert_eq!(billed.basis, CostBasis::RateTimesUsage);
+        assert_eq!(billed.as_of, Some(nika_catalog::MEDIA_PRICING_AS_OF));
+
+        let billed = bill(&high, None, delivered(none, 2, 0)).expect("priced per image");
+        approx(billed.usd, 0.422);
+        assert_eq!(billed.basis, CostBasis::PriceTimesImages);
+
+        let gemini = parsed(serde_json::json!({ "provider": "gemini", "aspect_ratio": "16:9" }));
+        let billed = bill(&gemini, None, delivered(none, 1, 0)).expect("priced");
+        approx(billed.usd, 0.067);
+
+        let reported = bill(&high, Some(0.5), delivered(usage, 1, 0)).expect("reported");
+        assert_eq!(reported, MediaBill::reported(0.5));
+
+        let flare = parsed(serde_json::json!({ "model": "gpt-image-2.5-flare" }));
+        assert_eq!(bill(&flare, None, delivered(none, 1, 0)), None);
+        let billed = bill(&flare, None, delivered(usage, 1, 0)).expect("metered from its usage");
+        assert_eq!(billed.basis, CostBasis::RateTimesUsage);
+
+        let older = parsed(serde_json::json!({ "model": "gpt-image-1.5" }));
+        assert_eq!(
+            bill(&older, None, delivered(usage, 1, 0)),
+            None,
+            "no catalog price"
+        );
+        let mock = parsed(serde_json::json!({ "provider": "mock" }));
+        assert_eq!(
+            bill(&mock, None, delivered(usage, 1, 0)),
+            None,
+            "never billed"
+        );
+    }
+
+    /// C-D3 · an image whose response reports no usage is billed
+    /// at the dearest row the request leaves open, never the cheapest: a
+    /// default request (`quality: auto`, no size) is billed $0.211, not
+    /// $0.005; a request naming its size and quality is billed that row.
+    #[test]
+    fn an_image_without_usage_is_billed_at_the_dearest_row_left_open() {
+        let none = types::Usage::default();
+        let open = parsed(serde_json::json!({}));
+        approx(
+            bill(&open, None, delivered(none, 1, 0))
+                .expect("priced")
+                .usd,
+            0.211,
+        );
+        let sized = parsed(serde_json::json!({ "size": "1536x1024" }));
+        approx(
+            bill(&sized, None, delivered(none, 1, 0))
+                .expect("priced")
+                .usd,
+            0.165,
+        );
+        let named = parsed(serde_json::json!({ "size": "1024x1024", "quality": "low" }));
+        approx(
+            bill(&named, None, delivered(none, 1, 0))
+                .expect("priced")
+                .usd,
+            0.006,
+        );
+    }
+
+    /// C-D3 · each response of a gemini batch is billed on its
+    /// own: two images, one whose response reported its usage and one whose
+    /// did not, bill the first from its usage and the second at the price
+    /// per image (the batch used to bill one image).
+    #[test]
+    fn each_response_of_a_batch_is_billed_on_its_own() {
+        let gemini = parsed(serde_json::json!({ "provider": "gemini" }));
+        let one = types::Usage {
+            input_tokens: Some(20),
+            output_tokens: Some(1_120),
+            output_image_tokens: Some(1_120),
+            ..types::Usage::default()
+        };
+        let billed = bill(&gemini, None, delivered(one, 2, 1)).expect("priced");
+        approx(billed.usd, 20.0 * 0.5 / 1e6 + 1_120.0 * 60.0 / 1e6 + 0.067);
+        assert_eq!(billed.basis, CostBasis::RateTimesUsage);
+        let billed = bill(&gemini, None, delivered(one, 2, 0)).expect("priced");
+        approx(billed.usd, 20.0 * 0.5 / 1e6 + 1_120.0 * 60.0 / 1e6);
+    }
+
+    /// The catalog reads an aspect ratio as the exact size this adapter
+    /// sends `gpt-image-2` for it: the floor of the ratio is the floor of the
+    /// size, quality by quality.
+    #[test]
+    fn the_catalog_reads_an_aspect_ratio_as_the_size_the_adapter_sends() {
+        let model = nika_catalog::find_media_model("image_generate", "openai", "gpt-image-2")
+            .expect("priced");
+        for ratio in types::AspectRatio::ALL {
+            let (width, height) = ratio.openai_size();
+            let size = format!("{width}x{height}");
+            for quality in ["auto", "low", "medium", "high", "ultra"] {
+                let by_ratio = nika_catalog::ImageRequest::new()
+                    .with_aspect_ratio(Some(ratio.name()))
+                    .with_quality(Some(quality));
+                let by_size = nika_catalog::ImageRequest::new()
+                    .with_size(Some(&size))
+                    .with_quality(Some(quality));
+                assert_eq!(
+                    model.image_floor(&by_ratio),
+                    model.image_floor(&by_size),
+                    "{} at {quality}",
+                    ratio.name()
+                );
+            }
+        }
     }
 
     #[test]
