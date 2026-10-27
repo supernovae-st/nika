@@ -109,7 +109,7 @@ where
                 return Err(Box::new(Dispatched::security_err(
                     note,
                     format!(
-                        "`vision:` file `{path}` is a read inside permits.fs.read: {}",
+                        "a `vision:` file is a read inside permits.fs.read: {}",
                         refusal(&err)
                     ),
                 )));
@@ -138,13 +138,15 @@ where
     }
 }
 
-/// The reason a builtin gave, without the invoke verb's own wrapper (`tool … reported an
-/// error: <code> · `): the boundary's sentence names the resolved path and the grant.
+/// The reason the builtin reported, without its code prefix (`<code> · `): the boundary's
+/// sentence names the path, where it resolves and the grant. Any other failure (the tool did
+/// not resolve, the dispatch failed) speaks as itself.
 fn refusal(err: &VerbInvokeError) -> String {
-    let shown = err.to_string();
-    let reported = shown
-        .split_once("reported an error: ")
-        .map_or(shown.as_str(), |(_, reason)| reason);
+    let reported = match err {
+        VerbInvokeError::ToolReportedError { content_tail, .. }
+        | VerbInvokeError::ToolReportedDetailed { content_tail, .. } => content_tail.as_str(),
+        other => return other.to_string(),
+    };
     let code = err.spec_code();
     reported
         .strip_prefix(&format!("{code} · "))

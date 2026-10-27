@@ -261,6 +261,17 @@ async fn a_rendered_path_outside_the_grant_is_refused_before_any_provider_call()
     .await;
     assert!(!ran.outcome.ok);
     assert_eq!(ran.code("look"), "NIKA-SEC-004", "{}", ran.message("look"));
+    // The boundary's own sentence: the path, where it resolves and the grant it misses,
+    // without the invoke verb's wrapper or a second code.
+    let message = ran.message("look");
+    assert!(
+        message.starts_with("a `vision:` file is a read inside permits.fs.read: `")
+            && message.contains("secrets/key.png")
+            && message.ends_with("outside the declared permits.fs.read boundary")
+            && !message.contains("reported an error")
+            && !message.contains("NIKA-SEC-004 ·"),
+        "{message}"
+    );
     assert!(
         ran.wire.is_empty(),
         "the secret never reached a provider: {} request(s)",
