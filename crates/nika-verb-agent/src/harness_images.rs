@@ -139,8 +139,9 @@ where
     ///
     /// # Errors
     ///
-    /// `NIKA-AGENT-007` when `save:` is declared and no image bytes were received; the
-    /// boundary's own `NIKA-SEC-004` when a path is outside `permits.fs.write`; the write's
+    /// `NIKA-AGENT-007` when `save:` is declared and no image bytes were received; a harness
+    /// refusal, before any write, when more than four were (a save names at most four files);
+    /// the boundary's own `NIKA-SEC-004` when a path is outside `permits.fs.write`; the write's
     /// own code when the file cannot be written.
     pub(crate) async fn deliver_images(
         &self,
@@ -155,6 +156,21 @@ where
             reported_only,
         } = run;
         let message = message(&output.output);
+        if request.save.is_some() && received.len() > nika_types::access::MAX_HARNESS_IMAGES {
+            // A save names at most four files, the ones every check judged (the path, then
+            // `-2` to `-4`): a fifth image fails the task before any write, whoever delivered
+            // it (a lent backend no ACP client bounded included).
+            return Err(VerbAgentError::Harness {
+                source: nika_kernel::ai::harness::HarnessError::Refused {
+                    reason: format!(
+                        "the session delivered {} images, more than the four images a save \
+                         writes (the path, then `-2` to `-4`); nothing was written",
+                        received.len()
+                    ),
+                },
+                spend: Box::default(),
+            });
+        }
         if request.save.is_some() && received.is_empty() {
             return Err(VerbAgentError::NoImage {
                 reported: reported_only,
