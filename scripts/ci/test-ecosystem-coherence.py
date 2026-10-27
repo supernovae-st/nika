@@ -19,12 +19,17 @@
 #       including reverse drift on every edge
 #   T9  the marketplace query names the live supernovae.nika identity,
 #       never the retired nika-lang one
-#   T10 the site's SERVED spec pin (nika.sh is not publicly readable):
-#       mismatch with engine SPEC_PIN hard-fails, unreadable follows grace
+#   T10 the site's SERVED spec pin (nika.sh is not publicly readable) is
+#       compared with SPEC_PIN at the latest release tag, never main's: a
+#       mismatch is WARN inside the cascade window and FAIL past it; main
+#       ahead of the release is informational (run 40455696582); an
+#       unreadable served or released pin follows the same grace ladder
 # Zero network: every URL resolves from the FIXTURES table.
 
+import contextlib
 import datetime
 import importlib.util
+import io
 import json
 import pathlib
 import sys
@@ -44,8 +49,9 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
              sdk="0.90.0", npm="0.90.0", pack="0.1.0-draft", spec_v="0.1.0-draft",
              engine="0.95.0", vscode="0.96.0", docs="0.95.0", reg_n=21,
              action="0.95.0", starter="0.95.0", certeng="0.95.0",
-             pack_sha="b" * 40, engine_pin=None, vscode_release=None,
-             marketplace=None, openvsx=None, site_pin_doc=None):
+             pack_sha="b" * 40, engine_pin=None, release_pin=None,
+             vscode_release=None, marketplace=None, openvsx=None,
+             site_pin_doc=None):
     R = bot.RAW
     return {
         "https://api.github.com/repos/supernovae-st/nika/releases/latest":
@@ -59,6 +65,7 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
         f"{R}/supernovae-st/nika/main/crates/nika-pack/pack/VERSION": pack + "\n",
         f"{R}/supernovae-st/nika/main/crates/nika-pack/pack/SPEC_SHA": pack_sha + "\n",
         f"{R}/supernovae-st/nika/main/SPEC_PIN": "# pin\n" + (engine_pin or pack_sha) + "\n",
+        f"{R}/supernovae-st/nika/v{tag}/SPEC_PIN": "# pin\n" + (release_pin or pack_sha) + "\n",
         f"{R}/supernovae-st/nika-spec/{pack_sha}/VERSION": spec_v + "\n",
         f"{R}/supernovae-st/nika-spec/{pack_sha}/canon.yaml": "providers: {}\n",
         f"{R}/supernovae-st/nika/main/crates/nika-pack/pack/canon.yaml": "providers: {}\n",
@@ -207,11 +214,48 @@ check("T7b missing immune leg past grace = FAIL",
       code == 1 and any(x[0] == "FAIL" and x[1] == "immune nika-registry" for x in f), f)
 
 # T10 · the site's served spec pin replaces the unreadable nika.sh immune
-# legs: a mismatch with engine SPEC_PIN is a hard FAIL, and an unreadable
-# served pin follows the grace ladder.
-code, f = run(fixtures(engine_pin="d" * 40))
-check("T10a served site pin != engine SPEC_PIN hard-fails",
-      code == 1 and any(x[0] == "FAIL" and x[1] == "site spec pin" and "served pin" in x[2] for x in f), f)
+# legs. The site pins the spec revision the latest RELEASE embeds, so the
+# served pin is compared with SPEC_PIN at the release tag: a mismatch is a
+# tag-pin (WARN inside the cascade window, FAIL past it), and an unreadable
+# served pin follows the same grace ladder.
+SITE_D = json.dumps({"spec_commit": "d" * 40})
+code, f = run(fixtures(age_h=48.0, site_pin_doc=SITE_D))
+check("T10a served site pin != release SPEC_PIN hard-fails past grace",
+      code == 1 and any(x[0] == "FAIL" and x[1] == "site spec pin" and "served pin" in x[2]
+                        and "v0.95.0 SPEC_PIN" in x[2] for x in f), f)
+code, f = run(fixtures(age_h=2.0, site_pin_doc=SITE_D))
+check("T10f served site pin != release SPEC_PIN = WARN inside grace",
+      code == 0 and any(x[0] == "WARN" and x[1] == "site spec pin" and "served pin" in x[2]
+                        for x in f), f)
+
+# T10g · the witness of run 40455696582: main's SPEC_PIN moved past the
+# release with unreleased spec work while the site still served the pin the
+# release embeds, which is right. No site finding, exit 0, and the advance
+# is reported as an informational spec-ripeness line, never a finding.
+out = io.StringIO()
+with contextlib.redirect_stdout(out):
+    code, f = run(fixtures(age_h=48.0, pack_sha="e" * 40, release_pin="c" * 40,
+                           site_pin_doc=json.dumps({"spec_commit": "c" * 40})))
+check("T10g main SPEC_PIN ahead of the release, site == release pin: no finding",
+      code == 0 and not any(x[1] in ("site spec pin", "release spec pin") for x in f), f)
+check("T10g main's advance is an informational spec-ripeness line",
+      any(line.startswith("spec-ripeness:") and "e" * 12 in line and "c" * 12 in line
+          for line in out.getvalue().splitlines()), out.getvalue())
+
+# T10h · the release tag's SPEC_PIN unreadable: the tag ladder again, and no
+# comparison is made against a pin nobody read.
+tbl = fixtures(age_h=48.0, site_pin_doc=SITE_D)
+del tbl[bot.RAW + "/supernovae-st/nika/v0.95.0/SPEC_PIN"]
+code, f = run(tbl)
+check("T10h unreadable release SPEC_PIN past grace = FAIL, no comparison",
+      code == 1
+      and any(x[0] == "FAIL" and x[1] == "release spec pin" and "unreadable" in x[2] for x in f)
+      and not any(x[1] == "site spec pin" for x in f), f)
+tbl = fixtures(age_h=2.0)
+del tbl[bot.RAW + "/supernovae-st/nika/v0.95.0/SPEC_PIN"]
+code, f = run(tbl)
+check("T10h unreadable release SPEC_PIN inside grace = WARN",
+      code == 0 and any(x[0] == "WARN" and x[1] == "release spec pin" for x in f), f)
 tbl = fixtures(age_h=2.0)
 del tbl[bot.SITE_SPEC_PIN]
 code, f = run(tbl)
