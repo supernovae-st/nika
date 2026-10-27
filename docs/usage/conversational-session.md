@@ -14,11 +14,11 @@ leave records you can inspect.
 | Run | `run it` | The saved workflow runs once, under an announced ceiling |
 | Inspect | `/proof`, `/details` | What the run produced and recorded, and how the workflow was built |
 
-This guide describes the released 0.123.0, the open-source reference release.
-Fixes merged after it are described one file per change in
-[`changelog.d/`](../../changelog.d/) until the next maintenance release; an
-older installed release does not have every feature described here, so
-compare `nika --version` with the [changelog](../../CHANGELOG.md).
+This guide describes the released 0.124.0, the first release of the current
+0.124 line. Changes merged after it are described one file per change in
+[`changelog.d/`](../../changelog.d/) until the next release; an older
+installed release does not have every feature described here, so compare
+`nika --version` with the [changelog](../../CHANGELOG.md).
 
 ## Before you start
 
@@ -304,6 +304,15 @@ clause by clause.
   otherwise the `ceiling:` in the project's `nika.yaml`, otherwise USD 0.25.
   It bounds the run's metered spend as the runtime estimates it. It does not
   cover authoring and it is not an invoice.
+- Paid media counts against the ceiling. Images and speech the catalog prices,
+  such as OpenAI `gpt-image-2`, the Gemini image models, OpenAI `tts-1` and
+  `tts-1-hd` and ElevenLabs speech, are metered at their public prices. A paid
+  media call it cannot price (the default OpenAI voice `gpt-4o-mini-tts`,
+  `gpt-image-1.5`, `gpt-image-1-mini` or an unknown model id) is refused before
+  any request; the keyless `system` voice runs as unpriced local work.
+  <!-- TODO(#1846): re-check this item against supernovae-st/nika#1846 once it
+  merges (which models are priced, which are refused, the refusal codes), then
+  delete this comment. -->
 - After reopening a history whose saved spending constraint cannot be proved,
   state a fresh Run ceiling. No default replaces that missing evidence.
 - When a workflow declares a required input without a default, the Session asks
@@ -349,13 +358,14 @@ it recorded, and the path of its trace.
 
 Runs stay unsigned until this machine has a run-signing key. Run
 `NIKA_KEYCHAIN=off nika key init` once; later runs are sealed, and `/proof`
-and `nika trace verify` report `SEALED`. On an unsigned run, 0.123.1 points at
-`nika key init`: `/proof` and `nika trace verify` say that a run key makes later
-runs seal (0.123.0 suggested `nika sign`, which signs workflow files, not runs).
-The variable keeps the key in `~/.nika/keys/`, which scripts,
-the TypeScript SDK and `nika serve` read too. 0.123.0 never opens the macOS
-keychain; on a Linux desktop, a key minted from a terminal without the variable
-can sit in the Secret Service, and `nika key align` copies it to the files.
+and `nika trace verify` report `SEALED`. On an unsigned run, `/proof` and
+`nika trace verify` point at `nika key init`: they say that a run key makes later
+runs seal (since 0.123.1; 0.123.0 suggested `nika sign`, which signs workflow
+files, not runs). The variable keeps the key in `~/.nika/keys/`, which scripts,
+the TypeScript SDK and `nika serve` read too. Since 0.123, Nika never opens the
+macOS keychain; on a Linux desktop, a key minted from a terminal without the
+variable can sit in the Secret Service, and `nika key align` copies it to the
+files.
 
 | Where | What |
 |---|---|
@@ -419,9 +429,9 @@ the selected operation; an unavailable service is reported without fabricating a
 result. The lower-level bounded embedding APIs retain their explicitly selected
 contracts; they do not describe the interactive preparation defaults.
 
-**Run provider limits in 0.123.** A price shown in the model catalog is not
+**Run provider limits in 0.124.** A price shown in the model catalog is not
 enough to admit an OpenAI-compatible API route automatically: the release's
-admission table names each exact route and model it admits. In 0.123.0 that is
+admission table names each exact route and model it admits. In 0.124.0 that is
 DeepSeek's direct API (`deepseek-v4-pro` and `deepseek-flash`); OpenAI's direct
 API from GPT-4o mini to GPT-6 (GPT-4o mini, GPT-5 mini, GPT-5.2, GPT-5.5,
 GPT-5.6 Sol, GPT-6 Astra, GPT-6 Sol, GPT-6.1 Sol and GPT-6 Luna); xAI's grok-4.7
@@ -460,7 +470,7 @@ startup file as your key. The walkthroughs above need none of them.
 
 **Knowledge releases.** By default, the Session admits the knowledge release
 embedded in its binary against the build's trusted identity and pins it when it
-opens; in 0.123.0 that is the r3.5 Foundry release
+opens; in 0.124.0 that is still the r3.5 Foundry release that 0.123.0 embedded
 (`knowledge-0.123.0-r3.5-foundry-20261016`). `/status` names that identity and
 its embedded origin. The release holds workflow blocks, patterns grouped in packs
 and families, examples and skills for recurring jobs; it holds no repair
@@ -522,10 +532,10 @@ account and terms.
 
 ## Limits
 
-- 0.123 is the open-source reference release. It is maintained with security
-  fixes, bug fixes and compatibility; no major new development is planned. Its
-  known limits are listed in plain words, each with a way around it:
-  [Known limits in 0.123](https://docs.nika.sh/changelog/known-limits).
+- 0.124 is the current release line. Work stays focused on maintenance,
+  security and the media capabilities workflows need; native video is planned
+  for 0.125. Its known limits are listed in plain words, each with a way around
+  it: [Known limits in 0.124](https://docs.nika.sh/changelog/known-limits).
 - A historical qualification of 0.120.3 covered six synthetic journeys with
   one installed macOS build, recorded in the
   [qualification note](../qa/delivery-a-2026-09.md). That installation also
