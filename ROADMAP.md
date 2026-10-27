@@ -1,20 +1,22 @@
 # Nika Roadmap
 
-> **Status after 0.123 (2026-10-23).** 0.123 is the open-source reference release of Nika: the
-> Rust engine, the CLI and TUI, and a minimal TypeScript SDK that runs `.nika` workflows. After
-> it the project is maintained: security fixes, bug fixes and compatibility. No major new
-> features are planned, and there is no hosted service or SaaS. The plan below is the earlier
-> long-range roadmap, kept as the record of how the engine was built; its forward items are not
-> commitments.
+> **Status at 0.124.** 0.124 is the current release line of Nika: the Rust engine, the CLI and
+> TUI, and a minimal TypeScript SDK that runs `.nika` workflows. Work stays focused on
+> maintenance, security and the media capabilities workflows need; native video is planned for
+> 0.125. The 0.123.x line is the previous one, and there is no hosted service or SaaS. The plan
+> below is the earlier long-range roadmap, kept as the record of how the engine was built; its
+> forward items are not commitments.
 
-## After 0.123
+## The 0.124 line
 
-- **Maintained, not extended.** Fixes land on `main` and ship as 0.123.x
-  patch releases: security fixes, bug fixes and compatibility
+- **Maintained and focused.** Fixes land on `main`, the only maintenance
+  branch, and ship in the next release: security fixes, bug fixes,
+  compatibility and the media capabilities workflows need
   ([SECURITY.md](SECURITY.md) lists the supported versions).
-- **Not planned:** major new features, a hosted service or SaaS, and a 1.0
-  launch. The forward items in the historical plan below are not
-  commitments.
+- **Planned next:** native video, in 0.125.
+- **Not planned:** a hosted service or SaaS, a 1.0 launch, and new features
+  outside that focus. The forward items in the historical plan below are
+  not commitments.
 - **Known limits** of the release, each with a way around it, are at
   [docs.nika.sh/changelog/known-limits](https://docs.nika.sh/changelog/known-limits).
 - **Contributions** in scope are listed in [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -86,7 +88,8 @@ itself implement, qualify or release it.
 "real semver toward 1.0", amended D-2026-06-20-N1 · was "forever v0.x"). The
 plan was for Nika to ship a **1.0** at a first public launch and to add quality
 across later minors, each diamond-grade for its declared scope; after 0.123
-neither is planned, and 0.123 is the maintained reference release. Unshipped
+the launch is not planned, and 0.124 is the current release line, focused on
+maintenance, security and the media capabilities workflows need. Unshipped
 features named below were the plan's, not commitments: **nothing ships as a
 surprise, nothing ships half-baked**. The SQLite precedent below was the model:
 a complete, diamond-grade product at each release.
@@ -282,8 +285,9 @@ tracks implementation work; it does not change the default presentation.
 ## Tag scheme (real semver · amended D-2026-06-20-N1)
 
 The plan's scheme until 0.123: real semver toward a 1.0 launch, then
-`MAJOR.MINOR.PATCH`. After 0.123, releases are 0.123.x patches; the 1.0 rows
-below are not planned.
+`MAJOR.MINOR.PATCH`. After 0.123, releases stay on real semver: 0.124 is the
+current line and native video is planned for 0.125; the 1.0 rows below are
+not planned.
 
 - **MINOR** within a major = additive (new crates · builtins · providers · polish).
 - **PATCH** = bug fixes, zero contract change.
@@ -964,8 +968,9 @@ Trusted reviewers may be delegated as the community grows. No DAO, no voting.
 
 ## Release cadence
 
-After 0.123, releases are 0.123.x maintenance patches, cut when fixes are
-ready. The cadence the plan described until then follows.
+0.124 is the current release line: a release is cut when its fixes or the
+media capabilities workflows need are ready, and native video is planned for
+0.125. The cadence the plan described until 0.123 follows.
 
 Per ADR-037 the cadence is **admission-driven**, not calendar-driven — and
 per D-2026-06-20-N1 the tag scheme is **real semver** (`MAJOR.MINOR.PATCH` ·
@@ -986,7 +991,7 @@ the historical `v0.8X.Y` layer-phase scheme is retired).
   ADR-037 count horizon (50-90 · cap 100) · 4-verb 2036 stress-test · 11/10 amplifiers ·
   ADR queue 050-056 + 060/062/064/066/070/071/072/073
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — 12-gate admission · contributor process
-- [`SECURITY.md`](SECURITY.md) — supported versions · vulnerability disclosure · the defense layers 0.123 enforces
+- [`SECURITY.md`](SECURITY.md) — supported versions · vulnerability disclosure · the defense layers 0.124 enforces
 - [`CHANGELOG.md`](CHANGELOG.md) — release log · per-crate semver entries
 - [`docs/adr/`](docs/adr/) — 38+ ADRs · architectural decisions canonical
 - **Release-candidate labels were reserved for the design-partner track**
