@@ -136,7 +136,7 @@ out-of-tree cache writable.
 
 - `nika explain NIKA-MCP-001` · `NIKA-MCP-002` — the two spec-registered
   codes; `003`–`006` are the pin family's own, and their refusal text names
-  the fix. In 0.123.0 a failed run still prints `fix: nika explain
+  the fix. In 0.124.0 a failed run still prints `fix: nika explain
   NIKA-MCP-003` (or `006`), which `nika explain` does not know: follow the
   remedy the refusal names (`nika mcp approve <server>`).
 - `docs/crate-specs/nika-mcp.md` — the crate contract (client · session ·

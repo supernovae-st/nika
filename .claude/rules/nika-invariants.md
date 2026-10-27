@@ -129,19 +129,20 @@ From main CLAUDE.md + deletion-first.md + honest-assessment.md :
 
 And 17+ more from rust-analyzer adapted invariants in RUST_ENFORCEMENT.md §6.
 
-## Timeline (maintenance after 0.123 · no hard per-phase deadlines)
+## Timeline (the 0.124 line · no hard per-phase deadlines)
 
-0.123 is the open-source reference release: `main` is maintained (security
-fixes, bug fixes, compatibility) and ships 0.123.x patches. The engine's current
-release is whatever the CHANGELOG top names (never quote a number here · it
-rots). Until 0.123 the plan was real semver toward a **1.0** public launch
-(amended D-2026-06-20-N1 · was "forever-v0.x — no v1.0 target"), gated by the 7
-shadow zones, with the remaining crates landing across 1.x minors under the
-ADR-037 count horizon (50-90 · cap 100 · projected, never a gate · ruled
-D-2026-07-21-N1); after 0.123 no 1.0 launch and no new crate admission are
-planned. The nine-key LANGUAGE envelope (`nika: <id>` · model · inputs · const ·
-secrets · permits · run · tasks · outputs · since 0.109) is frozen forever
-(orthogonal to the engine version).
+0.124 is the current release line: work stays focused on maintenance, security
+and the media capabilities workflows need, and native video is planned for
+0.125. `main` is the only maintenance branch and ships the next release. The
+engine's current release is whatever the CHANGELOG top names (never quote a
+number here · it rots). Until 0.123 the plan was real semver toward a **1.0**
+public launch (amended D-2026-06-20-N1 · was "forever-v0.x — no v1.0 target"),
+gated by the 7 shadow zones, with the remaining crates landing across 1.x
+minors under the ADR-037 count horizon (50-90 · cap 100 · projected, never a
+gate · ruled D-2026-07-21-N1); after 0.123 no 1.0 launch and no new crate
+admission are planned. The nine-key LANGUAGE envelope (`nika: <id>` · model ·
+inputs · const · secrets · permits · run · tasks · outputs · since 0.109) is
+frozen forever (orthogonal to the engine version).
 
 No hard per-phase deadlines — quality > speed. The pace is self-paced, not a
 commitment. Current phase progress tracked in STATE.md (memory/) and

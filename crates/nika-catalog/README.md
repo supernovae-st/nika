@@ -1,7 +1,7 @@
 # nika-catalog
 
 Compile-time capability vocabulary — 39 LLM providers, 105 MCP servers,
-13 embeddings, 30 builtins, 57 capability rules (as of 0.123.0, with `nika:image_compose` since).
+13 embeddings, 30 builtins, 57 capability rules (as of 0.124.0).
 
 <!-- The five counts above are not typed from memory. Three of them are
      asserted by this crate's own tests (`src/lib.rs` · `all_providers`,
@@ -37,10 +37,10 @@ use nika_catalog::{all_builtins, all_providers, find_builtin, find_pricing_scope
 let deepseek = find_provider("deepseek");                        // id or alias, case-insensitive
 let price = find_pricing_scoped("deepseek", "deepseek-flash");   // Option<&'static ModelPricing>
 let remove = find_builtin("remove_file");                        // name without the `nika:` prefix
-let (providers, builtins) = (all_providers().len(), all_builtins().len()); // 39 · 29 in 0.123.0
+let (providers, builtins) = (all_providers().len(), all_builtins().len()); // 39 · 30 in 0.124.0
 ```
 
-## Catalog surface (0.123.0)
+## Catalog surface (0.124.0)
 
 - **39 LLM providers** · Anthropic · OpenAI · Google · DeepSeek · Mistral · xAI · Scaleway · Groq · Ollama · LM Studio · + 29 more (31 speak the OpenAI chat dialect)
 - **105 MCP servers** · vocabulary per [MCP spec](https://modelcontextprotocol.io)

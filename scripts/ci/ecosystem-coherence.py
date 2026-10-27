@@ -11,8 +11,9 @@
 # Two severities (operator lock 2026-07-06):
 #   FAIL · pins that MUST be equal — tap formula == latest release tag ·
 #          site served engine version (llms.txt) == latest release tag ·
+#          site served spec pin == SPEC_PIN at the latest release tag ·
 #          npm published == client-sdk repo version · engine pack VERSION ==
-#          spec VERSION · site served spec pin == engine SPEC_PIN.
+#          spec VERSION · engine pack identity == main's SPEC_PIN.
 #          A release younger than 24h demotes its tag-pins to WARN (the
 #          cascade window).
 #   WARN · operator-gated or by-design lag — nika-vscode's latest release,
@@ -95,6 +96,12 @@ def served_spec_commit(text):
     return pin
 
 
+def spec_pin_line(text):
+    """A SPEC_PIN file is comment lines, then the 40-hex nika-spec commit."""
+    return next(line.strip() for line in text.splitlines()
+                if line.strip() and not line.lstrip().startswith("#"))
+
+
 def mm(v):
     return ".".join(v.lstrip("v").split(".")[:2])
 
@@ -165,22 +172,35 @@ def main():
 
     pack = grab(f"{RAW}/supernovae-st/nika/main/crates/nika-pack/pack/VERSION", str.strip, "pack")
     pack_sha = grab(f"{RAW}/supernovae-st/nika/main/crates/nika-pack/pack/SPEC_SHA", str.strip, "pack identity")
-    engine_pin = grab(
-        f"{RAW}/supernovae-st/nika/main/SPEC_PIN",
-        lambda text: next(line.strip() for line in text.splitlines()
-                          if line.strip() and not line.lstrip().startswith("#")),
-        "engine spec pin",
-    )
+    # Main's SPEC_PIN judges one thing: the pack vendored on main is the
+    # spec revision main pins.
+    engine_pin = grab(f"{RAW}/supernovae-st/nika/main/SPEC_PIN", spec_pin_line, "engine spec pin")
     if pack_sha and engine_pin and pack_sha != engine_pin:
         FINDINGS.append(("FAIL", "pack identity", f"pack {pack_sha[:12]} != SPEC_PIN {engine_pin[:12]}"))
     # The two immune legs that watched nika.sh raw workflow files moved here:
     # that repository is not publicly readable, so their OUTPUT is watched
     # instead — the pin the site's spec-resync leg converged on, served
-    # publicly. Unreadable follows the tag ladder; a mismatch is a FAIL.
+    # publicly. The site pins the spec revision the latest RELEASE embeds
+    # (its pin file is channel: stable and release_closed, and moves only in
+    # the site's version flips), so the served pin is compared with SPEC_PIN
+    # at the release tag, never with main's: main advances with unreleased
+    # spec work (#1836, #1845 and #1850 each moved it ahead of a release),
+    # and comparing against it turned the board red while the site was
+    # right for the published release. A tag-pin like the tap: WARN inside
+    # the cascade window, FAIL past it; an unreadable side follows the same
+    # ladder.
+    release_pin = grab(f"{RAW}/supernovae-st/nika/v{tag}/SPEC_PIN", spec_pin_line,
+                       "release spec pin", unreadable=tag_sev)
     site_pin = grab(SITE_SPEC_PIN, served_spec_commit, "site spec pin", unreadable=tag_sev)
-    if site_pin and engine_pin and site_pin != engine_pin:
-        FINDINGS.append(("FAIL", "site spec pin",
-                         f"served pin {site_pin[:12]} != engine SPEC_PIN {engine_pin[:12]}"))
+    if site_pin and release_pin and site_pin != release_pin:
+        FINDINGS.append((tag_sev, "site spec pin",
+                         f"served pin {site_pin[:12]} != v{tag} SPEC_PIN {release_pin[:12]}"))
+    # Spec-ripeness (informational only, never a finding, like wave-ripeness
+    # below): main pins a spec revision the latest release does not embed;
+    # the site follows at the next release's flip.
+    if engine_pin and release_pin and engine_pin != release_pin:
+        print(f"spec-ripeness: main pins nika-spec {engine_pin[:12]}, v{tag} embeds "
+              f"{release_pin[:12]} · the site follows at the next release")
     spec_ref = pack_sha if pack_sha and len(pack_sha) == 40 else None
     spec = grab(f"{RAW}/supernovae-st/nika-spec/{spec_ref}/VERSION", str.strip, "spec at pack identity") if spec_ref else None
     if pack and spec and pack != spec:
