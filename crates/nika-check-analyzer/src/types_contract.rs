@@ -76,6 +76,70 @@ pub fn lowered_returns(wf: &RawWorkflow) -> BTreeMap<String, serde_json::Value> 
     out
 }
 
+/// `task id → the shape of .output` for every `agent:` that declares `images:` (spec 02
+/// §Harness images): the object `{ message, images }`, where `message` is what `.output`
+/// holds without `images:` — the declared `schema:` or `lower(returns)` (`lowered`, the
+/// [`lowered_returns`] projection), an unresolved `schema: { file }` left open, else the final
+/// message, a string — and each image is `{ index, path, sha256, size_bytes, mime_type, width,
+/// height }` (`path` a string under `save:`, `null` without). The static walks read THIS for
+/// such a task, never the bare schema the message alone matches.
+#[must_use]
+pub fn images_outputs(
+    wf: &RawWorkflow,
+    lowered: &BTreeMap<String, serde_json::Value>,
+) -> BTreeMap<String, serde_json::Value> {
+    let mut out = BTreeMap::new();
+    for task in &wf.tasks {
+        let t = &task.value;
+        let RawAction::Agent(agent) = &t.action else {
+            continue;
+        };
+        let Some(images) = agent.images.as_ref() else {
+            continue;
+        };
+        let message = match (&agent.schema, &agent.schema_file) {
+            (Some(schema), _) => schema.value.clone(),
+            (None, Some(_)) => serde_json::json!({}),
+            (None, None) => lowered
+                .get(&t.id.value)
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({"type": "string"})),
+        };
+        let path = if images.value.save.is_some() {
+            "string"
+        } else {
+            "null"
+        };
+        let image = serde_json::json!({
+            "type": "object",
+            "required": ["index", "path", "sha256", "size_bytes", "mime_type", "width", "height"],
+            "additionalProperties": false,
+            "properties": {
+                "index": {"type": "integer"},
+                "path": {"type": path},
+                "sha256": {"type": "string"},
+                "size_bytes": {"type": "integer"},
+                "mime_type": {"type": "string"},
+                "width": {"type": ["integer", "null"]},
+                "height": {"type": ["integer", "null"]},
+            },
+        });
+        out.insert(
+            t.id.value.clone(),
+            serde_json::json!({
+                "type": "object",
+                "required": ["message", "images"],
+                "additionalProperties": false,
+                "properties": {
+                    "message": message,
+                    "images": {"type": "array", "items": image},
+                },
+            }),
+        );
+    }
+    out
+}
+
 /// The NIKA-TYPE static layer + NIKA-PARSE-025 (spec 09 · the engine
 /// twin of `type_core.py::type_core_errors`).
 pub(super) fn check_types_contract(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {

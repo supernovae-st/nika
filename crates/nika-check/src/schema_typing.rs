@@ -89,7 +89,9 @@ pub(super) fn scan_types(wf: &RawWorkflow) -> (Vec<SchemaTypeFinding>, Vec<Unver
     // lowered once (spec 09 §lowering · one direction), owned here so
     // the shapes map can borrow either surface.
     let lowered = crate::analyzer::lowered_returns(wf);
-    let shapes = declared_shapes(wf, &lowered);
+    // An agent's `images:` wraps that shape as `{ message, images }` (spec 02 §Harness images).
+    let imaged = crate::analyzer::images_outputs(wf, &lowered);
+    let shapes = declared_shapes(wf, &lowered, &imaged);
     // NO early return when `shapes` is empty: with zero declared shapes
     // every deep ref into an existing task is unverifiable — the F3 case
     // itself — and counting them is now this lane's duty.
@@ -305,10 +307,12 @@ fn check_alias_text(
 /// A `returns:` contract walks through the SAME door — its
 /// `lower(returns)` projection (`lowered` · owned by the caller) is the
 /// task's schema when no verb-level `schema:` exists (`NIKA-TYPE-003`
-/// forbids both, so at most one is ever present).
+/// forbids both, so at most one is ever present). An agent with `images:`
+/// has the `{ message, images }` object that wraps either (`imaged`).
 fn declared_shapes<'a>(
     wf: &'a RawWorkflow,
     lowered: &'a BTreeMap<String, Value>,
+    imaged: &'a BTreeMap<String, Value>,
 ) -> BTreeMap<&'a str, Shape<'a>> {
     let mut shapes = BTreeMap::new();
     for task in &wf.tasks {
@@ -331,7 +335,9 @@ fn declared_shapes<'a>(
             )]
             other => unreachable!("unknown action: {other:?}"),
         };
-        if let Some(s) = schema {
+        if let Some(wrapped) = imaged.get(id) {
+            shapes.insert(id, Shape::Schema(wrapped));
+        } else if let Some(s) = schema {
             shapes.insert(id, Shape::Schema(&s.value));
         } else if let Some(low) = lowered.get(id) {
             shapes.insert(id, Shape::Schema(low));
@@ -570,6 +576,30 @@ mod tests {
              tasks:\n  fan:\n    for_each: {{ items: \"${{{{ {authority}.xs }}}}\" }}\n    \
              with: {{ it: \"${{{{ item }}}}\" }}\n    infer: {{ prompt: \"do ${{{{ with.it }}}}\" }}\n"
         )
+    }
+
+    /// Spec 02 §Harness images · under `images:` the TYPES rung walks `{ message, images }`:
+    /// `images[0].path` and `message.<key>` fit a `schema:` agent, the schema's key read at the
+    /// top (where the run never puts it) is refused, and nothing is left unverifiable.
+    #[test]
+    fn an_images_agent_output_is_typed_as_its_message_and_images() {
+        let wf = |reference: &str| {
+            format!(
+                "nika: w\nmodel: openai/gpt-6-luna\ntasks:\n  draw:\n    agent:\n      prompt: \
+                 \"draw\"\n      schema: {{ type: object, required: [a], properties: {{ a: {{ type: \
+                 string }} }} }}\n      images: {{ save: ./out/a.png }}\noutputs:\n  o: \
+                 ${{{{ tasks.draw.output.{reference} }}}}\n"
+            )
+        };
+        for fits in ["images[0].path", "message.a", "images[0].height"] {
+            assert!(findings_of(&wf(fits)).is_empty(), "{fits}");
+            assert!(unverifiable_of(&wf(fits)).is_empty(), "{fits}");
+        }
+        for refused in ["a", "images[0].pth", "message.b"] {
+            let found = findings_of(&wf(refused));
+            assert_eq!(found.len(), 1, "{refused}: {found:?}");
+            assert_eq!(found[0].target, "draw");
+        }
     }
 
     #[test]
