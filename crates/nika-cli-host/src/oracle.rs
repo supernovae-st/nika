@@ -323,6 +323,14 @@ impl Verdict {
         kind == "cost" && self.seated.contains(task)
     }
 
+    /// [`Self::withholds`] over a machine `hints[]` row.
+    fn withholds_row(&self, hint: &Value) -> bool {
+        self.withholds(
+            hint["kind"].as_str().unwrap_or_default(),
+            hint["task"].as_str().unwrap_or_default(),
+        )
+    }
+
     /// The operational gate: grade below High AND access ready (when a
     /// static model exists). Always true off the operational lane — and
     /// false exactly when [`Self::lane_findings`] carries an operational
@@ -790,12 +798,7 @@ pub fn audit_json(
         Err(error) => return Err(format!("cannot serialize engine identity: {error}")),
     };
     if let Some(hints) = obj.get_mut("hints").and_then(Value::as_array_mut) {
-        hints.retain(|hint| {
-            !verdict.withholds(
-                hint["kind"].as_str().unwrap_or_default(),
-                hint["task"].as_str().unwrap_or_default(),
-            )
-        });
+        hints.retain(|hint| !verdict.withholds_row(hint));
         push_advisory_hints(hints, &verdict.drift, &verdict.harness, wf);
     }
     // The lane refusals ride `findings[]` and `clean` reads them: the
