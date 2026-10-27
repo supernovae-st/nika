@@ -16,12 +16,7 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
-<!-- 0124-intro-begin · TODO(0.124.0): the draft intro of 0.124.0, kept in this section until
-the fold. `wave-sweep.sh 0.124.0` replaces this whole section with the stub above, so in the
-release commit print the block from the pre-sweep HEAD with this command:
-git show HEAD:CHANGELOG.md | sed -n '/^<!-- 0124-intro-begin/,/^<!-- 0124-intro-end/p'
-Put it under the new `## [0.124.0]` heading, above its first `###`, resolve every
-TODO(0.124.0) in it, then delete the comments and both markers. -->
+## [0.124.0](https://github.com/supernovae-st/nika/compare/v0.123.2..v0.124.0) - 2026-10-27
 
 Nika 0.124.0 opens the 0.124 release line with media capabilities that workflows need, so a
 contact sheet or a narration no longer needs `exec magick montage` or `exec /usr/bin/say`:
@@ -85,14 +80,6 @@ all three of its speech models down on 2027-01-06), use a priced `elevenlabs` mo
 or `local` / `mock`; for images, use `gpt-image-2` (the default) or a 2.5 model. A paid call the
 catalog cannot price runs only with no cap, and the settlement then counts it unpriced.
 
-<!-- TODO(0.124.0): the stance sentence below waits for the maintainer's confirmation; keep it
-word for word with README.md, ROADMAP.md and llms.txt. -->
-
-<!-- TODO(0.124.0): the link below names the docs page « Known limits in 0.124 », the title it
-carries only once nika-docs#228 (a draft at 0b71df398) is merged and deployed: the live page
-still reads « Known limits in 0.123 » and holds none of the 0.124 limits. Before the tag, check
-the live title and that the page carries the seat, paid-media and vision limits. -->
-
 The file format and its nine top-level keys are unchanged and the SDK machine protocol stays 2;
 the language gains `nika:image_compose`, `provider: system` and the `images:` field of `agent:`.
 0.124 is the current release line. Work stays focused on maintenance, security and the media
@@ -103,8 +90,331 @@ video; `nika:image_compose` reads PNG only; the system voice needs macOS `say` o
 `espeak-ng`; only a Codex seat delivers images to `images:`; a seat carries no `temperature`,
 `max_tokens` or `tools:` whitelist; the VS Code extension stays at 0.120.
 
-<!-- 0124-intro-end -->
+### Added
 
+- **`nika doctor` and `nika welcome` name which `nika` is running.** A
+  shadowed install used to read healthy: no path, no installer, no other
+  copy. Doctor now prints the running binary's resolved path, version,
+  commit and installer (read from the path: `install.sh`, `homebrew`,
+  `npm-global`, `npm-payload`, `cargo`, `nix`, `release-dir`,
+  `source-build`, else `unknown`), says what typing `nika` runs, warns
+  when that is another build, and lists every other `nika` on PATH with
+  the version it reports. Each copy is asked `--version` under a
+  two-second deadline: one that hangs is reported as unknown, one that
+  fails warns, neither is fatal. A relative or literal-`~` PATH entry is
+  never executed, and a copy that is asked runs from `/` with no
+  credential in its environment and no relative PATH entry; its whole
+  process group is killed after the answer. A removal is suggested only
+  for a known install layout. `--json` adds `running`, `others[]` and
+  `others_truncated`; `nika welcome` says the same in one line under
+  `this binary` and carries the same keys.
+- **An agent application's images are task values.** An `agent:` task on a seat can declare
+  `images:` (spec 02 §Harness images): `.output` becomes `{ message, images }`, each image with
+  its `index`, `path`, `sha256`, `size_bytes`, `mime_type`, `width` and `height`, and
+  `images: { save: <path> }` has Nika write the received bytes through `nika:write`, inside
+  `permits.fs.write`: every path the save can take (image *n* at `-n`, up to four) is judged
+  before any file is written, and a save rides the same-path law (`NIKA-SEC-012`) like a
+  `nika:write`. `check` types `.output` as `{ message, images }`, so
+  `.output.images[0].path` and `.output.message.<key>` resolve and a schema key read at the
+  top is refused. Only the bytes sent on the task's own session count: the path an
+  application reports (Codex's `~/.codex/generated_images`, which every session shares) is
+  never opened, so a workflow no longer asks Codex to copy its image and cannot pick up another
+  session's. A save with no image received fails the new `NIKA-AGENT-007`. The image's
+  `agent_image_observed` frame records the `saved_path`, and `nika serve` lists the file among
+  the run's artifacts with the received digest. On an API or local model, `check` and the run
+  refuse `images:`.
+- **`nika:image_compose` assembles several PNG images into one.** The 30th
+  builtin (stdlib §Media graduate #5) lays an ordered list of 1 to 64 inputs
+  out as a `grid` (columns and rows derived from the count when absent), a
+  `row` or a `column`; each image keeps its own size, is scaled to fit its
+  cell with the aspect kept (`fit`), or is scaled and center-cropped to fill
+  it (`fill`), with `gap`, `padding` and a `background` colour. Like
+  `nika:image_fx` it is pure, zero-dependency pixel work: the same input
+  bytes and args give the same PNG bytes, the `image_compose/v1` recipe rides
+  the tEXt chunk, and the output carries path, sha256, width and height,
+  never bytes. Every input is an `fs.read` that `nika check` judges, infers
+  and counts as a use, and `out:` an `fs.write`; caps on each input's side,
+  the summed input pixels, each scaled `fit`/`fill` box and the canvas fail
+  `NIKA-BUILTIN-IMAGE_COMPOSE-005` from the PNG headers before any
+  decompression (an input count outside 1..=64 is an argument, `-001`), an
+  input with a second IHDR is `-004`, and each of the six codes has its
+  `nika explain` lesson. Its inputs are file reads the `NIKA-SEC-009`
+  content flow follows, like `nika:image_fx`'s. A contact sheet no longer needs `exec magick
+  montage`.
+- **`nika:tts_generate` speaks with no key through `provider: system`.** The
+  host's own synthesizer, offline: macOS `/usr/bin/say`, or Linux
+  `espeak-ng` found in an absolute directory of the engine's `PATH`. The
+  engine starts it itself as part of the builtin, with the text on standard
+  input, so the workflow needs no `permits.exec`. The text is spoken as
+  text: every `[[` that `say` reads as an embedded command (`[[volm 0]]`
+  would mute the file) or `espeak-ng` as phonemes is broken by a space, and
+  the audio is capped at 64 MiB. The WAV still lands under `output_dir:`
+  through `permits.fs.write`. `nika check` names the program in its plan and
+  refuses a literal `model:` other than `say`/`espeak-ng` or a voice that is
+  not a host voice name, as the run does. Every start is journaled as a
+  `permit_checked` frame on the `builtin` plane, and the cost is reported as
+  unpriced local work (`cost_usd: null` · `cost_unpriced: local_model` on
+  the output and the task's frame), never as priced or free; only this
+  builtin can label the run's cost that way. A named voice must be installed
+  (`say` would otherwise read with its default voice), and a host with no
+  synthesizer refuses `NIKA-BUILTIN-TTS_GENERATE-002` naming what is
+  missing, with no fallback to another provider. A narration no longer needs
+  `exec /usr/bin/say`.
+
+### Changed
+
+- **Capped runs bill common paid media at dated catalog prices, and refuse what the catalog cannot price, beats included.** A beat always runs under its mandatory `plafond:`, and a plain `nika run` in a project with `ceiling:` runs under that cap. Under a cap, `nika:image_generate` on OpenAI `gpt-image-2` (the default) or Gemini (`gemini-3.1-flash-image`, the default, `gemini-3-pro-image`, `gemini-2.5-flash-image`, `gemini-3.1-flash-lite-image`, `gemini-nano-banana-2.1`) and `nika:tts_generate` on OpenAI `tts-1` or `tts-1-hd` or on ElevenLabs (its models mapped to the price page's families) now run, floored at launch and billed against the cap; OpenAI's `gpt-image-2.5-sunburst` and `gpt-image-2.5-flare` publish token rates only, so they run billed from the usage they report, refused only under a zero cap. 0.123.2 ran these OpenAI, Gemini and ElevenLabs calls with no bound (xAI images were already floored and metered). A paid call the catalog cannot price is refused before any request (`nika arm` shows the beat UNREADY with NIKA-1709): OpenAI's default voice `gpt-4o-mini-tts` (no per-call price is published and its speech response reports no usage), `gpt-image-1.5` and `gpt-image-1-mini` (shut down by OpenAI on 2026-12-01), and any model id the catalog does not list; the refusal names every model the catalog prices. A beat on the default OpenAI voice is therefore UNREADY: set `model: tts-1` or `tts-1-hd` (OpenAI shuts every speech model down on 2027-01-06), use a priced `elevenlabs` model, the keyless `provider: system` voice (it bills no provider and settles as unpriced local work), or `local` / `mock`. Only a run with no cap at all makes a paid call the catalog cannot price.
+- **The SDK guard reads what the published `@supernovae-st/nika` 0.123.2 closes.**
+  `published_sdk.json` is re-read from that package's `dist`. Every closed set of 0.123.1 is
+  unchanged, and one is new: an artifact manifest's `verdict` must be `sealed` or `anchored`,
+  the two values `GET /v1/jobs/{id}/artifacts` serves. The manifest and its entries are read
+  open otherwise, so a later key rides through.
+- **The embedded language pack follows nika-spec `5cd95cd`.** `SPEC_PIN`
+  and `crates/nika-pack/pack` advance together from `c5dcd97`, the commit
+  0.123.2 embeds. nika-spec#397 (`aac8de5`) adds the contract of
+  `nika:image_compose` and the keyless `system` voice: `canon.yaml` counts 30
+  builtins, the schema's builtin enum and the stdlib gain
+  `nika:image_compose`, its caps list each input side, the summed pixels,
+  each scaled box and the canvas, the `system` voice speaks its text as text
+  with its audio capped at 64 MiB, and the `image-compose-sheet` example
+  joins the pack. nika-spec#399 (`ebc6448`) makes the images an agent
+  application delivers on a seat a value of the `agent:` task: the schema
+  gains `images: { save: }`, chapter 02 its §Harness images, chapter 17 the
+  `saved_path` of a saved image and the error registry `NIKA-AGENT-007` (112
+  codes), and a seat's `infer:` meets a JSON or JSON Schema need when the
+  engine validates its answer. nika-spec#400 (`479b0bc`) makes an `infer:`
+  `vision:` file a read under `permits.fs.read` (`NIKA-AUTH-006` under an
+  absent block, `NIKA-SEC-004` outside a declared one, and a refusal at
+  check, whatever the path's form, under a boundary that admits no read; a
+  `source: url` entry needs no grant), makes every `vision:` entry a
+  provider-egress sink of its task (`NIKA-SEC-006`, `NIKA-SEC-009`), and
+  bounds an `images: { save: }` to four files and names it, with its `-2` to
+  `-4` siblings, in the same-path law (`NIKA-SEC-012`). nika-spec#401
+  (`5cd95cd`) lets the `cost_usd` of `nika:image_generate` and
+  `nika:tts_generate` come from the engine's dated price catalog, marked by
+  `cost_basis` with the rates' date in `cost_as_of`, and keeps it `null`
+  when neither the provider's report nor the catalog yields a figure.
+
+### Fixed
+
+- **`nika check` accepts the `$key` variables `nika:jq` binds from its
+  input.** At run, every key of an object `input:` is a jq variable, so
+  `input: { rows: [...], batch: B1 }` with `$rows | map(. + {batch: $batch})`
+  works, but the check refused it with NIKA-VAR-005 « undefined filter or
+  variable `$rows` » and the documented form could never run. The check now
+  binds the same names; a templated `input:` leaves an undefined `$name` to
+  the run, and any other undefined name still refuses.
+- **The first parse refusals a newcomer meets teach the shape they
+  refused.** A scalar `infer:`, `invoke:` or `agent:` body (`infer: "say
+  hi"`, `invoke: nika:jq`) now reflects it into its mapping (`infer: {
+  prompt: "say hi" }`, `invoke: { tool: nika:jq, args: { … } }`, or
+  `invoke: { workflow: ./child.nika }` for a child workflow); a bare builtin
+  name is taught under its prefix (`invoke: fetch` → `tool: nika:fetch`). An
+  untyped `inputs:` entry names the typed form it meant (`topic: { type:
+  string, default: "x" }`, `tags: { type: { array: string }, default: [...] }`
+  for a list) and the ten primitives. A builtin written as a task key
+  (`fetch:` or `nika:fetch:`) says it is called through `invoke: { tool:
+  nika:fetch, args: { url: … } }`. The codes are unchanged (`NIKA-PARSE-019`,
+  `NIKA-PARSE-005`).
+- **A YAML syntax refusal (`NIKA-PARSE-001`) names its site and its usual
+  cause.** `prompt: Note: this has a colon: here` and `infer: {prompt: ${{
+  inputs.t }}}` printed one raw sentence with no line frame, and the `--json`
+  finding had no span. The refusal now carries the position the YAML scanner
+  stopped at (where the content ends, when the scanner ran out of input), so
+  `nika check` prints the `-->` frame with its caret and the `--json` parse
+  finding carries `span: {start, end}` like a CONFORM finding (every
+  span-bearing parse refusal does). A colon inside a plain value is told to
+  quote the value or use a block scalar, or to nest a key that meant to be
+  one; an unquoted `${{ … }}` inside a flow mapping is told to quote the
+  expression; a flow mapping or list the file never closed is told so.
+- **A bare `{{ name }}` that names a declared input or a `with:` key draws
+  the `[silent-literal]` hint.** `{{ inputs.name }}` was already named as
+  literal text, but `content: "Hello {{ name }}"` passed `nika check` in
+  silence and the run wrote the braces. The hint now names the reference it
+  meant: `${{ with.name }}` for a `with:` key of that task, otherwise
+  `${{ inputs.name }}`. A bare word that names neither stays silent, and
+  so does a dashed name, whose dotted reference would not parse.
+- **`nika welcome` no longer calls an API key « ready now ».** The key rung
+  read `OPENAI_API_KEY is set · ready now · billed per run`, but nothing on
+  that path checks the key, and a revoked one answered 401 on the first
+  paid call. The rung now says the variable is set and is not checked until
+  the first call; `welcome --json` carries the same reason.
+- **A task-level key from another workflow dialect names the verb that owns
+  it.** `prompt:`, `max_tokens:` and `system:` written straight on a task now
+  point to `infer:`; `http:`, `url:`, `method:` and `request:` to `invoke:`
+  with `tool: nika:fetch`; `command:`, `shell:` and `script:` to `exec:`
+  and `permits.exec`; `tool:` and `args:` to `invoke:`. The field list still
+  follows, so `check --fix` and the editor repairs read it as before. `nika
+  explain NIKA-PARSE-005` now teaches that list and those mappings instead of
+  sending the author to `nika spec --schema`.
+- **`nika serve` says so when the project arms nothing.** In a project whose
+  `nika.yaml` carries no `arm:` entry, `serve --once` exited 0 in silence,
+  `serve --dry` never returned and a bare `serve` waited without a word.
+  `--once` and `--dry` now print the sentence `nika arm` prints, plus the
+  `--bind` command and the token recipe for running workflows over HTTP,
+  and exit 0. The resident prints the same lines once on stderr and keeps
+  watching `nika.yaml`, so arming it later still takes effect. The token
+  recipe, here, in the `--bind` refusal and in `nika doctor`, now creates
+  `.nika/` before it writes the token, so it works in a project fresh from
+  `nika init`.
+- **`nika check` judges a declared route over this machine's access rows.**
+  A file that declares `run.access` (a `via:` or a `protocol:`) and has no
+  `infer:` or `agent:` task was judged over no rows, so ACCESS said the binary
+  was built without agentic CLI adapters and `run ready` was refused, while
+  `nika run` resolved the same route and finished. Check now also probes for
+  a declared route, as the run does, beside a task that dials a model and an
+  `--access` pin.
+- **`nika check` no longer calls the members of a folded group dead spend.**
+  A task that declares `group: <name>` is read by every `${{ group.<name> }}`
+  fold, but the `[dead-spend]` hint only counted `tasks.<id>.output`
+  references and told the author to remove each member. The hint now reads
+  group membership with the same law the DAG uses to fold.
+- **An image save names at most four received images.** The four-image
+  bound counted path-only reports, so one delivered image beside four
+  reported paths was refused; and the agent verb wrote a fifth image from a
+  lent backend at a `-5` path no check judged. The bound now counts images
+  whose bytes arrived, and the writer refuses a fifth before any write.
+- **A turn Codex could not complete no longer settles as a success.** codex-acp returned a
+  failed turn (a 400 `model_not_found`, a retry limit exhausted on 429) as answer text and
+  `end_turn`, so an `agent:` or `infer:` task on the Codex seat succeeded with the error as its
+  output. Nika now advertises the `sessionFailure` extension, which codex-acp and
+  claude-agent-acp implement, and the failure the adapter then reports fails the task with its
+  own error: transient (`NIKA-1804`) when the adapter offers a retry, an expired sign-in when it
+  asks you to sign in again, a refusal (`NIKA-1805`) otherwise. `nika explain` now describes
+  both codes for such a failed turn. An adapter without that extension still returns its error
+  as text.
+- **`[jq-as-map]` no longer fires on a binding whose scope has ended.**
+  `map(. as $r | {n: ($r.a | length)})` binds each element, so the map that
+  encloses the binding maps what it was written to map, and so does a later
+  map of its output (`map(. as $r | …) | map(.n)`); the run's result was
+  right. The hint only checked that a `. as $name` binding and a bare `map(`
+  both appeared; it now counts a bare `map(` only inside a dot binding's
+  scope, which ends at the bracket that closes the construct the binding sits
+  in, so `. as $c | map(.n)` still draws it.
+- **`scan` and `IN` in jq expressions give jq's results.** `scan` with a
+  regex that has capture groups returned each whole match where jq returns
+  the captures (`"abab" | [scan("(a)(b)")]` gave `["ab","ab"]` instead of
+  `[["a","b"],["a","b"]]`), and `IN(...)` was an undefined filter. `IN/1`,
+  `IN/2` and `scan` over a match where every group takes part now follow
+  jq 1.7 in `nika:jq`, output bindings, `nika check` and the compile
+  verifier, which load the same definitions. A group that takes no part in
+  a match (`a(b)?` on `a`, one side of `(a)|(b)`) still differs: jq yields
+  `null` for it, while this engine leaves it out, and yields the whole match
+  when no group took part.
+- **`--max-cost-usd` and the run settlement now see paid media spend.** `nika:image_generate` and `nika:tts_generate` on OpenAI, Gemini and ElevenLabs billed their provider and reported no `cost_usd`, so a capped run never charged them and the settlement left them out (a run whose only spend was such a call settled `unmetered`). The engine now carries a hand-sourced media price table apart from the models.dev snapshot: each row names its provider, model, unit (per image by size class and quality, per million characters, or per million tokens of text input, image input, image output and text and thinking output), USD rate, official source page and the date it was read (2026-10-27). The builtins bill every priced call from it, each response on its own: at the token rates times the usage it reported, at the per-image price times its images when an image response reports no usage (the dearest row over what the request leaves open, such as `quality: auto`), or at the per-character rate times the characters sent, and say how on the output and the manifest (`cost_basis`, with the rates' date in `cost_as_of`); xAI images keep the spend xAI reports (`provider_reported`). A paid call that fails after its provider billed keeps that spend: a Gemini `n:` batch whose later request fails keeps the bill of the images already rendered, a render that fails after its answer keeps its bill, and a request that broke after it left is counted unpriced. The run ledger debits all of it as it debits a model's, per attempt, so a retry is judged against what is left. Under a cap every paid media call is judged on its rendered arguments before its request, a `${{` in a rendered text being text the provider bills: a provider, model, `quality:`, `size:`, `n:` or `text:` only the run decides refuses NIKA-1704 when the catalog cannot price the call or its floor exceeds what the cap leaves. An admitted call holds its floor until it returns, so the items of a capped `for_each` fan-out, parallel or not, cannot launch past the cap together; a call dropped in flight (a `fail_fast` sibling, a `timeout:`) is counted unpriced and its floor stays consumed; once a paid call billed without a figure, a call billed only from its usage is refused under the cap. An `agent:` loop judges its media tool calls the same way against what its task's remainder leaves after the loop's own model turns, its returned tools and the floors its concurrent calls hold, so a model batching image calls cannot spend one remainder twice; concurrent agent tasks each judge against their own snapshot, as text siblings in flight do. A paid call the catalog cannot price runs only with no cap and is counted in `spend.unpriced_calls`, so the settlement reads `unpriced` or `partially_priced`; a child workflow's unpriced calls reach its parent's settlement, and a grandchild's unpriced media is refused at the root's launch. The run's prologue records the table (`media_pricing`, beside `pricing` and `admission_pricing`), and `nika trace verify` refuses the cost replay of a journal that pinned other media rates. `nika check` names each paid media call on its COST rung with its floor, the rate and unit that set it and the table's date (METERED for a call billed from its usage or, for speech, per character of the text the run renders; UNPRICED; or DECIDED AT RUN), including a composed child's and the paid media an agent's tools can reach, and lists `unpriced_media_cap`, `priced_image_over_cap` and `priced_speech_over_cap` in `failure_plan`.
+- **`nika check` refuses a `temperature:` on `openai/gpt-5`, `gpt-5-mini`,
+  `gpt-5-nano` and the o-series.** These models accept only the default
+  temperature, and OpenAI answers any other value with HTTP 400 at run
+  (« Only the default (1) value is supported »), while check showed
+  `capacity fit ✔`. The catalog now records that GPT-5, GPT-5 mini and
+  GPT-5 nano (and their 2025-08-07 snapshots) take no temperature, as it
+  already did for the o-series, and the fixed-sampling finding covers
+  OpenAI's own API beside Anthropic's for the models the catalog lists. A
+  Session label call on these models, a dated snapshot included, no longer
+  sends a temperature. The finding does not yet name a dated snapshot id
+  (`gpt-5-mini-2025-08-07`), which the catalog's model list does not carry.
+  OpenRouter and other compatible routes, which drop the control, and the
+  later dot variants (`gpt-5.1` onward) are unchanged.
+- **An oversized PNG input is a size cap, and a PNG has one IHDR.**
+  `nika:image_fx` refused an input over 16384 pixels on a side as
+  `NIKA-BUILTIN-IMAGE_FX-004` (corrupt, re-produce it); the stdlib files that
+  input cap under `-005`, which it now returns. The PNG decoder behind
+  `image_fx` and `image_compose` now refuses an IHDR that is not the first
+  chunk, or a second IHDR, so the size a pixel budget judged from the header
+  is always the size decoded.
+- **`check` and the run agree on what a Codex or Claude Code seat can carry.** `check` said
+  `run ready` for `schema:` and `vision:` on a seat while the run refused them. An `infer:`
+  task over ACP now carries a `schema:`: the prompt carries the schema and Nika validates the
+  answer, and each repair is a new one-turn session that receives the earlier answer and the
+  errors (`NIKA-INFER-002` after the budget). Its `vision:` files ride as ACP image blocks when
+  the application declares image prompts at `initialize` and the file carries an image
+  signature. An `agent:` task's `schema:` is validated on the seat's final message, with no
+  repair turn. What a seat still cannot carry (`temperature`, `max_tokens`, an enabled
+  `thinking` budget, a `vision:` URL on `infer:`, a `tools:` whitelist on `agent:`) is a `check`
+  blocker, and `check` no longer suggests `max_tokens` or `max_tokens_total` on a seated task.
+- **A `--var` refusal names its code in the `--json` envelope.** An unknown
+  input, a value its declared type refuses and a malformed pair reached
+  `nika run --json` callers as `{"error":{"code":null,…}}`, while the
+  `--inputs-json` channel and the server say `unknown_input` and
+  `input_type_mismatch`. The envelope now carries `unknown_input`,
+  `input_type_mismatch`, `malformed`, `env_unset`, `env_undeclared_in_ci` or
+  `env_name_missing`; the sentence on stderr and exit 3 are unchanged.
+- **A streamed WAV reports its real duration.** `nika:tts_generate` read a
+  streamed WAV header's placeholder `data` size (`0xFFFFFFFF`) verbatim, so
+  an OpenAI narration reported `duration_ms: 89478485` (24.8 hours). The
+  size is now clamped to the bytes actually present, which also gives
+  `espeak-ng --stdout` audio its true length.
+
+### Security
+
+- **`NIKA-SEC-014` holds a confirm gate in front of a child workflow call.** The consent check only looked at egress tasks written in the workflow itself, so a gate that the trifecta credited in front of an `invoke: workflow:` call was never checked to stop the child's effect on a « no » answer. `nika check` and `nika run` now judge a call as the egress-capable task its child (or a workflow below it) reaches, whatever content reaches that task: every route from a confirm gate to the call must close on a refusal, as for the inline form, and the finding names the call. A confirm gate inside the child owns the effect behind it, as inline. When only a child gate the check cannot decide from the caller stands before the effect (a `when:` on an input the caller may bind to its answer), the call gets the advisory hint instead of the refusal. A child the check cannot resolve counts as acting. `check --json` names the child task under `composed_calls[].effect`, with `effect_conditional` for the advisory case.
+- **A Codex command that asks to leave its sandbox now always pauses.** In `read-only`, Codex runs
+  ordinary commands in its sandbox without asking, so every command it asks about asks to run
+  with no sandbox at all (`require_escalated`). Its ask carries the command as a string and the
+  reason in `_meta.permission.description`, which Nika read as `execute · <prose>`: under
+  `permits: { exec: true }` it was allowed, and Codex fetched a site outside its sandbox. It now
+  pauses for you on the exec plane (`sandbox · command`) whatever `permits.exec` grants, with the
+  command and the reason in the question and in the witness. Every pause question now names the
+  command and the reason an ask carries unless its title shows it, on one line a harness cannot
+  steer: control characters become spaces and invisible ones (direction overrides, zero-width
+  characters) are removed, so a Claude Code title, which is the model's own command, can no
+  longer erase itself on your terminal. A long command keeps its end in view (its beginning and
+  end around the bytes left out and their SHA-256; whole up to 16 KiB in the witness), and a
+  sandbox widening's witness names the command it is for. One `--answer` now decides one ask for
+  the task: an attempt that `retry:` replays never reuses it, where a typed 429 failure could
+  otherwise replay the session and approve a different command with the same answer.
+  `nika check`, `nika explain harness` and docs/usage/harness-agents.md now also state what Codex
+  does without asking: it calls its MCP tools marked `readOnlyHint`, opens pages with its hosted
+  web tool, writes its own `~/.codex`, starts every configured MCP server and applies your global
+  `~/.codex/AGENTS.md` and plugins.
+- **`NIKA-SEC-009` now judges a child workflow through the call that runs it.** A parent that
+  read a private file and sent data out passed `nika check` and ran when part of the flow sat
+  in a child reached through `invoke: workflow:`, while the same tasks written inline were
+  refused. `nika check` and `nika run` now judge each call as the tasks it stands for, through
+  every workflow below it. The call is a source of untrusted content when content the child
+  brings in (a `nika:fetch`, an `exec:`, an `mcp:` tool, an `agent:` whose tools admit one)
+  reaches its outputs or a file it writes. It is an egress task when untrusted content reaches
+  an egress task inside it: content the child brings in, the call's arguments, or a file
+  written before the call that a child `exec:` reads. The parent is refused unless a blocking
+  `nika:prompt` of its own dominates the path, as for the inline form; a gate inside the
+  child is not credited to the caller. The finding names the child task behind the call. A
+  child the check cannot read, parse or resolve counts as all of these (fail-closed).
+  `check --json` lists every direct call under `composed_calls`, resolved or not, and the
+  runtime's report check re-derives the trifecta over the same calls. `NIKA-DRIFT-001` no
+  longer tells you to remove a grant a child needs (its program, its tools, the files and
+  hosts its own `permits:` lets its subprocess reach); removing it failed `NIKA-COMP-002` or
+  the child's run. A check of the source alone (an editor, the MCP `nika_check` tool) reads
+  no child: its trifecta judges the parent's own tasks only, and its `NIKA-DRIFT-001` makes
+  no `permits:` claim on a file that calls a child.
+- **`NIKA-SEC-009` follows untrusted content through a file a builtin reads.** A gate could clear the task that saved untrusted content to a file, and a `nika:read` of that file then fed an ungated egress: the trifecta counted only an earlier `exec:` as a reader of such files, so `nika check` passed the workflow. A builtin read (`nika:read`, `nika:grep` (its default root `.` included), `nika:glob`, `nika:edit`, a `nika:decide` bundle, the files `nika:image_fx`, `nika:chart` and `nika:image_generate` read, a `nika:fetch` multipart upload) of a path the write may have reached now carries the content on, inline and inside a child workflow, and, when the write's path is literal, whatever the order: a read in the writer's own wave, or before it in the run (the next run reads the file), counts too. Paths compare lexically: folded, case-blind, a segment past ASCII may be any segment, `/private/tmp` is `/tmp`, and a templated path may be any file. A read whose path cannot reach the written one stays clean.
+- **A run refuses a report that judged no child for a workflow call.** The runtime's report check re-derives the trifecta over the child calls the report resolved, and a call missing from that list counted as having no ingress: an embedder pairing a plain `nika_check::check()` with `Runtime::run` and a child runner could run a fetching child into an ungated egress. A call the report does not list for its task and target now counts as unresolved, and the run refuses with `NIKA-1707`, naming it. `nika run --task` re-checks the kept tasks with their children, so a scoped run of a composed workflow keeps its calls resolved.
+- **A `vision:` file is a read inside `permits.fs.read` (breaking).** The
+  `infer:` verb opened every `vision: [{ source: file }]` path itself, on
+  every route (API and ACP; `nika run`, serve, Session, child workflows,
+  `nika test` and rehearsal rooms), with no `permits` check: an absent block,
+  a narrower `fs.read` grant, a symlink or a `..` did not keep the file from
+  the model provider, and a relative path was read from the process
+  directory instead of the run's root. The run now reads each file through
+  `nika:read` under the workflow's own boundary, on its resolved path,
+  before any provider call: outside it the task fails `NIKA-SEC-004` (one
+  `permit_checked` fs frame), and a granted file that cannot be read fails
+  with the read's own code (`NIKA-BUILTIN-READ-001` when no file is there,
+  `-002` otherwise) instead of the internal `NIKA-432`. `nika check` judges
+  a literal or bare-`const` path (`NIKA-AUTH-006` with no `permits:` block,
+  `NIKA-SEC-004` outside a declared one), and refuses a computed path, or a
+  computed `images.save`, under a boundary whose side grants no path at all.
+  `--infer-permits` prints the grant, the drift scan counts it as used, a
+  child's vision reads join `NIKA-COMP-002`, and the check card no longer
+  calls such a body pure compute. The `vision:` entries are sink fields of
+  the task, on check and run alike: a secret in a vision URL or path is the
+  `infer` leak (`NIKA-SEC-006` unless `egress: [{ to: "infer" }]`), and
+  untrusted content that picks an entry reaches the answer, so the trifecta
+  (`NIKA-SEC-009`) follows it as it follows a `nika:read` path; the file
+  channel follows a vision read of a file an untrusted writer left. A
+  `source: url` needs no grant: the provider fetches it. Migration: grant
+  each vision file in `permits.fs.read` (`nika check --infer-permits` prints
+  the block); embedders hand the verb bytes they read (`VisionPart::Loaded`),
+  never a path.
 ## [0.123.2](https://github.com/supernovae-st/nika/compare/v0.123.1..v0.123.2) - 2026-10-26
 
 Nika 0.123.2 is the second maintenance release of the 0.123 reference line. An `agent:` task on
