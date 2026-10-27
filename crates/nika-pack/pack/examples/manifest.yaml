@@ -4,7 +4,7 @@
 # Consumers · the reference engine embeds this pack (nika try ·
 # nika spec) · docs + website render projections of the same files.
 pack_version: 0.2.0-draft
-workflow_count: 62
+workflow_count: 63
 foundation:
   - file: examples/01-hello.nika
     sha256_16: 0b35ae8b802835d2
@@ -140,6 +140,10 @@ showcase:
     name: etl-quarantine
     constructs: [on_error, outputs, when, with]
     sha256_16: 384dd28a45c9d9f5
+  - file: examples/image-compose-sheet.nika
+    name: image-compose-sheet
+    constructs: [outputs]
+    sha256_16: d1f724a3480398e3
   - file: examples/image-fx-batch.nika
     name: image-fx-batch
     constructs: [for_each, max_parallel, outputs, with]

@@ -24,7 +24,7 @@ Three nested levels · increasing scope ·
 |---|---|---|
 | **Core** | Parse + validate · DAG semantics · variable resolution · error structure | Linters · spec editors · static analyzers |
 | **Runtime** | Core + verb execution | Working engine (with own provider/tool impls) |
-| **Stdlib v0.1** | Runtime + the <!-- canon:providers -->18<!-- /canon --> providers + <!-- canon:extract_modes -->10<!-- /canon --> extract modes + <!-- canon:builtins -->29<!-- /canon --> builtins | Full reference-impl-equivalent engine |
+| **Stdlib v0.1** | Runtime + the <!-- canon:providers -->18<!-- /canon --> providers + <!-- canon:extract_modes -->10<!-- /canon --> extract modes + <!-- canon:builtins -->30<!-- /canon --> builtins | Full reference-impl-equivalent engine |
 
 A higher level **includes** the lower levels.
 
@@ -272,7 +272,7 @@ An engine claims « Stdlib v0.1-compliant » if it satisfies Runtime conformance
 
 1. **Ships all <!-- canon:providers -->18<!-- /canon --> canonical providers** (per [stdlib/providers-v0.1.md](../stdlib/providers-v0.1.md))
 2. **Ships all <!-- canon:extract_modes -->10<!-- /canon --> canonical extract modes** (per [stdlib/extract-modes-v0.1.md](../stdlib/extract-modes-v0.1.md))
-3. **Ships at least all <!-- canon:builtins -->29<!-- /canon --> canonical builtins** (the remaining deferred media builtins are optional · the byte-determinism clauses of `nika:image_fx` and `nika:chart` are part of the bar — an engine that cannot honor them is not conformant, no waiver)
+3. **Ships at least all <!-- canon:builtins -->30<!-- /canon --> canonical builtins** (the remaining deferred media builtins are optional · the byte-determinism clauses of `nika:image_fx`, `nika:chart` and `nika:image_compose` are part of the bar — an engine that cannot honor them is not conformant, no waiver)
 4. **Passes** all tests in `conformance/tests/stdlib/`
 
 A Stdlib-compliant engine is functionally equivalent to the reference implementation for any workflow that uses only the canonical stdlib elements.

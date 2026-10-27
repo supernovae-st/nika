@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: 36c1bd1e837ddcfbcb11f3289913461b53c102e7b559043bb0c77796eaa00b9b
+# body-sha256: c2c7a45753555bac90b2d20137ff73fc0b6f87cdf95c54401a4123ca205603b3
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -59,7 +59,7 @@ schema_version: 1
 counts:
   verbs: 4
   namespaces: 6
-  builtins: 29
+  builtins: 30
   providers: 18
   extract_modes: 10
   templates: 22
@@ -132,12 +132,12 @@ namespaces:
     - run
 
 # ---------------------------------------------------------------- builtins
-# Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss) → 23 (compose added 2026-06-13 · ADR-093 · agent-loop self-check intrinsic, loop-only like done) → 24 (image_generate added 2026-07-05 · the first stdlib §Media graduate · openai/gemini/mock · assets land on disk, never inline) → 25 (tts_generate added 2026-07-05 · §Audio · local/openai/elevenlabs/mock · sovereign-first) → 26 (image_fx added 2026-07-09 · §Media graduate #3 · the `image editing` deferred row · deterministic artistic effects · byte-identical artifacts · recipe-in-chunk · zero-dep) → 27 (chart added 2026-07-09 · §Media graduate #4 · deterministic zero-dep renderer · byte-identical SVG · sha256 → trace chain).
-# stdlib/builtins-v0.1.md is the prose home (matches at 27 · cascade complete 2026-07-09 · image_fx #3 + chart #4 §Media graduates · image providers v1.1 local-first + xai · tts_generate §Audio same arc).
+# Post atomic-language audit · 42→27→26→25→22 (-20 · -48% · zero functional loss) → 23 (compose added 2026-06-13 · ADR-093 · agent-loop self-check intrinsic, loop-only like done) → 24 (image_generate added 2026-07-05 · the first stdlib §Media graduate · openai/gemini/mock · assets land on disk, never inline) → 25 (tts_generate added 2026-07-05 · §Audio · local/openai/elevenlabs/mock · sovereign-first) → 26 (image_fx added 2026-07-09 · §Media graduate #3 · the `image editing` deferred row · deterministic artistic effects · byte-identical artifacts · recipe-in-chunk · zero-dep) → 27 (chart added 2026-07-09 · §Media graduate #4 · deterministic zero-dep renderer · byte-identical SVG · sha256 → trace chain) → 28 (decide · spec 11 · 2026-07-15) → 29 (remove_file · engine 0.123) → 30 (image_compose added 2026-10-26 · §Media graduate #5 · deterministic grid/row/column composition of PNG inputs · byte-identical artifacts · recipe-in-chunk · zero-dep · every input an fs.read the check judges).
+# stdlib/builtins-v0.1.md is the prose home (matches at 30 · image_fx #3 + chart #4 + image_compose #5 §Media graduates · image providers v1.1 local-first + xai · tts_generate §Audio same arc · its keyless `system` provider 2026-10-26).
 # Admission test · 3 razors · (1) NOT-expressible-in-jq+CEL+Schema · (2) canonical
 # interop format (RFC-6902/7396/9562 · etc.) · (3) cookbook-clarity.
 builtins:
-  count: 29
+  count: 30
   reference: stdlib/builtins-v0.1.md
   items:
     - assert
@@ -153,6 +153,7 @@ builtins:
     - glob
     - grep
     - hash
+    - image_compose
     - image_fx
     - image_generate
     - inspect

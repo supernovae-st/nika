@@ -46,7 +46,7 @@ The stdlib has **independent versioning** ·
 
 - `stdlib/providers-v0.1.md`, the <!-- canon:providers -->18<!-- /canon --> canonical providers for v0.1
 - `stdlib/extract-modes-v0.1.md`, the <!-- canon:extract_modes -->10<!-- /canon --> canonical extract modes for v0.1
-- `stdlib/builtins-v0.1.md`, the <!-- canon:builtins -->29<!-- /canon --> canonical builtins for v0.1
+- `stdlib/builtins-v0.1.md`, the <!-- canon:builtins -->30<!-- /canon --> canonical builtins for v0.1
 
 When the stdlib evolves to v0.2 · those files become `*-v0.2.md` and new versions are published. The core language contract (v1 · no version typed in the file) is unchanged.
 
@@ -88,8 +88,8 @@ See [stdlib/extract-modes-v0.1.md](../stdlib/extract-modes-v0.1.md).
 + 9 data (jq · json_diff · validate · json_merge_patch · convert · uuid · date · hash · decide · the decision kernel · spec 11 · 2026-07-15)
 + 2 introspection (inspect · view-discriminated · 4 views cost/records/dag_info/threads · compose · agent-loop self-check)
 + 2 network (fetch · notify)
-+ 4 media (image_generate · graduate #1 · 2026-07-05 · tts_generate · §Audio · sovereign-first · 2026-07-05 · image_fx · graduate #3 · deterministic artistic effects · 2026-07-09 · chart · graduate #4 · attested deterministic charts · 2026-07-09)
-= **<!-- canon:builtins -->29<!-- /canon --> canonical builtins** (Stdlib v0.1 · consolidated · was 42 · `jq` subsumes 13 data builtins · validators merged into `validate` · `task_status`/`orchestrate`/`locale_lookup` cut · `sleep`+`wait_until` merged into unified `nika:wait` per ADR-087 · `cost`+`records`+`dag_info`+`threads` merged into unified `nika:inspect` per ADR-088 · ZERO capability loss · `decide` joined per spec 11 W-DEC · 2026-07-15)
++ 5 media (image_generate · graduate #1 · 2026-07-05 · tts_generate · §Audio · sovereign-first · 2026-07-05 · its keyless `system` provider 2026-10-26 · image_fx · graduate #3 · deterministic artistic effects · 2026-07-09 · chart · graduate #4 · attested deterministic charts · 2026-07-09 · image_compose · graduate #5 · deterministic composition · 2026-10-26)
+= **<!-- canon:builtins -->30<!-- /canon --> canonical builtins** (Stdlib v0.1 · consolidated · was 42 · `jq` subsumes 13 data builtins · validators merged into `validate` · `task_status`/`orchestrate`/`locale_lookup` cut · `sleep`+`wait_until` merged into unified `nika:wait` per ADR-087 · `cost`+`records`+`dag_info`+`threads` merged into unified `nika:inspect` per ADR-088 · ZERO capability loss · `decide` joined per spec 11 W-DEC · 2026-07-15)
 (+ the remaining media class · **deferred** to stdlib v0.x · NOT in the v0.1 count)
 
 See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md).
@@ -188,7 +188,7 @@ See [07-conformance.md](./07-conformance.md). In summary ·
 |---|---|
 | Core | None · only parse + DAG + variable + error · no execution needed |
 | Runtime | Must execute the 4 verbs · provider/tool implementations engine's choice |
-| Stdlib v0.1 | Must ship the <!-- canon:providers -->18<!-- /canon --> providers + <!-- canon:extract_modes -->10<!-- /canon --> extract modes + <!-- canon:builtins -->29<!-- /canon --> builtins |
+| Stdlib v0.1 | Must ship the <!-- canon:providers -->18<!-- /canon --> providers + <!-- canon:extract_modes -->10<!-- /canon --> extract modes + <!-- canon:builtins -->30<!-- /canon --> builtins |
 | Stdlib v0.1+media | RESERVED · enumerated when the media set publishes (stdlib v0.x · the 24 names are not yet normative) |
 
 A v0.1-compliant engine for a workflow author depends on which level they need.

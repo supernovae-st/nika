@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Builtins
 
-> **<!-- canon:builtins -->29<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
+> **<!-- canon:builtins -->30<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
 > Invoked via `invoke: { tool: "nika:<name>" }`. Plus the remaining media
 > builtins deferred to stdlib v0.x (opt-in feature flag).
 >
@@ -40,10 +40,10 @@
 | Data | 8 | `jq` (THE data language) + 7 capabilities jq can't express (json_diff · validate · json_merge_patch · convert · uuid · date · hash) |
 | Introspection | 2 | Self-awareness · `inspect` (runtime state · 4 views) · `compose` (static check of a drafted workflow · agent loops only) |
 | Network | 2 | fetch (HTTP+extraction) · notify (alerts out) |
-| Media | 4 | `chart` (§Media #4 · deterministic/attested · 2026-07-09) · `image_generate` (§Media · 2026-07-05) · `image_fx` (§Media #3 · deterministic ops chain · 2026-07-09) · `tts_generate` (§Audio · 2026-07-05) — the REST of the media class stays deferred to stdlib v0.x |
-| **Total v0.1** | **<!-- canon:builtins -->29<!-- /canon -->** | |
+| Media | 5 | `chart` (§Media #4 · deterministic/attested · 2026-07-09) · `image_compose` (§Media #5 · deterministic composition · 2026-10-26) · `image_generate` (§Media · 2026-07-05) · `image_fx` (§Media #3 · deterministic ops chain · 2026-07-09) · `tts_generate` (§Audio · 2026-07-05) — the REST of the media class stays deferred to stdlib v0.x |
+| **Total v0.1** | **<!-- canon:builtins -->30<!-- /canon -->** | |
 
-A Stdlib v0.1-compliant engine MUST ship these <!-- canon:builtins -->29<!-- /canon -->.
+A Stdlib v0.1-compliant engine MUST ship these <!-- canon:builtins -->30<!-- /canon -->.
 
 ---
 
@@ -691,7 +691,7 @@ infer.
 
 ---
 
-## Media builtins (4)
+## Media builtins (5)
 
 
 ### `nika:chart` · deterministic chart artifacts (§Media graduate #4)
@@ -959,6 +959,109 @@ boundary `NIKA-SEC-004` (paths outside `permits.fs`).
 
 ---
 
+### `nika:image_compose` · deterministic image composition (§Media graduate #5)
+
+```yaml
+invoke:
+  tool: "nika:image_compose"
+  args:
+    inputs:                              # ordered · 1..=64 PNG paths (each read-gated)
+      - out/fx/sunset-duotone.png
+      - out/fx/sunset-gameboy.png
+      - out/fx/harbour-duotone.png
+      - out/fx/harbour-gameboy.png
+    out: out/contact-sheet.png           # the artifact · .png (write-gated)
+    layout: grid                         # grid (default) | row | column
+    scale: fit                           # none (default) | fit | fill
+    cell: { width: 256, height: 256 }    # fit · fill only · default: the largest input box
+    gap: 6
+    padding: 12
+    background: "#10141c"
+```
+
+The §Media graduate #5 — several PNG images become ONE: a contact sheet
+or grid, a side-by-side (`row`), a vertical stack (`column`). Like
+`image_fx` it is pure pixel work: NO provider, NO network, NO clock, NO
+keys, and **byte-identical output** for identical `(input bytes, args)` —
+the artifact's sha256 joins the hash-chained trace, re-render IS the
+tamper check, and the recipe (contract tag `image_compose/v1` · each
+input's sha256 and size · the resolved layout) rides the artifact as a
+PNG `nika` tEXt chunk. The recipe carries no timestamp and no path: the
+same bytes composed from another folder are the same file. Identical
+bytes already at `out:` = idempotent skip (`skipped_existing`).
+
+| Arg | Contract |
+|---|---|
+| `inputs` | REQUIRED · an ordered list of 1..=64 source paths · each **PNG v1** (the `image_fx` input law: depth 8 · gray, gray+alpha, RGB or RGBA · no Adam7 — anything else `-003`) · each read rides `permits.fs.read` · placed row-major, `inputs[0]` first |
+| `out` | REQUIRED · the artifact path · `.png` · the write rides `permits.fs.write` |
+| `layout` | `grid` (default) · `row` (one row, left to right) · `column` (one column, top to bottom) |
+| `columns` · `rows` | `grid` only (`-001` with `row` / `column`) · 1..=64 each · both absent: `columns` = ⌈√n⌉ and `rows` = ⌈n ÷ columns⌉ · one given: the other is ⌈n ÷ given⌉ · both given: `columns × rows` ≥ n (`-001` otherwise · trailing cells stay background) |
+| `scale` | `none` (default · each image at its own size) · `fit` (scaled up or down, aspect kept, to the largest box inside its cell · letterboxed on `background`) · `fill` (scaled, aspect kept, to cover its cell, then center-cropped to it) |
+| `cell` | `{ width, height }` · 1..=16384 each · `fit` / `fill` only (`-001` with `scale: none`) · default: the largest input box (the widest width × the tallest height) |
+| `gap` · `padding` | pixels between cells · around the sheet · 0..=1024 each · default 0 |
+| `background` | `#rrggbb` or `[r, g, b]` · default `#ffffff` · fills the canvas, the gaps, the letterboxes and the empty trailing cells |
+
+Geometry (NORMATIVE — for a byte-deterministic builtin the arithmetic IS
+the wire contract; `round(a ÷ b)` is `⌊(a + ⌊b ÷ 2⌋) ÷ b⌋`, never below 1) ·
+
+- the placed size of a `w × h` input in a `cw × ch` cell: `none` → `w × h` ·
+  `fit` → `round(w·ch ÷ h) × ch` when `w·ch ≤ h·cw`, else `cw × round(h·cw ÷ w)` ·
+  `fill` → the cover box (`round(w·ch ÷ h) × ch` when `w·ch ≥ h·cw`, else
+  `cw × round(h·cw ÷ w)`), cropped to `cw × ch` at `(⌊(sw − cw) ÷ 2⌋, ⌊(sh − ch) ÷ 2⌋)`;
+- scaling is the `image_fx` `resize` op with `filter: auto` (linear light)
+  to the placed box — the same bytes that op produces;
+- tracks: with `fit` / `fill` every column is `cw` wide and every row `ch`
+  high; with `none` a column is as wide as its widest image and a row as
+  high as its tallest;
+- each image is centered in its cell at `(⌊(track_w − pw) ÷ 2⌋, ⌊(track_h − ph) ÷ 2⌋)`;
+- the canvas is `2·padding + Σ column widths + gap·(columns − 1)` by
+  `2·padding + Σ row heights + gap·(rows − 1)`;
+- an input's alpha is composited over `background` BEFORE any scaling,
+  per channel `⌊(c·a + bg·(255 − a) + 127) ÷ 255⌋` in sRGB integers · the
+  artifact is RGB8 (PNG color type 2).
+
+Caps (normative · `-005`) · each input ≤ 16384 per side · the SUM of the
+inputs' pixels ≤ 2^26 · each `fit` / `fill` scaled box (the placed size
+above, before the `fill` crop) ≤ 16384 per side and ≤ 2^26 pixels · the
+canvas ≤ 16384 per side and ≤ 2^26 pixels — all judged from the PNG
+headers and the args BEFORE any decompression or canvas allocation. An
+input carries exactly one IHDR, its first chunk (PNG-3): the size the caps
+judged is the size decoded, and a second IHDR is `-004`. The input count
+(1..=64) is an argument, `-001`.
+
+Output · `{ path, sha256, size_bytes, width, height, format, layout,
+columns, rows, scale, inputs: [{ path, sha256, width, height }],
+skipped_existing }` — artifact bytes NEVER ride outputs (the disk law).
+
+**Authority.** The tool grant, `permits.fs.read` for EVERY input and
+`permits.fs.write` for `out:`. A static checker judges each literal input
+path (or whole bare `const:` reference) as a read and a literal `out:` as a
+write, before anything runs: a missing read grant is a check-time
+`NIKA-SEC-004`, never a surprise at run, and a read grant an input uses is
+a use, never `declared-but-unused` advice. A templated list or element
+defers to the run's boundary (`NIKA-SEC-004` there).
+
+Determinism contract (normative) · no wall-clock · no randomness ·
+integer/fixed-point pixel math · identical `(input bytes, args)` MUST
+produce byte-identical artifacts across platforms and releases within a
+stdlib major (the recipe carries the stable contract tag
+`image_compose/v1`, never the engine build). An engine that cannot honor
+this is not conformant (07-conformance §3). Labels and JPEG input are not
+part of v1.
+
+Throws · `NIKA-BUILTIN-IMAGE_COMPOSE-001` invalid arguments (unknown key ·
+out-of-range value · `columns`/`rows` outside `grid` · `cell` with
+`scale: none` · a grid smaller than the list · `out:` not `.png` ·
+`validation_error`) · `-002` an input read failed (`tool_error` · the
+message names the index) · `-003` unsupported input format (non-PNG ·
+palette · exotic depth/interlace · `validation_error`) · `-004` decode
+failed (structural corruption · CRC/Adler mismatch · `tool_error`) ·
+`-005` a cap exceeded (`security_error` · never transient) · `-006`
+artifact save failed (`tool_error`) — `image_fx`'s ladder, code for code.
+Plus the boundary `NIKA-SEC-004` (paths outside `permits.fs`).
+
+---
+
 ### `nika:tts_generate` · provider-backed speech synthesis (§Audio)
 
 ```yaml
@@ -966,14 +1069,15 @@ narrate:
     invoke:
       tool: "nika:tts_generate"
       args:
-        provider: local              # sovereign first — or openai · elevenlabs · mock
+        provider: local              # sovereign first — or system · openai · elevenlabs · mock
         text: "Bienvenue — the launch is live."
         voice: "alloy"
         output_dir: "./assets/audio"
 ```
 
 Teaching shape · [`17-tts-self`](../examples/17-tts-self.nika)
-(`provider: mock` · a real WAV · offline).
+(`provider: mock` · a real WAV · offline). Real speech with no key and no
+network · `provider: system` (the host's own synthesizer, below).
 
 The image family's contract, applied to audio: ONE audio file lands under
 `output_dir:` (permit-gated per final path BEFORE I/O · atomic write ·
@@ -981,25 +1085,53 @@ content-hash-named `{stem}-{provider}-{model}-{sha8}.{ext}` so identical
 re-runs are idempotent), the output carries `{ provider, model, voice,
 created_at, endpoint_host, audio: { path, filename, format, mime_type,
 size_bytes, sha256, duration_ms }, cost_usd, warnings, manifest_path,
-output_dir }` — **audio bytes NEVER ride outputs**, and a sidecar
+output_dir }` (plus `cost_unpriced` when the engine knows why `cost_usd`
+is null · `system`) — **audio bytes NEVER ride outputs**, and a sidecar
 provenance manifest (`manifest: true` default) echoes the resolved
 request.
 
 | Arg | Contract |
 |---|---|
-| `provider` | REQUIRED-or-inferred · closed: `local` (any OpenAI-speech-compatible self-hosted server — LocalAI · Kokoro-FastAPI · Speaches · openedai-speech · ONE wire: `POST {base}/v1/audio/speech` → raw bytes · base URL is ENGINE CONFIG `NIKA_TTS_LOCAL_URL`, default `http://localhost:8080`, never workflow data · never inferred) · `openai` · `elevenlabs` · `mock` (a REAL deterministic WAV · zero network/keys). Inference: `eleven*` → elevenlabs · `gpt-*`/`tts-*` → openai · `mock*` → mock. |
-| `model` | per-provider default (reference engine 2026-07: `tts-1` local convention · `gpt-4o-mini-tts` · `eleven_multilingual_v2` · `mock-tts-1`) |
+| `provider` | REQUIRED-or-inferred · closed: `local` (any OpenAI-speech-compatible self-hosted server — LocalAI · Kokoro-FastAPI · Speaches · openedai-speech · ONE wire: `POST {base}/v1/audio/speech` → raw bytes · base URL is ENGINE CONFIG `NIKA_TTS_LOCAL_URL`, default `http://localhost:8080`, never workflow data · never inferred) · `system` (the host's own speech synthesizer · keyless · offline · see below · never inferred) · `openai` · `elevenlabs` · `mock` (a REAL deterministic WAV · zero network/keys). Inference: `eleven*` → elevenlabs · `gpt-*`/`tts-*` → openai · `mock*` → mock. |
+| `model` | per-provider default (reference engine 2026-07: `tts-1` local convention · `gpt-4o-mini-tts` · `eleven_multilingual_v2` · `mock-tts-1`) · `system` has no model choice: the model is the synthesizer's program name (`say` · `espeak-ng`), and any other `model:` is `-001` |
 | `text` | REQUIRED · non-empty · ≤4096 chars (the strictest documented wire cap, held portably — fan longer scripts out with `for_each`) |
-| `voice` | provider voice id · defaults: `alloy` (openai/local) · Rachel's public id (elevenlabs — ids are path components, so engines MUST restrict them to the id alphabet) · `sine` (mock) |
-| `format` | `mp3 \| wav \| auto` (default auto = provider-native) — the saved EXTENSION follows the sniffed bytes (magic authority), never the ask; a lossy fold is a `format_mismatch:` warning |
-| `speed` | 0.25–4.0 (openai/local native) — warned-dropped (`speed_unsupported:`) where the wire has no knob |
+| `voice` | provider voice id · defaults: `alloy` (openai/local) · Rachel's public id (elevenlabs — ids are path components, so engines MUST restrict them to the id alphabet) · `sine` (mock) · `default` (system · the host's default voice) — a `system` voice is a host voice name (letters, digits, space and `( ) - _ . + '` · ≤ 64 chars · never a leading `-`); a name the host does not have fails the call, never falls back to the default voice |
+| `format` | `mp3 \| wav \| auto` (default auto = provider-native) — the saved EXTENSION follows the sniffed bytes (magic authority), never the ask; a lossy fold is a `format_mismatch:` warning · `system` renders WAV |
+| `speed` | 0.25–4.0 (openai/local native · `system`: words per minute = round(175 × speed), 175 being both synthesizers' default rate) — warned-dropped (`speed_unsupported:`) where the wire has no knob |
 | `output_dir` · `filename_prefix` · `metadata` · `manifest` | as `image_generate` (stem falls back to `metadata.page_slug`, then `speech`) |
 | `timeout_ms` | default 120000 · local 300000 (CPU synthesis) · max 600000 |
 
 **Validation (engine MUST)** · the payload is sniffed (WAV `RIFF…WAVE` ·
 MP3 `ID3`/frame-sync) — a non-audio payload is a hard `-007`; WAV
-`duration_ms` is exact header math, MP3 duration is honestly `null`
-(never a guess). Empty payloads are `-004`.
+`duration_ms` is exact header math over the bytes actually PRESENT: a
+`data` chunk declaring more than the payload carries (a streamed WAV's
+`0xFFFFFFFF` placeholder size) counts only the bytes present, so a
+streamed narration never reports a 24-hour duration. MP3 duration is
+honestly `null` (never a guess). Empty payloads are `-004`.
+
+**The `system` provider (keyless · offline · engine-run).** The engine
+starts the host's own synthesizer ITSELF, as part of the builtin: macOS
+`/usr/bin/say` (16-bit PCM WAV · 22050 Hz · written to an engine scratch
+file, never a workflow path), Linux `espeak-ng --stdout` found in an
+absolute directory of the engine's `PATH` (never a relative entry). The
+text rides the program's standard input, never its argument vector, and is
+spoken as TEXT, never synthesizer markup: both programs read `[[` as the
+start of markup (`say`'s embedded commands such as `[[volm 0]]` ·
+`espeak-ng`'s phonemes), so the engine breaks every `[[` with a space
+before the text reaches them. The audio is capped at 64 MiB (`-003` ·
+never transient · measured before it is read). It is never the
+workflow's `exec:`: no `permits.exec` is required or consulted, the program is fixed by the engine (never
+workflow data), and the audio still lands under `output_dir:` through
+`permits.fs.write` like every provider. A static checker names the
+program the call will start; the journal records the start as the
+builtin's own effect (a `permit_checked` frame · `plane: builtin` · spec
+17), never as an `exec:` decision. On any other operating system, or
+when the program is absent, the call fails `-002` naming what is missing
+— never a silent fallback to another provider. A non-zero exit is `-003`
+(never transient · the synthesizer's message is carried). Cost · local
+compute is unpriced, never free: `cost_usd` is `null`, the output names
+the reason (`cost_unpriced: local_model`), and the run reports the task
+unpriced on its journal frame the same way · never a priced `0`.
 
 **Security (engine MUST)** · endpoints are engine-fixed constants (the
 `local` base URL is engine config at the composition root — the same
@@ -1010,7 +1142,8 @@ verbose local server reflecting the Bearer into an error body MUST be
 scrubbed (the image family's rule).
 
 Throws · `NIKA-BUILTIN-TTS_GENERATE-001` invalid arguments
-(`validation_error`) · `-002` provider unavailable (`validation_error`) ·
+(`validation_error`) · `-002` provider unavailable (a missing key · an
+unwired plane · no system synthesizer on this host · `validation_error`) ·
 `-003` request failed (`network_error` · `transient: true` for
 5xx/408/429 + timeout/connection) · `-004` empty audio (`tool_error`) ·
 `-005` content policy (`security_error` · never transient) · `-006` save
@@ -1048,7 +1181,9 @@ workflow:` tagged union per `14-composition.md` · never a builtin) ·
 
 `image_generate` graduated 2026-07-05 · `tts_generate` same arc ·
 `image_fx` graduated 2026-07-09 (the image *editing* row · §Media #3) ·
-`chart` graduated 2026-07-09 (above · §Media #4). The remaining media class
+`chart` graduated 2026-07-09 (above · §Media #4) · `image_compose`
+graduated 2026-10-26 (§Media #5 · the composition a workflow otherwise
+borrowed from `exec`). The remaining media class
 (pdf_extract · svg_render · phash · provenance ·
 …) is NOT enumerated in v0.1 (feature-flag in the reference engine · MAY
 graduate builtin-by-builtin per the 3-razor admission test). Deliberate
@@ -1074,4 +1209,4 @@ external users · before the forever-clock).
 
 ---
 
-🦋 *<!-- canon:builtins -->29<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*
+🦋 *<!-- canon:builtins -->30<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*

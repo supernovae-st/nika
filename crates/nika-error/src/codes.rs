@@ -214,7 +214,7 @@ fn verb_help(num: u16) -> &'static str {
             "The tool ran but reported an error. Inspect the tool's output content for the failure detail."
         }
         452 => {
-            "Tool dispatch failed. Under `nika test` this is BY DESIGN: the mock plane simulates the model, not effects, so the effect tools (`nika:write` · `edit` · `fetch` · `notify` · `image_generate` · `tts_generate` · `chart` · `image_fx`) and anything outside the `nika:` namespace refuse — reach for `nika run` when you want the effect, or let the task rehearse through `on_error: recover` (every shipped skeleton carries that armor). Elsewhere: a timeout, an execution error, or an unavailable tool system — check the MCP server or builtin availability."
+            "Tool dispatch failed. Under `nika test` this is BY DESIGN: the mock plane simulates the model, not effects, so the effect tools (`nika:write` · `edit` · `fetch` · `notify` · `image_generate` · `tts_generate` · `chart` · `image_fx` · `image_compose`) and anything outside the `nika:` namespace refuse — reach for `nika run` when you want the effect, or let the task rehearse through `on_error: recover` (every shipped skeleton carries that armor). Elsewhere: a timeout, an execution error, or an unavailable tool system — check the MCP server or builtin availability."
         }
         460 => {
             "The agent hit max_turns without completing. Raise max_turns, tighten the prompt toward the nika:done sentinel, or reduce tool round-trips."
@@ -640,8 +640,87 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
              · use the wired channel:      args: { channel: webhook, target: https://..., message: ... }\n    \
              · drop the notify task until a later engine wires `slack`.\n",
         ),
+        ("tts_generate", "002") => Some(
+            "  The provider cannot be reached from this engine: a cloud provider \
+             with no API key configured (`NIKA_OPENAI_API_KEY` · `OPENAI_API_KEY` · \
+             `NIKA_ELEVENLABS_API_KEY` · `ELEVENLABS_API_KEY`), an unwired TTS plane, \
+             or `provider: system` on a host with no synthesizer. The keyless \
+             `system` voice speaks through macOS `/usr/bin/say` or Linux \
+             `espeak-ng` found in an absolute directory of the engine's PATH — the \
+             engine starts it itself, \
+             no `permits.exec` needed — and refuses here, naming what is missing, \
+             rather than falling back to another provider.\n\n  \
+             exits (pick one):\n    \
+             · install the host voice:     apt install espeak-ng (Linux) · macOS ships say\n    \
+             · configure a key:            export NIKA_OPENAI_API_KEY=… (then provider: openai)\n    \
+             · rehearse offline:           args: { provider: mock, … } (a real WAV, no key)\n",
+        ),
+        ("image_compose", num) => image_compose_help(num),
         _ => None,
     }
+}
+
+/// The `nika:image_compose` ladder (stdlib §Media graduate #5) — `image_fx`'s
+/// six codes, each with its cause and its working exits.
+fn image_compose_help(num: &str) -> Option<&'static str> {
+    Some(match num {
+        "001" => {
+            "  `nika:image_compose` refused its arguments before reading any input: \
+             an unknown key (the set is inputs · out · layout · columns · rows · \
+             scale · cell · gap · padding · background — labels and JPEG are not \
+             v1), `inputs` not a list of 1..=64 paths, `out` not ending in .png, a \
+             `layout` other than grid | row | column, a `scale` other than none | \
+             fit | fill, `columns`/`rows` outside `layout: grid` or 1..=64, a grid \
+             with fewer cells than inputs, a `cell` with `scale: none`, a \
+             `gap`/`padding` over 1024, or a `background` that is not #rrggbb.\n\n  \
+             exits (pick one):\n    \
+             · drop the extra cells:       omit `columns`/`rows` (derived from the count)\n    \
+             · scale into a box:           args: { …, scale: fit, cell: { width: 256, height: 256 } }\n    \
+             · `nika check` names the field before the run does.\n"
+        }
+        "002" => {
+            "  An input could not be read (the message names its index): a missing \
+             file, a directory, a permission error. The read was inside the \
+             declared `permits.fs.read` boundary — a path outside it is \
+             NIKA-SEC-004 instead, judged before anything is opened.\n\n  \
+             exits (pick one):\n    \
+             · check the path relative to where the run starts\n    \
+             · make the producing task run first: `after: { <task>: success }`\n"
+        }
+        "003" => {
+            "  An input is not a PNG this builtin accepts (the message names its \
+             index): v1 composes PNG files of depth 8 — gray, gray+alpha, RGB or \
+             RGBA, not interlaced, not palette-indexed. JPEG input is not v1.\n\n  \
+             exits (pick one):\n    \
+             · produce PNG upstream:       nika:image_generate { …, format: png }\n    \
+             · convert once:               an exec: step (e.g. `sips -s format png` on \
+             macOS) before the composition\n"
+        }
+        "004" => {
+            "  An input is a PNG whose bytes are corrupt — a chunk CRC, the zlib \
+             stream or a filter does not hold, or its IHDR is not the one first \
+             chunk (the message names its index). The file was cut short or \
+             damaged; re-produce it.\n"
+        }
+        "005" => {
+            "  A size cap: the summed input pixels over 2^26, an input over 16384 per \
+             side, or a canvas (or a `fill` box) over 16384 per side or 2^26 pixels. \
+             Judged from the PNG headers and the args BEFORE any decompression — \
+             a decompression bomb never inflates. Never transient: the same \
+             inputs and args hit the same cap.\n\n  \
+             exits (pick one):\n    \
+             · shrink each input first:    nika:image_fx { ops: [ { resize: { width: 512 } } ] }\n    \
+             · scale into smaller cells:   args: { …, scale: fit, cell: { width: 256, height: 256 } }\n    \
+             · split the sheet:            two compositions of fewer inputs\n"
+        }
+        "006" => {
+            "  The composed PNG could not be saved at `out:` (the directory could \
+             not be created, or the write failed — disk, permission). `out:` was \
+             inside the declared `permits.fs.write` boundary; a path outside it is \
+             NIKA-SEC-004 instead.\n"
+        }
+        _ => return None,
+    })
 }
 
 // One single-line lesson feeds both exec shape refusals and offline explain.
@@ -997,6 +1076,39 @@ mod tests {
         assert!(namespace_help("NIKA-VAR-001", "docs").is_none());
         assert!(namespace_help("NIKA-BUILTIN-FETCH-1", "docs").is_none());
         assert!(namespace_help("NIKA-PROVIDER-1042", "docs").is_none());
+    }
+
+    /// `nika:image_compose`'s six codes and the keyless voice's refusal each
+    /// teach their cause and exits — never the namespace boilerplate.
+    #[test]
+    fn image_compose_codes_and_the_system_voice_refusal_teach_their_exits() {
+        for (num, lesson) in [
+            ("001", "labels and JPEG are not v1"),
+            ("002", "names its index"),
+            ("003", "JPEG input is not v1"),
+            ("004", "corrupt"),
+            ("005", "BEFORE any decompression"),
+            ("006", "could not be saved"),
+        ] {
+            let help = namespace_help(&format!("NIKA-BUILTIN-IMAGE_COMPOSE-{num}"), "docs")
+                .expect("teaches");
+            assert!(help.contains("the `nika:image_compose` contract"), "{help}");
+            assert!(help.contains(lesson), "{num}: {help}");
+        }
+        let unknown = namespace_help("NIKA-BUILTIN-IMAGE_COMPOSE-007", "docs").expect("namespace");
+        assert!(
+            unknown.contains("per-builtin runtime diagnostic"),
+            "{unknown}"
+        );
+        let voice = namespace_help("NIKA-BUILTIN-TTS_GENERATE-002", "docs").expect("teaches");
+        for lesson in [
+            "/usr/bin/say",
+            "espeak-ng",
+            "no `permits.exec` needed",
+            "rather than falling back",
+        ] {
+            assert!(voice.contains(lesson), "missing `{lesson}` in:\n{voice}");
+        }
     }
 
     /// The run card says `fix: nika explain NIKA-BUILTIN-PROMPT-001` —

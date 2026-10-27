@@ -76,9 +76,9 @@ depend on without pulling the CLI:
   left carries that content on: an `exec:` whatever the file, once an
   earlier writer ran (the pass's sweep order); a builtin read (nika-cap's
   read slots: `nika:read`, `nika:grep` and its default root, `nika:glob`,
-  `nika:edit`, a `decide` bundle, `image_fx`/`chart`/`image_generate`
-  inputs, a `fetch` multipart part) when its path may be one the write
-  reached, whatever the order when the write's path is literal (a file
+  `nika:edit`, a `decide` bundle, `image_fx`/`image_compose`/`chart`/
+  `image_generate` inputs, a `fetch` multipart part) when its path may be one
+  the write reached, whatever the order when the write's path is literal (a file
   outlives the run order: a read beside the writer or before it reads it
   in this run or the next; the pass sweeps until the writers settle). A
   write the check cannot locate (a templated path, a subprocess, a server,

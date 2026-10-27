@@ -169,6 +169,7 @@ fn map_fx_error(e: FxError) -> BuiltinFailure {
         )
         .with_details(json!({ "pixels": pixels, "max": max })),
         FxError::Encode(m) => fail(C_SAVE, m),
+        FxError::Cap(m) => fail(C_BUDGET, m),
         _ => fail(C_DECODE, format!("unmapped fx error: {e}")),
     }
 }
@@ -714,5 +715,34 @@ mod tests {
         .await
         .expect_err("non-png rejected");
         assert_eq!(e.code, C_FORMAT);
+    }
+
+    #[tokio::test]
+    async fn dispatch_refuses_an_input_over_the_side_cap_as_005() {
+        use nika_kernel_mock::MockFs;
+        // A signature and an IHDR claiming 20000x1 (inside the pixel budget,
+        // over the per-side cap): the stdlib input caps are `-005`.
+        let mut ihdr = b"IHDR".to_vec();
+        ihdr.extend_from_slice(&20_000u32.to_be_bytes());
+        ihdr.extend_from_slice(&1u32.to_be_bytes());
+        ihdr.extend_from_slice(&[8, 2, 0, 0, 0]);
+        let mut wide = vec![137, 80, 78, 71, 13, 10, 26, 10];
+        wide.extend_from_slice(&13u32.to_be_bytes());
+        wide.extend_from_slice(&ihdr);
+        wide.extend_from_slice(&crate::media::png::crc32(&ihdr).to_be_bytes());
+        let fs = MockFs::new().with_file("./in.png", wide);
+        let e = run(
+            &fs,
+            &crate::NullEmitter,
+            &FsBoundary::declared(vec!["./**".into()], vec!["./**".into()]),
+            &args(&json!({
+                "input": "./in.png", "out": "./o.png",
+                "ops": [ { "grayscale": {} } ],
+            })),
+        )
+        .await
+        .expect_err("over the side cap");
+        assert_eq!(e.code, C_BUDGET, "{}", e.message);
+        assert!(e.message.contains("20000x1"), "{}", e.message);
     }
 }

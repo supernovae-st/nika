@@ -44,6 +44,7 @@ pub mod decide;
 pub mod defs;
 pub mod file;
 pub mod image;
+pub(crate) mod image_compose;
 pub mod image_fx;
 pub mod inspect;
 pub(crate) mod judged_fs;
@@ -74,7 +75,7 @@ pub use defs::{TOOLS_EXPORT_VERSION, tool_defs, tools_json};
 pub use image::ImageKeys;
 pub use live::LiveInspect;
 pub use permits::FsBoundary;
-pub use tts::TtsKeys;
+pub use tts::{SpeechFuture, SpeechRunner, SystemSynth, SystemVoice, TtsKeys};
 pub use write_origins::{CreatedFile, WriteOrigin, WriteOrigins};
 
 /// The closed builtin namespace prefix.
@@ -290,6 +291,10 @@ pub struct BuiltinDispatcher<F, H, C, Em, P, W> {
     /// from the environment here).
     image_keys: image::ImageKeys,
     tts_keys: tts::TtsKeys,
+    /// The host's own synthesizer behind `nika:tts_generate`'s `system`
+    /// provider — `None` until the composition root wires it via
+    /// [`Self::with_system_voice`] (a `system` call then refuses `-002`).
+    system_voice: Option<tts::SystemVoice>,
     /// The run's write origins (what `nika:write`/`nika:edit` created or
     /// changed, originals kept aside) — `None` until the host wires its
     /// ledger via [`Self::with_write_origins`].
@@ -320,6 +325,7 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
             tts_http: None,
             image_keys: image::ImageKeys::new(),
             tts_keys: tts::TtsKeys::new(),
+            system_voice: None,
             write_origins: None,
         }
     }
@@ -364,6 +370,17 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
     pub fn with_tts_plane(mut self, http: Arc<H>, keys: tts::TtsKeys) -> Self {
         self.tts_http = Some(http);
         self.tts_keys = keys;
+        self
+    }
+
+    /// Wire the KEYLESS `system` voice — the host's own synthesizer (macOS
+    /// `say` · Linux `espeak-ng`), which `nika:tts_generate` starts itself
+    /// through `voice`'s runner: never the workflow's `exec:`, no
+    /// `permits.exec`. The composition root decides the synthesizer;
+    /// unwired, a `system` call refuses `NIKA-BUILTIN-TTS_GENERATE-002`.
+    #[must_use]
+    pub fn with_system_voice(mut self, voice: tts::SystemVoice) -> Self {
+        self.system_voice = Some(voice);
         self
     }
 
@@ -462,7 +479,7 @@ where
             // resolve_multipart · the judged fs pins each file read).
             "fetch" => Ok(self.route_fetch(args, jq_clock, deadline).await),
             "notify" => Ok(net::notify(self.http.as_ref(), args).await),
-            // media 3 — provider calls ride dedicated planes (const endpoints);
+            // media 5 — provider calls ride dedicated planes (const endpoints);
             // saves gate each final path on the permits.fs boundary before I/O.
             "image_generate" => Ok(image::generate(
                 self.fs.as_ref(),
@@ -477,6 +494,7 @@ where
             "tts_generate" => Ok(self.route_tts(args).await),
             "chart" => Ok(self.guarded_chart(args).await),
             "image_fx" => Ok(self.route_image_fx(args).await),
+            "image_compose" => Ok(self.route_image_compose(args).await),
             // introspection 2
             "compose" => Ok(core_tools::compose()),
             "inspect" => Ok(inspect::inspect(self.workflow.as_ref(), args)),
@@ -522,6 +540,21 @@ where
         .await
     }
 
+    /// The `nika:image_compose` plumbing (pure delegation): every input read
+    /// is gated on the permits.fs boundary and rides the judged fs (the
+    /// at-open re-judgment · the final-component pin); the `out:` artifact
+    /// write and its idempotence read keep the raw fs (the chart precedent).
+    async fn route_image_compose(&self, args: &Args) -> BuiltinOutcome {
+        image_compose::run(
+            self.fs.as_ref(),
+            &self.judged(),
+            self.emitter.as_ref(),
+            &self.fs_boundary,
+            args,
+        )
+        .await
+    }
+
     /// The `nika:fetch` plumbing (kept out of `route`'s match for the fn-length budget — pure
     /// delegation): the task's deadline bounds the request.
     async fn route_fetch(
@@ -544,10 +577,14 @@ where
     /// The `nika:tts_generate` plumbing (kept out of `route`'s match for
     /// the fn-length budget — pure delegation).
     async fn route_tts(&self, args: &Args) -> BuiltinOutcome {
+        let planes = tts::Planes {
+            http: self.tts_http.as_deref(),
+            keys: &self.tts_keys,
+            system: self.system_voice.as_ref(),
+        };
         tts::generate(
             self.fs.as_ref(),
-            self.tts_http.as_deref(),
-            &self.tts_keys,
+            &planes,
             self.clock.as_ref(),
             self.emitter.as_ref(),
             &self.fs_boundary,
@@ -1075,10 +1112,11 @@ mod tests {
             let outcome = rig.execute(call(&def.name, serde_json::json!({}))).await;
             assert!(outcome.is_ok(), "{} must route (got {outcome:?})", def.name);
         }
-        // …and the count is the canonical 29 (stdlib v0.1 · +compose per
+        // …and the count is the canonical 30 (stdlib v0.1 · +compose per
         // ADR-096 · +image_generate stdlib §Media · +tts_generate §Audio ·
-        // +decide spec 11 W-DEC · +remove_file §nika:remove_file).
-        assert_eq!(tool_defs().len(), 29);
+        // +decide spec 11 W-DEC · +remove_file §nika:remove_file ·
+        // +image_compose §Media #5).
+        assert_eq!(tool_defs().len(), 30);
     }
 
     #[tokio::test]
@@ -1138,7 +1176,7 @@ mod tests {
         let defs = ToolDefinitionProviderDyn::tool_defs(&rig())
             .await
             .expect("enumerates");
-        assert_eq!(defs.len(), 29);
+        assert_eq!(defs.len(), 30);
         assert!(defs.iter().all(|d| d.name.starts_with(NAMESPACE)));
         assert!(defs.iter().all(|d| !d.description.is_empty()));
         assert!(
