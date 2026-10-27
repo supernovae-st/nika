@@ -196,6 +196,10 @@ fn assert_refused_at_admission(result: Result<RunOutcome, RuntimeError>, http: &
     assert!(text.starts_with("NIKA-1709"), "{text}");
     assert!(text.contains("no catalog price for task `media`"), "{text}");
     assert!(
+        text.contains("the keyless `system` voice for speech"),
+        "the remedy a capped beat can follow names the keyless voice: {text}"
+    );
+    assert!(
         http.sent_requests().is_empty(),
         "refused before any request reached the endpoint"
     );

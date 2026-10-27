@@ -570,10 +570,12 @@ fn unpriced_media_cap_refusal(
 
 /// What a capped run can do instead of an unpriced paid media call, shared by
 /// the launch refusal and the pre-request guard: a beat is always capped, so
-/// "drop the cap" is not a remedy there.
-const MEDIA_CAP_REMEDY: &str = "Use a provider the catalog prices (images: `xai`; no speech \
-     provider has a catalog price yet) or `local` / `mock`. Only a run with no cap at all (never \
-     a beat) makes this call, and its settlement counts it unpriced.";
+/// "drop the cap" is not a remedy there. The keyless `system` voice bills no
+/// provider, so it keeps speech under a cap (settled as unpriced local work).
+const MEDIA_CAP_REMEDY: &str = "Use a provider the catalog prices (images: `xai`; no paid \
+     speech provider has a catalog price yet), the keyless `system` voice for speech, or `local` \
+     / `mock`. Only a run with no cap at all (never a beat) makes this call, and its settlement \
+     counts it unpriced.";
 
 /// C-D3 · the pre-request guard for a paid media call whose provider only the
 /// run decides (a templated `provider:`, or a templated `model:` it is

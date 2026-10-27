@@ -34,9 +34,11 @@ the engine/spec identity that produced the report.
   mandatory `plafond:`), a paid media call the catalog cannot price (openai
   or gemini images, openai or elevenlabs speech) is refused before its
   request, like an unpriced cloud model, including one an `agent:` makes
-  through its tools. A beat cannot drop its cap: use `xai` for images (no
-  speech provider has a catalog price yet), or `local` / `mock`. An uncapped
-  run makes the call and counts it in the settlement's `spend.unpriced_calls`.
+  through its tools. A beat cannot drop its cap: use `xai` for images, the
+  keyless `provider: system` voice for speech (no paid speech provider has a
+  catalog price yet; the host voice bills no provider and is counted as
+  unpriced local work), or `local` / `mock`. An uncapped run makes the call
+  and counts it in the settlement's `spend.unpriced_calls`.
 - A local model is **unpriced compute, not free** — say "unpriced",
   never "$0".
 

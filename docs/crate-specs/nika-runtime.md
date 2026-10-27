@@ -696,8 +696,12 @@ task directly and from an agent's tools through `AgentOutput::tools_unpriced`
 (`SpendOnFailure::tools_unpriced` on failure); the ledger counts each one
 (`unpriced_inner_calls`), and a child run's `unpriced_calls` reach its
 parent's ledger the same way (`ChildOutcome::unpriced_calls`), so a
-settlement never reads `priced` while it holds unknown spend. Local, mock and
-keyless media stay unmetered.
+settlement never reads `priced` while it holds unknown spend. Local and mock
+media stay unmetered. The keyless `system` voice bills no provider, so no cap
+refuses it (it is how a capped run, a beat included, keeps speech); an
+`invoke:` call of it still carries the builtin's own reason
+(`cost_unpriced: local_model`), so it settles as unpriced local work, never
+free.
 
 Known limits: a media builtin that fails after its provider request (a decode
 or format mismatch, an `output_dir` outside `fs.write` that only the run

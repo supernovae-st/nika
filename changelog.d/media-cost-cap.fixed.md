@@ -10,7 +10,9 @@
   runs and is counted in `spend.unpriced_calls`, so the settlement reads
   `unpriced` or `partially_priced`; a child workflow's unpriced calls now
   reach its parent's settlement. xAI images keep their catalog rate and are
-  metered against the cap; local, mock and keyless media stay unmetered.
+  metered against the cap; local and mock media stay unmetered, and the
+  keyless `system` voice runs under any cap (an `invoke:` task's call still
+  settles as unpriced local work, `local_model`).
   `nika check` names each paid media call on its COST rung (priced per call,
   UNPRICED, or DECIDED AT RUN), including a composed child's and the paid
   media an agent's tools can reach, and lists the cap refusal as

@@ -1235,8 +1235,8 @@ fn media_cap_feedback(
     Some(match floor {
         None => format!(
             "{refused}: {name} on `{provider}` has no catalog price, so the run's cost cap \
-             cannot bound it. Use a provider the catalog prices (images: `xai`) or `local` / \
-             `mock`."
+             cannot bound it. Use a provider the catalog prices (images: `xai`), the keyless \
+             `system` voice for speech, or `local` / `mock`."
         ),
         Some(floor) => format!(
             "{refused}: {name} on `{provider}` costs at least ${floor:.6}, above the \
