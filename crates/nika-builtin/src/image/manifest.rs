@@ -216,7 +216,7 @@ mod tests {
                 input_tokens: Some(10),
                 output_tokens: Some(1120),
                 total_tokens: Some(1130),
-                thoughts_tokens: None,
+                ..Usage::default()
             },
             Some(0.02),
             None,

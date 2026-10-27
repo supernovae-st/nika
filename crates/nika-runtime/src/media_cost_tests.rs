@@ -7,16 +7,23 @@
 //! image and speech planes): no request leaves the process, and the fake's
 //! ledger proves which calls were sent.
 //!
-//! - under a cap, a paid media call the catalog cannot price (openai
-//!   images, openai and elevenlabs speech) refuses before the prologue,
-//!   NIKA-1709, zero requests: an unpriced text model's refusal;
-//! - a templated provider only the run decides refuses before its request
-//!   (NIKA-1704), zero requests;
-//! - with no cap the call runs and settles UNPRICED, never "priced";
+//! - the dated media table prices `OpenAI` and Gemini images, `OpenAI`
+//!   `tts-1`/`tts-1-hd` and `ElevenLabs` speech: under a cap the call is
+//!   floored at launch, billed by the builtin (rate × reported usage, per
+//!   image × images when no usage is reported, per character × characters)
+//!   and debited, so a capped fan-out trips its cap mid-run;
+//! - under a cap, a paid media call the catalog cannot price (`OpenAI`'s
+//!   default voice, an image model shut down on 2026-12-01, an unknown id)
+//!   refuses before the prologue, NIKA-1709, zero requests: an unpriced text
+//!   model's refusal;
+//! - a templated provider, model, quality or text only the run decides is
+//!   judged before its request (NIKA-1704), zero requests;
+//! - with no cap an unpriced call runs and settles UNPRICED, never "priced";
 //! - xAI images carry a catalog rate: metered against the cap;
 //! - mock media under a cap stays unmetered and is never counted as paid;
 //! - an `agent:` loop's paid media tool calls meet the same cap before their
-//!   request, and a returned unpriced one is counted by the settlement;
+//!   request, are charged when priced, and a returned unpriced one is
+//!   counted by the settlement;
 //! - a returned media call that billed with no report, or whose output fails
 //!   its `returns:` contract, still names why its spend is unpriced;
 //! - the keyless `system` voice bills no provider: a capped run admits it,
@@ -207,9 +214,11 @@ fn assert_refused_at_admission(result: Result<RunOutcome, RuntimeError>, http: &
 
 #[tokio::test]
 async fn unpriced_speech_under_a_cap_is_refused_before_any_request() {
+    // OpenAI's default voice (no per-call price, no usage in its response)
+    // and an ElevenLabs id outside the price page's families stay unpriced.
     for args in [
         "provider: openai, text: \"Budget zero.\"",
-        "provider: elevenlabs, text: \"Budget zero.\"",
+        "model: eleven_multilingual_v1, text: \"Budget zero.\"",
         "model: gpt-4o-mini-tts, text: \"Budget zero.\"",
     ] {
         let http = MockHttp::new().enqueue_ok(200, b"ID3\x04fake-mp3".to_vec());
@@ -222,10 +231,12 @@ async fn unpriced_speech_under_a_cap_is_refused_before_any_request() {
 
 #[tokio::test]
 async fn unpriced_images_under_a_cap_are_refused_before_any_request() {
+    // The image models OpenAI shuts down on 2026-12-01 and a Gemini id the
+    // dated table does not list stay unpriced.
     for args in [
-        "provider: openai, prompt: \"a small blue circle\"",
+        "model: gpt-image-1.5, prompt: \"a small blue circle\"",
         "model: gpt-image-1-mini, prompt: \"a small blue circle\"",
-        "provider: gemini, prompt: \"a small blue circle\"",
+        "model: gemini-2.0-flash-preview-image-generation, prompt: \"a small blue circle\"",
     ] {
         let http = MockHttp::new().enqueue_ok(200, openai_image_answer());
         let result = settle("nika:image_generate", args, &http, Some(5.0)).await;
@@ -270,7 +281,7 @@ async fn without_a_cap_unpriced_media_settles_unpriced() {
         ),
         (
             "nika:image_generate",
-            "provider: openai, prompt: \"a small blue circle\"",
+            "model: gpt-image-1.5, prompt: \"a small blue circle\"",
             openai_image_answer(),
         ),
     ];
@@ -349,10 +360,15 @@ async fn mock_media_under_a_cap_is_unmetered() {
     }
 }
 
-/// A scripted agent turn: one `nika:image_generate` call on `provider`, then
-/// a final answer. `priced` makes each turn an observed, priced inference
-/// call (a priced model's loop).
-fn drawing_agent(provider: &str, priced: bool) -> MockProvider {
+/// A scripted agent turn: one `nika:image_generate` call on `provider`
+/// with `model`, then a final answer. `priced` makes each turn an observed,
+/// priced inference call (a priced model's loop).
+fn drawing_agent(provider: &str, model: &str, priced: bool) -> MockProvider {
+    drawing_agent_calls(provider, &[model], priced)
+}
+
+/// [`drawing_agent`] drawing once per entry of `models`, one turn each.
+fn drawing_agent_calls(provider: &str, models: &[&str], priced: bool) -> MockProvider {
     use nika_kernel::ai::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
     let observed = |mut response: InferResponse| {
         if priced {
@@ -371,17 +387,20 @@ fn drawing_agent(provider: &str, priced: bool) -> MockProvider {
         }
         response
     };
-    let draw = InferResponse::new(
-        vec![ContentBlock::ToolUse {
-            id: "draw-1".into(),
-            name: "nika:image_generate".into(),
-            input: serde_json::json!({
-                "provider": provider, "prompt": "a small blue circle", "output_dir": "./out"
-            }),
-        }],
-        TokenUsage::default(),
-        StopReason::ToolUse,
-    );
+    let draw = |turn: usize, model: &str| {
+        InferResponse::new(
+            vec![ContentBlock::ToolUse {
+                id: format!("draw-{turn}"),
+                name: "nika:image_generate".into(),
+                input: serde_json::json!({
+                    "provider": provider, "model": model, "size": "1024x1024",
+                    "quality": "low", "prompt": "a small blue circle", "output_dir": "./out"
+                }),
+            }],
+            TokenUsage::default(),
+            StopReason::ToolUse,
+        )
+    };
     let done = InferResponse::new(
         vec![ContentBlock::Text {
             text: "done".into(),
@@ -389,9 +408,11 @@ fn drawing_agent(provider: &str, priced: bool) -> MockProvider {
         TokenUsage::default(),
         StopReason::EndTurn,
     );
-    MockProvider::new("mock")
-        .enqueue_response(observed(draw))
-        .enqueue_response(observed(done))
+    let mut agent = MockProvider::new("mock");
+    for (turn, model) in models.iter().enumerate() {
+        agent = agent.enqueue_response(observed(draw(turn, model)));
+    }
+    agent.enqueue_response(observed(done))
 }
 
 /// One `agent:` task granted `nika:image_generate`, run under `budget`: the
@@ -424,9 +445,12 @@ async fn settle_agent(
 /// unpriced call is refused (fed back to the model), nothing is sent.
 #[tokio::test]
 async fn an_agents_unpriced_media_call_under_a_cap_is_refused_before_its_request() {
-    for provider in ["openai", "gemini"] {
+    for (provider, model) in [
+        ("openai", "gpt-image-1.5"),
+        ("gemini", "gemini-2.0-flash-preview-image-generation"),
+    ] {
         let http = MockHttp::new().enqueue_ok(200, openai_image_answer());
-        let agent = drawing_agent(provider, true);
+        let agent = drawing_agent(provider, model, true);
         let outcome = settle_agent(agent.clone(), &http, Some(5.0))
             .await
             .0
@@ -474,7 +498,8 @@ async fn an_agents_unpriced_media_call_under_a_cap_is_refused_before_its_request
 #[tokio::test]
 async fn an_agents_returned_unpriced_media_call_is_counted_by_the_settlement() {
     let http = MockHttp::new().enqueue_ok(200, openai_image_answer());
-    let (result, sink) = settle_agent(drawing_agent("openai", true), &http, None).await;
+    let (result, sink) =
+        settle_agent(drawing_agent("openai", "gpt-image-1.5", true), &http, None).await;
     let outcome = result.expect("no cap, no refusal");
     assert!(outcome.ok, "{:?}", outcome.records["draw"].error);
     assert_eq!(http.sent_requests().len(), 1, "one paid media request");
@@ -540,7 +565,7 @@ async fn a_contract_rejected_media_call_keeps_its_unpriced_spend() {
     let http = MockHttp::new().enqueue_ok(200, openai_image_answer());
     let (result, sink) = settle_with(
         "nika:image_generate",
-        "provider: openai, prompt: \"a small blue circle\"",
+        "model: gpt-image-1.5, prompt: \"a small blue circle\"",
         "    returns: integer\n",
         &http,
         None,
@@ -638,4 +663,364 @@ async fn the_keyless_system_voice_runs_under_a_cap_and_settles_as_unpriced_local
             "{cap:?}: the frame names why the spend is absent"
         );
     }
+}
+
+/// What an `OpenAI`-shaped image endpoint answers when it bills
+/// `output_tokens` image tokens: one image and that usage (10 text input
+/// tokens, split), no USD.
+fn openai_image_answer_billing(output_tokens: u64) -> Vec<u8> {
+    serde_json::json!({
+        "created": 1,
+        "data": [{ "b64_json": PNG_1X1_B64 }],
+        "usage": {
+            "input_tokens": 10, "output_tokens": output_tokens,
+            "total_tokens": 10 + output_tokens,
+            "input_tokens_details": { "text_tokens": 10, "image_tokens": 0 }
+        }
+    })
+    .to_string()
+    .into_bytes()
+}
+
+/// What the Gemini endpoint answers: one image part, with or without the
+/// usage metadata a response may carry.
+fn gemini_image_answer(usage: bool) -> Vec<u8> {
+    let mut answer = serde_json::json!({
+        "candidates": [{ "content": { "parts": [
+            { "inlineData": { "mimeType": "image/png", "data": PNG_1X1_B64 } }
+        ] } }]
+    });
+    if usage && let Some(map) = answer.as_object_mut() {
+        map.insert(
+            "usageMetadata".into(),
+            serde_json::json!({
+                "promptTokenCount": 20, "candidatesTokenCount": 1120,
+                "totalTokenCount": 1140,
+                "candidatesTokensDetails": [{ "modality": "IMAGE", "tokenCount": 1120 }]
+            }),
+        );
+    }
+    answer.to_string().into_bytes()
+}
+
+/// An MP3 a speech endpoint answers (the builtin judges its magic only).
+const MP3: &[u8] = b"ID3\x04fake-mp3";
+
+/// The media task's output field `key` on its terminal frame's value.
+fn media_output(outcome: &RunOutcome) -> &serde_json::Value {
+    &outcome.outputs["media"]
+}
+
+fn approx(actual: f64, expected: f64) {
+    assert!(
+        (actual - expected).abs() < 1e-9,
+        "expected {expected}, got {actual}"
+    );
+}
+
+/// C-D3 · every unit of the dated media table bills a call and the run
+/// meters it under a cap: `OpenAI`'s default image from the usage it reported
+/// (token rates), Gemini's default from its per-image price when the
+/// response reports no usage, and speech per character (`OpenAI` `tts-1` ·
+/// `ElevenLabs`' default). The settlement reads `priced` with the billed total.
+#[tokio::test]
+async fn each_priced_unit_is_billed_and_metered_under_a_cap() {
+    let cases: [(&str, &str, Vec<u8>, f64, &str); 5] = [
+        (
+            "nika:image_generate",
+            "provider: openai, size: 1024x1024, quality: low, prompt: \"a small blue circle\"",
+            openai_image_answer_billing(272),
+            10.0 * 5.0 / 1e6 + 272.0 * 30.0 / 1e6,
+            "catalog_rate_x_usage",
+        ),
+        (
+            "nika:image_generate",
+            "provider: gemini, prompt: \"a small blue circle\"",
+            gemini_image_answer(true),
+            20.0 * 0.5 / 1e6 + 1_120.0 * 60.0 / 1e6,
+            "catalog_rate_x_usage",
+        ),
+        (
+            "nika:image_generate",
+            "provider: gemini, aspect_ratio: \"16:9\", prompt: \"a small blue circle\"",
+            gemini_image_answer(false),
+            0.067,
+            "catalog_price_x_images",
+        ),
+        (
+            "nika:tts_generate",
+            "model: tts-1, text: \"Hello.\"",
+            MP3.to_vec(),
+            15.0 * 6.0 / 1e6,
+            "catalog_rate_x_characters",
+        ),
+        (
+            "nika:tts_generate",
+            "provider: elevenlabs, text: \"Hello.\"",
+            MP3.to_vec(),
+            80.0 * 6.0 / 1e6,
+            "catalog_rate_x_characters",
+        ),
+    ];
+    for (tool, args, answer, expected, basis) in cases {
+        let http = MockHttp::new().enqueue_ok(200, answer);
+        let outcome = settle(tool, args, &http, Some(1.0))
+            .await
+            .expect("a priced call fits a $1 cap");
+        assert!(outcome.ok, "{args}: {:?}", outcome.records["media"].error);
+        assert_eq!(http.sent_requests().len(), 1, "{args}");
+        assert_eq!(
+            (outcome.priced_calls, outcome.unpriced_calls),
+            (1, 0),
+            "{args}"
+        );
+        approx(outcome.total_cost_usd.expect("metered"), expected);
+        assert_eq!(
+            outcome.settlement.spend.qualifier,
+            CostQualifier::Priced,
+            "{args}"
+        );
+        let output = media_output(&outcome);
+        assert_eq!(output["cost_basis"], basis, "{args}");
+        assert_eq!(
+            output["cost_as_of"],
+            nika_catalog::MEDIA_PRICING_AS_OF,
+            "{args}"
+        );
+    }
+}
+
+/// C-D3 · a cap below a priced call's floor refuses it at launch, zero
+/// requests: per image at the requested size and quality, per character of
+/// the literal text.
+#[tokio::test]
+async fn a_cap_below_a_priced_floor_refuses_at_launch() {
+    for (tool, args, cap) in [
+        (
+            "nika:image_generate",
+            "provider: openai, size: 1024x1024, quality: high, prompt: \"a star\"",
+            0.2,
+        ),
+        (
+            "nika:tts_generate",
+            "provider: elevenlabs, text: \"Hello, world.\"",
+            0.0005,
+        ),
+    ] {
+        let http = MockHttp::new();
+        let err = settle(tool, args, &http, Some(cap))
+            .await
+            .expect_err("the floor exceeds the cap");
+        assert!(matches!(err, RuntimeError::BudgetFloor { .. }), "{err:?}");
+        assert!(err.to_string().starts_with("NIKA-1709"), "{err}");
+        assert!(http.sent_requests().is_empty(), "{args}");
+    }
+}
+
+/// C-D3 · the fan-out the merge report named: a `for_each` over an
+/// expression has no launch floor, yet each priced media call is billed and
+/// debited, so the capped run trips mid-run — the crossing call completes and
+/// counts, the next item is never started, the task fails NIKA-1704.
+#[tokio::test]
+async fn a_capped_fan_out_of_priced_media_trips_the_cap_mid_run() {
+    let yaml = "nika: c-d3-fan\nconst:\n  prompts: [\"a\", \"b\", \"c\"]\npermits:\n  tools: [\"nika:image_generate\"]\n  fs: { write: [\"./out/**\"] }\ntasks:\n  media:\n    for_each: { items: \"${{ const.prompts }}\", max_parallel: 1 }\n    invoke:\n      tool: \"nika:image_generate\"\n      args: { provider: openai, size: 1024x1024, quality: low, prompt: \"${{ item }}\", output_dir: \"./out\" }\n";
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_check::check(&wf);
+    assert!(report.is_clean(), "fixture checks clean: {report:#?}");
+    let http = MockHttp::new()
+        .enqueue_ok(200, openai_image_answer_billing(1_000))
+        .enqueue_ok(200, openai_image_answer_billing(1_000))
+        .enqueue_ok(200, openai_image_answer_billing(1_000));
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let outcome = media_runtime(&http, Some(0.05))
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("an expression fan-out has no launch floor");
+    // Each call: 10 text tokens × $5 + 1,000 image tokens × $30 per 1M.
+    let per_call = 10.0 * 5.0 / 1e6 + 1_000.0 * 30.0 / 1e6;
+    assert_eq!(
+        http.sent_requests().len(),
+        2,
+        "the third image is never requested"
+    );
+    assert!(!outcome.ok);
+    assert!(outcome.budget_exceeded, "the cap tripped mid-run");
+    approx(outcome.total_cost_usd.expect("metered"), 2.0 * per_call);
+    assert_eq!((outcome.priced_calls, outcome.unpriced_calls), (2, 0));
+    let error = outcome.records["media"]
+        .error
+        .as_ref()
+        .expect("the starved fan-out fails");
+    assert_eq!(error.code, "NIKA-1704");
+    assert!(
+        error.message.contains("1 iteration(s)"),
+        "{}",
+        error.message
+    );
+}
+
+/// C-D3 · item 5: a price argument only the run decides is judged on its
+/// rendered value before the request — a templated quality whose rendered
+/// floor exceeds the cap, a templated text, and a templated model the
+/// dated table does not price all refuse NIKA-1704 with zero requests; the
+/// launch floor read each at the least it could render to.
+#[tokio::test]
+async fn templated_price_arguments_are_judged_at_dispatch() {
+    for (header, tool, args, cap, why) in [
+        (
+            "inputs:\n  quality: { type: string, default: high }\n",
+            "nika:image_generate",
+            "provider: openai, size: 1024x1024, quality: \"${{ inputs.quality }}\", prompt: \"a star\"",
+            0.1,
+            "costs at least $0.211000",
+        ),
+        (
+            "inputs:\n  script: { type: string, default: \"A script long enough to cost more than the cap leaves.\" }\n",
+            "nika:tts_generate",
+            "provider: elevenlabs, text: \"${{ inputs.script }}\"",
+            0.001,
+            "costs at least $0.004",
+        ),
+        (
+            "inputs:\n  voice: { type: string, default: eleven_multilingual_v1 }\n",
+            "nika:tts_generate",
+            "provider: elevenlabs, model: \"${{ inputs.voice }}\", text: \"hi\"",
+            1.0,
+            "has no catalog price",
+        ),
+    ] {
+        let yaml = format!(
+            "nika: c-d3-templated\n{header}permits:\n  tools: [\"{tool}\"]\n  fs: {{ write: [\"./out/**\"] }}\ntasks:\n  media:\n    invoke:\n      tool: \"{tool}\"\n      args: {{ {args}, output_dir: \"./out\" }}\n"
+        );
+        let wf = nika_schema::parse(
+            &yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean(), "fixture checks clean: {report:#?}");
+        let http = MockHttp::new().enqueue_ok(200, MP3.to_vec());
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = media_runtime(&http, Some(cap))
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .expect("the launch gates admit what only the run decides");
+        let err = outcome.records["media"]
+            .error
+            .as_ref()
+            .expect("refused before its request");
+        assert_eq!(err.code, "NIKA-1704", "{args}");
+        assert!(
+            err.message.contains("refused before the media request") && err.message.contains(why),
+            "{args}: {}",
+            err.message
+        );
+        assert!(http.sent_requests().is_empty(), "{args}: no request");
+    }
+}
+
+/// C-D3 · a priced image whose response reports no usage: `OpenAI`'s GPT
+/// Image 2.5 publishes no per-image price, so the call is counted unpriced
+/// (`provider_did_not_report_usage`), never free; Gemini's default bills its
+/// per-image price × the images delivered.
+#[tokio::test]
+async fn a_response_without_usage_bills_its_per_image_price_or_says_why_not() {
+    let answer = serde_json::json!({ "created": 1, "data": [{ "b64_json": PNG_1X1_B64 }] });
+    let http = MockHttp::new().enqueue_ok(200, answer.to_string().into_bytes());
+    let (result, sink) = settle_with(
+        "nika:image_generate",
+        "model: gpt-image-2.5-flare, prompt: \"a star\"",
+        "",
+        &http,
+        None,
+    )
+    .await;
+    let outcome = result.expect("no cap");
+    assert!(outcome.ok, "{:?}", outcome.records["media"].error);
+    assert_eq!((outcome.priced_calls, outcome.unpriced_calls), (0, 1));
+    assert_eq!(
+        media_frame_field(&sink, "cost_unpriced"),
+        Some("provider_did_not_report_usage")
+    );
+
+    let http = MockHttp::new().enqueue_ok(200, gemini_image_answer(false));
+    let outcome = settle(
+        "nika:image_generate",
+        "model: gemini-3-pro-image, provider_options: { image_size: 4K }, prompt: \"a star\"",
+        &http,
+        None,
+    )
+    .await
+    .expect("no cap");
+    assert_eq!((outcome.priced_calls, outcome.unpriced_calls), (1, 0));
+    approx(outcome.total_cost_usd.expect("billed per image"), 0.24);
+    assert_eq!(
+        media_output(&outcome)["cost_basis"],
+        "catalog_price_x_images"
+    );
+}
+
+/// C-D3 · an agent's priced media call is charged the same way: the
+/// builtin bills it, the loop folds it into its tool spend, and the run
+/// ledger debits it beside the loop's priced turns.
+#[tokio::test]
+async fn an_agents_priced_media_call_is_charged() {
+    let http = MockHttp::new().enqueue_ok(200, openai_image_answer_billing(272));
+    let (result, _sink) = settle_agent(
+        drawing_agent("openai", "gpt-image-2", true),
+        &http,
+        Some(1.0),
+    )
+    .await;
+    let outcome = result.expect("a priced call fits");
+    assert!(outcome.ok, "{:?}", outcome.records["draw"].error);
+    assert_eq!(http.sent_requests().len(), 1);
+    let image = 10.0 * 5.0 / 1e6 + 272.0 * 30.0 / 1e6;
+    // Two priced turns at 10 micro-USD each, and the image.
+    approx(outcome.total_cost_usd.expect("metered"), image + 0.000_02);
+    assert_eq!(outcome.unpriced_calls, 0, "the image is priced");
+    assert_eq!(outcome.settlement.spend.qualifier, CostQualifier::Priced);
+}
+
+/// C-D3 · a capped loop counts its own media spend: once its first image
+/// has spent most of the cap, a second image whose floor exceeds what is
+/// left is refused before its request and fed back to the model.
+#[tokio::test]
+async fn a_capped_loop_stops_its_media_once_its_own_spend_leaves_too_little() {
+    let http = MockHttp::new()
+        .enqueue_ok(200, openai_image_answer_billing(272))
+        .enqueue_ok(200, openai_image_answer_billing(272));
+    let agent = drawing_agent_calls("openai", &["gpt-image-2", "gpt-image-2"], true);
+    let (result, _sink) = settle_agent(agent.clone(), &http, Some(0.01)).await;
+    let outcome = result.expect("the first image fits");
+    assert!(outcome.ok, "{:?}", outcome.records["draw"].error);
+    assert_eq!(
+        http.sent_requests().len(),
+        1,
+        "the second image is refused before its request"
+    );
+    let fed_back = (agent.captured_requests().iter())
+        .flat_map(|r| r.messages.iter())
+        .flat_map(|m| m.content.iter())
+        .find_map(|block| match block {
+            nika_kernel::ai::provider::ContentBlock::ToolResult {
+                content,
+                is_error: true,
+                ..
+            } => Some(content.clone()),
+            _ => None,
+        })
+        .expect("the refusal reached the model");
+    assert!(
+        fed_back.starts_with("NIKA-1704") && fed_back.contains("costs at least $0.006000"),
+        "{fed_back}"
+    );
 }

@@ -28,7 +28,9 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     }
     Ok(ProviderAudio {
         bytes: response.body.to_vec(),
-        cost_usd: None, // subscription-quota billing · no response cost field
+        // No cost field in the response: the dated media table bills it per
+        // character (`tts::bill` · C-D3).
+        cost_usd: None,
         endpoint_host: Some("api.elevenlabs.io".to_owned()),
         warnings,
     })

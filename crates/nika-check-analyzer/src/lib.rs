@@ -48,6 +48,7 @@ pub mod edges;
 pub mod exec_read_path;
 pub mod gates;
 mod jq_lint;
+mod media_quote;
 pub mod model_scope;
 pub mod native_first;
 pub mod read_paths;
@@ -72,12 +73,13 @@ use nika_schema::raw::{RawTask, RawWorkflow};
 use nika_schema::source::Spanned;
 use nika_schema::types::AfterPredicate;
 
-pub use builtin_floor::{
-    media_call_provider, media_call_template, media_cap_refusal, media_spend_unpriced,
-    priced_builtin_floor, unpriced_cloud_seat,
-};
+pub use builtin_floor::{priced_builtin_floor, unpriced_cloud_seat};
 pub use capacity::{CapacityFinding, capacity_findings};
 pub use edges::{Edge, EdgeKind, RecoveryRead, Route, SettledState, role_of_field, witness_routes};
+pub use media_quote::{
+    MediaCapRefusal, MediaFloor, MediaQuote, media_call_provider, media_call_template,
+    media_cap_refusal, media_quote, media_spend_unpriced,
+};
 pub use rendered::{
     effective_workflow, rendered_collections, rendered_models, resolve_model_expr,
     resolved_infer_models, with_model_override,

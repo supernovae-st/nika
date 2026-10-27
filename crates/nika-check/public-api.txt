@@ -1901,11 +1901,18 @@ pub fn nika_check::LiteralCredential::__clone_box(&self, _: dyn_clone::sealed::P
 impl<T> nika_error::traits::AsAny for nika_check::LiteralCredential where T: 'static
 pub fn nika_check::LiteralCredential::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::MediaCost
+pub nika_check::MediaCost::as_of: core::option::Option<alloc::string::String>
+pub nika_check::MediaCost::model: core::option::Option<alloc::string::String>
+pub nika_check::MediaCost::priced: bool
 pub nika_check::MediaCost::provider: alloc::string::String
+pub nika_check::MediaCost::rate: core::option::Option<alloc::string::String>
 pub nika_check::MediaCost::run_decided: bool
 pub nika_check::MediaCost::task: alloc::string::String
 pub nika_check::MediaCost::tool: alloc::string::String
 pub nika_check::MediaCost::usd_per_call: core::option::Option<f64>
+impl nika_check::MediaCost
+pub fn nika_check::MediaCost::metered(&self) -> bool
+pub fn nika_check::MediaCost::unpriced(&self) -> bool
 impl core::clone::Clone for nika_check::MediaCost
 pub fn nika_check::MediaCost::clone(&self) -> nika_check::MediaCost
 impl core::cmp::PartialEq for nika_check::MediaCost

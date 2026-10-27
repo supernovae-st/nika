@@ -6,16 +6,21 @@
 //!
 //! `nika check`'s cost envelope prices `infer:`/`agent:` only — `invoke:`
 //! is skipped as "spend nothing on inference". Priced media builtins still
-//! bill (xAI Imagine ticks → `cost_usd`) *after* HTTP, and the run ledger
-//! then aborts NIKA-1704. This table is the admission number: a floor
+//! bill after HTTP, and the run ledger then aborts NIKA-1704. A floor
 //! already over `--max-cost-usd` refuses before the executor (B24 / issue
 //! 1296 · NIKA-1709).
 //!
-//! A paid media call the table does not price (openai/gemini images,
-//! openai/elevenlabs speech: token- or character-billed, with no catalog
-//! rate) is [`MediaPrice::Unknown`]: real spend a cap cannot bound, never
-//! a free call. Local servers, the mock and keyless voices are
-//! [`MediaPrice::Unmetered`].
+//! The price class of a paid media call (C-D3): xAI images carry a per-image
+//! floor and report their exact spend ([`MediaPrice::PerCall`]); the models
+//! the dated media table prices ([`crate::media_rates`]: `OpenAI` and Gemini
+//! images, `OpenAI` `tts-1`/`tts-1-hd` and `ElevenLabs` speech) are
+//! [`MediaPrice::Rated`], floored from the table and billed from it; any
+//! other paid model (`OpenAI`'s default voice `gpt-4o-mini-tts`, an older
+//! image model, an unknown id) is [`MediaPrice::Unknown`]: real spend a cap
+//! cannot bound, never a free call. Local servers, the mock and keyless
+//! voices are [`MediaPrice::Unmetered`].
+
+use super::media_prices::{MediaModel, find_media_model};
 
 /// xAI `grok-imagine-image` workhorse — $0.02 per image (vendor tick:
 /// 1 US cent = `1e8` ticks).
@@ -36,31 +41,55 @@ pub enum MediaPrice {
     /// builtin that calls no paid provider. Never metered, never counted
     /// as paid.
     Unmetered,
-    /// A paid provider call the catalog prices: USD per call (one image),
-    /// before the call's `n:`.
+    /// A paid provider call the catalog prices per image whatever the model
+    /// (xAI, which reports its exact spend): USD per image, before `n:`.
     PerCall(f64),
+    /// A paid model the dated media table prices: floored at admission from
+    /// its per-image or per-character rate, and billed from its rates.
+    Rated(MediaModel),
     /// A paid provider call the catalog has no price for: the spend is
     /// real and unknown, so a cap cannot bound it.
     Unknown,
 }
 
-/// The price class of one media builtin call on `provider`.
+/// The model a paid media call on `provider` bills when its `model:` is
+/// absent, as the builtin resolves it: `None` for a provider with no model
+/// choice or none the builtin knows. `tool` accepts the `nika:` prefix.
+#[must_use]
+pub fn builtin_media_default_model(tool: &str, provider: &str) -> Option<&'static str> {
+    let name = tool.strip_prefix("nika:").unwrap_or(tool);
+    Some(match (name, provider) {
+        ("image_generate", "openai") => "gpt-image-2",
+        ("image_generate", "gemini") => "gemini-3.1-flash-image",
+        ("image_generate", "xai") => "grok-imagine-image",
+        ("tts_generate", "openai") => "gpt-4o-mini-tts",
+        ("tts_generate", "elevenlabs") => "eleven_multilingual_v2",
+        _ => return None,
+    })
+}
+
+/// The price class of one media builtin call on `provider` with `model`
+/// (`None`: the provider's default model, [`builtin_media_default_model`]).
 ///
 /// `tool` accepts the `nika:` prefix or the bare name. A builtin other
 /// than `image_generate` / `tts_generate` is [`MediaPrice::Unmetered`];
 /// on those two, every provider outside the unmetered set (`local` ·
-/// `mock` · `system`) without a catalog rate is [`MediaPrice::Unknown`],
-/// so a new paid provider is unknown spend until the catalog prices it.
+/// `mock` · `system`) and every model without a catalog rate is
+/// [`MediaPrice::Unknown`], so a new paid provider or model is unknown
+/// spend until the catalog prices it.
 #[must_use]
-pub fn builtin_media_price(tool: &str, provider: &str) -> MediaPrice {
+pub fn builtin_media_price(tool: &str, provider: &str, model: Option<&str>) -> MediaPrice {
     let name = tool.strip_prefix("nika:").unwrap_or(tool);
     if !PAID_MEDIA_TOOLS.contains(&name) || UNMETERED_MEDIA_PROVIDERS.contains(&provider) {
         return MediaPrice::Unmetered;
     }
-    match (name, provider) {
-        ("image_generate", "xai") => MediaPrice::PerCall(IMAGE_GENERATE_XAI_USD),
-        _ => MediaPrice::Unknown,
+    if (name, provider) == ("image_generate", "xai") {
+        return MediaPrice::PerCall(IMAGE_GENERATE_XAI_USD);
     }
+    model
+        .or_else(|| builtin_media_default_model(name, provider))
+        .and_then(|model| find_media_model(name, provider, model))
+        .map_or(MediaPrice::Unknown, MediaPrice::Rated)
 }
 
 /// The provider a media builtin call bills, resolved as the builtin
@@ -95,17 +124,20 @@ pub fn builtin_media_provider<'a>(
     Some(inferred)
 }
 
-/// Per-call USD floor for a priced builtin + provider pair.
+/// Per-call USD floor for a builtin + provider pair priced whatever the
+/// model (xAI images).
 ///
 /// `tool` accepts `nika:image_generate` or `image_generate`. `None` when
-/// the pair is unpriced (mock/local/unknown) or the tool has no static
-/// floor. The caller multiplies by a known `n:` and a known `for_each`
-/// count; templated args stay `None` here (the mid-run ledger owns them).
+/// the pair is unpriced (mock/local/unknown), when its price depends on the
+/// model and the call ([`MediaPrice::Rated`] · read the dated media table),
+/// or when the tool has no static floor. The caller multiplies by a known
+/// `n:` and a known `for_each` count; templated args stay `None` here (the
+/// mid-run ledger owns them).
 #[must_use]
 pub fn builtin_provider_floor_usd(tool: &str, provider: &str) -> Option<f64> {
-    match builtin_media_price(tool, provider) {
+    match builtin_media_price(tool, provider, None) {
         MediaPrice::PerCall(usd) => Some(usd),
-        MediaPrice::Unmetered | MediaPrice::Unknown => None,
+        MediaPrice::Unmetered | MediaPrice::Rated(_) | MediaPrice::Unknown => None,
     }
 }
 
@@ -126,6 +158,8 @@ mod tests {
 
     #[test]
     fn unpriced_image_providers_have_no_static_floor() {
+        // openai and gemini images are priced per model and per call (the
+        // dated media table), never by a provider-wide constant.
         for provider in ["mock", "local", "openai", "gemini", ""] {
             assert_eq!(
                 builtin_provider_floor_usd("image_generate", provider),
@@ -146,31 +180,87 @@ mod tests {
         }
     }
 
+    /// C-D3 · a paid model the dated table does not price stays unknown
+    /// spend: `OpenAI`'s default voice, the image models shut down on
+    /// 2026-12-01, an `ElevenLabs` id outside the page's families, a model
+    /// the catalog has never seen, and a provider it has never seen.
     #[test]
     fn paid_media_without_a_catalog_rate_is_unknown_spend() {
-        for (tool, provider) in [
-            ("nika:image_generate", "openai"),
-            ("image_generate", "gemini"),
-            ("nika:tts_generate", "openai"),
-            ("tts_generate", "elevenlabs"),
+        for (tool, provider, model) in [
+            ("nika:tts_generate", "openai", None),
+            ("nika:tts_generate", "openai", Some("gpt-4o-mini-tts")),
+            ("nika:image_generate", "openai", Some("gpt-image-1.5")),
+            ("image_generate", "openai", Some("gpt-image-1-mini")),
+            ("tts_generate", "elevenlabs", Some("eleven_multilingual_v1")),
+            (
+                "image_generate",
+                "gemini",
+                Some("gemini-2.0-flash-preview-image-generation"),
+            ),
             // A provider the catalog has never seen is unknown, never free.
-            ("nika:image_generate", "newcloud"),
-            ("nika:tts_generate", "xai"),
+            ("nika:image_generate", "newcloud", None),
+            ("nika:tts_generate", "xai", None),
         ] {
             assert_eq!(
-                builtin_media_price(tool, provider),
+                builtin_media_price(tool, provider, model),
                 MediaPrice::Unknown,
-                "{tool} on {provider} bills with no catalog rate"
+                "{tool} on {provider} {model:?} bills with no catalog rate"
             );
         }
     }
 
+    /// The default models of `OpenAI` and Gemini images and of `ElevenLabs`
+    /// speech are priced by the dated table; so are the named models it
+    /// lists, on the builtin it lists them for.
+    #[test]
+    fn the_dated_table_rates_its_models_and_the_defaults() {
+        for (tool, provider, model, expected) in [
+            ("nika:image_generate", "openai", None, "gpt-image-2"),
+            ("image_generate", "gemini", None, "gemini-3.1-flash-image"),
+            (
+                "nika:tts_generate",
+                "elevenlabs",
+                None,
+                "eleven_multilingual_v2",
+            ),
+            ("nika:tts_generate", "openai", Some("tts-1-hd"), "tts-1-hd"),
+            (
+                "nika:image_generate",
+                "openai",
+                Some("gpt-image-2.5-flare"),
+                "gpt-image-2.5-flare",
+            ),
+            (
+                "nika:image_generate",
+                "gemini",
+                Some("gemini-3-pro-image"),
+                "gemini-3-pro-image",
+            ),
+        ] {
+            let price = builtin_media_price(tool, provider, model);
+            assert!(
+                matches!(
+                    price,
+                    MediaPrice::Rated(rated) if (rated.provider, rated.model) == (provider, expected)
+                ),
+                "{tool} on {provider} {model:?}: {price:?}"
+            );
+        }
+        assert_eq!(
+            builtin_media_price("nika:tts_generate", "openai", Some("gpt-image-2")),
+            MediaPrice::Unknown,
+            "an image model never prices speech"
+        );
+    }
+
     #[test]
     fn xai_images_are_priced_per_call() {
-        assert_eq!(
-            builtin_media_price("nika:image_generate", "xai"),
-            MediaPrice::PerCall(0.02)
-        );
+        for model in [None, Some("grok-imagine-image-quality")] {
+            assert_eq!(
+                builtin_media_price("nika:image_generate", "xai", model),
+                MediaPrice::PerCall(0.02)
+            );
+        }
     }
 
     #[test]
@@ -178,7 +268,7 @@ mod tests {
         for tool in ["nika:image_generate", "nika:tts_generate"] {
             for provider in ["local", "mock", "system"] {
                 assert_eq!(
-                    builtin_media_price(tool, provider),
+                    builtin_media_price(tool, provider, None),
                     MediaPrice::Unmetered,
                     "{tool} on {provider} never bills"
                 );
@@ -191,9 +281,33 @@ mod tests {
             "nika:fetch",
         ] {
             assert_eq!(
-                builtin_media_price(tool, "openai"),
+                builtin_media_price(tool, "openai", None),
                 MediaPrice::Unmetered,
                 "{tool} calls no paid media provider"
+            );
+        }
+    }
+
+    #[test]
+    fn default_models_are_the_paid_providers_only() {
+        assert_eq!(
+            builtin_media_default_model("nika:image_generate", "openai"),
+            Some("gpt-image-2")
+        );
+        assert_eq!(
+            builtin_media_default_model("tts_generate", "openai"),
+            Some("gpt-4o-mini-tts")
+        );
+        for (tool, provider) in [
+            ("nika:tts_generate", "system"),
+            ("nika:tts_generate", "local"),
+            ("nika:image_generate", "mock"),
+            ("nika:image_fx", "openai"),
+        ] {
+            assert_eq!(
+                builtin_media_default_model(tool, provider),
+                None,
+                "{tool} {provider}"
             );
         }
     }

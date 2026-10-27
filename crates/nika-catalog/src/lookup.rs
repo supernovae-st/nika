@@ -8,7 +8,8 @@
 
 #[cfg(feature = "builtins-transforms")]
 pub use crate::data::builtin_prices::{
-    MediaPrice, builtin_media_price, builtin_media_provider, builtin_provider_floor_usd,
+    MediaPrice, builtin_media_default_model, builtin_media_price, builtin_media_provider,
+    builtin_provider_floor_usd,
 };
 #[cfg(feature = "builtins-transforms")]
 pub use crate::data::builtins::{find_builtin, is_known_builtin};
@@ -18,6 +19,13 @@ pub use crate::data::generated::find_embedding;
 pub use crate::data::generated::find_mcp_server;
 #[cfg(feature = "providers")]
 pub use crate::data::generated::{find_provider, model_facts};
+#[cfg(all(feature = "builtins-transforms", feature = "serde"))]
+pub use crate::data::media_prices::media_pricing_record;
+#[cfg(feature = "builtins-transforms")]
+pub use crate::data::media_prices::{
+    ImageRequest, ImageUsage, MEDIA_PRICING_AS_OF, MEDIA_PRICING_SCHEMA, MediaModel, MediaRate,
+    MediaUnit, TokenAxis, find_media_model, media_rates,
+};
 #[cfg(feature = "capabilities")]
 pub use crate::data::models::model_capabilities;
 #[cfg(feature = "pricing")]

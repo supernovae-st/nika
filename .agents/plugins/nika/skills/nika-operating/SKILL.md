@@ -30,15 +30,20 @@ the engine/spec identity that produced the report.
   execution stops new admissions; already-started calls finish and count.
   A concurrent wave can overshoot, and unpriced work has no measured USD
   bound. Choose concurrency and model limits with that exposure in mind.
-  Under a cap (`--max-cost-usd`, the project `ceiling:` or a beat's
-  mandatory `plafond:`), a paid media call the catalog cannot price (openai
-  or gemini images, openai or elevenlabs speech) is refused before its
-  request, like an unpriced cloud model, including one an `agent:` makes
-  through its tools. A beat cannot drop its cap: use `xai` for images, the
-  keyless `provider: system` voice for speech (no paid speech provider has a
-  catalog price yet; the host voice bills no provider and is counted as
-  unpriced local work), or `local` / `mock`. An uncapped run makes the call
-  and counts it in the settlement's `spend.unpriced_calls`.
+  Paid media is billed from a dated catalog (`nika check` prints each call's
+  floor, rate and table date): `OpenAI` and Gemini images, `OpenAI`
+  `tts-1`/`tts-1-hd` and `ElevenLabs` speech are floored at launch and
+  charged per image, per token or per character, so a cap can trip on them
+  mid-run. Under a cap (`--max-cost-usd`, the project `ceiling:` or a beat's
+  mandatory `plafond:`), a paid media call the catalog cannot price is
+  refused before its request, like an unpriced cloud model, including one an
+  `agent:` makes through its tools: `OpenAI`'s default voice
+  `gpt-4o-mini-tts`, `gpt-image-1.5`, `gpt-image-1-mini` and unknown model
+  ids. A beat cannot drop its cap: set `model: tts-1` or `tts-1-hd`, use
+  `elevenlabs`, the keyless `provider: system` voice (it bills no provider
+  and is counted as unpriced local work), or `local` / `mock`. An uncapped
+  run makes the call and counts it in the settlement's
+  `spend.unpriced_calls`.
 - A local model is **unpriced compute, not free** — say "unpriced",
   never "$0".
 

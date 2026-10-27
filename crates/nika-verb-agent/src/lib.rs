@@ -1136,7 +1136,7 @@ where
     ) -> Result<(ContentBlock, Option<f64>), VerbAgentError> {
         stop_if_requested(control.0)?;
         let (input, run_start, receipts) = control;
-        if let Some(refused) = media_cap_feedback(name, &args, input.cost_remaining_usd) {
+        if let Some(refused) = media_cap_feedback(name, &args, loop_remaining_usd(input)) {
             let block = ContentBlock::ToolResult {
                 tool_use_id: id.to_owned(),
                 content: refused,
@@ -1218,30 +1218,46 @@ where
     }
 }
 
+/// What the run's cost cap leaves this loop at a tool call: the USD left
+/// when the task dispatched (a snapshot, never a reservation), less what the
+/// loop's own tools have reported spending since (C-D3: a paid media call
+/// bills its catalog price, so a capped loop stops before its media spend
+/// crosses the cap; the loop's model turns are the run ledger's, after the
+/// task). `None` = the run has no cap.
+fn loop_remaining_usd(input: &AgentInput) -> Option<f64> {
+    let remaining = input.cost_remaining_usd?;
+    let spent = input
+        .stopped
+        .as_ref()
+        .and_then(nika_verb_invoke::StoppedCallSlot::reported_cost_usd)
+        .unwrap_or(0.0);
+    Some((remaining - spent).max(0.0))
+}
+
 /// C-D3 · a paid media tool call meets the run's cost cap before its
-/// request, as an `invoke:` task does: under a cap (`remaining`, the run's
-/// USD left when the task dispatched · a snapshot, never a reservation), a
-/// provider the catalog cannot price, or a priced floor above what is left,
-/// is refused and fed back, so the model can pick another provider. Nothing
-/// is sent and nothing is billed. `None` without a cap or when the call fits.
+/// request, as an `invoke:` task does: under a cap (`remaining`, what the cap
+/// leaves this loop · [`loop_remaining_usd`]), a call no catalog rate prices,
+/// a priced floor above what is left, or a call billed from its usage when
+/// nothing is left, is refused and fed back, so the model can pick another
+/// provider or model. Nothing is sent and nothing is billed. `None` without a
+/// cap or when the call fits.
 fn media_cap_feedback(
     name: &str,
     args: &serde_json::Value,
     remaining: Option<f64>,
 ) -> Option<String> {
     let remaining = remaining?;
-    let (provider, floor) = nika_check::analyzer::media_cap_refusal(name, args, remaining)?;
+    let refusal = nika_check::analyzer::media_cap_refusal(name, args, remaining)?;
     let refused = "NIKA-1704 · refused before the media request, nothing was sent";
-    Some(match floor {
-        None => format!(
-            "{refused}: {name} on `{provider}` has no catalog price, so the run's cost cap \
-             cannot bound it. Use a provider the catalog prices (images: `xai`), the keyless \
-             `system` voice for speech, or `local` / `mock`."
+    let why = refusal.reason(name, remaining);
+    Some(match refusal {
+        nika_check::analyzer::MediaCapRefusal::Unpriced { .. } => format!(
+            "{refused}: {why}. Use a model the catalog prices (images: openai `gpt-image-2` \
+             or `gpt-image-2.5-*`, the gemini image models, `xai`; speech: openai `tts-1` or \
+             `tts-1-hd`, `elevenlabs`), the keyless `system` voice for speech, or `local` / \
+             `mock`."
         ),
-        Some(floor) => format!(
-            "{refused}: {name} on `{provider}` costs at least ${floor:.6}, above the \
-             ${remaining:.6} left under the run's cost cap."
-        ),
+        _ => format!("{refused}: {why}."),
     })
 }
 

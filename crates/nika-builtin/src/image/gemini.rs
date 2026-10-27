@@ -82,8 +82,9 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     }
 
     batch.warnings.splice(0..0, warnings.drain(..));
-    // cost_usd stays None (Default): gemini bills image output in tokens,
-    // and the image model ids are unpriced in the catalog (roadmap).
+    // cost_usd stays None (Default): gemini bills image output in tokens
+    // with no USD in the response — the dated media table prices it from
+    // the usage (`image::bill` · C-D3).
     batch.endpoint_host = Some("generativelanguage.googleapis.com".to_owned());
     batch.provider_text = (!texts.is_empty()).then(|| texts.join("\n"));
     clamp_provider_text(&mut batch);
@@ -390,17 +391,7 @@ fn parse_response(status: u16, body: &[u8]) -> Result<CallResult, BuiltinFailure
         return Err(no_image_failure(candidate));
     }
 
-    let meta = parsed.get("usageMetadata");
-    let read = |key: &str| {
-        meta.and_then(|m| m.get(key))
-            .and_then(serde_json::Value::as_u64)
-    };
-    let usage = Usage {
-        input_tokens: read("promptTokenCount"),
-        output_tokens: read("candidatesTokenCount"),
-        total_tokens: read("totalTokenCount"),
-        thoughts_tokens: read("thoughtsTokenCount"),
-    };
+    let usage = usage_of(parsed.get("usageMetadata"));
     let mut raw = parsed;
     sanitize_raw(&mut raw);
     Ok(CallResult {
@@ -409,6 +400,37 @@ fn parse_response(status: u16, body: &[u8]) -> Result<CallResult, BuiltinFailure
         text: (!texts.is_empty()).then(|| texts.join("\n")),
         raw,
     })
+}
+
+/// The usage one `generateContent` response reports. `*TokensDetails` split
+/// a count by modality (`{modality, tokenCount}`): the dated media table
+/// prices image output and text output at their own rates (C-D3); absent
+/// details leave the split unknown.
+fn usage_of(meta: Option<&serde_json::Value>) -> Usage {
+    let read = |key: &str| {
+        meta.and_then(|m| m.get(key))
+            .and_then(serde_json::Value::as_u64)
+    };
+    let modality = |key: &str, wanted: &str| {
+        let details = meta?.get(key)?.as_array()?;
+        Some(
+            details
+                .iter()
+                .filter(|d| d.get("modality").and_then(serde_json::Value::as_str) == Some(wanted))
+                .filter_map(|d| d.get("tokenCount").and_then(serde_json::Value::as_u64))
+                .fold(0_u64, u64::saturating_add),
+        )
+    };
+    Usage {
+        input_tokens: read("promptTokenCount"),
+        output_tokens: read("candidatesTokenCount"),
+        total_tokens: read("totalTokenCount"),
+        thoughts_tokens: read("thoughtsTokenCount"),
+        input_text_tokens: modality("promptTokensDetails", "TEXT"),
+        input_image_tokens: modality("promptTokensDetails", "IMAGE"),
+        output_image_tokens: modality("candidatesTokensDetails", "IMAGE"),
+        output_text_tokens: modality("candidatesTokensDetails", "TEXT"),
+    }
 }
 
 /// Map an image-less candidate to the right plane — safety finish reasons
@@ -583,6 +605,59 @@ mod tests {
         assert_eq!(http.sent_requests().len(), 2, "n=2 → two wire calls");
         assert_eq!(batch.usage.total_tokens, Some(2 * 1478));
         assert_eq!(batch.usage.thoughts_tokens, Some(2 * 312));
+    }
+
+    /// C-D3 · the catalog bills an exact size at the resolution class this
+    /// adapter sends for it: the floor of the size is the floor of the class.
+    #[test]
+    fn the_catalog_reads_the_class_this_adapter_sends() {
+        let model =
+            nika_catalog::find_media_model("image_generate", "gemini", "gemini-3.1-flash-image")
+                .expect("priced");
+        for size in ["512x512", "1024x1024", "1536x864", "2048x1152", "4096x2304"] {
+            let (body, _) =
+                build_body(&parsed(serde_json::json!({ "size": size }))).expect("builds");
+            let class = body["generationConfig"]["imageConfig"]["imageSize"]
+                .as_str()
+                .expect("a class");
+            assert_eq!(
+                model.image_floor(&nika_catalog::ImageRequest::new().with_size(Some(size))),
+                model.image_floor(&nika_catalog::ImageRequest::new().with_image_size(Some(class))),
+                "{size} → {class}"
+            );
+        }
+    }
+
+    /// The per-modality counts split the output: image tokens and text
+    /// tokens price at their own rates (C-D3).
+    #[test]
+    fn usage_metadata_splits_the_output_by_modality() {
+        let body = serde_json::json!({
+            "candidates": [{ "content": { "parts": [
+                { "inlineData": { "mimeType": "image/png", "data": "iVBORw0KGgo=" } }
+            ] } }],
+            "usageMetadata": {
+                "promptTokenCount": 12, "candidatesTokenCount": 1130,
+                "thoughtsTokenCount": 40, "totalTokenCount": 1182,
+                "promptTokensDetails": [{ "modality": "TEXT", "tokenCount": 12 }],
+                "candidatesTokensDetails": [
+                    { "modality": "IMAGE", "tokenCount": 1120 },
+                    { "modality": "TEXT", "tokenCount": 10 }
+                ]
+            }
+        });
+        let call = parse_response(200, body.to_string().as_bytes()).expect("parses");
+        assert_eq!(call.usage.output_image_tokens, Some(1120));
+        assert_eq!(call.usage.output_text_tokens, Some(10));
+        assert_eq!(call.usage.input_text_tokens, Some(12));
+        assert_eq!(call.usage.input_image_tokens, Some(0));
+        assert_eq!(call.usage.thoughts_tokens, Some(40));
+        let without = serde_json::json!({
+            "candidates": body["candidates"].clone(),
+            "usageMetadata": { "candidatesTokenCount": 1120 }
+        });
+        let call = parse_response(200, without.to_string().as_bytes()).expect("parses");
+        assert_eq!(call.usage.output_image_tokens, None, "no details, no split");
     }
 
     #[test]

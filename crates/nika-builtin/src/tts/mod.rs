@@ -36,6 +36,7 @@ use nika_kernel::io::fs::{FsMetaDyn, FsReadDyn, FsWriteDyn};
 use nika_kernel::io::http::HttpPostDyn;
 use nika_kernel::secret::Secret;
 
+use crate::media::cost::{CostBasis, MediaBill};
 use crate::media::time::rfc3339_now;
 use crate::permits::{FsAccess, FsBoundary};
 use crate::{Args, BuiltinFailure, BuiltinOutcome, Emitter};
@@ -165,10 +166,14 @@ where
     };
     let ProviderAudio {
         bytes,
-        cost_usd,
+        cost_usd: reported,
         endpoint_host,
         warnings: adapter_warnings,
     } = audio;
+    // What the call cost: the provider's own report, else the dated media
+    // table's per-character rate × the characters sent (C-D3).
+    let bill = bill(&args, reported);
+    let cost_usd = crate::media::cost::usd(bill);
     warnings.extend(adapter_warnings);
     if bytes.is_empty() {
         return Err(BuiltinFailure::new(
@@ -209,7 +214,7 @@ where
             &created_at,
             endpoint_host.as_deref(),
         );
-        annotate(&mut manifest, content_credentials, args.provider);
+        annotate(&mut manifest, content_credentials, args.provider, bill);
         Some(write_manifest(fs, boundary, &args, &saved, &manifest, emitter).await?)
     } else {
         None
@@ -225,14 +230,47 @@ where
         endpoint_host.as_deref(),
         manifest_path.as_deref(),
     );
-    annotate(&mut output, content_credentials, args.provider);
+    annotate(&mut output, content_credentials, args.provider, bill);
     Ok(output)
 }
 
-/// The two receipt fields the manifest and the output both carry beside
-/// their base shape: the detected content credentials and, when the engine
-/// knows it, why `cost_usd` is null.
-fn annotate(record: &mut serde_json::Value, credentials: Option<&'static str>, provider: Provider) {
+/// What this call cost (C-D3): the provider's own report when it gives one,
+/// else the dated media table's per-character rate of its model times the
+/// characters it sent (the trimmed text, as the request carried it). `None`
+/// for a model the table does not price (`OpenAI`'s `gpt-4o-mini-tts`, an
+/// `ElevenLabs` id outside its price families: unknown, never free) and for
+/// unmetered providers.
+fn bill(args: &TtsArgs, reported: Option<f64>) -> Option<MediaBill> {
+    if let Some(usd) = reported {
+        return Some(MediaBill::reported(usd));
+    }
+    let nika_catalog::MediaPrice::Rated(model) =
+        nika_catalog::builtin_media_price("tts_generate", args.provider.id(), Some(&args.model))
+    else {
+        return None;
+    };
+    let characters = u64::try_from(args.text.chars().count()).ok()?;
+    let rate = model.character_rate()?;
+    Some(MediaBill::catalog(
+        model.speech_usd(characters)?,
+        CostBasis::RateTimesCharacters,
+        rate.as_of,
+    ))
+}
+
+/// The receipt fields the manifest and the output both carry beside their
+/// base shape: the detected content credentials, how `cost_usd` was computed
+/// when the call was billed, and, when the engine knows it, why `cost_usd`
+/// is null.
+fn annotate(
+    record: &mut serde_json::Value,
+    credentials: Option<&'static str>,
+    provider: Provider,
+    bill: Option<MediaBill>,
+) {
+    if let Some(bill) = bill {
+        bill.annotate(record);
+    }
     if let serde_json::Value::Object(map) = record {
         map.insert("content_credentials".into(), credentials.into());
         if let Some(reason) = unpriced_reason(provider) {
@@ -608,6 +646,77 @@ mod tests {
             .await
             .expect("re-run");
         assert_eq!(std::fs::read_dir(&root).expect("dir").count(), before);
+    }
+
+    /// C-D3 · a priced voice is billed per character from the dated media
+    /// table, and says how and at which date's rates (output and manifest);
+    /// `OpenAI`'s default voice has no catalog price: its `cost_usd` stays
+    /// null, never a guess.
+    #[tokio::test]
+    async fn a_priced_voice_bills_its_characters_and_the_default_openai_voice_does_not() {
+        let root = scratch();
+        let keys = TtsKeys::new()
+            .with_openai(Secret::new("sk-fake".to_owned()))
+            .with_elevenlabs(Secret::new("xi-fake".to_owned()));
+        let date = nika_catalog::MEDIA_PRICING_AS_OF;
+        for (provider, model, per_million) in [
+            ("openai", Some("tts-1"), Some(15.0)),
+            ("openai", Some("tts-1-hd"), Some(30.0)),
+            ("elevenlabs", None, Some(80.0)),
+            ("elevenlabs", Some("eleven_flash_v2_5"), Some(40.0)),
+            ("openai", None, None),
+            ("elevenlabs", Some("eleven_multilingual_v1"), None),
+        ] {
+            let http = MockHttp::new().enqueue_ok(200, b"ID3\x04fake-mp3".to_vec());
+            let planes = Planes {
+                http: Some(&http),
+                keys: &keys,
+                system: None,
+            };
+            let mut args = serde_json::json!({
+                "provider": provider,
+                "text": "  Bonjour, monde.  ",
+                "output_dir": root.to_string_lossy(),
+            });
+            if let (Some(model), Some(map)) = (model, args.as_object_mut()) {
+                map.insert("model".into(), model.into());
+            }
+            let serde_json::Value::Object(args) = args else {
+                unreachable!()
+            };
+            let out = generate(
+                &TokioFs,
+                &planes,
+                &MockClock::default(),
+                &NullEmitter,
+                &FsBoundary::unbounded(),
+                &args,
+            )
+            .await
+            .expect("synthesized");
+            assert_eq!(http.sent_requests().len(), 1, "{provider} {model:?}");
+            let manifest: serde_json::Value = serde_json::from_slice(
+                &std::fs::read(out["manifest_path"].as_str().expect("manifest")).expect("read"),
+            )
+            .expect("json");
+            if let Some(rate) = per_million {
+                // "Bonjour, monde." · 15 characters, trimmed as sent.
+                let expected = rate * 15.0 / 1e6;
+                for record in [&out, &manifest] {
+                    let usd = record["cost_usd"].as_f64().expect("billed");
+                    assert!(
+                        (usd - expected).abs() < 1e-12,
+                        "{provider} {model:?}: {usd}"
+                    );
+                    assert_eq!(record["cost_basis"], "catalog_rate_x_characters");
+                    assert_eq!(record["cost_as_of"], date);
+                }
+            } else {
+                assert_eq!(out["cost_usd"], serde_json::Value::Null, "{model:?}");
+                assert!(out.get("cost_basis").is_none() && out.get("cost_unpriced").is_none());
+            }
+        }
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// A `say` stand-in: writes a real WAV at its `-o` path.

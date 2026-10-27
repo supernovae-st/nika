@@ -95,16 +95,16 @@ fn media_summary(report: &CheckReport) -> Option<String> {
     }
     let counted = crate::vocab::count(calls, "paid media call");
     Some(match unpriced_media(report) {
-        0 => format!("{counted} at catalog per-call prices"),
+        0 => format!("{counted} at catalog prices"),
         unpriced => format!("{counted}, {unpriced} unpriced"),
     })
 }
 
-/// How many paid media calls the figure cannot price: no catalog price, or
-/// a provider only the run decides.
+/// How many paid media calls no catalog rate prices before the run: no
+/// catalog price, or a provider or model only the run decides.
 fn unpriced_media(report: &CheckReport) -> usize {
     (report.cost.media.iter())
-        .filter(|call| call.usd_per_call.is_none())
+        .filter(|call| !call.priced)
         .count()
 }
 
@@ -118,50 +118,60 @@ fn media_mark(t: Theme, unpriced: bool) -> String {
     }
 }
 
-/// One row per paid media call: its per-call catalog price, UNPRICED with
-/// what an armed cap does with it (the run's own refusal, NIKA-1709), or
-/// DECIDED AT RUN for a provider only the run resolves (judged before its
-/// request, NIKA-1704).
+/// One row per paid media call: its floor, the catalog rate that sets it and
+/// the date that rate was read; METERED for a call billed from the usage it
+/// reports (no floor before the call); UNPRICED with what an armed cap does
+/// with it (the run's own refusal, NIKA-1709); or DECIDED AT RUN for a
+/// provider or model only the run resolves (judged before its request,
+/// NIKA-1704).
 fn cost_media_rows(out: &mut String, report: &CheckReport, t: Theme) {
     for call in &report.cost.media {
-        let callee = format!("{} · {}", call.tool, call.provider);
-        match call.usd_per_call {
-            None if call.run_decided => {
-                let _ = writeln!(
-                    out,
-                    "   {}  {}  {} {}",
-                    call.task,
-                    t.paint(Role::Dim, &callee),
-                    t.paint(Role::Warn, "DECIDED AT RUN"),
-                    t.paint(
-                        Role::Dim,
-                        "— a cap refuses an unpriced provider before its request (NIKA-1704)"
-                    ),
-                );
-            }
-            Some(usd) => {
-                let _ = writeln!(
-                    out,
-                    "   {}  {}  ${} per call",
-                    call.task,
-                    t.paint(Role::Dim, &callee),
-                    crate::vocab::usd(usd),
-                );
-            }
-            None => {
-                let _ = writeln!(
-                    out,
-                    "   {}  {}  {} {}",
-                    call.task,
-                    t.paint(Role::Dim, &callee),
-                    t.paint(Role::Warn, "UNPRICED"),
-                    t.paint(
-                        Role::Dim,
-                        "— no catalog price; any cost cap refuses it (NIKA-1709)"
-                    ),
-                );
-            }
-        }
+        let callee = match &call.model {
+            Some(model) => format!("{} · {} {model}", call.tool, call.provider),
+            None => format!("{} · {}", call.tool, call.provider),
+        };
+        let dated = |rate: &str| match &call.as_of {
+            Some(as_of) => format!("{rate} · prices {as_of}"),
+            None => rate.to_owned(),
+        };
+        let rate = call.rate.as_deref().unwrap_or("catalog rate");
+        let verdict = match (call.priced, call.usd_per_call) {
+            (true, Some(floor)) => format!(
+                "from ${} · {}",
+                crate::vocab::usd(floor),
+                t.paint(Role::Dim, &dated(rate))
+            ),
+            (true, None) => format!(
+                "{} {}",
+                t.paint(Role::Strong, "METERED"),
+                t.paint(
+                    Role::Dim,
+                    &format!("— billed from what it reports · {}", dated(rate))
+                ),
+            ),
+            (false, _) if call.run_decided => format!(
+                "{} {}",
+                t.paint(Role::Warn, "DECIDED AT RUN"),
+                t.paint(
+                    Role::Dim,
+                    "— a cap judges its price before its request (NIKA-1704)"
+                ),
+            ),
+            (false, _) => format!(
+                "{} {}",
+                t.paint(Role::Warn, "UNPRICED"),
+                t.paint(
+                    Role::Dim,
+                    "— no catalog price; any cost cap refuses it (NIKA-1709)"
+                ),
+            ),
+        };
+        let _ = writeln!(
+            out,
+            "   {}  {}  {verdict}",
+            call.task,
+            t.paint(Role::Dim, &callee)
+        );
     }
 }
 
@@ -481,9 +491,43 @@ mod tests {
             "{text}"
         );
         assert!(
-            text.contains("nika:image_generate · xai") && text.contains("$0.0200 per call"),
+            text.contains("nika:image_generate · xai  from $0.0200 · $0.02 per image"),
             "{text}"
         );
+    }
+
+    /// C-D3 · a priced call's row shows its floor, the rate that sets it and
+    /// the date the rate was read; a call billed from its usage reads
+    /// METERED with its rate; nothing priced puts the card under a warning.
+    #[test]
+    fn priced_media_rows_show_the_floor_its_unit_and_the_table_date() {
+        let text = media_card(
+            "nika: priced\npermits: { tools: [\"nika:image_generate\", \"nika:tts_generate\"] }\ntasks:\n  poster:\n    invoke: { tool: \"nika:image_generate\", args: { provider: openai, size: 1024x1024, quality: high, prompt: a star, output_dir: ./out } }\n  narrate:\n    invoke: { tool: \"nika:tts_generate\", args: { model: tts-1-hd, text: \"hello world\", output_dir: ./out } }\n  flare:\n    invoke: { tool: \"nika:image_generate\", args: { model: gpt-image-2.5-flare, prompt: a star, output_dir: ./out } }\n",
+        );
+        let date = nika_catalog::MEDIA_PRICING_AS_OF;
+        assert!(
+            text.contains(&format!(
+                "poster  nika:image_generate · openai gpt-image-2  from $0.2110 · $0.211 per image (1024x1024, high) · prices {date}"
+            )),
+            "{text}"
+        );
+        assert!(
+            text.contains(&format!(
+                "narrate  nika:tts_generate · openai tts-1-hd  from $0.0003 · $30 per 1M characters · prices {date}"
+            )),
+            "{text}"
+        );
+        assert!(
+            text.contains(&format!(
+                "flare  nika:image_generate · openai gpt-image-2.5-flare  METERED — billed from what it reports · $30 per 1M image output tokens · prices {date}"
+            )),
+            "{text}"
+        );
+        assert!(
+            text.contains("3 paid media calls at catalog prices"),
+            "{text}"
+        );
+        assert!(text.contains('✔'), "nothing unpriced: {text}");
     }
 
     /// A provider only the run decides is named, never a free `$0.00` under
@@ -498,6 +542,11 @@ mod tests {
             text.contains("DECIDED AT RUN") && text.contains("NIKA-1704"),
             "{text}"
         );
+        // A templated model of a provider priced per model is the run's too.
+        let text = media_card(
+            "nika: voice\ninputs:\n  model: { type: string, default: eleven_v3 }\npermits: { tools: [\"nika:tts_generate\"] }\ntasks:\n  say:\n    invoke: { tool: \"nika:tts_generate\", args: { provider: elevenlabs, model: \"${{ inputs.model }}\", text: hi, output_dir: ./out } }\n",
+        );
+        assert!(text.contains("DECIDED AT RUN"), "{text}");
     }
 
     /// The composed-only layout (a child call, no own inference) names the

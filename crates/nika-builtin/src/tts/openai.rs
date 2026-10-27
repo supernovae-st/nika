@@ -27,7 +27,10 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     }
     Ok(ProviderAudio {
         bytes: response.body.to_vec(),
-        cost_usd: None, // token-priced · audio models unpriced in the catalog
+        // No cost field in the raw-bytes response: the dated media table bills
+        // tts-1/tts-1-hd per character (`tts::bill` · C-D3); gpt-4o-mini-tts
+        // has no catalog price and stays unpriced.
+        cost_usd: None,
         endpoint_host: Some("api.openai.com".to_owned()),
         warnings: Vec::new(),
     })

@@ -89,13 +89,14 @@ pub(super) fn stamp_mock_media_rehearsal(note: &str, value: &mut Value) -> Optio
 
 /// A returned tool call's spend for the run ledger: its self-reported REAL
 /// spend (a top-level finite, non-negative `cost_usd` in its structured
-/// output · absent or invalid stays absent, never a guess), the attribution
-/// key that spend folds under (the tool id), and why its spend is absent
-/// when the engine knows. A paid media call (C-D3): the catalog has no price
-/// for the provider it called (`missing_catalog_price`), or a priced provider
-/// did not report what it billed (`provider_did_not_report_usage`); the
-/// provider is read off the tool's own output, which names the one it
-/// called. The keyless `system` voice bills no provider, so no cap refuses
+/// output · absent or invalid stays absent, never a guess — a paid media
+/// builtin bills it from the dated media table, its `cost_basis` saying
+/// how), the attribution key that spend folds under (the tool id), and why
+/// its spend is absent when the engine knows. A paid media call (C-D3): the
+/// catalog has no price for the model it called (`missing_catalog_price`),
+/// or a priced call reported nothing the builtin could bill
+/// (`provider_did_not_report_usage`); the provider and model are read off
+/// the tool's own output, which names the ones it called. The keyless `system` voice bills no provider, so no cap refuses
 /// it, but its local compute is unpriced, never free: it says so itself
 /// (`local_model`, [`builtin_unpriced`]). Local and mock media and every
 /// other tool's absent spend stay unmetered.
@@ -548,12 +549,27 @@ mod unpriced_tests {
             tool_spend(speak, &openai),
             (None, None, Some(UnpricedReason::MissingCatalogPrice))
         );
-        // A paid provider's bill is never relabelled local work.
-        let mislabelled =
-            json!({ "provider": "elevenlabs", "cost_usd": null, "cost_unpriced": "local_model" });
+        // A paid provider's bill is never relabelled local work: an unpriced
+        // model stays unknown, a priced one that reported nothing says so.
+        let mislabelled = json!({
+            "provider": "elevenlabs", "model": "eleven_multilingual_v1",
+            "cost_usd": null, "cost_unpriced": "local_model"
+        });
         assert_eq!(
             tool_spend(speak, &mislabelled),
             (None, None, Some(UnpricedReason::MissingCatalogPrice))
+        );
+        let priced =
+            json!({ "provider": "elevenlabs", "cost_usd": null, "cost_unpriced": "local_model" });
+        assert_eq!(
+            tool_spend(speak, &priced),
+            (None, None, Some(UnpricedReason::ProviderDidNotReportUsage))
+        );
+        // A priced call's bill (C-D3 · the dated table) is metered as is.
+        let billed = json!({ "provider": "elevenlabs", "cost_usd": 0.0004, "cost_basis": "catalog_rate_x_characters" });
+        assert_eq!(
+            tool_spend(speak, &billed),
+            (Some(0.0004), Some("nika:tts_generate".to_owned()), None)
         );
         let xai = json!({ "provider": "xai", "cost_usd": 0.02 });
         assert_eq!(

@@ -419,13 +419,7 @@ fn affirmative_contract(report: &nika_check::CheckReport) -> String {
     } else {
         let figure = format!("est out ≤${:.4}", report.cost.bounded_total_usd);
         // C-D3 · unpriced paid media is named beside the figure, never in it.
-        match report
-            .cost
-            .media
-            .iter()
-            .filter(|m| m.usd_per_call.is_none())
-            .count()
-        {
+        match report.cost.media.iter().filter(|m| !m.priced).count() {
             0 => figure,
             n => format!("{figure} + {n} unpriced paid media call(s)"),
         }

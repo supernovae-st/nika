@@ -1290,6 +1290,7 @@ pub fn nika_catalog::json_mode::ParseJsonModeError::as_any(&self) -> &(dyn core:
 pub mod nika_catalog::lookup
 #[non_exhaustive] pub enum nika_catalog::lookup::MediaPrice
 pub nika_catalog::lookup::MediaPrice::PerCall(f64)
+pub nika_catalog::lookup::MediaPrice::Rated(nika_catalog::MediaModel)
 pub nika_catalog::lookup::MediaPrice::Unknown
 pub nika_catalog::lookup::MediaPrice::Unmetered
 impl core::clone::Clone for nika_catalog::MediaPrice
@@ -1325,7 +1326,276 @@ impl<T> core::convert::From<T> for nika_catalog::MediaPrice
 pub fn nika_catalog::MediaPrice::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::MediaPrice where T: 'static
 pub fn nika_catalog::MediaPrice::as_any(&self) -> &(dyn core::any::Any + 'static)
-pub fn nika_catalog::lookup::builtin_media_price(tool: &str, provider: &str) -> nika_catalog::MediaPrice
+#[non_exhaustive] pub enum nika_catalog::lookup::MediaUnit
+pub nika_catalog::lookup::MediaUnit::Image
+pub nika_catalog::lookup::MediaUnit::Image::quality: &'static str
+pub nika_catalog::lookup::MediaUnit::Image::size: &'static str
+pub nika_catalog::lookup::MediaUnit::MillionCharacters
+pub nika_catalog::lookup::MediaUnit::MillionTokens(nika_catalog::TokenAxis)
+impl nika_catalog::MediaUnit
+pub fn nika_catalog::MediaUnit::label(self) -> alloc::string::String
+impl core::clone::Clone for nika_catalog::MediaUnit
+pub fn nika_catalog::MediaUnit::clone(&self) -> nika_catalog::MediaUnit
+impl core::cmp::Eq for nika_catalog::MediaUnit
+impl core::cmp::PartialEq for nika_catalog::MediaUnit
+pub fn nika_catalog::MediaUnit::eq(&self, other: &nika_catalog::MediaUnit) -> bool
+impl core::fmt::Debug for nika_catalog::MediaUnit
+pub fn nika_catalog::MediaUnit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::MediaUnit
+impl core::marker::StructuralPartialEq for nika_catalog::MediaUnit
+impl<D> owo_colors::OwoColorize for nika_catalog::MediaUnit
+impl<T, U> core::convert::Into<U> for nika_catalog::MediaUnit where U: core::convert::From<T>
+pub fn nika_catalog::MediaUnit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::MediaUnit where U: core::convert::Into<T>
+pub type nika_catalog::MediaUnit::Error = core::convert::Infallible
+pub fn nika_catalog::MediaUnit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::MediaUnit where U: core::convert::TryFrom<T>
+pub type nika_catalog::MediaUnit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::MediaUnit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::MediaUnit where T: core::clone::Clone
+pub type nika_catalog::MediaUnit::Owned = T
+pub fn nika_catalog::MediaUnit::clone_into(&self, target: &mut T)
+pub fn nika_catalog::MediaUnit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::MediaUnit where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::MediaUnit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::MediaUnit where T: ?core::marker::Sized
+pub fn nika_catalog::MediaUnit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::MediaUnit where T: ?core::marker::Sized
+pub fn nika_catalog::MediaUnit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::MediaUnit where T: core::clone::Clone
+pub unsafe fn nika_catalog::MediaUnit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::MediaUnit
+pub fn nika_catalog::MediaUnit::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::MediaUnit where T: 'static
+pub fn nika_catalog::MediaUnit::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_catalog::lookup::TokenAxis
+pub nika_catalog::lookup::TokenAxis::ImageInput
+pub nika_catalog::lookup::TokenAxis::ImageOutput
+pub nika_catalog::lookup::TokenAxis::TextInput
+pub nika_catalog::lookup::TokenAxis::TextOutput
+impl nika_catalog::TokenAxis
+pub const fn nika_catalog::TokenAxis::name(self) -> &'static str
+impl core::clone::Clone for nika_catalog::TokenAxis
+pub fn nika_catalog::TokenAxis::clone(&self) -> nika_catalog::TokenAxis
+impl core::cmp::Eq for nika_catalog::TokenAxis
+impl core::cmp::PartialEq for nika_catalog::TokenAxis
+pub fn nika_catalog::TokenAxis::eq(&self, other: &nika_catalog::TokenAxis) -> bool
+impl core::fmt::Debug for nika_catalog::TokenAxis
+pub fn nika_catalog::TokenAxis::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::TokenAxis
+impl core::marker::StructuralPartialEq for nika_catalog::TokenAxis
+impl<D> owo_colors::OwoColorize for nika_catalog::TokenAxis
+impl<T, U> core::convert::Into<U> for nika_catalog::TokenAxis where U: core::convert::From<T>
+pub fn nika_catalog::TokenAxis::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::TokenAxis where U: core::convert::Into<T>
+pub type nika_catalog::TokenAxis::Error = core::convert::Infallible
+pub fn nika_catalog::TokenAxis::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::TokenAxis where U: core::convert::TryFrom<T>
+pub type nika_catalog::TokenAxis::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::TokenAxis::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::TokenAxis where T: core::clone::Clone
+pub type nika_catalog::TokenAxis::Owned = T
+pub fn nika_catalog::TokenAxis::clone_into(&self, target: &mut T)
+pub fn nika_catalog::TokenAxis::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::TokenAxis where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::TokenAxis::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::TokenAxis where T: ?core::marker::Sized
+pub fn nika_catalog::TokenAxis::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::TokenAxis where T: ?core::marker::Sized
+pub fn nika_catalog::TokenAxis::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::TokenAxis where T: core::clone::Clone
+pub unsafe fn nika_catalog::TokenAxis::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::TokenAxis
+pub fn nika_catalog::TokenAxis::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::TokenAxis where T: 'static
+pub fn nika_catalog::TokenAxis::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::lookup::ImageRequest<'a>
+pub nika_catalog::lookup::ImageRequest::aspect_ratio: core::option::Option<&'a str>
+pub nika_catalog::lookup::ImageRequest::image_size: core::option::Option<&'a str>
+pub nika_catalog::lookup::ImageRequest::quality: core::option::Option<&'a str>
+pub nika_catalog::lookup::ImageRequest::size: core::option::Option<&'a str>
+impl<'a> nika_catalog::ImageRequest<'a>
+pub fn nika_catalog::ImageRequest<'a>::new() -> Self
+pub fn nika_catalog::ImageRequest<'a>::with_aspect_ratio(self, aspect_ratio: core::option::Option<&'a str>) -> Self
+pub fn nika_catalog::ImageRequest<'a>::with_image_size(self, image_size: core::option::Option<&'a str>) -> Self
+pub fn nika_catalog::ImageRequest<'a>::with_quality(self, quality: core::option::Option<&'a str>) -> Self
+pub fn nika_catalog::ImageRequest<'a>::with_size(self, size: core::option::Option<&'a str>) -> Self
+impl<'a> core::clone::Clone for nika_catalog::ImageRequest<'a>
+pub fn nika_catalog::ImageRequest<'a>::clone(&self) -> nika_catalog::ImageRequest<'a>
+impl<'a> core::cmp::Eq for nika_catalog::ImageRequest<'a>
+impl<'a> core::cmp::PartialEq for nika_catalog::ImageRequest<'a>
+pub fn nika_catalog::ImageRequest<'a>::eq(&self, other: &nika_catalog::ImageRequest<'a>) -> bool
+impl<'a> core::default::Default for nika_catalog::ImageRequest<'a>
+pub fn nika_catalog::ImageRequest<'a>::default() -> nika_catalog::ImageRequest<'a>
+impl<'a> core::fmt::Debug for nika_catalog::ImageRequest<'a>
+pub fn nika_catalog::ImageRequest<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_catalog::ImageRequest<'a>
+impl<'a> core::marker::StructuralPartialEq for nika_catalog::ImageRequest<'a>
+impl<D> owo_colors::OwoColorize for nika_catalog::ImageRequest<'a>
+impl<T, U> core::convert::Into<U> for nika_catalog::ImageRequest<'a> where U: core::convert::From<T>
+pub fn nika_catalog::ImageRequest<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::ImageRequest<'a> where U: core::convert::Into<T>
+pub type nika_catalog::ImageRequest<'a>::Error = core::convert::Infallible
+pub fn nika_catalog::ImageRequest<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::ImageRequest<'a> where U: core::convert::TryFrom<T>
+pub type nika_catalog::ImageRequest<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::ImageRequest<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::ImageRequest<'a> where T: core::clone::Clone
+pub type nika_catalog::ImageRequest<'a>::Owned = T
+pub fn nika_catalog::ImageRequest<'a>::clone_into(&self, target: &mut T)
+pub fn nika_catalog::ImageRequest<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::ImageRequest<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::ImageRequest<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::ImageRequest<'a> where T: ?core::marker::Sized
+pub fn nika_catalog::ImageRequest<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::ImageRequest<'a> where T: ?core::marker::Sized
+pub fn nika_catalog::ImageRequest<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::ImageRequest<'a> where T: core::clone::Clone
+pub unsafe fn nika_catalog::ImageRequest<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::ImageRequest<'a>
+pub fn nika_catalog::ImageRequest<'a>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::ImageRequest<'a> where T: 'static
+pub fn nika_catalog::ImageRequest<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::lookup::ImageUsage
+pub nika_catalog::lookup::ImageUsage::input_image_tokens: core::option::Option<u64>
+pub nika_catalog::lookup::ImageUsage::input_text_tokens: core::option::Option<u64>
+pub nika_catalog::lookup::ImageUsage::input_tokens: core::option::Option<u64>
+pub nika_catalog::lookup::ImageUsage::output_image_tokens: core::option::Option<u64>
+pub nika_catalog::lookup::ImageUsage::output_text_tokens: core::option::Option<u64>
+pub nika_catalog::lookup::ImageUsage::output_tokens: core::option::Option<u64>
+pub nika_catalog::lookup::ImageUsage::thinking_tokens: core::option::Option<u64>
+impl nika_catalog::ImageUsage
+pub fn nika_catalog::ImageUsage::new() -> Self
+pub fn nika_catalog::ImageUsage::with_input(self, total: core::option::Option<u64>, text: core::option::Option<u64>, image: core::option::Option<u64>) -> Self
+pub fn nika_catalog::ImageUsage::with_output(self, total: core::option::Option<u64>, image: core::option::Option<u64>, text: core::option::Option<u64>) -> Self
+pub fn nika_catalog::ImageUsage::with_thinking(self, thinking: core::option::Option<u64>) -> Self
+impl core::clone::Clone for nika_catalog::ImageUsage
+pub fn nika_catalog::ImageUsage::clone(&self) -> nika_catalog::ImageUsage
+impl core::cmp::Eq for nika_catalog::ImageUsage
+impl core::cmp::PartialEq for nika_catalog::ImageUsage
+pub fn nika_catalog::ImageUsage::eq(&self, other: &nika_catalog::ImageUsage) -> bool
+impl core::default::Default for nika_catalog::ImageUsage
+pub fn nika_catalog::ImageUsage::default() -> nika_catalog::ImageUsage
+impl core::fmt::Debug for nika_catalog::ImageUsage
+pub fn nika_catalog::ImageUsage::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::ImageUsage
+impl core::marker::StructuralPartialEq for nika_catalog::ImageUsage
+impl<D> owo_colors::OwoColorize for nika_catalog::ImageUsage
+impl<T, U> core::convert::Into<U> for nika_catalog::ImageUsage where U: core::convert::From<T>
+pub fn nika_catalog::ImageUsage::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::ImageUsage where U: core::convert::Into<T>
+pub type nika_catalog::ImageUsage::Error = core::convert::Infallible
+pub fn nika_catalog::ImageUsage::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::ImageUsage where U: core::convert::TryFrom<T>
+pub type nika_catalog::ImageUsage::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::ImageUsage::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::ImageUsage where T: core::clone::Clone
+pub type nika_catalog::ImageUsage::Owned = T
+pub fn nika_catalog::ImageUsage::clone_into(&self, target: &mut T)
+pub fn nika_catalog::ImageUsage::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::ImageUsage where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::ImageUsage::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::ImageUsage where T: ?core::marker::Sized
+pub fn nika_catalog::ImageUsage::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::ImageUsage where T: ?core::marker::Sized
+pub fn nika_catalog::ImageUsage::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::ImageUsage where T: core::clone::Clone
+pub unsafe fn nika_catalog::ImageUsage::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::ImageUsage
+pub fn nika_catalog::ImageUsage::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::ImageUsage where T: 'static
+pub fn nika_catalog::ImageUsage::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::lookup::MediaModel
+pub nika_catalog::lookup::MediaModel::model: &'static str
+pub nika_catalog::lookup::MediaModel::provider: &'static str
+pub nika_catalog::lookup::MediaModel::tool: &'static str
+impl nika_catalog::MediaModel
+pub fn nika_catalog::MediaModel::as_of(self) -> &'static str
+pub fn nika_catalog::MediaModel::character_rate(self) -> core::option::Option<&'static nika_catalog::MediaRate>
+pub fn nika_catalog::MediaModel::image_floor(self, request: &nika_catalog::ImageRequest<'_>) -> core::option::Option<&'static nika_catalog::MediaRate>
+pub fn nika_catalog::MediaModel::image_usage_usd(self, usage: &nika_catalog::ImageUsage) -> core::option::Option<f64>
+pub fn nika_catalog::MediaModel::rates(self) -> impl core::iter::traits::iterator::Iterator<Item = &'static nika_catalog::MediaRate>
+pub fn nika_catalog::MediaModel::speech_usd(self, characters: u64) -> core::option::Option<f64>
+pub fn nika_catalog::MediaModel::token_rate(self, axis: nika_catalog::TokenAxis) -> core::option::Option<&'static nika_catalog::MediaRate>
+impl core::clone::Clone for nika_catalog::MediaModel
+pub fn nika_catalog::MediaModel::clone(&self) -> nika_catalog::MediaModel
+impl core::cmp::Eq for nika_catalog::MediaModel
+impl core::cmp::PartialEq for nika_catalog::MediaModel
+pub fn nika_catalog::MediaModel::eq(&self, other: &nika_catalog::MediaModel) -> bool
+impl core::fmt::Debug for nika_catalog::MediaModel
+pub fn nika_catalog::MediaModel::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::MediaModel
+impl core::marker::StructuralPartialEq for nika_catalog::MediaModel
+impl<D> owo_colors::OwoColorize for nika_catalog::MediaModel
+impl<T, U> core::convert::Into<U> for nika_catalog::MediaModel where U: core::convert::From<T>
+pub fn nika_catalog::MediaModel::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::MediaModel where U: core::convert::Into<T>
+pub type nika_catalog::MediaModel::Error = core::convert::Infallible
+pub fn nika_catalog::MediaModel::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::MediaModel where U: core::convert::TryFrom<T>
+pub type nika_catalog::MediaModel::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::MediaModel::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::MediaModel where T: core::clone::Clone
+pub type nika_catalog::MediaModel::Owned = T
+pub fn nika_catalog::MediaModel::clone_into(&self, target: &mut T)
+pub fn nika_catalog::MediaModel::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::MediaModel where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::MediaModel::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::MediaModel where T: ?core::marker::Sized
+pub fn nika_catalog::MediaModel::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::MediaModel where T: ?core::marker::Sized
+pub fn nika_catalog::MediaModel::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::MediaModel where T: core::clone::Clone
+pub unsafe fn nika_catalog::MediaModel::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::MediaModel
+pub fn nika_catalog::MediaModel::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::MediaModel where T: 'static
+pub fn nika_catalog::MediaModel::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::lookup::MediaRate
+pub nika_catalog::lookup::MediaRate::as_of: &'static str
+pub nika_catalog::lookup::MediaRate::model: &'static str
+pub nika_catalog::lookup::MediaRate::provider: &'static str
+pub nika_catalog::lookup::MediaRate::source: &'static str
+pub nika_catalog::lookup::MediaRate::tool: &'static str
+pub nika_catalog::lookup::MediaRate::unit: nika_catalog::MediaUnit
+pub nika_catalog::lookup::MediaRate::usd: f64
+impl core::clone::Clone for nika_catalog::MediaRate
+pub fn nika_catalog::MediaRate::clone(&self) -> nika_catalog::MediaRate
+impl core::cmp::PartialEq for nika_catalog::MediaRate
+pub fn nika_catalog::MediaRate::eq(&self, other: &nika_catalog::MediaRate) -> bool
+impl core::fmt::Debug for nika_catalog::MediaRate
+pub fn nika_catalog::MediaRate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::MediaRate
+impl core::marker::StructuralPartialEq for nika_catalog::MediaRate
+impl<D> owo_colors::OwoColorize for nika_catalog::MediaRate
+impl<T, U> core::convert::Into<U> for nika_catalog::MediaRate where U: core::convert::From<T>
+pub fn nika_catalog::MediaRate::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::MediaRate where U: core::convert::Into<T>
+pub type nika_catalog::MediaRate::Error = core::convert::Infallible
+pub fn nika_catalog::MediaRate::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::MediaRate where U: core::convert::TryFrom<T>
+pub type nika_catalog::MediaRate::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::MediaRate::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::MediaRate where T: core::clone::Clone
+pub type nika_catalog::MediaRate::Owned = T
+pub fn nika_catalog::MediaRate::clone_into(&self, target: &mut T)
+pub fn nika_catalog::MediaRate::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::MediaRate where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::MediaRate::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::MediaRate where T: ?core::marker::Sized
+pub fn nika_catalog::MediaRate::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::MediaRate where T: ?core::marker::Sized
+pub fn nika_catalog::MediaRate::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::MediaRate where T: core::clone::Clone
+pub unsafe fn nika_catalog::MediaRate::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::MediaRate
+pub fn nika_catalog::MediaRate::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::MediaRate where T: 'static
+pub fn nika_catalog::MediaRate::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_catalog::lookup::MEDIA_PRICING_AS_OF: &str
+pub const nika_catalog::lookup::MEDIA_PRICING_SCHEMA: &str
+pub fn nika_catalog::lookup::builtin_media_default_model(tool: &str, provider: &str) -> core::option::Option<&'static str>
+pub fn nika_catalog::lookup::builtin_media_price(tool: &str, provider: &str, model: core::option::Option<&str>) -> nika_catalog::MediaPrice
 pub fn nika_catalog::lookup::builtin_media_provider<'a>(tool: &str, provider: core::option::Option<&'a str>, model: core::option::Option<&str>) -> core::option::Option<&'a str>
 pub fn nika_catalog::lookup::builtin_provider_floor_usd(tool: &str, provider: &str) -> core::option::Option<f64>
 pub fn nika_catalog::lookup::estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
@@ -1334,6 +1604,7 @@ pub fn nika_catalog::lookup::estimate_cost_usage_for(model: &str, input_tokens: 
 pub fn nika_catalog::lookup::find_builtin(name: &str) -> core::option::Option<&'static nika_catalog::builtin::Builtin>
 pub fn nika_catalog::lookup::find_embedding(id: &str) -> core::option::Option<&'static nika_catalog::embedding::Embedding>
 pub fn nika_catalog::lookup::find_mcp_server(name: &str) -> core::option::Option<&'static nika_catalog::mcp_server::McpServer>
+pub fn nika_catalog::lookup::find_media_model(tool: &str, provider: &str, model: &str) -> core::option::Option<nika_catalog::MediaModel>
 pub fn nika_catalog::lookup::find_pricing(model: &str) -> core::option::Option<&'static nika_catalog::model::ModelPricing>
 pub fn nika_catalog::lookup::find_pricing_for(model: &str) -> core::option::Option<&'static nika_catalog::model::ModelPricing>
 pub fn nika_catalog::lookup::find_pricing_scoped(provider: &str, model: &str) -> core::option::Option<&'static nika_catalog::model::ModelPricing>
@@ -1342,6 +1613,8 @@ pub fn nika_catalog::lookup::find_transform(name: &str) -> core::option::Option<
 pub fn nika_catalog::lookup::is_known_builtin(name: &str) -> bool
 pub fn nika_catalog::lookup::is_known_mcp_server(name: &str) -> bool
 pub fn nika_catalog::lookup::is_known_transform(name: &str) -> bool
+pub fn nika_catalog::lookup::media_pricing_record() -> serde_json::value::Value
+pub fn nika_catalog::lookup::media_rates() -> &'static [nika_catalog::MediaRate]
 pub fn nika_catalog::lookup::model_capabilities(provider: &str, model: &str) -> nika_catalog::model::ModelCapabilities
 pub fn nika_catalog::lookup::model_facts(provider: &str, model: &str) -> core::option::Option<&'static nika_catalog::provider::ModelFacts>
 pub fn nika_catalog::lookup::resolve_mcp_name(name: &str) -> core::option::Option<alloc::string::String>
@@ -8047,6 +8320,7 @@ impl<T> nika_error::traits::AsAny for nika_catalog::mcp_server::McpPricing where
 pub fn nika_catalog::mcp_server::McpPricing::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_catalog::MediaPrice
 pub nika_catalog::MediaPrice::PerCall(f64)
+pub nika_catalog::MediaPrice::Rated(nika_catalog::MediaModel)
 pub nika_catalog::MediaPrice::Unknown
 pub nika_catalog::MediaPrice::Unmetered
 impl core::clone::Clone for nika_catalog::MediaPrice
@@ -8082,6 +8356,48 @@ impl<T> core::convert::From<T> for nika_catalog::MediaPrice
 pub fn nika_catalog::MediaPrice::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::MediaPrice where T: 'static
 pub fn nika_catalog::MediaPrice::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_catalog::MediaUnit
+pub nika_catalog::MediaUnit::Image
+pub nika_catalog::MediaUnit::Image::quality: &'static str
+pub nika_catalog::MediaUnit::Image::size: &'static str
+pub nika_catalog::MediaUnit::MillionCharacters
+pub nika_catalog::MediaUnit::MillionTokens(nika_catalog::TokenAxis)
+impl nika_catalog::MediaUnit
+pub fn nika_catalog::MediaUnit::label(self) -> alloc::string::String
+impl core::clone::Clone for nika_catalog::MediaUnit
+pub fn nika_catalog::MediaUnit::clone(&self) -> nika_catalog::MediaUnit
+impl core::cmp::Eq for nika_catalog::MediaUnit
+impl core::cmp::PartialEq for nika_catalog::MediaUnit
+pub fn nika_catalog::MediaUnit::eq(&self, other: &nika_catalog::MediaUnit) -> bool
+impl core::fmt::Debug for nika_catalog::MediaUnit
+pub fn nika_catalog::MediaUnit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::MediaUnit
+impl core::marker::StructuralPartialEq for nika_catalog::MediaUnit
+impl<D> owo_colors::OwoColorize for nika_catalog::MediaUnit
+impl<T, U> core::convert::Into<U> for nika_catalog::MediaUnit where U: core::convert::From<T>
+pub fn nika_catalog::MediaUnit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::MediaUnit where U: core::convert::Into<T>
+pub type nika_catalog::MediaUnit::Error = core::convert::Infallible
+pub fn nika_catalog::MediaUnit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::MediaUnit where U: core::convert::TryFrom<T>
+pub type nika_catalog::MediaUnit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::MediaUnit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::MediaUnit where T: core::clone::Clone
+pub type nika_catalog::MediaUnit::Owned = T
+pub fn nika_catalog::MediaUnit::clone_into(&self, target: &mut T)
+pub fn nika_catalog::MediaUnit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::MediaUnit where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::MediaUnit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::MediaUnit where T: ?core::marker::Sized
+pub fn nika_catalog::MediaUnit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::MediaUnit where T: ?core::marker::Sized
+pub fn nika_catalog::MediaUnit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::MediaUnit where T: core::clone::Clone
+pub unsafe fn nika_catalog::MediaUnit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::MediaUnit
+pub fn nika_catalog::MediaUnit::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::MediaUnit where T: 'static
+pub fn nika_catalog::MediaUnit::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_catalog::Modality
 pub nika_catalog::Modality::Audio
 pub nika_catalog::Modality::Embedding
@@ -8580,6 +8896,47 @@ pub fn nika_catalog::tags::Tag::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::tags::Tag where T: 'static
 pub fn nika_catalog::tags::Tag::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_catalog::tags::Tag where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_catalog::TokenAxis
+pub nika_catalog::TokenAxis::ImageInput
+pub nika_catalog::TokenAxis::ImageOutput
+pub nika_catalog::TokenAxis::TextInput
+pub nika_catalog::TokenAxis::TextOutput
+impl nika_catalog::TokenAxis
+pub const fn nika_catalog::TokenAxis::name(self) -> &'static str
+impl core::clone::Clone for nika_catalog::TokenAxis
+pub fn nika_catalog::TokenAxis::clone(&self) -> nika_catalog::TokenAxis
+impl core::cmp::Eq for nika_catalog::TokenAxis
+impl core::cmp::PartialEq for nika_catalog::TokenAxis
+pub fn nika_catalog::TokenAxis::eq(&self, other: &nika_catalog::TokenAxis) -> bool
+impl core::fmt::Debug for nika_catalog::TokenAxis
+pub fn nika_catalog::TokenAxis::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::TokenAxis
+impl core::marker::StructuralPartialEq for nika_catalog::TokenAxis
+impl<D> owo_colors::OwoColorize for nika_catalog::TokenAxis
+impl<T, U> core::convert::Into<U> for nika_catalog::TokenAxis where U: core::convert::From<T>
+pub fn nika_catalog::TokenAxis::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::TokenAxis where U: core::convert::Into<T>
+pub type nika_catalog::TokenAxis::Error = core::convert::Infallible
+pub fn nika_catalog::TokenAxis::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::TokenAxis where U: core::convert::TryFrom<T>
+pub type nika_catalog::TokenAxis::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::TokenAxis::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::TokenAxis where T: core::clone::Clone
+pub type nika_catalog::TokenAxis::Owned = T
+pub fn nika_catalog::TokenAxis::clone_into(&self, target: &mut T)
+pub fn nika_catalog::TokenAxis::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::TokenAxis where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::TokenAxis::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::TokenAxis where T: ?core::marker::Sized
+pub fn nika_catalog::TokenAxis::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::TokenAxis where T: ?core::marker::Sized
+pub fn nika_catalog::TokenAxis::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::TokenAxis where T: core::clone::Clone
+pub unsafe fn nika_catalog::TokenAxis::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::TokenAxis
+pub fn nika_catalog::TokenAxis::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::TokenAxis where T: 'static
+pub fn nika_catalog::TokenAxis::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_catalog::TokenLimitParam
 pub nika_catalog::TokenLimitParam::MaxCompletionTokens
 pub nika_catalog::TokenLimitParam::MaxOutputTokens
@@ -9180,6 +9537,102 @@ impl<T> core::convert::From<T> for nika_catalog::distribution::EnvVarSpec
 pub fn nika_catalog::distribution::EnvVarSpec::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::distribution::EnvVarSpec where T: 'static
 pub fn nika_catalog::distribution::EnvVarSpec::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::ImageRequest<'a>
+pub nika_catalog::ImageRequest::aspect_ratio: core::option::Option<&'a str>
+pub nika_catalog::ImageRequest::image_size: core::option::Option<&'a str>
+pub nika_catalog::ImageRequest::quality: core::option::Option<&'a str>
+pub nika_catalog::ImageRequest::size: core::option::Option<&'a str>
+impl<'a> nika_catalog::ImageRequest<'a>
+pub fn nika_catalog::ImageRequest<'a>::new() -> Self
+pub fn nika_catalog::ImageRequest<'a>::with_aspect_ratio(self, aspect_ratio: core::option::Option<&'a str>) -> Self
+pub fn nika_catalog::ImageRequest<'a>::with_image_size(self, image_size: core::option::Option<&'a str>) -> Self
+pub fn nika_catalog::ImageRequest<'a>::with_quality(self, quality: core::option::Option<&'a str>) -> Self
+pub fn nika_catalog::ImageRequest<'a>::with_size(self, size: core::option::Option<&'a str>) -> Self
+impl<'a> core::clone::Clone for nika_catalog::ImageRequest<'a>
+pub fn nika_catalog::ImageRequest<'a>::clone(&self) -> nika_catalog::ImageRequest<'a>
+impl<'a> core::cmp::Eq for nika_catalog::ImageRequest<'a>
+impl<'a> core::cmp::PartialEq for nika_catalog::ImageRequest<'a>
+pub fn nika_catalog::ImageRequest<'a>::eq(&self, other: &nika_catalog::ImageRequest<'a>) -> bool
+impl<'a> core::default::Default for nika_catalog::ImageRequest<'a>
+pub fn nika_catalog::ImageRequest<'a>::default() -> nika_catalog::ImageRequest<'a>
+impl<'a> core::fmt::Debug for nika_catalog::ImageRequest<'a>
+pub fn nika_catalog::ImageRequest<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_catalog::ImageRequest<'a>
+impl<'a> core::marker::StructuralPartialEq for nika_catalog::ImageRequest<'a>
+impl<D> owo_colors::OwoColorize for nika_catalog::ImageRequest<'a>
+impl<T, U> core::convert::Into<U> for nika_catalog::ImageRequest<'a> where U: core::convert::From<T>
+pub fn nika_catalog::ImageRequest<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::ImageRequest<'a> where U: core::convert::Into<T>
+pub type nika_catalog::ImageRequest<'a>::Error = core::convert::Infallible
+pub fn nika_catalog::ImageRequest<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::ImageRequest<'a> where U: core::convert::TryFrom<T>
+pub type nika_catalog::ImageRequest<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::ImageRequest<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::ImageRequest<'a> where T: core::clone::Clone
+pub type nika_catalog::ImageRequest<'a>::Owned = T
+pub fn nika_catalog::ImageRequest<'a>::clone_into(&self, target: &mut T)
+pub fn nika_catalog::ImageRequest<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::ImageRequest<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::ImageRequest<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::ImageRequest<'a> where T: ?core::marker::Sized
+pub fn nika_catalog::ImageRequest<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::ImageRequest<'a> where T: ?core::marker::Sized
+pub fn nika_catalog::ImageRequest<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::ImageRequest<'a> where T: core::clone::Clone
+pub unsafe fn nika_catalog::ImageRequest<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::ImageRequest<'a>
+pub fn nika_catalog::ImageRequest<'a>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::ImageRequest<'a> where T: 'static
+pub fn nika_catalog::ImageRequest<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::ImageUsage
+pub nika_catalog::ImageUsage::input_image_tokens: core::option::Option<u64>
+pub nika_catalog::ImageUsage::input_text_tokens: core::option::Option<u64>
+pub nika_catalog::ImageUsage::input_tokens: core::option::Option<u64>
+pub nika_catalog::ImageUsage::output_image_tokens: core::option::Option<u64>
+pub nika_catalog::ImageUsage::output_text_tokens: core::option::Option<u64>
+pub nika_catalog::ImageUsage::output_tokens: core::option::Option<u64>
+pub nika_catalog::ImageUsage::thinking_tokens: core::option::Option<u64>
+impl nika_catalog::ImageUsage
+pub fn nika_catalog::ImageUsage::new() -> Self
+pub fn nika_catalog::ImageUsage::with_input(self, total: core::option::Option<u64>, text: core::option::Option<u64>, image: core::option::Option<u64>) -> Self
+pub fn nika_catalog::ImageUsage::with_output(self, total: core::option::Option<u64>, image: core::option::Option<u64>, text: core::option::Option<u64>) -> Self
+pub fn nika_catalog::ImageUsage::with_thinking(self, thinking: core::option::Option<u64>) -> Self
+impl core::clone::Clone for nika_catalog::ImageUsage
+pub fn nika_catalog::ImageUsage::clone(&self) -> nika_catalog::ImageUsage
+impl core::cmp::Eq for nika_catalog::ImageUsage
+impl core::cmp::PartialEq for nika_catalog::ImageUsage
+pub fn nika_catalog::ImageUsage::eq(&self, other: &nika_catalog::ImageUsage) -> bool
+impl core::default::Default for nika_catalog::ImageUsage
+pub fn nika_catalog::ImageUsage::default() -> nika_catalog::ImageUsage
+impl core::fmt::Debug for nika_catalog::ImageUsage
+pub fn nika_catalog::ImageUsage::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::ImageUsage
+impl core::marker::StructuralPartialEq for nika_catalog::ImageUsage
+impl<D> owo_colors::OwoColorize for nika_catalog::ImageUsage
+impl<T, U> core::convert::Into<U> for nika_catalog::ImageUsage where U: core::convert::From<T>
+pub fn nika_catalog::ImageUsage::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::ImageUsage where U: core::convert::Into<T>
+pub type nika_catalog::ImageUsage::Error = core::convert::Infallible
+pub fn nika_catalog::ImageUsage::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::ImageUsage where U: core::convert::TryFrom<T>
+pub type nika_catalog::ImageUsage::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::ImageUsage::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::ImageUsage where T: core::clone::Clone
+pub type nika_catalog::ImageUsage::Owned = T
+pub fn nika_catalog::ImageUsage::clone_into(&self, target: &mut T)
+pub fn nika_catalog::ImageUsage::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::ImageUsage where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::ImageUsage::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::ImageUsage where T: ?core::marker::Sized
+pub fn nika_catalog::ImageUsage::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::ImageUsage where T: ?core::marker::Sized
+pub fn nika_catalog::ImageUsage::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::ImageUsage where T: core::clone::Clone
+pub unsafe fn nika_catalog::ImageUsage::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::ImageUsage
+pub fn nika_catalog::ImageUsage::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::ImageUsage where T: 'static
+pub fn nika_catalog::ImageUsage::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::McpPackage
 pub nika_catalog::McpPackage::identifier: &'static str
 pub nika_catalog::McpPackage::registry_type: nika_catalog::distribution::RegistryType
@@ -9318,6 +9771,93 @@ impl<T> core::convert::From<T> for nika_catalog::mcp_server::McpServer
 pub fn nika_catalog::mcp_server::McpServer::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::mcp_server::McpServer where T: 'static
 pub fn nika_catalog::mcp_server::McpServer::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::MediaModel
+pub nika_catalog::MediaModel::model: &'static str
+pub nika_catalog::MediaModel::provider: &'static str
+pub nika_catalog::MediaModel::tool: &'static str
+impl nika_catalog::MediaModel
+pub fn nika_catalog::MediaModel::as_of(self) -> &'static str
+pub fn nika_catalog::MediaModel::character_rate(self) -> core::option::Option<&'static nika_catalog::MediaRate>
+pub fn nika_catalog::MediaModel::image_floor(self, request: &nika_catalog::ImageRequest<'_>) -> core::option::Option<&'static nika_catalog::MediaRate>
+pub fn nika_catalog::MediaModel::image_usage_usd(self, usage: &nika_catalog::ImageUsage) -> core::option::Option<f64>
+pub fn nika_catalog::MediaModel::rates(self) -> impl core::iter::traits::iterator::Iterator<Item = &'static nika_catalog::MediaRate>
+pub fn nika_catalog::MediaModel::speech_usd(self, characters: u64) -> core::option::Option<f64>
+pub fn nika_catalog::MediaModel::token_rate(self, axis: nika_catalog::TokenAxis) -> core::option::Option<&'static nika_catalog::MediaRate>
+impl core::clone::Clone for nika_catalog::MediaModel
+pub fn nika_catalog::MediaModel::clone(&self) -> nika_catalog::MediaModel
+impl core::cmp::Eq for nika_catalog::MediaModel
+impl core::cmp::PartialEq for nika_catalog::MediaModel
+pub fn nika_catalog::MediaModel::eq(&self, other: &nika_catalog::MediaModel) -> bool
+impl core::fmt::Debug for nika_catalog::MediaModel
+pub fn nika_catalog::MediaModel::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::MediaModel
+impl core::marker::StructuralPartialEq for nika_catalog::MediaModel
+impl<D> owo_colors::OwoColorize for nika_catalog::MediaModel
+impl<T, U> core::convert::Into<U> for nika_catalog::MediaModel where U: core::convert::From<T>
+pub fn nika_catalog::MediaModel::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::MediaModel where U: core::convert::Into<T>
+pub type nika_catalog::MediaModel::Error = core::convert::Infallible
+pub fn nika_catalog::MediaModel::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::MediaModel where U: core::convert::TryFrom<T>
+pub type nika_catalog::MediaModel::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::MediaModel::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::MediaModel where T: core::clone::Clone
+pub type nika_catalog::MediaModel::Owned = T
+pub fn nika_catalog::MediaModel::clone_into(&self, target: &mut T)
+pub fn nika_catalog::MediaModel::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::MediaModel where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::MediaModel::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::MediaModel where T: ?core::marker::Sized
+pub fn nika_catalog::MediaModel::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::MediaModel where T: ?core::marker::Sized
+pub fn nika_catalog::MediaModel::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::MediaModel where T: core::clone::Clone
+pub unsafe fn nika_catalog::MediaModel::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::MediaModel
+pub fn nika_catalog::MediaModel::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::MediaModel where T: 'static
+pub fn nika_catalog::MediaModel::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_catalog::MediaRate
+pub nika_catalog::MediaRate::as_of: &'static str
+pub nika_catalog::MediaRate::model: &'static str
+pub nika_catalog::MediaRate::provider: &'static str
+pub nika_catalog::MediaRate::source: &'static str
+pub nika_catalog::MediaRate::tool: &'static str
+pub nika_catalog::MediaRate::unit: nika_catalog::MediaUnit
+pub nika_catalog::MediaRate::usd: f64
+impl core::clone::Clone for nika_catalog::MediaRate
+pub fn nika_catalog::MediaRate::clone(&self) -> nika_catalog::MediaRate
+impl core::cmp::PartialEq for nika_catalog::MediaRate
+pub fn nika_catalog::MediaRate::eq(&self, other: &nika_catalog::MediaRate) -> bool
+impl core::fmt::Debug for nika_catalog::MediaRate
+pub fn nika_catalog::MediaRate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_catalog::MediaRate
+impl core::marker::StructuralPartialEq for nika_catalog::MediaRate
+impl<D> owo_colors::OwoColorize for nika_catalog::MediaRate
+impl<T, U> core::convert::Into<U> for nika_catalog::MediaRate where U: core::convert::From<T>
+pub fn nika_catalog::MediaRate::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_catalog::MediaRate where U: core::convert::Into<T>
+pub type nika_catalog::MediaRate::Error = core::convert::Infallible
+pub fn nika_catalog::MediaRate::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_catalog::MediaRate where U: core::convert::TryFrom<T>
+pub type nika_catalog::MediaRate::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_catalog::MediaRate::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_catalog::MediaRate where T: core::clone::Clone
+pub type nika_catalog::MediaRate::Owned = T
+pub fn nika_catalog::MediaRate::clone_into(&self, target: &mut T)
+pub fn nika_catalog::MediaRate::to_owned(&self) -> T
+impl<T> core::any::Any for nika_catalog::MediaRate where T: 'static + ?core::marker::Sized
+pub fn nika_catalog::MediaRate::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_catalog::MediaRate where T: ?core::marker::Sized
+pub fn nika_catalog::MediaRate::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_catalog::MediaRate where T: ?core::marker::Sized
+pub fn nika_catalog::MediaRate::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_catalog::MediaRate where T: core::clone::Clone
+pub unsafe fn nika_catalog::MediaRate::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_catalog::MediaRate
+pub fn nika_catalog::MediaRate::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_catalog::MediaRate where T: 'static
+pub fn nika_catalog::MediaRate::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_catalog::ModelCapabilities
 pub nika_catalog::ModelCapabilities::context_window_tokens: core::option::Option<u32>
 pub nika_catalog::ModelCapabilities::input_modalities: &'static [nika_catalog::modality::Modality]
@@ -10108,6 +10648,8 @@ impl<T> core::convert::From<T> for nika_catalog::transform::TransformDef
 pub fn nika_catalog::transform::TransformDef::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::transform::TransformDef where T: 'static
 pub fn nika_catalog::transform::TransformDef::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_catalog::MEDIA_PRICING_AS_OF: &str
+pub const nika_catalog::MEDIA_PRICING_SCHEMA: &str
 pub const nika_catalog::PRICING_SCHEMA: &str
 pub fn nika_catalog::all_builtins() -> &'static [nika_catalog::builtin::Builtin]
 pub fn nika_catalog::all_embeddings() -> &'static [nika_catalog::embedding::Embedding]
@@ -10115,7 +10657,8 @@ pub fn nika_catalog::all_mcp_servers() -> &'static [nika_catalog::mcp_server::Mc
 pub fn nika_catalog::all_pricing() -> &'static [nika_catalog::model::ModelPricing]
 pub fn nika_catalog::all_providers() -> &'static [nika_catalog::provider::Provider]
 pub fn nika_catalog::all_transforms() -> &'static [nika_catalog::transform::TransformDef]
-pub fn nika_catalog::builtin_media_price(tool: &str, provider: &str) -> nika_catalog::MediaPrice
+pub fn nika_catalog::builtin_media_default_model(tool: &str, provider: &str) -> core::option::Option<&'static str>
+pub fn nika_catalog::builtin_media_price(tool: &str, provider: &str, model: core::option::Option<&str>) -> nika_catalog::MediaPrice
 pub fn nika_catalog::builtin_media_provider<'a>(tool: &str, provider: core::option::Option<&'a str>, model: core::option::Option<&str>) -> core::option::Option<&'a str>
 pub fn nika_catalog::builtin_provider_floor_usd(tool: &str, provider: &str) -> core::option::Option<f64>
 pub fn nika_catalog::estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
@@ -10124,6 +10667,7 @@ pub fn nika_catalog::estimate_cost_usage_for(model: &str, input_tokens: u64, out
 pub fn nika_catalog::find_builtin(name: &str) -> core::option::Option<&'static nika_catalog::builtin::Builtin>
 pub fn nika_catalog::find_embedding(id: &str) -> core::option::Option<&'static nika_catalog::embedding::Embedding>
 pub fn nika_catalog::find_mcp_server(name: &str) -> core::option::Option<&'static nika_catalog::mcp_server::McpServer>
+pub fn nika_catalog::find_media_model(tool: &str, provider: &str, model: &str) -> core::option::Option<nika_catalog::MediaModel>
 pub fn nika_catalog::find_pricing(model: &str) -> core::option::Option<&'static nika_catalog::model::ModelPricing>
 pub fn nika_catalog::find_pricing_for(model: &str) -> core::option::Option<&'static nika_catalog::model::ModelPricing>
 pub fn nika_catalog::find_pricing_scoped(provider: &str, model: &str) -> core::option::Option<&'static nika_catalog::model::ModelPricing>
@@ -10133,6 +10677,8 @@ pub fn nika_catalog::generated_cap(provider: &str, name: &str, base: u32, room: 
 pub fn nika_catalog::is_known_builtin(name: &str) -> bool
 pub fn nika_catalog::is_known_mcp_server(name: &str) -> bool
 pub fn nika_catalog::is_known_transform(name: &str) -> bool
+pub fn nika_catalog::media_pricing_record() -> serde_json::value::Value
+pub fn nika_catalog::media_rates() -> &'static [nika_catalog::MediaRate]
 pub fn nika_catalog::model_capabilities(provider: &str, model: &str) -> nika_catalog::model::ModelCapabilities
 pub fn nika_catalog::model_facts(provider: &str, model: &str) -> core::option::Option<&'static nika_catalog::provider::ModelFacts>
 pub fn nika_catalog::model_output_limit(provider: &str, name: &str) -> core::option::Option<(u32, alloc::string::String)>

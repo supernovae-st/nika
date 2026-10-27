@@ -68,12 +68,16 @@ pub use types::*;
 // Lookup functions are feature-gated on their respective content catalogs.
 #[cfg(feature = "embeddings")]
 pub use lookup::find_embedding;
+#[cfg(all(feature = "builtins-transforms", feature = "serde"))]
+pub use lookup::media_pricing_record;
 #[cfg(feature = "capabilities")]
 pub use lookup::model_capabilities;
 #[cfg(feature = "builtins-transforms")]
 pub use lookup::{
-    MediaPrice, builtin_media_price, builtin_media_provider, builtin_provider_floor_usd,
-    find_builtin, find_transform, is_known_builtin, is_known_transform,
+    ImageRequest, ImageUsage, MEDIA_PRICING_AS_OF, MEDIA_PRICING_SCHEMA, MediaModel, MediaPrice,
+    MediaRate, MediaUnit, TokenAxis, builtin_media_default_model, builtin_media_price,
+    builtin_media_provider, builtin_provider_floor_usd, find_builtin, find_media_model,
+    find_transform, is_known_builtin, is_known_transform, media_rates,
 };
 #[cfg(feature = "pricing")]
 pub use lookup::{

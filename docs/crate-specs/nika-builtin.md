@@ -107,7 +107,29 @@ compact JSON). One rendering, one seam.
 | fetch | `HttpGetDyn`/`HttpPostDyn` + `nika-extract` (8 modes) + `data::jq` (mode jq) | without `response.accept`, non-2xx → `-001`; an explicit exact set is parsed by `nika-cap` and observed by `net/response.rs` as status, sanitized final URL (nullable), and extracted body; unlisted statuses still fail with `BuiltinFailure.transient` per the normative status table (5xx/408/429 true · other 4xx false) · transport timeouts/connection failures transient too · SSRF lives in the L1 http effect (3-layer · s5 · verified) — this layer does NOT re-implement it · **the `mode:` surface is WIRED (step 13)**: 8 modes via `nika-extract` (default markdown) · `mode: jq` composes `data::jq` (the one jq engine · one-output law reused not re-implemented) · `raw`/`jq` strict-UTF-8 (non-UTF-8 → `-001` per spec raw contract) · extraction modes charset-aware decode from `Content-Type` (encoding_rs) · the whole parse runs on `spawn_blocking` (a 64 MiB HTML parse must not starve the executor · the `data::jq` precedent) |
 | notify | `HttpPostDyn` | `webhook` MUST · other channels `-001` unconfigured · non-2xx `-002` carries `transient` per the same status table |
 | inspect | `WorkflowIntrospect` | 4 views · `-001` unknown view |
-| image_generate | the image plane (`HttpPostDyn` · OPTIONAL) + `Fs*Dyn` + `ClockDyn` + `Emitter` + `FsBoundary` | stdlib §Media (ADR-105) · module family `src/image/` (args · sniff · mock · save · manifest · embed · openai · gemini · xai · local) · local compat wire (sovereign · engine-config base URL) / openai `gpt-image-2` native `n` / gemini `gemini-3.1-flash-image` n-sequential / xai `grok-imagine-image` aspect+resolution classes / deterministic mock (hand-rolled stored-deflate PNG · validated by the independent `png` dev-dep) · header-only decode validation (magic authority · no pixel decode) · boundary-gated atomic saves + collision probing + idempotent re-runs · `manifest_version: 1` provenance + in-PNG `nika` tEXt chunk (deterministic · survives cp) · exact `cost_usd` (xai ticks) metered into the run ledger · base64 never rides outputs (`debug:` echo sanitized) · keys = composition-root `ImageKeys` (env ladder · zeroizing) · codes `-001..-007` |
+| image_generate | the image plane (`HttpPostDyn` · OPTIONAL) + `Fs*Dyn` + `ClockDyn` + `Emitter` + `FsBoundary` | stdlib §Media (ADR-105) · module family `src/image/` (args · sniff · mock · save · manifest · embed · openai · gemini · xai · local) · local compat wire (sovereign · engine-config base URL) / openai `gpt-image-2` native `n` / gemini `gemini-3.1-flash-image` n-sequential / xai `grok-imagine-image` aspect+resolution classes / deterministic mock (hand-rolled stored-deflate PNG · validated by the independent `png` dev-dep) · header-only decode validation (magic authority · no pixel decode) · boundary-gated atomic saves + collision probing + idempotent re-runs · `manifest_version: 1` provenance + in-PNG `nika` tEXt chunk (deterministic · survives cp) · `cost_usd` metered into the run ledger: exact xai ticks (`provider_reported`), else the dated media table's rates × the reported usage (`catalog_rate_x_usage`), or its per-image price × the images delivered when no usage is reported (`catalog_price_x_images`), with `cost_basis` + `cost_as_of` beside it (C-D3) · a model the table does not price reports no `cost_usd` · base64 never rides outputs (`debug:` echo sanitized) · keys = composition-root `ImageKeys` (env ladder · zeroizing) · codes `-001..-007` |
+
+### Media bills (C-D3)
+
+`media/cost.rs` holds the one bill both media families report. A provider
+that states its exact spend (xAI's cost ticks) is taken at its word
+(`cost_basis: provider_reported`). Otherwise the call's model is looked up in
+the dated media table (`nika_catalog::builtin_media_price` with the parsed
+`model:`, the provider's default when absent): `image_generate` bills its
+token rates × the usage the response reported (the `OpenAI` adapter reads
+`input_tokens_details` and `output_tokens_details`, the Gemini adapter its
+per-modality counts and thinking tokens; an unsplit axis is billed at the
+highest rate it could fall under), or, when the response reports no usage,
+the per-image price of the requested size class and quality × the images
+delivered; `tts_generate` bills the per-character rate × the characters of
+the trimmed text it sent. The output and the manifest carry `cost_basis` and
+the rates' date (`cost_as_of`) beside `cost_usd`. A model the table does not
+price (`gpt-4o-mini-tts`, `gpt-image-1.5`, an unknown id), and a
+token-priced model whose response reports no usage, report no `cost_usd`:
+the runtime counts it unpriced, never free. The usage split stays internal:
+the output's `usage` keeps its four spec axes. Tests pin the catalog's
+default models and its aspect-ratio and Gemini resolution-class reading to
+this crate's adapters.
 
 ### Honest gaps (delegations, not omissions)
 

@@ -160,7 +160,10 @@ fn a_cost_refusal_is_json_before_any_provider_call() {
 fn an_unpriced_media_call_under_a_cap_is_refused_before_any_request() {
     for (tool, args) in [
         ("nika:tts_generate", "provider: openai, text: hi"),
-        ("nika:image_generate", "provider: openai, prompt: a star"),
+        (
+            "nika:image_generate",
+            "model: gpt-image-1.5, prompt: a star",
+        ),
     ] {
         let source = format!(
             "nika: media-cap\npermits:\n  tools: [\"{tool}\"]\n  fs: {{ write: [\"./out/**\"] }}\ntasks:\n  media:\n    invoke: {{ tool: \"{tool}\", args: {{ {args}, output_dir: ./out }} }}\n"

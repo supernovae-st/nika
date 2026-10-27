@@ -64,7 +64,7 @@ pub(crate) fn generate(
             input_tokens: Some(input),
             output_tokens: Some(output),
             total_tokens: Some(input + output),
-            thoughts_tokens: None,
+            ..Usage::default()
         },
         cost_usd: None,
         endpoint_host: None, // in-process — no wire was crossed

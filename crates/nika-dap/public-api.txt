@@ -2518,6 +2518,9 @@ impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_replay::Agreement
 impl<T> typenum::type_operators::Same for nika_dap::cost_replay::Agreement
 pub type nika_dap::cost_replay::Agreement::Output = T
 #[non_exhaustive] pub enum nika_dap::cost_replay::CostReplay
+pub nika_dap::cost_replay::CostReplay::MediaRefused
+pub nika_dap::cost_replay::CostReplay::MediaRefused::local: alloc::string::String
+pub nika_dap::cost_replay::CostReplay::MediaRefused::pinned: core::option::Option<alloc::string::String>
 pub nika_dap::cost_replay::CostReplay::Refused
 pub nika_dap::cost_replay::CostReplay::Refused::local: nika_dap::cost_replay::PricingPin
 pub nika_dap::cost_replay::CostReplay::Refused::pinned: core::option::Option<nika_dap::cost_replay::PricingPin>
@@ -2610,10 +2613,12 @@ impl<T> typenum::type_operators::Same for nika_dap::cost_replay::CostReplayLeg
 pub type nika_dap::cost_replay::CostReplayLeg::Output = T
 #[non_exhaustive] pub struct nika_dap::cost_replay::PricingPin
 pub nika_dap::cost_replay::PricingPin::as_of: alloc::string::String
+pub nika_dap::cost_replay::PricingPin::media: core::option::Option<serde_json::value::Value>
 pub nika_dap::cost_replay::PricingPin::schema: alloc::string::String
 pub nika_dap::cost_replay::PricingPin::sha256_16: alloc::string::String
 impl nika_dap::cost_replay::PricingPin
 pub fn nika_dap::cost_replay::PricingPin::new(schema: &str, as_of: &str, sha256_16: &str) -> Self
+pub fn nika_dap::cost_replay::PricingPin::with_media(self, media: serde_json::value::Value) -> Self
 impl core::clone::Clone for nika_dap::cost_replay::PricingPin
 pub fn nika_dap::cost_replay::PricingPin::clone(&self) -> nika_dap::cost_replay::PricingPin
 impl core::cmp::Eq for nika_dap::cost_replay::PricingPin

@@ -747,13 +747,7 @@ fn est_clause(report: &CheckReport, t: Theme) -> String {
     );
     // C-D3 · paid media the figure cannot price rides beside it, never
     // inside a `≤$0.0000` that reads as free.
-    match report
-        .cost
-        .media
-        .iter()
-        .filter(|m| m.usd_per_call.is_none())
-        .count()
-    {
+    match report.cost.media.iter().filter(|m| !m.priced).count() {
         0 => figure,
         n => format!(
             "{figure} + {}",

@@ -15,8 +15,8 @@ use crate::CheckReport;
 #[non_exhaustive]
 pub struct FailurePlanEntry {
     /// Closed slug: `host_passwd_read` · `exec_cat_host` ·
-    /// `priced_image_over_cap` · `unpriced_cloud_cap` ·
-    /// `unpriced_media_cap`. The historical
+    /// `priced_image_over_cap` · `priced_speech_over_cap` ·
+    /// `unpriced_cloud_cap` · `unpriced_media_cap`. The historical
     /// `host_passwd_read` slug covers confirmed read/write fs refusals.
     pub shape: &'static str,
     /// The wire code the run would stamp.
@@ -99,9 +99,10 @@ fn exec_cat_host(wf: &RawWorkflow, report: &CheckReport) -> Vec<FailurePlanEntry
         .collect()
 }
 
-/// A paid-media call the catalog prices per call (`cost.media`, the one
+/// A paid-media call the catalog floors (`cost.media`, the one
 /// classification admission floors with: an explicit `provider:` or the one
-/// its `model:` names): a cap below its floor refuses before the request.
+/// its `model:` names, and its model): a cap below its floor refuses before
+/// the request. An image floors per image; speech per character.
 fn priced_image(report: &CheckReport) -> Vec<FailurePlanEntry> {
     report
         .cost
@@ -109,14 +110,23 @@ fn priced_image(report: &CheckReport) -> Vec<FailurePlanEntry> {
         .iter()
         .filter_map(|call| {
             let floor = call.usd_per_call?;
+            let shape = if call.tool.ends_with("tts_generate") {
+                "priced_speech_over_cap"
+            } else {
+                "priced_image_over_cap"
+            };
+            let callee = match &call.model {
+                Some(model) => format!("`{}` (`{model}`)", call.provider),
+                None => format!("`{}`", call.provider),
+            };
             Some(FailurePlanEntry::new(
-                "priced_image_over_cap",
+                shape,
                 "NIKA-1709",
                 call.task.clone(),
                 format!(
-                    "{} on `{}` has catalog floor ${floor:.6} — \
+                    "{} on {callee} has catalog floor ${floor:.6} — \
                      `--max-cost-usd` below that floor refuses NIKA-1709 before HTTP",
-                    call.tool, call.provider
+                    call.tool
                 ),
             ))
         })
@@ -152,16 +162,20 @@ fn unpriced_media(report: &CheckReport) -> Vec<FailurePlanEntry> {
         .cost
         .media
         .iter()
-        .filter(|call| call.usd_per_call.is_none() && !call.run_decided)
+        .filter(|call| call.unpriced())
         .map(|call| {
+            let callee = match &call.model {
+                Some(model) => format!("`{}` (`{model}`)", call.provider),
+                None => format!("`{}`", call.provider),
+            };
             FailurePlanEntry::new(
                 "unpriced_media_cap",
                 "NIKA-1709",
                 call.task.clone(),
                 format!(
-                    "{} on `{}` has no catalog price — `--max-cost-usd` cannot bound unknown \
-                     spend (NIKA-1709 before the media request)",
-                    call.tool, call.provider
+                    "{} on {callee} has no catalog price — `--max-cost-usd` cannot bound \
+                     unknown spend (NIKA-1709 before the media request)",
+                    call.tool
                 ),
             )
         })
@@ -422,14 +436,23 @@ mod tests {
                 "nika: c-d3\npermits: {{ tools: [\"{tool}\"], fs: {{ write: [\"./out/**\"] }} }}\ntasks:\n  speak:\n    invoke: {{ tool: \"{tool}\", args: {{ {args}, output_dir: \"./out\" }} }}\n"
             ))
         };
+        // Still unpriced: OpenAI's default voice, an `ElevenLabs` id outside
+        // the price page's families, the image models shut down 2026-12-01,
+        // a Gemini id the table does not list.
         for (tool, args) in [
             ("nika:tts_generate", "provider: openai, text: hi"),
-            ("nika:tts_generate", "provider: elevenlabs, text: hi"),
+            (
+                "nika:tts_generate",
+                "model: eleven_multilingual_v1, text: hi",
+            ),
             ("nika:tts_generate", "model: gpt-4o-mini-tts, text: hi"),
-            ("nika:image_generate", "provider: openai, prompt: a star"),
             (
                 "nika:image_generate",
-                "model: gemini-3.1-flash-image, prompt: a star",
+                "model: gpt-image-1.5, prompt: a star",
+            ),
+            (
+                "nika:image_generate",
+                "model: gemini-2.0-flash-preview-image-generation, prompt: a star",
             ),
         ] {
             let p = media(tool, args);
@@ -447,13 +470,45 @@ mod tests {
         }
         for (tool, args) in [
             ("nika:image_generate", "provider: xai, prompt: a star"),
+            ("nika:image_generate", "provider: openai, prompt: a star"),
+            (
+                "nika:image_generate",
+                "model: gemini-3.1-flash-image, prompt: a star",
+            ),
+            (
+                "nika:image_generate",
+                "model: gpt-image-2.5-flare, prompt: a star",
+            ),
             ("nika:image_generate", "provider: mock, prompt: a star"),
             ("nika:image_generate", "provider: local, prompt: a star"),
+            ("nika:tts_generate", "provider: elevenlabs, text: hi"),
+            ("nika:tts_generate", "model: tts-1, text: hi"),
             ("nika:tts_generate", "provider: mock, text: hi"),
             ("nika:tts_generate", "provider: local, text: hi"),
         ] {
             let p = media(tool, args);
             assert!(unpriced(&p).is_empty(), "{tool} {{ {args} }}: {p:?}");
         }
+    }
+
+    /// C-D3 · a priced speech call floors per character: a cap below it
+    /// refuses before the request, on its own slug.
+    #[test]
+    fn a_priced_speech_floor_is_on_the_plan() {
+        let p = plan(
+            "nika: say\npermits: { tools: [\"nika:tts_generate\"], fs: { write: [\"./out/**\"] } }\ntasks:\n  say:\n    invoke: { tool: \"nika:tts_generate\", args: { model: tts-1-hd, text: hello, output_dir: \"./out\" } }\n",
+        );
+        let entry = (p.iter())
+            .find(|e| e.shape == "priced_speech_over_cap")
+            .expect("the speech floor is on the plan");
+        assert_eq!(
+            (entry.code.as_str(), entry.task.as_str()),
+            ("NIKA-1709", "say")
+        );
+        assert!(
+            entry.message.contains("`openai` (`tts-1-hd`)") && entry.message.contains("$0.000150"),
+            "{}",
+            entry.message
+        );
     }
 }

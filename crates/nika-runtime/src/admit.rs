@@ -534,36 +534,55 @@ pub(crate) fn run_decided_refusal(
     (floor > remaining).then_some(("NIKA-1704", why))
 }
 
-/// C-D3 · a paid media call the catalog does not price
-/// (`nika:image_generate` on openai/gemini · `nika:tts_generate` on
-/// openai/elevenlabs, its own or a composed child's) is unknown spend: under
-/// a cap it refuses before the prologue, as an unpriced cloud model does
-/// (zero events, zero spend). Local, mock and keyless media never reach this
-/// list; a provider only the run decides is judged before its request
-/// ([`run_decided_media_refusal`]).
+/// C-D3 · a paid media call the catalog does not price (`OpenAI`'s default
+/// voice `gpt-4o-mini-tts`, an image model the dated media table does not
+/// list, an `ElevenLabs` id outside its price families · its own or a composed
+/// child's) is unknown spend: under a cap it refuses before the prologue, as
+/// an unpriced cloud model does (zero events, zero spend). So does a priced
+/// one billed from the usage it reports under a cap of zero: it costs more
+/// than nothing. Local, mock and keyless media never reach this list; a
+/// provider or model only the run decides is judged before its request
+/// ([`media_dispatch_refusal`]).
 fn unpriced_media_cap_refusal(
     media: &[nika_check::MediaCost],
     budget: f64,
 ) -> Option<RuntimeError> {
+    let named = |call: &nika_check::MediaCost| match &call.model {
+        Some(model) => format!(
+            "task `{}` ({} on `{}`, `{model}`)",
+            call.task, call.tool, call.provider
+        ),
+        None => format!(
+            "task `{}` ({} on `{}`)",
+            call.task, call.tool, call.provider
+        ),
+    };
     let calls: Vec<String> = media
         .iter()
-        .filter(|call| call.usd_per_call.is_none() && !call.run_decided)
-        .map(|call| {
-            format!(
-                "task `{}` ({} on `{}`)",
-                call.task, call.tool, call.provider
-            )
-        })
+        .filter(|call| call.unpriced())
+        .map(named)
         .collect();
-    if calls.is_empty() {
-        return None;
+    if !calls.is_empty() {
+        return Some(RuntimeError::BudgetFloor {
+            message: format!(
+                "refusing to start: no catalog price for {} — --max-cost-usd ${budget:.6} cannot \
+                 bound unknown spend (`nika check` lists it UNPRICED under COST). The cap comes \
+                 from --max-cost-usd, the project `ceiling:` or a beat's `plafond:`. \
+                 {MEDIA_CAP_REMEDY}\n",
+                calls.join(", ")
+            ),
+        });
     }
-    Some(RuntimeError::BudgetFloor {
+    let metered: Vec<String> = (media.iter())
+        .filter(|call| call.metered() && !call.run_decided)
+        .map(named)
+        .collect();
+    (budget <= 0.0 && !metered.is_empty()).then(|| RuntimeError::BudgetFloor {
         message: format!(
-            "refusing to start: no catalog price for {} — --max-cost-usd ${budget:.6} cannot \
-             bound unknown spend (`nika check` lists it UNPRICED under COST). The cap comes from \
-             --max-cost-usd, the project `ceiling:` or a beat's `plafond:`. {MEDIA_CAP_REMEDY}\n",
-            calls.join(", ")
+            "refusing to start: --max-cost-usd ${budget:.6} admits no metered request, and {} \
+             bill(s) the usage the provider reports, which costs more than nothing. Raise the \
+             cap, or use `local` / `mock` for a rehearsal.\n",
+            metered.join(", ")
         ),
     })
 }
@@ -572,41 +591,36 @@ fn unpriced_media_cap_refusal(
 /// the launch refusal and the pre-request guard: a beat is always capped, so
 /// "drop the cap" is not a remedy there. The keyless `system` voice bills no
 /// provider, so it keeps speech under a cap (settled as unpriced local work).
-const MEDIA_CAP_REMEDY: &str = "Use a provider the catalog prices (images: `xai`; no paid \
-     speech provider has a catalog price yet), the keyless `system` voice for speech, or `local` \
-     / `mock`. Only a run with no cap at all (never a beat) makes this call, and its settlement \
-     counts it unpriced.";
+const MEDIA_CAP_REMEDY: &str = "Use a model the catalog prices (images: openai `gpt-image-2`, \
+     `gpt-image-2.5-sunburst` or `gpt-image-2.5-flare`, the gemini image models, `xai`; speech: \
+     openai `tts-1` or `tts-1-hd`, `elevenlabs`), the keyless `system` voice for speech, or \
+     `local` / `mock`. Only a run with no cap at all (never a beat) makes this call, and its \
+     settlement counts it unpriced.";
 
-/// C-D3 · the pre-request guard for a paid media call whose provider only the
-/// run decides (a templated `provider:`, or a templated `model:` it is
-/// inferred from), which the launch gates could not judge. Dispatch calls it
-/// with the rendered arguments before any request. Under a cap (`remaining`:
-/// the ledger at call time, a snapshot, never a reservation), a provider the
-/// catalog cannot price refuses, and a priced one whose floor exceeds what is
-/// left refuses too, with the run-decided seat's code (NIKA-1704). A literal
-/// provider was judged at launch and passes here untouched.
-pub(crate) fn run_decided_media_refusal(
+/// C-D3 · the pre-request guard of every paid media call under a cap,
+/// judged on its rendered arguments before any request: what only the run
+/// decides (a templated provider or model, a templated `quality:`, `size:`,
+/// `n:` or `text:`) is judged here for the first time, and a literal call is
+/// judged again against what the cap leaves now (`remaining`: the ledger at
+/// call time, a snapshot, never a reservation — a `for_each` over an
+/// expression has no launch floor). A call no catalog rate prices refuses, a
+/// priced one whose floor exceeds what is left refuses, and so does one
+/// billed from its usage when nothing is left, with the run-decided seat's
+/// code (NIKA-1704).
+pub(crate) fn media_dispatch_refusal(
     tool: &str,
-    (raw, rendered): (Option<&Value>, &Value),
+    rendered: &Value,
     remaining: Option<f64>,
 ) -> Option<String> {
     let remaining = remaining?;
-    if raw
-        .and_then(|raw| nika_check::analyzer::media_call_provider(tool, raw))
-        .is_some()
-    {
-        return None;
-    }
-    let (provider, floor) = nika_check::analyzer::media_cap_refusal(tool, rendered, remaining)?;
-    let before = "refused before the media request";
-    Some(match floor {
-        None => format!(
-            "{before}: {tool} on `{provider}` has no catalog price, so the run's cost cap \
-             cannot bound it. {MEDIA_CAP_REMEDY}"
-        ),
-        Some(floor) => format!(
-            "{before}: {tool} on `{provider}` costs at least ${floor:.6}, above the \
-             ${remaining:.6} left under the run's cost cap (a snapshot at call time, never a \
+    let refusal = nika_check::analyzer::media_cap_refusal(tool, rendered, remaining)?;
+    let why = refusal.reason(tool, remaining);
+    Some(match refusal {
+        nika_check::analyzer::MediaCapRefusal::Unpriced { .. } => {
+            format!("refused before the media request: {why}. {MEDIA_CAP_REMEDY}")
+        }
+        _ => format!(
+            "refused before the media request: {why} (a snapshot at call time, never a \
              reservation)"
         ),
     })

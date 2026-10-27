@@ -257,7 +257,9 @@ pub(crate) enum SizeSpec {
 }
 
 /// Normalized token usage across providers (absent axes stay `None` —
-/// never zero-that-looks-real).
+/// never zero-that-looks-real). The four spec axes ride the output; the
+/// modality split some providers add (`OpenAI`'s token details · Gemini's
+/// per-modality counts) stays internal and prices the call (C-D3).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[allow(clippy::struct_field_names)] // the wire vocabulary — spec-normative axis names
 pub(crate) struct Usage {
@@ -266,6 +268,14 @@ pub(crate) struct Usage {
     pub(crate) total_tokens: Option<u64>,
     /// Gemini thinking tokens (billed) — openai has no equivalent.
     pub(crate) thoughts_tokens: Option<u64>,
+    /// The input's text tokens, when the provider splits its input.
+    pub(crate) input_text_tokens: Option<u64>,
+    /// The input's image tokens, when the provider splits its input.
+    pub(crate) input_image_tokens: Option<u64>,
+    /// The output's image tokens, when the provider splits its output.
+    pub(crate) output_image_tokens: Option<u64>,
+    /// The output's text tokens, when the provider splits its output.
+    pub(crate) output_text_tokens: Option<u64>,
 }
 
 impl Usage {
@@ -279,11 +289,31 @@ impl Usage {
             (&mut self.output_tokens, other.output_tokens),
             (&mut self.total_tokens, other.total_tokens),
             (&mut self.thoughts_tokens, other.thoughts_tokens),
+            (&mut self.input_text_tokens, other.input_text_tokens),
+            (&mut self.input_image_tokens, other.input_image_tokens),
+            (&mut self.output_image_tokens, other.output_image_tokens),
+            (&mut self.output_text_tokens, other.output_text_tokens),
         ] {
             if let Some(value) = from {
                 *into = Some(into.unwrap_or(0).saturating_add(value));
             }
         }
+    }
+
+    /// The usage as the dated media table prices it (C-D3).
+    pub(crate) fn to_catalog(self) -> nika_catalog::ImageUsage {
+        nika_catalog::ImageUsage::new()
+            .with_input(
+                self.input_tokens,
+                self.input_text_tokens,
+                self.input_image_tokens,
+            )
+            .with_output(
+                self.output_tokens,
+                self.output_image_tokens,
+                self.output_text_tokens,
+            )
+            .with_thinking(self.thoughts_tokens)
     }
 
     /// The output JSON object (`null` for axes the provider never reported).
@@ -314,8 +344,9 @@ pub(crate) struct ProviderBatch {
     pub(crate) images: Vec<RawImage>,
     pub(crate) usage: Usage,
     /// REAL spend in USD when the provider reports it exactly (xai bills
-    /// `cost_in_usd_ticks` in the response body) — `None` = unpriced,
-    /// honest (never an estimate that looks real).
+    /// `cost_in_usd_ticks` in the response body) — `None` otherwise, and the
+    /// builtin bills the call from the dated media table instead when it
+    /// prices the model (C-D3 · `image::bill`).
     pub(crate) cost_usd: Option<f64>,
     /// The host the render actually came from (provenance — matters once
     /// the `local` provider makes the endpoint engine-configurable).
@@ -398,6 +429,20 @@ mod tests {
         assert_eq!(Provider::Mock.id(), "mock");
     }
 
+    /// C-D3 · the catalog prices a call that omits `model:` at the model
+    /// this builtin defaults to: the two defaults are one fact.
+    #[test]
+    fn the_catalog_default_model_is_this_builtins() {
+        for provider in [Provider::Openai, Provider::Gemini, Provider::Xai] {
+            assert_eq!(
+                nika_catalog::builtin_media_default_model("nika:image_generate", provider.id()),
+                Some(provider.default_model()),
+                "{}",
+                provider.id()
+            );
+        }
+    }
+
     #[test]
     fn format_mime_and_extension_pair_up() {
         assert_eq!(ImageFormat::Png.mime(), "image/png");
@@ -436,15 +481,14 @@ mod tests {
     fn usage_accumulation_saturates_on_hostile_counters() {
         let mut total = Usage {
             input_tokens: Some(1),
-            output_tokens: None,
             total_tokens: Some(u64::MAX),
-            thoughts_tokens: None,
+            ..Usage::default()
         };
         total.accumulate(Usage {
             input_tokens: Some(u64::MAX),
             output_tokens: Some(u64::MAX),
             total_tokens: Some(u64::MAX),
-            thoughts_tokens: None,
+            ..Usage::default()
         });
         assert_eq!(total.input_tokens, Some(u64::MAX), "saturates, never wraps");
         assert_eq!(total.output_tokens, Some(u64::MAX));
@@ -476,17 +520,29 @@ mod tests {
             input_tokens: Some(10),
             output_tokens: Some(1120),
             total_tokens: Some(1130),
-            thoughts_tokens: None,
+            output_image_tokens: Some(1120),
+            ..Usage::default()
         });
         total.accumulate(Usage {
             input_tokens: Some(5),
             output_tokens: Some(1120),
             total_tokens: Some(1125),
             thoughts_tokens: Some(300),
+            output_image_tokens: Some(1100),
+            output_text_tokens: Some(20),
+            ..Usage::default()
         });
         assert_eq!(total.input_tokens, Some(15));
         assert_eq!(total.output_tokens, Some(2240));
         assert_eq!(total.total_tokens, Some(2255));
         assert_eq!(total.thoughts_tokens, Some(300), "late axis still lands");
+        assert_eq!(total.output_image_tokens, Some(2220));
+        assert_eq!(total.output_text_tokens, Some(20));
+        let json = total.to_json();
+        assert_eq!(
+            json.as_object().map(serde_json::Map::len),
+            Some(4),
+            "the split stays internal: the output keeps the four spec axes"
+        );
     }
 }

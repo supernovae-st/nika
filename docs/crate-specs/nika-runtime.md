@@ -678,30 +678,46 @@ same guard, ledger and child budget (§3.8 · B11).
 Paid media (C-D3) follows the same two steps. `nika_check`'s
 `CostCeiling.media` lists each `nika:image_generate` / `nika:tts_generate`
 call that may bill, its own or a composed child's under the calling task:
-priced per call by the catalog (`nika_catalog::builtin_media_price`),
-unpriced, or decided at run (`run_decided`: a templated provider, or a paid
-media builtin an `agent:` whitelist and `permits.tools` let the model call). Under a
-cap, the budget floor refuses an unpriced literal one before the prologue
-(`BudgetFloor`, NIKA-1709), seated on a harness or not: the call bills its own
-provider key. A provider only the run decides is judged after rendering and
-before the request (`admit::run_decided_media_refusal`, NIKA-1704): unpriced,
-or a priced floor above the remaining USD, refuses. Both read one verdict,
-`nika_check::analyzer::media_cap_refusal`. An `agent:` receives the ledger's
-remaining USD at dispatch (`AgentInput::cost_remaining_usd`, a snapshot) and
+priced (`priced`, with its floor, the dated rate and unit that set it and the
+table's date: xAI's per-image price, or a model the dated media table lists,
+`nika_catalog::builtin_media_price`), unpriced, or decided at run
+(`run_decided`: a templated provider or model, or a paid media builtin an
+`agent:` whitelist and `permits.tools` let the model call). Under a cap, the
+budget floor adds each literal priced call's floor (per image × `n:` at its
+size class and quality, or per character × its text; a templated price
+argument floors at the least it can render to) and refuses an unpriced
+literal one before the prologue (`BudgetFloor`, NIKA-1709), seated on a
+harness or not: the call bills its own provider key. A priced call billed
+from its usage only (GPT Image 2.5, or speech whose text only the run
+renders) has no floor before the call and refuses only under a zero cap.
+Every paid media call is judged again on its rendered arguments before its
+request (`admit::media_dispatch_refusal`, NIKA-1704) against the ledger's
+remaining USD: unpriced, a floor above what is left, or a call billed from
+usage when nothing is left, refuses. All of them read one verdict,
+`nika_check::analyzer::media_cap_refusal`. The builtin bills each returned
+priced call from the same table (`cost_usd` with its `cost_basis`), the
+commit path meters it like any tool's reported spend, and the ledger debits
+it, so a capped run trips its cap mid-run, a `for_each` over an expression
+included (its launch floor is zero). An `agent:` receives the ledger's
+remaining USD at dispatch (`AgentInput::cost_remaining_usd`, a snapshot), and
 its loop judges each media tool call with that verdict before the request,
-feeding the refusal back to the model. A returned paid media call with no
-`cost_usd` carries `cost_unpriced` (`missing_catalog_price`, or
-`provider_did_not_report_usage` for a priced provider), from an `invoke:`
-task directly and from an agent's tools through `AgentOutput::tools_unpriced`
-(`SpendOnFailure::tools_unpriced` on failure); the ledger counts each one
-(`unpriced_inner_calls`), and a child run's `unpriced_calls` reach its
-parent's ledger the same way (`ChildOutcome::unpriced_calls`), so a
-settlement never reads `priced` while it holds unknown spend. Local and mock
-media stay unmetered. The keyless `system` voice bills no provider, so no cap
-refuses it (it is how a capped run, a beat included, keeps speech); an
-`invoke:` call of it still carries the builtin's own reason
-(`cost_unpriced: local_model`), so it settles as unpriced local work, never
-free.
+less what its own tools have reported spending since, feeding a refusal back
+to the model; a priced call it makes is charged through the loop's tool
+spend. A returned paid media call with no `cost_usd` carries `cost_unpriced`
+(`missing_catalog_price` for a model the table does not price, or
+`provider_did_not_report_usage` for a priced call that reported nothing the
+builtin could bill), from an `invoke:` task directly and from an agent's
+tools through `AgentOutput::tools_unpriced` (`SpendOnFailure::tools_unpriced`
+on failure); the ledger counts each one (`unpriced_inner_calls`), and a child
+run's `unpriced_calls` reach its parent's ledger the same way
+(`ChildOutcome::unpriced_calls`), so a settlement never reads `priced` while
+it holds unknown spend. The prologue records the dated media table
+(`media_pricing`, beside `pricing` and `admission_pricing`) for the
+cost-replay leg. Local and mock media stay unmetered. The keyless `system`
+voice bills no provider, so no cap refuses it (it is how a capped run, a beat
+included, keeps speech); an `invoke:` call of it still carries the builtin's
+own reason (`cost_unpriced: local_model`), so it settles as unpriced local
+work, never free.
 
 Known limits: a media builtin that fails after its provider request (a decode
 or format mismatch, an `output_dir` outside `fs.write` that only the run
