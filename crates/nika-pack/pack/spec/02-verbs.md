@@ -78,7 +78,7 @@ research:
         enabled: true
         budget_tokens: 4000
       vision:                            # optional · vision input
-        - source: file
+        - source: file                   # a read · permits.fs.read admits the path
           path: "./diagram.png"
 ```
 
@@ -93,7 +93,7 @@ research:
 | `max_tokens` | no | integer | Max output tokens · provider-dependent default · an answer the provider cuts at this cap fails (`NIKA-INFER-005`) · a model that reasons before it answers draws its reasoning from this budget: give it room (16,384), or a low `run.reasoning.effort` its route documents; too little returns an empty answer (`NIKA-INFER-004`) |
 | `schema` | no | object, or `{ file: <path> }` | raw JSON Schema, inline or kept in a project file ([§Project files](#project-files---file--normative)) · structured output validation — the **out-of-core hatch**; the typed door is task-level `returns:` ([09](./09-types.md) · both on one task = `NIKA-TYPE-003`). Numeric facts (`0\|1\|3`, counts, coded levels) are `type: integer` with a numeric `enum` — never `enum: ["0","1","3"]`. Models emit JSON numbers; a string-digit enum can reject the call before coerce (reference engine hint `digit-string-enum`). The model extracts facts; `nika:jq` or `nika:decide` is the law ([11](./11-decision.md) · `examples/13-extract-then-law.nika`) |
 | `thinking` | no | object | Extended thinking · `{ enabled, budget_tokens }` |
-| `vision` | no | array | Image inputs · each `{ source: file|url, path|url, … }` |
+| `vision` | no | array | Image inputs · each `{ source: file, path: <path> }`, a read inside `permits.fs.read`, or `{ source: url, url: <url> }`, fetched by the provider and never by Nika ([§Vision inputs](#vision-inputs--vision-normative)) |
 
 ### Project files · `{ file: }` (normative)
 
@@ -198,6 +198,60 @@ file text alike, never one more strictly than the other, and refuses
 nothing; a secret the provider needs belongs in `secrets:`, whose egress
 laws apply ([10](./10-authority.md)).
 
+### Vision inputs · `vision:` (normative)
+
+`vision:` lists the images sent with the prompt. Each entry is
+`{ source: file, path: <path> }`, an image file the engine reads, or
+`{ source: url, url: <url> }`, an image the provider fetches.
+
+```yaml
+tasks:
+  describe:
+    infer:
+      prompt: "Describe the flow this diagram shows"
+      vision:
+        - source: file
+          path: "./diagrams/flow.png"            # read by the engine · its bytes reach the provider
+        - source: url
+          url: "https://example.com/legend.png"  # fetched by the provider · never by Nika
+```
+
+```yaml
+permits:
+  fs: { read: ["./diagrams/**"] }   # the image reaches the provider · a read inside the boundary
+```
+
+**A vision file is a read inside `permits.fs.read`.** The engine reads the
+file and sends its bytes to the model provider with the request: a read
+whose bytes reach a destination, the class of `nika:read`, of a `skills:`
+file ([§Agent Skills](#agent-skills--skills)) and of a project file
+([§Project files](#project-files---file--normative)). Its path must be
+admitted by the workflow's declared `permits.fs.read` boundary, matched as
+the `path:` of a `nika:read` is, and the boundary is judged **before** the
+read: an ungranted path is never opened.
+
+| the workflow declares | a `source: file` entry is | code |
+|---|---|---|
+| no `permits:` block at all | an effect under an absent block · zero authority | `NIKA-AUTH-006` |
+| a `permits:` block whose `fs.read` does not admit the path | outside the declared boundary | `NIKA-SEC-004` |
+| a boundary that admits the path | read when the task runs · its bytes ride the request | — |
+
+**When the path is judged.** A literal path, or a whole bare `const`
+reference to a declared string, is judged at check, before any token. Any
+other form is judged at run on its rendered value, in the lexical canonical
+form every fs effect is matched in (`.` and `..` resolved, separators
+collapsed), before the file is opened: an escape fails the task
+`NIKA-SEC-004`. The inferred boundary (`nika check --infer-permits`) lists
+every path judged at check in `fs.read`, so the block it prints re-checks
+clean.
+
+**A URL is not an fs effect.** A `source: url` entry hands its URL to the
+provider, which fetches the image. Nika never fetches it, so the entry needs
+no `fs` grant and no `net.http` grant, and `permits: {}` admits it. The URL
+is part of what the request sends the provider: provider egress, governed by
+the secret-flow rules ([10](./10-authority.md)), not by a capability
+category.
+
 ### Conformance
 
 A v0.1-compliant engine MUST ·
@@ -208,6 +262,7 @@ A v0.1-compliant engine MUST ·
 - **Fail an answer cut at the output cap** · when the provider reports that it stopped at `max_tokens` (Anthropic `max_tokens` · OpenAI-compatible `length` · Gemini `MAX_TOKENS`), the task fails with `NIKA-INFER-005` (`budget_error` · not transient): the visible text received is preserved at `error.details.partial_output` and the stop reason at `error.details.stop_reason`. A cut answer is never the task output and is never validated against `schema:` (it would fail `NIKA-INFER-002` and hide its cause); an empty visible answer stays `NIKA-INFER-004`. On a route that reasons by default the cap also pays for the reasoning. A partial answer that is acceptable is recovered explicitly through `on_error:`
 - **Reject** any unknown field with a clear error (`NIKA-PARSE-005`) — the choice this line used to leave open is closed by [07 §unknown key](./07-conformance.md#an-unknown-key-is-an-error-at-every-level-normative--d-2026-08-11-n20): a key can REMOVE authority, so accept-and-warn fails open
 - Resolve a `{ file: }` prompt, system or schema at compose time under [§Project files](#project-files---file--normative) · the path law (`NIKA-FILE-001`), the read boundary before the read (`NIKA-AUTH-006` · `NIKA-SEC-004`), the read law (`NIKA-FILE-002` · `NIKA-FILE-003`), then the inline templating law over a text or the schema content law over a schema (`NIKA-TYPE-007`) · never start a run with an unread or unjudged project file
+- Judge every `vision:` file against the declared `permits.fs.read` boundary BEFORE opening it ([§Vision inputs](#vision-inputs--vision-normative)) · at check for a literal or whole bare `const` path (`NIKA-AUTH-006` under an absent block · `NIKA-SEC-004` outside a declared one), at run for any other form (`NIKA-SEC-004`) · never fetch a `source: url` image
 
 ### Subscription harness access (normative)
 
@@ -696,11 +751,17 @@ halftone:
   other sessions share) is a claim: the engine never opens it, never lists it
   as a value and never saves from it.
 - **`save:`** · a path, `${{ }}` allowed. The engine writes the first image's
-  received bytes at that path, and image *n* (*n* ≥ 2) at the path with `-n`
-  inserted before its extension. Each final path is judged against
-  `permits.fs.write` before any byte is written: `NIKA-AUTH-006` under an
-  absent block, `NIKA-SEC-004` outside a declared one, at check for a literal
-  path and at run for a rendered one. A write replaces an existing file
+  received bytes at that path, and image *n* (2 ≤ *n* ≤ 4) at the path with
+  `-n` inserted before its extension (`banner.png`, then `banner-2.png`): a
+  save names at most four files, and a turn that delivers a fifth image fails
+  the task before any file is written. Every path is judged against
+  `permits.fs.write` before any byte is written (`NIKA-AUTH-006` under an
+  absent block, `NIKA-SEC-004` outside a declared one): at check, all four
+  for a literal path or a whole bare `const` reference to a declared string,
+  since how many images arrive is known only at run; at run, every path the
+  run will write, a rendered one included, before the first write. For the
+  same-path law ([10](./10-authority.md#the-effect-vocabulary-normative--closed))
+  the save mutates all four paths. A write replaces an existing file
   atomically. A task whose session delivered no image bytes fails
   `NIKA-AGENT-007`: the declared file is never left unwritten behind a
   success.
@@ -722,7 +783,7 @@ The engine MUST ·
 - Detect the `nika:done` completion sentinel and exit gracefully
 - Return the final model response as task output
 - Resolve `skills:` at compose time · judge every path against the declared `permits.fs.read` boundary BEFORE opening it (`NIKA-AUTH-006` under an absent block · `NIKA-SEC-004` outside a declared one) · inject the `## Skills` section in source order exactly as specified above · fail statically (`NIKA-AGENT-003`/`NIKA-AGENT-004`) on a missing or invalid skill file — never start a run with a half-composed context
-- Under `images:` · make the images received on the task's own session, and only those, the `images` list of `.output` · never open a path the application reports · write each received image at its `save:` path inside `permits.fs.write` before the task succeeds, or fail `NIKA-AGENT-007` when none was received · refuse `images:` on a route without a seat before the first request
+- Under `images:` · make the images received on the task's own session, and only those, the `images` list of `.output` · never open a path the application reports · write each received image at its `save:` path inside `permits.fs.write` before the task succeeds, judging every path it writes before the first write, or fail `NIKA-AGENT-007` when none was received · fail a turn that delivers a fifth image to a save before any write · refuse `images:` on a route without a seat before the first request
 
 ---
 

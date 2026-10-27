@@ -169,8 +169,10 @@ turn. It carries:
   image prompts at `initialize` (codex-acp and claude-agent-acp do). An
   application that does not is refused before the session starts, and so is
   a file whose bytes do not start with a PNG, JPEG, GIF or WebP signature.
-  As on an API route, a `vision:` file is read without a `permits.fs.read`
-  check: point it only at files you mean to send to the model.
+  As on an API route, a `vision:` file is a read inside `permits.fs.read`:
+  `nika check` judges a literal path, and the run judges every path on its
+  resolved form before the session starts (`NIKA-SEC-004` outside the
+  boundary, `NIKA-AUTH-006` at check with no `permits:` block).
 
 It cannot carry `temperature`, `max_tokens`, an enabled `thinking` budget or
 a `vision:` URL (Nika does not fetch it). The run refuses those before

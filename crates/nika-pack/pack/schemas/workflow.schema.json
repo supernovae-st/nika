@@ -635,7 +635,7 @@
           }
         },
         "vision": {
-          "description": "Image inputs for the call · each entry `{ source: file | url, path | url }` · the images `prompt:` is allowed to refer to.",
+          "description": "Image inputs for the call · each entry `{ source: file | url, path | url }` · the images `prompt:` is allowed to refer to · a `source: file` path is a read inside `permits.fs.read`, judged before the file is opened · a `source: url` is fetched by the provider, never by Nika (02 §Vision inputs).",
           "type": "array",
           "items": {
             "type": "object",

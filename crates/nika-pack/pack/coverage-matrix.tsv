@@ -378,3 +378,15 @@ verbs	(positive)	positive-check	conformance/tests/core/verbs-shape/029-agent-ima
 verbs	NIKA-PARSE	check-reject	conformance/tests/core/verbs-shape/030-agent-images-unknown-key-refused
 authority	NIKA-AUTH-006	check-reject	conformance/tests/core/authority/039-agent-images-save-absent-permits-refused
 authority	NIKA-SEC-004	check-reject	conformance/tests/core/authority/040-agent-images-save-outside-write-refused
+authority	NIKA-AUTH-006	check-reject	conformance/tests/core/authority/041-infer-vision-file-absent-permits-refused
+authority	NIKA-SEC-004	check-reject	conformance/tests/core/authority/042-infer-vision-file-outside-read-refused
+authority	(positive)	positive-check	conformance/tests/core/authority/043-infer-vision-file-inside-read-passes
+authority	(positive)	positive-check	conformance/tests/core/authority/044-infer-vision-url-under-declared-zero-passes
+authority	NIKA-SEC-004	check-reject	conformance/tests/core/authority/045-infer-vision-const-path-outside-read-refused
+authority	(positive)	positive-check	conformance/tests/core/authority/046-infer-vision-rendered-path-deferred
+authority	NIKA-SEC-004	run-fail	DECLARED-UNQUALIFIED (conformance/tests/runtime/permits/009-vision-file-runtime-regate; authored contract, native observation pending)
+authority	NIKA-SEC-012	check-reject	conformance/tests/core/authority/047-agent-images-save-unordered-pair-refused
+authority	NIKA-SEC-012	check-reject	conformance/tests/core/authority/048-agent-images-save-for-each-fan-refused
+authority	NIKA-SEC-012	check-reject	conformance/tests/core/authority/049-agent-images-save-sibling-write-refused
+authority	(positive)	positive-check	conformance/tests/core/authority/050-agent-images-save-ordered-pair-passes
+authority	NIKA-SEC-004	check-reject	conformance/tests/core/authority/051-agent-images-save-sibling-outside-write-refused

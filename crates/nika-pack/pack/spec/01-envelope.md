@@ -604,10 +604,14 @@ subprocess's environment reads are opaque) · the undeclared-read failure
 mode is the child tool's own missing-variable error, and the repair is
 one declared line (`env: [NAME]`).
 
-So `permits: {}` is a workflow limited to compute (`infer:` + CEL +
-`nika:jq`): zero fs, zero net, zero shell, zero tools, zero env
-passthrough (its children see the runner env floor plus their task `env:`
-maps, nothing else). That property is checkable BEFORE the run.
+So `permits: {}` is a workflow limited to compute (an `infer:` that reads
+no file + CEL + `nika:jq`): zero fs, zero net, zero shell, zero tools, zero
+env passthrough (its children see the runner env floor plus their task
+`env:` maps, nothing else). That property is checkable BEFORE the run. An
+`infer:` that names a `vision:` file or a `{ file: }` project file reads it,
+so it needs an `fs.read` grant
+([02 §Vision inputs](./02-verbs.md#vision-inputs--vision-normative));
+a `vision:` URL, which the provider fetches, needs none.
 
 > #### 🔴 `permits: {}` MUST be identical to an absent block · corrected 2026-08-11
 >
