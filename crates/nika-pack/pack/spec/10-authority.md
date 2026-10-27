@@ -55,7 +55,8 @@ Two derived facts the engine computes and no author writes:
   [02 §Project files](./02-verbs.md#project-files---file--normative)). With
   neither it is **pure compute**: zero required effects (provider egress,
   a `vision:` URL the provider fetches included, is governed by the secrets
-  flow rules, not by a capability category).
+  flow rules, not by a capability category: a secret in any `vision:` entry
+  is the `infer` sink's, `NIKA-SEC-006` unless sanctioned).
 - **The workflow's needed boundary** — the union of its tasks' required
   effects, as a `permits:` block (`nika check --infer-permits` prints
   it; the round-trip law holds: the inferred block re-checks clean).
@@ -266,7 +267,7 @@ refusal classes were report-only until W4:
 
 | Code | Class | Witness (in the diagnostic) |
 |---|---|---|
-| `NIKA-SEC-006` | a `secrets.<name>` value reaches an **unsanctioned sink** (an `exec:` argument · an `invoke:` payload · an `infer:`/`agent:` prompt) | the **taint path**, source-first (`secrets.api_key → with.tok → tasks.call.output → exec`) + the exact `egress: [{ to: "<sink>" }]` clause that would sanction it |
+| `NIKA-SEC-006` | a `secrets.<name>` value reaches an **unsanctioned sink** (an `exec:` argument · an `invoke:` payload · an `infer:`/`agent:` prompt · an `infer:` `vision:` entry) | the **taint path**, source-first (`secrets.api_key → with.tok → tasks.call.output → exec`) + the exact `egress: [{ to: "<sink>" }]` clause that would sanction it |
 | `NIKA-SEC-007` | a tainted value reaches the **workflow boundary** (`outputs:` — where a result leaves the run) | the taint path into the `outputs:` entry |
 
 Both are `security_error`, check-time, blocking. The taint path is not

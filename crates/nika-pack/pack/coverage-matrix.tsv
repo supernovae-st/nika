@@ -390,3 +390,8 @@ authority	NIKA-SEC-012	check-reject	conformance/tests/core/authority/048-agent-i
 authority	NIKA-SEC-012	check-reject	conformance/tests/core/authority/049-agent-images-save-sibling-write-refused
 authority	(positive)	positive-check	conformance/tests/core/authority/050-agent-images-save-ordered-pair-passes
 authority	NIKA-SEC-004	check-reject	conformance/tests/core/authority/051-agent-images-save-sibling-outside-write-refused
+authority	NIKA-AUTH-006	check-reject	conformance/tests/core/authority/052-infer-vision-rendered-path-absent-permits-refused
+authority	NIKA-SEC-004	check-reject	conformance/tests/core/authority/053-infer-vision-rendered-path-no-read-grant-refused
+authority	NIKA-SEC-009	check-reject	conformance/tests/core/authority/054-infer-vision-path-from-fetch-trifecta-refused
+authority	NIKA-AUTH-006	check-reject	conformance/tests/core/authority/055-agent-images-save-rendered-path-absent-permits-refused
+authority	NIKA-SEC-004	check-reject	conformance/tests/core/authority/056-agent-images-save-rendered-path-no-write-grant-refused

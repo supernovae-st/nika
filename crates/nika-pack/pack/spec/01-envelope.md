@@ -369,7 +369,9 @@ to be supplied by the deployment.
 #### `egress` · *optional · sanctioned destinations (declassification)*
 
 By default, a `secrets.<name>` value reaching ANY effect, an `exec:` or
-`invoke:` sink, OR an `infer:`/`agent:` **prompt** (`prompt:` + `system:`),
+`invoke:` sink, OR an `infer:`/`agent:` **prompt** (`prompt:` + `system:`,
+and an `infer:` task's `vision:` entries: the URL the provider fetches, the
+file path that chooses the bytes it receives),
 is a **blocking leak**: the engine masks its own output but cannot follow a
 secret a subprocess, a tool, or a third-party provider re-emits (`nika check`
 refuses the workflow — `NIKA-SEC-006`, the taint path in the diagnostic;
