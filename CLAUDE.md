@@ -7,7 +7,7 @@ Before modifying any crate, read:
   **Non-negotiable.** Every admitted crate passes Gate 12 against this document.
 - `docs/architecture/crate-layer-registry.md` — L0 → L4 layer discipline,
   allowed I/O axes, enforcement by `scripts/ci/check-layering.sh`.
-- `ROADMAP.md` — the status after 0.123 (maintained: security fixes, bug fixes, compatibility; no 1.0 launch planned), then the historical real-semver plan (amended D-2026-06-20-N1 · was "forever-v0.x"). The CHANGELOG top names the current release (never quote a number here — it rots).
+- `ROADMAP.md` — the status of the 0.124 line (work stays focused on maintenance, security and the media capabilities workflows need; native video is planned for 0.125; no 1.0 launch planned), then the historical real-semver plan (amended D-2026-06-20-N1 · was "forever-v0.x"). The CHANGELOG top names the current release (never quote a number here — it rots).
 
 ### Workspace layout
 
