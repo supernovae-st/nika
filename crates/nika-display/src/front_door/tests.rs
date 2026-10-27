@@ -23,6 +23,8 @@ fn view() -> MachineView {
         state_cta: "ready for a real run",
         drifted_kits: vec![],
         wired_facet: "3 wired in this build (1 local · 2 cloud · plus mock)".to_owned(),
+        binary: None,
+        binary_notice: None,
     }
 }
 
@@ -55,6 +57,36 @@ fn a_prepared_view_renders_the_pre_move_screen() {
         Theme::new(false, false, false),
     );
     assert_eq!(text, STRANGER);
+}
+
+/// #1614 · the host's identity line opens `this binary`, and its notice
+/// follows as an advisory; without them the section is byte-identical.
+#[test]
+fn the_binary_line_and_its_notice_open_this_binary() {
+    let empty = Glance {
+        git: false,
+        workflows: 0,
+        agents_md: false,
+        complete: true,
+    };
+    let mut prepared = view();
+    prepared.binary = Some("v0.0.0-test · installer: homebrew · /opt/nika".to_owned());
+    prepared.binary_notice =
+        Some("`nika` runs another build, /old/nika (nika 0.0.1) → /opt/nika doctor".to_owned());
+    let text = render_with_context(
+        &prepared,
+        empty,
+        counts(),
+        &ContextView::legacy(),
+        Theme::new(false, false, false),
+    );
+    assert!(
+        text.contains(
+            "this binary\n  v0.0.0-test · installer: homebrew · /opt/nika\n  ⚠ `nika` runs \
+             another build, /old/nika (nika 0.0.1) → /opt/nika doctor\n  4 verbs · 7 builtins"
+        ),
+        "{text}"
+    );
 }
 
 /// A behaviour round's located defect reaches the person in words, never as the JSON a repair

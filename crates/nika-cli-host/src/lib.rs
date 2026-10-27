@@ -21,6 +21,7 @@ pub use display::theme::Theme;
 pub use nika_display as display;
 
 pub mod access;
+pub(crate) mod binary_identity;
 pub mod catalog;
 pub(crate) mod choice;
 pub mod clients_registry;
