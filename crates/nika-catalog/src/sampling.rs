@@ -5,8 +5,10 @@
 //! sampling parameter other than its default, and a thinking budget. Anthropic's Messages API
 //! answers both with HTTP 400 on a model whose capability rule takes no temperature or lists no
 //! thinking-budget parameter while recording its reasoning (the Claude 5 models fix their
-//! sampling and think adaptively). An OpenAI-compatible route may ignore such a control
-//! instead, so no refusal is claimed there.
+//! sampling and think adaptively). The `openai` provider's own API answers a temperature other
+//! than the default the same way on a model whose rule takes none (the o-series, GPT-5, GPT-5
+//! mini and GPT-5 nano). Another OpenAI-compatible route, `openrouter` included, may drop such
+//! a control instead, so no refusal is claimed there.
 
 use crate::data::generated::find_provider;
 use crate::data::models::model_capabilities;
@@ -32,12 +34,19 @@ fn anthropic_route(provider: &str) -> bool {
     find_provider(provider).and_then(|row| row.api_dialect) == Some("anthropic")
 }
 
+/// Whether `provider` is the `openai` provider (its id or an alias), whose own API answers a
+/// refused sampling control with an error rather than dropping it.
+fn openai_route(provider: &str) -> bool {
+    find_provider(provider).is_some_and(|row| row.id == "openai")
+}
+
 /// Whether the provider's API refuses a sampling parameter (`temperature`, `top_p`, `top_k`)
-/// other than its default on `provider`/`name` with an error: an Anthropic route whose model
-/// takes no temperature. `false` wherever the catalog records no such refusal.
+/// other than its default on `provider`/`name` with an error: an Anthropic route or the
+/// `openai` provider whose model takes no temperature. `false` wherever the catalog records no
+/// such refusal.
 #[must_use]
 pub fn refuses_sampling(provider: &str, name: &str) -> bool {
-    anthropic_route(provider)
+    (anthropic_route(provider) || openai_route(provider))
         && !model_capabilities(provider, wire_model(provider, name)).supports_temperature
 }
 
@@ -92,8 +101,40 @@ mod tests {
         }
     }
 
+    /// The `openai` provider's own API answers a temperature other than the default with
+    /// HTTP 400 on the reasoning seats that fix their sampling (measured on 0.123.2): the
+    /// o-series and GPT-5, GPT-5 mini and GPT-5 nano. A model that takes a temperature, a later
+    /// dot variant included, keeps it, and a compatible route that drops the control claims no
+    /// refusal.
+    #[test]
+    fn openai_reasoning_seats_refuse_sampling_on_openai_only() {
+        for name in [
+            "gpt-5",
+            "gpt-5-mini",
+            "gpt-5-nano",
+            "gpt-5-mini-2025-08-07",
+            "o3",
+        ] {
+            assert!(refuses_sampling("openai", name), "openai/{name}");
+            assert!(
+                refuses_sampling("gpt", name),
+                "the provider alias: gpt/{name}"
+            );
+            assert!(!refuses_thinking_budget("openai", name), "openai/{name}");
+        }
+        for (provider, name) in [
+            ("openai", "gpt-4o"),
+            ("openai", "gpt-5.1"),
+            ("openai", "gpt-5-chat-latest"),
+            ("openrouter", "o3"),
+            ("openrouter", "gpt-5-mini"),
+        ] {
+            assert!(!refuses_sampling(provider, name), "{provider}/{name}");
+        }
+    }
+
     /// A model the catalog records no refusal for gets none: an unrecorded Anthropic name, a
-    /// Claude model reached through another dialect, and an OpenAI-compatible model whose rule
+    /// Claude model reached through another dialect, and an OpenAI-compatible route whose model
     /// takes no temperature (that route ignores it rather than refusing).
     #[test]
     fn no_refusal_is_claimed_where_the_catalog_records_none() {
@@ -101,7 +142,7 @@ mod tests {
             ("anthropic", "some-future-model"),
             ("openrouter", "anthropic/claude-sonnet-5.5"),
             ("deepseek", "deepseek-v4-pro"),
-            ("openai", "o3"),
+            ("openrouter", "o3"),
             ("mock", "echo"),
         ] {
             assert!(!refuses_sampling(provider, name), "{provider}/{name}");
