@@ -224,7 +224,7 @@ fn check_action(
             }
             check_images_save(id, a, permits, consts, out);
         }
-        RawAction::Infer(_) => {}
+        RawAction::Infer(a) => check_vision_reads(id, a, permits, consts, out),
         #[allow(
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
@@ -268,6 +268,41 @@ fn check_images_save(
             n => format!("images.save · image {}", n + 1),
         };
         out.push(fs_escape(id, &field, &outside, "fs.write", permits, true));
+    }
+}
+
+/// The `source: file` paths of an `infer:` task's `vision:` list, in order (spec 02 §Vision
+/// inputs): each one a file the engine reads and sends to the provider. A `source: url` is not
+/// an fs effect (the provider fetches it), and a source form this build does not know is never
+/// read (the run refuses it unwired before any read), so neither is yielded.
+pub(super) fn vision_files(
+    a: &nika_schema::raw::RawInferAction,
+) -> impl Iterator<Item = &nika_schema::source::Spanned<String>> {
+    a.vision.iter().filter_map(|item| match &item.value {
+        nika_schema::raw::VisionInput::File { path } => Some(path),
+        _ => None,
+    })
+}
+
+/// `vision:` files (spec 02 §Vision inputs): the engine reads each `source: file` path and
+/// sends its bytes to the provider, a read of the `nika:read` class, so a literal path (or a
+/// whole bare const) is judged against `permits.fs.read` before the run. A rendered path stays
+/// the runtime's `NIKA-SEC-004`. Under an absent block the zero boundary refuses it (stamped
+/// `NIKA-AUTH-006` by the caller).
+fn check_vision_reads(
+    id: &str,
+    a: &nika_schema::raw::RawInferAction,
+    permits: &Permits,
+    consts: &ConstStrings,
+    out: &mut Vec<CapabilityEscape>,
+) {
+    for path in vision_files(a) {
+        let Some(path) = judgeable_str(consts, &path.value) else {
+            continue;
+        };
+        if !permits.allows_path(&path, false) {
+            out.push(fs_escape(id, "vision", &path, "fs.read", permits, false));
+        }
     }
 }
 
@@ -849,7 +884,14 @@ fn check_secondary_reads(
 /// `${{ const.<name> }}` resolved through the const table — the
 /// [`judgeable_arg`] law, over a value.
 pub(super) fn judgeable_value(consts: &ConstStrings, value: &serde_json::Value) -> Option<String> {
-    let s = value.as_str().filter(|s| !s.is_empty())?;
+    judgeable_str(consts, value.as_str()?)
+}
+
+/// [`judgeable_value`] over a bare string (a `vision:` path).
+pub(super) fn judgeable_str(consts: &ConstStrings, s: &str) -> Option<String> {
+    if s.is_empty() {
+        return None;
+    }
     if s.contains("${{") {
         return consts.resolve(s).map(str::to_owned);
     }

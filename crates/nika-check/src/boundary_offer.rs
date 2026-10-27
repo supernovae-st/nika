@@ -73,7 +73,11 @@ pub(super) fn lane(
     hints: &mut Vec<Hint>,
 ) -> EffectivePermits {
     let effective = crate::effective::collect(wf);
-    crate::hints::legal_zero_hint(wf, escapes_empty, judged, hints);
+    // A read the derivation cannot pin (a rendered `vision:` file or `nika:read`
+    // path) is the run's to judge, so the body is not pure compute whatever the
+    // escape scan saw (spec 02 §Vision inputs): no legal-zero claim then.
+    let pure = escapes_empty && !effective.partial.fs;
+    crate::hints::legal_zero_hint(wf, pure, judged, hints);
     if judged && escapes_empty {
         offer_tightest(&effective, hints);
     }
@@ -178,6 +182,36 @@ mod tests {
     fn check_yaml(yaml: &str) -> CheckReport {
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         check(&wf)
+    }
+
+    /// Spec 02 §Vision inputs · an `infer:` that names a `vision:` file reads it. A rendered
+    /// path under an absent block is the run's to judge (the zero boundary refuses it there),
+    /// so check stays clean, but the body is not pure compute: the legal-zero hint, whose
+    /// advice (`permits: {}`) would still refuse the read, must not claim it is.
+    #[test]
+    fn a_rendered_vision_file_is_never_called_pure_compute() {
+        let r = check_yaml(
+            "nika: w\nmodel: mock/echo\ninputs:\n  pic: { type: string, required: true }\ntasks:\n  a:\n    infer:\n      prompt: \"hi\"\n      max_tokens: 5\n      vision:\n        - { source: file, path: \"${{ inputs.pic }}\" }\n",
+        );
+        assert!(r.is_clean(), "a rendered path defers to the run: {r:?}");
+        assert!(
+            !r.hints
+                .iter()
+                .any(|h| h.kind == "permits" && h.advice.contains("pure compute")),
+            "{:?}",
+            r.hints
+        );
+        // The pure body keeps its hint.
+        let pure = check_yaml(
+            "nika: w\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+        );
+        assert!(
+            pure.hints
+                .iter()
+                .any(|h| h.kind == "permits" && h.advice.contains("pure compute")),
+            "{:?}",
+            pure.hints
+        );
     }
 
     /// The tightest boundary is OFFERED when the declared one is wider,

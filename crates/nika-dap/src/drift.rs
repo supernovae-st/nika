@@ -102,7 +102,7 @@ use nika_schema::expression::{
     NamespaceRef, expr_refs, parse_expression, scan_templates, single_brace_reference_heads,
 };
 use nika_schema::raw::{
-    ForEachValue, RawAction, RawCommand, RawInvokeAction, RawWorkflow, VisionInput,
+    ForEachValue, RawAction, RawCommand, RawInferAction, RawInvokeAction, RawWorkflow, VisionInput,
 };
 use nika_schema::types::{ExecPermit, FsPermits, OnErrorAction, Permits, WhenGate};
 
@@ -487,8 +487,9 @@ impl BodyUsage {
                     self.has_agent_whitelist = true;
                 }
             }
-            // Infer is effect-free; a future verb joins deliberately (the
-            // forward-compat wildcard, same law as the name walker).
+            RawAction::Infer(a) => self.eat_vision_reads(a),
+            // A future verb joins deliberately (the forward-compat
+            // wildcard, same law as the name walker).
             _ => {}
         }
     }
@@ -511,6 +512,20 @@ impl BodyUsage {
                 offer(&mut self.hosts, url_host(tok));
             } else if tok.starts_with("${{") {
                 offer(&mut self.hosts, None);
+            }
+        }
+    }
+
+    /// `infer.vision:` files (spec 02 §Vision inputs): each literal path is a
+    /// read the run needs, so the grant covering it is a USE — never
+    /// `declared-but-unused` advice that would order the removal of a read the
+    /// run requires. A templated path poisons the set (no claim); a URL is not
+    /// an fs effect (the provider fetches it).
+    fn eat_vision_reads(&mut self, a: &RawInferAction) {
+        for item in &a.vision {
+            if let VisionInput::File { path } = &item.value {
+                let literal = (!path.value.contains("${{")).then(|| path.value.clone());
+                offer(&mut self.reads, literal);
             }
         }
     }
@@ -1272,6 +1287,37 @@ mod tests {
         assert!(
             !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
             "{advice:?}"
+        );
+    }
+
+    /// Spec 02 §Vision inputs · a `vision:` file is a read: the grant that covers a literal
+    /// path is used (never `remove the entry` advice that would refuse the run), an entry no
+    /// file reaches is still dead, and a rendered path hides the read set (no claim).
+    #[test]
+    fn a_vision_file_uses_the_read_grant_that_covers_it() {
+        let advice = drifted(
+            "nika: w\npermits:\n  fs: { read: [\"./diagrams/**\", \"./other/**\"] }\ntasks:\n  look:\n    infer:\n      prompt: \"describe\"\n      vision:\n        - { source: file, path: \"./diagrams/flow.png\" }\n        - { source: url, url: \"https://example.com/x.png\" }\n",
+        );
+        assert!(
+            !advice
+                .iter()
+                .any(|a| a.contains("`permits.fs.read` entry `./diagrams/**`")),
+            "{advice:?}"
+        );
+        assert!(
+            advice
+                .iter()
+                .any(|a| a.contains("`permits.fs.read` entry `./other/**`")),
+            "{advice:?}"
+        );
+        let rendered = drifted(
+            "nika: w\ninputs:\n  pic: { type: string, required: true }\npermits:\n  fs: { read: [\"./diagrams/**\"] }\ntasks:\n  look:\n    infer:\n      prompt: \"describe ${{ inputs.pic }}\"\n      vision:\n        - { source: file, path: \"${{ inputs.pic }}\" }\n",
+        );
+        assert!(
+            !rendered
+                .iter()
+                .any(|a| a.contains("`permits.fs.read` entry")),
+            "{rendered:?}"
         );
     }
 

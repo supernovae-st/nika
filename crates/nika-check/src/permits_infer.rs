@@ -322,7 +322,7 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
                 }
             }
         }
-        RawAction::Infer(_) => {}
+        RawAction::Infer(a) => collect_vision_reads(c, id, a),
         #[allow(
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
@@ -414,26 +414,44 @@ fn collect_secondary_reads(c: &mut Collector, id: &str, a: &nika_schema::raw::Ra
     let Some(tool) = a.tool() else { return };
     for (_, value) in nika_cap::secondary_read_slots(&tool.value, a.args.as_ref().map(|s| &s.value))
     {
-        match super::permits_fit::judgeable_value(&c.consts, value) {
-            Some(path) if path_escapes_workspace(&path) => {
-                c.partial.fs = true;
-                c.notes.push(format!(
-                    "task `{id}` reads `{path}` — that path escapes the workspace, so no \
-                     `permits.fs` entry is inferred (point the task at a workspace-relative \
-                     path; widening the boundary toward a host file is a deliberate operator \
-                     choice, never the printed repair)"
-                ));
-            }
-            Some(path) => {
-                c.reads.insert(path);
-            }
-            None => {
-                c.partial.fs = true;
-                c.notes.push(format!(
-                    "task `{id}` uses a dynamic path — `fs` cannot express 'any path'; \
-                     add the resolved path(s) before running"
-                ));
-            }
+        let path = super::permits_fit::judgeable_value(&c.consts, value);
+        collect_read(c, id, path);
+    }
+}
+
+/// `infer.vision:` files (spec 02 §Vision inputs): each judgeable path is a read the boundary
+/// grants, judged by the escape scan through the same seam, so the printed block re-checks
+/// clean. A `source: url` needs no grant: the provider fetches it.
+fn collect_vision_reads(c: &mut Collector, id: &str, a: &nika_schema::raw::RawInferAction) {
+    for path in super::permits_fit::vision_files(a) {
+        let path = super::permits_fit::judgeable_str(&c.consts, &path.value);
+        collect_read(c, id, path);
+    }
+}
+
+/// Fold one read into the inference: a workspace path is granted; a path that escapes the
+/// workspace is noted, never pasted as a host-file grant; a hidden one names the fs face
+/// partial (`None`).
+fn collect_read(c: &mut Collector, id: &str, path: Option<String>) {
+    match path {
+        Some(path) if path_escapes_workspace(&path) => {
+            c.partial.fs = true;
+            c.notes.push(format!(
+                "task `{id}` reads `{path}` — that path escapes the workspace, so no \
+                 `permits.fs` entry is inferred (point the task at a workspace-relative \
+                 path; widening the boundary toward a host file is a deliberate operator \
+                 choice, never the printed repair)"
+            ));
+        }
+        Some(path) => {
+            c.reads.insert(path);
+        }
+        None => {
+            c.partial.fs = true;
+            c.notes.push(format!(
+                "task `{id}` uses a dynamic path — `fs` cannot express 'any path'; \
+                 add the resolved path(s) before running"
+            ));
         }
     }
 }
@@ -921,6 +939,61 @@ tasks:
         assert_eq!(
             r.permits.fs.as_ref().expect("fs").write,
             vec!["./out/sheet.png"]
+        );
+    }
+
+    /// Spec 02 §Vision inputs · a `vision:` file is a read: the inferred boundary grants every
+    /// literal or bare-const path (so the printed block re-checks clean) and nothing for a
+    /// URL, which the provider fetches.
+    #[test]
+    fn a_vision_file_infers_a_read_and_a_url_needs_no_grant() {
+        let yaml = "nika: w\nconst:\n  legend: \"./diagrams/legend.png\"\ntasks:\n  look:\n    infer:\n      prompt: \"compare\"\n      vision:\n        - { source: file, path: \"./diagrams/flow.png\" }\n        - { source: file, path: \"${{ const.legend }}\" }\n        - { source: url, url: \"https://example.com/chart.png\" }\n";
+        let r = infer_of(yaml);
+        let fs = r.permits.fs.as_ref().expect("a vision file is an fs read");
+        assert_eq!(
+            fs.read,
+            vec!["./diagrams/flow.png", "./diagrams/legend.png"]
+        );
+        assert!(fs.write.is_empty());
+        assert!(r.permits.net.is_none(), "Nika never fetches a vision URL");
+        assert!(r.permits.tools.is_none(), "the read rides no tool grant");
+        assert!(!r.partial.any(), "{:?}", r.notes);
+        assert_round_trips_clean(yaml);
+    }
+
+    /// A rendered vision path cannot be pinned: the fs face is named partial and the note names
+    /// the task, never an empty read set presented as the answer. A path that leaves the
+    /// workspace is noted, never pasted as a grant.
+    #[test]
+    fn a_dynamic_or_escaping_vision_path_marks_fs_partial() {
+        let rendered = infer_of(
+            "nika: w\ninputs:\n  pic: { type: string, required: true }\ntasks:\n  look:\n    infer:\n      prompt: \"describe\"\n      vision:\n        - { source: file, path: \"${{ inputs.pic }}\" }\n",
+        );
+        assert!(rendered.partial.fs, "{:?}", rendered.notes);
+        assert!(
+            rendered
+                .notes
+                .iter()
+                .any(|n| n.contains("`look`") && n.contains("dynamic path")),
+            "{:?}",
+            rendered.notes
+        );
+        let escaping = infer_of(
+            "nika: w\ntasks:\n  look:\n    infer:\n      prompt: \"describe\"\n      vision:\n        - { source: file, path: \"../shared/flow.png\" }\n",
+        );
+        assert!(escaping.partial.fs);
+        assert!(
+            escaping.permits.fs.is_none(),
+            "an escaping path is never inferred: {:?}",
+            escaping.permits.fs
+        );
+        assert!(
+            escaping
+                .notes
+                .iter()
+                .any(|n| n.contains("`../shared/flow.png`") && n.contains("escapes the workspace")),
+            "{:?}",
+            escaping.notes
         );
     }
 

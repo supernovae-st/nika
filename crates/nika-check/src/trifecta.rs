@@ -795,6 +795,55 @@ mod tests {
         assert!(r.trifecta_findings.is_empty(), "{:?}", r.trifecta_findings);
     }
 
+    /// Spec 02 §Vision inputs · a `vision:` file is a read: an `infer:` that reads the file the
+    /// gated writer left carries its untrusted content on, as a `nika:read` of it does, and its
+    /// answer reaches `leak`. A templated path may be any file; a path the write cannot reach
+    /// stays clean.
+    #[test]
+    fn a_vision_read_of_a_file_a_tainted_writer_left_is_arrived_content() {
+        let vision =
+            |path: &str| {
+                GATED_DROP.replacen("nika: t\n", "nika: t\nmodel: mock/echo\n", 1).replacen(
+                "    invoke: { tool: \"nika:read\", args: { path: \"./drop/page.txt\" } }\n",
+                &format!(
+                    "    infer: {{ prompt: \"describe the page\", max_tokens: 64, vision: [{{ \
+                     source: file, path: \"{path}\" }}] }}\n"
+                ),
+                1,
+            )
+            };
+        for path in [
+            "./drop/page.txt",
+            "drop/page.txt",
+            "./drop/${{ inputs.name }}",
+        ] {
+            let r = report(&vision(path));
+            assert!(r.conformance.is_empty(), "{path}: {:?}", r.conformance);
+            assert!(
+                r.capability_escapes.is_empty(),
+                "{path}: {:?}",
+                r.capability_escapes
+            );
+            let found: Vec<(&str, Option<&str>)> = r
+                .trifecta_findings
+                .iter()
+                .map(|v| (v.task.as_str(), v.source.as_deref()))
+                .collect();
+            assert_eq!(
+                found,
+                [("leak", Some("page"))],
+                "{path} reads the dropped page"
+            );
+        }
+        let other = report(&vision("./drop/other.png"));
+        assert!(other.conformance.is_empty(), "{:?}", other.conformance);
+        assert!(
+            other.trifecta_findings.is_empty(),
+            "a vision file the write cannot reach: {:?}",
+            other.trifecta_findings
+        );
+    }
+
     /// The two-exec pin (F2 regression · 2026-07-30): born-ingress must
     /// NOT arm the file channel by itself. When exec became born-ingress
     /// AND a writer, the writer clause — armed on OUTPUT taint — made any
