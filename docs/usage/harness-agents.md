@@ -172,7 +172,11 @@ turn. It carries:
   As on an API route, a `vision:` file is a read inside `permits.fs.read`:
   `nika check` judges a literal path, and the run judges every path on its
   resolved form before the session starts (`NIKA-SEC-004` outside the
-  boundary, `NIKA-AUTH-006` at check with no `permits:` block).
+  boundary, `NIKA-AUTH-006` at check with no `permits:` block). A granted
+  file that cannot be read fails with the read's own code
+  (`NIKA-BUILTIN-READ-001` when no file is there, `-002` otherwise), and a
+  secret in a vision entry is the `infer` leak (`NIKA-SEC-006`) unless its
+  `egress:` sanctions `{ to: "infer" }`.
 
 It cannot carry `temperature`, `max_tokens`, an enabled `thinking` budget or
 a `vision:` URL (Nika does not fetch it). The run refuses those before
