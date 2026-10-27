@@ -75,8 +75,9 @@ pub(super) fn lane(
     let effective = crate::effective::collect(wf);
     // A read the derivation cannot pin (a rendered `vision:` file or `nika:read`
     // path) is the run's to judge, so the body is not pure compute whatever the
-    // escape scan saw (spec 02 §Vision inputs): no legal-zero claim then.
-    let pure = escapes_empty && !effective.partial.fs;
+    // escape scan saw (spec 02 §Vision inputs): no legal-zero claim then. The
+    // check card's PERMITS rung reads the same predicate.
+    let pure = effective.is_pure_compute(escapes_empty);
     crate::hints::legal_zero_hint(wf, pure, judged, hints);
     if judged && escapes_empty {
         offer_tightest(&effective, hints);
@@ -201,6 +202,7 @@ mod tests {
             "{:?}",
             r.capability_escapes
         );
+        assert!(!r.permits.is_pure_compute(r.capability_escapes.is_empty()));
         assert!(
             !r.hints
                 .iter()

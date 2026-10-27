@@ -1273,6 +1273,7 @@ pub nika_check::EffectivePermits::partial: nika_check::permits_infer::PartialFac
 pub nika_check::EffectivePermits::source: nika_check::PermitsSource
 impl nika_check::EffectivePermits
 pub fn nika_check::EffectivePermits::glance(&self) -> alloc::string::String
+pub const fn nika_check::EffectivePermits::is_pure_compute(&self, escapes_empty: bool) -> bool
 impl core::clone::Clone for nika_check::EffectivePermits
 pub fn nika_check::EffectivePermits::clone(&self) -> nika_check::EffectivePermits
 impl core::fmt::Debug for nika_check::EffectivePermits
