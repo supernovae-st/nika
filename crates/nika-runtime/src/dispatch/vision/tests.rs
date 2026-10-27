@@ -111,16 +111,32 @@ impl Ran {
     }
 }
 
-/// Check `yaml` (it must be check-clean: the run is the judge here), then run it on the real
-/// builtin plane rooted at `project`, its boundary the workflow's own, its inputs `inputs`.
-async fn run(project: &Project, yaml: &str, inputs: &[(&str, &str)]) -> Ran {
-    let wf = nika_schema::parse(
+fn parse(yaml: &str) -> nika_schema::raw::RawWorkflow {
+    nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     )
-    .expect("fixture parses");
-    let report = nika_check::check(&wf);
+    .expect("fixture parses")
+}
+
+/// Check `yaml` (it must be check-clean: the run is the judge here), then run it on the real
+/// builtin plane rooted at `project`, its boundary the workflow's own, its inputs `inputs`.
+async fn run(project: &Project, yaml: &str, inputs: &[(&str, &str)]) -> Ran {
+    run_reported(project, yaml, yaml, inputs).await
+}
+
+/// [`run`] fed the clean report of `reported` (a twin of `yaml` with a wider boundary: same
+/// tasks, same waves): the embedder that skipped the check. The boundary in force is still
+/// `yaml`'s own, so the run is the judge.
+async fn run_reported(
+    project: &Project,
+    yaml: &str,
+    reported: &str,
+    inputs: &[(&str, &str)],
+) -> Ran {
+    let wf = parse(yaml);
+    let report = nika_check::check(&parse(reported));
     assert!(report.is_clean(), "the run judges this one: {report:?}");
     let http = Arc::new(CapturingHttp::default());
     let registry = Arc::new(ProviderRegistry::new(
@@ -286,15 +302,27 @@ async fn a_rendered_path_outside_the_grant_is_refused_before_any_provider_call()
     );
 }
 
-/// No `permits:` block is zero authority (F-O8): a rendered vision path deferred by the check
-/// meets the empty boundary at run.
+/// No `permits:` block is zero authority (F-O8). The check refuses a rendered vision path
+/// whatever it renders to (`NIKA-AUTH-006`: the empty boundary admits no read), and a run fed a
+/// clean report anyway (an embedder that skipped the check) meets the empty boundary at run.
 #[tokio::test]
-async fn an_absent_block_refuses_a_rendered_vision_file_at_run() {
+async fn an_absent_block_refuses_a_rendered_vision_file_at_check_and_at_run() {
     let project = Project::new("absent");
     project.file("diagrams/flow.png", &png("flow"));
-    let ran = run(
+    let yaml = look("", "${{ inputs.pic }}");
+    let refused = nika_check::check(&parse(&yaml));
+    assert!(
+        refused
+            .capability_escapes
+            .iter()
+            .any(|e| e.task == "look" && e.category == "fs" && e.undeclared),
+        "the check refuses it, NIKA-AUTH-006: {:?}",
+        refused.capability_escapes
+    );
+    let ran = run_reported(
         &project,
-        &look("", "${{ inputs.pic }}"),
+        &yaml,
+        &look(&grant("./**"), "${{ inputs.pic }}"),
         &[("pic", &project.abs("diagrams/flow.png"))],
     )
     .await;

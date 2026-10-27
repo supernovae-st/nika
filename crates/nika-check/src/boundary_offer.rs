@@ -185,15 +185,22 @@ mod tests {
     }
 
     /// Spec 02 §Vision inputs · an `infer:` that names a `vision:` file reads it. A rendered
-    /// path under an absent block is the run's to judge (the zero boundary refuses it there),
-    /// so check stays clean, but the body is not pure compute: the legal-zero hint, whose
-    /// advice (`permits: {}`) would still refuse the read, must not claim it is.
+    /// path under an absent block can never be admitted (the zero boundary grants no read), so
+    /// check refuses it (`NIKA-AUTH-006`) and never calls the body pure compute: the legal-zero
+    /// hint's advice (`permits: {}`) would still refuse the read.
     #[test]
     fn a_rendered_vision_file_is_never_called_pure_compute() {
         let r = check_yaml(
             "nika: w\nmodel: mock/echo\ninputs:\n  pic: { type: string, required: true }\ntasks:\n  a:\n    infer:\n      prompt: \"hi\"\n      max_tokens: 5\n      vision:\n        - { source: file, path: \"${{ inputs.pic }}\" }\n",
         );
-        assert!(r.is_clean(), "a rendered path defers to the run: {r:?}");
+        assert!(!r.is_clean(), "the empty boundary admits no read: {r:?}");
+        assert!(
+            r.capability_escapes
+                .iter()
+                .any(|e| e.task == "a" && e.category == "fs" && e.undeclared),
+            "{:?}",
+            r.capability_escapes
+        );
         assert!(
             !r.hints
                 .iter()

@@ -109,17 +109,65 @@ fn a_bare_const_path_is_judged_like_its_literal() {
     assert!(absent[0].undeclared);
 }
 
+const RENDERED: [&str; 2] = [
+    "{ source: file, path: \"${{ inputs.picked }}\" }",
+    "{ source: file, path: \"./diagrams/${{ inputs.picked }}\" }",
+];
+
+/// Which file a rendered path names is the run's to judge, under a boundary that grants reads.
 #[test]
-fn a_rendered_path_is_the_runs_to_judge() {
-    for entry in [
-        "{ source: file, path: \"${{ inputs.picked }}\" }",
-        "{ source: file, path: \"./diagrams/${{ inputs.picked }}\" }",
-    ] {
+fn a_rendered_path_under_a_read_grant_is_the_runs_to_judge() {
+    for entry in RENDERED {
         assert!(escapes(DIAGRAMS, entry).is_empty(), "{entry}");
         assert!(
-            escapes("", entry).is_empty(),
-            "{entry} defers under absence"
+            escapes("permits:\n  fs: { read: [\"./docs/**\"] }\n", entry).is_empty(),
+            "{entry}: a grant the value may still fit"
         );
+    }
+}
+
+/// Whether ANY read is granted is decidable without the value (the waiver rule in `lib.rs`):
+/// a boundary whose `fs.read` admits nothing refuses every rendered path, so the check refuses
+/// the entry instead of calling the run ready — `NIKA-AUTH-006` under an absent block,
+/// `NIKA-SEC-004` under a declared one (a URL entry needs no read and stays clean).
+#[test]
+fn a_rendered_path_under_a_boundary_that_grants_no_read_is_refused() {
+    for entry in RENDERED {
+        let absent = escapes("", entry);
+        assert_eq!(absent.len(), 1, "{entry}: {absent:?}");
+        assert!(
+            absent[0].undeclared,
+            "{entry}: zero authority (NIKA-AUTH-006)"
+        );
+        assert_eq!(absent[0].category, "fs", "{entry}");
+        assert!(
+            absent[0].detail.contains("`vision`") && absent[0].detail.contains("fs.read"),
+            "{entry}: {}",
+            absent[0].detail
+        );
+        for permits in [
+            "permits: {}\n",
+            "permits:\n  net: { http: [\"example.com\"] }\n",
+            "permits:\n  tools: [\"nika:jq\"]\n",
+            "permits:\n  fs: { write: [\"./out/**\"] }\n",
+            "permits:\n  fs: { read: [] }\n",
+        ] {
+            let found = escapes(permits, entry);
+            assert_eq!(found.len(), 1, "{entry} under {permits}: {found:?}");
+            assert!(
+                !found[0].undeclared,
+                "{entry} under {permits}: NIKA-SEC-004"
+            );
+            assert_eq!(found[0].category, "fs");
+            assert!(
+                found[0]
+                    .fix
+                    .as_deref()
+                    .is_some_and(|f| f.contains("permits.fs.read")),
+                "{entry} under {permits}: {:?}",
+                found[0].fix
+            );
+        }
     }
 }
 

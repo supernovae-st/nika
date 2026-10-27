@@ -299,7 +299,8 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
             }
             // `images: { save: }` (spec 02 §Harness images): the engine writes the received
             // bytes at a literal path (or a bare const) and its `-n` siblings, so the boundary
-            // names every one of them; a rendered path stays the runtime's.
+            // names every one of them; a rendered path is the runtime's, and names the fs face
+            // partial (never an empty write set presented as the answer).
             if let Some(save) = a.images.as_ref().and_then(|i| i.value.save.as_ref()) {
                 let path = if save.value.contains("${{") {
                     c.consts.resolve(&save.value).map(str::to_owned)
@@ -318,7 +319,13 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
                         c.writes
                             .extend(nika_types::access::harness_image_paths(&path));
                     }
-                    None => {}
+                    None => {
+                        c.partial.fs = true;
+                        c.notes.push(format!(
+                            "task `{id}` saves its images at a dynamic path — `fs` cannot \
+                             express 'any path'; add the resolved path(s) before running"
+                        ));
+                    }
                 }
             }
         }
@@ -905,6 +912,24 @@ tasks:
         );
         assert!(fs.read.is_empty());
         assert_round_trips_clean(yaml);
+    }
+
+    /// A rendered save cannot be pinned: the fs face is named partial and the note names the
+    /// task, never an empty write set presented as the answer (nor « pure compute »).
+    #[test]
+    fn a_rendered_images_save_marks_fs_partial() {
+        let r = infer_of(
+            "nika: w\ninputs:\n  out: { type: string, required: true }\ntasks:\n  draw:\n    agent:\n      prompt: draw\n      images: { save: \"${{ inputs.out }}\" }\n",
+        );
+        assert!(r.partial.fs, "{:?}", r.notes);
+        assert!(
+            r.notes
+                .iter()
+                .any(|n| n.contains("`draw`") && n.contains("dynamic path")),
+            "{:?}",
+            r.notes
+        );
+        assert!(r.permits.fs.is_none(), "{:?}", r.permits.fs);
     }
 
     /// Every literal `nika:image_compose` input is a read the inferred
