@@ -27,6 +27,12 @@ const VERSION_OUTPUT_CAP: usize = 4096;
 /// runtime's orphan queue.
 const REAP_GRACE: Duration = Duration::from_millis(500);
 
+/// The most group kills after the leader is reaped, [`SWEEP_PAUSE`] apart.
+const SWEEPS: usize = 40;
+
+/// The pause between two sweeps of the group.
+const SWEEP_PAUSE: Duration = Duration::from_millis(5);
+
 /// Variables every probed copy keeps, when they are set: who and where the
 /// user is, the locale and the terminal type. None is a secret channel.
 const ENV_FLOOR: [&str; 7] = ["HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "TERM", "SHELL"];
@@ -228,25 +234,38 @@ fn contain(command: &mut tokio::process::Command) {
 fn contain(_command: &mut tokio::process::Command) {}
 
 /// End the copy and everything it forked: the group first, then reap the
-/// leader. While the leader is unreaped its id cannot name another group;
-/// once it has exited and been reaped (the no-version path), the group
-/// kill is the harness probes' same best effort.
+/// leader, then sweep the group until it is empty. A process forked while
+/// the first kill was being delivered can miss it (the kill lands right as
+/// a copy forks after its answer), but it still carries the group id, and
+/// a group with a member cannot name another one. While the leader is
+/// unreaped its id cannot be reused either; once the group is empty the
+/// sweep stops at the first refusal, the harness probes' same best effort.
 async fn end(child: &mut tokio::process::Child, group: Option<u32>) {
     kill_group(group);
     let _ = child.start_kill();
     let _ = tokio::time::timeout(REAP_GRACE, child.wait()).await;
+    for _ in 0..SWEEPS {
+        if !kill_group(group) {
+            return;
+        }
+        tokio::time::sleep(SWEEP_PAUSE).await;
+    }
 }
 
+/// Kill the whole group `group`: `true` when the group still had a member.
 #[cfg(unix)]
-fn kill_group(group: Option<u32>) {
+fn kill_group(group: Option<u32>) -> bool {
     let Some(pid) = group.and_then(|g| i32::try_from(g).ok()).filter(|p| *p > 1) else {
-        return;
+        return false;
     };
-    let _ = nix::sys::signal::killpg(
+    nix::sys::signal::killpg(
         nix::unistd::Pid::from_raw(pid),
         nix::sys::signal::Signal::SIGKILL,
-    );
+    )
+    .is_ok()
 }
 
 #[cfg(not(unix))]
-fn kill_group(_group: Option<u32>) {}
+fn kill_group(_group: Option<u32>) -> bool {
+    false
+}
