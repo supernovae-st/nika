@@ -2,7 +2,7 @@
 
 All notable changes to **Nika** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-Nika follows [semantic versioning](https://semver.org); 0.123 is the maintained open-source reference release, patched as 0.123.x ([ROADMAP.md](ROADMAP.md)).
+Nika follows [semantic versioning](https://semver.org); 0.124 is the current release line, focused on maintenance, security and the media capabilities workflows need, with native video planned for 0.125 ([ROADMAP.md](ROADMAP.md)).
 
 Nika Diamond is the ground-up rewrite developed on `main`, beginning at
 v0.80.0. The legacy v0.79.3 tree remains on the read-only `brouillon` branch.

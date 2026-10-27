@@ -6,9 +6,10 @@ is non-interactive and idempotent. Prefer the package-manager paths —
 they verify checksums for you; the shell install script is the human
 lane (guided page: <https://nika.sh/install>), not the agent lane.
 
-The current release is 0.123.1, a maintenance release of the 0.123
-open-source reference line. It is maintained with security fixes, bug fixes and compatibility; its known
-limits are at <https://docs.nika.sh/changelog/known-limits>.
+The current release is 0.124.0, the first release of the 0.124 line. Work
+stays focused on maintenance, security and the media capabilities workflows
+need; native video is planned for 0.125. Its known limits are at
+<https://docs.nika.sh/changelog/known-limits>.
 
 ## 1 · Install
 

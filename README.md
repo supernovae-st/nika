@@ -136,8 +136,8 @@ with `NIKA_KEYCHAIN=off nika key init`: the key lands in `~/.nika/keys/`
 `nika trace verify` and `/proof`. Without the variable, a terminal on a Linux
 desktop can keep the key in the Secret Service, which only terminal runs open
 (`nika key align` copies it to the files), and on a Mac whose keychain holds a
-key from Nika 0.122 or older, `nika key init` refuses: 0.123.0 never opens the
-macOS keychain.
+key from Nika 0.122 or older, `nika key init` refuses: 0.123.0 and later never
+open the macOS keychain.
 
 <p align="center">
   <a href="media/gifs/trace-proof.optimized.gif">
@@ -343,7 +343,7 @@ file for you, and the check keeps it honest:
 | Where | What you get | Watch |
 |---|---|---|
 | **Your coding agent** · [nika-plugins](https://github.com/supernovae-st/nika-plugins) | Claude Code, Codex, Cursor and others learn to write a workflow, check it and repair what the check finds. | ▶ [above](media/gifs/agent-plugin.optimized.gif) |
-| **Your editor** · `nika lsp` | The language server inside the binary: the check's findings as you type, in any LSP client. The VS Code extension ([nika-vscode](https://github.com/supernovae-st/nika-vscode)) stays at 0.120 and was not qualified with 0.123; point its `nika.server.path` at your 0.123 binary ([known limits](https://docs.nika.sh/changelog/known-limits#the-vs-code-extension-stays-at-0-120)). | ▶ [The audit, as you type](media/gifs/editor-diagnostics.optimized.gif) |
+| **Your editor** · `nika lsp` | The language server inside the binary: the check's findings as you type, in any LSP client. The VS Code extension ([nika-vscode](https://github.com/supernovae-st/nika-vscode)) stays at 0.120 and is not qualified with 0.124; point its `nika.server.path` at your 0.124 binary ([known limits](https://docs.nika.sh/changelog/known-limits#the-vs-code-extension-stays-at-0-120)). | ▶ [The audit, as you type](media/gifs/editor-diagnostics.optimized.gif) |
 | **Your pull requests** · [nika-action](https://github.com/supernovae-st/nika-action) | One comment with the verdict, before anyone spends a token. | ▶ [Every pull request gets a verdict](media/gifs/pr-check-comment.optimized.gif) |
 | **Your app** · [nika-client](https://github.com/supernovae-st/nika-client) | Run a workflow from TypeScript ([the package](https://www.npmjs.com/package/@supernovae-st/nika)), get a typed result and verify its receipt, with the engine the package bundles or against your `nika serve`. | ▶ [Run it from your app, prove what ran](media/gifs/typescript-client.optimized.gif) · ▶ [One client, two doors](media/gifs/sdk-doors.optimized.gif) |
 
@@ -407,18 +407,19 @@ whole API.
 
 ## Know the limits
 
-- **0.123 is the open-source reference release.** It is maintained with
-  security fixes, bug fixes and compatibility; no major new development is
-  planned, and there is no hosted service. Its known limits are listed in
-  plain words, each with a way around it:
-  [Known limits in 0.123](https://docs.nika.sh/changelog/known-limits).
+- **0.124 is the current release line.** Work stays focused on
+  maintenance, security and the media capabilities workflows need; native
+  video is planned for 0.125. The 0.123.x line is the previous one, and
+  there is no hosted service. The known limits are listed in plain words,
+  each with a way around it:
+  [Known limits in 0.124](https://docs.nika.sh/changelog/known-limits).
 - **Some requests cannot be expressed.** Nika then says what stopped it
   and writes nothing.
 - **A clean check is not a true answer.** It describes a file's structure
   and boundary; it does not prove that model output is right.
-- **This README describes the released 0.123.0.** Fixes merged after it
+- **This README describes the released 0.124.0.** Changes merged after it
   are described one file per change in [`changelog.d/`](changelog.d/)
-  until the next maintenance release; compare `nika --version` with the
+  until the next release; compare `nika --version` with the
   [changelog](CHANGELOG.md).
 
 <details>
@@ -501,7 +502,7 @@ judgement.
 | 🦋 | **[nika](https://github.com/supernovae-st/nika)** | **The engine and CLI: write, check, run and verify AI workflows** |
 | 📖 | [nika-docs](https://github.com/supernovae-st/nika-docs) | The documentation, live at [docs.nika.sh](https://docs.nika.sh) |
 | 📜 | [nika-spec](https://github.com/supernovae-st/nika-spec) | The language specification and the suite that proves an engine follows it |
-| 🧩 | [nika-vscode](https://github.com/supernovae-st/nika-vscode) | The editor extension, frozen at 0.120 and not qualified with 0.123: use `nika lsp` and the JSON Schema |
+| 🧩 | [nika-vscode](https://github.com/supernovae-st/nika-vscode) | The editor extension, frozen at 0.120 and not qualified with 0.124: use `nika lsp` and the JSON Schema |
 | 🟦 | [nika-client](https://github.com/supernovae-st/nika-client) | Run and verify workflows from TypeScript |
 | ✅ | [nika-action](https://github.com/supernovae-st/nika-action) | A GitHub Action that posts a `nika check` verdict on your pull requests |
 | 🚀 | [nika-actions-starter](https://github.com/supernovae-st/nika-actions-starter) | A ready template: workflows, editor setup and CI from the first push |
@@ -522,12 +523,12 @@ repositories drive this engine without adding to its authority.
 [Examples](examples/README.md) ·
 [Documentation](https://docs.nika.sh) ·
 [TypeScript SDK](https://www.npmjs.com/package/@supernovae-st/nika) ·
-[Editor extension (0.120, not qualified with 0.123)](https://marketplace.visualstudio.com/items?itemName=supernovae.nika) ·
+[Editor extension (0.120, not qualified with 0.124)](https://marketplace.visualstudio.com/items?itemName=supernovae.nika) ·
 [Open specification](https://github.com/supernovae-st/nika-spec) ·
 [Registry](https://github.com/supernovae-st/nika-registry) ·
 [Planning archive](https://github.com/orgs/supernovae-st/projects/3) ·
 [Website](https://nika.sh)
 
-Nika 0.123 is the open-source reference release, usable today and
+Nika 0.124 is the current open-source release line, usable today and
 maintained. The engine is
 [AGPL-3.0-or-later](LICENSE); the specification is Apache-2.0.
