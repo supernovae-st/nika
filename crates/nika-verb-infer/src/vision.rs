@@ -66,22 +66,67 @@ fn vision_block(part: &VisionPart) -> Result<ContentBlock, VerbInferError> {
             })
         }
         VisionPart::File { path } => {
-            if path.trim().is_empty() {
-                return Err(invalid("vision file path is empty"));
-            }
-            let bytes = std::fs::read(path) // seam-bypass-ok: v0.1 vision file load · nika-media CAS staging still deferred · missing path must refuse before any provider call
-                .map_err(|err| invalid(format!("cannot read image `{path}`: {err}")))?;
-            if bytes.is_empty() {
-                return Err(invalid(format!("image `{path}` is empty")));
-            }
-            let mime = image_mime(path, &bytes);
-            let b64 = base64_encode(&bytes);
+            let (mime, b64) = file_image(path)?;
             Ok(ContentBlock::Image {
                 source: format!("data:{mime};base64,{b64}"),
                 detail: None,
             })
         }
     }
+}
+
+/// The bytes of one `source: file` image, refused before any call when unreadable or empty.
+fn file_bytes(path: &str) -> Result<Vec<u8>, VerbInferError> {
+    if path.trim().is_empty() {
+        return Err(invalid("vision file path is empty"));
+    }
+    let bytes = std::fs::read(path) // seam-bypass-ok: v0.1 vision file load · nika-media CAS staging still deferred · missing path must refuse before any provider call
+        .map_err(|err| invalid(format!("cannot read image `{path}`: {err}")))?;
+    if bytes.is_empty() {
+        return Err(invalid(format!("image `{path}` is empty")));
+    }
+    Ok(bytes)
+}
+
+/// One `source: file` image: its media type (magic bytes first) and its base64 bytes.
+fn file_image(path: &str) -> Result<(&'static str, String), VerbInferError> {
+    let bytes = file_bytes(path)?;
+    Ok((image_mime(path, &bytes), base64_encode(&bytes)))
+}
+
+/// One `source: file` image for an ACP session: only bytes that open with an image signature
+/// (PNG, JPEG, GIF, WebP) ride, under the media type they declare. Any other file is refused
+/// before the session starts, never relabelled `image/png` and handed to the agent.
+#[cfg(feature = "access-harness")]
+fn signed_image(path: &str) -> Result<(&'static str, String), VerbInferError> {
+    let bytes = file_bytes(path)?;
+    let mime = image_signature(&bytes).ok_or_else(|| {
+        invalid(format!(
+            "`{path}` is not an image (no PNG, JPEG, GIF or WebP signature): an ACP session \
+             receives image files only"
+        ))
+    })?;
+    Ok((mime, base64_encode(&bytes)))
+}
+
+/// The `vision:` files as the images an ACP session sends with its prompt (image content
+/// blocks), each an image by its own signature. A URL is never fetched by Nika: the caller
+/// refuses it before reaching here, and this loader refuses it again rather than drop it.
+#[cfg(feature = "access-harness")]
+pub(crate) fn prompt_images(
+    parts: &[VisionPart],
+) -> Result<Vec<nika_kernel::ai::harness::HarnessPromptImage>, VerbInferError> {
+    parts
+        .iter()
+        .map(|part| match part {
+            VisionPart::File { path } => signed_image(path)
+                .map(|(mime, b64)| nika_kernel::ai::harness::HarnessPromptImage::new(mime, b64)),
+            VisionPart::Url { url } => Err(invalid(format!(
+                "vision URL `{url}` cannot ride an ACP session: Nika does not fetch it; point \
+                 `vision:` at a local file"
+            ))),
+        })
+        .collect()
 }
 
 fn invalid(detail: impl Into<String>) -> VerbInferError {
@@ -91,19 +136,30 @@ fn invalid(detail: impl Into<String>) -> VerbInferError {
     }
 }
 
-/// Magic-byte first, extension fallback, `image/png` last.
-fn image_mime(path: &str, bytes: &[u8]) -> &'static str {
+/// The media type an image's leading bytes declare (PNG, JPEG, GIF, WebP), if any.
+fn image_signature(bytes: &[u8]) -> Option<&'static str> {
     if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
-        return "image/png";
+        return Some("image/png");
     }
     if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
-        return "image/jpeg";
+        return Some("image/jpeg");
     }
     if bytes.starts_with(b"GIF8") {
-        return "image/gif";
+        return Some("image/gif");
     }
-    if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
-        return "image/webp";
+    if bytes.len() >= 12
+        && bytes.starts_with(b"RIFF")
+        && bytes.get(8..12) == Some(b"WEBP".as_slice())
+    {
+        return Some("image/webp");
+    }
+    None
+}
+
+/// Magic-byte first, extension fallback, `image/png` last.
+fn image_mime(path: &str, bytes: &[u8]) -> &'static str {
+    if let Some(mime) = image_signature(bytes) {
+        return mime;
     }
     match Path::new(path)
         .extension()
@@ -176,6 +232,46 @@ mod tests {
             }
             other => panic!("expected InvalidParam, got {other:?}"),
         }
+    }
+
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn prompt_images_read_files_in_order_and_refuse_a_url() {
+        let dir = std::env::temp_dir().join(format!("nika-vision-acp-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let png = dir.join("a.png");
+        std::fs::write(&png, b"\x89PNG\r\n\x1a\nrest").expect("png");
+        let jpg = dir.join("b.bin");
+        std::fs::write(&jpg, [0xFF, 0xD8, 0xFF, 0x00]).expect("jpg");
+        let parts = [
+            VisionPart::file(png.to_string_lossy()),
+            VisionPart::file(jpg.to_string_lossy()),
+        ];
+        let images = prompt_images(&parts).expect("files load");
+        assert_eq!(images.len(), 2);
+        assert_eq!(images[0].mime_type, "image/png");
+        assert_eq!(images[0].data, base64_encode(b"\x89PNG\r\n\x1a\nrest"));
+        assert_eq!(
+            images[1].mime_type, "image/jpeg",
+            "magic bytes, not the extension"
+        );
+        // A file with no image signature never rides, whatever its extension says.
+        let text = dir.join("secret.png");
+        std::fs::write(&text, b"API_KEY=not-an-image\n").expect("text");
+        let refused =
+            prompt_images(&[VisionPart::file(text.to_string_lossy())]).expect_err("not an image");
+        assert!(
+            matches!(&refused, VerbInferError::InvalidParam { param: "vision", detail }
+                if detail.contains("is not an image")),
+            "{refused:?}"
+        );
+        let url = prompt_images(&[VisionPart::url("https://example.com/x.png")])
+            .expect_err("a URL is never fetched");
+        assert!(
+            matches!(&url, VerbInferError::InvalidParam { param: "vision", detail } if detail.contains("does not fetch")),
+            "{url:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

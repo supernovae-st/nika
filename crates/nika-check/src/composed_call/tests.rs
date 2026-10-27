@@ -341,6 +341,30 @@ fn an_agent_whitelist_holds_what_its_own_block_meets() {
     assert_eq!(call.grants.fs, None, "the child declares no file reach");
 }
 
+/// A tool-less `agent:` may run on a seat whose permission bridge judges its asks against
+/// exec + fs, with or without a `schema:` (validated on the seat's final message): the
+/// caller entries its own block meets are held.
+#[test]
+fn a_seat_servable_agent_holds_what_its_own_block_meets_with_or_without_a_schema() {
+    for schema in ["", ", schema: { type: object }"] {
+        let agent = format!(
+            "nika: seat\nmodel: mock/echo\npermits: {{ exec: [\"git\"], fs: {{ read: [\"./repo/**\"] }} }}\ntasks:\n  look:\n    agent: {{ prompt: \"summarize the repo\"{schema} }}\n"
+        );
+        let found = calls("./seat.nika", &[("seat.nika", &agent)]);
+        let call = only(&found);
+        assert_eq!(
+            call.grants.exec,
+            Some(ExecPermit::Programs(vec!["git".to_owned()])),
+            "{schema}"
+        );
+        assert_eq!(
+            call.grants.fs,
+            Some(FsPermits::new(vec!["./repo/**".to_owned()], Vec::new())),
+            "{schema}"
+        );
+    }
+}
+
 #[test]
 fn an_unresolved_call_is_untrusted_everywhere() {
     let call = ComposedCall::unresolved("call".to_owned(), "./x.nika".to_owned(), "unread");

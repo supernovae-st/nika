@@ -243,6 +243,9 @@ fn verb_help(num: u16) -> &'static str {
         470 => {
             "The agent's final message stopped at the output cap (`max_tokens`): it is cut, not a completion. Raise the turn's `max_tokens`, or recover the partial message from error.details.partial_output through `on_error:`."
         }
+        471 => {
+            "The task declares `images: { save: }` and its agent session delivered no image bytes (none generated, or only a path the application reported, which is never opened). Ask for an image in the prompt, or drop `save:` and read `.output.images` when none is expected."
+        }
         _ => "Verb execution failed. Check the task definition against the spec for this verb.",
     }
 }

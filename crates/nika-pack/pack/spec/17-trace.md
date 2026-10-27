@@ -216,6 +216,12 @@ local blob locator when stored, and `storage`: `stored`, `failed`, `none`
 (path-only) or `unconfirmed` (bytes received, no store answer observed, for
 instance a cancelled task; a blob may or may not exist). It carries no inline
 image payload. A peer-reported savedPath stays a claim, never file authority.
+When the task declares `images: { save: }`
+([02 §Harness images](./02-verbs.md#harness-images--images-normative)), the
+observation of an image the engine wrote also carries `saved_path`: the
+project-relative path of that write, whose bytes are the received ones, so the
+received digest is the file's. An image the engine did not write has no
+`saved_path`.
 
 A task terminal (completed, failed or skipped) carries `harness_media_count`,
 closing the image sequence of that observation leg; it carries no aggregate of

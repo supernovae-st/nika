@@ -486,6 +486,7 @@ pub fn nika_check_analyzer::static_args::static_program(command: &nika_schema::r
 pub fn nika_check_analyzer::static_args::templated_url_host(raw: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_check_analyzer::static_args::url_host(raw: &str) -> core::option::Option<alloc::string::String>
 pub mod nika_check_analyzer::types_contract
+pub fn nika_check_analyzer::types_contract::images_outputs(wf: &nika_schema::raw::workflow::RawWorkflow, lowered: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub fn nika_check_analyzer::types_contract::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub fn nika_check_analyzer::types_contract::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
 #[non_exhaustive] pub enum nika_check_analyzer::EdgeKind
@@ -860,6 +861,7 @@ pub fn nika_check_analyzer::bare_static_ref(expr: &str) -> core::option::Option<
 pub fn nika_check_analyzer::capacity_findings(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check_analyzer::CapacityFinding>
 pub fn nika_check_analyzer::catalog_knows(provider: &str, name: &str, judged: &str) -> bool
 pub fn nika_check_analyzer::effective_workflow(wf: &nika_schema::raw::workflow::RawWorkflow, model_override: core::option::Option<&str>, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_schema::raw::workflow::RawWorkflow>
+pub fn nika_check_analyzer::images_outputs(wf: &nika_schema::raw::workflow::RawWorkflow, lowered: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub fn nika_check_analyzer::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub fn nika_check_analyzer::priced_builtin_floor(wf: &nika_schema::raw::workflow::RawWorkflow) -> f64
 pub fn nika_check_analyzer::reasoning_cap_hints(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check_analyzer::ThinkingFinding>

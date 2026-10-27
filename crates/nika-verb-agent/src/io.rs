@@ -59,6 +59,27 @@ pub struct AgentInput {
     pub cancel: Option<nika_kernel::CancelCtx>,
     /// Typed MCP witnesses kept outside a dropped agent/task attempt.
     pub stopped: Option<nika_verb_invoke::StoppedCallSlot>,
+    /// `images:` (spec 02 §Harness images): the images the harness delivers on this task's
+    /// own session become `.output.images`, written at `save` when one is given. `None`
+    /// keeps the plain output; the native loop refuses it (its images are tool outputs).
+    pub images: Option<AgentImages>,
+}
+
+/// The task's `images:` request, its `save:` path already rendered (spec 02 §Harness images).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct AgentImages {
+    /// The project path of the first image; image n ≥ 2 takes `-n` before its extension.
+    /// Written by the engine under `permits.fs.write`; `None` keeps the images a value only.
+    pub save: Option<String>,
+}
+
+impl AgentImages {
+    /// Images as a value; `save` names where the engine writes them.
+    #[must_use]
+    pub fn new(save: Option<String>) -> Self {
+        Self { save }
+    }
 }
 
 impl AgentInput {
@@ -81,6 +102,7 @@ impl AgentInput {
             requirement: None,
             cancel: None,
             stopped: None,
+            images: None,
         }
     }
 

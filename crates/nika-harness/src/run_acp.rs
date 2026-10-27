@@ -23,7 +23,8 @@
 //!   permission event refuses the whole answer) and `end_turn` required.
 //!   `maxTurns: 1` bounds this one operation, never a conversation. The
 //!   profile enforces no schema, so its structured output is text: a
-//!   `schema:` task refuses before inference.
+//!   `schema:` task is validated by the `infer:` verb (spec 02, the
+//!   subscription meet's conjunct 3), never by the adapter.
 //! - `codex` — the codex-acp 1.13.1 completion profile (codex 0.156.1),
 //!   whose contract is NOT « no tools »: every tool surface that can reach
 //!   beyond the call is closed before the adapter starts and read back on
@@ -122,6 +123,18 @@ pub fn meet_acp_one_shot(seat: &str) -> Result<AcpOneShot, AcpOneShotRefused> {
 }
 
 impl AcpOneShot {
+    /// Whether the route's adapter advertises image prompts at `initialize` (ACP
+    /// `agentCapabilities.promptCapabilities.image`) — measured on the pinned adapters
+    /// (codex-acp 1.13.1, claude-agent-acp 0.81.1, 2026-10-26) and judged again on each
+    /// live `initialize` before the session: an `infer:` task's `vision:` files ride as ACP
+    /// image blocks only where it holds. A static answer for `nika check`.
+    #[must_use]
+    pub const fn image_prompts(self) -> bool {
+        match self.profile {
+            Profile::ClaudeCode | Profile::Codex => true,
+        }
+    }
+
     /// The meet for one task's output need: the profile's level must cover
     /// it, or the task refuses before any spawn.
     ///
@@ -136,7 +149,8 @@ impl AcpOneShot {
         Err(AcpOneShotRefused {
             witness: format!(
                 "`{}` over ACP is not infer-grade for {}: failed {} (its completion profile \
-                 enforces no schema; drop `schema:` or declare an API route)",
+                 enforces no schema itself; the `infer:` verb validates a `schema:` task's \
+                 answer, so meet this profile at `text`)",
                 self.seat,
                 need.as_str(),
                 failed.join(" ∧ ")

@@ -22,7 +22,8 @@
 //! - **write-write conflicts** (F-P15 · NEP-0014 law 1) — two tasks that
 //!   CAN run concurrently (incomparable) and both write the same STATIC
 //!   `nika:write`/`nika:edit`/`nika:remove_file` key (literal · bare ref ·
-//!   identical immutable ref — [`static_write_key`]), compared under
+//!   identical immutable ref — [`static_write_keys`] · an agent's
+//!   `images.save` and its `-n` siblings), compared under
 //!   LEXICAL normalization (`./out/x.md` ≡ `out//x.md` ≡
 //!   `out/d/../x.md` ≡ `out/x.md` — pure text, no filesystem claim; see
 //!   [`normalize_lexical`]): last-writer-wins is a race the file never
@@ -68,7 +69,7 @@ pub struct WriteConflict {
     /// both keys reduce to it) · the key as spelled (the `for_each`
     /// flavor — nothing is compared). A key is a literal path, or the
     /// canonical bare-ref form (`${{ inputs.f }}`) when the shared
-    /// value is not statically known (`static_write_key`).
+    /// value is not statically known (`static_write_keys`).
     pub path: String,
     /// The witness sentence (the race, named — both spellings when the
     /// literals differ textually).
@@ -458,25 +459,51 @@ fn koenig_witness(
 /// writer builtins take `path:` identically, and the edit's
 /// read-modify-write loses updates to a concurrent writer exactly like
 /// the write's rename does.)
-fn static_write_key(wf: &RawWorkflow, task: &RawTask) -> Option<String> {
-    let RawAction::Invoke(invoke) = &task.action else {
-        return None;
+///
+/// An `agent:` with `images: { save: }` mutates too (spec 02 §Harness
+/// images): the engine writes each received image through `nika:write`
+/// with `overwrite`, so its keys are every path the save can take — the
+/// first and its `-n` siblings ([`nika_types::access::harness_image_paths`])
+/// for a known path, the reference's own identity for an unresolved one.
+fn static_write_keys(wf: &RawWorkflow, task: &RawTask) -> Vec<String> {
+    let path = match &task.action {
+        RawAction::Invoke(invoke)
+            if matches!(
+                invoke.tool().map(|t| t.value.as_str()),
+                Some("nika:write" | "nika:edit" | "nika:remove_file")
+            ) =>
+        {
+            invoke
+                .args
+                .as_ref()
+                .and_then(|args| args.value.get("path"))
+                .and_then(serde_json::Value::as_str)
+        }
+        RawAction::Agent(agent) => (agent.images.as_ref())
+            .and_then(|images| images.value.save.as_ref())
+            .map(|save| save.value.as_str()),
+        _ => None,
     };
-    if !matches!(
-        invoke.tool().map(|t| t.value.as_str()),
-        Some("nika:write" | "nika:edit" | "nika:remove_file")
-    ) {
-        return None;
+    let Some(path) = path else {
+        return Vec::new();
+    };
+    let known = if path.contains("${{") {
+        crate::static_literal_of(wf, path)
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)
+    } else {
+        Some(path.to_owned())
+    };
+    match known {
+        Some(path) if matches!(task.action, RawAction::Agent(_)) => {
+            nika_types::access::harness_image_paths(&path)
+        }
+        Some(path) => vec![path],
+        None => crate::walk::bare_static_ref(path)
+            .map(|(authority, name)| format!("${{{{ {authority}{name} }}}}"))
+            .into_iter()
+            .collect(),
     }
-    let path = invoke.args.as_ref()?.value.get("path")?.as_str()?;
-    if !path.contains("${{") {
-        return Some(path.to_owned());
-    }
-    if let Some(lit) = crate::static_literal_of(wf, path).and_then(|v| v.as_str()) {
-        return Some(lit.to_owned());
-    }
-    crate::walk::bare_static_ref(path)
-        .map(|(authority, name)| format!("${{{{ {authority}{name} }}}}"))
 }
 
 /// The LEXICAL normal form two write paths are compared under (H5 ·
@@ -527,7 +554,7 @@ fn normalize_lexical(path: &str) -> String {
 
 /// Write-write races, statically (F-P15 · NEP-0014 law 1): two tasks
 /// that CAN run concurrently (incomparable in the closure) and both
-/// write the same STATIC key ([`static_write_key`] — a literal, a
+/// write the same STATIC key ([`static_write_keys`] — a literal, a
 /// resolved bare ref, or two identical bare immutable refs) under
 /// lexical normalization — plus the fan-out flavor
 /// ([`scan_for_each_fans`]). The LAW: each conflict is a finding (an
@@ -540,8 +567,8 @@ fn scan_parallel_writers(wf: &RawWorkflow, desc: &[Vec<u64>]) -> Vec<WriteConfli
         .tasks
         .iter()
         .enumerate()
-        .filter_map(|(i, t)| {
-            static_write_key(wf, &t.value).map(|p| {
+        .flat_map(|(i, t)| {
+            static_write_keys(wf, &t.value).into_iter().map(move |p| {
                 let n = normalize_lexical(&p);
                 (i, p, n)
             })
@@ -552,9 +579,11 @@ fn scan_parallel_writers(wf: &RawWorkflow, desc: &[Vec<u64>]) -> Vec<WriteConfli
         desc[a][b / 64] & (1u64 << (b % 64)) != 0 || desc[b][a / 64] & (1u64 << (a % 64)) != 0
     };
 
+    // One finding per racing pair: an image save shares several keys with its twin.
+    let mut judged: std::collections::BTreeSet<(usize, usize)> = std::collections::BTreeSet::new();
     for (a, (ai, ap, an)) in writers.iter().enumerate() {
         for (bi, bp, bn) in writers.iter().skip(a + 1) {
-            if an != bn || comparable(*ai, *bi) {
+            if ai == bi || an != bn || comparable(*ai, *bi) || !judged.insert((*ai, *bi)) {
                 continue;
             }
             let (first, second) = (&wf.tasks[*ai].value.id.value, &wf.tasks[*bi].value.id.value);
@@ -594,7 +623,7 @@ fn scan_for_each_fans(wf: &RawWorkflow) -> Vec<WriteConflict> {
     let mut conflicts = Vec::new();
     for t in &wf.tasks {
         if t.value.for_each.is_some()
-            && let Some(path) = static_write_key(wf, &t.value)
+            && let Some(path) = static_write_keys(wf, &t.value).into_iter().next()
         {
             let task = t.value.id.value.clone();
             conflicts.push(WriteConflict {
@@ -821,6 +850,66 @@ mod tests {
         assert_eq!(c.path, "out/same.md");
         assert!(c.detail.contains("for_each"));
         assert!(c.fix.contains("${{ item }}"));
+    }
+
+    /// Spec 02 §Harness images · an agent's `images.save` is a write (`nika:write`,
+    /// `overwrite`): two unordered saves on one path, a fan saving one path, and a
+    /// builtin write on a `-n` sibling of a save all race — one finding per pair.
+    #[test]
+    fn an_image_save_rides_the_same_path_law() {
+        let save = |id: &str, path: &str| {
+            format!(
+                "  {id}:\n    agent:\n      prompt: \"draw\"\n      images: {{ save: {path} }}\n"
+            )
+        };
+        let pair = format!(
+            "{HEADER}{}{}",
+            save("hero", "./out/banner.png"),
+            save("logo", "./out/banner.png")
+        );
+        let conflicts = read(&pair).conflicts;
+        assert_eq!(conflicts.len(), 1, "{conflicts:?}");
+        assert_eq!(conflicts[0].task, "hero");
+        assert_eq!(conflicts[0].other.as_deref(), Some("logo"));
+        assert_eq!(conflicts[0].path, "out/banner.png");
+        assert_eq!(conflicts[0].wire_code(), "NIKA-SEC-012");
+
+        let sibling = format!(
+            "{HEADER}{}  copy:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/banner-2.png\n        content: \"x\"\n",
+            save("hero", "./out/banner.png")
+        );
+        let conflicts = read(&sibling).conflicts;
+        assert_eq!(conflicts.len(), 1, "{conflicts:?}");
+        assert_eq!(
+            conflicts[0].path, "out/banner-2.png",
+            "the second image's file"
+        );
+
+        let fan = format!(
+            "{HEADER}  banners:\n    for_each: {{ items: [red, blue] }}\n    agent:\n      prompt: \"draw\"\n      images: {{ save: ./out/banner.png }}\n"
+        );
+        let conflicts = read(&fan).conflicts;
+        assert_eq!(conflicts.len(), 1, "{conflicts:?}");
+        assert_eq!(conflicts[0].task, "banners");
+        assert_eq!(conflicts[0].other, None);
+
+        let ordered = format!(
+            "{HEADER}{}  logo:\n    after: {{ hero: success }}\n    agent:\n      prompt: \"draw\"\n      images: {{ save: ./out/banner.png }}\n",
+            save("hero", "./out/banner.png")
+        );
+        assert!(
+            read(&ordered).conflicts.is_empty(),
+            "ordered saves are legal"
+        );
+        let apart = format!(
+            "{HEADER}{}{}",
+            save("hero", "./out/hero.png"),
+            save("logo", "./out/logo.png")
+        );
+        assert!(
+            read(&apart).conflicts.is_empty(),
+            "distinct paths never race"
+        );
     }
 
     #[test]

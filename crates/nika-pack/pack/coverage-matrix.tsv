@@ -374,3 +374,7 @@ types	NIKA-TYPE-003	check-reject	conformance/tests/core/schema-files/016-schema-
 types	NIKA-TYPE-007	check-reject	conformance/tests/core/schema-files/017-schema-file-yaml-alias-refused
 types	NIKA-PARSE	check-reject	conformance/tests/core/schema-files/018-schema-file-invalid-schema-refused
 composition	NIKA-TYPE-007	check-reject	conformance/tests/deep/composition/017-child-schema-file-without-a-schema-refused
+verbs	(positive)	positive-check	conformance/tests/core/verbs-shape/029-agent-images-save-valid
+verbs	NIKA-PARSE	check-reject	conformance/tests/core/verbs-shape/030-agent-images-unknown-key-refused
+authority	NIKA-AUTH-006	check-reject	conformance/tests/core/authority/039-agent-images-save-absent-permits-refused
+authority	NIKA-SEC-004	check-reject	conformance/tests/core/authority/040-agent-images-save-outside-write-refused

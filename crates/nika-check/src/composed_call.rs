@@ -562,8 +562,9 @@ fn own_reach(wf: &RawWorkflow, declared: Option<&Permits>) -> Reach {
                 opaque.net = true;
                 opaque.fs = true;
             }
-            // A harness can serve it, and judges its asks against exec + fs.
-            RawAction::Agent(a) if a.schema.is_none() && a.schema_file.is_none() => {
+            // A harness can serve it (its `schema:` is validated on the seat's final message),
+            // and judges its asks against exec + fs.
+            RawAction::Agent(_) => {
                 opaque.exec = true;
                 opaque.fs = true;
             }

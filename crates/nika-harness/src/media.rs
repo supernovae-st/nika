@@ -11,7 +11,8 @@ use sha2::{Digest as _, Sha256};
 // The adapter duplicates base64 in content and rawOutput; its 18 MiB wire bound
 // leaves room for both copies of this 8 MiB total. Receipts carry metadata only.
 const MAX_BASE64_TOTAL: usize = 8 * 1024 * 1024;
-const MAX_IMAGES: usize = 4;
+// The bound every `images.save` judge reads too (`-n` siblings · spec 02 §Harness images).
+const MAX_IMAGES: usize = nika_types::access::MAX_HARNESS_IMAGES;
 const MAX_TRACKED: usize = 16;
 const MAX_PATH: usize = 4096;
 

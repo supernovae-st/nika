@@ -126,6 +126,7 @@ const LEGAL_KEYS: &[&str] = &[
     "skills",
     "max_turns",
     "max_tokens_total",
+    "images",
     "type",
     "default",
     "required",

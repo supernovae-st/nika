@@ -65,6 +65,9 @@ pub(super) struct WorkflowIndex<'a> {
     /// full precision · owned: the lowering is a projection, not a
     /// borrow of the AST).
     lowered: BTreeMap<String, serde_json::Value>,
+    /// task id → `{ message, images }` for an `agent:` with `images:` (spec 02 §Harness
+    /// images): its `.output` wraps the schema the message matches, so the walk reads this.
+    imaged: BTreeMap<String, serde_json::Value>,
 }
 
 impl<'a> WorkflowIndex<'a> {
@@ -97,6 +100,7 @@ impl<'a> WorkflowIndex<'a> {
                 schemas.insert(task.value.id.value.as_str(), schema);
             }
         }
+        let lowered = super::types_contract::lowered_returns(wf);
         Self {
             inputs: wf.inputs.iter().map(|(k, _)| k.value.as_str()).collect(),
             consts: wf.consts.iter().map(|(k, _)| k.value.as_str()).collect(),
@@ -110,18 +114,20 @@ impl<'a> WorkflowIndex<'a> {
                 .collect(),
             bindings,
             schemas,
-            lowered: super::types_contract::lowered_returns(wf),
+            imaged: super::types_contract::images_outputs(wf, &lowered),
+            lowered,
         }
     }
 
     /// The declared output contract of a task, as a walkable JSON
     /// Schema · a verb-level `schema:` OR the `lower(returns)`
     /// projection (spec 09 — `NIKA-TYPE-003` forbids both, so at most
-    /// one exists; `returns:` reads through the same door).
+    /// one exists; `returns:` reads through the same door) · under an
+    /// agent's `images:`, the `{ message, images }` object that wraps it.
     pub(super) fn schema_of(&self, task_id: &str) -> Option<&serde_json::Value> {
-        self.schemas
+        self.imaged
             .get(task_id)
-            .copied()
+            .or_else(|| self.schemas.get(task_id).copied())
             .or_else(|| self.lowered.get(task_id))
     }
 }

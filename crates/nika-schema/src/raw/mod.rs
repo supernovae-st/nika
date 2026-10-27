@@ -12,8 +12,8 @@ pub mod task;
 pub mod workflow;
 
 pub use action::{
-    ProjectFileRef, RawAction, RawAgentAction, RawCommand, RawExecAction, RawInferAction,
-    RawInvokeAction, RawInvokeTarget, Thinking, VisionInput,
+    ProjectFileRef, RawAction, RawAgentAction, RawAgentImages, RawCommand, RawExecAction,
+    RawInferAction, RawInvokeAction, RawInvokeTarget, Thinking, VisionInput,
 };
 pub use task::{ForEachValue, LiftEntry, LiftLaw, RawTask};
 pub use workflow::RawWorkflow;

@@ -56,6 +56,10 @@ pub struct HarnessRequest {
     /// refuses. `None` keeps the harness's own mode (the one-shot and conversation profiles,
     /// which close their surfaces their own way).
     pub confinement: Option<HarnessConfinement>,
+    /// Images sent with the prompt as ACP image content blocks (an `infer:` task's `vision:`
+    /// files). The client sends them only to an agent whose `initialize` advertises image
+    /// prompts (`promptCapabilities.image`), and refuses before the session otherwise.
+    pub images: Vec<HarnessPromptImage>,
 }
 
 impl HarnessRequest {
@@ -70,7 +74,15 @@ impl HarnessRequest {
             requested_mode: None,
             requested_effort: None,
             confinement: None,
+            images: Vec::new(),
         }
+    }
+
+    /// Send `images` with the prompt (see [`Self::images`]).
+    #[must_use]
+    pub fn with_images(mut self, images: Vec<HarnessPromptImage>) -> Self {
+        self.images = images;
+        self
     }
 
     /// Require the session to hold `confinement` (NIK-266).
@@ -105,6 +117,28 @@ impl HarnessRequest {
     pub fn with_requested_mode(mut self, mode: impl Into<String>) -> Self {
         self.requested_mode = Some(mode.into());
         self
+    }
+}
+
+/// One image sent with a prompt: its media type and its bytes, base64-encoded as the ACP
+/// image content block carries them. Read by the caller from a declared file; never fetched.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct HarnessPromptImage {
+    /// The media type (`image/png` · `image/jpeg` …), from the bytes' own signature.
+    pub mime_type: String,
+    /// The image bytes, standard base64.
+    pub data: String,
+}
+
+impl HarnessPromptImage {
+    /// Construct (INV-019).
+    #[must_use]
+    pub fn new(mime_type: impl Into<String>, data: impl Into<String>) -> Self {
+        Self {
+            mime_type: mime_type.into(),
+            data: data.into(),
+        }
     }
 }
 
@@ -491,6 +525,10 @@ pub struct HarnessImage {
     pub sha256: Option<String>,
     /// The peer's savedPath claim. No file was opened or verified by the client.
     pub reported_saved_path: Option<String>,
+    /// The project-relative path where the ENGINE wrote the received bytes, for a task that
+    /// declares `images: { save: }`. Its digest is [`Self::sha256`]: the bytes are the
+    /// received ones. Never the peer's claim.
+    pub saved_path: Option<String>,
 }
 impl HarnessImage {
     /// Start an observation with no bytes, MIME or file claim.
@@ -505,6 +543,7 @@ impl HarnessImage {
             storage_failure: None,
             sha256: None,
             reported_saved_path: None,
+            saved_path: None,
         }
     }
 
@@ -527,14 +566,19 @@ impl HarnessImage {
     /// Additive receipt evidence, separate from a task's text output and authority.
     #[must_use]
     pub fn observation(&self) -> serde_json::Value {
-        serde_json::json!({"schema": "nika/harness-image-observation@1",
+        let mut observation = serde_json::json!({"schema": "nika/harness-image-observation@1",
             "source": "harness_reported", "tool_call_id": self.tool_call_id,
             "mime_type": self.mime_type, "received_bytes": self.received_bytes,
             "blob": self.stored_blob.as_ref().map(|blob| serde_json::json!({
                 "hash": blob.hash, "mime_type": blob.mime_type, "size": blob.size})),
             "storage": self.storage(), "storage_failure": self.storage_failure,
             "received_sha256": self.sha256, "reported_saved_path": self.reported_saved_path,
-            "file_verified": false, "permission_evidence": "separate permit_checked frames"})
+            "file_verified": false, "permission_evidence": "separate permit_checked frames"});
+        // Additive (spec 17): only an image the engine wrote names where.
+        if let (Some(path), Some(fields)) = (&self.saved_path, observation.as_object_mut()) {
+            fields.insert("saved_path".to_owned(), serde_json::json!(path));
+        }
+        observation
     }
 }
 

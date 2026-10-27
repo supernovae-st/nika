@@ -772,4 +772,46 @@ tasks:
             "expected an OutputPathProvablyInvalid for `prod`, got {errors:?}"
         );
     }
+
+    /// Whether `reference` (read off `tasks.draw.output`) is provably invalid for an agent that
+    /// declares `images:` plus `contract` (a `schema:`/`returns:` line, or nothing).
+    fn images_ref_refused(contract: &str, reference: &str) -> bool {
+        let yaml = format!(
+            "nika: t\ntasks:\n  draw:\n{contract}    agent:\n      prompt: \"draw\"\n      \
+             images: {{ save: ./out/a.png }}\n  use:\n    with: {{ x: \"${{{{ tasks.draw.output.{reference} }}}}\" }}\n    \
+             infer: {{ prompt: \"${{{{ with.x }}}}\" }}\n"
+        );
+        let wf = nika_schema::parser::parse(
+            &yaml,
+            nika_schema::source::FileId::new(0),
+            nika_schema::parser::ParseMode::Strict,
+        )
+        .expect("parse");
+        crate::analyze(&wf).err().unwrap_or_default().iter().any(
+            |e| matches!(e, SchemaError::OutputPathProvablyInvalid { task, .. } if task == "draw"),
+        )
+    }
+
+    /// Spec 02 §Harness images · with `images:` the task's `.output` is `{ message, images }`:
+    /// the forms the spec teaches (`images[0].path`, `message.<key>`) resolve, while the bare
+    /// schema key the run never puts at the top, a misspelled image field and a key read off a
+    /// plain-text message are provably invalid.
+    #[test]
+    fn an_images_task_output_is_the_message_and_its_images() {
+        let schema = "    returns: { object: { a: string } }\n";
+        assert!(!images_ref_refused(schema, "images[0].path"));
+        assert!(!images_ref_refused(schema, "images[0].sha256"));
+        assert!(!images_ref_refused(schema, "message.a"));
+        assert!(
+            images_ref_refused(schema, "a"),
+            "the object sits under message"
+        );
+        assert!(images_ref_refused(schema, "images[0].pth"));
+        assert!(!images_ref_refused("", "message"));
+        assert!(!images_ref_refused("", "images[1].width"));
+        assert!(
+            images_ref_refused("", "message.a"),
+            "a seat's final message is text"
+        );
+    }
 }

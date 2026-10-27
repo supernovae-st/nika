@@ -104,6 +104,80 @@ not rely on `permits:` alone on a harness seat: run it on an API or local model
 (the native agent loop judges every tool call), or in a container or a
 throwaway checkout.
 
+## Images and structured answers on a seat
+
+An application such as Codex can generate images during an `agent:` turn.
+Declare `images:` on the task to use them in the workflow:
+
+```yaml
+banner:
+  agent:
+    prompt: "Draw a 16:9 release banner, no text"
+    images:
+      save: ./out/release/banner.png   # optional
+halftone:
+  with:
+    banner: ${{ tasks.banner.output.images[0].path }}
+  invoke:
+    tool: nika:image_fx
+    args: { input: "${{ with.banner }}", out: ./out/release/banner-halftone.png, ops: [{ halftone: {} }] }
+```
+
+- `.output` becomes `{ message, images }`. `message` holds what `.output`
+  would hold without `images:`. Each image carries `index` (from 0), `path`,
+  `sha256`, `size_bytes`, `mime_type`, `width` and `height`.
+- Only the bytes the application sent on **this task's own session** count.
+  The application also reports a path where it kept a copy (Codex: a folder
+  under `~/.codex/generated_images` that every session on the machine
+  shares). Nika never opens that path and never lists it as an image, so a
+  task cannot pick up another session's image. Do not ask the application to
+  copy its image into the project; declare `save:` instead.
+- With `save:`, Nika writes the received bytes at that path through
+  `nika:write`, inside `permits.fs.write` (`NIKA-SEC-004` outside it). A
+  second image lands at `banner-2.png`, a third at `banner-3.png`, up to
+  four. Every path is judged before any file is written: `nika check` judges
+  all four for a literal path (grant the directory, `./out/release/**`, or
+  the four files `--infer-permits` lists), and the run judges the received
+  ones before the first write. The written file has the digest of the
+  received bytes. A task whose session delivered no image fails
+  `NIKA-AGENT-007` instead of succeeding with no file.
+- A save is a write: two tasks that can run at the same time and save on one
+  path, a `for_each` task that saves one path, or a save beside a
+  `nika:write` of one of its files are refused (`NIKA-SEC-012`), like two
+  `nika:write` tasks. Order them with `after:` or give each its own path.
+- Nika recognises the image tool of Codex. On another application,
+  `images: { save: }` receives nothing and fails `NIKA-AGENT-007`.
+- `images:` belongs to a task on a seat. On an API or local model, `nika
+  check` names it as a blocker and the run refuses it (`NIKA-465`): the
+  engine's own loop gets its images from `nika:image_generate`.
+
+A `schema:` on such a task is validated by Nika: the prompt carries the
+schema, the final message must contain a JSON value that satisfies it, and
+the validated object becomes the output (`message` under `images:`). There is
+no repair turn on a seat, because a new session would replay the agent's
+work; a final message that does not validate fails `NIKA-INFER-002`.
+
+An `infer:` task over ACP (`run.access.protocol: acp`) runs one tool-free
+turn. It carries:
+
+- `schema:`: the prompt carries the schema and Nika validates the answer. An
+  answer that does not validate is never the output: Nika asks again in a
+  new one-turn session that receives the earlier answer and the errors, up to
+  the repair budget, then fails `NIKA-INFER-002`. Each repair is one more
+  prompt on your subscription.
+- `vision:` files, sent as ACP image blocks, when the application declares
+  image prompts at `initialize` (codex-acp and claude-agent-acp do). An
+  application that does not is refused before the session starts, and so is
+  a file whose bytes do not start with a PNG, JPEG, GIF or WebP signature.
+  As on an API route, a `vision:` file is read without a `permits.fs.read`
+  check: point it only at files you mean to send to the model.
+
+It cannot carry `temperature`, `max_tokens`, an enabled `thinking` budget or
+a `vision:` URL (Nika does not fetch it). The run refuses those before
+anything is sent (`NIKA-432`), and `nika check` names them as blockers instead
+of reporting the file run-ready. On a seated task, `check` also stops
+suggesting `max_tokens` or `max_tokens_total`.
+
 ## Reading the trace
 
 Each harness `agent:` task journals, in order:
@@ -124,4 +198,8 @@ Each harness `agent:` task journals, in order:
   reads `<unresolved>`). A run paused on that question still journals the
   task's decisions, just before its `workflow_paused` frame;
 - one `permit_checked` with decision `deny` for each file or terminal method the
-  harness called and Nika refused.
+  harness called and Nika refused;
+- one `agent_image_observed` per image: the digest and size of the received
+  bytes, the local blob, the path the harness reported (never opened) and,
+  under `images: { save: }`, the `saved_path` Nika wrote. `nika serve` lists
+  that file among the run's artifacts with the received digest.
