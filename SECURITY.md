@@ -2,16 +2,19 @@
 
 ## Supported Versions
 
-Nika 0.123 is the open-source reference release. It is maintained: security
-fixes land on `main` and ship as 0.123.x patch releases. Report against the
-latest release or `main`.
+0.124 is the current release line. Work stays focused on maintenance,
+security and the media capabilities workflows need; native video is planned
+for 0.125. Security fixes land on `main`, the only maintenance branch, and
+ship in the next release. The 0.123.x line is the previous one and receives
+no further patches. Report against the latest release or `main`.
 
-| Version or branch        | Status                     | Security fixes |
-|--------------------------|----------------------------|----------------|
-| 0.123.x (latest release) | maintained                 | ✅ yes         |
-| `main`                   | maintenance branch         | ✅ yes         |
-| older than 0.123         | unsupported: upgrade       | ❌ no          |
-| `brouillon`              | read-only legacy (v0.79.3) | ❌ frozen      |
+| Version or branch        | Status                            | Security fixes |
+|--------------------------|-----------------------------------|----------------|
+| 0.124.x (latest release) | maintained                        | ✅ yes         |
+| `main`                   | maintenance branch                | ✅ yes         |
+| 0.123.x                  | previous line: upgrade to 0.124.x | ❌ no          |
+| older than 0.123         | unsupported: upgrade              | ❌ no          |
+| `brouillon`              | read-only legacy (v0.79.3)        | ❌ frozen      |
 
 ## Reporting a Vulnerability
 
@@ -41,16 +44,16 @@ substantive response (initial triage + ETA) within **7 days**.
 We aim for **≤90 days** between report and public disclosure for
 non-trivial vulnerabilities, shorter for actively-exploited issues.
 
-## Defense Layers in 0.123
+## Defense Layers in 0.124
 
 What the released engine enforces. Every code below resolves with
-`nika explain <code>` on 0.123.0; most are refused by `nika check` before a
+`nika explain <code>` on 0.124.0; most are refused by `nika check` before a
 run starts, and the runtime enforces the same boundary again.
 
 | Code | Layer | Defense |
 |---|---|---|
 | `NIKA-AUTH-006` | Default deny | a workflow with effects and no `permits:` block has zero authority |
-| `NIKA-SEC-004` | Capability boundary | an effect outside the declared `permits:` (fs · net · exec · tool) is refused |
+| `NIKA-SEC-004` | Capability boundary | an effect outside the declared `permits:` (fs · net · exec · tool) is refused, including an `infer:` `vision:` file outside `permits.fs.read` |
 | `NIKA-SEC-001` | Shell floor | `exec` refused before the child spawns on a destructive or privilege pattern, whatever the permits say |
 | `NIKA-SEC-002` | Agent tool whitelist | an agent's tool call outside its `tools:` list is refused |
 | `NIKA-SEC-003` | Recursion bound | nested-run depth exceeded, or a self-launching workflow |
@@ -64,13 +67,17 @@ run starts, and the runtime enforces the same boundary again.
 | `NIKA-SEC-015` | Order law | an `exec:` task runs downstream of a network effect |
 | `NIKA-1710` · `NIKA-1711` | OS sandbox | `exec` children and MCP servers run confined (macOS Seatbelt · Linux bubblewrap); a host that cannot confine a `permits:`-declaring workflow with `exec:` children refuses to run it, and a mistyped `NIKA_SANDBOX` refuses to start |
 
+<!-- TODO(nika-spec#400): re-check the NIKA-SEC-004 row's vision clause against
+     nika-spec#400 and the engine pull request that implements it, once both
+     have merged, then delete this comment. -->
+
 Without a code `nika explain` resolves:
 
 - **MCP definition pins.** `nika mcp approve <server>` pins each tool's
   definition; a run refuses an unapproved tool (`NIKA-MCP-006`) or a server
   whose definitions drifted (`NIKA-MCP-003`). The refusal names its remedy,
   `nika mcp approve <server>`; the `nika explain` it also suggests does not
-  know these two codes in 0.123.0
+  know these two codes in 0.124.0
   ([docs/ops/mcp-servers.md](docs/ops/mcp-servers.md)).
 - **Tamper-evident, signed runs.** Every run journal is hash-chained, and
   runs are signed once `nika key init` minted a run-signing key;
@@ -129,4 +136,4 @@ here once fixes ship. Anonymity respected on request.
 - [ADR-002 — release model](docs/adr/adr-002-forever-v0x.md)
 - [ADR-014 — Sealed kernel traits](docs/adr/adr-014-sealed-kernel-traits.md)
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — what contributions are in scope, and the 12-gate process
-- [Known limits in 0.123](https://docs.nika.sh/changelog/known-limits) — what the release does not do, each with a way around it
+- [Known limits in 0.124](https://docs.nika.sh/changelog/known-limits) — what the release does not do, each with a way around it
