@@ -520,10 +520,12 @@ pub fn namespace_help(code: &str, docs: &str) -> Option<String> {
             let category = builtin_contract_category(&name, &num)
                 .map(|category| format!(" · {category}"))
                 .unwrap_or_default();
+            // A code whose recovery is not a contract never offers it.
+            let footer = builtin_contract_footer(&name, &num)
+                .unwrap_or("Valid in `retry.on_codes:` and `on_error.on_codes:`");
             return Some(format!(
                 "{code} · builtin{category} · the `nika:{name}` contract\n\n{contract}\n  \
-                 Valid in `retry.on_codes:` and `on_error.on_codes:` — \
-                 see spec stdlib (builtins) · {docs}.\n"
+                 {footer} — see spec stdlib (builtins) · {docs}.\n"
             ));
         }
         return Some(format!(
@@ -682,6 +684,15 @@ fn media_contract_help(name: &str, num: &str) -> Option<&'static str> {
 fn builtin_contract_category(name: &str, num: &str) -> Option<&'static str> {
     match name {
         "video_compose" => video_compose::help(num).map(|(category, _)| category),
+        _ => None,
+    }
+}
+
+/// The footer of a per-builtin code whose recovery the contract does not
+/// promise (`nika:video_compose`'s host codes), in place of the namespace's.
+fn builtin_contract_footer(name: &str, num: &str) -> Option<&'static str> {
+    match name {
+        "video_compose" => video_compose::footer(num),
         _ => None,
     }
 }

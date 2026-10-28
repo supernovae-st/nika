@@ -6,6 +6,17 @@
 //! `image_fx`'s ladder for `-001` to `-006`, the generators' `-007`, then
 //! the encoder's own `-008` to `-011`.
 
+/// The footer of a code whose recovery is not a contract (stdlib
+/// §`nika:video_compose` · Refusing early): an engine that refuses the
+/// launch never reaches a workflow's recovery. `None` keeps the namespace
+/// footer.
+pub(super) fn footer(num: &str) -> Option<&'static str> {
+    matches!(num, "010" | "011").then_some(
+        "Listing it in `retry.on_codes:` or `on_error.on_codes:` is accepted, but recovering \
+         from it is not a contract: an engine that refuses the launch never reaches the recovery",
+    )
+}
+
 /// `(category, lesson)` of `NIKA-BUILTIN-VIDEO_COMPOSE-<num>`, `None` for a
 /// number the contract does not allocate.
 pub(super) fn help(num: &str) -> Option<(&'static str, &'static str)> {
@@ -120,10 +131,11 @@ const NO_ENCODER: &str = "  No usable encoder on this host (the message names wh
      never a fall-through), else the first trusted candidate among \
      /opt/homebrew/bin/ffmpeg, /usr/local/bin/ffmpeg and /usr/bin/ffmpeg — PATH is never \
      consulted. A candidate is trusted when its canonical path is a regular executable and \
-     no directory above it is writable by others; a program the workflow's \
-     `permits.fs.write` could write is refused on every call. The floor is FFmpeg 6.0 \
-     (libavformat and libavcodec 60 or later) with libx264 and the requested audio encoder \
-     (aac · flac). An engine build that carries no video backend refuses here too. Never a \
+     no directory above the candidate or above its canonical path is writable by others; a \
+     program the workflow's `permits.fs.write` could write is refused on every call. The \
+     floor is FFmpeg 6.0 (libavformat and libavcodec 60 or later) with libx264 and the \
+     requested audio encoder (aac · flac). An operating system other than macOS and Linux \
+     is refused here, and so is an engine build that carries no video backend. Never a \
      fallback to another program or codec. The engine includes, links and distributes no \
      codec: it starts your own ffmpeg, whose build carries its own licence.\n\n  \
      exits (pick one):\n    \
@@ -200,6 +212,41 @@ mod tests {
             "libx264",
         ] {
             assert!(resolution.contains(candidate), "{candidate}: {resolution}");
+        }
+    }
+
+    /// Recovering from `-010` or `-011` is not a contract a workflow can rely
+    /// on (an engine that refuses the launch never reaches the recovery):
+    /// their pages never offer `on_codes:` as a way out. The other codes keep
+    /// the namespace footer.
+    #[test]
+    fn the_host_codes_never_offer_recovery_as_a_contract() {
+        let footer = "Valid in `retry.on_codes:` and `on_error.on_codes:`";
+        for num in ["010", "011"] {
+            let code = format!("NIKA-BUILTIN-VIDEO_COMPOSE-{num}");
+            let help = namespace_help(&code, "docs").expect("teaches");
+            assert!(!help.contains(footer), "{help}");
+            assert!(
+                help.contains("recovering from it is not a contract")
+                    && help.contains("refuses the launch"),
+                "{help}"
+            );
+        }
+        let help = namespace_help("NIKA-BUILTIN-VIDEO_COMPOSE-002", "docs").expect("teaches");
+        assert!(help.contains(footer), "{help}");
+    }
+
+    /// `-010` states the trust rule and the platform case as the contract
+    /// does: no directory above the candidate or above its canonical path is
+    /// writable by others, and a host other than macOS and Linux is refused.
+    #[test]
+    fn the_no_encoder_page_states_the_trust_rule_whole() {
+        let help = namespace_help("NIKA-BUILTIN-VIDEO_COMPOSE-010", "docs").expect("teaches");
+        for clause in [
+            "no directory above the candidate or above its canonical path is writable by others",
+            "operating system other than macOS and Linux is refused",
+        ] {
+            assert!(help.contains(clause), "{clause}: {help}");
         }
     }
 
