@@ -69,6 +69,9 @@ pub(super) fn lane(
                 if let Some(verdict) = access_refusal(plan, output_json) {
                     return verdict;
                 }
+                if let Some(verdict) = seat_refusal(&wf, &report, plan, output_json || json) {
+                    return verdict;
+                }
                 return RunVerdict::bare(verdict(file, &wf, &report, plan, json, theme));
             }
             Err(refused) => {
@@ -91,6 +94,9 @@ pub(super) fn lane(
     if let Some(verdict) = access_refusal(plan, output_json) {
         return verdict;
     }
+    if let Some(verdict) = seat_refusal(wf, report, plan, output_json || json) {
+        return verdict;
+    }
     RunVerdict::bare(verdict(file, wf, report, plan, json, theme))
 }
 
@@ -104,6 +110,31 @@ fn access_refusal(plan: &ExecutionAccessPlan, output_json: bool) -> Option<RunVe
             output_json,
         ))
     })
+}
+
+/// What the run's seat cannot honour (spec 02 §Subscription harness access: a non-executing
+/// preview applies the same access admission meet as a live run): the run refuses the task
+/// before anything is sent (NIKA-432 · NIKA-465), so the preview refuses with the same lines
+/// `check` blocks RUN READY on. The remedy is an edit to the file, hence its exit (2).
+fn seat_refusal(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    plan: &ExecutionAccessPlan,
+    machine: bool,
+) -> Option<RunVerdict> {
+    let lines = seat_lines(wf, report, plan)?;
+    super::epilogue::emit_diagnostic(&lines, machine);
+    Some(RunVerdict::bare(exit::FILE))
+}
+
+/// The seat blockers of `wf` under `plan`, one per line; `None` when its seats carry it.
+fn seat_lines(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    plan: &ExecutionAccessPlan,
+) -> Option<String> {
+    let blockers = nika_cli_host::oracle::seat_blockers(wf, report, plan);
+    (!blockers.is_empty()).then(|| blockers.join("\n"))
 }
 
 fn verdict(
@@ -303,6 +334,63 @@ mod tests {
                 .as_str()
                 .is_some_and(|budget| budget == "subscription_quota")
         );
+    }
+
+    /// `run.access: { via: codex, protocol: acp }` cannot carry `max_tokens` (the run
+    /// refuses it, NIKA-432, before anything is sent): the preview refuses it too, with the
+    /// field named and the file's exit, where it used to print `dry-run · plan only`.
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn a_field_the_seat_cannot_carry_refuses_the_preview() {
+        let seated = |body: &str| {
+            format!(
+                "nika: preview\nmodel: openai/gpt-5.2\nrun: {{ access: {{ via: codex, protocol: \
+                 acp }} }}\ntasks:\n  answer:\n    infer: {{ prompt: \"say hi\"{body} }}\n"
+            )
+        };
+        for (body, code) in [
+            (", max_tokens: 400", super::exit::FILE),
+            ("", super::exit::OK),
+        ] {
+            let source = seated(body);
+            let wf = nika_schema::parse(
+                &source,
+                nika_schema::FileId::new(0),
+                nika_schema::ParseMode::Strict,
+            )
+            .expect("fixture parses");
+            let report = nika_check::check(&wf);
+            assert!(report.is_clean(), "{source}");
+            let lines = super::seat_lines(&wf, &report, &seated_plan());
+            assert_eq!(
+                lines.is_some(),
+                code == super::exit::FILE,
+                "{source}: {lines:?}"
+            );
+            if let Some(lines) = lines {
+                assert!(
+                    lines.contains("NIKA-432") && lines.contains("`max_tokens`"),
+                    "{lines}"
+                );
+            }
+            for model_override in [None, Some("openai/gpt-5.2")] {
+                let verdict = super::lane(
+                    "preview.nika",
+                    &source,
+                    &wf,
+                    &report,
+                    &nika_schema::ResolvedSkills::default(),
+                    nika_display::check_render::RepairTarget::Stdin,
+                    model_override,
+                    &seated_plan(),
+                    false,
+                    crate::Theme::new(false, true, false),
+                    false,
+                );
+                assert_eq!(verdict.code, code, "{source} · {model_override:?}");
+                assert!(verdict.trace.is_none());
+            }
+        }
     }
 
     /// No pin, no lane (a file with no inference): the payload is left

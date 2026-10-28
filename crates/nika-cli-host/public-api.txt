@@ -2113,6 +2113,7 @@ pub fn nika_cli_host::oracle::judge(wf: &nika_schema::raw::workflow::RawWorkflow
 pub fn nika_cli_host::oracle::model_finding_rows(findings: &[nika_display::check_models::ModelFinding]) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_cli_host::oracle::native_hints(report: &nika_check::CheckReport) -> usize
 pub fn nika_cli_host::oracle::project_file_reader(base: &std::path::Path) -> impl core::ops::function::FnMut(&str) -> core::result::Result<alloc::vec::Vec<u8>, nika_schema::project_file::ProjectFileRead> + use<>
+pub fn nika_cli_host::oracle::seat_blockers(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, plan: &nika_providers::plan::ExecutionAccessPlan) -> alloc::vec::Vec<alloc::string::String>
 pub type nika_cli_host::oracle::Reader<'a> = &'a mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub mod nika_cli_host::output
 pub mod nika_cli_host::output::exit
