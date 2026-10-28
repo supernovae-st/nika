@@ -327,16 +327,25 @@ fn every_scalar_refusal_names_its_rule() {
 
 // ── check ≡ run ───────────────────────────────────────────────────
 
-/// What the static check says about a LITERAL call: its shape rules, the
-/// catalog row's unknown keys, and its two required arguments.
+/// The catalog row the static check reads its argument set from IS the
+/// contract's: the same keys in the same order, `segments` and `out`
+/// required.
+#[test]
+fn the_catalog_row_is_the_contracts_argument_set() {
+    let row = nika_catalog::find_builtin("video_compose").expect("a catalog row");
+    assert_eq!(row.args, nika_cap::video::ARGS);
+    assert_eq!(row.required, ["segments", "out"]);
+}
+
+/// What the static check says about a LITERAL call: its shape rules, then
+/// the catalog row's unknown keys and required arguments.
 fn check_refuses(args: &Value) -> bool {
     let shape = nika_cap::builtin_shape_findings(nika_cap::video::TOOL, Some(args));
+    let row = nika_catalog::find_builtin("video_compose").expect("a catalog row");
     let object = args.as_object();
-    let unknown = object.is_some_and(|m| {
-        m.keys()
-            .any(|k| !nika_cap::video::ARGS.contains(&k.as_str()))
-    });
-    let missing = ["segments", "out"]
+    let unknown = object.is_some_and(|m| m.keys().any(|k| !row.args.contains(&k.as_str())));
+    let missing = row
+        .required
         .iter()
         .any(|k| object.is_none_or(|m| !m.contains_key(*k)));
     !shape.is_empty() || unknown || missing
