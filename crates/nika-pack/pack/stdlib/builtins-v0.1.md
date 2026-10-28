@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Builtins
 
-> **<!-- canon:builtins -->30<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
+> **<!-- canon:builtins -->31<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
 > Invoked via `invoke: { tool: "nika:<name>" }`. Plus the remaining media
 > builtins deferred to stdlib v0.x (opt-in feature flag).
 >
@@ -40,10 +40,10 @@
 | Data | 8 | `jq` (THE data language) + 7 capabilities jq can't express (json_diff · validate · json_merge_patch · convert · uuid · date · hash) |
 | Introspection | 2 | Self-awareness · `inspect` (runtime state · 4 views) · `compose` (static check of a drafted workflow · agent loops only) |
 | Network | 2 | fetch (HTTP+extraction) · notify (alerts out) |
-| Media | 5 | `chart` (§Media #4 · deterministic/attested · 2026-07-09) · `image_compose` (§Media #5 · deterministic composition · 2026-10-26) · `image_generate` (§Media · 2026-07-05) · `image_fx` (§Media #3 · deterministic ops chain · 2026-07-09) · `tts_generate` (§Audio · 2026-07-05) — the REST of the media class stays deferred to stdlib v0.x |
-| **Total v0.1** | **<!-- canon:builtins -->30<!-- /canon -->** | |
+| Media | 6 | `chart` (§Media #4 · deterministic/attested · 2026-07-09) · `image_compose` (§Media #5 · deterministic composition · 2026-10-26) · `image_generate` (§Media · 2026-07-05) · `image_fx` (§Media #3 · deterministic ops chain · 2026-07-09) · `tts_generate` (§Audio · 2026-07-05) · `video_compose` (§Media #6 · native video assembly · 2026-10-28) — the REST of the media class stays deferred to stdlib v0.x |
+| **Total v0.1** | **<!-- canon:builtins -->31<!-- /canon -->** | |
 
-A Stdlib v0.1-compliant engine MUST ship these <!-- canon:builtins -->30<!-- /canon -->.
+A Stdlib v0.1-compliant engine MUST ship these <!-- canon:builtins -->31<!-- /canon -->.
 
 ---
 
@@ -691,7 +691,7 @@ infer.
 
 ---
 
-## Media builtins (5)
+## Media builtins (6)
 
 
 ### `nika:chart` · deterministic chart artifacts (§Media graduate #4)
@@ -1171,6 +1171,464 @@ unwired plane · no system synthesizer on this host · `validation_error`) ·
 failed (`tool_error`) · `-007` payload validation (`tool_error`) — the
 image twin's category ladder, code for code.
 
+---
+
+### `nika:video_compose` · native video assembly (§Media graduate #6)
+
+```yaml
+invoke:
+  tool: "nika:video_compose"
+  args:
+    segments:                                # 1..=200 stills, in playback order
+      - { image: out/frames/scene-1.png, audio: out/voice/scene-1.wav, pad_ms: 600 }
+      - { image: out/frames/scene-2.png, audio: out/voice/scene-2.wav, pad_ms: 600 }
+      - { image: out/frames/credits.png, duration_ms: 3000 }   # a still with no clip
+    out: out/storyboard.mp4                  # the artifact · .mp4 (write-gated)
+    size: "1280x720"                         # default · even sides
+    fps: 25                                  # default
+    scale: fit                               # fit (default) | fill | none
+    audio_codec: aac                         # aac (default) | flac
+```
+
+Teaching shape · [`video-compose-storyboard`](../examples/video-compose-storyboard.nika)
+(two photos and two mock narration clips · no `exec:` · no key).
+
+The §Media graduate #6 — still images and their narration become ONE
+video: an MP4 with H.264 video and AAC-LC or FLAC audio, cut from still to
+still. Audio is the clock: each still holds for its clip (plus `pad_ms`)
+or for its `duration_ms`, and the picture follows to the nearest frame.
+The engine reads, checks and decodes every input itself, lays each still
+out with `image_compose`'s geometry and builds the audio master, then
+drives the ffmpeg installed on the host as its encoder, inside its own
+confinement. The workflow declares no `exec:`, needs no `permits.exec` and
+names no program: no argument or value names the encoder, so a later
+native backend honours every workflow written against this contract. The
+artifact lands on disk; outputs carry its receipt (path · sha256 ·
+durations · frame and sample counts · the backend that encoded it), never
+bytes.
+
+| Arg | Contract |
+|---|---|
+| `segments` | REQUIRED · one or more items in playback order (more than 200 is the segment budget, `-005`) · each a CLOSED map with the keys `image` · `audio` · `duration_ms` · `pad_ms` (another key is `-001`) · a templated whole list, or an element that is itself a template, is resolved and judged at run |
+| `segments[].image` | REQUIRED · a **media reference**: a path string, or an object carrying BOTH a string `path` and a string `sha256` of exactly 64 lowercase hex digits, the form every Nika producer writes — either key missing is `-001`, so a misspelt key can never drop the binding silently, and so is a digest of any other form (uppercase included); other keys are ignored, so a producer's output object passes as it is (`image_generate`'s `images[i]` · the outputs of `image_fx` and `image_compose`) · the bytes read MUST hash to `sha256` when one is given (`-004`) · **PNG v1** under the `image_fx` input law (depth 8 · gray, gray+alpha, RGB or RGBA · no Adam7 — anything else `-003`) · the read rides `permits.fs.read` |
+| `segments[].audio` | OPTIONAL · a media reference to a **WAV** clip (`tts_generate`'s `audio` object passes as it is) · integer PCM of 8, 16 or 24 bits, or 32-bit float: format tag 1 (PCM) or 3 (IEEE float), or `WAVE_FORMAT_EXTENSIBLE` whose sub-format is one of those two (its container bits are the sample size · its channel mask is ignored) · 1 or 2 channels · 8000..=96000 Hz (another format `-003` with a hint · MP3: ask `tts_generate` for `format: wav` · AIFF is not part of v1) · the read rides `permits.fs.read` · never together with a top-level `audio` (`-001`) |
+| `segments[].duration_ms` | 100..=600000 · REQUIRED for a segment without a clip · with a clip it MUST NOT be shorter than the clip (`-001` · never a silent cut), and the rest is silence |
+| `segments[].pad_ms` | 0..=10000 · default 0 · silence after the clip · only for a segment with a clip and no `duration_ms` (`-001` otherwise) |
+| `audio` | OPTIONAL · ONE soundtrack for the whole video · a media reference under the clip rules · every segment then needs `duration_ms` · a shorter track ends in silence, a longer one is cut at the end of the video with a `soundtrack_trimmed:` warning |
+| `audio_codec` | `aac` (default · AAC-LC) · `flac` |
+| `out` | REQUIRED · the artifact path · `.mp4` (else `-001`) · the write rides `permits.fs.write` |
+| `size` | `WIDTHxHEIGHT` · both even · width 64..=3840 · height 64..=2160 · default `1280x720` |
+| `fps` | integer 1..=60 · default 25 |
+| `scale` | `fit` (default · the whole still, letterboxed on `background`) · `fill` (covers the frame, center-cropped) · `none` (native size, centered or center-cropped) — geometry below |
+| `background` | `#rrggbb` or `[r, g, b]` · default `#000000` (the letterbox convention · `image_compose` defaults to white) · fills the letterbox and sits behind alpha |
+| `quality` | `draft` · `standard` (default) · `high` — an ORDERED ladder each backend maps and records in `video.rate_control` and `audio.bitrate` (the ffmpeg backend: libx264 CRF 28 · 23 · 18 · AAC 48 · 64 · 96 kb/s per channel) |
+| `transition` | `cut` (the only v1 value) · `fade` is RESERVED and refused loudly (`-001`) |
+| `metadata` | a free object · at most 16 KiB (16384 bytes) as canonical JSON (`-001`): the JCS form [15](../spec/15-proof.md) hashes (RFC 8785 · sorted keys · no whitespace · UTF-8) · echoed into the outputs · the sha256 of that canonical JSON enters the recipe · it never reaches the encoder |
+| `timeout_ms` | 1000..=3600000 · default 600000 · the call also ends at the task deadline, whichever comes first · waiting for an encode slot counts |
+
+A static checker judges every literal value against this table before
+anything runs (a literal list of more than 200 segments included); a
+templated value is judged at run.
+
+**Budgets (normative · `-005` · judged before any write).** At most 200
+segments · a video of at most one hour (T ≤ 3600 × R, below) · each input
+file within its byte cap, a still at most 512 MiB and a clip or soundtrack
+at most 2 GiB, judged on the file's size before it is read and never read
+past it · each still within the `image_fx` decoded-pixel budget (≤ 16384
+per side · ≤ 2^26 pixels), judged from its header before any
+decompression · each `fit` or `fill` scaled box (the placed size, before
+the `fill` crop) at most 16384 per side and 2^26 pixels, `image_compose`'s
+cap, judged from the header and `size` · the plan's intermediates,
+`(segments + 1) × W × H × 3/2` bytes of 4:2:0 frames plus
+`T × channels × 2` bytes of PCM (no PCM term for a silent video, which
+stages no audio), at most 1 GiB (an engine's own scratch may hold more:
+the reference engine stages RGB frames, about twice the figure) · any
+argument handed to the encoder at most 64 KiB · the output at most
+256 MiB, a tripped size limit included.
+
+**Timing (normative · every backend).** R is the output sample rate and f
+the frame rate; `round(a ÷ b)` is `⌊(a + ⌊b ÷ 2⌋) ÷ b⌋` (the
+`image_compose` rounding), and all arithmetic is on integers ·
+
+- segment k lasts D_k samples: `round(duration_ms × R ÷ 1000)` with
+  `duration_ms`, else the clip's samples plus `round(pad_ms × R ÷ 1000)`;
+  with a clip, `duration_ms` MUST give at least the clip's samples (`-001`);
+  a segment without a clip is digital silence;
+- segment k starts at S_k, the sum of the D_j before it, and the video
+  lasts T samples, the sum of every D_k;
+- the frame of sample position t is `F(t) = ⌊(2·t·f + R) ÷ (2R)⌋`:
+  segment k shows the frames F(S_k) up to, not including, F(S_k + D_k), and
+  the video has F(T) frames; a segment that would show no frame is `-001`.
+  At every boundary picture and sound differ by at most 1/(2f) seconds, and
+  the error never accumulates;
+- keyframes · let G = 10 × f frames: every segment starts with an IDR
+  frame, and the gap between two consecutive keyframes never exceeds G
+  frames (a seek inside a long still costs at most ten seconds of frames).
+  A backend MAY add keyframes; the ffmpeg backend places them exactly at
+  each segment start s and at s + m·G inside the segment (m ≥ 1).
+
+**Preparation (normative · every backend).** The engine prepares the
+encoder's input itself, so every backend receives the same plan ·
+
+- **Sample rate R** · the clips' common rate (the soundtrack's rate ·
+  48000 for a video with no audio at all, its silent clock). Clips at
+  different rates MAY be refused `-003` (the reference engine does in this
+  version: « clips must share one sample rate »); an engine that accepts
+  them uses R = 48000, a clip of n samples at rate r lasting
+  `round(n × R ÷ r)` samples at R. With `audio_codec: aac`, R is an MPEG-4
+  sampling rate (7350 · 8000 · 11025 · 12000 · 16000 · 22050 · 24000 ·
+  32000 · 44100 · 48000 · 64000 · 88200 · 96000): a common rate outside that
+  table MAY be refused `-003` (« use flac, or resample upstream »), and an
+  engine that accepts it uses R = 48000 as above. `flac` keeps any rate.
+- **Channels** · stereo when any clip is stereo (a mono clip plays on both
+  channels), else mono.
+- **The master** · 16-bit little-endian PCM at R: wider integer samples are
+  rounded, never dithered · float samples are clamped · 8-bit samples are
+  widened. A WAV's `data` size is the smaller of the declared size and the
+  bytes present (a streamed WAV's `0xFFFFFFFF` placeholder counts only the
+  bytes present). A malformed WAV is `-004`, never a crash.
+- **Soundtrack** · the top-level `audio` plays from the first frame;
+  shorter than T it ends in silence, longer it is cut at T.
+- **Stills** · each image is decoded by the engine, its alpha composited
+  over `background` BEFORE any scaling, per channel
+  `⌊(c·a + bg·(255 − a) + 127) ÷ 255⌋`, then placed in a W × H frame
+  (`size`): `fit` and `fill` are `image_compose`'s geometry with ONE cell of
+  W × H (its placed sizes, its rounding, its centering, its cover crop, its
+  `image_fx` resize with `filter: auto` in linear light) · `none` scales
+  nothing: per axis, an image no larger than the frame is placed at
+  `⌊(W − w) ÷ 2⌋` with `background` around it, a larger one is cropped from
+  `⌊(w − W) ÷ 2⌋`.
+- **Colour** · the video is Y′CbCr 4:2:0 with BT.709 primaries, transfer
+  and matrix in limited range, tagged so in the bitstream and the container
+  (`video.color: bt709/limited`). The conversion from the composited RGB
+  frame is the backend's in this version: pixel values are not normative.
+
+**The raw-only invariant (normative).** The encoder never parses a
+workflow byte. The engine reads each declared input once through its judged
+filesystem, checks its `sha256` binding and decodes it, then writes the
+encoder's only inputs itself: headerless raw samples (the prepared frames ·
+the 16-bit PCM master) in a private scratch directory it created. For the
+ffmpeg backend that is four rules, each an engine MUST ·
+
+1. every input operand is a scratch file the engine wrote, behind a forced
+   raw demuxer (`-f rawvideo` with its pixel format, size and rate ·
+   `-f s16le` with its rate and channel count): no container parser, codec
+   parser or content probe ever reads workflow bytes;
+2. `-protocol_whitelist file` comes before EVERY operand, each input and
+   the output: the option binds the next operand only, so one occurrence
+   fences one operand;
+3. the engine alone builds the argument vector and starts it without a
+   shell; every element is built only from engine constants, integers of
+   the plan, scratch paths and the recipe (hashes, integers and closed
+   words) — no workflow string reaches it: not `out:`, not `metadata`, not
+   a file name, not a rendered template;
+4. ffmpeg writes its output into the scratch only; the engine reads it
+   back, verifies it, hashes it and saves it (below): ffmpeg never writes
+   `out:`, and nothing is moved from the scratch to `out:`.
+
+ffmpeg also reads no terminal input (`-nostdin`) and runs with a cleared
+environment, with the scratch as its working directory. An engine that
+cannot uphold these rules MUST NOT start the program. The vector is part of
+the receipt: the ffmpeg backend records the one it started in
+`backend.details.argv` (below), the program first, with the scratch
+directory written `<scratch>` and the recipe written `<recipe>`
+(`recipe_sha256` is its digest), so a reviewer, a trace verifier or a
+conformance runner can check the forced demuxers, the whitelist before
+each operand and the absence of any workflow string from the outputs and
+the journal alone.
+
+**The order law and the trifecta.** The order law (`NIKA-SEC-015` ·
+[10](../spec/10-authority.md)) refuses an `exec:` task downstream of a
+net-effecting task, and it still does when the program is ffmpeg: an
+`exec:` hands its program workflow-built arguments and workflow files, so
+fetched content can reach a parser, a protocol or an option.
+`nika:video_compose` downstream of a fetch is not refused, and the
+raw-only invariant is why: fetched content can change the picture and the
+sound — pixel and sample values, a duration — never what ffmpeg parses,
+opens or reaches. The lethal-trifecta law (`NIKA-SEC-009`) counts the call
+as an `fs` write egress (its artifact · its media inputs are reads), like
+`image_compose`: untrusted content that reaches its arguments needs the
+human gate that law asks for. It is never an ingress source, as an `exec:`
+is: an `exec:` outputs whatever its program prints, while this call adds
+nothing to its outputs but engine-computed facts about the file and the
+encoder. What the outputs echo of the arguments (`metadata` · the paths
+read) keeps the taint it came with: untrusted content that enters the call
+through them leaves it in the output, and an egress task that reads that
+output needs the gate as if it read the content itself.
+
+**Authority.** The tool grant · `permits.fs.read` for every media input
+(each `segments[].image`, each `segments[].audio` and the top-level
+`audio` · a path string or an object's `path`) · `permits.fs.write` for
+`out:` — the `image_compose` and `vision:` pattern. No `permits.exec` is
+required or consulted, and none is implied. A static checker judges each
+literal media path (or whole bare `const:` reference) as a read and a
+literal `out:` as a write, before anything runs: a missing grant is a
+check-time `NIKA-SEC-004` (`NIKA-AUTH-006` under an absent block, whatever
+form the paths take: every call reads a still and writes `out:`), never a
+surprise at run, and a read grant a media input uses is a use, never
+`declared-but-unused` advice. A templated list, element or path defers to
+the run's boundary (`NIKA-SEC-004` there, each resolved path judged before
+it is opened), except under a boundary that admits no read or no write at
+all: no rendered value fits an empty grant, so the call is refused at check
+whatever form its paths take. The inferred boundary (`nika check
+--infer-permits`, and the block a `NIKA-AUTH-006` carries) lists each
+literal workspace media path in `fs.read` and a literal `out:` in
+`fs.write`, so it re-checks clean. A computed path cannot be printed: for
+a computed list, element, path or `out:` the inference says its `fs` face
+is partial, names the task and asks for the resolved paths (the
+storyboard's case: the directories its producers write), and the block
+re-checks clean once they are granted. A media path or an `out:` that
+escapes the workspace is named for review, never printed as a grant (the
+`vision:` rule). A
+static checker names the program the call starts, and where it is looked
+for, without probing the host: a host-dependent finding would break
+check ≡ run.
+
+**The host program (normative for the ffmpeg backend).** The engine
+resolves ffmpeg from its own configuration, never from the workflow:
+`NIKA_FFMPEG` (an absolute path · engine configuration read at the
+composition root · a project file cannot set it), else the first trusted
+candidate among `/opt/homebrew/bin/ffmpeg`, `/usr/local/bin/ffmpeg` and
+`/usr/bin/ffmpeg`. `PATH` is never consulted: it depends on how the engine
+was started, and a project can steer it. A candidate is trusted when its
+canonical path is a regular executable file and no directory above the
+candidate or above its canonical path is writable by others. A set
+`NIKA_FFMPEG` that is not trusted is refused naming the variable; it never
+falls through to the list. The floor, which the engine's capability probe
+reads (`-version` · the encoder list), is FFmpeg 6.0 (libavformat and
+libavcodec majors ≥ 60), with the `libx264` encoder and the requested
+audio encoder (ffmpeg's own `aac` · `flac`). No trusted candidate, or
+anything missing, is `-010`, naming each path tried, what is missing and
+the fix (install ffmpeg · set `NIKA_FFMPEG`), never a fallback to another
+program or codec. These rules are a floor, not a complete list: an engine
+MAY refuse more (an owner or group rule · a program under the project
+root), and a program that passes only the floor is not one a workflow can
+count on.
+
+The resolution and the probe MAY be cached per process; an engine that
+caches them resolves once more when the program is gone at start (an
+upgrade moved it) before failing `-010`. One rule is never cached: on every
+call, the resolved program is refused when the workflow's
+`permits.fs.write` admits its candidate path or its canonical path. The
+call fails `-010` and never falls through to another candidate, so a
+workflow never starts a program file its own grant could have written. The
+libraries the program loads are outside that rule in this version: an
+engine MAY refuse a program whose libraries a write grant admits.
+
+**Confinement (normative).** ffmpeg runs inside the engine's own OS
+confinement, the jail that confines `exec:` tasks: it receives no workflow
+path, may write only engine scratch, and has network egress denied as far
+as the host's jail denies it. An engine MUST NOT describe the call as
+having no network access (in a check line, a review, an output or its
+documentation) unless its confinement on that host denies every network,
+loopback included: where outbound loopback stays reachable, or confinement
+is waived, the whitelist inside ffmpeg is the only fence for it.
+Confinement the operator waived (the reference engine's
+`NIKA_SANDBOX=off`) runs ffmpeg unconfined, still under the raw-only
+invariant, and the outputs say `backend.confinement: "waived"`. No
+confinement that can start and no waiver is `-011`, and so is a profile
+that cannot be built or a denial the jail reports during the call.
+
+**Refusing early (normative · forward-compatible).** The trigger is
+static: a workflow with at least one `invoke:` task whose `tool` is
+`nika:video_compose`, whether or not a `when:` later skips it. When an
+engine can tell before such a run's first effect that the host cannot
+encode — no trusted program, one below the floor or without an encoder the
+calls need, no confinement under a policy that requires one — it SHOULD
+refuse the launch (no task runs, nothing is spent) rather than fail the
+call after paid image or voice calls. An engine that learns it only at the
+call fails there (`-010` · `-011`). A grant alone never triggers a launch
+refusal: a run whose workflow reaches the builtin only through a grant
+(`permits.tools`, a glob such as `nika:*` included, or an `agent:`
+whitelist) launches, and an agent's call, if one comes, fails at the call.
+Two outcomes are therefore not contracts a workflow can rely on:
+recovering from `-010` or `-011` (an engine that refuses at launch never
+reaches the recovery), and completing on a host that cannot encode because
+the `nika:video_compose` task was skipped (an engine that refuses at launch
+refuses that run).
+
+**The scratch (normative).** Each call claims a fresh private directory by
+exclusive creation (never adopting an existing path or a planted link),
+mode 0700, and creates its files 0600: no other local user reads the
+decoded stills, the audio master or the video while the encode runs. It is
+engine state, never a workflow path, removed when the call settles
+(success · failure · deadline · Stop). An engine also sweeps the scratch a
+crashed engine left behind, and only that: a scratch is stale when its
+owner is provably gone (the owner holds a lock on it for the whole call
+and that lock is free, or it records its process and that process no
+longer runs) or when it is older than the longest call, 3,600,000 ms,
+plus ten minutes. A sweep never removes the scratch of a live call, another
+engine process's under the same user included. A full disk is `-006`.
+
+**Deadlines and Stop.** An engine MAY run one encode at a time per process
+(the reference engine does); waiting for it counts against `timeout_ms` and
+the task deadline. When the deadline passes, waiting or encoding, the
+program is killed, drained and reaped, nothing is written, and the call
+fails `-009`. A user's Stop ends the call through the run's cancellation —
+the program killed, the scratch removed, nothing written — never through
+`-009`.
+
+**Verified before saved (normative).** An exit status of 0 proves nothing:
+ffmpeg's size limit is soft and can leave a valid, shorter file with status
+0. Before anything reaches `out:`, the engine reads the file back and checks
+it against the plan without decoding it · `ftyp` first and `moov` before
+`mdat` (the video starts playing before it is fully downloaded) · the
+movie timescale (`mvhd`) is R, so a duration counts in samples · one
+H.264 video track of the planned size whose sample count is the planned
+frame count, every segment start a sync sample and no gap between sync
+samples above G · one audio track (none for a silent video) of the planned
+codec, rate and channel count, its media timescale (`mdhd`) R, whose
+presented length is exactly T samples: with an edit list, the list is one
+normal edit (media rate 1 · a media time other than −1) whose segment
+duration, in the movie timescale, is T (any other edit list is a
+mismatch); without one, the track's sample durations sum to T · at most
+256 MiB.
+A short file that reached the size cap is `-005`, any other mismatch
+`-007`, and nothing is written. Then the bytes are hashed, compared with the
+bytes already at `out:` when a read grant allows it (identical bytes are an
+idempotent skip · `skipped_existing` · the `image_fx` law), and saved
+atomically under `permits.fs.write`.
+
+Output · `{ path, sha256, size_bytes, mime_type, container, duration_ms,
+width, height, fps, frames, keyframe_interval_frames, video: { codec,
+profile, pixel_format, color, quality, rate_control: { mode, value } },
+audio: { codec, sample_rate, channels, samples, bitrate }, segments:
+[{ index, image, image_sha256, audio, audio_sha256, start_ms, duration_ms,
+first_frame, frames }], backend: { kind, version, build_id, encoder,
+encoder_build, threads, confinement, details }, determinism, contract,
+recipe_sha256, skipped_existing, warnings, metadata }` — artifact bytes
+NEVER ride outputs (the disk law) ·
+
+- `mime_type` is `video/mp4` · `container` `mp4` · `video.codec` `h264` ·
+  `video.profile` `high` · `video.pixel_format` `yuv420p` · `video.color`
+  `bt709/limited` · `video.quality` the `quality` asked · `frames` is F(T)
+  and `keyframe_interval_frames` G · `duration_ms` is
+  `round(T × 1000 ÷ R)`, and a segment's `start_ms` and `duration_ms` the
+  same rounding of S_k and D_k · `first_frame` is F(S_k) and `frames` the
+  segment's frame count · `image` and `audio` are the paths read and
+  `image_sha256`, `audio_sha256` the digests of the bytes read (`audio` and
+  `audio_sha256` are `null` for a segment without a clip);
+- `audio` is `null` for a silent video · `audio.codec` is the `audio_codec`
+  asked (`aac` · `flac`) · `audio.sample_rate` is R and `audio.channels`
+  the planned count · `audio.samples` is T and `audio.bitrate` the
+  encoder's target in bits per second (`null` for `flac`);
+- `video.rate_control` is `{ mode, value }`: `mode` the closed set `crf` ·
+  `q` · `qp`, `value` an integer (the ffmpeg backend: `crf` 28 · 23 · 18) ·
+  `backend.kind` names the backend (`ffmpeg` for this one) ·
+  `backend.confinement` names the jail that confined the program as the
+  run prologue's `sandbox` field names it ([17](../spec/17-trace.md) ·
+  `seatbelt` · `landlock` in this version, and a later jail by its own
+  name), or is `waived`;
+- every key outside `backend.details` exists for every backend ·
+  `backend.details` is an open object the backend owns (for ffmpeg · the
+  program path · the library versions · `argv_version` · `argv`, the
+  vector the raw-only invariant records) · `backend.build_id` is an opaque
+  build fingerprint (for ffmpeg · the sha256 of its `-version` output) ·
+  `backend.encoder_build` is the encoder's own build string as the file
+  records it (x264 writes one in the first IDR frame), read back after the
+  encode and `null` when the encoder records none;
+- `contract` is `video_compose/v1` · there is no `cost_usd` and no
+  `cost_unpriced` (below).
+
+**Determinism (normative).** `determinism` is `none` in this version: no
+byte-identity claim, even for two runs on one host. The closed vocabulary
+is `none` · `same_host` (the same build, host, thread count, inputs and
+arguments give the same bytes) · `cross_platform` (the same bytes
+everywhere); a later backend may raise the value without changing a
+workflow. The recipe records what made the file, as canonical JSON (the
+JCS form of `metadata` above) with no timestamp, no absolute path, no host
+name and no workflow string, built only from hashes, integers and closed
+words that are all known before the encode · the contract tag · the
+normalized arguments (`size` as its two integers · `fps` · `scale` ·
+`background` as its three integers · `quality` · `audio_codec` ·
+`transition`) · the plan (R · channels · T · F(T) · G · the segment start
+frames) · per segment the still's and the clip's sha256 with its
+`duration_ms` or `pad_ms` · the soundtrack's sha256 · the sha256 of
+`metadata`, never the object · the backend (`kind` · `build_id` · `encoder`
+· `threads` · the rate control · for ffmpeg `argv_version`). That is what
+lets it ride the encoder's own argument vector (raw-only rule 3) and so
+the file (the `nika` key of the MP4's metadata), while `recipe_sha256`
+rides the outputs. The program's version strings and `encoder_build` stay
+in the outputs: `build_id` already fingerprints the `-version` output, and
+the encoder's build string exists only once the file does. A re-render is a
+consistency check, not a tamper proof. `nika:video_compose` is therefore
+outside the byte-identity bar of [07](../spec/07-conformance.md): its bar is
+structural (the verified file above).
+
+Cost · nothing to meter: the output carries no `cost_usd` and no
+`cost_unpriced`, like `image_fx`, `image_compose` and `chart`. The call
+leaves the run's spend qualifier untouched, is never a priced `0` and is
+never called free.
+
+Events · the engine's progress stream for interfaces and SDKs (event
+names, not journal kinds · [17](../spec/17-trace.md)'s vocabulary is
+unchanged) · `video_compose.started` (segment count · size · fps · `out` ·
+program · version · encoder · milliseconds waited for the encode slot) ·
+`video_compose.segment` (once per segment while preparing · index ·
+frames · elapsed milliseconds) · `video_compose.encoding` (program ·
+encoder · threads · confinement) · `video_compose.completed` (path ·
+sha256 prefix · size · duration · preparation and encode milliseconds) ·
+`video_compose.error` (code · message). The journal records each start of
+the program, its capability probe included, as the builtin's own effect:
+one `permit_checked` frame with `plane: builtin`, the program's canonical
+path as `gate`, `decision: allow`, and a `why` naming the builtin, the
+program's version, the encoder and the confinement — never an `exec:`
+decision.
+
+Throws · `NIKA-BUILTIN-VIDEO_COMPOSE-001` invalid arguments (shape ·
+closed sets · bounds · `fade` · the extension · a soundtrack with clips · a
+duration shorter than its clip · a segment that would show no frame · a
+media-reference object missing `path` or `sha256`, or whose `sha256` is not
+64 lowercase hex digits · `metadata` over 16 KiB · `validation_error`) ·
+`-002` an input could not be read (the message names the segment ·
+`tool_error`) · `-003` unsupported input format, with a
+hint (JPEG or WebP: produce PNG upstream · MP3: ask `tts_generate` for
+`format: wav` · AIFF · palette PNG · Adam7 · more than 2 channels · clips
+at different rates, or an `aac` rate outside the MPEG-4 table, where the
+engine refuses them · `validation_error`) · `-004` decoding failed (a
+corrupt PNG or WAV) or an input whose bytes do not match its `sha256`
+(`tool_error`) · `-005` a budget exceeded (an input file above its byte
+cap · pixels · a scaled box · duration · segments · the plan's
+intermediates · an encoder argument above 64 KiB · the output size, a
+tripped size limit included · `security_error` · never transient)
+· `-006` saving failed (the scratch could not be created or written · the
+atomic save failed · `tool_error`) · `-007` output validation failed: the
+file read back does not match the plan, and nothing is written
+(`tool_error`) · `-008` the encoder failed: it exited non-zero or was
+killed by a signal other than the engine's (the message carries the status
+and at most 400 characters of its error output · `tool_error` · not
+transient) · `-009` the deadline passed, waiting for the encode slot or
+encoding: the program, if started, was killed, drained and reaped, and
+nothing was written (`tool_error` · not transient) · `-010` no usable
+encoder on this host: ffmpeg absent, `NIKA_FFMPEG` invalid, no trusted
+candidate, a program the workflow's `permits.fs.write` admits, a program
+whose libraries cannot load inside the jail (the loader's message is
+classified before any confinement denial), a
+version below the floor, no H.264 encoder, the requested audio encoder
+missing, a muxer, filter or option the engine's capability probe finds
+missing (one the probe does not cover fails at the encode, `-008`), or an
+operating system other than macOS and Linux (the message names what is
+missing and the fix · never a fallback · `validation_error`) · `-011`
+confinement failed: none could start and none was waived, a profile that
+cannot be built, or a denial the jail reported during the call
+(`security_error` · never transient) — `image_fx`'s ladder for `-001` to
+`-006`, the generators' `-007`, then the encoder's own `-008` to `-011`.
+Plus the boundary `NIKA-SEC-004` (paths outside `permits.fs`).
+
+> **Reference engine (nonnormative).** The engine includes, links and
+> distributes no codec: it starts the user's own ffmpeg, whose build
+> carries its own licence. The official container image ships no ffmpeg; a
+> derived image adds it. On stock Ubuntu 24.04 the AppArmor restriction on
+> unprivileged user namespaces stops the Linux jail, as an unprivileged
+> container does: the call is refused `-011` until the operator changes the
+> host (an AppArmor profile for the jail, or the user-namespace setting) or
+> waives confinement. An ffmpeg linked against libraries outside the system
+> roots (a Nix or Conda build) cannot load inside the jail (`-010`): use a
+> static build through `NIKA_FFMPEG`. VideoToolbox is not used in this
+> version.
+
+---
+
 ## What jq subsumes (cut from v0.1)
 
 These 13 former builtins are **expressible in `nika:jq`** (jaq-verified) · cut to
@@ -1204,7 +1662,9 @@ workflow:` tagged union per `14-composition.md` · never a builtin) ·
 `image_fx` graduated 2026-07-09 (the image *editing* row · §Media #3) ·
 `chart` graduated 2026-07-09 (above · §Media #4) · `image_compose`
 graduated 2026-10-26 (§Media #5 · the composition a workflow otherwise
-borrowed from `exec`). The remaining media class
+borrowed from `exec`) · `video_compose` graduated 2026-10-28 (§Media #6 ·
+the assembly a workflow otherwise borrowed from `exec ffmpeg`). The
+remaining media class
 (pdf_extract · svg_render · phash · provenance ·
 …) is NOT enumerated in v0.1 (feature-flag in the reference engine · MAY
 graduate builtin-by-builtin per the 3-razor admission test). Deliberate
@@ -1230,4 +1690,4 @@ external users · before the forever-clock).
 
 ---
 
-🦋 *<!-- canon:builtins -->30<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*
+🦋 *<!-- canon:builtins -->31<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*

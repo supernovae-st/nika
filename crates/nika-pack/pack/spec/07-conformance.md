@@ -24,7 +24,7 @@ Three nested levels · increasing scope ·
 |---|---|---|
 | **Core** | Parse + validate · DAG semantics · variable resolution · error structure | Linters · spec editors · static analyzers |
 | **Runtime** | Core + verb execution | Working engine (with own provider/tool impls) |
-| **Stdlib v0.1** | Runtime + the <!-- canon:providers -->18<!-- /canon --> providers + <!-- canon:extract_modes -->10<!-- /canon --> extract modes + <!-- canon:builtins -->30<!-- /canon --> builtins | Full reference-impl-equivalent engine |
+| **Stdlib v0.1** | Runtime + the <!-- canon:providers -->18<!-- /canon --> providers + <!-- canon:extract_modes -->10<!-- /canon --> extract modes + <!-- canon:builtins -->31<!-- /canon --> builtins | Full reference-impl-equivalent engine |
 
 A higher level **includes** the lower levels.
 
@@ -180,8 +180,8 @@ can lag this repository.** On 2026-10-24 it served the revision of
 reading it flags a valid workflow that uses them. For the exact schema an
 engine embeds, `nika spec --schema` prints it offline, byte for byte, and the
 address pinned at the embedded spec commit serves the same bytes online; for
-engine 0.123.0 (spec `6390b08`) that is
-`https://raw.githubusercontent.com/supernovae-st/nika-spec/6390b08eb9791ce49c63ee17f8466fab118cadb8/schemas/workflow.schema.json`.
+engine 0.124.0 (spec `5cd95cd`) that is
+`https://raw.githubusercontent.com/supernovae-st/nika-spec/5cd95cd25c0ff453be266794a03666e5e3f2d7a8/schemas/workflow.schema.json`.
 
 #### The address MUST become versioned and immutable (normative · D-2026-08-11-N24)
 
@@ -272,7 +272,7 @@ An engine claims « Stdlib v0.1-compliant » if it satisfies Runtime conformance
 
 1. **Ships all <!-- canon:providers -->18<!-- /canon --> canonical providers** (per [stdlib/providers-v0.1.md](../stdlib/providers-v0.1.md))
 2. **Ships all <!-- canon:extract_modes -->10<!-- /canon --> canonical extract modes** (per [stdlib/extract-modes-v0.1.md](../stdlib/extract-modes-v0.1.md))
-3. **Ships at least all <!-- canon:builtins -->30<!-- /canon --> canonical builtins** (the remaining deferred media builtins are optional · the byte-determinism clauses of `nika:image_fx`, `nika:chart` and `nika:image_compose` are part of the bar — an engine that cannot honor them is not conformant, no waiver)
+3. **Ships at least all <!-- canon:builtins -->31<!-- /canon --> canonical builtins** (the remaining deferred media builtins are optional · the byte-determinism clauses of `nika:image_fx`, `nika:chart` and `nika:image_compose` are part of the bar — an engine that cannot honor them is not conformant, no waiver · `nika:video_compose` carries no byte-identity clause (`determinism: none`): its bar is structural — the file verified against the plan, the planned frame and sample counts, the keyframe rule, the presented durations — and its raw-only invariant)
 4. **Passes** all tests in `conformance/tests/stdlib/`
 
 A Stdlib-compliant engine is functionally equivalent to the reference implementation for any workflow that uses only the canonical stdlib elements.

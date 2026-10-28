@@ -170,6 +170,7 @@ impl Severity {
 
 mod registry;
 pub use registry::*;
+mod video_compose;
 
 /// Returns an actionable help message for a given code.
 ///
@@ -214,7 +215,7 @@ fn verb_help(num: u16) -> &'static str {
             "The tool ran but reported an error. Inspect the tool's output content for the failure detail."
         }
         452 => {
-            "Tool dispatch failed. Under `nika test` this is BY DESIGN: the mock plane simulates the model, not effects, so the effect tools (`nika:write` · `edit` · `fetch` · `notify` · `image_generate` · `tts_generate` · `chart` · `image_fx` · `image_compose`) and anything outside the `nika:` namespace refuse — reach for `nika run` when you want the effect, or let the task rehearse through `on_error: recover` (every shipped skeleton carries that armor). Elsewhere: a timeout, an execution error, or an unavailable tool system — check the MCP server or builtin availability."
+            "Tool dispatch failed. Under `nika test` this is BY DESIGN: the mock plane simulates the model, not effects, so the effect tools (`nika:write` · `edit` · `fetch` · `notify` · `image_generate` · `tts_generate` · `chart` · `image_fx` · `image_compose` · `video_compose`) and anything outside the `nika:` namespace refuse — reach for `nika run` when you want the effect, or let the task rehearse through `on_error: recover` (every shipped skeleton carries that armor). Elsewhere: a timeout, an execution error, or an unavailable tool system — check the MCP server or builtin availability."
         }
         460 => {
             "The agent hit max_turns without completing. Raise max_turns, tighten the prompt toward the nika:done sentinel, or reduce tool round-trips."
@@ -515,10 +516,16 @@ pub fn namespace_help(code: &str, docs: &str) -> Option<String> {
         // explain that answered "see spec stdlib" taught nothing at the
         // exact moment it was obeyed (first-run gate · 2026-07-31).
         if let Some(contract) = builtin_contract_help(&name, &num) {
+            // A ladder that states its spec categories names the code's own.
+            let category = builtin_contract_category(&name, &num)
+                .map(|category| format!(" · {category}"))
+                .unwrap_or_default();
+            // A code whose recovery is not a contract never offers it.
+            let footer = builtin_contract_footer(&name, &num)
+                .unwrap_or("Valid in `retry.on_codes:` and `on_error.on_codes:`");
             return Some(format!(
-                "{code} · builtin · the `nika:{name}` contract\n\n{contract}\n  \
-                 Valid in `retry.on_codes:` and `on_error.on_codes:` — \
-                 see spec stdlib (builtins) · {docs}.\n"
+                "{code} · builtin{category} · the `nika:{name}` contract\n\n{contract}\n  \
+                 {footer} — see spec stdlib (builtins) · {docs}.\n"
             ));
         }
         return Some(format!(
@@ -658,7 +665,34 @@ fn builtin_contract_help(name: &str, num: &str) -> Option<&'static str> {
              · configure a key:            export NIKA_OPENAI_API_KEY=… (then provider: openai)\n    \
              · rehearse offline:           args: { provider: mock, … } (a real WAV, no key)\n",
         ),
-        ("image_compose", num) => image_compose_help(num),
+        _ => media_contract_help(name, num),
+    }
+}
+
+/// The §Media graduates' ladders (`image_compose` · `video_compose`), kept
+/// out of the per-code match under the fn-length law.
+fn media_contract_help(name: &str, num: &str) -> Option<&'static str> {
+    match name {
+        "image_compose" => image_compose_help(num),
+        "video_compose" => video_compose::help(num).map(|(_, lesson)| lesson),
+        _ => None,
+    }
+}
+
+/// The spec category of a per-builtin code, for the ladders that state one
+/// (`nika:video_compose`'s · spec 05's namespace row).
+fn builtin_contract_category(name: &str, num: &str) -> Option<&'static str> {
+    match name {
+        "video_compose" => video_compose::help(num).map(|(category, _)| category),
+        _ => None,
+    }
+}
+
+/// The footer of a per-builtin code whose recovery the contract does not
+/// promise (`nika:video_compose`'s host codes), in place of the namespace's.
+fn builtin_contract_footer(name: &str, num: &str) -> Option<&'static str> {
+    match name {
+        "video_compose" => video_compose::footer(num),
         _ => None,
     }
 }

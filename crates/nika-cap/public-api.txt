@@ -6,6 +6,187 @@ pub fn nika_cap::env::compose_child_env(lookup: impl core::ops::function::Fn(&st
 pub fn nika_cap::env::is_dangerous_env_name(name: &str) -> bool
 pub mod nika_cap::sink
 pub fn nika_cap::sink::code_bearing_path_class(path: &str) -> core::option::Option<(&'static str, &'static str)>
+pub mod nika_cap::video
+#[non_exhaustive] pub enum nika_cap::video::AudioCodec
+pub nika_cap::video::AudioCodec::Aac
+pub nika_cap::video::AudioCodec::Flac
+impl nika_cap::video::AudioCodec
+pub const nika_cap::video::AudioCodec::ALL: [Self; 2]
+pub const fn nika_cap::video::AudioCodec::as_str(self) -> &'static str
+pub fn nika_cap::video::AudioCodec::parse(value: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_cap::video::AudioCodec
+pub fn nika_cap::video::AudioCodec::clone(&self) -> nika_cap::video::AudioCodec
+impl core::cmp::Eq for nika_cap::video::AudioCodec
+impl core::cmp::PartialEq for nika_cap::video::AudioCodec
+pub fn nika_cap::video::AudioCodec::eq(&self, other: &nika_cap::video::AudioCodec) -> bool
+impl core::fmt::Debug for nika_cap::video::AudioCodec
+pub fn nika_cap::video::AudioCodec::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cap::video::AudioCodec
+impl core::marker::StructuralPartialEq for nika_cap::video::AudioCodec
+impl<T, U> core::convert::Into<U> for nika_cap::video::AudioCodec where U: core::convert::From<T>
+pub fn nika_cap::video::AudioCodec::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::video::AudioCodec where U: core::convert::Into<T>
+pub type nika_cap::video::AudioCodec::Error = core::convert::Infallible
+pub fn nika_cap::video::AudioCodec::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::video::AudioCodec where U: core::convert::TryFrom<T>
+pub type nika_cap::video::AudioCodec::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::video::AudioCodec::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::video::AudioCodec where T: core::clone::Clone
+pub type nika_cap::video::AudioCodec::Owned = T
+pub fn nika_cap::video::AudioCodec::clone_into(&self, target: &mut T)
+pub fn nika_cap::video::AudioCodec::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::video::AudioCodec where T: 'static + ?core::marker::Sized
+pub fn nika_cap::video::AudioCodec::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::video::AudioCodec where T: ?core::marker::Sized
+pub fn nika_cap::video::AudioCodec::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::video::AudioCodec where T: ?core::marker::Sized
+pub fn nika_cap::video::AudioCodec::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::video::AudioCodec where T: core::clone::Clone
+pub unsafe fn nika_cap::video::AudioCodec::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::video::AudioCodec
+pub fn nika_cap::video::AudioCodec::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cap::video::Quality
+pub nika_cap::video::Quality::Draft
+pub nika_cap::video::Quality::High
+pub nika_cap::video::Quality::Standard
+impl nika_cap::video::Quality
+pub const nika_cap::video::Quality::ALL: [Self; 3]
+pub const fn nika_cap::video::Quality::as_str(self) -> &'static str
+pub fn nika_cap::video::Quality::parse(value: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_cap::video::Quality
+pub fn nika_cap::video::Quality::clone(&self) -> nika_cap::video::Quality
+impl core::cmp::Eq for nika_cap::video::Quality
+impl core::cmp::PartialEq for nika_cap::video::Quality
+pub fn nika_cap::video::Quality::eq(&self, other: &nika_cap::video::Quality) -> bool
+impl core::fmt::Debug for nika_cap::video::Quality
+pub fn nika_cap::video::Quality::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cap::video::Quality
+impl core::marker::StructuralPartialEq for nika_cap::video::Quality
+impl<T, U> core::convert::Into<U> for nika_cap::video::Quality where U: core::convert::From<T>
+pub fn nika_cap::video::Quality::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::video::Quality where U: core::convert::Into<T>
+pub type nika_cap::video::Quality::Error = core::convert::Infallible
+pub fn nika_cap::video::Quality::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::video::Quality where U: core::convert::TryFrom<T>
+pub type nika_cap::video::Quality::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::video::Quality::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::video::Quality where T: core::clone::Clone
+pub type nika_cap::video::Quality::Owned = T
+pub fn nika_cap::video::Quality::clone_into(&self, target: &mut T)
+pub fn nika_cap::video::Quality::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::video::Quality where T: 'static + ?core::marker::Sized
+pub fn nika_cap::video::Quality::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::video::Quality where T: ?core::marker::Sized
+pub fn nika_cap::video::Quality::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::video::Quality where T: ?core::marker::Sized
+pub fn nika_cap::video::Quality::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::video::Quality where T: core::clone::Clone
+pub unsafe fn nika_cap::video::Quality::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::video::Quality
+pub fn nika_cap::video::Quality::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cap::video::Scale
+pub nika_cap::video::Scale::Fill
+pub nika_cap::video::Scale::Fit
+pub nika_cap::video::Scale::None
+impl nika_cap::video::Scale
+pub const nika_cap::video::Scale::ALL: [Self; 3]
+pub const fn nika_cap::video::Scale::as_str(self) -> &'static str
+pub fn nika_cap::video::Scale::parse(value: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_cap::video::Scale
+pub fn nika_cap::video::Scale::clone(&self) -> nika_cap::video::Scale
+impl core::cmp::Eq for nika_cap::video::Scale
+impl core::cmp::PartialEq for nika_cap::video::Scale
+pub fn nika_cap::video::Scale::eq(&self, other: &nika_cap::video::Scale) -> bool
+impl core::fmt::Debug for nika_cap::video::Scale
+pub fn nika_cap::video::Scale::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cap::video::Scale
+impl core::marker::StructuralPartialEq for nika_cap::video::Scale
+impl<T, U> core::convert::Into<U> for nika_cap::video::Scale where U: core::convert::From<T>
+pub fn nika_cap::video::Scale::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::video::Scale where U: core::convert::Into<T>
+pub type nika_cap::video::Scale::Error = core::convert::Infallible
+pub fn nika_cap::video::Scale::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::video::Scale where U: core::convert::TryFrom<T>
+pub type nika_cap::video::Scale::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::video::Scale::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::video::Scale where T: core::clone::Clone
+pub type nika_cap::video::Scale::Owned = T
+pub fn nika_cap::video::Scale::clone_into(&self, target: &mut T)
+pub fn nika_cap::video::Scale::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::video::Scale where T: 'static + ?core::marker::Sized
+pub fn nika_cap::video::Scale::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::video::Scale where T: ?core::marker::Sized
+pub fn nika_cap::video::Scale::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::video::Scale where T: ?core::marker::Sized
+pub fn nika_cap::video::Scale::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::video::Scale where T: core::clone::Clone
+pub unsafe fn nika_cap::video::Scale::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::video::Scale
+pub fn nika_cap::video::Scale::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cap::video::Transition
+pub nika_cap::video::Transition::Cut
+impl nika_cap::video::Transition
+pub const nika_cap::video::Transition::ALL: [Self; 1]
+pub const fn nika_cap::video::Transition::as_str(self) -> &'static str
+pub fn nika_cap::video::Transition::parse(value: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_cap::video::Transition
+pub fn nika_cap::video::Transition::clone(&self) -> nika_cap::video::Transition
+impl core::cmp::Eq for nika_cap::video::Transition
+impl core::cmp::PartialEq for nika_cap::video::Transition
+pub fn nika_cap::video::Transition::eq(&self, other: &nika_cap::video::Transition) -> bool
+impl core::fmt::Debug for nika_cap::video::Transition
+pub fn nika_cap::video::Transition::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cap::video::Transition
+impl core::marker::StructuralPartialEq for nika_cap::video::Transition
+impl<T, U> core::convert::Into<U> for nika_cap::video::Transition where U: core::convert::From<T>
+pub fn nika_cap::video::Transition::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::video::Transition where U: core::convert::Into<T>
+pub type nika_cap::video::Transition::Error = core::convert::Infallible
+pub fn nika_cap::video::Transition::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::video::Transition where U: core::convert::TryFrom<T>
+pub type nika_cap::video::Transition::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::video::Transition::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::video::Transition where T: core::clone::Clone
+pub type nika_cap::video::Transition::Owned = T
+pub fn nika_cap::video::Transition::clone_into(&self, target: &mut T)
+pub fn nika_cap::video::Transition::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::video::Transition where T: 'static + ?core::marker::Sized
+pub fn nika_cap::video::Transition::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::video::Transition where T: ?core::marker::Sized
+pub fn nika_cap::video::Transition::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::video::Transition where T: ?core::marker::Sized
+pub fn nika_cap::video::Transition::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::video::Transition where T: core::clone::Clone
+pub unsafe fn nika_cap::video::Transition::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::video::Transition
+pub fn nika_cap::video::Transition::from(t: T) -> T
+pub const nika_cap::video::ARGS: [&str; 12]
+pub const nika_cap::video::DEFAULT_BACKGROUND: [u8; 3]
+pub const nika_cap::video::DEFAULT_FPS: u32
+pub const nika_cap::video::DEFAULT_SIZE: (u32, u32)
+pub const nika_cap::video::DEFAULT_TIMEOUT_MS: u64
+pub const nika_cap::video::DURATION_MS: core::ops::range::RangeInclusive<u64>
+pub const nika_cap::video::FFMPEG: &str
+pub const nika_cap::video::FFMPEG_CANDIDATES: [&str; 3]
+pub const nika_cap::video::FFMPEG_ENV: &str
+pub const nika_cap::video::FFMPEG_FLOOR: &str
+pub const nika_cap::video::FFMPEG_LIB_FLOOR: u32
+pub const nika_cap::video::FPS: core::ops::range::RangeInclusive<u64>
+pub const nika_cap::video::H264_ENCODER: &str
+pub const nika_cap::video::HEIGHT: core::ops::range::RangeInclusive<u32>
+pub const nika_cap::video::MAX_SEGMENTS: usize
+pub const nika_cap::video::METADATA_MAX_BYTES: usize
+pub const nika_cap::video::PAD_MS: core::ops::range::RangeInclusive<u64>
+pub const nika_cap::video::RESERVED_TRANSITION: &str
+pub const nika_cap::video::SEGMENT_KEYS: [&str; 4]
+pub const nika_cap::video::TIMEOUT_MS: core::ops::range::RangeInclusive<u64>
+pub const nika_cap::video::TOOL: &str
+pub const nika_cap::video::WIDTH: core::ops::range::RangeInclusive<u32>
+pub fn nika_cap::video::is_sha256_hex(text: &str) -> bool
+pub fn nika_cap::video::media_ref_path(value: &serde_json::value::Value) -> &serde_json::value::Value
+pub fn nika_cap::video::metadata_len(value: &serde_json::value::Value) -> usize
+pub fn nika_cap::video::out_is_mp4(path: &str) -> bool
+pub fn nika_cap::video::size(text: &str) -> core::option::Option<(u32, u32)>
 pub enum nika_cap::BuiltinEffect
 pub nika_cap::BuiltinEffect::Fs
 pub nika_cap::BuiltinEffect::Fs::path_arg: &'static str

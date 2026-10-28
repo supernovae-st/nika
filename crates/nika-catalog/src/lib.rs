@@ -184,7 +184,7 @@ mod tests {
 
     #[test]
     fn all_builtins_non_empty() {
-        // Spec 30 · the 22 Rams-swept stdlib builtins + nika:compose + the
+        // Spec 31 · the 22 Rams-swept stdlib builtins + nika:compose + the
         // agent loop's self-verification intrinsic · ADR-096 · loop-only
         // like done) + nika:image_generate (stdlib §Media · the first
         // deferred-media graduate · then tts_generate §Audio · image_fx + chart §Media #3/#4). Cascade · ADR-088 inspect (4
@@ -193,8 +193,9 @@ mod tests {
         // stdlib-collapse 42→26 · then the §Media/§Audio graduates to 27 ·
         // then nika:decide (spec 11 W-DEC · the decision kernel) to 28 ·
         // then nika:remove_file (§nika:remove_file) to 29 · then
-        // nika:image_compose (§Media graduate #5) to 30.
-        assert_eq!(all_builtins().len(), 30);
+        // nika:image_compose (§Media graduate #5) to 30 · then
+        // nika:video_compose (§Media graduate #6) to 31.
+        assert_eq!(all_builtins().len(), 31);
     }
 
     #[test]

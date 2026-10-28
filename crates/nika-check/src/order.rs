@@ -102,13 +102,13 @@ pub(crate) fn scan_order(wf: &RawWorkflow, edges: &[Edge]) -> Vec<OrderFinding> 
                 wf.tasks[r.sink].value.id.value.clone(),
             );
             let (claim, cut) = route_claim(wf, &r, &from, &to);
+            let door = native_door(&wf.tasks[r.sink].value.action);
             out.push(OrderFinding {
                 detail: format!(
                     "the order law · {claim} — {route}. Content the workflow did \
                      not author must not reach a shell: this holds with no block \
                      declaring it and none able to disable it. Fix: do the work \
-                     in a builtin (`nika:jq` · `nika:grep`) instead of a shell, \
-                     or {cut}."
+                     in a builtin ({door}) instead of a shell, or {cut}."
                 ),
                 source: from,
                 sink: to,
@@ -116,6 +116,28 @@ pub(crate) fn scan_order(wf: &RawWorkflow, edges: &[Edge]) -> Vec<OrderFinding> 
         }
     }
     out
+}
+
+/// The builtin that does a refused shell's work. An `exec:` of ffmpeg hands
+/// the program workflow-built arguments and files; `nika:video_compose`
+/// starts it on the raw samples the engine wrote, so the law that binds the
+/// `exec:` verb does not bind the builtin (spec 10 · stdlib
+/// §`nika:video_compose`). Any other program keeps the data builtins.
+fn native_door(sink: &RawAction) -> &'static str {
+    let RawAction::Exec(exec) = sink else {
+        return "`nika:jq` · `nika:grep`";
+    };
+    let program = match &exec.command {
+        nika_schema::raw::RawCommand::Argv(argv) => argv.first().map(|p| p.value.as_str()),
+        _ => None,
+    };
+    match program.map(|p| p.rsplit('/').next().unwrap_or(p)) {
+        Some(nika_cap::video::FFMPEG) => {
+            "`nika:video_compose`, which starts the host's ffmpeg itself on raw samples the \
+             engine wrote, so the order law does not bind it"
+        }
+        _ => "`nika:jq` · `nika:grep`",
+    }
 }
 
 /// The claim and the repair, matched to the edge kinds the route CROSSED.
@@ -437,6 +459,34 @@ mod tests {
              exec: { command: [\"echo\", \"${{ with.body }}\"] }\n",
         );
         assert_eq!(r.order_findings.len(), 1, "{:?}", r.order_findings);
+    }
+
+    /// An `exec:` of ffmpeg downstream of a fetch is taught the builtin that
+    /// does its work without the order law's hazard; any other program keeps
+    /// the data builtins.
+    #[test]
+    fn an_ffmpeg_shell_is_taught_the_video_builtin() {
+        let ffmpeg = report(&format!(
+            "nika: t\npermits:\n  exec: [\"ffmpeg\", \"/opt/homebrew/bin/ffmpeg\", \"echo\"]\n  net: {{ http: [\"example.com\"] }}\n  tools: [\"nika:fetch\"]\ntasks:\n  cues:\n    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://example.com/c\" }} }}\n  render:\n    with: {{ hold: \"${{{{ tasks.cues.output }}}}\" }}\n    exec: {{ command: [\"{}\", \"-t\", \"${{{{ with.hold }}}}\"] }}\n",
+            "/opt/homebrew/bin/ffmpeg"
+        ));
+        let detail = &ffmpeg.order_findings[0].detail;
+        assert!(
+            detail.contains(
+                "in a builtin (`nika:video_compose`, which starts the host's ffmpeg itself"
+            ),
+            "{detail}"
+        );
+        let echo = report(&format!(
+            "nika: t\n{PERMITS}tasks:\n  pull:\n    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://example.com/c\" }} }}\n  say:\n    with: {{ body: \"${{{{ tasks.pull.output }}}}\" }}\n    exec: {{ command: [\"echo\", \"${{{{ with.body }}}}\"] }}\n"
+        ));
+        assert!(
+            echo.order_findings[0]
+                .detail
+                .contains("in a builtin (`nika:jq` · `nika:grep`)"),
+            "{}",
+            echo.order_findings[0].detail
+        );
     }
 
     #[test]

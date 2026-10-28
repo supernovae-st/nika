@@ -1691,3 +1691,78 @@ mod host_voice_cost {
         );
     }
 }
+
+/// `nika:video_compose` starts the host's encoder itself: the plan names the
+/// program, where it is looked for and how it runs, statically — and no line
+/// of the card ever claims it has no network (stdlib §`nika:video_compose`).
+mod host_encoder_lines {
+    use super::super::*;
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    const VIDEO: &str = "nika: w\npermits:\n  tools: [\"nika:video_compose\"]\n  fs:\n    read: [\"./out/frames/**\"]\n    write: [\"./out/v.mp4\"]\ntasks:\n  video:\n    invoke: { tool: \"nika:video_compose\", args: { segments: [{ image: ./out/frames/a.png, duration_ms: 2000 }], out: ./out/v.mp4 } }\n";
+
+    fn card(yaml: &str) -> String {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        render(
+            &report,
+            &wf,
+            yaml,
+            "w.nika",
+            RepairTarget::WorkspaceFile,
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            true,
+            &crate::check_render::VerdictLayers::default(),
+        )
+    }
+
+    #[test]
+    fn the_plan_names_the_host_encoder_statically() {
+        let card = card(VIDEO);
+        let wave = card
+            .lines()
+            .find(|l| l.contains("wave 1"))
+            .expect("a wave line");
+        assert!(
+            wave.contains(
+                "video (invoke · nika:video_compose · starts the host's ffmpeg itself (NIKA_FFMPEG, \
+                 else /opt/homebrew/bin/ffmpeg · /usr/local/bin/ffmpeg · /usr/bin/ffmpeg · FFmpeg \
+                 6.0 or later with libx264) under the exec sandbox unless NIKA_SANDBOX=off waives \
+                 it · not exec:, no permits.exec)"
+            ),
+            "{wave}"
+        );
+        assert!(
+            !card.to_lowercase().contains("no network"),
+            "no line claims the encoder has no network: {card}"
+        );
+        // Local work with no cost line of its own: never priced, never free.
+        let cost = card
+            .lines()
+            .find(|l| l.contains("COST"))
+            .expect("a COST rung");
+        assert!(!cost.contains("video"), "{cost}");
+        assert!(!cost.to_lowercase().contains("free"), "{cost}");
+    }
+
+    #[test]
+    fn the_review_names_what_the_video_starts() {
+        let effects = review::external_effects(VIDEO, None);
+        assert_eq!(
+            effects,
+            "encodes video · starts the host's ffmpeg itself (NIKA_FFMPEG, else \
+             /opt/homebrew/bin/ffmpeg · /usr/local/bin/ffmpeg · /usr/bin/ffmpeg · FFmpeg 6.0 or \
+             later with libx264) under the exec sandbox unless NIKA_SANDBOX=off waives it · not \
+             exec:, no permits.exec"
+        );
+        let plan = review::plan_lines(VIDEO);
+        assert!(
+            plan.iter().any(|l| l.contains("assembles a video")),
+            "{plan:?}"
+        );
+    }
+}

@@ -279,9 +279,9 @@ additive constants, and the crate keeps no jaq dependency.
 call and its task's stated reach. It returns findings for recognized, present filesystem
 slots that do not match the appropriate read/write list; `edit.path` must match both.
 Primary slots and directions come from `builtin_effect`; the same owner also checks
-`image_fx.input`, each `image_compose.inputs[]` element, `chart.data.path`,
-`image_generate.image`/`images[]`/`mask`, string `decide.bundle` and
-`fetch.multipart[].path`. Present nonliteral, empty or malformed
+`image_fx.input`, each `image_compose.inputs[]` element, each `video_compose`
+media reference, `chart.data.path`, `image_generate.image`/`images[]`/`mask`, string
+`decide.bundle` and `fetch.multipart[].path`. Present nonliteral, empty or malformed
 recognized slots are findings rather than silently omitted. Inline chart rows, an inline
 decision bundle and text multipart parts do not acquire filesystem meaning.
 
@@ -329,10 +329,15 @@ backslash are ordinary name characters, and nothing is trimmed.
 `chart`; `required_fs_directions` requires both a read and a write.
 `secondary_read_slots(tool, args)` lists the read slots the single `path_arg`
 leaves out, each as `(slot, value)`: every `inputs[k]` element of
-`nika:image_compose`, and one `inputs` slot when the list is templated or
-malformed, so a consumer never mistakes a hidden read set for an empty one.
-Check, inference and the drift scan read this one list; `unbound_fs_args`
-binds each element to the task's stated reads. Every other tool returns none.
+`nika:image_compose`, and one `inputs` slot valued null when the list is
+templated, so a consumer never mistakes a hidden read set for an empty one
+and never judges the template's text as a path (a bare `${{ const.x }}`
+naming a string renders a string, which the run refuses before it reads). A
+literal `inputs` that is not a list is no slot: the shape rules refuse it and
+the call reads nothing. Check, inference, the data journey and the drift scan
+read this one list; `unbound_fs_args` binds each element to the task's stated
+reads and refuses any `inputs` that is not a list. Every other tool returns
+none.
 
 ### 3.8 The host synthesizer names (`system_voice.rs`)
 
@@ -342,6 +347,31 @@ this build's OS, or `None`) and `starts_system_voice(tool, args)` (a literal
 `provider: system` on `nika:tts_generate`) are the one home for the names
 the composition root probes and `nika check` prints. They grant nothing: the
 builtin starts the program itself, never through `exec:` or `permits.exec`.
+
+### 3.9 The video contract (`video.rs` · `nika:video_compose`)
+
+`nika_cap::video` is the one table the static check and the builtin's run
+parse both read: the closed argument set and segment map, the bounds
+(`MAX_SEGMENTS` 200 · `DURATION_MS` · `PAD_MS` · `WIDTH`/`HEIGHT` · `FPS` ·
+`TIMEOUT_MS` · `METADATA_MAX_BYTES`), the defaults, the closed words as
+`#[non_exhaustive]` enums (`Scale` · `Quality` · `AudioCodec` · `Transition`,
+with `fade` reserved), and the predicates `size` (even sides inside the
+bounds), `is_sha256_hex` (64 lowercase hex digits), `out_is_mp4` and
+`metadata_len` (canonical JSON bytes). `builtin_effect` names the `out`
+write; `secondary_read_slots` lists every media reference — `segments[k].image`,
+`segments[k].audio`, the top-level `audio`, valued at its path
+(`media_ref_path`: the string, or an object's `path`) — and one hidden slot
+valued null for a templated `segments` (`segments`) or a templated element
+(`segments[k]`), never its text. A literal `segments` that is not a list, or
+an element that is not a map, is no read slot: the shape rules refuse it and
+the call reads nothing through it, while `unbound_fs_args` and
+`read_slot_paths` still see an unbindable slot. The literal shape rules
+(`builtin_shape_findings`) mirror the spec oracle: a templated value is the
+run's, a literal sibling is still judged. The host program is named here,
+cfg-free and never probed: `FFMPEG`, `FFMPEG_ENV` (`NIKA_FFMPEG`),
+`FFMPEG_CANDIDATES` (three absolute paths · `PATH` is never consulted),
+`FFMPEG_FLOOR` (6.0 · `FFMPEG_LIB_FLOOR` 60) and `H264_ENCODER`. Nothing here
+grants authority or resolves a host path.
 
 ## 4. Module structure with LOC estimates
 

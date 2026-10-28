@@ -25,8 +25,8 @@ use nika_schema::raw::{
 
 use super::flow::{FlowFacts, action_effect_fields, collect_json_strings, refs_in_str};
 use super::permits_fit::{
-    BuiltinEffect, ConstStrings, builtin_effect, chart_vl_sibling, judgeable_arg, raw_arg,
-    static_program, templated_url_host, url_host,
+    BuiltinEffect, ConstStrings, builtin_effect, chart_vl_sibling, judgeable_arg, judgeable_value,
+    raw_arg, static_program, templated_url_host, url_host,
 };
 use super::walk::static_literal_of;
 
@@ -338,6 +338,14 @@ fn collect_action_effects(
             // The chart vega sibling is a second gated write of the same task.
             if let Some(vl) = chart_vl_sibling(a) {
                 touch("fs.write", vl);
+            }
+            // The reads the one `path_arg` leaves out (`image_compose`'s `inputs[]` ·
+            // `video_compose`'s stills and clips): each judgeable path is a source.
+            let args = a.args.as_ref().map(|s| &s.value);
+            for (_, value) in nika_cap::secondary_read_slots(&tool.value, args) {
+                if let Some(path) = judgeable_value(consts, value) {
+                    touch("fs.read", path);
+                }
             }
         }
         RawAction::Agent(a) => collect_agent_tool_effects(id, a, permits, endpoints, external),
@@ -925,6 +933,43 @@ tasks:
             assert_eq!(secret.tasks, ["send"]);
             assert_eq!(secret.flows_to, ["mcp:service/send"]);
         }
+    }
+
+    /// The compose builtins read every media input beside the one path their
+    /// effect row names (`out`): each literal input is a source like a
+    /// `nika:read`, so a PII-shaped still makes the journey sensitive. A
+    /// templated list names no source (its paths are the run's).
+    #[test]
+    fn compose_media_inputs_are_sources() {
+        let still = "./customers/passport-scan.png";
+        let call = |tool: &str, args: &str| {
+            journey_of(&format!(
+                "nika: media\npermits:\n  tools: [\"{tool}\"]\n  fs: {{ read: [\"./customers/**\"], \
+                 write: [\"./out/**\"] }}\ntasks:\n  m:\n    invoke: {{ tool: \"{tool}\", args: \
+                 {args} }}\n"
+            ))
+        };
+        let video = format!(
+            "{{ segments: [{{ image: \"{still}\", duration_ms: 1000 }}], out: \"./out/v.mp4\" }}"
+        );
+        let sheet = format!("{{ inputs: [\"{still}\"], out: \"./out/s.png\" }}");
+        for j in [
+            call("nika:video_compose", &video),
+            call("nika:image_compose", &sheet),
+        ] {
+            let sources: Vec<(&str, &str)> = j
+                .sources
+                .iter()
+                .map(|s| (s.kind, s.target.as_str()))
+                .collect();
+            assert_eq!(sources, [("fs.read", still)], "{j:?}");
+            assert_eq!(j.classification, DataClassification::Sensitive);
+        }
+        let hidden = call(
+            "nika:video_compose",
+            "{ segments: \"${{ const.cut }}\", out: \"./out/v.mp4\" }",
+        );
+        assert!(hidden.sources.is_empty(), "{:?}", hidden.sources);
     }
 
     /// Law 13: the journey names CLASSES, never values. A canary value

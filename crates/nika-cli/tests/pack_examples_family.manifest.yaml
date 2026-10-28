@@ -96,6 +96,9 @@ entries:
   - { slug: social-repurpose, expect: { rc: 0 } }
   - { slug: support-triage, expect: { rc: 0 } }
   - { slug: transcript-shownotes, expect: { rc: 0 } }
+  # The voice lines land (mock), then the video stops at its encoder: this
+  # build carries no video backend, so the call refuses -010 before any read.
+  - { slug: video-compose-storyboard, expect: { finding: NIKA-BUILTIN-VIDEO_COMPOSE-010 } }
 
   # ── Human gates — the prompt carries no `default:` ON PURPOSE (a default
   #    completes NIKA-SEC-009's lethal trifecta), so the run door answers

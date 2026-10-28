@@ -96,6 +96,7 @@ fn builtin_face(tool: &str) -> String {
         "nika:image_generate" => "generates an image",
         "nika:image_fx" => "transforms an image",
         "nika:image_compose" => "composes images into one",
+        "nika:video_compose" => "assembles a video",
         "nika:tts_generate" => "speaks text aloud",
         _ => tool,
     }
@@ -120,6 +121,10 @@ pub fn external_effects(
     let host_voice = parsed
         .as_ref()
         .is_some_and(crate::check_render::starts_host_voice);
+    // …and so does `nika:video_compose`, which starts the host's encoder.
+    let host_encoder = parsed
+        .as_ref()
+        .is_some_and(super::host_encoder::starts_host_encoder);
     let declared = parsed.and_then(|wf| wf.permits.map(|p| p.value));
     let mut hosts: Vec<String> = declared
         .as_ref()
@@ -161,6 +166,12 @@ pub fn external_effects(
         external.push(format!(
             "speaks · {}",
             crate::check_render::system_voice_clause()
+        ));
+    }
+    if host_encoder {
+        external.push(format!(
+            "encodes video · {}",
+            super::host_encoder::host_encoder_clause()
         ));
     }
     external.extend(unpinned.into_iter().map(str::to_owned));

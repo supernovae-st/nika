@@ -7,7 +7,7 @@
 > **Status** · authoring, static checking AND execution all work TODAY:
 > `brew install supernovae-st/tap/nika`, then `nika check` + `nika run` on
 > any file in this page. The spec text itself is v0.2.0-draft, the version
-> engine 0.123.0 embeds; the language family v1 is already frozen — there is
+> engine 0.124.0 embeds; the language family v1 is already frozen — there is
 > no `nika: v2`, ever.
 
 ---
@@ -260,7 +260,7 @@ a caller receives).
 - **[templates/](./templates/)**: writing your own? Instantiate a
   skeleton (<!-- canon:templates -->22<!-- /canon --> valid, slot-marked) instead of starting blank, the
   deterministic path agents follow ([protocol](AGENTS.md))
-- **[stdlib/](./stdlib/)**: the <!-- canon:providers -->18<!-- /canon --> providers · <!-- canon:extract_modes -->10<!-- /canon --> extract modes · <!-- canon:builtins -->30<!-- /canon --> builtins
+- **[stdlib/](./stdlib/)**: the <!-- canon:providers -->18<!-- /canon --> providers · <!-- canon:extract_modes -->10<!-- /canon --> extract modes · <!-- canon:builtins -->31<!-- /canon --> builtins
 - **[examples/](./examples/)**: the numbered path + the jobs, all shipped and CI-gated (the count lives in [examples/manifest.yaml](./examples/manifest.yaml))
 - **[README.md](./README.md)**: why a language · repo layout · governance
 

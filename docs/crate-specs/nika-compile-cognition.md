@@ -1214,7 +1214,7 @@ Each emitted invoke's filesystem arguments are then bound to the stated reach of
 query, refuses a read slot not in the task's `reads`, a write slot not in its `writes` (both
 for `edit`), and any present slot that is not a literal path, covering the primary
 `builtin_effect` path plus `image_fx.input`, each `image_compose.inputs[]` element,
-`chart.data.path`, `image_generate` `image`/`images[]`/`mask`, a string `decide.bundle` and `fetch.multipart[].path`. Another
+each `video_compose` media reference, `chart.data.path`, `image_generate` `image`/`images[]`/`mask`, a string `decide.bundle` and `fetch.multipart[].path`. Another
 task's path is refused even where the sketch's derived permits admit it. This binds and refuses;
 it does not make Rust derive those arguments, and its slot list proves names
 (`nika-builtin` parity test), not that every runtime read or write is listed.

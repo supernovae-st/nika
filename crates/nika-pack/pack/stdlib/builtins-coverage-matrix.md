@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Builtin coverage matrix
 
-> The <!-- canon:builtins -->30<!-- /canon --> builtins audited **as a SET** (2026-06-10) · capability coverage ·
+> The <!-- canon:builtins -->31<!-- /canon --> builtins audited **as a SET** (2026-06-10) · capability coverage ·
 > overlap boundaries · naming grammar · deliberate absences. Per-builtin
 > specs live in [builtins-v0.1.md](./builtins-v0.1.md); this file answers
 > the set-level questions · « can it do everything? » and « is anything
@@ -26,6 +26,7 @@
 | media / speech synthesis | `tts_generate` (local · system · openai · elevenlabs · mock · assets land on disk + manifest incl. `watermark_declared` · `system` speaks through the host's own synthesizer, keyless and offline) | ✅ §Audio (2026-07-05) · `system` (2026-10-26) |
 | media / artistic effects | `image_fx` (deterministic dither · palette · duotone · pixelate · halftone · grain · vignette · chromatic_aberration · scanlines · glitch · ascii — byte-identical artifacts · recipe `image_fx/v1` in-chunk) | ✅ §Media graduate #3 (2026-07-09) |
 | media / image composition | `image_compose` (an ordered PNG list → one PNG · grid · row · column · each at its own size, `fit` or `fill` · gap · padding · background — byte-identical artifacts · recipe `image_compose/v1` in-chunk · every input a judged fs.read) | ✅ §Media graduate #5 (2026-10-26) |
+| media / video assembly | `video_compose` (PNG stills with WAV clips or one soundtrack → one MP4 · H.264 with AAC-LC or FLAC · cuts · audio is the clock · the engine decodes every input and drives the host's ffmpeg on headerless raw samples only · every media input a judged fs.read · no `exec:`, no `permits.exec` · recipe `video_compose/v1` in-file · `determinism: none`) | ✅ §Media graduate #6 (2026-10-28) |
 | control / observability | `assert` · `done` · `log` · `emit` · `inspect` (+ DAG-side `when` · `for_each`) | ✅ full |
 
 Every capability class is covered or carries a **written deliberate-absence
@@ -87,4 +88,4 @@ already exists — not an unwritten contract.
 
 ---
 
-🦋 *<!-- canon:builtins -->30<!-- /canon --> builtins · zero duplicates · every absence written.*
+🦋 *<!-- canon:builtins -->31<!-- /canon --> builtins · zero duplicates · every absence written.*

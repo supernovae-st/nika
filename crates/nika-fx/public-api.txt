@@ -544,6 +544,7 @@ pub const nika_fx::compose::MAX_SPACING: u32
 pub const nika_fx::compose::MAX_TRACKS: u32
 pub fn nika_fx::compose::compose(inputs: &[&[u8]], args: &nika_fx::compose::ComposeArgs) -> core::result::Result<nika_fx::compose::ComposeOutput, nika_fx::error::FxError>
 pub fn nika_fx::compose::grid(args: &nika_fx::compose::ComposeArgs, count: usize) -> core::result::Result<(u32, u32), nika_fx::error::FxError>
+pub fn nika_fx::compose::placed_size(width: u32, height: u32, scale: nika_fx::compose::Scale, cell: (u32, u32)) -> core::result::Result<(u32, u32), nika_fx::error::FxError>
 pub mod nika_fx::det
 pub struct nika_fx::det::Pcg32
 impl nika_fx::det::Pcg32

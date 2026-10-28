@@ -44,6 +44,10 @@ geometry, the `resize` op's linear-light ladder for every scaled box, the recipe
 - `codec::png::{decode, encode}` · `det::{sha256_hex, Pcg32}` — the hand-rolled substrate.
 - `compose::{compose, grid}` · `ComposeArgs::new()` · `Layout` · `Scale` · `ComposeOutput` ·
   `InputFacts` · `compose::CONTRACT_TAG = "image_compose/v1"` — the composition.
+- `compose::placed_size(w, h, scale, cell)` — one cell's placed box, before the `fill`
+  crop, with its caps (`FxError::Cap` · `FxError::Budget`): `nika:video_compose`'s
+  `fit`/`fill` is this geometry with ONE cell of the frame, so the two builtins never
+  place a still differently.
 - `codec::png::{header, decode_with_alpha}` — the IHDR-only probe (every cap judged
   before any inflate) and the alpha plane the composer flattens over its background.
 - `FxError::Cap` — a per-side size cap (the pixel totals stay `FxError::Budget`).

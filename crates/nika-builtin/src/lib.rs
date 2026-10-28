@@ -55,6 +55,7 @@ pub(crate) mod net_payload;
 pub(crate) mod net_traverse;
 pub mod permits;
 pub mod tts;
+pub(crate) mod video_compose;
 pub(crate) mod wire;
 pub mod witness;
 pub mod write_origins;
@@ -496,7 +497,7 @@ where
             // resolve_multipart · the judged fs pins each file read).
             "fetch" => Ok(self.route_fetch(args, jq_clock, deadline).await),
             "notify" => Ok(net::notify(self.http.as_ref(), args).await),
-            // media 5 — provider calls ride dedicated planes (const endpoints);
+            // media 6 — provider calls ride dedicated planes (const endpoints);
             // saves gate each final path on the permits.fs boundary before I/O.
             "image_generate" => Ok(image::generate(
                 self.fs.as_ref(),
@@ -512,6 +513,8 @@ where
             "chart" => Ok(self.guarded_chart(args).await),
             "image_fx" => Ok(self.route_image_fx(args).await),
             "image_compose" => Ok(self.route_image_compose(args).await),
+            // No encoder in this build: the arguments are judged, then `-010`.
+            "video_compose" => Ok(video_compose::run(args)),
             // introspection 2
             "compose" => Ok(core_tools::compose()),
             "inspect" => Ok(inspect::inspect(self.workflow.as_ref(), args)),
@@ -1135,11 +1138,11 @@ mod tests {
             let outcome = rig.execute(call(&def.name, serde_json::json!({}))).await;
             assert!(outcome.is_ok(), "{} must route (got {outcome:?})", def.name);
         }
-        // …and the count is the canonical 30 (stdlib v0.1 · +compose per
+        // …and the count is the canonical 31 (stdlib v0.1 · +compose per
         // ADR-096 · +image_generate stdlib §Media · +tts_generate §Audio ·
         // +decide spec 11 W-DEC · +remove_file §nika:remove_file ·
-        // +image_compose §Media #5).
-        assert_eq!(tool_defs().len(), 30);
+        // +image_compose §Media #5 · +video_compose §Media #6).
+        assert_eq!(tool_defs().len(), 31);
     }
 
     #[tokio::test]
@@ -1199,7 +1202,7 @@ mod tests {
         let defs = ToolDefinitionProviderDyn::tool_defs(&rig())
             .await
             .expect("enumerates");
-        assert_eq!(defs.len(), 30);
+        assert_eq!(defs.len(), 31);
         assert!(defs.iter().all(|d| d.name.starts_with(NAMESPACE)));
         assert!(defs.iter().all(|d| !d.description.is_empty()));
         assert!(

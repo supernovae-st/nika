@@ -64,11 +64,15 @@ pub enum BuiltinEffect {
 /// Filesystem directions every valid call needs, independent of chosen paths.
 /// The pair is `(reads, writes)`. Optional input/idempotence reads are excluded.
 /// Unlike the single-path [`builtin_effect`] projection, `image_fx` requires a
-/// read of `input` AND a write of `out`, and `image_compose` a read of every
-/// `inputs[]` path AND a write of `out`; neither direction refers to both paths.
+/// read of `input` AND a write of `out`, `image_compose` a read of every
+/// `inputs[]` path AND a write of `out`, and `video_compose` a read of every
+/// still (and clip) AND a write of `out`; neither direction refers to both paths.
 #[must_use]
 pub fn required_fs_directions(tool: &str) -> Option<(bool, bool)> {
-    if matches!(tool, "nika:image_fx" | "nika:image_compose") {
+    if matches!(
+        tool,
+        "nika:image_fx" | "nika:image_compose" | crate::video::TOOL
+    ) {
         return Some((true, true));
     }
     match builtin_effect(tool, None) {
@@ -266,15 +270,12 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
         // · one path_arg per effect); chart was INVISIBLE here until
         // 2026-07-11 — the inference wrote a boundary the run then
         // refused (the self-refusing class); its `compile_to` vega
-        // sibling rides `chart_vl_sibling`; image_compose's `inputs[]` ride
-        // [`secondary_read_slots`] (judged statically, never left to the run).
-        "nika:image_fx" | "nika:chart" | "nika:image_compose" => Some(BuiltinEffect::Fs {
-            path_arg: "out",
-            reads: false,
-            writes: true,
-            recursive: false,
-            walk_root: false,
-        }),
+        // sibling rides `chart_vl_sibling`; image_compose's `inputs[]` and
+        // video_compose's media references ride [`secondary_read_slots`]
+        // (judged statically, never left to the run).
+        "nika:image_fx" | "nika:chart" | "nika:image_compose" | crate::video::TOOL => {
+            Some(OUT_WRITE)
+        }
         // decide is pure compute (spec 11 §nika:decide); its ONE
         // statically-visible effect is a literal string `bundle:` — a path
         // read declared like any fs.read. An inline object bundle needs no
@@ -303,6 +304,15 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
         _ => None,
     }
 }
+
+/// The single-artifact writers' effect: the write of the literal `out:` path.
+const OUT_WRITE: BuiltinEffect = BuiltinEffect::Fs {
+    path_arg: "out",
+    reads: false,
+    writes: true,
+    recursive: false,
+    walk_root: false,
+};
 
 /// The directory a glob PATTERN opens: the literal prefix before the first
 /// metacharacter. The ONE definition — the checker, the capability
@@ -384,17 +394,30 @@ fn notify_webhook_channel(args: Option<&serde_json::Value>) -> bool {
 }
 
 /// The READ slots of one call that [`builtin_effect`]'s single `path_arg`
-/// leaves out, each as `(slot name, raw value)`: `nika:image_compose`'s
-/// ordered `inputs[k]`. A present `inputs` that is not a list (a templated
-/// `${{ }}` list, or a malformed value) is ONE slot named `inputs`, so a
-/// consumer can never mistake a hidden read set for an empty one: it reads
-/// a templated string as dynamic, never as a path. Every other tool has
+/// leaves out, each as `(slot name, path value)`: `nika:image_compose`'s
+/// ordered `inputs[k]`, and `nika:video_compose`'s media references —
+/// `segments[k].image`, `segments[k].audio` and the top-level `audio`, each
+/// valued at its path (a string, or an object's `path` · null when the object
+/// has none). A templated `${{ }}` `inputs` or `segments` is ONE slot named
+/// after it, and so is a templated `segments[k]`, valued null: a consumer can
+/// never mistake a hidden read set for an empty one, and never judges the
+/// template's text as a path (a whole bare `${{ const.x }}` naming a string
+/// renders a string, which the run refuses before it reads). A literal of the
+/// wrong shape (an `inputs` or `segments` that is not a list, an element that
+/// is not a map) is no slot: the call is refused before it reads (the shape
+/// rules' `-001`), so it reads nothing through it. Every other tool has
 /// none — their extra reads stay where their owners put them.
 #[must_use]
 pub fn secondary_read_slots<'a>(
     tool: &str,
     args: Option<&'a serde_json::Value>,
 ) -> Vec<(String, &'a serde_json::Value)> {
+    if tool == crate::video::TOOL {
+        return crate::video::read_slots(args)
+            .iter()
+            .filter_map(crate::video::ReadSlot::pair)
+            .collect();
+    }
     if tool != "nika:image_compose" {
         return Vec::new();
     }
@@ -404,18 +427,21 @@ pub fn secondary_read_slots<'a>(
             .enumerate()
             .map(|(k, value)| (format!("inputs[{k}]"), value))
             .collect(),
-        Some(other) => vec![("inputs".to_owned(), other)],
-        None => Vec::new(),
+        Some(serde_json::Value::String(list)) if list.contains("${{") => {
+            vec![("inputs".to_owned(), &NO_PATH)]
+        }
+        Some(_) | None => Vec::new(),
     }
 }
 
 /// Every filesystem argument of one call of `tool` with `args` that is not bound to the calling
 /// task's own stated reach. Read slots (`read`/`grep` `path`, `glob` `pattern`, `decide` `bundle`
-/// when it is a string, `image_fx` `input`, each `image_compose` `inputs[]` element, `chart`
-/// `data.path`, `image_generate` `image`, each `images[]` element and `mask`, each `fetch`
-/// `multipart[].path`) must equal one of `reads`; write slots (`write` `path`,
-/// `chart`/`image_fx`/`image_compose` `out`, `image_generate`/`tts_generate` `output_dir`) one of
-/// `writes`; a slot whose effect both reads and writes (`edit` `path`) must
+/// when it is a string, `image_fx` `input`, each `image_compose` `inputs[]` element, each
+/// `video_compose` media reference, `chart` `data.path`, `image_generate` `image`, each
+/// `images[]` element and `mask`, each `fetch` `multipart[].path`) must equal one of `reads`;
+/// write slots (`write` `path`, `chart`/`image_fx`/`image_compose`/`video_compose` `out`,
+/// `image_generate`/`tts_generate` `output_dir`) one of `writes`; a slot whose effect both
+/// reads and writes (`edit` `path`) must
 /// be in both. Primary slots and their directions come from [`builtin_effect`]; the secondary
 /// slots it leaves out (one `path_arg` per effect) are listed here, at the same owner.
 ///
@@ -478,7 +504,8 @@ pub enum SlotPath {
 
 /// Every place one call of `tool` with `args` may READ a file: the read side of the slots
 /// [`unbound_fs_args`] binds (`read`/`grep`/`edit` `path`, `glob` `pattern`, a string `decide`
-/// `bundle`, `image_fx` `input`, each `image_compose` `inputs[]`, `chart` `data.path`,
+/// `bundle`, `image_fx` `input`, each `image_compose` `inputs[]`, each `video_compose` media
+/// reference, `chart` `data.path`,
 /// `image_generate` `image`, `images[]` and `mask`, each `fetch` `multipart[].path`), one
 /// entry per present slot, plus the root a
 /// `grep` without `path` searches (`.`, descending). Empty when the call reads no file.
@@ -517,7 +544,8 @@ const GREP_DEFAULT_ROOT: &str = ".";
 
 /// Every place one call of `tool` with `args` may WRITE a file: the write side of the slots
 /// [`unbound_fs_args`] binds (`write`/`edit`/`remove_file` `path`,
-/// `chart`/`image_fx`/`image_compose` `out`, `image_generate`/`tts_generate` `output_dir`),
+/// `chart`/`image_fx`/`image_compose`/`video_compose` `out`, `image_generate`/`tts_generate`
+/// `output_dir`),
 /// plus the `chart` `.vl.json` sibling
 /// ([`chart_vl_sibling`]). Empty when the call writes no file.
 #[must_use]
@@ -577,11 +605,13 @@ enum FsSlot<'a> {
         pattern: bool,
     },
     /// A read container of the wrong shape (`chart` `data` · `image_generate` `images` ·
-    /// `fetch` `multipart` or one of its parts): it cannot be read as paths.
+    /// `fetch` `multipart` or one of its parts · `video_compose` `segments` or one of its
+    /// elements): it cannot be read as paths.
     Malformed { name: String, shape: &'static str },
 }
 
-/// The value a `chart` `data` object without `path` binds: an absent path is no path.
+/// The value a slot with no path as written binds: a `chart` `data` object without `path`, a
+/// templated `image_compose` `inputs` list. An absent path is no path.
 static NO_PATH: serde_json::Value = serde_json::Value::Null;
 
 /// Every filesystem slot of one call. Primary slots and their directions come from
@@ -683,9 +713,36 @@ fn fs_slots<'a>(tool: &str, args: Option<&'a serde_json::Value>) -> Vec<FsSlot<'
             Some(_) => slots.push(malformed("multipart".to_owned(), "an array of parts")),
             None => {}
         },
-        _ => {}
+        _ => slots.extend(video_slots(tool, args)),
     }
     slots
+}
+
+/// `nika:video_compose`'s read slots (none for any other tool): each media reference is a read
+/// at its path; a `segments` that is not a list, or an element that is not a map (templated or
+/// malformed), shows no path to bind, so it is refused whatever it holds.
+fn video_slots<'a>(tool: &str, args: Option<&'a serde_json::Value>) -> Vec<FsSlot<'a>> {
+    if tool != crate::video::TOOL {
+        return Vec::new();
+    }
+    crate::video::read_slots(args)
+        .into_iter()
+        .map(|slot| match slot {
+            crate::video::ReadSlot::Media { name, path } => FsSlot::Arg {
+                name,
+                value: path,
+                read: true,
+                write: false,
+                descends: false,
+                pattern: false,
+            },
+            crate::video::ReadSlot::Hidden { name }
+            | crate::video::ReadSlot::Malformed { name } => FsSlot::Malformed {
+                name,
+                shape: "a list of segment maps with literal media paths",
+            },
+        })
+        .collect()
 }
 
 /// Why one present filesystem slot is not bound: not a literal path, or a literal the task does
@@ -1069,11 +1126,29 @@ mod tests {
                 ("inputs[2]".to_owned(), json!(7)),
             ]
         );
-        // A whole templated list is ONE dynamic slot, never an empty set.
-        let templated = json!({"inputs": "${{ with.frames }}", "out": "./s.png"});
-        let one = secondary_read_slots("nika:image_compose", Some(&templated));
-        assert_eq!(one.len(), 1);
-        assert_eq!(one[0].0, "inputs");
+        // A whole templated list is ONE dynamic slot, never an empty set, and
+        // its text is never a path: a bare const naming a string renders a
+        // string, which the run refuses before it reads.
+        for templated in ["${{ with.frames }}", "${{ const.frames }}"] {
+            let args = json!({"inputs": templated, "out": "./s.png"});
+            assert_eq!(
+                secondary_read_slots("nika:image_compose", Some(&args)),
+                [("inputs".to_owned(), &serde_json::Value::Null)],
+                "{args}"
+            );
+        }
+        // A literal of the wrong shape reads nothing: the shape rules refuse it.
+        for malformed in [
+            json!("./secret/a.png"),
+            json!(7),
+            json!({"path": "./a.png"}),
+        ] {
+            let args = json!({"inputs": malformed, "out": "./s.png"});
+            assert!(
+                secondary_read_slots("nika:image_compose", Some(&args)).is_empty(),
+                "{args}"
+            );
+        }
         // Every other tool keeps its reads where its owner put them.
         for tool in [
             "nika:image_fx",

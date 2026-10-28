@@ -17,9 +17,11 @@
 //! through BOTH evaluators AT THE REAL BINARY, under the mapping law:
 //!
 //! * **static-red ⇒ never executes** — every `core/authority` fixture
-//!   the oracle judges invalid is fed to `nika run`: the run refuses
-//!   BEFORE the prologue (zero task frames · the judged verdict is the
-//!   executed verdict) and the refusal voices the fixture's code.
+//!   the oracle judges invalid (and every refused case of the
+//!   `core/consent` and `nika:video_compose` tiers) is fed to
+//!   `nika run`: the run refuses BEFORE the prologue (zero task frames ·
+//!   the judged verdict is the executed verdict) and the refusal voices
+//!   the fixture's code.
 //! * **static-clean + DEFER ⇒ the run twin decides** — every
 //!   `runtime/permits` fixture must be check-CLEAN, and its real run's
 //!   per-task terminals must match `expected-run.json` (the same
@@ -223,22 +225,7 @@ fn statically_refused_fixtures_never_execute() {
             continue; // clean core fixtures may declare real effects — never run here
         }
         red += 1;
-        let observed = run_observed(&input, &[], &[]);
-        if observed.ok {
-            failures.push(format!("{name}: judged red but the run SUCCEEDED"));
-        }
-        if observed.kinds.iter().any(|k| k.starts_with("task_")) {
-            failures.push(format!(
-                "{name}: judged red but tasks ran — the refusal must land pre-prologue ({:?})",
-                observed.kinds
-            ));
-        }
-        for err in expected["errors"].as_array().into_iter().flatten() {
-            let code = err["code"].as_str().unwrap_or_default();
-            if !code.is_empty() && !observed.text.contains(code) {
-                failures.push(format!("{name}: the refusal never voices {code}"));
-            }
-        }
+        failures.extend(refusal_failures(&name, &input, &expected));
     }
     assert!(
         failures.is_empty(),
@@ -251,6 +238,86 @@ fn statically_refused_fixtures_never_execute() {
     );
     println!(
         "equivalence leg 1 (static-red never executes): {red} red replayed · {clean} clean checked-only"
+    );
+}
+
+/// One statically refused fixture run at the real binary: what breaks the
+/// mapping law — a run that succeeds, a task frame before the refusal (it
+/// must land pre-prologue), or a judged code the refusal never voices.
+fn refusal_failures(name: &str, input: &Path, expected: &serde_json::Value) -> Vec<String> {
+    let mut failures = Vec::new();
+    let observed = run_observed(input, &[], &[]);
+    if observed.ok {
+        failures.push(format!("{name}: judged red but the run SUCCEEDED"));
+    }
+    if observed.kinds.iter().any(|k| k.starts_with("task_")) {
+        failures.push(format!(
+            "{name}: judged red but tasks ran — the refusal must land pre-prologue ({:?})",
+            observed.kinds
+        ));
+    }
+    for err in expected["errors"].as_array().into_iter().flatten() {
+        let code = err["code"].as_str().unwrap_or_default();
+        if !code.is_empty() && !observed.text.contains(code) {
+            failures.push(format!("{name}: the refusal never voices {code}"));
+        }
+    }
+    failures
+}
+
+/// Mapping-law row 1, the `nika:video_compose` tier — every statically
+/// refused case of `stdlib/builtins/080`..=`117` (the builtin's static
+/// contract) runs at the real binary under the same law: refused before
+/// the prologue, its judged code voiced. The five clean cases are checked
+/// only: a clean call reaches its encoder, which `pack_examples_family`
+/// replays on the storyboard example.
+#[test]
+fn video_compose_refusals_never_execute() {
+    let root = spec_dir().join("conformance/tests/stdlib/builtins");
+    assert!(
+        root.is_dir(),
+        "builtin tier missing: {} — set NIKA_SPEC_DIR",
+        root.display()
+    );
+    let (mut red, mut clean) = (0usize, 0usize);
+    let mut failures: Vec<String> = Vec::new();
+    for dir in fixture_dirs(&root) {
+        let name = dir
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        let in_tier = name
+            .split('-')
+            .next()
+            .and_then(|number| number.parse::<u32>().ok())
+            .is_some_and(|number| (80..=117).contains(&number));
+        if !in_tier {
+            continue;
+        }
+        let expected: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(dir.join("expected.json")).expect("expected.json"),
+        )
+        .expect("expected parses");
+        if expected["valid"].as_bool() == Some(true) {
+            clean += 1;
+            continue;
+        }
+        red += 1;
+        failures.extend(refusal_failures(&name, &dir.join("input.yaml"), &expected));
+    }
+    assert!(
+        failures.is_empty(),
+        "the judged verdict must BE the executed verdict:\n{}",
+        failures.join("\n")
+    );
+    assert_eq!(
+        (red, clean),
+        (33, 5),
+        "the 38 video cases: 33 refused, 5 clean"
+    );
+    println!(
+        "equivalence leg 1c (nika:video_compose): {red} red replayed · {clean} clean checked-only"
     );
 }
 
@@ -323,22 +390,7 @@ fn consent_fixtures_replay_at_the_binary() {
             continue;
         }
         red += 1;
-        let observed = run_observed(&input, &[], &[]);
-        if observed.ok {
-            failures.push(format!("{name}: judged red but the run SUCCEEDED"));
-        }
-        if observed.kinds.iter().any(|k| k.starts_with("task_")) {
-            failures.push(format!(
-                "{name}: judged red but tasks ran — the refusal must land pre-prologue ({:?})",
-                observed.kinds
-            ));
-        }
-        for err in expected["errors"].as_array().into_iter().flatten() {
-            let code = err["code"].as_str().unwrap_or_default();
-            if !code.is_empty() && !observed.text.contains(code) {
-                failures.push(format!("{name}: the refusal never voices {code}"));
-            }
-        }
+        failures.extend(refusal_failures(&name, &input, &expected));
     }
     assert!(
         failures.is_empty(),

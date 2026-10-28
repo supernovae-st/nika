@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Static builtin tool catalog — 30 `nika:*` tools in a sorted array.
+//! Static builtin tool catalog — 31 `nika:*` tools in a sorted array.
 //!
 //! Case-sensitive lookup via binary search. Tool names are engine-controlled,
 //! always lowercase.
@@ -17,15 +17,16 @@
 //! §Media · the first deferred-media graduate) + `nika:tts_generate`
 //! (stdlib §Audio · sovereign-first) + `nika:decide` (spec 11 W-DEC · the
 //! deterministic decision kernel) + `nika:remove_file` (stdlib
-//! §`nika:remove_file`) + `nika:image_compose` (stdlib §Media graduate #5).
+//! §`nika:remove_file`) + `nika:image_compose` (stdlib §Media graduate #5) +
+//! `nika:video_compose` (stdlib §Media graduate #6).
 //!
-//! 6 categories · Core 6 · File 6 · Data 9 · Network 2 · Introspection 2 · Media 5 = 30.
+//! 6 categories · Core 6 · File 6 · Data 9 · Network 2 · Introspection 2 · Media 6 = 31.
 
 use crate::types::builtin::{Builtin, BuiltinCategory};
 
 use BuiltinCategory::{Core, Data, File, Introspection, Media, Network};
 
-/// All 30 builtin tools, **sorted alphabetically by name**.
+/// All 31 builtin tools, **sorted alphabetically by name**.
 ///
 /// Invariant: array MUST be sorted for `binary_search` to work.
 /// This is validated by a unit test.
@@ -248,6 +249,29 @@ pub static ALL_BUILTINS: &[Builtin] = &[
         &["data", "schema", "format"],
         &["data", "schema"],
     ),
+    // `video_compose` (stdlib §Media graduate #6 · PNG stills + WAV clips or
+    // one soundtrack → ONE MP4 · every media input an fs.read the check
+    // judges, `out` an fs.write · NIKA-BUILTIN-VIDEO_COMPOSE-001..011). The
+    // closed arg set is the « captions are not v1 » refusal (ARGS).
+    Builtin::with_required(
+        "video_compose",
+        Media,
+        &[
+            "segments",
+            "audio",
+            "audio_codec",
+            "out",
+            "size",
+            "fps",
+            "scale",
+            "background",
+            "quality",
+            "transition",
+            "metadata",
+            "timeout_ms",
+        ],
+        &["segments", "out"],
+    ),
     // `wait` · `duration` XOR `until` — a CONDITIONAL exactly-one-of, not a
     // flat required set · `builtin_shape` owns it (required stays `&[]`).
     Builtin::with_args("wait", Core, &["duration", "until", "timeout"]),
@@ -280,7 +304,7 @@ mod tests {
 
     #[test]
     fn builtin_count() {
-        assert_eq!(ALL_BUILTINS.len(), 30);
+        assert_eq!(ALL_BUILTINS.len(), 31);
     }
 
     #[test]
@@ -315,6 +339,7 @@ mod tests {
             "inspect",
             "image_generate",
             "image_compose",
+            "video_compose",
             "chart",
         ];
         for name in names {
@@ -394,13 +419,13 @@ mod tests {
             "expected 2 introspection builtins (inspect runtime · compose static · ADR-096)"
         );
         assert_eq!(
-            media, 5,
-            "expected 5 media builtins (chart · image_compose · image_fx · image_generate §Media · tts_generate §Audio)"
+            media, 6,
+            "expected 6 media builtins (chart · image_compose · image_fx · image_generate §Media · tts_generate §Audio · video_compose)"
         );
         assert_eq!(
             core + file + data + network + intro + media,
-            30,
-            "total must equal 30"
+            31,
+            "total must equal 31"
         );
     }
 

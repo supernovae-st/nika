@@ -40,9 +40,10 @@ const EFFECTS_DISABLED: &str =
 
 /// The builtin tools that stay REAL effects even when the model is mock:
 /// fs WRITES (`write` · `edit`), NETWORK (`fetch` · `notify`), and the
-/// MEDIA five (provider calls + disk-landing outputs — `chart` and the
+/// MEDIA six (provider calls + disk-landing outputs — `chart` and the
 /// « deterministic » `image_fx` and `image_compose` included: a pure
-/// transform that lands a file is still a write). Every other `nika:` builtin delegates (pure
+/// transform that lands a file is still a write · `video_compose` starts the
+/// host's encoder and lands a file). Every other `nika:` builtin delegates (pure
 /// compute · fs reads inside the declared `permits.fs` boundary · stderr
 /// observability).
 const EFFECT_TOOLS: &[&str] = &[
@@ -55,6 +56,7 @@ const EFFECT_TOOLS: &[&str] = &[
     "nika:chart",
     "nika:image_fx",
     "nika:image_compose",
+    "nika:video_compose",
 ];
 
 /// The refusal predicate: the enumerated effect set, PLUS anything outside
@@ -171,6 +173,7 @@ mod tests {
             "nika:chart",
             "nika:image_fx",
             "nika:image_compose",
+            "nika:video_compose",
             "mcp:server/tool",
         ] {
             let err = d

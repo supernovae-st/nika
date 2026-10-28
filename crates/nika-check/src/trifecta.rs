@@ -973,4 +973,69 @@ mod tests {
             r.trifecta_findings
         );
     }
+
+    /// `nika:video_compose` (stdlib §`nika:video_compose` · the order law and
+    /// the trifecta): an fs-write egress (its artifact) whose media inputs are
+    /// reads — never an ingress source, unlike `exec:`, whose output is
+    /// whatever its program prints.
+    #[test]
+    fn video_compose_is_a_write_sink_and_never_an_ingress() {
+        let parsed = |y: &str| parse(y, FileId::new(0), ParseMode::Strict).expect("parses");
+        let wf = parsed(
+            "nika: t\ntasks:\n  render:\n    invoke: { tool: \"nika:video_compose\", args: { segments: [{ image: ./a.png, duration_ms: 500 }], out: ./out/v.mp4 } }\n",
+        );
+        let never_trusted = |_: &str| false;
+        assert_eq!(
+            crate::content_flow::classify(&wf.tasks[0].value.action, &never_trusted),
+            (false, true),
+            "(ingress, writes): a write sink, never a source"
+        );
+        // Fetched content in its arguments reaches the artifact: the gate the
+        // trifecta asks for, and a dominating one disarms it.
+        let ungated = "nika: t\npermits:\n  tools: [\"nika:fetch\", \"nika:video_compose\", \"nika:prompt\"]\n  net: { http: [\"example.com\"] }\n  fs: { read: [\"./assets/**\"], write: [\"./out/v.mp4\"] }\ntasks:\n  title:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/t.json\", mode: jq, jq: \".title\" } }\n  render:\n    with: { title: \"${{ tasks.title.output }}\" }\n    invoke: { tool: \"nika:video_compose\", args: { segments: [{ image: ./assets/a.png, duration_ms: 500 }], out: ./out/v.mp4, metadata: { title: \"${{ with.title }}\" } } }\n";
+        let r = report(ungated);
+        assert_eq!(r.trifecta_findings.len(), 1, "{:?}", r.trifecta_findings);
+        assert_eq!(r.trifecta_findings[0].task, "render");
+        assert_eq!(r.trifecta_findings[0].source.as_deref(), Some("title"));
+        let gated = ungated.replacen(
+            "tasks:\n  title:\n    invoke",
+            "tasks:\n  ok:\n    invoke: { tool: \"nika:prompt\", args: { message: \"go?\" } }\n  title:\n    after: { ok: success }\n    invoke",
+            1,
+        );
+        assert!(report(&gated).trifecta_findings.is_empty());
+    }
+
+    /// The outputs carry the taint of what they echo: a fetched title rides
+    /// the video's `metadata` behind a gate, and an egress that reads the
+    /// video's outputs beside an ungated sibling is refused, its source the
+    /// fetch (the spec's fixture 117 shape).
+    #[test]
+    fn video_compose_outputs_keep_the_taint_they_echo() {
+        let r = report(
+            "nika: t\npermits:\n  tools: [\"nika:fetch\", \"nika:notify\", \"nika:prompt\", \"nika:read\", \"nika:video_compose\"]\n  net: { http: [\"example.com\", \"hooks.example.com\"] }\n  fs: { read: [\"./assets/**\"], write: [\"./out/v.mp4\"] }\ntasks:\n  approve:\n    invoke: { tool: \"nika:prompt\", args: { message: \"render?\" } }\n  title:\n    after: { approve: success }\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/t.json\", mode: jq, jq: \".title\" } }\n  render:\n    with: { title: \"${{ tasks.title.output }}\" }\n    invoke: { tool: \"nika:video_compose\", args: { segments: [{ image: ./assets/a.png, duration_ms: 500 }], out: ./out/v.mp4, metadata: { title: \"${{ with.title }}\" } } }\n  notes:\n    invoke: { tool: \"nika:read\", args: { path: ./assets/notes.txt } }\n  tell:\n    with: { video: \"${{ tasks.render.output }}\", notes: \"${{ tasks.notes.output }}\" }\n    invoke: { tool: \"nika:notify\", args: { target: \"https://hooks.example.com/recap\", message: \"${{ with.video }} ${{ with.notes }}\" } }\n",
+        );
+        assert_eq!(r.trifecta_findings.len(), 1, "{:?}", r.trifecta_findings);
+        assert_eq!(r.trifecta_findings[0].task, "tell");
+        assert_eq!(r.trifecta_findings[0].source.as_deref(), Some("title"));
+    }
+
+    /// The order law binds `exec:` only: ffmpeg run by an `exec:` downstream
+    /// of a fetch is refused, `nika:video_compose` in the same place is not
+    /// (its program parses only the raw samples the engine wrote).
+    #[test]
+    fn the_order_law_binds_an_exec_of_ffmpeg_never_the_builtin() {
+        let head = "nika: t\npermits:\n  exec: [\"ffmpeg\"]\n  tools: [\"nika:fetch\", \"nika:video_compose\"]\n  net: { http: [\"example.com\"] }\n  fs: { read: [\"./assets/**\"], write: [\"./out/v.mp4\"] }\ntasks:\n  cues:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/c.json\", mode: jq, jq: \".hold\" } }\n  render:\n    with: { hold: \"${{ tasks.cues.output }}\" }\n";
+        let builtin = report(&format!(
+            "{head}    invoke: {{ tool: \"nika:video_compose\", args: {{ segments: [{{ image: ./assets/a.png, duration_ms: \"${{{{ with.hold }}}}\" }}], out: ./out/v.mp4 }} }}\n"
+        ));
+        assert!(
+            builtin.order_findings.is_empty(),
+            "{:?}",
+            builtin.order_findings
+        );
+        let exec = report(&format!(
+            "{head}    exec: {{ command: [\"ffmpeg\", \"-t\", \"${{{{ with.hold }}}}\", \"-i\", \"./assets/a.png\", \"./out/v.mp4\"] }}\n"
+        ));
+        assert_eq!(exec.order_findings.len(), 1, "{:?}", exec.order_findings);
+    }
 }

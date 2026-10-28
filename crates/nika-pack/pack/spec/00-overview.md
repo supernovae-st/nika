@@ -58,6 +58,14 @@ These 5 pillars are **locked forever** at v1. Everything else (providers · buil
 
 ## Pre-1.0 stability contract
 
+> **Amended 2026-10-27 · the current release line.**
+> Engine 0.124.0 embeds this spec at commit `5cd95cd`. 0.124 is the current
+> release line. Work stays focused on maintenance, security and the media
+> capabilities workflows need; native video is planned for 0.125. No engine
+> 1.0.0 is scheduled, so the freeze this section waits for is still not
+> planned, and each change to the grammar lands with its conformance
+> fixtures and its [CHANGELOG.md](../CHANGELOG.md) entry, as below.
+
 > **Amended 2026-10-23 · the maintained reference.** Engine 0.123.0 is the
 > open-source reference release and embeds this spec at commit `6390b08`.
 > After it the project is maintained (security fixes, bug fixes and
@@ -182,7 +190,7 @@ outputs:                              # what the workflow returns · symmetric t
 | [16 projections](./16-projections.md) | The oracle surface · one canonical projection (graph_format:3) served byte-identical across CLI · LSP · MCP · the LSP semantic document (`semantic_document_format: 1`) wraps it with spans + one-word `reason` · the additive arc (holes · actions · capabilities over the frozen IR) |
 | [17 trace](./17-trace.md) | The run journal · NDJSON frames chained by sha256 (`trace_format: 2` · the prologue manifest · the closed kind vocabulary) · the REQUIRED permit-decision witness (NEP-0007 · granted and refused alike) · the differential check ⇔ run equivalence law · graved from an observed run |
 
-**Stdlib** (versioned independently · not a spec section) · [stdlib/](../stdlib/): **<!-- canon:providers -->18<!-- /canon --> providers · <!-- canon:extract_modes -->10<!-- /canon --> extract modes · <!-- canon:builtins -->30<!-- /canon --> builtins**.
+**Stdlib** (versioned independently · not a spec section) · [stdlib/](../stdlib/): **<!-- canon:providers -->18<!-- /canon --> providers · <!-- canon:extract_modes -->10<!-- /canon --> extract modes · <!-- canon:builtins -->31<!-- /canon --> builtins**.
 
 ---
 

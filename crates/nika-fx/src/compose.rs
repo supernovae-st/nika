@@ -318,6 +318,30 @@ fn place(w: u32, h: u32, scale: Scale, cell: (u32, u32)) -> Result<Placement, Fx
     })
 }
 
+/// The box a `width × height` image is scaled to in a `cell` — the
+/// composition's own geometry (its placed sizes, its rounding), before the
+/// `fill` crop: the input itself for [`Scale::None`]. One cell of a video
+/// frame is `nika:video_compose`'s `fit` / `fill`, so the two builtins can
+/// never place a still differently.
+///
+/// # Errors
+/// `FxError::Cap` (a scaled side over 16384) · `FxError::Budget` (a scaled
+/// box over 2^26 pixels) — judged from the sizes alone, before any decode.
+pub fn placed_size(
+    width: u32,
+    height: u32,
+    scale: Scale,
+    cell: (u32, u32),
+) -> Result<(u32, u32), FxError> {
+    if width == 0 || height == 0 || cell.0 == 0 || cell.1 == 0 {
+        return Err(FxError::Args(format!(
+            "a {width}x{height} image in a {}x{} cell · every side is at least 1",
+            cell.0, cell.1
+        )));
+    }
+    place(width, height, scale, cell).map(|placement| placement.scaled)
+}
+
 /// Column widths and row heights: the cell for `fit` / `fill`, the widest /
 /// tallest tile of each track for `none` (an empty track is 0).
 fn tracks(
