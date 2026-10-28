@@ -477,8 +477,12 @@ pub fn judge(
     let modelless = nika_service_execution::access::first_modelless_task(wf);
     // The ACCESS question's premise: a file with no `infer:`/`agent:`
     // task is not waiting on a seat, it will never ask for one.
-    let mut layers =
-        verdict_layers_for(&plan, valid, &capacity, modelless).with_access_moot(!dials_a_model(wf));
+    let mut layers = verdict_layers_for(&plan, valid, &capacity, modelless)
+        .with_access_moot(!dials_a_model(wf))
+        .with_network_tasks(network::tasks(report));
+    if let Some(line) = network::mock_scope_line(&plan, &layers.network_tasks) {
+        layers.access_lines.push(line);
+    }
     if let Some(blocker) = crate::run_cost::readiness(wf, &plan) {
         layers.blockers.push(blocker);
     }
@@ -844,6 +848,7 @@ pub fn audit_json(
             "capacity_fit": verdict.layers.capacity_fit,
             "run_ready": verdict.layers.run_ready(),
             "blockers": verdict.layers.blockers,
+            "network_tasks": verdict.layers.network_tasks,
         }),
     );
     obj.insert(
@@ -1515,6 +1520,12 @@ mod tests {
 
 #[cfg(test)]
 mod harness_tests;
+
+/// What a mock lane does not stub: the tasks whose own effects can reach the network (#1605).
+mod network;
+
+#[cfg(test)]
+mod network_tests;
 
 /// What a seat cannot honour, judged from its declared capabilities (D2).
 mod seat_fields;

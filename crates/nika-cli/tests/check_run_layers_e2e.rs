@@ -642,3 +642,90 @@ fn the_operational_footer_prints_on_green_and_the_mock_lane_never_dials() {
     assert!(stdout.contains("✔ operational · risk"), "{stdout}");
     assert!(stdout.contains("never dials"), "{stdout}");
 }
+
+/// A fetch to a real host, then an `infer:` a `--model mock/echo` rehearsal seats on the mock.
+const FETCH_BRIEF: &str = "nika: fetch-brief\nmodel: openai/gpt-5.2\npermits:\n  net: { http: \
+    [\"jsonplaceholder.typicode.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  grab:\n    \
+    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \
+    \"https://jsonplaceholder.typicode.com/todos/1\" }\n  brief:\n    with:\n      page: \
+    ${{ tasks.grab.output }}\n    infer:\n      prompt: \"Summarise ${{ with.page }}\"\n      \
+    max_tokens: 200\n";
+
+/// #1605 · a mock rehearsal of a workflow that fetches: the ACCESS row read « mock · never
+/// dials · nothing to judge » and a fetch-only file « access ready n/a · nothing dials »,
+/// while the fetch reached the network. Both say only what is true now — the MODEL route
+/// never dials, and the task that can still reach the network is named beside the PERMITS
+/// row — and the JSON verdicts carry the same task.
+#[test]
+fn a_mock_rehearsal_names_the_task_that_still_reaches_the_network() {
+    let rig = Rig::new("mock-network");
+    rig.write("brief.nika", FETCH_BRIEF);
+    let check = rig.nika(&["check", "brief.nika", "--model", "mock/echo"]);
+    let out = text(&check.stdout);
+    assert_eq!(check.status.code(), Some(0), "{out}");
+    // The MODELS row names « the ACCESS line » too: the rung is the row that opens on it.
+    let access: Vec<&str> = out
+        .lines()
+        .skip_while(|line| !line.contains(" ACCESS   "))
+        .take(2)
+        .collect();
+    assert!(
+        access
+            .first()
+            .is_some_and(|row| row.contains("mock/echo → mock")
+                && row.ends_with("· mock · this model route never dials")),
+        "{out}"
+    );
+    assert!(
+        access.get(1).is_some_and(|row| row.trim()
+            == "a mock model stubs no tool: `grab` can still reach the network, judged on \
+                the PERMITS row"),
+        "{out}"
+    );
+    assert!(
+        !out.contains("nothing to judge") && !out.contains("nothing dials"),
+        "{out}"
+    );
+    let json = rig.nika(&["check", "brief.nika", "--model", "mock/echo", "--json"]);
+    let obj: serde_json::Value = serde_json::from_slice(&json.stdout).expect("check --json");
+    assert_eq!(obj["access_plan"][0]["chosen"], "mock", "{obj:#}");
+    assert_eq!(obj["verdicts"]["access_ready"], true, "{obj:#}");
+    assert_eq!(
+        obj["verdicts"]["network_tasks"],
+        serde_json::json!(["grab"]),
+        "{obj:#}"
+    );
+
+    // The moot shape: no `infer:`/`agent:` task, so no model route at all.
+    rig.write(
+        "grab.nika",
+        &FETCH_BRIEF.replace(
+            "  brief:\n    with:\n      page: ${{ tasks.grab.output }}\n    infer:\n      \
+             prompt: \"Summarise ${{ with.page }}\"\n      max_tokens: 200\n",
+            "",
+        ),
+    );
+    let moot = rig.nika(&["check", "grab.nika", "--model", "mock/echo"]);
+    let out = text(&moot.stdout);
+    assert_eq!(moot.status.code(), Some(0), "{out}");
+    assert!(
+        out.contains(
+            "layers · valid ✔ · access ready n/a · no model route · `grab` can reach the \
+             network (PERMITS row) · capacity fit ✔ · run ready ✔"
+        ),
+        "{out}"
+    );
+    let json = rig.nika(&["check", "grab.nika", "--json"]);
+    let obj: serde_json::Value = serde_json::from_slice(&json.stdout).expect("check --json");
+    assert_eq!(
+        obj["verdicts"]["access_ready"],
+        serde_json::Value::Null,
+        "{obj:#}"
+    );
+    assert_eq!(obj["verdicts"]["run_ready"], true, "{obj:#}");
+    assert_eq!(
+        obj["verdicts"]["network_tasks"],
+        serde_json::json!(["grab"]),
+        "{obj:#}"
+    );
+}

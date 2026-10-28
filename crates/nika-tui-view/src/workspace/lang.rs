@@ -357,8 +357,8 @@ const FR: &[(&str, &str)] = &[
         "un modèle n'a aucun accès prêt sur cette machine",
     ),
     (
-        "n/a: no infer or agent task, nothing dials",
-        "sans objet : aucune tâche infer ou agent, rien n'appelle",
+        "n/a: no infer or agent task, so no model route to judge",
+        "sans objet : aucune tâche infer ou agent, donc aucune route de modèle à juger",
     ),
     (
         "not judged here: the model arrives at run time and admission judges it",

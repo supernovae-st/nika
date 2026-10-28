@@ -84,6 +84,9 @@ pub fn verdict_layers(
 /// [`verdict_layers`] with the model-less task the seat must serve
 /// (W3-F13): `modelless` names the first `infer:`/`agent:` task whose
 /// effective model is empty, including alongside explicit model lanes.
+/// A mock lane speaks for its MODEL route only (#1605): the workflow's own
+/// tools are not stubbed, and the oracle names those that can still reach
+/// the network on a line of their own.
 #[must_use]
 pub fn verdict_layers_for(
     plan: &ExecutionAccessPlan,
@@ -114,7 +117,7 @@ pub fn verdict_layers_for(
             nika_types::access::AccessClass::Api => {
                 "key present · not validated (check never dials)"
             }
-            nika_types::access::AccessClass::Mock => "mock · never dials · nothing to judge",
+            nika_types::access::AccessClass::Mock => "mock · this model route never dials",
             _ => "present · liveness judged at run",
         };
         let tail =
@@ -557,7 +560,18 @@ mod tests {
             layers
                 .access_lines
                 .iter()
-                .any(|line| line.starts_with("mock/echo →"))
+                .any(|line| line.starts_with("mock/echo →")
+                    && line.contains("· mock · this model route never dials")),
+            "{:?}",
+            layers.access_lines
+        );
+        assert!(
+            !layers
+                .access_lines
+                .iter()
+                .any(|line| line.contains("nothing to judge")),
+            "the MODEL route never dials; that is not the whole workflow: {:?}",
+            layers.access_lines
         );
         assert!(
             layers
