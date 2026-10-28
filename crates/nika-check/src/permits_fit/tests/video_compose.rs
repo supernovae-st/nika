@@ -256,6 +256,25 @@ fn an_absent_block_refuses_every_form() {
     }
 }
 
+/// The absent-block repair names both sides the call needs, so following it
+/// as worded (the tool, the media reads, the `out` write) re-checks clean;
+/// `--infer-permits` prints that block.
+#[test]
+fn the_absent_block_repair_names_both_sides() {
+    let found = escapes("", &literal_call());
+    let fs: Vec<&CapabilityEscape> = found.iter().filter(|e| e.category == "fs").collect();
+    assert_eq!(fs.len(), 1, "{found:?}");
+    assert_eq!(
+        fs[0].fix.as_deref(),
+        Some(
+            "add \"nika:video_compose\" to permits.tools, every path it reads to \
+             permits.fs.read and the path it writes to permits.fs.write (`nika check \
+             --infer-permits` prints the block)"
+        ),
+        "{found:?}"
+    );
+}
+
 /// No `permits.exec` is required, consulted or implied — and a program
 /// grant buys nothing: the tool grant is the door.
 #[test]

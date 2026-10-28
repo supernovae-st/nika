@@ -542,13 +542,27 @@ fn absent_effect_escape(
                 fix: Some(if escaping {
                     format!("add \"{tool}\" to permits.tools")
                 } else {
-                    format!("add \"{tool}\" to permits.tools and the path to permits.fs")
+                    absent_fs_fix(tool)
                 }),
                 floor: false,
                 undeclared: false,
             });
         }
         _ => escapes_tool(id, "invoke", tool, out),
+    }
+}
+
+/// The absent-block repair for a tool with a literal path. A call that reads AND writes on every
+/// run (`image_fx` · `image_compose` · `video_compose`) names both sides, so the repair followed
+/// as worded re-checks clean; the inference prints the exact block.
+fn absent_fs_fix(tool: &str) -> String {
+    if nika_cap::required_fs_directions(tool) == Some((true, true)) {
+        format!(
+            "add \"{tool}\" to permits.tools, every path it reads to permits.fs.read and the path \
+             it writes to permits.fs.write (`nika check --infer-permits` prints the block)"
+        )
+    } else {
+        format!("add \"{tool}\" to permits.tools and the path to permits.fs")
     }
 }
 
