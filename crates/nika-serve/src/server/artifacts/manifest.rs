@@ -8,7 +8,12 @@
 //!   sha256 (`nika:chart` · `nika:image_generate` · `nika:tts_generate` · `nika:image_fx` ·
 //!   `nika:image_compose`), on
 //!   its own successful invocation (`outcome` class `success`, cause `normal`: never a
-//!   recovered or author-shaped value);
+//!   recovered or author-shaped value). A single call names its tool on the frame's note
+//!   (`invoke · <tool>`); a `for_each` fan-out's note does not (`for_each · <n> items`), so
+//!   its tool is the one every tool-plane `allow` decision of the task named, when no agent
+//!   frame came from the task and its value holds one answer per item. Only a fan-out every
+//!   item of which settled ok has that note: one with a recovered or failed item records no
+//!   file here, even for the items that wrote one;
 //! - `agent_image_observed` of an image the harness sent, stored as a blob under
 //!   `.nika/blobs` (`storage: stored`) with the sha256 of the bytes received; and, when the
 //!   task declared `images: { save: }`, the file the engine wrote from those very bytes
@@ -20,7 +25,7 @@
 //! first directory the filesystem resolves to the project's `.nika` under another spelling. Every number and digest here is the journal's own; the
 //! download route reads the bytes and checks them against it.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path};
 
 use nika_event::{Event, EventKind};
@@ -84,11 +89,17 @@ impl Artifact {
 pub(super) fn derive(events: &[Event]) -> Vec<Artifact> {
     let mut slots: Vec<Option<Artifact>> = Vec::new();
     let mut files: BTreeMap<String, usize> = BTreeMap::new();
+    let mut facts = TaskFacts::default();
     let mut images = 0_usize;
     for event in events {
+        facts.fold(event);
         match event.kind {
             EventKind::TaskCompleted => {
-                for file in written_files(event) {
+                let tool = facts.answering_tool(event);
+                for file in tool
+                    .map(|tool| written_files(event, tool))
+                    .unwrap_or_default()
+                {
                     if let Some(earlier) = files.insert(file.at.clone(), slots.len())
                         && let Some(slot) = slots.get_mut(earlier)
                     {
@@ -117,15 +128,81 @@ pub(super) fn derive(events: &[Event]) -> Vec<Artifact> {
     slots.into_iter().flatten().collect()
 }
 
-/// The files one `task_completed` frame records, when its tool saves files and the value is
-/// the tool's own successful answer.
-fn written_files(event: &Event) -> Vec<Artifact> {
-    let Some(tool) = event
-        .str_field("note")
-        .and_then(|note| note.strip_prefix("invoke · "))
-    else {
-        return Vec::new();
-    };
+/// What each task's frames recorded before its terminal one, folded in journal order: the
+/// tools its tool-plane `allow` decisions named, and whether an agent frame came from it. A
+/// task's `task_started` opens its facts afresh, so they are those of the attempt it settles.
+#[derive(Debug, Default)]
+struct TaskFacts<'e> {
+    tasks: BTreeMap<&'e str, Facts<'e>>,
+}
+
+/// One task's facts (see [`TaskFacts`]).
+#[derive(Debug, Default)]
+struct Facts<'e> {
+    /// The gates of the task's tool-plane `permit_checked` frames that decided `allow`.
+    tools: BTreeSet<&'e str>,
+    /// An agent frame came from the task: an `agent:` universe is judged on the tool plane
+    /// too, and an agent's value is never a tool's answer.
+    agent: bool,
+}
+
+impl<'e> TaskFacts<'e> {
+    fn fold(&mut self, event: &'e Event) {
+        let Some(task) = event.str_field("task") else {
+            return;
+        };
+        match event.kind {
+            EventKind::TaskStarted => {
+                self.tasks.insert(task, Facts::default());
+            }
+            EventKind::PermitChecked
+                if event.str_field("plane") == Some("tool")
+                    && event.str_field("decision") == Some("allow") =>
+            {
+                if let Some(gate) = event.str_field("gate") {
+                    self.tasks.entry(task).or_default().tools.insert(gate);
+                }
+            }
+            EventKind::AgentToolsSelected
+            | EventKind::ToolInvoked
+            | EventKind::AgentNudge
+            | EventKind::AgentStalled
+            | EventKind::AgentComposeChecked
+            | EventKind::AgentBudgetCheckpoint
+            | EventKind::AgentImageObserved => self.tasks.entry(task).or_default().agent = true,
+            _ => {}
+        }
+    }
+
+    /// The tool whose answer a `task_completed` frame carries: the one its note names
+    /// (`invoke · <tool>`), or, for a fan-out, the one tool the task's tool-plane decisions
+    /// allowed. A fan-out qualifies only when its note is the clean form the runtime writes
+    /// when every item settled ok (`for_each · <n> items`), no agent frame came from the task
+    /// and its value holds exactly `n` answers.
+    fn answering_tool(&self, event: &'e Event) -> Option<&'e str> {
+        let note = event.str_field("note")?;
+        if let Some(tool) = note.strip_prefix("invoke · ") {
+            return Some(tool);
+        }
+        let count = note.strip_prefix("for_each · ")?.strip_suffix(" items")?;
+        if !count.bytes().all(|b| b.is_ascii_digit()) {
+            return None; // the runtime writes the count in digits, never signed
+        }
+        let items: usize = count.parse().ok()?;
+        let facts = (self.tasks.get(event.str_field("task")?)).filter(|facts| !facts.agent)?;
+        let mut tools = facts.tools.iter();
+        let (Some(tool), None) = (tools.next(), tools.next()) else {
+            return None;
+        };
+        let outcome: Value = serde_json::from_str(event.str_field("outcome")?).ok()?;
+        let answers = outcome["payload"]["value"].as_array().map(Vec::len);
+        (answers == Some(items)).then_some(*tool)
+    }
+}
+
+/// The files one `task_completed` frame records, when `tool` (the one that answered it)
+/// saves files and the value is the tool's own successful answer.
+fn written_files(event: &Event, tool: &str) -> Vec<Artifact> {
     let Some(outcome) = event
         .str_field("outcome")
         .and_then(|text| serde_json::from_str::<Value>(text).ok())

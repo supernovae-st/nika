@@ -193,14 +193,106 @@ fn each_file_writing_builtin_records_its_saved_files() {
     );
 }
 
+/// The frames the runtime journals for a fan-out (`task/fan_out.rs` · `fan_note`): its
+/// `task_started` and `task_completed` noted `note`, which names no tool, and between them
+/// one tool-plane `permit_checked` frame per item, as each item's dispatch decided its gate.
+fn fan_out(task: &str, note: &str, gates: &[&str], value: &Value) -> Vec<Event> {
+    let mut frames = vec![event(
+        EventKind::TaskStarted,
+        100,
+        &[("task", task.to_owned()), ("note", note.to_owned())],
+    )];
+    for (serial, gate) in (101..).zip(gates) {
+        frames.push(event(
+            EventKind::PermitChecked,
+            serial,
+            &[
+                ("task", task.to_owned()),
+                ("plane", "tool".to_owned()),
+                ("gate", (*gate).to_owned()),
+                ("decision", "allow".to_owned()),
+                ("why", "permits.tools covers the id".to_owned()),
+            ],
+        ));
+    }
+    let outcome =
+        json!({"class": "success", "cause": "normal", "payload": {"attempts": 1, "value": value}});
+    frames.push(event(
+        EventKind::TaskCompleted,
+        200,
+        &[
+            ("task", task.to_owned()),
+            ("note", note.to_owned()),
+            ("outcome", outcome.to_string()),
+        ],
+    ));
+    frames
+}
+
+/// A fan-out over one file-saving tool records each item's file: its note is
+/// `for_each · 2 items`, so the tool is the one every tool-plane decision of the task allowed.
+/// A fan-out an agent frame came from, one whose gates name two tools, one with a recovered
+/// item and one whose value is not one answer per item record nothing.
 #[test]
 fn a_fan_out_records_one_file_per_item() {
     let value = json!([
         {"path": "out/1.svg", "sha256": SHA_A, "bytes": 1},
         {"path": "out/2.svg", "sha256": SHA_B, "bytes": 2}
     ]);
-    let artifacts = derive(&[completed(1, "plot", "nika:chart", &value)]);
+    let chart = ["nika:chart", "nika:chart"];
+    let clean = fan_out("draw", "for_each · 2 items", &chart, &value);
+    let artifacts = derive(&clean);
     assert_eq!(names(&artifacts), ["file/out/1.svg", "file/out/2.svg"]);
+    assert_eq!(
+        (artifacts[1].size, artifacts[1].sha256.as_str()),
+        (2, SHA_B)
+    );
+    assert_eq!(artifacts[1].task.as_deref(), Some("draw"));
+    assert_eq!(artifacts[1].mime, "image/svg+xml");
+
+    let mut agent = clean.clone();
+    agent.insert(
+        1,
+        event(
+            EventKind::ToolInvoked,
+            150,
+            &[
+                ("task", "draw".to_owned()),
+                ("tool", "nika:chart".to_owned()),
+            ],
+        ),
+    );
+    let refused = [
+        ("an agent frame came from it", agent),
+        (
+            "its gates name two tools",
+            fan_out(
+                "draw",
+                "for_each · 2 items",
+                &["nika:chart", "nika:image_fx"],
+                &value,
+            ),
+        ),
+        (
+            "an item was recovered",
+            fan_out("draw", "for_each · 1/2 ok · 1 recovered: b", &chart, &value),
+        ),
+        (
+            "the value is not one answer per item",
+            fan_out("draw", "for_each · 3 items", &chart, &value),
+        ),
+        (
+            "no tool-plane decision allowed a tool",
+            fan_out("draw", "for_each · 2 items", &[], &value),
+        ),
+    ];
+    for (why, frames) in refused {
+        assert!(derive(&frames).is_empty(), "{why}");
+    }
+    // Another task's decisions are not this task's: the facts are per task.
+    let mut elsewhere = fan_out("other", "for_each · 2 items", &chart, &json!([]));
+    elsewhere.extend(fan_out("draw", "for_each · 2 items", &[], &value));
+    assert!(derive(&elsewhere).is_empty());
 }
 
 #[test]

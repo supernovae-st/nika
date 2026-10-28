@@ -257,9 +257,10 @@ update remains owed.
 Artifacts (ADR-117 amendment, 2026-10-26 · NIK-265). `GET /v1/jobs/{id}/artifacts`
 returns the manifest of a settled job (succeeded, failed, cancelled, interrupted; 409
 `job_not_settled` otherwise): its receipt, the tier its journal attained, the download bound,
-and one entry per journal event that records a written byte stream with its SHA-256 (a
+and one entry per written byte stream a journal event records with its SHA-256 (a
 `nika:chart`, `nika:image_generate`, `nika:tts_generate`, `nika:image_fx` or `nika:image_compose`
-file at a relative
+file, from one call or from each item of a `for_each` fan-out over that tool whose every item
+settled ok, at a relative
 path inside the project and outside its `.nika` (by name in any ASCII case, and by device and
 inode under any spelling the filesystem folds onto it), its last write winning; an image an agent's
 harness sent, kept as a blob under `.nika/blobs`). The journal is the one the receipt names,
