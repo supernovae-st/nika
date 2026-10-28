@@ -745,15 +745,12 @@ fn est_clause(report: &CheckReport, t: Theme) -> String {
         "est out {at_most}${}",
         crate::vocab::usd(report.cost.bounded_total_usd)
     );
-    // C-D3 · paid media the figure cannot price rides beside it, never
-    // inside a `≤$0.0000` that reads as free.
-    match report.cost.media.iter().filter(|m| !m.priced).count() {
-        0 => figure,
-        n => format!(
-            "{figure} + {}",
-            crate::vocab::count(n, "unpriced paid media call")
-        ),
-    }
+    // Paid media rides beside the inference figure, never inside a
+    // `≤$0.0000` that reads as free: a run whose only spend was a priced
+    // speech call read that way (#1846).
+    let mut clause = vec![figure];
+    clause.extend(cost::media_beside_estimate(&report.cost.media));
+    clause.join(" + ")
 }
 
 /// The one next move behind `risk unbounded` — the handle names the

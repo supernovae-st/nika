@@ -501,3 +501,42 @@ fn a_fire_never_echoes_an_environment_value() {
         }
     }
 }
+
+/// #1846 · a beat on an unpriced paid voice read `✗ NIKA-1709 · NIKA-1709 · refusing to
+/// start: …` and broke the line before `(budget_floor)`: the code is named once, and the
+/// sentence closes on its kind, in both views.
+#[test]
+fn a_paid_media_refusal_names_its_code_once_on_one_line() {
+    let dir = project("");
+    std::fs::write(
+        dir.path().join("report.nika"),
+        "nika: speak\npermits:\n  tools: [\"nika:tts_generate\"]\n  fs: { write: [\"./out/**\"] }\n\
+         tasks:\n  say:\n    invoke:\n      tool: \"nika:tts_generate\"\n      args: { provider: \
+         openai, model: gpt-4o-mini-tts, text: hello, output_dir: ./out }\n",
+    )
+    .expect("speech workflow");
+    let (_, text) = plain(dir.path());
+    let row = text
+        .lines()
+        .find(|line| line.contains("✗ NIKA-1709"))
+        .unwrap_or_else(|| panic!("no refusal row: {text}"));
+    assert!(
+        row.trim_start()
+            .starts_with("✗ NIKA-1709 · refusing to start: no catalog price for task `say`"),
+        "{row}"
+    );
+    assert!(row.ends_with(" (budget_floor)"), "one line: {row}");
+    assert_eq!(text.matches("NIKA-1709").count(), 1, "{text}");
+    let (_, value) = machine(dir.path());
+    let blocker = &value["schedules"][0]["blockers"][0];
+    assert_eq!(blocker["kind"], "budget_floor", "{value}");
+    assert_eq!(blocker["code"], "NIKA-1709", "{value}");
+    let message = blocker["message"].as_str().expect("one sentence");
+    assert!(
+        message.starts_with("refusing to start: ")
+            && !message.contains("NIKA-1709")
+            && !message.contains('\n'),
+        "{message:?}"
+    );
+    assert_eq!(value["schedules"][0]["status"], "UNREADY", "{value}");
+}

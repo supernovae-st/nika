@@ -1148,10 +1148,21 @@ fn model_cost(
             "budget_floor",
             Some("NIKA-1709"),
             None,
-            error.to_string(),
+            budget_floor_sentence(&error),
         ));
     }
     (blockers, unknowns, routes)
+}
+
+/// The floor refusal as a blocker's one sentence: the blocker carries its code beside it, so
+/// the sentence never repeats `NIKA-1709 · `, and the closing line break of the run's launch
+/// refusal stays the run's (`nika arm` printed the code twice, then broke the line before the
+/// kind).
+fn budget_floor_sentence(error: &nika_runtime::RuntimeError) -> String {
+    match error {
+        nika_runtime::RuntimeError::BudgetFloor { message } => message.trim_end().to_owned(),
+        other => other.to_string().trim_end().to_owned(),
+    }
 }
 
 /// The run-time walk's facts: an unknown for what only a dispatch decides,

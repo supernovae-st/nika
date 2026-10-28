@@ -418,11 +418,9 @@ fn affirmative_contract(report: &nika_check::CheckReport) -> String {
         "est out UNBOUNDED (a local or unpriced model is never $0)".to_owned()
     } else {
         let figure = format!("est out ≤${:.4}", report.cost.bounded_total_usd);
-        // C-D3 · unpriced paid media is named beside the figure, never in it.
-        match report.cost.media.iter().filter(|m| !m.priced).count() {
-            0 => figure,
-            n => format!("{figure} + {n} unpriced paid media call(s)"),
-        }
+        let mut clause = vec![figure];
+        clause.extend(media_beside_estimate(&report.cost.media));
+        clause.join(" + ")
     };
     let journey = &report.data_journey;
     format!(
@@ -432,6 +430,33 @@ fn affirmative_contract(report: &nika_check::CheckReport) -> String {
         journey.model_endpoints.len(),
         journey.classification.as_str(),
     )
+}
+
+/// The paid media calls the inference figure leaves out, named beside it and never in it: a
+/// green whose only spend was a priced speech call read `est out ≤$0.0000`, as free (#1846).
+/// The floored ones carry the least they cost together, never printed as a zero when it is
+/// above one; then the metered and the unpriced ones.
+fn media_beside_estimate(media: &[nika_check::MediaCost]) -> Vec<String> {
+    let floors: Vec<f64> = media.iter().filter_map(|m| m.usd_per_call).collect();
+    let metered = media.iter().filter(|m| m.metered()).count();
+    let unpriced = media.iter().filter(|m| !m.priced).count();
+    let mut beside = Vec::new();
+    if !floors.is_empty() {
+        let floor: f64 = floors.iter().sum();
+        let shown = if floor > 0.0 && floor < 0.000_05 {
+            "0.0001".to_owned()
+        } else {
+            format!("{floor:.4}")
+        };
+        beside.push(format!("{} paid media call(s) from ${shown}", floors.len()));
+    }
+    if metered > 0 {
+        beside.push(format!("{metered} metered paid media call(s)"));
+    }
+    if unpriced > 0 {
+        beside.push(format!("{unpriced} unpriced paid media call(s)"));
+    }
+    beside
 }
 
 /// The clean short-path — split out of `check` under the house function

@@ -7,6 +7,31 @@
 
 use super::*;
 
+/// The paid media calls the inference figure leaves out, by how they bill:
+/// the floored ones with the least they cost together (`from $X`, as their
+/// COST rows say), the metered ones, and the unpriced ones (a call only the
+/// run decides counts there, as before).
+pub(super) fn media_beside_estimate(media: &[nika_check::MediaCost]) -> Vec<String> {
+    let floors: Vec<f64> = media.iter().filter_map(|call| call.usd_per_call).collect();
+    let metered = media.iter().filter(|call| call.metered()).count();
+    let unpriced = media.iter().filter(|call| !call.priced).count();
+    let mut beside = Vec::new();
+    if !floors.is_empty() {
+        beside.push(format!(
+            "{} from ${}",
+            crate::vocab::count(floors.len(), "paid media call"),
+            crate::vocab::usd(floors.iter().sum())
+        ));
+    }
+    if metered > 0 {
+        beside.push(crate::vocab::count(metered, "metered paid media call"));
+    }
+    if unpriced > 0 {
+        beside.push(crate::vocab::count(unpriced, "unpriced paid media call"));
+    }
+    beside
+}
+
 /// The composition arm of [`cost()`] (spec 14 · the 2026-07-29 finding): no
 /// OWN inference task, but resolvable children are priced — printing
 /// `$0.00` here told the operator a free story about a bill the child
@@ -483,6 +508,54 @@ mod tests {
             Theme::new(false, false, false),
         );
         assert!(est.ends_with("+ 1 unpriced paid media call"), "{est}");
+    }
+
+    /// #1846 · a run whose only spend is a priced speech call read
+    /// `est out ≤$0.0000` on the audited line, as free. The line names the
+    /// call and the least it costs, the floor its COST row prints; a call
+    /// billed from its usage is named as metered, an unpriced one as before.
+    #[test]
+    fn the_audited_estimate_names_a_priced_media_floor() {
+        let judged = |yaml: &str| {
+            let wf = nika_schema::parse(
+                yaml,
+                nika_schema::FileId::new(0),
+                nika_schema::ParseMode::Strict,
+            )
+            .expect("fixture parses");
+            let report = nika_check::check(&wf);
+            let est = crate::check_render::est_clause(&report, Theme::new(false, false, false));
+            (report, est)
+        };
+        let (report, est) = judged(
+            "nika: speak\npermits: { tools: [\"nika:tts_generate\"] }\ntasks:\n  say:\n    invoke: { tool: \"nika:tts_generate\", args: { model: tts-1, text: \"hello there\", output_dir: ./out } }\n",
+        );
+        let floor = report.cost.media[0]
+            .usd_per_call
+            .expect("tts-1 is floored per character");
+        assert!(floor > 0.0, "{floor}");
+        assert_eq!(
+            est,
+            format!(
+                "est out ≤$0.0000 + 1 paid media call from ${}",
+                crate::vocab::usd(floor)
+            )
+        );
+        let card = media_card(
+            "nika: speak\npermits: { tools: [\"nika:tts_generate\"] }\ntasks:\n  say:\n    invoke: { tool: \"nika:tts_generate\", args: { model: tts-1, text: \"hello there\", output_dir: ./out } }\n",
+        );
+        assert!(
+            card.contains(&format!("from ${}", crate::vocab::usd(floor))),
+            "the line and the COST row quote one floor: {card}"
+        );
+
+        let (_, est) = judged(
+            "nika: mixed\npermits: { tools: [\"nika:image_generate\", \"nika:tts_generate\"] }\ntasks:\n  flare:\n    invoke: { tool: \"nika:image_generate\", args: { model: gpt-image-2.5-flare, prompt: a star, output_dir: ./out } }\n  say:\n    invoke: { tool: \"nika:tts_generate\", args: { model: gpt-4o-mini-tts, text: hi, output_dir: ./out } }\n",
+        );
+        assert_eq!(
+            est,
+            "est out ≤$0.0000 + 1 metered paid media call + 1 unpriced paid media call"
+        );
     }
 
     /// The inference ceiling keeps its figure and stops hiding the media
