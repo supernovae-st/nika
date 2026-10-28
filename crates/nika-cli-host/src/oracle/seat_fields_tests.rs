@@ -118,6 +118,99 @@ fn a_seat_with_no_one_shot_profile_is_left_to_the_access_line() {
     );
 }
 
+/// A seat route with no `protocol: acp` (its direct one-shot), one `infer:` whose body is `body`.
+fn direct_infer(via: &str, model: &str, body: &str) -> String {
+    format!(
+        "nika: seat-direct\nmodel: {model}\nrun:\n  access:\n    via: {via}\npermits:\n  fs:\n    \
+         read: [\"./in/**\"]\ntasks:\n  ask:\n    infer:\n      prompt: \"describe it\"\n{body}"
+    )
+}
+
+/// `codex exec` and `claude -p` put no image on their command: a `vision:` task there is not
+/// RUN READY, with the run's code and the route that carries the image, where `check` said
+/// `run ready ✔` and the run answered without it.
+#[test]
+fn a_vision_task_on_a_direct_seat_is_not_run_ready() {
+    for (via, model, remedy) in [
+        (
+            "codex",
+            "openai/gpt-6-luna",
+            "declare `run.access: { via: codex, protocol: acp }`",
+        ),
+        (
+            "claude-code",
+            "anthropic/claude-opus-4-6",
+            "declare `run.access: { via: claude-code, protocol: acp }`",
+        ),
+        // No ACP one-shot that reads images: the remedy never names one.
+        (
+            "grok-build",
+            "xai/grok-4",
+            "— drop `vision:` or declare an API route",
+        ),
+    ] {
+        for vision in [
+            "      vision:\n        - { source: file, path: \"./in/logo.png\" }\n",
+            "      vision:\n        - { source: url, url: \"https://example.com/a.png\" }\n",
+        ] {
+            let judged = audit(&direct_infer(via, model, vision));
+            let blockers = seat_blockers(&judged);
+            assert_eq!(blockers.len(), 1, "{via} {vision}: {blockers:?}");
+            assert!(
+                blockers[0].contains(&format!("`ask` is an infer: on `{via}`'s direct one-shot"))
+                    && blockers[0].contains("never an image")
+                    && blockers[0].contains("NIKA-432")
+                    && blockers[0].contains(remedy),
+                "{}",
+                blockers[0]
+            );
+            assert_eq!(
+                judged.verdict.layers.run_ready(),
+                Some(false),
+                "{via}: never run-ready"
+            );
+            assert!(judged.verdict.seated.contains("ask"), "{via}");
+        }
+    }
+}
+
+/// The direct one-shot carries a `schema:`: only `vision:` blocks it here.
+#[test]
+fn a_direct_seat_task_without_vision_has_no_seat_blocker() {
+    for body in [
+        "",
+        "      schema: { type: object, required: [a], properties: { a: { type: string } } }\n",
+    ] {
+        let judged = audit(&direct_infer("codex", "openai/gpt-6-luna", body));
+        assert!(
+            seat_blockers(&judged).is_empty(),
+            "{body}: {:?}",
+            judged.verdict.layers.blockers
+        );
+    }
+}
+
+/// A seat with no direct one-shot (gemini-cli) is the access line's refusal: the seat rung
+/// claims nothing about what that seat's command would carry.
+#[test]
+fn a_seat_with_no_direct_one_shot_is_left_to_the_access_line() {
+    let judged = audit(&direct_infer(
+        "gemini-cli",
+        "openai/gpt-6-luna",
+        "      vision:\n        - { source: file, path: \"./in/logo.png\" }\n",
+    ));
+    assert!(
+        seat_blockers(&judged).is_empty(),
+        "{:?}",
+        judged.verdict.layers.blockers
+    );
+    assert_eq!(
+        judged.verdict.layers.run_ready(),
+        Some(false),
+        "the access line refuses"
+    );
+}
+
 #[test]
 fn an_agent_whitelist_on_a_seat_and_images_without_one_block() {
     let whitelist = audit(

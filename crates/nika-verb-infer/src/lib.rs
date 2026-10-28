@@ -366,6 +366,8 @@ impl<H> InferVerb<H> {
                 detail: err.to_string(),
             }
         })?;
+        // The direct command carries no image: a `vision:` input is refused, never dropped.
+        vision::refuse_on_direct_seat(&input.vision, seat_id)?;
         let requested_model = input
             .model
             .clone()

@@ -142,6 +142,36 @@ pub(crate) fn prompt_images(
         .collect()
 }
 
+/// A direct one-shot seat (`codex exec`, `claude -p` …) carries the prompt, the system, the
+/// model and a `schema:` on its command, never an image: an `infer:` that names `vision:`
+/// there is refused before the seat is spawned, as the ACP one-shot refuses a URL, instead of
+/// answering without the images it names. A seat whose ACP one-shot reads images is named as
+/// the route that carries them.
+#[cfg(feature = "access-harness")]
+pub(crate) fn refuse_on_direct_seat(
+    parts: &[VisionPart],
+    seat: &str,
+) -> Result<(), VerbInferError> {
+    if parts.is_empty() {
+        return Ok(());
+    }
+    let route = if nika_harness::meet_acp_one_shot(seat)
+        .is_ok_and(nika_harness::AcpOneShot::image_prompts)
+    {
+        format!(
+            "declare `run.access: {{ via: {seat}, protocol: acp }}`, whose ACP one-shot carries \
+             `vision:` files, or an API route"
+        )
+    } else {
+        "run the task on an API route".to_owned()
+    };
+    Err(invalid(format!(
+        "`{seat}` serves this `infer:` through its direct one-shot, whose command carries the \
+         prompt, system, model and a `schema:`, never an image, so the model would not see \
+         `vision:`: {route}, or drop `vision:` (nothing was sent)"
+    )))
+}
+
 fn invalid(detail: impl Into<String>) -> VerbInferError {
     VerbInferError::InvalidParam {
         param: "vision",
