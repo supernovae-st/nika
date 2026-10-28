@@ -1550,7 +1550,7 @@
   "info": {
     "description": "Authenticated loopback remote execution, declarative schedules, verified downloads of the artifacts a settled job's sealed journal records, and stateless source-only authoring (POST /v1/compile never runs, admits or writes). Schedule list/delete/trigger/backfill, /v1/arm, and POST /v1/run are absent.",
     "title": "nika serve",
-    "version": "0.124.0"
+    "version": "0.124.1"
   },
   "openapi": "3.1.0",
   "paths": {

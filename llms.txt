@@ -4,11 +4,11 @@
 
 ## Use Nika
 
-- [Documentation index](https://docs.nika.sh/llms.txt): docs.nika.sh, indexed for agents. The documentation describes the released 0.124.0.
+- [Documentation index](https://docs.nika.sh/llms.txt): docs.nika.sh, indexed for agents. The documentation describes the released 0.124.1.
 - [llms-install.md](llms-install.md): Installing the `nika` binary — the agent-lane runbook (package managers first, then a verified tarball · verify · prove offline · wire MCP · uninstall clean).
 - [README.md#try-it-in-two-minutes](README.md#try-it-in-two-minutes): Install, describe a first workflow in the Session with no AI account, set up a provider key, then compile · check · run · verify a file directly. Ends with the current limits.
 - [docs/usage/conversational-session.md](docs/usage/conversational-session.md): Bare `nika` on a terminal — describe · clarify · review · save (`yes`) · run (`run it`) · inspect (`/proof`). Provider keys come from the environment (DeepSeek example); the AI choice is kept in `~/.nika/session-intelligence.json`. Covers intelligence selection, `/restore`, knowledge provenance, the optional Jev decision model and downgrade limits.
-- [TypeScript SDK quick start](https://docs.nika.sh/sdk/start/quickstart): run, stream and verify workflows from an application with `@supernovae-st/nika` 0.124.0, which bundles the engine of its own version.
+- [TypeScript SDK quick start](https://docs.nika.sh/sdk/start/quickstart): run, stream and verify workflows from an application with `@supernovae-st/nika`, which bundles the engine of its own version.
 - [Known limits in 0.124](https://docs.nika.sh/changelog/known-limits): what this release does not do, in plain words, each with a way around it.
 - [docs/ops/README.md](docs/ops/README.md): `nika serve` — the resident schedule firer and the authenticated HTTP door, with its systemd unit and TLS proxy. [docs/ops/mcp-servers.md](docs/ops/mcp-servers.md): MCP servers a workflow invokes (declare · approve · confinement).
 - [docs/qa/delivery-a-2026-09.md](docs/qa/delivery-a-2026-09.md): A historical qualification of the conversational path on 0.120.3: six synthetic journeys, one macOS installation, not a general reliability claim.

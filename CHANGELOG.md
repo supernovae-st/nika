@@ -16,6 +16,113 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.124.1](https://github.com/supernovae-st/nika/compare/v0.124.0..v0.124.1) - 2026-10-28
+
+Nika 0.124.1 is the first maintenance release of the 0.124 line. On a direct seat route, without
+`run.access.protocol: acp`, an `infer:` task with `vision:` files no longer runs without its
+images: the run refuses it with `NIKA-432` before the seat starts, `nika check` blocks RUN READY
+on the same code, and both name a route that carries the files; `temperature`, `max_tokens` and
+`thinking` are still neither sent nor refused there. `nika run --dry-run` refuses what the run's
+seat refuses. Where `nika check` said a mock rehearsal, or a file with no model route, dials
+nothing, it names the tasks that can still reach the network; its estimate line adds the paid
+media calls and the least they cost instead of reading `≤$0.0000`, and `nika arm` prints a cost
+floor's refusal code once. `nika explain` answers the MCP pin refusals `NIKA-MCP-003` to
+`NIKA-MCP-006` and leads `NIKA-PARSE-001` with the causes its refusal names, a file saved with a
+byte-order mark is framed on the right line, and `nika serve` lists the files a `for_each`
+fan-out saved. The workflow language, the file format and the SDK protocol are unchanged.
+
+### Changed
+
+- **The SDK guard reads what the published `@supernovae-st/nika` 0.124.0 closes.**
+  `published_sdk.json` is re-read from that package's `dist`, and every closed set of 0.123.2
+  is unchanged. The one runtime change in that `dist` names three more native task frames
+  (`task_skipped`, `task_cancelled`, `task_cache_hit`) in a mapping that reads any other frame
+  as an engine event, so it closes nothing new.
+
+### Fixed
+
+- **`nika check` no longer says a mock rehearsal dials nothing.** With
+  `--model mock/echo`, the ACCESS row read `mock · never dials · nothing to
+  judge` and a file with no `infer:` or `agent:` task read `access ready n/a
+  · nothing dials`, while its `nika:fetch` reached the network. The mock row
+  now says `this model route never dials` and, under it, names the tasks
+  whose own effects can still reach the network (a fetch or webhook to a
+  real host, an MCP tool, a paid media call), judged on the PERMITS row; the
+  moot line reads `access ready n/a · no model route` and names them the
+  same way. Both lines name three tasks and count the rest (`· +17 more`);
+  `--json` lists every one as `verdicts.network_tasks`, and the TUI's ACCESS
+  READY reason no longer says `nothing dials`.
+- **A workflow saved with a byte-order mark is framed on the right line
+  (#1608).** The parser strips a leading UTF-8 byte-order mark, but every
+  span then indexed the stripped text, 3 bytes left of the file `nika check`
+  frames: an unknown key at column 1 was framed at the end of the line above
+  it (`5:24` instead of `6:1`), and the `--json` spans, trace and debugger
+  lines carried the same shift. Spans now index the text the caller passed
+  in, byte-order mark included. The frame and the browser checker's `col`
+  count line 1 from the character after the mark, as an editor shows it, so
+  a finding on line 1 keeps its column (`1:1`, as without the mark). A file
+  without one is unchanged.
+- **A direct seat refuses an `infer:` with `vision:` instead of running it
+  without the images.** On a seat route without `run.access.protocol: acp`
+  (Codex's `codex exec`, Claude Code's `claude -p`, Grok Build, GitHub
+  Copilot CLI), the files were judged and read, then never sent: the command
+  carries the prompt, system and model (and a `schema:`, except on Copilot),
+  never an image. The run now refuses the task with `NIKA-432` before the
+  seat is spawned, as the ACP route refuses a `vision:` URL, and `nika
+  check` blocks RUN READY with the same code. Both name `run.access: { via:
+  <seat>, protocol: acp }` where that seat's ACP one-shot carries `vision:`
+  files and the rest of the task; a task that also sets what that session
+  refuses (`temperature`, `max_tokens`, `thinking`, a `vision:` URL) is
+  pointed at an API route, with those fields named. `temperature`,
+  `max_tokens` and `thinking` are still not sent on the direct route.
+- **`nika run --dry-run` refuses what the run's seat refuses.** An `infer:`
+  task on a Codex or Claude Code seat over ACP that sets `max_tokens`,
+  `temperature`, an enabled `thinking` budget or a `vision:` URL, an
+  `agent:` with a `tools:` whitelist on a seat, and an `agent:` declaring
+  `images:` with no seat previewed as `dry-run · plan only`, then the run
+  refused them before anything was sent (`NIKA-432`, `NIKA-465`). The
+  preview now refuses with the same lines `nika check` blocks `run ready`
+  on, and exits 2 like its other file refusals.
+- **`nika explain` answers the MCP pin refusals a run sends you to (NIK-254).**
+  A run refused with `NIKA-MCP-006` printed `fix: nika explain
+  NIKA-MCP-006`, and explain answered `unknown code` for it and for
+  `NIKA-MCP-003`, `004` and `005`, the other codes the pin store mints. Each
+  now says what failed and the remedy the refusal prints: re-approve a
+  drifted server deliberately (`nika mcp approve <server>`), restore or
+  re-enroll an untrusted `.nika/mcp_pins.json`, check the OS sandbox an MCP
+  server is confined by, approve the server a tool belongs to. The MCP
+  `nika_explain` tool answers the same.
+- **Paid media no longer reads as free or doubles its code on the cost
+  lines.** `nika arm` printed `NIKA-1709 · NIKA-1709 · refusing to start: …`
+  for a beat a cost floor refuses, a paid media call included, and broke the
+  line before `(budget_floor)`; the readiness blocker now carries the
+  sentence alone, the code once on its own field, in the text and in
+  `--json`. The audited line of `nika check`, and the green answer of the
+  MCP `nika_check` tool, read `est out ≤$0.0000` for a workflow whose only
+  spend is a priced media call; they now add the calls and the least they
+  cost (`+ 1 paid media call from $0.0006`), counted as the `--max-cost-usd`
+  floor counts them: a literal `for_each` multiplies its call, while a call
+  behind a `when:` gate, over an expression `for_each` or made by a child
+  workflow is named as one only the run counts. Metered calls are named
+  beside unpriced ones.
+- **`nika explain NIKA-PARSE-001` names the causes the refusal names
+  (#1608).** Its checklist sent a `prompt: Note: here` author looking for a
+  missing `:` when the line holds one too many. It now leads with the causes
+  the refusal itself names on the pointed line: a `: ` inside a plain value
+  (quote the whole value, use a block scalar, or put a key of its own on its
+  own line), an unquoted `${{ … }}` inside a flow mapping (quote it), and a
+  `{` or `[` the file never closes; then a stray tab, unbalanced quotes, a
+  key missing its `:` and a de-commented modeline.
+- **`nika serve` lists the files a `for_each` fan-out saved.** A job whose
+  `for_each:` called `nika:chart` once per item wrote each item's file, yet
+  `GET /v1/jobs/{id}/artifacts` listed only the single calls' files: the
+  manifest read the tool from an `invoke · <tool>` note, and a fan-out's
+  note is `for_each · <n> items`. A fan-out's tool is now read from the
+  task's own journal: the one tool every tool-plane permit decision of the
+  task allowed, when every item settled ok, no agent frame came from the
+  task and its value holds one answer per item. Each item's file is listed
+  with its journaled size and digest and downloads like any other. A
+  fan-out with a recovered or failed item still lists none of its files.
 ## [0.124.0](https://github.com/supernovae-st/nika/compare/v0.123.2..v0.124.0) - 2026-10-27
 
 Nika 0.124.0 opens the 0.124 release line with media capabilities that workflows need, so a

@@ -338,7 +338,7 @@
     ],
     "provenance": {
       "cognition": "deterministicOnly",
-      "compiler_version": "0.124.0",
+      "compiler_version": "0.124.1",
       "decision": {
         "grounding": [
           {
