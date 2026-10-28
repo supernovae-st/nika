@@ -183,7 +183,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 147
-  aggregate_sha256: bb39041ad3cdac4c1d38f978b9872e4a840aa8172b5c84a3404241f39a810c68
+  aggregate_sha256: 0a653b20f7d29210435d4e2b0825c25f15112c27ab4072eacc9d3590941a3fa5
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
@@ -248,7 +248,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 31
-  aggregate_sha256: 1158fc2c51ea94fbf29cf5990fb7e00dc6a226fa52e90b687d47e322f03dfe6b
+  aggregate_sha256: 0353cfeda8c50193692e995839f105dacfe00b5f11aae9b89d2e255438ac6a6b
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
