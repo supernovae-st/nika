@@ -274,13 +274,7 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
         // video_compose's media references ride [`secondary_read_slots`]
         // (judged statically, never left to the run).
         "nika:image_fx" | "nika:chart" | "nika:image_compose" | crate::video::TOOL => {
-            Some(BuiltinEffect::Fs {
-                path_arg: "out",
-                reads: false,
-                writes: true,
-                recursive: false,
-                walk_root: false,
-            })
+            Some(OUT_WRITE)
         }
         // decide is pure compute (spec 11 §nika:decide); its ONE
         // statically-visible effect is a literal string `bundle:` — a path
@@ -310,6 +304,15 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
         _ => None,
     }
 }
+
+/// The single-artifact writers' effect: the write of the literal `out:` path.
+const OUT_WRITE: BuiltinEffect = BuiltinEffect::Fs {
+    path_arg: "out",
+    reads: false,
+    writes: true,
+    recursive: false,
+    walk_root: false,
+};
 
 /// The directory a glob PATTERN opens: the literal prefix before the first
 /// metacharacter. The ONE definition — the checker, the capability
@@ -662,7 +665,6 @@ fn fs_slots<'a>(tool: &str, args: Option<&'a serde_json::Value>) -> Vec<FsSlot<'
             Some(_) => slots.push(malformed("inputs".to_owned(), "an array of literal paths")),
             None => {}
         },
-        crate::video::TOOL => slots.extend(video_slots(args)),
         "nika:chart" => match get("data") {
             Some(serde_json::Value::Object(data)) => {
                 slots.push(read(
@@ -706,15 +708,18 @@ fn fs_slots<'a>(tool: &str, args: Option<&'a serde_json::Value>) -> Vec<FsSlot<'
             Some(_) => slots.push(malformed("multipart".to_owned(), "an array of parts")),
             None => {}
         },
-        _ => {}
+        _ => slots.extend(video_slots(tool, args)),
     }
     slots
 }
 
-/// `nika:video_compose`'s read slots: each media reference is a read at its path; a `segments`
-/// that is not a list, or an element that is not a map, hides its reads, so it is refused
-/// whatever it holds.
-fn video_slots(args: Option<&serde_json::Value>) -> impl Iterator<Item = FsSlot<'_>> {
+/// `nika:video_compose`'s read slots (none for any other tool): each media reference is a read
+/// at its path; a `segments` that is not a list, or an element that is not a map, hides its
+/// reads, so it is refused whatever it holds.
+fn video_slots<'a>(tool: &str, args: Option<&'a serde_json::Value>) -> Vec<FsSlot<'a>> {
+    if tool != crate::video::TOOL {
+        return Vec::new();
+    }
     crate::video::read_slots(args)
         .into_iter()
         .map(|slot| match slot {
@@ -731,6 +736,7 @@ fn video_slots(args: Option<&serde_json::Value>) -> impl Iterator<Item = FsSlot<
                 shape: "a list of segment maps with literal media paths",
             },
         })
+        .collect()
 }
 
 /// Why one present filesystem slot is not bound: not a literal path, or a literal the task does
