@@ -145,8 +145,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `7ea43205e` (`7ea43205e40f2d51351d5844e968ebbff6974da9`)             |
-| workspace        | v0.124.0                                  |
+| HEAD             | `07e4ba12f` (`07e4ba12fb36c5657908f3d8a58898cb54abdd12`)             |
+| workspace        | v0.124.1                                  |
 | crates (workspace)| 90                                              |
 | crates (admitted)| 75                                             |
 | crates (WIP)     | 15 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve nika-session nika-session-change nika-session-agent nika-session-host nika-session-intelligence nika-tui nika-tui-view                                  |
