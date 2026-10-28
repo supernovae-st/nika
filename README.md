@@ -191,16 +191,16 @@ curl -LsSf https://nika.sh/install.sh | sh
   `node_modules/.bin`). The package bundles the engine of its own version:
   check `nika --version`.
 - **A container** (Linux, amd64 and arm64), built from the same release
-  binaries: `docker run --rm ghcr.io/supernovae-st/nika:0.124.0 --version`.
+  binaries: `docker run --rm ghcr.io/supernovae-st/nika:0.124.1 --version`.
   Mount a project to check or run its files, for example
-  `docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika:0.124.0 check hello.nika`.
+  `docker run --rm -v "$PWD:/work" -w /work ghcr.io/supernovae-st/nika:0.124.1 check hello.nika`.
 - **A release archive:** download one from the
   [latest release](https://github.com/supernovae-st/nika/releases/latest).
   Every release ships a checksum manifest, a GitHub attestation and SLSA
   provenance; [RELEASING.md](RELEASING.md#what-a-user-can-prove) gives the
   three verification commands, for example
-  `gh attestation verify nika-macos-arm64-0.124.0.tar.gz --repo supernovae-st/nika`.
-- **Nix:** `nix profile install github:supernovae-st/nika/v0.124.0` builds
+  `gh attestation verify nika-macos-arm64-0.124.1.tar.gz --repo supernovae-st/nika`.
+- **Nix:** `nix profile install github:supernovae-st/nika/v0.124.1` builds
   the release from the repository's flake. Without the tag, the flake builds
   the default branch, which can be ahead of the latest release.
 - **Windows:** use WSL2 and the Linux binary. Native Windows binaries are
@@ -417,10 +417,11 @@ whole API.
   and writes nothing.
 - **A clean check is not a true answer.** It describes a file's structure
   and boundary; it does not prove that model output is right.
-- **This README describes the released 0.124.0.** Changes merged after it
-  are described one file per change in [`changelog.d/`](changelog.d/)
-  until the next release; compare `nika --version` with the
-  [changelog](CHANGELOG.md).
+- **This README describes the released 0.124.1.** Compare `nika --version`
+  with the [changelog](CHANGELOG.md), which lists what each release
+  changed. Until the next release, each change merged after 0.124.1 is
+  described in its own file under [`changelog.d/`](changelog.d/README.md),
+  and the release folds those files into the changelog.
 
 <details>
 <summary><b>The four building blocks</b></summary>
