@@ -61,8 +61,10 @@ struct Hint {
     advice: String,
 }
 
-/// HTTP client programs (001).
-const HTTP_PROGRAMS: [&str; 5] = ["curl", "wget", "xh", "http", "https"];
+/// HTTP client programs (001) — the SAME list the permits inference walks
+/// ([`nika_cap::HTTP_CLIENT_PROGRAMS`]), so a hint and an inferred net face
+/// cannot disagree about whether `curl` reaches a host.
+const HTTP_PROGRAMS: &[&str] = nika_cap::HTTP_CLIENT_PROGRAMS;
 /// File-op programs (002) — the SAME list the B05 host-dump door walks
 /// ([`nika_cap::FILE_PLUMBING_PROGRAMS`]), so a hint and a finding cannot
 /// disagree about whether `cat` is file plumbing.
