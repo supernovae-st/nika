@@ -97,8 +97,7 @@ pub const TOP_LEVEL_KEYS: &[&str] = &[
 /// Go-duration · exactly-one-verb · id formats), or — in
 /// [`ParseMode::Strict`] — carries an unknown field.
 pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow, SchemaError> {
-    // A leading UTF-8 BOM (U+FEFF · YAML 1.2 §5.2) parses — stripped at the ONE ingest seam.
-    let yaml = yaml.strip_prefix('\u{FEFF}').unwrap_or(yaml);
+    let (yaml, origin) = strip_bom(yaml);
     // Pre-parse resource guards (the untrusted-input bounds — see the
     // security note on `CharToByte::new`). marked-yaml allocates the
     // whole node tree up-front and its block parser recurses per
@@ -111,7 +110,7 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
     // loader so a DuplicateKey (which the loader reports with both
     // keys' spans) can keep the colliding site instead of discarding
     // it (#1075). Precompute once per parse so each span lookup is O(1).
-    let char_to_byte = CharToByte::new(yaml)?;
+    let char_to_byte = CharToByte::new(yaml)?.after(origin);
 
     // YAML 1.2 forbids duplicate mapping keys from silently last-winning
     // — `error_on_duplicate_keys` turns them into loud errors (covers
@@ -173,9 +172,9 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
 /// bounds, duplicate keys refused, quoted scalars never coerced, anchors refused, the value
 /// depth cap): the YAML half of a project schema file's content law.
 pub(crate) fn yaml_document_value(text: &str) -> Result<serde_json::Value, SchemaError> {
-    let text = text.strip_prefix('\u{FEFF}').unwrap_or(text);
+    let (text, origin) = strip_bom(text);
     check_source_bounds(text)?;
-    let char_to_byte = CharToByte::new(text)?;
+    let char_to_byte = CharToByte::new(text)?.after(origin);
     let file_id = FileId::new(0);
     let options = LoaderOptions::default()
         .error_on_duplicate_keys(true)
@@ -188,6 +187,13 @@ pub(crate) fn yaml_document_value(text: &str) -> Result<serde_json::Value, Schem
         mode: ParseMode::Strict,
     };
     value::json_value(&cx, &node)
+}
+
+/// `text` without its leading UTF-8 byte-order mark (U+FEFF · YAML 1.2 §5.2), and the 3
+/// bytes it held, else 0: the ONE ingest seam strips it, and every span adds them back.
+fn strip_bom(text: &str) -> (&str, u32) {
+    text.strip_prefix('\u{FEFF}')
+        .map_or((text, 0), |rest| (rest, 3))
 }
 
 /// The [`LoadError`] → [`SchemaError`] fold, out of `parse` under the
@@ -216,7 +222,7 @@ fn load_error_to_schema(
         // at line 14) while the fault is line 1-2, and the repair loop
         // chases the wrong line forever (0/13 measured on a 14B grid).
         // Name the CAUSE, span on the offending line.
-        other => match broken_modeline(yaml, file_id) {
+        other => match broken_modeline(yaml, file_id, char_to_byte) {
             Some((span, line_no)) => SchemaError::YamlSyntax {
                 message: format!(
                     "a bare `$schema=` line (line {line_no}) is a broken editor \
@@ -329,8 +335,8 @@ fn compact_dash_run(rest: &str) -> usize {
 /// this is a cause-namer, never a gate on valid YAML. Scans the head of
 /// the file (the modeline contract is « at the top »; 8 lines covers
 /// license headers) and returns the offending line's span + 1-based number.
-fn broken_modeline(yaml: &str, file: FileId) -> Option<(Span, u32)> {
-    let mut offset = 0u32;
+fn broken_modeline(yaml: &str, file: FileId, char_to_byte: &CharToByte) -> Option<(Span, u32)> {
+    let mut offset = char_to_byte.spanned(0);
     for (i, line) in yaml.lines().take(8).enumerate() {
         // Head-of-file offsets: bounded by 8 lines of a MAX_SOURCE_BYTES
         // (4 MiB) document — u32 holds by construction.

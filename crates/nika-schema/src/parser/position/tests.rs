@@ -159,3 +159,66 @@ fn an_ascii_source_keeps_the_exact_index() {
     let table = CharToByte::new("a\nbc").expect("table");
     assert_eq!(table.marker(&Marker::new(0, 3, 2, 2)), 3);
 }
+
+/// A valid workflow, written as a Windows editor saves it with a byte-order mark.
+const BARE: &str = "nika: hello\ntasks:\n  a:\n    infer:\n      prompt: x\n";
+
+fn bommed(bare: &str) -> String {
+    format!("\u{FEFF}{bare}")
+}
+
+/// #1608 · the ingest seam strips the byte-order mark, and every span still indexes the
+/// text the caller passed in: the frame and `--json` address those bytes, so an unknown key
+/// at column 1 is framed on its own line, never 3 bytes left on the line above.
+#[test]
+fn an_unknown_key_after_a_bom_is_spanned_on_itself() {
+    let src = bommed(&format!("{BARE}bogus: 1\n"));
+    let err = parse(&src, FileId::new(0), ParseMode::Strict).expect_err("unknown field");
+    let SchemaError::UnknownField {
+        span: Some(span), ..
+    } = err
+    else {
+        panic!("expected a spanned unknown field, got {err:?}");
+    };
+    assert_eq!(Some(span.start.as_usize()), src.find("bogus"), "{span:?}");
+    assert!(names(&src, span, "bogus"), "{span:?}");
+}
+
+#[test]
+fn a_bom_prefixed_file_spans_its_name_and_its_tasks_where_they_are() {
+    let src = bommed(BARE);
+    let wf = parsed(&src);
+    let id = wf.workflow.as_ref().expect("the workflow id");
+    assert_eq!(Some(id.span.start.as_usize()), src.find("hello"), "{id:?}");
+    let task = wf.tasks[0].value.id.span;
+    let key = src.find("\n  a:").map(|at| at + "\n  ".len());
+    assert_eq!(Some(task.start.as_usize()), key, "{task:?}");
+    assert_eq!(slice(&src, task), "a");
+    assert!(names(&src, prompt_span(&wf, 0), "x"));
+    // The line table's path (a non-ASCII document) adds the same origin.
+    let literal = bommed(LITERAL);
+    assert_eq!(task_ids(&literal), ["a", "b"]);
+    assert!(names(&literal, prompt_span(&parsed(&literal), 1), "x"));
+}
+
+/// A refusal the YAML scanner makes, and the one the modeline cause-namer makes, sit where
+/// the bare twin's do, 3 bytes on: the mark's own bytes.
+#[test]
+fn a_yaml_refusal_after_a_bom_sits_three_bytes_on() {
+    let span_of = |src: &str| match parse(src, FileId::new(0), ParseMode::Strict) {
+        Err(SchemaError::YamlSyntax {
+            span: Some(span), ..
+        }) => span,
+        other => panic!("expected a spanned YAML refusal, got {other:?}"),
+    };
+    let modeline = format!("$schema=https://nika.sh/schema/v1/workflow.schema.json\n{BARE}");
+    for bare in [BARE.replace("prompt: x", "prompt: a: b"), modeline] {
+        let plain = span_of(&bare);
+        let marked = span_of(&bommed(&bare));
+        assert_eq!(
+            (marked.start.as_usize(), marked.end.as_usize()),
+            (plain.start.as_usize() + 3, plain.end.as_usize() + 3),
+            "{bare}"
+        );
+    }
+}
