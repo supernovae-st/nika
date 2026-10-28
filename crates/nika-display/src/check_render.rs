@@ -741,10 +741,19 @@ fn est_clause(report: &CheckReport, t: Theme) -> String {
     // $0.0075). The card is the line people quote, so it is the line
     // that must not overreach.
     let at_most = crate::vocab::at_most(t.ascii);
-    format!(
+    let figure = format!(
         "est out {at_most}${}",
         crate::vocab::usd(report.cost.bounded_total_usd)
-    )
+    );
+    // C-D3 · paid media the figure cannot price rides beside it, never
+    // inside a `≤$0.0000` that reads as free.
+    match report.cost.media.iter().filter(|m| !m.priced).count() {
+        0 => figure,
+        n => format!(
+            "{figure} + {}",
+            crate::vocab::count(n, "unpriced paid media call")
+        ),
+    }
 }
 
 /// The one next move behind `risk unbounded` — the handle names the
@@ -1260,21 +1269,28 @@ pub fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Them
         return;
     }
     if wf.permits.is_none() && report.capability_escapes.is_empty() {
-        let _ = writeln!(
-            out,
-            " {} {}  {}",
-            t.paint(Role::Dim, "○"),
-            t.paint(Role::Strong, "PERMITS"),
+        // « pure compute » is the legal-zero hint's claim, read from the SAME
+        // predicate (`EffectivePermits::is_pure_compute`): a body whose fs
+        // derivation is partial (a rendered `vision:` file) is the run's to
+        // judge, and `permits: {}` would still refuse it there.
+        let claim = if report.permits.is_pure_compute(true) {
             // `{}` and NOT `{{}}`: this literal is an ARGUMENT to `writeln!`,
             // not part of its format string, so braces are not unescaped
             // here. The doubled form shipped, and it is not a cosmetic slip —
             // `permits: {{}}` is refused by YAML itself, so the line taught a
             // form no parser accepts while the HINT one row below printed the
             // right one. Two lines of the same output disagreeing.
-            t.paint(
-                Role::Dim,
-                "zero authority (no `permits:` declared · F-O8) · pure compute · `permits: {}` states it"
-            )
+            "zero authority (no `permits:` declared · F-O8) · pure compute · `permits: {}` states it"
+        } else {
+            "zero authority (no `permits:` declared · F-O8) · a computed file path is the RUN's \
+             verdict, and zero authority admits none"
+        };
+        let _ = writeln!(
+            out,
+            " {} {}  {}",
+            t.paint(Role::Dim, "○"),
+            t.paint(Role::Strong, "PERMITS"),
+            t.paint(Role::Dim, claim)
         );
         return;
     }

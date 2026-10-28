@@ -370,6 +370,20 @@ fn prologue_pins_the_pricing_table_identity() {
         rows.iter()
             .any(|t| t["billing_provider"] == "scaleway" && t["currency"] == "EUR")
     );
+    // C-D3 · the dated media table rides beside them, row for row: the
+    // record a replay compares against its own binary's.
+    let media: serde_json::Value =
+        serde_json::from_str(get(&fields, "media_pricing").expect("the media table rides"))
+            .expect("one JSON document");
+    assert_eq!(media, nika_catalog::media_pricing_record());
+    assert_eq!(media["schema"], "nika/media-pricing@1");
+    assert_eq!(media["as_of"], "2026-10-27");
+    let rates = media["rates"].as_array().expect("rates");
+    assert!(rates.iter().any(|r| r["provider"] == "elevenlabs"
+        && r["model"] == "eleven_multilingual_v2"
+        && r["unit"] == "million_characters"
+        && r["usd"] == 80.0
+        && r["source"] == "https://elevenlabs.io/pricing/api"));
 }
 
 /// F-P18 — the resolved operator budget rides the boot frame as

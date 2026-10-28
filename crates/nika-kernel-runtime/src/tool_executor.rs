@@ -10,6 +10,8 @@
 //! (builtin + MCP tools behind a single trait). Default `execute_batch`
 //! is sequential; agent-v2 overrides for parallel execution.
 
+use std::num::NonZeroU32;
+
 use serde::{Deserialize, Serialize};
 
 /// The immutable execution-bound instant supplied to tool evaluators.
@@ -295,6 +297,92 @@ pub struct ToolErrorDetails {
     pub accepted: Option<Vec<u16>>,
     /// The call the run stopped waiting for, when that is why it failed.
     pub stopped_call: Option<Box<StoppedCall>>,
+    /// What the call had already billed before it failed. A cost fact for
+    /// the run's ledger, never part of the spec's `details` object.
+    pub spent: Option<SpentBeforeFailure>,
+}
+
+/// What a failed call had already billed before it failed: a paid media
+/// batch whose later request failed, or a render that failed after its
+/// provider answered. The priced part is the bill the call could compute;
+/// `unpriced` says a request whose bill it could not read was sent (the
+/// provider answered and rendered, or the exchange broke after the request
+/// left). Never a fake zero: a failure that billed nothing carries none.
+///
+/// The priced part is kept in whole micro-USD (the run ledger's budget
+/// grain) and packed with the unpriced flag in 32 bits, so the fact never
+/// widens a tool error: up to $2,147.48 priced; a larger bill keeps that
+/// figure and is marked unpriced for the rest, never a fake total.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct SpentBeforeFailure {
+    /// Bit 31: the unpriced flag. Bits 0–30: 0 when nothing is priced, else
+    /// the priced micro-USD plus one. Never all zero: that is no spend.
+    packed: NonZeroU32,
+}
+
+/// The unpriced flag of [`SpentBeforeFailure`].
+const UNPRICED_BIT: u32 = 1 << 31;
+/// The largest priced micro-USD [`SpentBeforeFailure`] holds.
+const MAX_PRICED_MICRO_USD: u32 = UNPRICED_BIT - 2;
+
+impl SpentBeforeFailure {
+    /// The spend of a failed call: `priced_usd` the part it priced (a
+    /// non-finite or negative figure is none), `unpriced` whether a request
+    /// it could not price was sent. `None` when it billed nothing it knows
+    /// of.
+    #[must_use]
+    pub fn new(priced_usd: Option<f64>, unpriced: bool) -> Option<Self> {
+        let micro = priced_usd.and_then(micro_usd);
+        let over = micro.is_some_and(|m| m > u64::from(MAX_PRICED_MICRO_USD));
+        let priced = micro.map_or(0, |m| {
+            // REASON: clamped to MAX_PRICED_MICRO_USD (< u32::MAX) first.
+            #[allow(clippy::cast_possible_truncation)]
+            let held = m.min(u64::from(MAX_PRICED_MICRO_USD)) as u32;
+            held + 1
+        });
+        let flag = if unpriced || over { UNPRICED_BIT } else { 0 };
+        NonZeroU32::new(priced | flag).map(|packed| Self { packed })
+    }
+
+    /// The priced part, in USD.
+    #[must_use]
+    pub fn priced_usd(self) -> Option<f64> {
+        match self.packed.get() & !UNPRICED_BIT {
+            0 => None,
+            priced => Some(f64::from(priced - 1) / 1e6),
+        }
+    }
+
+    /// Whether a request whose bill is not in [`Self::priced_usd`] was sent.
+    #[must_use]
+    pub fn unpriced(self) -> bool {
+        self.packed.get() & UNPRICED_BIT != 0
+    }
+
+    /// Both spends of one failed call (a batch's priced calls and the request
+    /// that broke it): the priced parts add, one unpriced part makes it
+    /// unpriced.
+    #[must_use]
+    pub fn and(self, other: Self) -> Self {
+        let priced = match (self.priced_usd(), other.priced_usd()) {
+            (Some(a), Some(b)) => Some(a + b),
+            (one, two) => one.or(two),
+        };
+        Self::new(priced, self.unpriced() || other.unpriced()).unwrap_or(self)
+    }
+}
+
+/// Whole micro-USD of a finite, non-negative USD figure (`None` otherwise).
+fn micro_usd(usd: f64) -> Option<u64> {
+    if !usd.is_finite() || usd < 0.0 {
+        return None;
+    }
+    let micro = (usd * 1e6).round();
+    // REASON: `micro` is finite, non-negative and whole; `as` saturates at
+    // u64::MAX, which the caller clamps far below.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    Some(micro as u64)
 }
 
 impl ToolErrorDetails {
@@ -325,14 +413,26 @@ impl ToolErrorDetails {
         self
     }
 
+    /// What the failed call had already billed.
+    #[must_use]
+    pub fn with_spent(mut self, spent: SpentBeforeFailure) -> Self {
+        self.spent = Some(spent);
+        self
+    }
+
     /// Whether the call observed no fact at all.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.status_code.is_none() && self.accepted.is_none() && self.stopped_call.is_none()
+        self.status_code.is_none()
+            && self.accepted.is_none()
+            && self.stopped_call.is_none()
+            && self.spent.is_none()
     }
 
     /// The `details` object of the error: only the facts present, keyed as
-    /// the spec names them (`status_code`, `accepted`, `stopped_call`).
+    /// the spec names them (`status_code`, `accepted`, `stopped_call`). The
+    /// spend a failed call had already billed is not one of them: it rides
+    /// the run's cost channels (`cost_usd`, `cost_unpriced`).
     #[must_use]
     pub fn to_value(&self) -> serde_json::Value {
         let mut details = serde_json::Map::new();
@@ -500,6 +600,42 @@ impl<T: ToolExecute + ToolBatch> ToolExecutor for T {}
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A failed call's spend keeps its priced part in micro-USD and its
+    /// unpriced flag; nothing billed is no fact; parts add; a bill past the
+    /// packed bound keeps the bound and is marked unpriced, never a fake
+    /// total; a non-finite or negative figure is no figure.
+    #[test]
+    fn a_failed_calls_spend_packs_its_priced_part_and_its_unpriced_flag() {
+        assert_eq!(SpentBeforeFailure::new(None, false), None);
+        let priced = SpentBeforeFailure::new(Some(0.134_42), false).expect("billed");
+        assert_eq!(priced.priced_usd(), Some(0.134_42));
+        assert!(!priced.unpriced());
+        let unknown = SpentBeforeFailure::new(None, true).expect("billed");
+        assert_eq!(unknown.priced_usd(), None);
+        assert!(unknown.unpriced());
+        let both = priced.and(unknown);
+        assert_eq!((both.priced_usd(), both.unpriced()), (Some(0.134_42), true));
+        let zero = SpentBeforeFailure::new(Some(0.0), false).expect("a priced zero");
+        assert_eq!(zero.priced_usd(), Some(0.0));
+        let huge = SpentBeforeFailure::new(Some(1e9), false).expect("billed");
+        assert!(huge.unpriced(), "past the bound, the rest is unknown");
+        assert!(huge.priced_usd().is_some_and(|usd| usd > 2_147.0));
+        for bad in [f64::NAN, f64::INFINITY, -1.0] {
+            assert_eq!(SpentBeforeFailure::new(Some(bad), false), None, "{bad}");
+        }
+        let details = ToolErrorDetails::new().with_spent(unknown);
+        assert!(!details.is_empty());
+        assert_eq!(
+            details.to_value(),
+            serde_json::json!({}),
+            "the spend never enters the spec's details object"
+        );
+        assert!(
+            std::mem::size_of::<Option<SpentBeforeFailure>>() <= 4,
+            "never widens a tool error"
+        );
+    }
 
     #[test]
     fn tool_call_id_display() {

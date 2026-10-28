@@ -172,9 +172,11 @@ and records `unknown` if begun, `not_sent` otherwise. One physical completion
 has one receipt owner; later drop cannot record or charge it twice. Reusing a
 textual call ID on a distinct physical turn does not suppress that later cost.
 
-`reported_cost_usd` exposes only the retained numeric success-cost subtotal;
-ordinary errors, foreign Stop metadata and arbitrary result text add no Stop
-control or success-cost report. Inline executor completions record the same
+`reported_cost_usd` exposes only the retained numeric cost subtotal: a
+success's `cost_usd`, and the priced part of what a failed call had already
+billed (its error's typed `ToolErrorDetails::spent`, which can only tighten a
+cost cap); foreign Stop metadata and arbitrary result text add no Stop
+control or cost report. Inline executor completions record the same
 cost fact exactly once at their own return seam. Parent propagation and witness
 reads preserve it. These minimal receipts never copy tool arguments or content,
 and do not grant task/iteration success, cache admission or rollback. A result

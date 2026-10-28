@@ -1088,20 +1088,19 @@ async fn url_vision_appears_as_an_image_url_part_on_the_wire() {
     );
 }
 
-/// #1135 · a missing local file used to run green. It must fail closed
-/// (`InvalidParam` param:"vision") with zero provider calls.
+/// #1135 · an image the run could not give bytes for never rides green: an
+/// empty loaded image fails closed (`InvalidParam` param:"vision") with zero
+/// provider calls. (Reading the file is the runtime's, inside the workflow's
+/// `permits.fs.read`: a missing file fails there, before the verb.)
 #[tokio::test]
-async fn missing_local_vision_file_fails_before_any_provider_call() {
+async fn an_empty_vision_image_fails_before_any_provider_call() {
     let seam = SeamHttp::with_json(&[]);
     let verb = openai_verb(&seam);
     let mut input = InferInput::new("MARKER-FILE-PROBE");
     input
         .vision
-        .push(VisionPart::file("./this-file-does-not-exist.png"));
-    let err = verb
-        .run(input)
-        .await
-        .expect_err("missing vision file refuses");
+        .push(VisionPart::loaded("./in/blank.png", Vec::new()));
+    let err = verb.run(input).await.expect_err("an empty image refuses");
     assert!(
         matches!(
             err,
@@ -1113,21 +1112,20 @@ async fn missing_local_vision_file_fails_before_any_provider_call() {
         "typed vision param: {err}"
     );
     assert!(
-        err.to_string().contains("cannot read image"),
-        "the missing path is named: {err}"
+        err.to_string().contains("`./in/blank.png` is empty"),
+        "the image is named: {err}"
     );
     assert!(
         seam.captured().is_empty(),
-        "zero wire calls — the file gate fires first"
+        "zero wire calls — the image gate fires first"
     );
 }
 
-/// A present local file inlines as a `data:image/...;base64,...` URL so
-/// openai-compat (and anthropic, after the same fence lift) can carry it.
+/// Loaded image bytes inline as a `data:image/...;base64,...` URL so
+/// openai-compat (and anthropic, after the same fence lift) can carry them.
+/// The verb opens no file: no file exists at the path it names.
 #[tokio::test]
-async fn local_vision_file_becomes_a_data_url_part() {
-    let dir = std::env::temp_dir();
-    let path = dir.join("nika-s2-1135-vision.png");
+async fn a_loaded_vision_image_becomes_a_data_url_part() {
     // 1×1 PNG (67 bytes) — magic is what names the mime.
     let png: &[u8] = &[
         0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
@@ -1136,11 +1134,12 @@ async fn local_vision_file_becomes_a_data_url_part() {
         0xCF, 0xC0, 0x00, 0x00, 0x00, 0x03, 0x00, 0x01, 0x18, 0xDD, 0x8D, 0xB4, 0x00, 0x00, 0x00,
         0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
     ];
-    std::fs::write(&path, png).expect("write fixture");
     let seam = SeamHttp::with_json(&[OPENAI_OK]);
     let verb = openai_verb(&seam);
     let mut input = InferInput::new("look");
-    input.vision.push(VisionPart::file(path.to_string_lossy()));
+    input
+        .vision
+        .push(VisionPart::loaded("./no-such-file.bin", png));
     verb.run(input).await.expect("infer succeeds");
     let body: serde_json::Value =
         serde_json::from_slice(seam.captured()[0].body.as_ref().expect("body")).expect("json");
@@ -1151,10 +1150,9 @@ async fn local_vision_file_becomes_a_data_url_part() {
         .and_then(|p| p["image_url"]["url"].as_str())
         .expect("image_url part");
     assert!(
-        url.starts_with("data:image/png;base64,"),
-        "file inlines as a data URL: {url}"
+        url.starts_with("data:image/png;base64,iVBORw0KGgo"),
+        "the bytes inline as a data URL, typed by their signature: {url}"
     );
-    let _ = std::fs::remove_file(&path);
 }
 
 mod selection_e2e;

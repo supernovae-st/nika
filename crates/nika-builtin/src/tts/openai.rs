@@ -21,13 +21,18 @@ pub(crate) async fn generate<H: HttpPostDyn>(
     args: &TtsArgs,
 ) -> Result<ProviderAudio, BuiltinFailure> {
     let request = build_request(args, key)?;
-    let response = http.post(request).await.map_err(map_transport)?;
+    // A request that left may have rendered and billed (C-D3).
+    let response = (http.post(request).await)
+        .map_err(|error| crate::media::cost::transport_failure(error, map_transport))?;
     if !(200..300).contains(&response.status) {
         return Err(map_error_status(response.status, &response.body));
     }
     Ok(ProviderAudio {
         bytes: response.body.to_vec(),
-        cost_usd: None, // token-priced · audio models unpriced in the catalog
+        // No cost field in the raw-bytes response: the dated media table bills
+        // tts-1/tts-1-hd per character (`tts::bill` · C-D3); gpt-4o-mini-tts
+        // has no catalog price and stays unpriced.
+        cost_usd: None,
         endpoint_host: Some("api.openai.com".to_owned()),
         warnings: Vec::new(),
     })

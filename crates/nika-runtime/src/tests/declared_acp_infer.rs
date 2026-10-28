@@ -167,6 +167,7 @@ async fn claude_peer(
     mut w: Writer,
     answer: &'static str,
     seen: Arc<Mutex<Vec<Value>>>,
+    images: bool,
 ) {
     let (mut model, mut effort, mut mode) = (
         "default".to_owned(),
@@ -176,6 +177,9 @@ async fn claude_peer(
     while let Some(request) = read(&mut r).await {
         seen.lock().expect("seen").push(request.clone());
         let result = match request["method"].as_str() {
+            Some("initialize") if images => json!({"protocolVersion":1,"agentInfo":
+                {"name":"@agentclientprotocol/claude-agent-acp","version":"0.81.1"},
+                "agentCapabilities":{"promptCapabilities":{"image":true}}}),
             Some("initialize") => json!({"protocolVersion":1,"agentInfo":
                 {"name":"@agentclientprotocol/claude-agent-acp","version":"0.81.1"}}),
             Some("session/new") => {
@@ -224,6 +228,8 @@ async fn claude_peer(
 /// (the `infer:` transport), otherwise the plain agent driver (the seat).
 struct Claude {
     one_shot: bool,
+    /// Whether `initialize` advertises image prompts (claude-agent-acp does).
+    images: bool,
     opened: AtomicUsize,
     seen: Arc<Mutex<Vec<Value>>>,
 }
@@ -232,6 +238,17 @@ impl Claude {
     fn new(one_shot: bool) -> Arc<Self> {
         Arc::new(Self {
             one_shot,
+            images: false,
+            opened: AtomicUsize::new(0),
+            seen: Arc::new(Mutex::new(Vec::new())),
+        })
+    }
+
+    /// The one-shot transport of an agent that reads images.
+    fn reading_images() -> Arc<Self> {
+        Arc::new(Self {
+            one_shot: true,
+            images: true,
             opened: AtomicUsize::new(0),
             seen: Arc::new(Mutex::new(Vec::new())),
         })
@@ -261,6 +278,7 @@ impl DynAgentBackend for Claude {
             peer_write,
             answer,
             Arc::clone(&self.seen),
+            self.images,
         ));
         let one_shot = self.one_shot;
         Box::pin(async move {
@@ -475,4 +493,126 @@ async fn a_schema_infer_over_acp_is_validated_by_nika_on_one_session() {
                 .is_some_and(|t| t.contains("{\"a\":\"three invariants\"}"))),
         "the agent read the validated object, not the fenced text"
     );
+}
+
+/// The run of `wf` over ACP on the REAL builtin plane rooted at `root` (the production
+/// `BuiltinDispatcher` over `AnchoredFs`, bounded by the workflow's own `permits.fs`), the
+/// input `pic` bound to `pic`.
+async fn run_on_plane(
+    wf: &RawWorkflow,
+    root: &std::path::Path,
+    pic: &str,
+) -> (RunOutcome, Vec<Event>, Arc<Claude>, usize) {
+    let report = nika_check::check(wf);
+    assert!(report.is_clean(), "{report:?}");
+    let plan = plan(wf);
+    assert_eq!(plan.seat.as_deref(), Some("claude-code"));
+    let plane = Arc::new(
+        nika_builtin::BuiltinDispatcher::new(
+            Arc::new(nika_fs::AnchoredFs::new(root.to_path_buf())),
+            Arc::new(nika_kernel_mock::MockHttp::new()),
+            Arc::new(MockClock::new()),
+            Arc::new(nika_builtin::NullEmitter::default()),
+            Arc::new(nika_builtin::NonInteractive::default()),
+            Arc::new(nika_builtin::NoWorkflow::default()),
+        )
+        .with_fs_boundary(crate::compose::fs_boundary_of(wf)),
+    );
+    let invoke = Arc::new(InvokeVerb::new(plane));
+    let api = Arc::new(MockProvider::new("mock").enqueue_text("never asked"));
+    let one_shot = Claude::reading_images();
+    let runtime = Runtime::new(
+        ExecVerb::new(Arc::new(MockShell::new())),
+        Arc::clone(&invoke),
+        InferVerb::new(
+            Arc::new(nika_providers::ProviderRegistry::without_http(
+                nika_providers::ProvidersConfig::new(),
+            )),
+            MODEL,
+        )
+        .with_acp_transport(Arc::clone(&one_shot) as Arc<dyn DynAgentBackend>),
+        AgentVerb::new(
+            Arc::clone(&api),
+            invoke,
+            Arc::new(MockToolDefinitionProvider::new()),
+            MODEL,
+        ),
+        MockClock::new(),
+        RuntimeConfig::default(),
+    )
+    .with_var_overrides(std::iter::once(("pic".to_owned(), Value::from(pic))).collect())
+    .with_access_plan(plan);
+    let mut sink = VecSink::new();
+    let outcome = runtime
+        .run(wf, &report, &mut DeterministicStamper::new(), &mut sink)
+        .await
+        .expect("the run settles");
+    let api_calls = api.captured_requests().len();
+    (outcome, sink.into_events(), one_shot, api_calls)
+}
+
+/// Spec 02 §Vision inputs on the ACP route: the run reads a `vision:` file through the
+/// workflow's boundary before any session opens. Inside the grant its bytes ride the prompt
+/// as an image block; outside it the task fails `NIKA-SEC-004`, a denied fs frame is
+/// witnessed, and no session ever opens, so nothing reaches the agent.
+#[tokio::test]
+async fn a_vision_file_over_acp_is_read_inside_the_boundary_before_any_session() {
+    let root = std::env::temp_dir().join(format!("nika-acp-vision-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("diagrams")).expect("dir");
+    std::fs::create_dir_all(root.join("secrets")).expect("dir");
+    let root = root.canonicalize().expect("canonical root");
+    let flow = b"\x89PNG\r\n\x1a\nflow".to_vec();
+    std::fs::write(root.join("diagrams/flow.png"), &flow).expect("flow");
+    std::fs::write(root.join("secrets/key.png"), b"\x89PNG\r\n\x1a\nsecret").expect("key");
+    let yaml = format!(
+        "nika: acp-vision\nmodel: {MODEL}\npermits:\n  fs: {{ read: [\"./diagrams/**\"] }}\n\
+         inputs:\n  pic: {{ type: string, default: \"./diagrams/flow.png\" }}\nrun:\n  access:\n    \
+         via: claude-code\n    protocol: acp\n    fallback: none\n  reasoning:\n    effort: max\n\
+         tasks:\n  draft:\n    infer:\n      prompt: \"describe the flow\"\n      vision:\n        \
+         - {{ source: file, path: \"${{{{ inputs.pic }}}}\" }}\n"
+    );
+    let wf = nika_schema::parse(
+        &yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("parses");
+
+    let (outcome, events, one_shot, api_calls) =
+        run_on_plane(&wf, &root, "./diagrams/flow.png").await;
+    assert!(outcome.ok, "{events:?}");
+    assert_eq!(api_calls, 0, "the ready API key is never dialed");
+    let prompt = one_shot
+        .seen()
+        .into_iter()
+        .find(|r| r["method"] == "session/prompt")
+        .expect("one prompt");
+    assert_eq!(
+        prompt["params"]["prompt"][1],
+        json!({"type":"image","mimeType":"image/png",
+            "data": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &flow)})
+    );
+
+    let secret = root.join("secrets/key.png").to_string_lossy().into_owned();
+    let (outcome, events, one_shot, api_calls) = run_on_plane(&wf, &root, &secret).await;
+    assert!(!outcome.ok);
+    let failed = terminal(&events, EventKind::TaskFailed, "draft");
+    assert!(
+        text(failed, "outcome").is_some_and(|o| o.contains("NIKA-SEC-004")),
+        "{failed:?}"
+    );
+    assert_eq!(
+        one_shot.opened.load(Ordering::SeqCst),
+        0,
+        "no session ever opened: the file was refused before the agent"
+    );
+    assert_eq!(api_calls, 0);
+    assert!(
+        events.iter().any(|e| e.kind == EventKind::PermitChecked
+            && text(e, "plane") == Some("fs")
+            && text(e, "decision") == Some("deny")),
+        "the refusal is witnessed: {events:?}"
+    );
+    let _ = std::fs::remove_dir_all(&root);
 }

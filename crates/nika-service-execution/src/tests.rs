@@ -710,6 +710,65 @@ async fn a_child_literal_inside_the_parent_glob_is_read_at_run() -> TestResult<(
     Ok(())
 }
 
+/// Spec 02 §Vision inputs · a child's `vision:` file is a read under child ∩ parent, from the
+/// child's own project root: inside the meet the file is read and the model answers; outside
+/// it the task fails `NIKA-SEC-004` although the child's own block grants the file.
+#[tokio::test]
+async fn a_childs_vision_file_is_read_under_the_meet_of_both_boundaries() -> TestResult<()> {
+    let looker = |path: &str| {
+        format!(
+            "nika: looker\nmodel: mock/echo\npermits:\n  fs: {{ read: [\"{path}\"] }}\ntasks:\n  \
+             look:\n    infer:\n      prompt: \"describe\"\n      max_tokens: 16\n      \
+             vision:\n        - {{ source: file, path: \"{path}\" }}\noutputs:\n  text: \
+             ${{{{ tasks.look.output }}}}\n"
+        )
+    };
+    let root = "nika: root\npermits:\n  fs: { read: [\"./references/**\", \"./other/**\"] }\ntasks:\n  inside:\n    invoke: { workflow: \"./inside.nika\" }\n  outside:\n    invoke: { workflow: \"./outside.nika\" }\n";
+    let (inside, outside) = (looker("./references/flow.png"), looker("./other/flow.png"));
+    let png = "\u{89}PNG-not-a-real-image";
+    let directory = tempfile::tempdir()?;
+    let driver = project_driver(
+        &directory,
+        &[
+            ("root.nika", root),
+            ("inside.nika", &inside),
+            ("outside.nika", &outside),
+            ("references/flow.png", png),
+            ("other/flow.png", png),
+        ],
+    )?;
+    let call = |target: &str, globs: &[&str]| {
+        let mut parent = Permits::new();
+        parent.fs = Some(nika_schema::types::FsPermits::new(
+            globs.iter().map(|glob| (*glob).to_owned()).collect(),
+            Vec::new(),
+        ));
+        ChildCall {
+            target: target.to_owned(),
+            parent_permits: Some(parent),
+            ..child_call()
+        }
+    };
+    let not_run = |refusal: ChildRunRefusal| std::io::Error::other(refusal.message);
+
+    let read = driver
+        .run_child(call("./inside.nika", &["./references/**", "./other/**"]))
+        .await
+        .map_err(not_run)?;
+    assert!(read.ok, "{:?}", read.failure);
+
+    let refused = driver
+        .run_child(call("./outside.nika", &["./references/**"]))
+        .await
+        .map_err(not_run)?;
+    assert!(!refused.ok, "the meet does not hold the file");
+    let (code, message) = refused
+        .failure
+        .ok_or("the refused read names its failure")?;
+    assert_eq!(code, "NIKA-SEC-004", "{message}");
+    Ok(())
+}
+
 #[test]
 fn service_driver_runs_a_child_from_the_owned_snapshot() -> TestResult<()> {
     // Pin the normal test-thread budget explicitly: a larger ambient

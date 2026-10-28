@@ -53,6 +53,26 @@ module reads and which reads none of them back:
   price with (`priced_builtin_floor`, `unpriced_cloud_seat`): what a
   workflow's priced `invoke:` tasks must spend on their cheapest path, and
   whether a seat is a third-party cloud route the catalog does not price.
+- `media_quote` · one judgment of a paid media call on its arguments
+  (`media_quote`, and `media_call_provider`, `media_call_template`,
+  `media_cap_refusal`, `media_spend_unpriced` over it, C-D3): which provider
+  and model it bills (explicit, or inferred from `model:` and the provider's
+  default as the builtin resolves them; a templated provider, or a templated
+  model whose price depends on it, stays the run's to judge and is named as
+  such), whether the catalog prices it, and the least it costs (xAI's
+  per-image price × `n:`, or the dated media table's per-image price at its
+  size class and quality × `n:`, or per-character rate × its text; METERED
+  when only its usage or a run-rendered text sets the bill; a templated
+  `quality:`, `size:` or `n:` floors at the least it can render to). The
+  verdict a cap owes a rendered call (`media_cap_hold`: the floor an
+  admitted call holds while it runs, or a `MediaCapRefusal`: unpriced, a
+  floor above what is left, a metered call when nothing is left, or a
+  metered call once an earlier paid call billed without a figure) and why a
+  returned call's absent spend is unpriced read the same judgment, on the
+  arguments as rendered (a `${{` in them is text, never a template), so the
+  launch floor, the check rows, the runtime's dispatch guard and the
+  `agent:` loop never disagree. `media_cap_remedy` names, from the dated
+  table itself, every model a capped run can call instead.
   Descended verbatim from `nika-runtime`'s `admit.rs` (B9 phase C ·
   2026-09-28) so the runtime's 15k wall has room for the dispatch guard that
   shares them; the runtime keeps every refusal and its wording

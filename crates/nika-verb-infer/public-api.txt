@@ -116,12 +116,13 @@ pub fn nika_verb_infer::VerbInferError::as_any(&self) -> &(dyn core::any::Any + 
 impl<T> typenum::type_operators::Same for nika_verb_infer::VerbInferError
 pub type nika_verb_infer::VerbInferError::Output = T
 #[non_exhaustive] pub enum nika_verb_infer::VisionPart
-pub nika_verb_infer::VisionPart::File
-pub nika_verb_infer::VisionPart::File::path: alloc::string::String
+pub nika_verb_infer::VisionPart::Loaded
+pub nika_verb_infer::VisionPart::Loaded::bytes: alloc::vec::Vec<u8>
+pub nika_verb_infer::VisionPart::Loaded::path: alloc::string::String
 pub nika_verb_infer::VisionPart::Url
 pub nika_verb_infer::VisionPart::Url::url: alloc::string::String
 impl nika_verb_infer::VisionPart
-pub fn nika_verb_infer::VisionPart::file(path: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_verb_infer::VisionPart::loaded(path: impl core::convert::Into<alloc::string::String>, bytes: impl core::convert::Into<alloc::vec::Vec<u8>>) -> Self
 pub fn nika_verb_infer::VisionPart::url(url: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_verb_infer::VisionPart
 pub fn nika_verb_infer::VisionPart::clone(&self) -> nika_verb_infer::VisionPart

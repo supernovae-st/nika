@@ -17,11 +17,11 @@ use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
-use nika_schema::raw::{RawAction, RawCommand, RawTask, RawWorkflow, VisionInput};
+use nika_schema::raw::{RawAction, RawCommand, RawTask, RawWorkflow};
 use nika_types::cost::UnpricedReason;
 use nika_verb_agent::AgentInput;
 use nika_verb_exec::{CaptureMode, ExecCommand, ExecValue};
-use nika_verb_infer::{InferInput, VisionPart};
+use nika_verb_infer::InferInput;
 use nika_verb_invoke::InvokeInput;
 use serde_json::Value;
 
@@ -34,6 +34,7 @@ mod permits;
 mod regate;
 mod spend;
 mod verb_outcome;
+mod vision;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
 use exec_io::{build_exec_input, capture_mode, render_exec_io};
@@ -66,6 +67,10 @@ pub(crate) struct FailedDispatch {
     pub cost_source: Option<String>,
     /// Why (part of) the incurred spend is NOT in `cost_usd`.
     pub cost_unpriced: Option<UnpricedReason>,
+    /// Calls made inside this leaf whose spend is not in `cost_usd` (an
+    /// agent's paid media tools · a child run's unpriced calls · C-D3): the
+    /// ledger counts each one.
+    pub unpriced_inner_calls: u32,
     /// F-P6 · the commit gate's binding evidence — `Fired` when the
     /// failure fired AFTER a passed gate (the judged bytes DID fire) ·
     /// `Refused` when the gate refused the fire (the finding). One field,
@@ -100,6 +105,7 @@ impl FailedDispatch {
             cost_usd: None,
             cost_source: None,
             cost_unpriced: None,
+            unpriced_inner_calls: 0,
             evidence: None,
             access: None,
             usage: None,
@@ -123,6 +129,7 @@ impl FailedDispatch {
             self.cost_unpriced.is_some(),
             self.usage.as_deref(),
         );
+        ledger.count_unpriced(self.unpriced_inner_calls);
         if let Some(c) = self.cost_usd {
             *failed_cost = Some(failed_cost.unwrap_or(0.0) + c);
         }
@@ -156,6 +163,10 @@ pub(crate) struct DispatchOk {
     /// Why (part of) this leaf's spend is NOT in `cost_usd` — the
     /// honest-absence WHY channel (`cost_unpriced` on the trace frame).
     pub cost_unpriced: Option<UnpricedReason>,
+    /// Calls made inside this leaf whose spend is not in `cost_usd` (an
+    /// agent's paid media tools · a child run's unpriced calls · C-D3): the
+    /// ledger counts each one beside the leaf's own.
+    pub unpriced_inner_calls: u32,
     /// F-P6 · the binding evidence of a FIRED exec/invoke step (the
     /// judged digest ≡ the fired digest) — `None` for the un-gated verbs
     /// (infer · agent) and for a `workflow:` call (the child's own trace
@@ -204,6 +215,7 @@ impl Dispatched {
                 cost_usd: None,
                 cost_source: None,
                 cost_unpriced: None,
+                unpriced_inner_calls: 0,
                 commit: None,
                 access: None,
                 usage: None,
@@ -232,6 +244,7 @@ impl Dispatched {
                 cost_usd,
                 cost_source,
                 cost_unpriced,
+                unpriced_inner_calls: 0,
                 commit: None,
                 access: None,
                 usage: None,
@@ -291,6 +304,63 @@ impl Dispatched {
             (failed.cost_usd, failed.cost_source, failed.cost_unpriced) = spend;
         }
         dispatched
+    }
+
+    /// What a failed tool call had already billed (C-D3 · its error's typed
+    /// details: a paid media batch whose later request failed, a render that
+    /// failed after its provider answered): the priced part is the leaf's
+    /// `cost_usd` under the tool's key, and an unpriced part names why
+    /// (`unpriced`, the call's own reason; a priced call that could not read
+    /// its bill otherwise).
+    fn with_failure_spend(
+        mut self,
+        tool: &str,
+        err: &nika_verb_invoke::VerbInvokeError,
+        unpriced: Option<UnpricedReason>,
+    ) -> Self {
+        let Some(spent) = err.details().and_then(|details| details.spent) else {
+            return self;
+        };
+        if let Err(failed) = &mut self.result {
+            failed.cost_usd = spent.priced_usd();
+            failed.cost_source = failed.cost_usd.map(|_| tool.to_owned());
+            failed.cost_unpriced = spent
+                .unpriced()
+                .then(|| unpriced.unwrap_or(UnpricedReason::ProviderDidNotReportUsage));
+        }
+        self
+    }
+
+    /// Whether this dispatch billed a paid call without a figure (C-D3): its
+    /// outcome names why its spend is unknown, a paid provider's reason, and
+    /// carries no `cost_usd` beside it on a success.
+    pub(crate) fn billed_unread(&self) -> bool {
+        let (cost, unpriced) = match &self.result {
+            Ok(ok) => (ok.cost_usd, ok.cost_unpriced),
+            Err(failed) => (None, failed.cost_unpriced),
+        };
+        cost.is_none()
+            && matches!(
+                unpriced,
+                Some(
+                    UnpricedReason::MissingCatalogPrice | UnpricedReason::ProviderDidNotReportUsage
+                )
+            )
+    }
+
+    /// Count the calls inside a failed leaf whose spend is outside every
+    /// figure (an agent's paid media tools · C-D3), one reason per call, and
+    /// name the first on the frame when the leaf's own spend is priced.
+    fn with_unpriced_inner_calls(
+        mut self,
+        spend: Option<&nika_types::cost::SpendOnFailure>,
+    ) -> Self {
+        let reasons = spend.map_or(&[][..], |spend| &spend.tools_unpriced[..]);
+        if let Err(failed) = &mut self.result {
+            failed.unpriced_inner_calls = u32::try_from(reasons.len()).unwrap_or(u32::MAX);
+            failed.cost_unpriced = failed.cost_unpriced.or(reasons.first().copied());
+        }
+        self
     }
 
     /// Carry a resolved replay veto without changing the error or its evidence.
@@ -776,6 +846,19 @@ where
         {
             return denial;
         }
+        // C-D3 · under a cap, every paid media call is judged on its rendered
+        // arguments before its request (NIKA-1704), against what the cap
+        // leaves now (the spend and the floors of the paid media calls still
+        // in flight), and holds its own floor until it returns. Taken last:
+        // nothing returns between the hold and the call. What only the run
+        // decides is judged for the first time, a literal call again.
+        let hold = match crate::admit::media_dispatch_hold(&tool, &args, ctx) {
+            Ok(hold) => hold,
+            Err(why) => {
+                return Dispatched::comp_refusal(&note, "NIKA-1704", why)
+                    .with_retry_forbidden(true);
+            }
+        };
         let mut input = InvokeInput::new(tool);
         input.args = args;
         input.stopped.clone_from(&ctx.stopped);
@@ -783,8 +866,16 @@ where
         input.timeout = ctx.deadline;
         // F-P6 · the gated firing lane (PREVIEW → tamper seam → COMMIT
         // gate → run · `dispatch/commit.rs` owns the binding).
-        self.run_invoke_gated(note, input, ctx.run_start, contract)
-            .await
+        let dispatched = self
+            .run_invoke_gated(note, input, ctx.run_start, contract)
+            .await;
+        // The call returned: its outcome carries what it cost, debited by the
+        // attempt loop with no await in between, so the floor it held is
+        // released (kept consumed when it billed without a figure).
+        if let Some(hold) = hold {
+            hold.settle(dispatched.billed_unread());
+        }
+        dispatched
     }
 
     /// ADR-095 Layer 6 — derive the OS jail from the declared boundary. F-O8
@@ -965,11 +1056,10 @@ where
         if action.thinking.as_ref().is_some_and(|t| t.value.enabled) {
             input.thinking_budget = action.thinking.as_ref().and_then(|t| t.value.budget_tokens);
         }
-        match collect_vision(&action.vision, scope) {
-            Ok(v) => input.vision = v,
-            Err(VisionErr::Template(err)) => return Dispatched::template_err("infer · ?", &err),
-            Err(VisionErr::Unwired(detail)) => return Dispatched::unwired("infer · ?", detail),
-        }
+        let vision = match vision::render(&action.vision, scope) {
+            Ok(rendered) => rendered,
+            Err(refused) => return *refused,
+        };
         // One Door · wave 1: the lane decides the adapter — the frozen
         // plan's seat for THIS task's model (a pinned seat serves every
         // model), never a run-wide « a seat exists » flag.
@@ -984,6 +1074,13 @@ where
         if let Some(refused) = self.pre_send_refusal(&lane_model, "infer", ctx) {
             return refused;
         }
+        // Spec 02 §Vision inputs: every file is a read inside the workflow's boundary, made
+        // once the lane runs the task and before any provider call (`dispatch/vision.rs`).
+        let note = format!("infer · {lane_model}");
+        input.vision = match self.load_vision(vision, &note).await {
+            Ok(parts) => parts,
+            Err(refused) => return *refused,
+        };
         let input = input.with_requirement(self.requirement());
         #[cfg(feature = "access-harness")]
         if let Some(seat_id) = self.seat_for(&lane_model) {
@@ -1100,13 +1197,13 @@ where
                 let retry_forbidden = agent_buffer.block_connection_replay(&mut err);
                 let split = failed_usage_split(err.spend());
                 let spend = price_failed_spend(err.spend());
-                // A proven seat/access refusal carries the typed field.
-                // Tool, max-turns, and schema failures after a seat
-                // already ran do not — they are not a pin.
+                // A proven seat/access refusal carries the typed field; tool,
+                // max-turns and schema failures after a seat ran are not a pin.
                 let refused = seat.as_deref().and_then(|seat| {
                     verb_outcome::proven_seat_refusal(seat, &err, access.as_ref())
                 });
                 Dispatched::verb_err_spent(format!("agent · {lane_model}"), &err, spend)
+                    .with_unpriced_inner_calls(err.spend())
                     .with_operator_cancelled(matches!(
                         &err,
                         nika_verb_agent::VerbAgentError::OperatorStopped { .. }
@@ -1125,6 +1222,9 @@ where
         input.permits = scope.permits().cloned();
         input.gate_answer.clone_from(&ctx.gate_answer);
         input.stopped.clone_from(&ctx.stopped);
+        // C-D3 · the loop judges each paid media tool call against the run's
+        // remaining USD before its request, as the invoke dispatch guard does.
+        input.cost_remaining_usd = ctx.child_budget;
     }
 
     /// Parse the composer-resolved skill texts one agent action names
@@ -1169,42 +1269,6 @@ where
         }
         Ok(docs)
     }
-}
-
-/// Price the spend a FAILED verb had already incurred (decorated on
-/// its error at the verb seam): the LLM leg through the same resolver
-/// successes use, plus any tool-reported spend — either alone still
-/// rides. `None`-everything when the failure preceded any billed call.
-fn collect_vision(
-    items: &[nika_schema::Spanned<VisionInput>],
-    scope: &Scope<'_>,
-) -> Result<Vec<VisionPart>, VisionErr> {
-    let mut out = Vec::with_capacity(items.len());
-    for item in items {
-        out.push(match &item.value {
-            VisionInput::File { path } => VisionPart::file(
-                expr::render(&path.value, scope)
-                    .map_err(RuntimeError::from)
-                    .map_err(VisionErr::Template)?,
-            ),
-            VisionInput::Url { url } => VisionPart::url(
-                expr::render(&url.value, scope)
-                    .map_err(RuntimeError::from)
-                    .map_err(VisionErr::Template)?,
-            ),
-            other => {
-                return Err(VisionErr::Unwired(format!(
-                    "vision source form not wired yet: {other:?}"
-                )));
-            }
-        });
-    }
-    Ok(out)
-}
-
-enum VisionErr {
-    Template(RuntimeError),
-    Unwired(String),
 }
 
 /// The agent fields rendered before the task's lane is known: `model:` (the same render seam
@@ -1296,14 +1360,15 @@ mod infer_deadline_tests {
     use crate::{DeterministicStamper, Runtime, RuntimeConfig, VecSink};
 
     /// Captures every provider request · answers a minimal
-    /// vendor-shaped success so the run settles green.
+    /// vendor-shaped success so the run settles green. `pub(super)`: the
+    /// `vision` tests read the wire through it.
     #[derive(Default)]
-    struct CapturingHttp {
+    pub(super) struct CapturingHttp {
         captured: Mutex<Vec<HttpRequest>>,
     }
 
     impl CapturingHttp {
-        fn captured(&self) -> Vec<HttpRequest> {
+        pub(super) fn captured(&self) -> Vec<HttpRequest> {
             self.captured.lock().expect("test mutex").clone()
         }
     }
@@ -1357,9 +1422,10 @@ mod infer_deadline_tests {
         captured
     }
 
-    /// Same rig as [`run_and_capture`], but a failed task is data (the
-    /// #1135 missing-file catching test).
-    pub(super) async fn run_capture(yaml: &str) -> (crate::RunOutcome, Vec<HttpRequest>) {
+    /// Same rig as [`run_and_capture`], but a failed task is data. (The
+    /// #1135 missing-file test moved to `dispatch/vision/tests.rs`, onto
+    /// the real builtin plane a vision read now rides.)
+    async fn run_capture(yaml: &str) -> (crate::RunOutcome, Vec<HttpRequest>) {
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),

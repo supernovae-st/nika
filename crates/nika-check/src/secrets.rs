@@ -662,6 +662,41 @@ tasks:
         );
     }
 
+    /// Spec 02 §Vision inputs · an `infer:`'s `vision:` entries ride the provider request: a
+    /// URL the provider fetches, and a file path that chooses the bytes it receives. A secret in
+    /// either reaches the provider, so it is the `infer` sink's leak, sanctioned by the same
+    /// `{ to: "infer" }` rule as the prompt.
+    #[test]
+    fn a_secret_in_a_vision_entry_is_an_infer_leak_unless_sanctioned() {
+        let vision = |entry: &str, egress: &str| {
+            format!(
+                "nika: w\nsecrets:\n  k:\n    source: env\n    key: K\n{egress}tasks:\n  look:\n    \
+                 infer: {{ prompt: \"describe the chart\", max_tokens: 10, vision: [{entry}] }}\n"
+            )
+        };
+        let url = "{ source: url, url: \"https://example.com/chart.png?sig=${{ secrets.k }}\" }";
+        let file = "{ source: file, path: \"./cache/${{ secrets.k }}.png\" }";
+        for entry in [url, file] {
+            let leaks = leaks_of(&vision(entry, ""));
+            assert_eq!(leaks.len(), 1, "{entry}: {leaks:?}");
+            assert_eq!(leaks[0].secret, "k", "{entry}");
+            assert_eq!(leaks[0].sink, "infer", "{entry}");
+            let sanctioned = vision(entry, "    egress:\n      - to: \"infer\"\n");
+            assert!(
+                leaks_of(&sanctioned).is_empty(),
+                "{entry}: `to: infer` sanctions the vision entry as it does the prompt"
+            );
+        }
+        let plain = vision(
+            "{ source: url, url: \"https://example.com/chart.png\" }",
+            "",
+        );
+        assert!(
+            leaks_of(&plain).is_empty(),
+            "a vision entry with no secret is clean"
+        );
+    }
+
     #[test]
     fn sanctioned_agent_egress_is_clean_but_infer_clearance_does_not_cross() {
         // `to: "agent"` clears the agent send; an `infer`-only clearance does

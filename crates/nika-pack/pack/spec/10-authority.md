@@ -27,7 +27,7 @@ never a parallel list):
 
 | Effect category | Carried by | Granted by |
 |---|---|---|
-| `fs` (read · write) | `nika:read` · `nika:grep` · `nika:write` · `nika:edit` · `nika:remove_file` (write · no read) · file-writing media builtins | `permits.fs.read` / `permits.fs.write` (path globs) |
+| `fs` (read · write) | `nika:read` · `nika:grep` · `nika:write` · `nika:edit` · `nika:remove_file` (write · no read) · file-writing media builtins · the files whose content reaches a model provider (an `infer:` `vision:` file · a `skills:` entry · a `{ file: }` project file · read) · an `agent:` `images.save` (write) | `permits.fs.read` / `permits.fs.write` (path globs) |
 | `net` | `nika:fetch` · `nika:notify` (webhook) · any URL-reaching builtin | `permits.net.http` (host allowlist · SSRF floor beneath) |
 | `exec` | the `exec:` verb | `permits.exec` (`false` · `true` · program allowlist) |
 | `tools` | the `invoke:` verb surface | `permits.tools` (id globs) |
@@ -49,9 +49,14 @@ Two derived facts the engine computes and no author writes:
 - **A task's required effects** — from its verb and its arguments (the
   builtin classification table is normative for the stdlib: each
   catalog entry declares which category it carries and which argument
-  names its target). `infer:` with no tools is **pure compute**: zero
-  required effects (provider egress is governed by the secrets flow
-  rules, not by a capability category).
+  names its target). An `infer:` requires exactly the files it reads: each
+  `vision:` file and each `{ file: }` project file is an `fs` read
+  ([02 §Vision inputs](./02-verbs.md#vision-inputs--vision-normative) ·
+  [02 §Project files](./02-verbs.md#project-files---file--normative)). With
+  neither it is **pure compute**: zero required effects (provider egress,
+  a `vision:` URL the provider fetches included, is governed by the secrets
+  flow rules, not by a capability category: a secret in any `vision:` entry
+  is the `infer` sink's, `NIKA-SEC-006` unless sanctioned).
 - **The workflow's needed boundary** — the union of its tasks' required
   effects, as a `permits:` block (`nika check --infer-permits` prints
   it; the round-trip law holds: the inferred block re-checks clean).
@@ -71,23 +76,29 @@ the taint re-gate's ground, and any other template is judged on its resolved
 value at run time.
 
 **Same-path mutations.** `nika:write`, `nika:edit` and `nika:remove_file`
-mutate their path. Two such tasks on one known target MUST be ordered by a
-precedence path (`with:` · a `group` fold · `after:` other than `unwind`),
-and a `for_each` task MUST NOT fan onto one known target; otherwise the
-check refuses `NIKA-SEC-012`. A target is known in two forms. A literal
-path is keyed by its lexical normal form. A whole bare `const`/`inputs`
-reference whose declaration gives a string — a constant's string value or
-an input's string default — is keyed by that string's lexical normal form
-too, so it collides with an equal literal or with a different binding that
-resolves to it. A reference with no resolvable string keeps the identity of
-its own immutable binding, distinct from every file name and equal only to
-another reference to that binding (resolution and declaration rules still
-judge the reference itself). Every other expression form is unknown and
-never compared. This key is not the write fit: the static fit judges a
-literal or a bare `const` value only, never a caller-replaceable `inputs`
-default, which remains the taint re-gate's ground. Ordered mutations of one path
-are permitted — there is no one-writer rule — and graph order is a
-scheduling fact, never a proof of the filesystem state that results.
+mutate their path, and an `agent:` task's `images: { save: }` mutates every
+path the save names: the path and its `-2`, `-3` and `-4` siblings
+([02 §Harness images](./02-verbs.md#harness-images--images-normative)). Two
+such tasks on one known target MUST be ordered by a precedence path
+(`with:` · a `group` fold · `after:` other than `unwind`), and a `for_each`
+task MUST NOT fan onto one known target; otherwise the check refuses
+`NIKA-SEC-012`. A target is known in two forms. A literal path is keyed by
+its lexical normal form. A whole bare `const`/`inputs` reference whose
+declaration gives a string — a constant's string value or an input's string
+default — is keyed by that string's lexical normal form too, so it collides
+with an equal literal or with a different binding that resolves to it. A
+reference with no resolvable string keeps the identity of its own immutable
+binding, distinct from every file name and equal only to another reference
+to that binding (resolution and declaration rules still judge the reference
+itself). Every other expression form is unknown and never compared. A save
+whose path is known keys that path and its three siblings, so it collides
+with a mutation of any of the four; a save through a reference with no
+resolvable string keys that binding once. This key is not the write fit:
+the static fit judges a literal or a bare `const` value only, never a
+caller-replaceable `inputs` default, which remains the taint re-gate's
+ground. Ordered mutations of one path are permitted — there is no
+one-writer rule — and graph order is a scheduling fact, never a proof of
+the filesystem state that results.
 
 ## The unconditional laws · *normative · the `policy:` block is dead*
 
@@ -256,7 +267,7 @@ refusal classes were report-only until W4:
 
 | Code | Class | Witness (in the diagnostic) |
 |---|---|---|
-| `NIKA-SEC-006` | a `secrets.<name>` value reaches an **unsanctioned sink** (an `exec:` argument · an `invoke:` payload · an `infer:`/`agent:` prompt) | the **taint path**, source-first (`secrets.api_key → with.tok → tasks.call.output → exec`) + the exact `egress: [{ to: "<sink>" }]` clause that would sanction it |
+| `NIKA-SEC-006` | a `secrets.<name>` value reaches an **unsanctioned sink** (an `exec:` argument · an `invoke:` payload · an `infer:`/`agent:` prompt · an `infer:` `vision:` entry) | the **taint path**, source-first (`secrets.api_key → with.tok → tasks.call.output → exec`) + the exact `egress: [{ to: "<sink>" }]` clause that would sanction it |
 | `NIKA-SEC-007` | a tainted value reaches the **workflow boundary** (`outputs:` — where a result leaves the run) | the taint path into the `outputs:` entry |
 
 Both are `security_error`, check-time, blocking. The taint path is not

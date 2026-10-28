@@ -335,6 +335,48 @@ impl<T> core::convert::From<T> for nika_kernel_runtime::tool_executor::ToolExecE
 pub fn nika_kernel_runtime::tool_executor::ToolExecError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_runtime::tool_executor::ToolExecError where T: 'static
 pub fn nika_kernel_runtime::tool_executor::ToolExecError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_runtime::tool_executor::SpentBeforeFailure
+impl nika_kernel_runtime::tool_executor::SpentBeforeFailure
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::and(self, other: Self) -> Self
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::new(priced_usd: core::option::Option<f64>, unpriced: bool) -> core::option::Option<Self>
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::priced_usd(self) -> core::option::Option<f64>
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::unpriced(self) -> bool
+impl core::clone::Clone for nika_kernel_runtime::tool_executor::SpentBeforeFailure
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::clone(&self) -> nika_kernel_runtime::tool_executor::SpentBeforeFailure
+impl core::cmp::Eq for nika_kernel_runtime::tool_executor::SpentBeforeFailure
+impl core::cmp::PartialEq for nika_kernel_runtime::tool_executor::SpentBeforeFailure
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::eq(&self, other: &nika_kernel_runtime::tool_executor::SpentBeforeFailure) -> bool
+impl core::fmt::Debug for nika_kernel_runtime::tool_executor::SpentBeforeFailure
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_runtime::tool_executor::SpentBeforeFailure
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel_runtime::tool_executor::SpentBeforeFailure
+impl core::marker::StructuralPartialEq for nika_kernel_runtime::tool_executor::SpentBeforeFailure
+impl<D> owo_colors::OwoColorize for nika_kernel_runtime::tool_executor::SpentBeforeFailure
+impl<T, U> core::convert::Into<U> for nika_kernel_runtime::tool_executor::SpentBeforeFailure where U: core::convert::From<T>
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_runtime::tool_executor::SpentBeforeFailure where U: core::convert::Into<T>
+pub type nika_kernel_runtime::tool_executor::SpentBeforeFailure::Error = core::convert::Infallible
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_runtime::tool_executor::SpentBeforeFailure where U: core::convert::TryFrom<T>
+pub type nika_kernel_runtime::tool_executor::SpentBeforeFailure::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_runtime::tool_executor::SpentBeforeFailure where T: core::clone::Clone
+pub type nika_kernel_runtime::tool_executor::SpentBeforeFailure::Owned = T
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::clone_into(&self, target: &mut T)
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_runtime::tool_executor::SpentBeforeFailure where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_runtime::tool_executor::SpentBeforeFailure where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_runtime::tool_executor::SpentBeforeFailure where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_runtime::tool_executor::SpentBeforeFailure where T: core::clone::Clone
+pub unsafe fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_runtime::tool_executor::SpentBeforeFailure
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_runtime::tool_executor::SpentBeforeFailure where T: 'static
+pub fn nika_kernel_runtime::tool_executor::SpentBeforeFailure::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_runtime::tool_executor::StoppedCall
 pub nika_kernel_runtime::tool_executor::StoppedCall::call_id: alloc::string::String
 pub nika_kernel_runtime::tool_executor::StoppedCall::outcome: nika_kernel_runtime::tool_executor::StopOutcome
@@ -464,6 +506,7 @@ pub fn nika_kernel_runtime::tool_executor::ToolCallId::as_any(&self) -> &(dyn co
 impl<T> serde_core::de::DeserializeOwned for nika_kernel_runtime::tool_executor::ToolCallId where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_kernel_runtime::tool_executor::ToolErrorDetails
 pub nika_kernel_runtime::tool_executor::ToolErrorDetails::accepted: core::option::Option<alloc::vec::Vec<u16>>
+pub nika_kernel_runtime::tool_executor::ToolErrorDetails::spent: core::option::Option<nika_kernel_runtime::tool_executor::SpentBeforeFailure>
 pub nika_kernel_runtime::tool_executor::ToolErrorDetails::status_code: core::option::Option<u16>
 pub nika_kernel_runtime::tool_executor::ToolErrorDetails::stopped_call: core::option::Option<alloc::boxed::Box<nika_kernel_runtime::tool_executor::StoppedCall>>
 impl nika_kernel_runtime::tool_executor::ToolErrorDetails
@@ -471,6 +514,7 @@ pub fn nika_kernel_runtime::tool_executor::ToolErrorDetails::is_empty(&self) -> 
 pub fn nika_kernel_runtime::tool_executor::ToolErrorDetails::new() -> Self
 pub fn nika_kernel_runtime::tool_executor::ToolErrorDetails::to_value(&self) -> serde_json::value::Value
 pub fn nika_kernel_runtime::tool_executor::ToolErrorDetails::with_accepted(self, accepted: alloc::vec::Vec<u16>) -> Self
+pub fn nika_kernel_runtime::tool_executor::ToolErrorDetails::with_spent(self, spent: nika_kernel_runtime::tool_executor::SpentBeforeFailure) -> Self
 pub fn nika_kernel_runtime::tool_executor::ToolErrorDetails::with_status_code(self, status: u16) -> Self
 pub fn nika_kernel_runtime::tool_executor::ToolErrorDetails::with_stopped_call(self, stopped: nika_kernel_runtime::tool_executor::StoppedCall) -> Self
 impl core::clone::Clone for nika_kernel_runtime::tool_executor::ToolErrorDetails

@@ -418,7 +418,9 @@ fn record_effect_leaks(
 ///
 /// The `infer:`/`agent:` `prompt:` + `system:` ARE sinks: a secret in a
 /// prompt LEAVES the run to a third-party provider (the same third-party-
-/// network exposure as an `mcp:` tool, which is already flagged). A secret
+/// network exposure as an `mcp:` tool, which is already flagged). So are an
+/// `infer:`'s `vision:` entries, which ride the same request (spec 02
+/// §Vision inputs). A secret
 /// reaching one with no `egress:` sanction is a leak (BUG#3 · now CANONICAL ·
 /// spec `01-envelope.md` §egress aligned to this strict behavior · F-03).
 /// The OUTPUT carve-out is SEPARATE and PRESERVED (see `propagate_task`
@@ -451,7 +453,16 @@ pub fn action_effect_fields(action: &RawAction) -> Vec<&str> {
         // The prompt (+ system) is a third-party egress sink — a secret
         // reaching it is a leak unless the author sanctions `to: "infer"`/
         // `"agent"` (BUG#3). Output taint stays excluded (propagate_task §4).
-        RawAction::Infer(a) => prompt_system_fields(a.prompt.value.as_str(), a.system.as_ref()),
+        // An `infer:`'s `vision:` entries ride the same request (spec 02
+        // §Vision inputs): a URL the provider fetches, and a file path that
+        // chooses the bytes the provider receives. Both are sink fields, so a
+        // secret in either is the `infer` leak, and untrusted content in
+        // either picks what the model sees (its answer carries it).
+        RawAction::Infer(a) => {
+            let mut fields = prompt_system_fields(a.prompt.value.as_str(), a.system.as_ref());
+            fields.extend(vision_fields(&a.vision));
+            fields
+        }
         RawAction::Agent(a) => prompt_system_fields(a.prompt.value.as_str(), a.system.as_ref()),
         #[allow(
             clippy::unreachable,
@@ -459,6 +470,19 @@ pub fn action_effect_fields(action: &RawAction) -> Vec<&str> {
         )]
         other => unreachable!("unknown action: {other:?}"),
     }
+}
+
+/// The text of every `vision:` entry of an `infer:` action (spec 02 §Vision
+/// inputs): a `source: url`'s URL and a `source: file`'s path. A source form
+/// this build does not know carries no text here (the run refuses it unwired).
+fn vision_fields(
+    items: &[nika_schema::Spanned<nika_schema::raw::VisionInput>],
+) -> impl Iterator<Item = &str> {
+    items.iter().filter_map(|item| match &item.value {
+        nika_schema::raw::VisionInput::File { path } => Some(path.value.as_str()),
+        nika_schema::raw::VisionInput::Url { url } => Some(url.value.as_str()),
+        _ => None,
+    })
 }
 
 /// The `prompt:` + optional `system:` text of an `infer:`/`agent:` action —

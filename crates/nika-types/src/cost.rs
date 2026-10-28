@@ -98,6 +98,13 @@ pub struct SpendOnFailure {
     /// Tool-reported spend accumulated before the failure (`agent`
     /// loops) — absent when no tool reported real cost, never zero.
     pub tools_cost_usd: Option<f64>,
+    /// Why each tool call that billed with no reported spend is outside
+    /// `tools_cost_usd` (an `agent` loop's paid media), one entry per call.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
+    pub tools_unpriced: Vec<UnpricedReason>,
     /// The model the verb resolved (`provider/name`) — the pricing key.
     /// `None` when the failure preceded model resolution.
     pub model_resolved: Option<String>,
@@ -115,6 +122,7 @@ impl SpendOnFailure {
             inference_calls: Vec::new(),
             usage,
             tools_cost_usd,
+            tools_unpriced: Vec::new(),
             model_resolved,
         }
     }
@@ -126,12 +134,20 @@ impl SpendOnFailure {
         self
     }
 
+    /// Attach why each billed tool call is outside `tools_cost_usd`.
+    #[must_use]
+    pub fn with_tools_unpriced(mut self, unpriced: Vec<UnpricedReason>) -> Self {
+        self.tools_unpriced = unpriced;
+        self
+    }
+
     /// Whether anything here could carry a price — a default (pre-call
     /// failure) spend prices to nothing and should decorate nothing.
     #[must_use]
     pub fn has_signal(&self) -> bool {
         !self.inference_calls.is_empty()
             || self.tools_cost_usd.is_some()
+            || !self.tools_unpriced.is_empty()
             || self.usage.input_tokens > 0
             || self.usage.output_tokens > 0
             || self.usage.cache_read_tokens.is_some_and(|n| n > 0)

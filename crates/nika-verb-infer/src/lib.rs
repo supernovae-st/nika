@@ -28,8 +28,9 @@
 //!
 //! ## Fences (what this crate is NOT)
 //!
-//! Streaming passthrough (`verb-agent`/engine surface) · CAS vision
-//! staging (`nika-media-*` · deferred; file/url refs ARE wired) ·
+//! Streaming passthrough (`verb-agent`/engine surface) · file IO (a
+//! `vision:` file arrives as bytes the runtime read inside the workflow's
+//! `permits.fs.read`; CAS staging is `nika-media-*`'s, deferred) ·
 //! `${{ }}` resolution (upstream binding) · transport retry (the provider
 //! layer never re-sends a call; the authored `retry:` is the runtime's —
 //! only the schema-validation retry lives here, and the transport's own
@@ -106,8 +107,9 @@ pub struct InferInput {
     /// routinely needs minutes). `None` → the adapter's per-provider
     /// default governs.
     pub timeout: Option<std::time::Duration>,
-    /// `infer.vision:` — local files are inlined as `data:` URLs; remote
-    /// URLs stay URLs. Empty means text-only (the historical path).
+    /// `infer.vision:` — loaded files (read by the caller inside the
+    /// workflow's `permits.fs.read`) are inlined as `data:` URLs; remote URLs
+    /// stay URLs. Empty means text-only (the historical path).
     pub vision: Vec<VisionPart>,
     /// The workflow's authored access selection (`run.access` ·
     /// `run.reasoning`), when it declares one: its native effort is
@@ -420,7 +422,7 @@ where
     /// # Errors
     ///
     /// [`VerbInferError::InvalidParam`] on an empty prompt, out-of-range
-    /// temperature, or a missing `vision:` file ·
+    /// temperature, or an empty `vision:` image ·
     /// [`VerbInferError::ModelResolution`] when the model string resolves
     /// to no profile · [`VerbInferError::ProviderCall`]
     /// when the provider round-trip fails
@@ -902,8 +904,8 @@ fn base_messages(input: &InferInput, wire: SchemaWire) -> Vec<Message> {
     messages
 }
 
-/// Append loaded image blocks onto the user turn. A missing local file
-/// fails here — before the provider loop spends anything.
+/// Append the image blocks onto the user turn. An empty image fails here
+/// — before the provider loop spends anything.
 fn attach_vision(messages: &mut [Message], parts: &[VisionPart]) -> Result<(), VerbInferError> {
     if parts.is_empty() {
         return Ok(());

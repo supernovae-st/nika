@@ -166,6 +166,7 @@ where
                 cost_usd: out.cost_usd,
                 cost_source,
                 cost_unpriced: None,
+                unpriced_inner_calls: out.unpriced_calls,
                 // F-P6 · the child's OWN trace attests its steps (spec 14
                 // law 9) — the call itself fires no exec/tool bytes.
                 commit: None,
@@ -220,6 +221,7 @@ where
                 cost_usd: out.cost_usd,
                 cost_source,
                 cost_unpriced: None,
+                unpriced_inner_calls: out.unpriced_calls,
                 // F-P6 · the child's own trace attests its steps.
                 evidence: None,
                 // The child's own frames carry its metered calls' splits.

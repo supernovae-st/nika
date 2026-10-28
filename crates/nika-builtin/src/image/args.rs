@@ -1272,4 +1272,45 @@ mod tests {
         );
         assert!(parse(&base(serde_json::json!({ "metadata": "x" }))).is_err());
     }
+
+    /// C-D3 · the catalog judges the provider a call bills by the same
+    /// resolution this parser applies (explicit `provider:` wins, else the
+    /// `model:` prefix), so a cap can never miss a paid image call: every
+    /// model the parser accepts resolves to the same provider in the
+    /// catalog, and every model it refuses resolves to none.
+    #[test]
+    fn the_catalog_media_provider_matches_this_parser() {
+        for model in [
+            "gpt-image-1-mini",
+            "gpt-image-2",
+            "gemini-3.1-flash-image",
+            "grok-imagine-image",
+            "grok-2-image",
+            "mock-image",
+            "dall-e-3",
+            "imagen-4",
+            "flux-schnell",
+        ] {
+            let parsed = parse(&args(serde_json::json!({
+                "model": model, "prompt": "a butterfly", "output_dir": "./out"
+            })))
+            .ok()
+            .map(|a| a.provider.id());
+            assert_eq!(
+                nika_catalog::builtin_media_provider("nika:image_generate", None, Some(model)),
+                parsed,
+                "model {model}"
+            );
+        }
+        for provider in ["local", "openai", "gemini", "xai", "mock"] {
+            let parsed = parse(&base(serde_json::json!({ "provider": provider })))
+                .map(|a| a.provider.id())
+                .ok();
+            assert_eq!(
+                nika_catalog::builtin_media_provider("nika:image_generate", Some(provider), None),
+                parsed,
+                "provider {provider}"
+            );
+        }
+    }
 }

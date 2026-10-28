@@ -542,6 +542,152 @@ impl<T> nika_error::traits::AsAny for nika_check_analyzer::edges::EdgeKind where
 pub fn nika_check_analyzer::edges::EdgeKind::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_check_analyzer::edges::EdgeKind where T: core::marker::Copy
 pub fn nika_check_analyzer::edges::EdgeKind::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_check_analyzer::MediaCapRefusal<'a>
+pub nika_check_analyzer::MediaCapRefusal::NothingLeft
+pub nika_check_analyzer::MediaCapRefusal::NothingLeft::model: core::option::Option<&'a str>
+pub nika_check_analyzer::MediaCapRefusal::NothingLeft::provider: &'a str
+pub nika_check_analyzer::MediaCapRefusal::OverFloor
+pub nika_check_analyzer::MediaCapRefusal::OverFloor::floor_usd: f64
+pub nika_check_analyzer::MediaCapRefusal::OverFloor::model: core::option::Option<&'a str>
+pub nika_check_analyzer::MediaCapRefusal::OverFloor::provider: &'a str
+pub nika_check_analyzer::MediaCapRefusal::Unpriced
+pub nika_check_analyzer::MediaCapRefusal::Unpriced::model: core::option::Option<&'a str>
+pub nika_check_analyzer::MediaCapRefusal::Unpriced::provider: &'a str
+pub nika_check_analyzer::MediaCapRefusal::Unread
+pub nika_check_analyzer::MediaCapRefusal::Unread::model: core::option::Option<&'a str>
+pub nika_check_analyzer::MediaCapRefusal::Unread::provider: &'a str
+impl nika_check_analyzer::MediaCapRefusal<'_>
+pub fn nika_check_analyzer::MediaCapRefusal<'_>::reason(&self, tool: &str, remaining_usd: f64) -> alloc::string::String
+impl<'a> core::clone::Clone for nika_check_analyzer::MediaCapRefusal<'a>
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::clone(&self) -> nika_check_analyzer::MediaCapRefusal<'a>
+impl<'a> core::cmp::PartialEq for nika_check_analyzer::MediaCapRefusal<'a>
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::eq(&self, other: &nika_check_analyzer::MediaCapRefusal<'a>) -> bool
+impl<'a> core::fmt::Debug for nika_check_analyzer::MediaCapRefusal<'a>
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_check_analyzer::MediaCapRefusal<'a>
+impl<'a> core::marker::StructuralPartialEq for nika_check_analyzer::MediaCapRefusal<'a>
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::MediaCapRefusal<'a>
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::MediaCapRefusal<'a> where U: core::convert::From<T>
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::MediaCapRefusal<'a> where U: core::convert::Into<T>
+pub type nika_check_analyzer::MediaCapRefusal<'a>::Error = core::convert::Infallible
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::MediaCapRefusal<'a> where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::MediaCapRefusal<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::MediaCapRefusal<'a> where T: core::clone::Clone
+pub type nika_check_analyzer::MediaCapRefusal<'a>::Owned = T
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::MediaCapRefusal<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::MediaCapRefusal<'a> where T: ?core::marker::Sized
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::MediaCapRefusal<'a> where T: ?core::marker::Sized
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::MediaCapRefusal<'a> where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::MediaCapRefusal<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::MediaCapRefusal<'a>
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::MediaCapRefusal<'a> where T: core::clone::Clone
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::MediaCapRefusal<'a> where T: 'static
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check_analyzer::MediaCapRefusal<'a> where T: core::marker::Copy
+pub fn nika_check_analyzer::MediaCapRefusal<'a>::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_check_analyzer::MediaFloor
+pub nika_check_analyzer::MediaFloor::Metered
+pub nika_check_analyzer::MediaFloor::Metered::rate: core::option::Option<&'static nika_catalog::data::media_prices::MediaRate>
+pub nika_check_analyzer::MediaFloor::Usd
+pub nika_check_analyzer::MediaFloor::Usd::rate: core::option::Option<&'static nika_catalog::data::media_prices::MediaRate>
+pub nika_check_analyzer::MediaFloor::Usd::usd: f64
+impl nika_check_analyzer::MediaFloor
+pub fn nika_check_analyzer::MediaFloor::rate(self) -> core::option::Option<&'static nika_catalog::data::media_prices::MediaRate>
+pub fn nika_check_analyzer::MediaFloor::usd(self) -> core::option::Option<f64>
+impl core::clone::Clone for nika_check_analyzer::MediaFloor
+pub fn nika_check_analyzer::MediaFloor::clone(&self) -> nika_check_analyzer::MediaFloor
+impl core::cmp::PartialEq for nika_check_analyzer::MediaFloor
+pub fn nika_check_analyzer::MediaFloor::eq(&self, other: &nika_check_analyzer::MediaFloor) -> bool
+impl core::fmt::Debug for nika_check_analyzer::MediaFloor
+pub fn nika_check_analyzer::MediaFloor::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check_analyzer::MediaFloor
+impl core::marker::StructuralPartialEq for nika_check_analyzer::MediaFloor
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::MediaFloor
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::MediaFloor where U: core::convert::From<T>
+pub fn nika_check_analyzer::MediaFloor::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::MediaFloor where U: core::convert::Into<T>
+pub type nika_check_analyzer::MediaFloor::Error = core::convert::Infallible
+pub fn nika_check_analyzer::MediaFloor::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::MediaFloor where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::MediaFloor::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::MediaFloor::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::MediaFloor where T: core::clone::Clone
+pub type nika_check_analyzer::MediaFloor::Owned = T
+pub fn nika_check_analyzer::MediaFloor::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::MediaFloor::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::MediaFloor where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::MediaFloor::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::MediaFloor where T: ?core::marker::Sized
+pub fn nika_check_analyzer::MediaFloor::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::MediaFloor where T: ?core::marker::Sized
+pub fn nika_check_analyzer::MediaFloor::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::MediaFloor where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::MediaFloor::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::MediaFloor
+pub fn nika_check_analyzer::MediaFloor::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::MediaFloor where T: core::clone::Clone
+pub fn nika_check_analyzer::MediaFloor::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::MediaFloor where T: 'static
+pub fn nika_check_analyzer::MediaFloor::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check_analyzer::MediaFloor where T: core::marker::Copy
+pub fn nika_check_analyzer::MediaFloor::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_check_analyzer::MediaQuote<'a>
+pub nika_check_analyzer::MediaQuote::Priced
+pub nika_check_analyzer::MediaQuote::Priced::floor: nika_check_analyzer::MediaFloor
+pub nika_check_analyzer::MediaQuote::Priced::model: core::option::Option<&'a str>
+pub nika_check_analyzer::MediaQuote::Priced::provider: &'a str
+pub nika_check_analyzer::MediaQuote::RunDecided(&'a str)
+pub nika_check_analyzer::MediaQuote::Unmetered
+pub nika_check_analyzer::MediaQuote::Unpriced
+pub nika_check_analyzer::MediaQuote::Unpriced::model: core::option::Option<&'a str>
+pub nika_check_analyzer::MediaQuote::Unpriced::provider: &'a str
+impl<'a> core::clone::Clone for nika_check_analyzer::MediaQuote<'a>
+pub fn nika_check_analyzer::MediaQuote<'a>::clone(&self) -> nika_check_analyzer::MediaQuote<'a>
+impl<'a> core::cmp::PartialEq for nika_check_analyzer::MediaQuote<'a>
+pub fn nika_check_analyzer::MediaQuote<'a>::eq(&self, other: &nika_check_analyzer::MediaQuote<'a>) -> bool
+impl<'a> core::fmt::Debug for nika_check_analyzer::MediaQuote<'a>
+pub fn nika_check_analyzer::MediaQuote<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_check_analyzer::MediaQuote<'a>
+impl<'a> core::marker::StructuralPartialEq for nika_check_analyzer::MediaQuote<'a>
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::MediaQuote<'a>
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::MediaQuote<'a> where U: core::convert::From<T>
+pub fn nika_check_analyzer::MediaQuote<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::MediaQuote<'a> where U: core::convert::Into<T>
+pub type nika_check_analyzer::MediaQuote<'a>::Error = core::convert::Infallible
+pub fn nika_check_analyzer::MediaQuote<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::MediaQuote<'a> where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::MediaQuote<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::MediaQuote<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::MediaQuote<'a> where T: core::clone::Clone
+pub type nika_check_analyzer::MediaQuote<'a>::Owned = T
+pub fn nika_check_analyzer::MediaQuote<'a>::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::MediaQuote<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::MediaQuote<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::MediaQuote<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::MediaQuote<'a> where T: ?core::marker::Sized
+pub fn nika_check_analyzer::MediaQuote<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::MediaQuote<'a> where T: ?core::marker::Sized
+pub fn nika_check_analyzer::MediaQuote<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::MediaQuote<'a> where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::MediaQuote<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::MediaQuote<'a>
+pub fn nika_check_analyzer::MediaQuote<'a>::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::MediaQuote<'a> where T: core::clone::Clone
+pub fn nika_check_analyzer::MediaQuote<'a>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::MediaQuote<'a> where T: 'static
+pub fn nika_check_analyzer::MediaQuote<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check_analyzer::MediaQuote<'a> where T: core::marker::Copy
+pub fn nika_check_analyzer::MediaQuote<'a>::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub enum nika_check_analyzer::SettledState
 pub nika_check_analyzer::SettledState::Cancelled
 pub nika_check_analyzer::SettledState::Failure
@@ -863,6 +1009,13 @@ pub fn nika_check_analyzer::catalog_knows(provider: &str, name: &str, judged: &s
 pub fn nika_check_analyzer::effective_workflow(wf: &nika_schema::raw::workflow::RawWorkflow, model_override: core::option::Option<&str>, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_schema::raw::workflow::RawWorkflow>
 pub fn nika_check_analyzer::images_outputs(wf: &nika_schema::raw::workflow::RawWorkflow, lowered: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub fn nika_check_analyzer::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub fn nika_check_analyzer::media_call_provider<'a>(tool: &str, args: &'a serde_json::value::Value) -> core::option::Option<&'a str>
+pub fn nika_check_analyzer::media_call_template<'a>(tool: &str, args: &'a serde_json::value::Value) -> core::option::Option<&'a str>
+pub fn nika_check_analyzer::media_cap_hold<'a>(tool: &str, args: &'a serde_json::value::Value, remaining_usd: f64, unread: bool) -> core::result::Result<core::option::Option<f64>, nika_check_analyzer::MediaCapRefusal<'a>>
+pub fn nika_check_analyzer::media_cap_refusal<'a>(tool: &str, args: &'a serde_json::value::Value, remaining_usd: f64) -> core::option::Option<nika_check_analyzer::MediaCapRefusal<'a>>
+pub fn nika_check_analyzer::media_cap_remedy() -> alloc::string::String
+pub fn nika_check_analyzer::media_quote<'a>(tool: &str, args: &'a serde_json::value::Value) -> nika_check_analyzer::MediaQuote<'a>
+pub fn nika_check_analyzer::media_spend_unpriced(tool: &str, value: &serde_json::value::Value) -> core::option::Option<nika_types::cost::UnpricedReason>
 pub fn nika_check_analyzer::priced_builtin_floor(wf: &nika_schema::raw::workflow::RawWorkflow) -> f64
 pub fn nika_check_analyzer::reasoning_cap_hints(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check_analyzer::ThinkingFinding>
 pub fn nika_check_analyzer::rendered_collections(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_schema::raw::workflow::RawWorkflow>

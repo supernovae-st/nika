@@ -421,6 +421,16 @@ impl PriceWalker<'_> {
                     ceiling.min_path_total_usd += child.min_path_total_usd;
                     ceiling.bounded_total_usd += child.bounded_total_usd;
                     ceiling.has_unbounded |= child.has_unbounded;
+                    // A grandchild's paid media is the calling task's too
+                    // (C-D3): an unpriced one deep in the tree is refused at
+                    // the root's launch, never at a nested launch after the
+                    // run already spent.
+                    ceiling
+                        .media
+                        .extend(child.media.iter().map(|call| super::cost::MediaCost {
+                            task: task.value.id.value.clone(),
+                            ..call.clone()
+                        }));
                 }
             }
             ceiling
@@ -1059,6 +1069,41 @@ tasks:
         assert!(f.is_empty(), "{f:?}");
     }
 
+    /// Spec 02 §Vision inputs · a child's `vision:` file is a read its needs carry, so it is
+    /// contained by the parent's read boundary like any other read (spec 14 laws 3/4).
+    #[test]
+    fn a_childs_vision_file_needs_the_parents_read_grant() {
+        let child = "\
+nika: child
+permits:
+  fs: { read: [\"./diagrams/**\"] }
+tasks:
+  look:
+    infer:
+      prompt: \"Describe the flow\"
+      vision:
+        - { source: file, path: \"./diagrams/flow.png\" }
+";
+        let parent = |read: &str| {
+            format!(
+                "nika: parent\npermits:\n  fs: {{ read: [\"{read}\"] }}\ntasks:\n  audit:\n    \
+                 invoke:\n      workflow: \"./child.nika\"\n"
+            )
+        };
+        let narrow = parse(&parent("./docs/**"));
+        let f = scan_resolved(&narrow, "parent.nika", &mut |_| Ok(child.to_owned()));
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].code, "NIKA-COMP-002");
+        assert!(
+            f[0].detail.contains("./diagrams/flow.png"),
+            "the refusal names the read: {}",
+            f[0].detail
+        );
+        let covering = parse(&parent("./diagrams/**"));
+        let f = scan_resolved(&covering, "parent.nika", &mut |_| Ok(child.to_owned()));
+        assert!(f.is_empty(), "{f:?}");
+    }
+
     #[test]
     fn undeclared_parent_boundary_is_zero_authority() {
         // F-O8 « absent = zero authority »: no parent permits ⇒ the parent
@@ -1193,6 +1238,47 @@ tasks:
             "the grandchild's floor reaches the parent through the child: {}",
             report.cost.min_path_total_usd
         );
+    }
+
+    /// C-D3 · a grandchild's paid media reaches the root's envelope
+    /// through the child, under the root's calling task: an unpriced voice
+    /// two calls deep is listed (and refused at the root's launch under a
+    /// cap), never discovered at a nested launch after the root spent.
+    #[test]
+    fn a_grandchilds_paid_media_folds_through_the_child() {
+        let middle = "\
+nika: middle
+tasks:
+  call:
+    invoke:
+      workflow: \"./leaf.nika\"
+";
+        let leaf = "\
+nika: leaf
+permits: { tools: [\"nika:tts_generate\"] }
+tasks:
+  speak:
+    invoke: { tool: \"nika:tts_generate\", args: { provider: openai, text: hi, output_dir: ./out } }
+";
+        let wf = parent_calling("./middle.nika");
+        let report = crate::check_composed(&wf, "parent.nika", &mut |p| {
+            Ok(match p {
+                "middle.nika" => middle.to_owned(),
+                "leaf.nika" => leaf.to_owned(),
+                other => panic!("unexpected read: {other}"),
+            })
+        });
+        let media: Vec<(&str, &str, Option<&str>, bool)> = (report.cost.media.iter())
+            .map(|m| {
+                (
+                    m.task.as_str(),
+                    m.provider.as_str(),
+                    m.model.as_deref(),
+                    m.unpriced(),
+                )
+            })
+            .collect();
+        assert_eq!(media, [("call", "openai", Some("gpt-4o-mini-tts"), true)]);
     }
 
     /// The amplification law (§7b's untested row, closed): a call task's

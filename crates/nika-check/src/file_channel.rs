@@ -85,9 +85,21 @@ impl Written {
     }
 }
 
-/// The places a builtin invoke reads files (nika-cap's read slots),
-/// empty when it reads none or is not a builtin invoke.
+/// The places a task reads files: a builtin invoke's read slots (nika-cap's),
+/// an `infer:`'s `vision:` files (spec 02 §Vision inputs: a literal path at its
+/// spot, a templated one anywhere); empty when it reads none.
 pub(super) fn read_spots(action: &RawAction) -> Vec<Spot> {
+    if let RawAction::Infer(a) = action {
+        return super::permits_fit::vision_files(a)
+            .map(|path| {
+                if path.value.contains("${{") {
+                    Spot::Anywhere
+                } else {
+                    lexical(&path.value, false)
+                }
+            })
+            .collect();
+    }
     builtin_slots(action, nika_cap::read_slot_paths)
 }
 

@@ -131,3 +131,36 @@ fn an_images_save_is_judged_on_every_path_it_can_write() {
         "the four files the client can deliver"
     );
 }
+
+/// Which file a rendered `images.save` names is the run's to judge — but whether the boundary
+/// grants ANY write is not (the waiver rule in `lib.rs`): a block whose `fs.write` admits nothing
+/// refuses every rendered save, after a paid turn, so the check refuses it first
+/// (`NIKA-AUTH-006` under an absent block, `NIKA-SEC-004` under a declared one).
+#[test]
+fn a_rendered_save_under_a_boundary_that_grants_no_write_is_refused() {
+    let save = |permits: &str| {
+        let yaml = format!(
+            "nika: agent-images\n{permits}inputs:\n  out: {{ type: string, required: true }}\n\
+             tasks:\n  draw:\n    agent:\n      prompt: draw\n      images: {{ save: \
+             \"${{{{ inputs.out }}}}\" }}\n"
+        );
+        scan_escapes(&parse(&yaml, FileId::new(0), ParseMode::Strict).expect("fixture"))
+    };
+    let absent = save("");
+    assert_eq!(absent.len(), 1, "{absent:?}");
+    assert!(absent[0].undeclared, "zero authority (NIKA-AUTH-006)");
+    assert!(
+        absent[0].detail.contains("`images.save`") && absent[0].detail.contains("fs.write"),
+        "{}",
+        absent[0].detail
+    );
+    for permits in ["permits: {}\n", "permits:\n  fs: { read: [\"./in/**\"] }\n"] {
+        let found = save(permits);
+        assert_eq!(found.len(), 1, "{permits}: {found:?}");
+        assert!(!found[0].undeclared, "{permits}: NIKA-SEC-004");
+    }
+    assert!(
+        save("permits:\n  fs: { write: [\"./out/**\"] }\n").is_empty(),
+        "a write grant the value may fit stays the run's"
+    );
+}

@@ -470,4 +470,93 @@ mod tests {
             "mock image is unpriced — rehearsal under a tight cap stays legal"
         );
     }
+
+    /// C-D3 · a paid media call the catalog cannot price refuses at the CLI
+    /// preflight under any cap, through the runtime's ONE floor law, even on
+    /// a harness seat (the call bills its own provider key, which no seat
+    /// bounds); uncapped, the preflight lets it run and the settlement
+    /// counts it unpriced. Mock media stays legal under a zero cap.
+    #[test]
+    fn unpriced_media_refuses_every_cap_and_mock_media_does_not() {
+        let fixture = |tool: &str, args: &str| {
+            let yaml = format!(
+                "nika: c-d3\npermits: {{ tools: [\"{tool}\"], fs: {{ write: [\"./out/**\"] }} }}\ntasks:\n  media:\n    invoke: {{ tool: \"{tool}\", args: {{ {args}, output_dir: \"./out\" }} }}\n"
+            );
+            parse(&yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses")
+        };
+        // Still unpriced: OpenAI's default voice, an ElevenLabs id outside the
+        // price page's families, the image models OpenAI shuts down on
+        // 2026-12-01, a Gemini id the dated table does not list.
+        for (tool, args) in [
+            ("nika:tts_generate", "provider: openai, text: hi"),
+            (
+                "nika:tts_generate",
+                "model: eleven_multilingual_v1, text: hi",
+            ),
+            (
+                "nika:image_generate",
+                "model: gpt-image-1.5, prompt: a star",
+            ),
+            (
+                "nika:image_generate",
+                "model: gemini-2.0-flash-preview-image-generation, prompt: a star",
+            ),
+        ] {
+            let wf = fixture(tool, args);
+            let report = nika_check::check(&wf);
+            assert!(report.is_clean(), "fixture checks clean: {report:?}");
+            for seated in [false, true] {
+                assert_eq!(
+                    preflight(&wf, &report, None, Some(5.0), false, seated),
+                    Err(crate::output::exit::FILE),
+                    "{tool} {{ {args} }} seated={seated}"
+                );
+            }
+            assert_eq!(
+                preflight(&wf, &report, None, None, false, false),
+                Ok(()),
+                "no cap, no refusal: {tool} {{ {args} }}"
+            );
+        }
+        // C-D3 · the models the dated media table prices pass a cap their
+        // floor fits, and refuse one it does not (gpt-image-2 high is
+        // $0.211 an image at 1024x1024).
+        for (tool, args) in [
+            ("nika:tts_generate", "provider: elevenlabs, text: hi"),
+            ("nika:tts_generate", "model: tts-1, text: hi"),
+            ("nika:image_generate", "provider: openai, prompt: a star"),
+            ("nika:image_generate", "provider: gemini, prompt: a star"),
+        ] {
+            let wf = fixture(tool, args);
+            let report = nika_check::check(&wf);
+            assert!(report.is_clean(), "fixture checks clean: {report:?}");
+            assert_eq!(
+                preflight(&wf, &report, None, Some(5.0), false, false),
+                Ok(()),
+                "{tool} {{ {args} }}"
+            );
+        }
+        let wf = fixture(
+            "nika:image_generate",
+            "provider: openai, size: 1024x1024, quality: high, prompt: a star",
+        );
+        let report = nika_check::check(&wf);
+        assert_eq!(
+            preflight(&wf, &report, None, Some(0.2), false, false),
+            Err(crate::output::exit::FILE),
+            "the floor exceeds the cap"
+        );
+        // The keyless `system` voice bills no provider: a beat keeps speech
+        // under its cap this way (the run counts it unpriced local work).
+        for args in ["provider: mock, text: hi", "provider: system, text: hi"] {
+            let wf = fixture("nika:tts_generate", args);
+            let report = nika_check::check(&wf);
+            assert!(report.is_clean(), "fixture checks clean: {report:?}");
+            assert_eq!(
+                preflight(&wf, &report, None, Some(0.0), false, false),
+                Ok(()),
+                "{args}"
+            );
+        }
+    }
 }
