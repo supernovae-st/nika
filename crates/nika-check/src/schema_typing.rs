@@ -326,8 +326,8 @@ fn declared_shapes<'a>(
             continue;
         }
         // An action kind this checker does not know declares no readable shape: its deep
-        // `tasks.<id>.output.<path>` reads count as unverifiable on the verdict line (F3),
-        // never as clean, and the workflow's own text is never formatted into a panic.
+        // `tasks.<id>.output.<path>` reads count as unverifiable on the verdict line, never
+        // as clean, and the workflow's own text is never formatted into a panic.
         let schema = match &t.action {
             RawAction::Infer(a) => a.schema.as_ref(),
             RawAction::Agent(a) => a.schema.as_ref(),
@@ -399,9 +399,13 @@ fn action_texts(action: &RawAction) -> Vec<&str> {
             }
             texts
         }
-        // An action kind this checker does not know has no text to read: the runtime refuses it
-        // unwired before it runs, and the workflow's text is never formatted into a panic.
-        _ => Vec::new(),
+        // The message never formats the action: it carries prompts, arguments and secret
+        // references.
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
+        )]
+        _ => unreachable!("an action kind this checker does not know"),
     }
 }
 

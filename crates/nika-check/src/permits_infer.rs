@@ -300,9 +300,13 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
             collect_images_save(c, id, a);
         }
         RawAction::Infer(a) => collect_vision_reads(c, id, a),
-        // An action kind this checker does not know needs no capability: the runtime refuses it
-        // unwired before any effect, and the workflow's text is never formatted into a panic.
-        _ => {}
+        // The message never formats the action: it carries prompts, arguments and secret
+        // references.
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
+        )]
+        _ => unreachable!("an action kind this checker does not know"),
     }
 }
 
