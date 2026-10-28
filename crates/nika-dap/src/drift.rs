@@ -1454,10 +1454,10 @@ mod tests {
         );
     }
 
-    /// The gauntlet's C-D1 class, never repeated for the video: every still,
-    /// clip and soundtrack — a path or a producer's `{ path, sha256 }` — is
-    /// a read the run needs, so the grant covering it is a USE; `out` is a use
-    /// of the write grant. A grant no input touches is still named.
+    /// No unmodelled read for the video either: every still, clip and
+    /// soundtrack — a path or a producer's `{ path, sha256 }` — is a read
+    /// the run needs, so the grant covering it is a USE; `out` is a use of
+    /// the write grant. A grant no input touches is still named.
     #[test]
     fn video_compose_media_count_as_reads_and_out_as_a_write() {
         let video = |read: &str| {
