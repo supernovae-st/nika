@@ -847,6 +847,7 @@ fn check_builtin_effect(
     };
     let tool = tool_ref.value.as_str();
     check_secondary_reads(id, tool, a, permits, consts, out);
+    check_video_empty_sides(id, tool, a, permits, consts, out);
     match builtin_effect(a) {
         Some(BuiltinEffect::Net { url_arg }) => {
             check_net_effect(id, tool, a, permits, consts, url_arg, out);
@@ -914,6 +915,56 @@ fn check_secondary_reads(
                 esc.detail
                     .replacen(&format!("`{tool}` "), &format!("`{tool}` `{slot}` "), 1);
             out.push(esc);
+        }
+    }
+}
+
+/// `nika:video_compose` reads a still and writes `out` on EVERY call, so a
+/// side that admits no path refuses the call whatever form its paths take
+/// (the `vision:` pattern · stdlib §`nika:video_compose` Authority): a media
+/// path computed at run (a templated list, element or path) under an empty
+/// `fs.read`, or a computed `out` under an empty `fs.write`, can never fit.
+/// WHICH path is the run's; whether ANY path is granted is a set-emptiness
+/// test, decided here. A literal path is judged by the slot scans.
+fn check_video_empty_sides(
+    id: &str,
+    tool: &str,
+    a: &RawInvokeAction,
+    permits: &Permits,
+    consts: &ConstStrings,
+    out: &mut Vec<CapabilityEscape>,
+) {
+    if tool != nika_cap::video::TOOL {
+        return;
+    }
+    let args = a.args.as_ref().map(|s| &s.value);
+    let hidden_read = nika_cap::secondary_read_slots(tool, args)
+        .into_iter()
+        .any(|(_, value)| judgeable_value(consts, value).is_none());
+    let computed_out = args
+        .and_then(|a| a.get("out"))
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|out| !out.is_empty() && judgeable_str(consts, out).is_none());
+    for (computed, what, side, write) in [
+        (hidden_read, "reads media at paths", "fs.read", false),
+        (computed_out, "writes `out` at a path", "fs.write", true),
+    ] {
+        if computed && grants_no_path(permits, write) {
+            out.push(CapabilityEscape {
+                task: id.to_owned(),
+                category: "fs",
+                detail: format!(
+                    "`{tool}` {what} computed at run time, and permits.{side} grants none — \
+                     every call reads a still and writes `out`, so the run is refused \
+                     whatever the value turns out to be"
+                ),
+                fix: Some(format!(
+                    "grant the paths the task may name in permits.{side} (`nika check \
+                     --infer-permits` names the computed paths for review)"
+                )),
+                floor: false,
+                undeclared: false,
+            });
         }
     }
 }

@@ -12,6 +12,7 @@ mod agent_fs;
 mod exec_operands;
 mod exec_static;
 mod infer_vision;
+mod video_compose;
 
 #[cfg(test)]
 mod fit {

@@ -1454,6 +1454,58 @@ mod tests {
         );
     }
 
+    /// The gauntlet's C-D1 class, never repeated for the video: every still,
+    /// clip and soundtrack — a path or a producer's `{ path, sha256 }` — is
+    /// a read the run needs, so the grant covering it is a USE; `out` is a use
+    /// of the write grant. A grant no input touches is still named.
+    #[test]
+    fn video_compose_media_count_as_reads_and_out_as_a_write() {
+        let video = |read: &str| {
+            format!(
+                "nika: w\npermits:\n  tools: [\"nika:video_compose\"]\n  fs:\n    read: {read}\n    write: [\"./out/v.mp4\"]\ntasks:\n  a:\n    invoke: {{ tool: \"nika:video_compose\", args: {{ segments: [{{ image: \"./frames/a.png\", audio: {{ path: \"./voice/a.wav\", sha256: \"bde5666f4a0fab4949c4ca597fce3dd3dbfb55dfd0723f7bc0e01b044c978a29\" }} }}], audio: null, out: \"./out/v.mp4\" }} }}\n"
+            )
+        };
+        let advice = drifted(&video("[\"./frames/**\", \"./voice/**\"]"));
+        assert!(
+            !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
+            "the reads the media need are never drift: {advice:?}"
+        );
+        assert!(
+            !advice
+                .iter()
+                .any(|a| a.contains("`permits.fs.write` entry")),
+            "{advice:?}"
+        );
+        let spare = drifted(&video(
+            "[\"./frames/**\", \"./voice/**\", \"./private/**\"]",
+        ));
+        assert!(
+            spare.iter().any(|a| a.contains("`./private/**`")),
+            "{spare:?}"
+        );
+        assert!(
+            !spare
+                .iter()
+                .any(|a| a.contains("`./frames/**`") || a.contains("`./voice/**`")),
+            "{spare:?}"
+        );
+    }
+
+    /// A templated segment list, or one templated element, hides the reads:
+    /// no claim, never wrong.
+    #[test]
+    fn a_dynamic_video_compose_list_poisons_the_read_set() {
+        for segments in ["\"${{ const.cut }}\"", "[\"${{ const.first }}\"]"] {
+            let advice = drifted(&format!(
+                "nika: w\nconst:\n  cut: []\n  first: \"x\"\npermits:\n  tools: [\"nika:video_compose\"]\n  fs:\n    read: [\"./frames/**\"]\n    write: [\"./out/v.mp4\"]\ntasks:\n  a:\n    invoke: {{ tool: \"nika:video_compose\", args: {{ segments: {segments}, out: \"./out/v.mp4\" }} }}\n"
+            ));
+            assert!(
+                !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
+                "{segments}: {advice:?}"
+            );
+        }
+    }
+
     // ─── the composition bridge (NIK-273) ────────────────────────────
 
     const LOG_CHILD: &str = "nika: log\npermits: { exec: [\"git\"], fs: { read: [\"./repo/**\"] } }\ntasks:\n  log:\n    exec: { command: [\"git\", \"-C\", \"./repo\", \"log\"] }\noutputs:\n  text: { value: \"${{ tasks.log.output }}\", type: string }\n";
