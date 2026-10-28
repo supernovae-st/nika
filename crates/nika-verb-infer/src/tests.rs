@@ -1159,3 +1159,6 @@ mod selection_e2e;
 
 #[cfg(feature = "access-harness")]
 mod acp;
+
+#[cfg(feature = "access-harness")]
+mod direct;

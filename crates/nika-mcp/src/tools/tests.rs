@@ -247,6 +247,65 @@ fn a_green_answer_carries_the_affirmative_contract() {
     }
 }
 
+/// #1846 · a green whose only spend is a priced speech call read `est out ≤$0.0000`, as free.
+/// The contract names the call and the least it costs (never a zero for a floor above it),
+/// then a metered and an unpriced call, each beside the inference figure. The floor counts
+/// calls as the launch gate does: a literal fan-out multiplies its call, and a gated or
+/// expression-counted call is named apart, never floored.
+#[test]
+fn the_contract_names_paid_media_beside_the_estimate() {
+    let contract = |yaml: &str| {
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check(&wf);
+        assert!(report.conformance.is_empty(), "{:?}", report.conformance);
+        let line = affirmative_contract(&report, &wf);
+        (report, line)
+    };
+    let (speech, line) = contract(
+        "nika: speak\npermits:\n  tools: [\"nika:tts_generate\"]\n  fs: { write: [\"./out/**\"] }\ntasks:\n  say:\n    invoke: { tool: \"nika:tts_generate\", args: { model: tts-1, text: hi, output_dir: ./out } }\n",
+    );
+    let floor = speech.cost.media[0].usd_per_call.expect("tts-1 is floored");
+    assert!(
+        floor > 0.0 && floor < 0.000_05,
+        "four decimals would print this floor as zero: {floor}"
+    );
+    assert!(
+        line.contains("est out ≤$0.0000 + 1 paid media call(s) from $0.0001 ·"),
+        "{line}"
+    );
+    let (_, line) = contract(
+        "nika: mixed\npermits:\n  tools: [\"nika:image_generate\", \"nika:tts_generate\"]\n  fs: { write: [\"./out/**\"] }\ntasks:\n  flare:\n    invoke: { tool: \"nika:image_generate\", args: { model: gpt-image-2.5-flare, prompt: a star, output_dir: ./out } }\n  say:\n    invoke: { tool: \"nika:tts_generate\", args: { model: gpt-4o-mini-tts, text: hi, output_dir: ./out } }\n",
+    );
+    assert!(
+        line.contains(
+            "est out ≤$0.0000 + 1 metered paid media call(s) + 1 unpriced paid media call(s) ·"
+        ),
+        "{line}"
+    );
+    let say = "invoke: { tool: \"nika:tts_generate\", args: { model: tts-1, text: \"hello there, \
+               this sentence is long enough to price\", output_dir: ./out } }";
+    let (fan, line) = contract(&format!(
+        "nika: fan\ninputs:\n  go: {{ type: bool }}\npermits:\n  tools: \
+         [\"nika:tts_generate\"]\n  fs: {{ write: [\"./out/**\"] }}\ntasks:\n  three:\n    \
+         for_each: {{ items: [a, b, c] }}\n    {say}\n  maybe:\n    when: \"${{{{ inputs.go == true \
+         }}}}\"\n    {say}\n"
+    ));
+    let one = fan.cost.media[0].usd_per_call.expect("tts-1 is floored");
+    assert!(
+        line.contains(&format!(
+            "est out ≤$0.0000 + 3 paid media call(s) from ${:.4} + 1 paid media call(s) only the \
+             run counts ·",
+            3.0 * one
+        )),
+        "{line}"
+    );
+}
+
 #[test]
 fn check_a_clean_workflow_is_ok() {
     let wf = "nika: t\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";

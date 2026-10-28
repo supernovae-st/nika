@@ -48,6 +48,11 @@ pub struct VerdictLayers {
     /// rung's dollar figure is their API counterfactual, never their bill
     /// (W3-F4).
     pub seat_served: Vec<String>,
+    /// The tasks whose own effects can reach the network (a dialed
+    /// `net.http` host, an MCP tool, a paid media call), sorted. ACCESS
+    /// READY judges model routes only: these are judged on the PERMITS
+    /// row, and a mock model stubs none of them (#1605).
+    pub network_tasks: Vec<String>,
 }
 
 impl VerdictLayers {
@@ -68,6 +73,7 @@ impl VerdictLayers {
             capacity_fit,
             blockers,
             seat_served: Vec::new(),
+            network_tasks: Vec::new(),
         }
     }
 
@@ -78,9 +84,18 @@ impl VerdictLayers {
         self
     }
 
-    /// Declare the ACCESS question MOOT — no task dials (see
-    /// [`Self::access_moot`]). The caller that holds the workflow is the
-    /// only one that can know it.
+    /// Name the tasks whose own effects can reach the network (see
+    /// [`Self::network_tasks`]).
+    #[must_use]
+    pub fn with_network_tasks(mut self, tasks: Vec<String>) -> Self {
+        self.network_tasks = tasks;
+        self
+    }
+
+    /// Declare the ACCESS question MOOT — no `infer:`/`agent:` task, so no
+    /// model route to judge (see [`Self::access_moot`]); a task's own
+    /// effects can still reach the network ([`Self::network_tasks`]). The
+    /// caller that holds the workflow is the only one that can know it.
     #[must_use]
     pub fn with_access_moot(mut self, moot: bool) -> Self {
         self.access_moot = moot;
@@ -165,7 +180,7 @@ pub(super) fn layers_line(layers: &VerdictLayers, t: Theme) -> String {
     // (`--access mock` included) can turn one into a ✔.
     let unjudged = layers.access_ready.is_none() && !layers.access_moot;
     let access = if layers.access_moot && layers.access_ready.is_none() {
-        "n/a · nothing dials".to_owned()
+        moot_access(&layers.network_tasks)
     } else {
         tick(layers.access_ready).to_owned()
     };
@@ -192,12 +207,39 @@ pub(super) fn layers_line(layers: &VerdictLayers, t: Theme) -> String {
     t.paint(role, &line)
 }
 
+/// The MOOT access answer: no `infer:`/`agent:` task, so no model route to
+/// judge. It never says the workflow stays off the network (#1605: it read
+/// « nothing dials » over a `nika:fetch` that dialed): a task whose own
+/// effects can reach it is named beside the row that judges it.
+fn moot_access(network_tasks: &[String]) -> String {
+    if network_tasks.is_empty() {
+        return "n/a · no model route".to_owned();
+    }
+    format!(
+        "n/a · no model route · {} can reach the network (PERMITS row)",
+        named_tasks(network_tasks)
+    )
+}
+
+/// `` `a` · `b` · `c` · +2 more `` — the first three task ids a line names,
+/// in the order given, and how many more: the one-line verdict stays one
+/// line on a file with many fetches (the JSON lists them all).
+fn named_tasks(tasks: &[String]) -> String {
+    let mut named: Vec<String> = (tasks.iter().take(3))
+        .map(|task| format!("`{task}`"))
+        .collect();
+    if tasks.len() > 3 {
+        named.push(format!("+{} more", tasks.len() - 3));
+    }
+    named.join(" · ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     /// The persona's ops5 shape at this layer: valid, capacity fits, no
-    /// blocker, and NOTHING dials.
+    /// blocker, and no model route at all.
     fn builtin_only() -> VerdictLayers {
         VerdictLayers::new(true, None, Vec::new(), true, Vec::new()).with_access_moot(true)
     }
@@ -217,17 +259,59 @@ mod tests {
         assert_eq!(
             layers.run_ready(),
             Some(true),
-            "nothing dials, so the three answered layers decide"
+            "no model route, so the three answered layers decide"
         );
         let line = layers_line(&layers, Theme::new(false, false, false));
         assert!(
-            line.contains("access ready n/a · nothing dials"),
+            line.contains("access ready n/a · no model route · capacity fit"),
             "the question has no subject, and the line says which: {line}"
         );
         assert!(line.contains("run ready ✔"), "{line}");
         assert!(
             !line.contains('○'),
             "no unjudged glyph on a question nobody asked: {line}"
+        );
+    }
+
+    /// #1605 · a builtin-only file whose fetch dials: the moot line said
+    /// « nothing dials » over it. It now says only that no model route
+    /// exists, and names the tasks that can still reach the network beside
+    /// the row that judges them.
+    #[test]
+    fn a_moot_access_names_what_can_still_reach_the_network() {
+        let layers = builtin_only().with_network_tasks(vec!["grab".to_owned(), "post".to_owned()]);
+        assert_eq!(layers.run_ready(), Some(true), "the premise is unchanged");
+        let line = layers_line(&layers, Theme::new(false, false, false));
+        assert!(
+            line.contains(
+                "access ready n/a · no model route · `grab` · `post` can reach the network \
+                 (PERMITS row) · capacity fit ✔"
+            ),
+            "{line}"
+        );
+        assert!(!line.contains("nothing dials"), "{line}");
+        // A file with many fetches keeps a one-line verdict: three names
+        // and how many more (twenty fetch tasks made a 611-column line).
+        let many: Vec<String> = (1..=20).map(|n| format!("fetch_{n:02}")).collect();
+        let line = layers_line(
+            &builtin_only().with_network_tasks(many),
+            Theme::new(false, false, false),
+        );
+        assert!(
+            line.contains(
+                "access ready n/a · no model route · `fetch_01` · `fetch_02` · `fetch_03` · +17 \
+                 more can reach the network (PERMITS row) · capacity fit ✔"
+            ) && !line.contains("fetch_04"),
+            "{line}"
+        );
+        // The network clause rides only a moot answer: a judged access
+        // keeps its glyph, and its rung says the rest.
+        let judged = VerdictLayers::new(true, Some(true), Vec::new(), true, Vec::new())
+            .with_network_tasks(vec!["grab".to_owned()]);
+        let line = layers_line(&judged, Theme::new(false, false, false));
+        assert!(
+            line.contains("access ready ✔ · capacity fit") && !line.contains("`grab`"),
+            "{line}"
         );
     }
 

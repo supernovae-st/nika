@@ -649,6 +649,41 @@ fn model_and_cost_readiness_never_turns_unknown_into_ready() {
     assert_eq!(floored.model_cost_ready, Some(false));
 }
 
+/// #1846 · `nika arm` printed `✗ NIKA-1709 · NIKA-1709 · refusing to start: …` and broke the
+/// line before `(budget_floor)`: the blocker's sentence repeated the code it carries beside it
+/// and kept the run's closing line break. A floor and a paid-media refusal both read as one
+/// sentence now, the code named once, on its own field.
+#[test]
+fn a_budget_floor_blocker_is_one_sentence_without_its_code() {
+    let priced = "nika: p\nmodel: deepseek/deepseek-v4-pro\npermits: {}\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 4000 }\n";
+    let speech = "nika: s\npermits:\n  tools: [\"nika:tts_generate\"]\n  fs: { write: [\"./out/**\"] }\ntasks:\n  say:\n    invoke: { tool: \"nika:tts_generate\", args: { provider: openai, model: gpt-4o-mini-tts, text: hello, output_dir: ./out } }\n";
+    for (source, ceiling, says) in [
+        (priced, 0.000_000_1, "refusing to start: "),
+        (
+            speech,
+            0.05,
+            "refusing to start: no catalog price for task `say`",
+        ),
+    ] {
+        let program = scheduled(source, &[], ceiling);
+        let floor: Vec<&ReadinessBlocker> = (program.blockers.iter())
+            .filter(|b| b.kind == "budget_floor")
+            .collect();
+        assert_eq!(floor.len(), 1, "{:?}", program.blockers);
+        assert_eq!(floor[0].code, Some("NIKA-1709"));
+        let message = floor[0].message.as_str();
+        assert!(message.starts_with(says), "{message:?}");
+        assert!(
+            !message.contains("NIKA-1709"),
+            "the code rides its own field: {message:?}"
+        );
+        assert!(
+            !message.contains('\n') && message == message.trim_end(),
+            "one line: {message:?}"
+        );
+    }
+}
+
 /// The authority an unattended fire needs is listed, never acquired.
 #[test]
 fn authority_requirements_are_listed_and_never_acquired() {

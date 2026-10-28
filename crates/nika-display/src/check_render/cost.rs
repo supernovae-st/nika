@@ -7,6 +7,72 @@
 
 use super::*;
 
+/// The paid media calls the inference figure leaves out, by how they bill:
+/// the floored calls the launch floor counts, with the least they cost
+/// together (each call's floor, its COST row's `from $X`, times the calls its
+/// task makes on the cheapest path: the figure `--max-cost-usd` is held to,
+/// NIKA-1709); the floored calls only the run counts (behind a `when:` gate,
+/// over an expression `for_each`, or made by a child workflow, whose own
+/// launch floors them); the metered ones; and the unpriced ones (a call only
+/// the run decides counts there, as before).
+pub(super) fn media_beside_estimate(
+    media: &[nika_check::MediaCost],
+    wf: &RawWorkflow,
+) -> Vec<String> {
+    let (mut calls, mut floor, mut run_counted) = (0_usize, 0.0_f64, 0_usize);
+    for call in media {
+        let Some(per_call) = call.usd_per_call else {
+            continue;
+        };
+        match floored_calls(wf, call) {
+            0 => run_counted += 1,
+            n => {
+                calls = calls.saturating_add(usize::try_from(n).unwrap_or(usize::MAX));
+                #[allow(clippy::cast_precision_loss)] // a task's call count
+                let n = n as f64;
+                floor += per_call * n;
+            }
+        }
+    }
+    let metered = media.iter().filter(|call| call.metered()).count();
+    let unpriced = media.iter().filter(|call| !call.priced).count();
+    let mut beside = Vec::new();
+    if calls > 0 {
+        beside.push(format!(
+            "{} from ${}",
+            crate::vocab::count(calls, "paid media call"),
+            crate::vocab::usd(floor)
+        ));
+    }
+    if run_counted > 0 {
+        beside.push(format!(
+            "{} only the run counts",
+            crate::vocab::count(run_counted, "paid media call")
+        ));
+    }
+    if metered > 0 {
+        beside.push(crate::vocab::count(metered, "metered paid media call"));
+    }
+    if unpriced > 0 {
+        beside.push(crate::vocab::count(unpriced, "unpriced paid media call"));
+    }
+    beside
+}
+
+/// The calls of `call` the launch floor counts: its own `invoke:` task's
+/// cheapest-path count ([`nika_check::analyzer::floor_calls`], the multiplier
+/// the run's floor applies); none for a call a child workflow makes under its
+/// calling task, which the parent's floor leaves to that child's launch.
+fn floored_calls(wf: &RawWorkflow, call: &nika_check::MediaCost) -> u64 {
+    (wf.tasks.iter().map(|task| &task.value))
+        .find(|task| task.id.value == call.task)
+        .filter(|task| {
+            matches!(&task.action, nika_schema::raw::RawAction::Invoke(invoke)
+                if invoke.tool().is_some_and(|tool| tool.value == call.tool))
+        })
+        .map_or(0, nika_check::analyzer::floor_calls)
+}
+
 /// The composition arm of [`cost()`] (spec 14 · the 2026-07-29 finding): no
 /// OWN inference task, but resolvable children are priced — printing
 /// `$0.00` here told the operator a free story about a bill the child
@@ -480,9 +546,106 @@ mod tests {
         .expect("fixture parses");
         let est = crate::check_render::est_clause(
             &nika_check::check(&wf),
+            &wf,
             Theme::new(false, false, false),
         );
         assert!(est.ends_with("+ 1 unpriced paid media call"), "{est}");
+    }
+
+    /// #1846 · a run whose only spend is a priced speech call read
+    /// `est out ≤$0.0000` on the audited line, as free. The line names the
+    /// call and the least it costs, the floor its COST row prints; a call
+    /// billed from its usage is named as metered, an unpriced one as before.
+    #[test]
+    fn the_audited_estimate_names_a_priced_media_floor() {
+        let judged = |yaml: &str| {
+            let wf = nika_schema::parse(
+                yaml,
+                nika_schema::FileId::new(0),
+                nika_schema::ParseMode::Strict,
+            )
+            .expect("fixture parses");
+            let report = nika_check::check(&wf);
+            assert!(report.conformance.is_empty(), "{:?}", report.conformance);
+            let est =
+                crate::check_render::est_clause(&report, &wf, Theme::new(false, false, false));
+            (report, est)
+        };
+        let (report, est) = judged(
+            "nika: speak\npermits: { tools: [\"nika:tts_generate\"] }\ntasks:\n  say:\n    invoke: { tool: \"nika:tts_generate\", args: { model: tts-1, text: \"hello there\", output_dir: ./out } }\n",
+        );
+        let floor = report.cost.media[0]
+            .usd_per_call
+            .expect("tts-1 is floored per character");
+        assert!(floor > 0.0, "{floor}");
+        assert_eq!(
+            est,
+            format!(
+                "est out ≤$0.0000 + 1 paid media call from ${}",
+                crate::vocab::usd(floor)
+            )
+        );
+        let card = media_card(
+            "nika: speak\npermits: { tools: [\"nika:tts_generate\"] }\ntasks:\n  say:\n    invoke: { tool: \"nika:tts_generate\", args: { model: tts-1, text: \"hello there\", output_dir: ./out } }\n",
+        );
+        assert!(
+            card.contains(&format!("from ${}", crate::vocab::usd(floor))),
+            "the line and the COST row quote one floor: {card}"
+        );
+
+        let (_, est) = judged(
+            "nika: mixed\npermits: { tools: [\"nika:image_generate\", \"nika:tts_generate\"] }\ntasks:\n  flare:\n    invoke: { tool: \"nika:image_generate\", args: { model: gpt-image-2.5-flare, prompt: a star, output_dir: ./out } }\n  say:\n    invoke: { tool: \"nika:tts_generate\", args: { model: gpt-4o-mini-tts, text: hi, output_dir: ./out } }\n",
+        );
+        assert_eq!(
+            est,
+            "est out ≤$0.0000 + 1 metered paid media call + 1 unpriced paid media call"
+        );
+
+        // The floor counts calls as the launch gate does: a literal fan-out
+        // makes three calls and the floor is three times the call's (the run
+        // refused `--max-cost-usd` at that figure while the line read one
+        // call's); a `when:` gate may skip its call, and an expression
+        // fan-out has a count only the run knows, so neither is floored here.
+        let say = "invoke: { tool: \"nika:tts_generate\", args: { model: tts-1, text: \"hello \
+                   there\", output_dir: ./out } }";
+        let (report, est) = judged(&format!(
+            "nika: fan\npermits: {{ tools: [\"nika:tts_generate\"] }}\ntasks:\n  say:\n    \
+             for_each: {{ items: [a, b, c] }}\n    {say}\n"
+        ));
+        let one = report.cost.media[0].usd_per_call.expect("floored");
+        let launch = nika_check::analyzer::priced_builtin_floor(
+            &nika_schema::parse(
+                &format!(
+                    "nika: fan\npermits: {{ tools: [\"nika:tts_generate\"] }}\ntasks:\n  say:\n    \
+                     for_each: {{ items: [a, b, c] }}\n    {say}\n"
+                ),
+                nika_schema::FileId::new(0),
+                nika_schema::ParseMode::Strict,
+            )
+            .expect("fixture parses"),
+        );
+        assert!((launch - 3.0 * one).abs() < 1e-12, "{launch} vs {one}");
+        assert_eq!(
+            est,
+            format!(
+                "est out ≤$0.0000 + 3 paid media calls from ${}",
+                crate::vocab::usd(launch)
+            )
+        );
+        let (_, est) = judged(&format!(
+            "nika: gated\ninputs:\n  go: {{ type: bool }}\n  words: {{ type: {{ array: string }} }}\n\
+             permits: {{ tools: [\"nika:tts_generate\"] }}\ntasks:\n  once:\n    {say}\n  \
+             maybe:\n    when: \"${{{{ inputs.go == true }}}}\"\n    {say}\n  each:\n    for_each: {{ \
+             items: \"${{{{ inputs.words }}}}\" }}\n    {say}\n"
+        ));
+        assert_eq!(
+            est,
+            format!(
+                "est out ≤$0.0000 + 1 paid media call from ${} + 2 paid media calls only the \
+                 run counts",
+                crate::vocab::usd(one)
+            )
+        );
     }
 
     /// The inference ceiling keeps its figure and stops hiding the media
@@ -597,6 +760,38 @@ mod tests {
             "{text}"
         );
         assert!(!text.contains('✔'), "{text}");
+    }
+
+    /// A child workflow's priced call is listed under its calling task, yet
+    /// the parent's launch floor never counts it (the child's own launch
+    /// floors it): the estimate names it as a call only the run counts,
+    /// never inside the parent's `from $X`.
+    #[test]
+    fn a_childs_priced_media_call_rides_beside_the_parent_floor() {
+        let wf = nika_schema::parse(
+            "nika: parent\ntasks:\n  call:\n    invoke: { workflow: ./child.nika }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check_composed(&wf, "parent.nika", &mut |_| {
+            Ok("nika: child\npermits: { tools: [\"nika:tts_generate\"] }\ntasks:\n  say:\n    invoke: { tool: \"nika:tts_generate\", args: { model: tts-1, text: \"hello there\", output_dir: ./out } }\n".to_owned())
+        });
+        assert!(
+            (report.cost.media.iter())
+                .any(|call| call.task == "call" && call.usd_per_call.is_some()),
+            "{:?}",
+            report.cost.media
+        );
+        assert!(
+            nika_check::analyzer::priced_builtin_floor(&wf).abs() < f64::EPSILON,
+            "the parent's own launch floor holds no media"
+        );
+        let est = crate::check_render::est_clause(&report, &wf, Theme::new(false, false, false));
+        assert_eq!(
+            est,
+            "est out ≤$0.0000 + 1 paid media call only the run counts"
+        );
     }
 
     /// Local and mock media spend nothing: the card is unchanged.

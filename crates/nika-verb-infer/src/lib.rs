@@ -356,6 +356,9 @@ impl<H> InferVerb<H> {
             })?),
             None => None,
         };
+        // The direct command carries no image: a `vision:` input is refused, never dropped,
+        // before the seat's schema grade is met (the order `nika check` judges them in).
+        vision::refuse_on_direct_seat(&input, seat_id)?;
         let need = if input.schema.is_some() {
             nika_harness::StructuredOutputGrade::JsonSchema
         } else {

@@ -410,7 +410,7 @@ fn layers(sheet: &mut Sheet, layers: &VerdictLayers, run_unknown: Option<&str>) 
     let access = match (layers.access_ready, layers.access_moot) {
         (Some(true), _) => "every model has a ready path on this machine",
         (Some(false), _) => "a model has no ready path on this machine",
-        (None, true) => "n/a: no infer or agent task, nothing dials",
+        (None, true) => "n/a: no infer or agent task, so no model route to judge",
         (None, false) => "not judged here: the model arrives at run time and admission judges it",
     };
     let access_tone = tone(layers.access_ready, Role::Bad);

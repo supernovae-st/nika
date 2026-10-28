@@ -395,7 +395,10 @@ fn paid_ready_verdict(
 ///
 /// A pure projection of the report — zero new scan, same source as the
 /// JSON lane, so the two surfaces cannot drift.
-fn affirmative_contract(report: &nika_check::CheckReport) -> String {
+fn affirmative_contract(
+    report: &nika_check::CheckReport,
+    wf: &nika_schema::raw::RawWorkflow,
+) -> String {
     let tasks: usize = report.waves.iter().map(Vec::len).sum();
     let waves = report.waves.len();
     // `PermitsSource` is `#[non_exhaustive]`, so the arm exists. It fails
@@ -418,11 +421,9 @@ fn affirmative_contract(report: &nika_check::CheckReport) -> String {
         "est out UNBOUNDED (a local or unpriced model is never $0)".to_owned()
     } else {
         let figure = format!("est out ≤${:.4}", report.cost.bounded_total_usd);
-        // C-D3 · unpriced paid media is named beside the figure, never in it.
-        match report.cost.media.iter().filter(|m| !m.priced).count() {
-            0 => figure,
-            n => format!("{figure} + {n} unpriced paid media call(s)"),
-        }
+        let mut clause = vec![figure];
+        clause.extend(media_beside_estimate(&report.cost.media, wf));
+        clause.join(" + ")
     };
     let journey = &report.data_journey;
     format!(
@@ -432,6 +433,63 @@ fn affirmative_contract(report: &nika_check::CheckReport) -> String {
         journey.model_endpoints.len(),
         journey.classification.as_str(),
     )
+}
+
+/// The paid media calls the inference figure leaves out, named beside it and never in it: a
+/// green whose only spend was a priced speech call read `est out ≤$0.0000`, as free (#1846).
+/// The floored calls the launch floor counts carry the least they cost together (each call's
+/// floor times the calls its task makes on the cheapest path, the figure `--max-cost-usd` is
+/// held to), never printed as a zero when it is above one; a floored call only the run counts
+/// (behind a `when:` gate, over an expression `for_each`, or a child's) is named apart; then
+/// the metered and the unpriced ones. The `nika check` card counts them the same way.
+fn media_beside_estimate(
+    media: &[nika_check::MediaCost],
+    wf: &nika_schema::raw::RawWorkflow,
+) -> Vec<String> {
+    let (mut calls, mut floor, mut run_counted) = (0_u64, 0.0_f64, 0_usize);
+    for m in media {
+        let Some(per_call) = m.usd_per_call else {
+            continue;
+        };
+        let n = (wf.tasks.iter().map(|task| &task.value))
+            .find(|task| task.id.value == m.task)
+            .filter(|task| {
+                matches!(&task.action, nika_schema::raw::RawAction::Invoke(invoke)
+                    if invoke.tool().is_some_and(|tool| tool.value == m.tool))
+            })
+            .map_or(0, nika_check::analyzer::floor_calls);
+        if n == 0 {
+            run_counted += 1;
+        } else {
+            calls = calls.saturating_add(n);
+            #[allow(clippy::cast_precision_loss)] // a task's call count
+            let n = n as f64;
+            floor += per_call * n;
+        }
+    }
+    let metered = media.iter().filter(|m| m.metered()).count();
+    let unpriced = media.iter().filter(|m| !m.priced).count();
+    let mut beside = Vec::new();
+    if calls > 0 {
+        let shown = if floor > 0.0 && floor < 0.000_05 {
+            "0.0001".to_owned()
+        } else {
+            format!("{floor:.4}")
+        };
+        beside.push(format!("{calls} paid media call(s) from ${shown}"));
+    }
+    if run_counted > 0 {
+        beside.push(format!(
+            "{run_counted} paid media call(s) only the run counts"
+        ));
+    }
+    if metered > 0 {
+        beside.push(format!("{metered} metered paid media call(s)"));
+    }
+    if unpriced > 0 {
+        beside.push(format!("{unpriced} unpriced paid media call(s)"));
+    }
+    beside
 }
 
 /// The clean short-path — split out of `check` under the house function
@@ -550,7 +608,10 @@ fn audit_with(yaml: &str, native_strict: bool, verbose: bool) -> Result<String, 
             audit.verdict.grade,
             &warnings,
         )?;
-        let mut text = format!("{verdict}\n{}", affirmative_contract(&audit.report));
+        let mut text = format!(
+            "{verdict}\n{}",
+            affirmative_contract(&audit.report, &audit.wf)
+        );
         // W3-F2 · this oracle reads no files: a composed workflow's clean
         // answer SAYS its children went unjudged, on the prose lane too.
         if !audit.verdict.judged.composition && !audit.verdict.children.is_empty() {

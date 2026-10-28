@@ -941,6 +941,98 @@ fn a_model_less_infer_needs_a_model_or_a_seat() {
     assert_eq!(last_frame(&stdout)["status"], "succeeded", "{stdout}");
 }
 
+/// One `infer:` that names a local image, with no `run.access.protocol: acp`: a seat serves
+/// it through its direct one-shot.
+const DIRECT_VISION: &str = "nika: direct-vision
+model: openai/gpt-5.2
+permits:
+  fs:
+    read: [\"./in/**\"]
+tasks:
+  look:
+    infer:
+      prompt: describe the logo
+      max_tokens: 256
+      vision:
+        - { source: file, path: \"./in/logo.png\" }
+";
+
+/// `codex exec` puts no image on its command: an `infer:` naming `vision:` on the direct seat
+/// is not RUN READY on `check` (NIKA-432, the route that carries the image named), and the run
+/// refuses it before the seat is spawned, where it answered without the image. The task also
+/// sets `max_tokens`, which the ACP one-shot refuses, so both doors lead with the API route and
+/// name that field instead of offering a route that would refuse it in turn.
+#[test]
+fn a_vision_task_on_the_direct_seat_is_refused_on_both_doors() {
+    let rig = Rig::new("direct-vision", true);
+    let images = rig.root.join("work").join("in");
+    std::fs::create_dir_all(&images).expect("image dir");
+    std::fs::write(images.join("logo.png"), b"\x89PNG\r\n\x1a\nIHDR-bytes").expect("image");
+    rig.write("see.nika", DIRECT_VISION);
+    let check = rig.nika(&["check", "see.nika", "--json", "--access", "codex"], false);
+    let obj = json_object(&text(&check.stdout));
+    assert_eq!(
+        obj["verdicts"]["access_ready"], true,
+        "the seat is ready: {obj:#}"
+    );
+    assert_eq!(obj["verdicts"]["run_ready"], false, "{obj:#}");
+    let blockers = obj["verdicts"]["blockers"].as_array().expect("blockers");
+    assert!(
+        blockers
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .any(
+                |b| b.contains("`look` is an infer: on `codex`'s direct one-shot")
+                    && b.contains("NIKA-432")
+                    && b.ends_with(
+                        "— declare an API route or drop `vision:`; `run.access: { via: codex, \
+                         protocol: acp }` carries `vision:` files, not `max_tokens`"
+                    )
+            ),
+        "{obj:#}"
+    );
+    let run = rig.nika(
+        &[
+            "run",
+            "see.nika",
+            "--json",
+            "--access",
+            "codex",
+            "--max-cost-usd",
+            "1",
+        ],
+        false,
+    );
+    let stdout = text(&run.stdout);
+    assert_eq!(
+        run.status.code(),
+        Some(1),
+        "the task fails\n{stdout}\n{}",
+        text(&run.stderr)
+    );
+    let settled = last_frame(&stdout);
+    assert_eq!(settled["status"], "failed", "{settled}");
+    assert_eq!(settled["error"]["code"], "NIKA-432", "{settled}");
+    assert_eq!(settled["error"]["task"], "look", "{settled}");
+    assert!(
+        settled["error"]["message"]
+            .as_str()
+            .is_some_and(|m| m.contains(
+                "run the task on an API route or drop `vision:` — `run.access: { via: codex, \
+             protocol: acp }` carries `vision:` files, not `max_tokens`"
+            )),
+        "the run's remedy is the check's: {settled}"
+    );
+    assert!(
+        !stdout.contains("seated-answer"),
+        "the seat never answered: {stdout}"
+    );
+    assert!(
+        !rig.root.join("home/seat-invocations").exists(),
+        "no prompt reached the seat"
+    );
+}
+
 /// The SDK export keeps the same explicit OpenAI-compatible endpoint as Check.
 /// This is admission only: the owned canary must receive no request.
 #[test]
