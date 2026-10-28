@@ -143,6 +143,105 @@ fn an_empty_side_refuses_a_computed_path_at_check() {
     }
 }
 
+const NARROW_READ: &str = "permits:\n  tools: [\"nika:video_compose\"]\n  fs:\n    read: [\"./in/**\"]\n    write: [\"./out/v.mp4\"]\n";
+
+const NO_READ: &str =
+    "permits:\n  tools: [\"nika:video_compose\"]\n  fs:\n    write: [\"./out/v.mp4\"]\n";
+
+/// A templated list or element defers to the run, and a whole bare
+/// `${{ const.x }}` is no exception: naming a string, it renders a string,
+/// which the run refuses before it reads (`-001`), so its text is never
+/// judged as a read path. Only a side that admits no read refuses it here.
+#[test]
+fn a_templated_list_or_element_is_never_judged_as_a_path() {
+    for hidden in [
+        "{ segments: [\"${{ const.still }}\"], out: \"./out/v.mp4\" }",
+        "{ segments: \"${{ const.still }}\", out: \"./out/v.mp4\" }",
+    ] {
+        let found = escapes(NARROW_READ, hidden);
+        assert!(found.is_empty(), "{hidden}: {found:?}");
+        let found = escapes(NO_READ, hidden);
+        assert_eq!(found.len(), 1, "{hidden}: {found:?}");
+        assert!(
+            found[0]
+                .detail
+                .contains("reads media at paths computed at run time")
+                && !found[0].detail.contains("./out/frames/c.png"),
+            "{found:?}"
+        );
+    }
+}
+
+/// A literal `segments` or element of the wrong shape reads nothing: the
+/// shape rules refuse it (`NIKA-BUILTIN-001`), and the boundary adds no read
+/// finding beside it, under a narrow read grant or under none.
+#[test]
+fn a_malformed_literal_is_the_shape_rules_never_a_read() {
+    for malformed in [
+        "{ segments: [\"./secret/a.png\"], out: \"./out/v.mp4\" }",
+        "{ segments: \"./secret/a.png\", out: \"./out/v.mp4\" }",
+        "{ segments: 7, out: \"./out/v.mp4\" }",
+    ] {
+        for permits in [NARROW_READ, NO_READ] {
+            let found = escapes(permits, malformed);
+            assert!(found.is_empty(), "{malformed}: {found:?}");
+        }
+    }
+}
+
+/// The inferred boundary never prints a hidden slot's text as a grant: a
+/// templated list or element names the fs face partial, and a malformed
+/// literal reads nothing, so neither adds a read.
+#[test]
+fn the_inference_never_grants_a_hidden_or_malformed_slot() {
+    for (segments, partial) in [
+        ("[\"${{ const.seg }}\"]", true),
+        ("\"${{ const.seg }}\"", true),
+        ("[\"./in/title.png\"]", false),
+        ("\"./in/title.png\"", false),
+    ] {
+        let args = format!("{{ segments: {segments}, out: \"./out/v.mp4\" }}");
+        let yaml = format!(
+            "nika: video\nconst:\n  seg: \"./in/title.png\"\ntasks:\n  video:\n    invoke:\n      \
+             tool: \"nika:video_compose\"\n      args: {args}\n"
+        );
+        let wf = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let inferred = crate::infer_permits(&wf);
+        let fs = inferred.permits.fs.as_ref().expect("`out` is a write");
+        assert!(fs.read.is_empty(), "{args}: {:?}", fs.read);
+        assert_eq!(fs.write, ["./out/v.mp4"], "{args}");
+        assert_eq!(inferred.partial.fs, partial, "{args}: {:?}", inferred.notes);
+    }
+}
+
+/// The same owner serves `nika:image_compose`'s `inputs`: a whole templated
+/// list, a bare const naming a string included, is the run's, and a literal
+/// that is not a list reads nothing (the shape rules refuse it).
+#[test]
+fn image_compose_s_hidden_or_malformed_inputs_are_never_a_path() {
+    let narrow = "permits:\n  tools: [\"nika:image_compose\"]\n  fs:\n    read: [\"./in/**\"]\n    write: [\"./out/s.png\"]\n";
+    for inputs in ["\"${{ const.frames }}\"", "\"./secret/a.png\""] {
+        let yaml = format!(
+            "nika: sheet\nconst:\n  frames: \"./secret/a.png\"\n{narrow}tasks:\n  sheet:\n    \
+             invoke:\n      tool: \"nika:image_compose\"\n      args: {{ inputs: {inputs}, out: \
+             \"./out/s.png\" }}\n"
+        );
+        let wf = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let found = scan_escapes(&wf);
+        assert!(found.is_empty(), "{inputs}: {found:?}");
+        let inferred = crate::infer_permits(&wf);
+        assert!(
+            inferred
+                .permits
+                .fs
+                .as_ref()
+                .is_none_or(|fs| fs.read.is_empty()),
+            "{inputs}: {:?}",
+            inferred.permits.fs
+        );
+    }
+}
+
 /// Under an absent block the call is refused whatever form its paths take:
 /// every call reads a still and writes `out`.
 #[test]

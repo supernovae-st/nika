@@ -394,17 +394,19 @@ fn notify_webhook_channel(args: Option<&serde_json::Value>) -> bool {
 }
 
 /// The READ slots of one call that [`builtin_effect`]'s single `path_arg`
-/// leaves out, each as `(slot name, raw value)`: `nika:image_compose`'s
+/// leaves out, each as `(slot name, path value)`: `nika:image_compose`'s
 /// ordered `inputs[k]`, and `nika:video_compose`'s media references —
 /// `segments[k].image`, `segments[k].audio` and the top-level `audio`, each
 /// valued at its path (a string, or an object's `path` · null when the object
-/// has none). A present `inputs` that is not a list (a templated `${{ }}`
-/// list, or a malformed value) is ONE slot named `inputs`, and likewise a
-/// `segments` that is not a list (`segments`) or an element that is not a
-/// map (`segments[k]`), so a consumer can never mistake a hidden read set
-/// for an empty one: it reads a templated string as dynamic, never as a
-/// path. Every other tool has none — their extra reads stay where their
-/// owners put them.
+/// has none). A templated `${{ }}` `inputs` or `segments` is ONE slot named
+/// after it, and so is a templated `segments[k]`, valued null: a consumer can
+/// never mistake a hidden read set for an empty one, and never judges the
+/// template's text as a path (a whole bare `${{ const.x }}` naming a string
+/// renders a string, which the run refuses before it reads). A literal of the
+/// wrong shape (an `inputs` or `segments` that is not a list, an element that
+/// is not a map) is no slot: the call is refused before it reads (the shape
+/// rules' `-001`), so it reads nothing through it. Every other tool has
+/// none — their extra reads stay where their owners put them.
 #[must_use]
 pub fn secondary_read_slots<'a>(
     tool: &str,
@@ -413,7 +415,7 @@ pub fn secondary_read_slots<'a>(
     if tool == crate::video::TOOL {
         return crate::video::read_slots(args)
             .iter()
-            .map(crate::video::ReadSlot::pair)
+            .filter_map(crate::video::ReadSlot::pair)
             .collect();
     }
     if tool != "nika:image_compose" {
@@ -425,8 +427,10 @@ pub fn secondary_read_slots<'a>(
             .enumerate()
             .map(|(k, value)| (format!("inputs[{k}]"), value))
             .collect(),
-        Some(other) => vec![("inputs".to_owned(), other)],
-        None => Vec::new(),
+        Some(serde_json::Value::String(list)) if list.contains("${{") => {
+            vec![("inputs".to_owned(), &NO_PATH)]
+        }
+        Some(_) | None => Vec::new(),
     }
 }
 
@@ -606,7 +610,8 @@ enum FsSlot<'a> {
     Malformed { name: String, shape: &'static str },
 }
 
-/// The value a `chart` `data` object without `path` binds: an absent path is no path.
+/// The value a slot with no path as written binds: a `chart` `data` object without `path`, a
+/// templated `image_compose` `inputs` list. An absent path is no path.
 static NO_PATH: serde_json::Value = serde_json::Value::Null;
 
 /// Every filesystem slot of one call. Primary slots and their directions come from
@@ -714,8 +719,8 @@ fn fs_slots<'a>(tool: &str, args: Option<&'a serde_json::Value>) -> Vec<FsSlot<'
 }
 
 /// `nika:video_compose`'s read slots (none for any other tool): each media reference is a read
-/// at its path; a `segments` that is not a list, or an element that is not a map, hides its
-/// reads, so it is refused whatever it holds.
+/// at its path; a `segments` that is not a list, or an element that is not a map (templated or
+/// malformed), shows no path to bind, so it is refused whatever it holds.
 fn video_slots<'a>(tool: &str, args: Option<&'a serde_json::Value>) -> Vec<FsSlot<'a>> {
     if tool != crate::video::TOOL {
         return Vec::new();
@@ -731,7 +736,8 @@ fn video_slots<'a>(tool: &str, args: Option<&'a serde_json::Value>) -> Vec<FsSlo
                 descends: false,
                 pattern: false,
             },
-            crate::video::ReadSlot::Hidden { name, .. } => FsSlot::Malformed {
+            crate::video::ReadSlot::Hidden { name }
+            | crate::video::ReadSlot::Malformed { name } => FsSlot::Malformed {
                 name,
                 shape: "a list of segment maps with literal media paths",
             },
@@ -1120,11 +1126,29 @@ mod tests {
                 ("inputs[2]".to_owned(), json!(7)),
             ]
         );
-        // A whole templated list is ONE dynamic slot, never an empty set.
-        let templated = json!({"inputs": "${{ with.frames }}", "out": "./s.png"});
-        let one = secondary_read_slots("nika:image_compose", Some(&templated));
-        assert_eq!(one.len(), 1);
-        assert_eq!(one[0].0, "inputs");
+        // A whole templated list is ONE dynamic slot, never an empty set, and
+        // its text is never a path: a bare const naming a string renders a
+        // string, which the run refuses before it reads.
+        for templated in ["${{ with.frames }}", "${{ const.frames }}"] {
+            let args = json!({"inputs": templated, "out": "./s.png"});
+            assert_eq!(
+                secondary_read_slots("nika:image_compose", Some(&args)),
+                [("inputs".to_owned(), &serde_json::Value::Null)],
+                "{args}"
+            );
+        }
+        // A literal of the wrong shape reads nothing: the shape rules refuse it.
+        for malformed in [
+            json!("./secret/a.png"),
+            json!(7),
+            json!({"path": "./a.png"}),
+        ] {
+            let args = json!({"inputs": malformed, "out": "./s.png"});
+            assert!(
+                secondary_read_slots("nika:image_compose", Some(&args)).is_empty(),
+                "{args}"
+            );
+        }
         // Every other tool keeps its reads where its owner put them.
         for tool in [
             "nika:image_fx",

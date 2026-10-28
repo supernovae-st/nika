@@ -329,10 +329,15 @@ backslash are ordinary name characters, and nothing is trimmed.
 `chart`; `required_fs_directions` requires both a read and a write.
 `secondary_read_slots(tool, args)` lists the read slots the single `path_arg`
 leaves out, each as `(slot, value)`: every `inputs[k]` element of
-`nika:image_compose`, and one `inputs` slot when the list is templated or
-malformed, so a consumer never mistakes a hidden read set for an empty one.
-Check, inference and the drift scan read this one list; `unbound_fs_args`
-binds each element to the task's stated reads. Every other tool returns none.
+`nika:image_compose`, and one `inputs` slot valued null when the list is
+templated, so a consumer never mistakes a hidden read set for an empty one
+and never judges the template's text as a path (a bare `${{ const.x }}`
+naming a string renders a string, which the run refuses before it reads). A
+literal `inputs` that is not a list is no slot: the shape rules refuse it and
+the call reads nothing. Check, inference, the data journey and the drift scan
+read this one list; `unbound_fs_args` binds each element to the task's stated
+reads and refuses any `inputs` that is not a list. Every other tool returns
+none.
 
 ### 3.8 The host synthesizer names (`system_voice.rs`)
 
@@ -356,14 +361,17 @@ bounds), `is_sha256_hex` (64 lowercase hex digits), `out_is_mp4` and
 write; `secondary_read_slots` lists every media reference — `segments[k].image`,
 `segments[k].audio`, the top-level `audio`, valued at its path
 (`media_ref_path`: the string, or an object's `path`) — and one hidden slot
-for a `segments` that is not a list (`segments`) or an element that is not a
-map (`segments[k]`). The literal shape rules (`builtin_shape_findings`) mirror
-the spec oracle: a templated value is the run's, a literal sibling is still
-judged. The host program is named here, cfg-free and never probed:
-`FFMPEG`, `FFMPEG_ENV` (`NIKA_FFMPEG`), `FFMPEG_CANDIDATES` (three absolute
-paths · `PATH` is never consulted), `FFMPEG_FLOOR` (6.0 ·
-`FFMPEG_LIB_FLOOR` 60) and `H264_ENCODER`. Nothing here grants authority or
-resolves a host path.
+valued null for a templated `segments` (`segments`) or a templated element
+(`segments[k]`), never its text. A literal `segments` that is not a list, or
+an element that is not a map, is no read slot: the shape rules refuse it and
+the call reads nothing through it, while `unbound_fs_args` and
+`read_slot_paths` still see an unbindable slot. The literal shape rules
+(`builtin_shape_findings`) mirror the spec oracle: a templated value is the
+run's, a literal sibling is still judged. The host program is named here,
+cfg-free and never probed: `FFMPEG`, `FFMPEG_ENV` (`NIKA_FFMPEG`),
+`FFMPEG_CANDIDATES` (three absolute paths · `PATH` is never consulted),
+`FFMPEG_FLOOR` (6.0 · `FFMPEG_LIB_FLOOR` 60) and `H264_ENCODER`. Nothing here
+grants authority or resolves a host path.
 
 ## 4. Module structure with LOC estimates
 

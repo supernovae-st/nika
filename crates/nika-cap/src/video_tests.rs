@@ -611,24 +611,74 @@ fn the_call_writes_out_and_reads_every_media_reference() {
         .into_iter()
         .map(|(name, value)| (name, value.clone()))
         .collect();
+    // The templated element hides its reads (valued null, never its text);
+    // the literal `7` is malformed and reads nothing.
     assert_eq!(
         slots,
         vec![
             ("segments[0].image".to_owned(), json!("./a.png")),
             ("segments[0].audio".to_owned(), json!("./a.wav")),
-            ("segments[1]".to_owned(), json!("${{ with.second }}")),
+            ("segments[1]".to_owned(), Value::Null),
             ("segments[2].image".to_owned(), Value::Null),
-            ("segments[3]".to_owned(), json!(7)),
             ("audio".to_owned(), json!("./track.wav")),
         ]
     );
     // A whole templated list is ONE hidden slot, never an empty read set.
     let templated = json!({ "segments": "${{ with.segments }}", "out": "./out/v.mp4" });
-    let one = secondary_read_slots(TOOL, Some(&templated));
-    assert_eq!(one.len(), 1);
-    assert_eq!(one[0].0, "segments");
+    assert_eq!(
+        secondary_read_slots(TOOL, Some(&templated)),
+        [("segments".to_owned(), &Value::Null)]
+    );
     assert!(secondary_read_slots(TOOL, None).is_empty());
     assert!(secondary_read_slots(TOOL, Some(&json!({ "out": "./v.mp4" }))).is_empty());
+}
+
+/// A templated `segments`, or a templated element, is ONE hidden slot valued
+/// null: a bare `${{ const.x }}` naming a string renders a string, which the
+/// run refuses before it reads (`-001`), so its text is never a read path. A
+/// literal of the wrong shape reads nothing, so no read slot carries it; the
+/// shape rules refuse it, and the reach binding still cannot see a path in it.
+#[test]
+fn a_hidden_or_malformed_segments_value_is_never_a_read_path() {
+    let hidden = |segments: Value| json!({ "segments": segments, "out": "./out/v.mp4" });
+    for templated in ["${{ const.segs }}", "./in/${{ inputs.cut }}.png"] {
+        let args = hidden(json!(templated));
+        assert_eq!(
+            secondary_read_slots(TOOL, Some(&args)),
+            [("segments".to_owned(), &Value::Null)],
+            "{args}"
+        );
+        let args = hidden(json!([templated]));
+        assert_eq!(
+            secondary_read_slots(TOOL, Some(&args)),
+            [("segments[0]".to_owned(), &Value::Null)],
+            "{args}"
+        );
+    }
+    let whole = [
+        json!("./secret/a.png"),
+        json!(7),
+        json!({ "image": "./secret/a.png" }),
+    ];
+    let element = [json!("./secret/a.png"), json!(7), json!(["./secret/a.png"])];
+    let mut cases: Vec<(Value, &str)> = whole.map(|v| (hidden(v), "`segments`")).to_vec();
+    cases.extend(element.map(|v| (hidden(json!([v])), "`segments[0]`")));
+    for (malformed, slot) in cases {
+        assert!(
+            secondary_read_slots(TOOL, Some(&malformed)).is_empty(),
+            "{malformed}"
+        );
+        assert_eq!(
+            read_slot_paths(TOOL, Some(&malformed)),
+            [SlotPath::Unknown],
+            "{malformed}"
+        );
+        let unbound = unbound_fs_args(TOOL, Some(&malformed), &[], &["./out/v.mp4".to_owned()]);
+        assert!(
+            unbound.len() == 1 && unbound[0].contains(slot),
+            "{malformed}: {unbound:?}"
+        );
+    }
 }
 
 /// The file channel follows a file a video reads and the file it writes,

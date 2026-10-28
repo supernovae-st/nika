@@ -257,8 +257,8 @@ pub fn media_ref_path(value: &Value) -> &Value {
     }
 }
 
-/// One place a call may read: a media reference's path, or a value that
-/// hides its references (a templated list or element, or a malformed one).
+/// One place a call may read: a media reference's path, a templated value
+/// that hides its references, or a literal of the wrong shape.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum ReadSlot<'a> {
     /// `segments[k].image` · `segments[k].audio` · `audio`, with the path
@@ -269,22 +269,43 @@ pub(crate) enum ReadSlot<'a> {
         /// The path value.
         path: &'a Value,
     },
-    /// `segments` (not a list) or `segments[k]` (not a map): its media are
-    /// unknown until the run resolves it.
+    /// `segments` or `segments[k]` written as a `${{ }}` template: its
+    /// media are known only once the run resolves it. Its text is never a
+    /// path: a bare `${{ const.x }}` naming a string renders a string, which
+    /// the run refuses before it reads.
     Hidden {
         /// The slot name.
         name: String,
-        /// The value as written.
-        value: &'a Value,
+    },
+    /// `segments` (not a list) or `segments[k]` (not a map) written as a
+    /// literal: the shape rules refuse it and the run reads nothing
+    /// through it (`-001`, judged before any read).
+    Malformed {
+        /// The slot name.
+        name: String,
     },
 }
 
 impl<'a> ReadSlot<'a> {
-    /// The slot's name and the value a consumer judges as a path.
-    pub(crate) fn pair(&self) -> (String, &'a Value) {
+    /// The slot's name and the value a consumer judges as a path: a hidden
+    /// slot is valued null (unknown until the run), and a malformed one
+    /// has none, since it reads nothing.
+    pub(crate) fn pair(&self) -> Option<(String, &'a Value)> {
         match self {
-            Self::Media { name, path } => (name.clone(), path),
-            Self::Hidden { name, value } => (name.clone(), value),
+            Self::Media { name, path } => Some((name.clone(), path)),
+            Self::Hidden { name } => Some((name.clone(), &NULL)),
+            Self::Malformed { .. } => None,
+        }
+    }
+
+    /// A slot that hides its reads or holds none: `segments`, or one of
+    /// its elements, written as a template or as a literal of the wrong
+    /// shape.
+    fn opaque(name: String, value: &Value) -> Self {
+        if templated(value) {
+            Self::Hidden { name }
+        } else {
+            Self::Malformed { name }
         }
     }
 }
@@ -311,18 +332,12 @@ pub(crate) fn read_slots(args: Option<&Value>) -> Vec<ReadSlot<'_>> {
                             }
                         }
                     }
-                    None => slots.push(ReadSlot::Hidden {
-                        name: format!("segments[{k}]"),
-                        value: item,
-                    }),
+                    None => slots.push(ReadSlot::opaque(format!("segments[{k}]"), item)),
                 }
             }
         }
         Some(Value::Null) | None => {}
-        Some(other) => slots.push(ReadSlot::Hidden {
-            name: "segments".to_owned(),
-            value: other,
-        }),
+        Some(other) => slots.push(ReadSlot::opaque("segments".to_owned(), other)),
     }
     if let Some(value) = map.get("audio").filter(|v| !v.is_null()) {
         slots.push(ReadSlot::Media {

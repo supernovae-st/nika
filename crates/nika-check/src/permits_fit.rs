@@ -891,12 +891,12 @@ fn check_builtin_effect(
 }
 
 /// The READ slots the single `path_arg` leaves out ([`nika_cap::secondary_read_slots`] ·
-/// `nika:image_compose`'s `inputs[]`): each literal or whole bare-const path
-/// is judged as a read against `permits.fs.read`, BEFORE anything runs —
+/// `nika:image_compose`'s `inputs[]` · `nika:video_compose`'s media): each literal or whole
+/// bare-const path is judged as a read against `permits.fs.read`, BEFORE anything runs —
 /// the gauntlet's C-D1 gap (a read the check never modelled, refused only
-/// at run) is not repeated. A templated element is the run's
-/// `NIKA-SEC-004`; the finding names the slot, so a sheet of many inputs
-/// says which one escapes.
+/// at run) is not repeated. A templated element, or a hidden list (valued
+/// null, never its text), is the run's `NIKA-SEC-004`; the finding names
+/// the slot, so a sheet of many inputs says which one escapes.
 fn check_secondary_reads(
     id: &str,
     tool: &str,
