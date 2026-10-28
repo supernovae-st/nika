@@ -53,6 +53,9 @@ module reads and which reads none of them back:
   price with (`priced_builtin_floor`, `unpriced_cloud_seat`): what a
   workflow's priced `invoke:` tasks must spend on their cheapest path, and
   whether a seat is a third-party cloud route the catalog does not price.
+  `floor_calls` is that floor's per-task multiplier (none behind a `when:`
+  gate or over an expression `for_each`, a literal fan-out's length, else
+  one), read by the renderers that name the media floor beside an estimate.
 - `media_quote` · one judgment of a paid media call on its arguments
   (`media_quote`, and `media_call_provider`, `media_call_template`,
   `media_cap_refusal`, `media_spend_unpriced` over it, C-D3): which provider

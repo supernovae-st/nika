@@ -73,7 +73,7 @@ use nika_schema::raw::{RawTask, RawWorkflow};
 use nika_schema::source::Spanned;
 use nika_schema::types::AfterPredicate;
 
-pub use builtin_floor::{priced_builtin_floor, unpriced_cloud_seat};
+pub use builtin_floor::{floor_calls, priced_builtin_floor, unpriced_cloud_seat};
 pub use capacity::{CapacityFinding, capacity_findings};
 pub use edges::{Edge, EdgeKind, RecoveryRead, Route, SettledState, role_of_field, witness_routes};
 pub use media_quote::{

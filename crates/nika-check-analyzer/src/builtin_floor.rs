@@ -53,9 +53,6 @@ pub fn priced_builtin_floor(wf: &RawWorkflow) -> f64 {
 }
 
 fn invoke_static_floor(task: &RawTask) -> f64 {
-    if task.when.is_some() {
-        return 0.0;
-    }
     let RawAction::Invoke(inv) = &task.action else {
         return 0.0;
     };
@@ -66,26 +63,89 @@ fn invoke_static_floor(task: &RawTask) -> f64 {
         return 0.0;
     };
     match crate::media_quote(&tool.value, &args.value) {
-        MediaQuote::Priced { floor, .. } => floor.usd().unwrap_or(0.0) * static_iterations(task),
+        #[allow(clippy::cast_precision_loss)] // a literal list length is a task count
+        MediaQuote::Priced { floor, .. } => floor.usd().unwrap_or(0.0) * floor_calls(task) as f64,
         _ => 0.0,
     }
 }
 
-fn static_iterations(task: &RawTask) -> f64 {
+/// How many times the cheapest static path runs `task`: the multiplier
+/// [`priced_builtin_floor`] prices a paid media call by. None under a `when:`
+/// gate (closed on that path) or over an expression `for_each` (a count only
+/// the run knows, judged by the dispatch guard · NIKA-1704); a literal
+/// `for_each`'s length; else one. A renderer that names the floor beside an
+/// estimate counts calls the way the launch gate does.
+#[must_use]
+pub fn floor_calls(task: &RawTask) -> u64 {
+    if task.when.is_some() {
+        return 0;
+    }
     match task.for_each.as_ref().map(|f| &f.value) {
-        None => 1.0,
+        None => 1,
         Some(ForEachValue::List(arr)) => {
-            #[allow(clippy::cast_precision_loss)] // literal list length is a task count
-            {
-                arr.as_array().map_or(1, Vec::len) as f64
-            }
+            u64::try_from(arr.as_array().map_or(1, Vec::len)).unwrap_or(u64::MAX)
         }
         // Unknown count: cheapest path cannot claim a floor (NIKA-1704).
-        Some(ForEachValue::Expression(_)) => 0.0,
+        Some(ForEachValue::Expression(_)) => 0,
         #[allow(
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and runtime ship together"
         )]
         _ => unreachable!("unsupported for_each form"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{floor_calls, priced_builtin_floor};
+    use nika_schema::{FileId, ParseMode, parse};
+
+    /// The calls the launch floor counts, per task: one plain call, none behind a `when:` gate
+    /// or over an expression fan-out, a literal fan-out's length. The floor multiplies each
+    /// priced call by exactly that count, so a renderer reading it states the run's figure.
+    #[test]
+    fn the_floor_counts_a_literal_fan_out_and_never_a_gated_or_unknown_call() {
+        let say = "invoke: { tool: \"nika:tts_generate\", args: { model: tts-1, text: \"hello \
+                   there\", output_dir: ./out } }";
+        let wf = parse(
+            &format!(
+                "nika: floor\ninputs:\n  go: {{ type: bool }}\n  words: {{ type: {{ array: string }} \
+                 }}\npermits: {{ tools: [\"nika:tts_generate\"] }}\ntasks:\n  once:\n    \
+                 {say}\n  three:\n    for_each: {{ items: [a, b, c] }}\n    {say}\n  gated:\n    \
+                 when: \"${{{{ inputs.go == true }}}}\"\n    {say}\n  unknown:\n    for_each: {{ items: \
+                 \"${{{{ inputs.words }}}}\" }}\n    {say}\n"
+            ),
+            FileId::new(0),
+            ParseMode::Strict,
+        )
+        .expect("fixture");
+        assert!(
+            crate::analyze(&wf).is_ok(),
+            "the fixture is a valid workflow"
+        );
+        let calls: Vec<(&str, u64)> = (wf.tasks.iter())
+            .map(|t| (t.value.id.value.as_str(), floor_calls(&t.value)))
+            .collect();
+        assert_eq!(
+            calls,
+            [("once", 1), ("three", 3), ("gated", 0), ("unknown", 0)]
+        );
+        let per_call = priced_builtin_floor(
+            &parse(
+                &format!(
+                    "nika: one\npermits: {{ tools: [\"nika:tts_generate\"] }}\ntasks:\n  once:\n    \
+                     {say}\n"
+                ),
+                FileId::new(0),
+                ParseMode::Strict,
+            )
+            .expect("fixture"),
+        );
+        assert!(per_call > 0.0, "{per_call}");
+        let floor = priced_builtin_floor(&wf);
+        assert!(
+            (floor - 4.0 * per_call).abs() < 1e-12,
+            "one plain call and three fanned ones: {floor} vs {per_call}"
+        );
     }
 }

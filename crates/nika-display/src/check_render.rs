@@ -588,7 +588,7 @@ fn unbounded_census(report: &CheckReport) -> String {
 /// Supervised earn the green mark.
 fn audited_line(
     report: &CheckReport,
-    _wf: &RawWorkflow,
+    wf: &RawWorkflow,
     distinct_hints: usize,
     hint_sites: usize,
     grade: nika_check::RiskGrade,
@@ -611,7 +611,7 @@ fn audited_line(
         role,
         &format!(
             "{mark} audited · {}",
-            boundary_tail(report, distinct_hints, hint_sites, t)
+            boundary_tail(report, wf, distinct_hints, hint_sites, t)
         ),
     )
 }
@@ -633,6 +633,7 @@ fn audited_line(
 /// changed.
 fn findings_line(
     report: &CheckReport,
+    wf: &RawWorkflow,
     distinct_hints: usize,
     hint_sites: usize,
     t: Theme,
@@ -649,7 +650,7 @@ fn findings_line(
             Role::Bad,
             &format!(
                 "findings above · {}",
-                boundary_tail(report, distinct_hints, hint_sites, t)
+                boundary_tail(report, wf, distinct_hints, hint_sites, t)
             )
         )
     )
@@ -680,6 +681,7 @@ pub fn boundary_clauses(report: &CheckReport) -> (String, String) {
 /// same file.
 fn boundary_tail(
     report: &CheckReport,
+    wf: &RawWorkflow,
     distinct_hints: usize,
     hint_sites: usize,
     t: Theme,
@@ -687,7 +689,7 @@ fn boundary_tail(
     let tasks: usize = report.waves.iter().map(Vec::len).sum();
     let (permits, risk) = boundary_clauses(report);
     let sanctioned = crate::check_journey::sanctioned_flow_count(report);
-    let est = est_clause(report, t);
+    let est = est_clause(report, wf, t);
     let hint_summary = if distinct_hints == hint_sites {
         crate::vocab::count(hint_sites, "hint")
     } else {
@@ -728,7 +730,7 @@ fn boundary_tail(
 /// Unbounded: no ceiling exists, and no floor is computable either (every
 /// bounded task is itself priced at its cap), so claim neither — name
 /// WHAT is unbounded, split by why (`unbounded_census`).
-fn est_clause(report: &CheckReport, t: Theme) -> String {
+fn est_clause(report: &CheckReport, wf: &RawWorkflow, t: Theme) -> String {
     if report.cost.has_unbounded {
         return format!("est unbounded · {}", unbounded_census(report));
     }
@@ -747,9 +749,10 @@ fn est_clause(report: &CheckReport, t: Theme) -> String {
     );
     // Paid media rides beside the inference figure, never inside a
     // `≤$0.0000` that reads as free: a run whose only spend was a priced
-    // speech call read that way (#1846).
+    // speech call read that way (#1846). Its floor counts calls as the
+    // launch gate does (a fan-out multiplies, a gate may skip).
     let mut clause = vec![figure];
-    clause.extend(cost::media_beside_estimate(&report.cost.media));
+    clause.extend(cost::media_beside_estimate(&report.cost.media, wf));
     clause.join(" + ")
 }
 
