@@ -755,6 +755,8 @@ pub(crate) fn rfc3339_utc(epoch: u64) -> String {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use serde_json::json;
 
     use super::*;
@@ -1072,6 +1074,76 @@ mod tests {
         assert!(matches!(err, PinError::Corrupt { .. }), "{err}");
         assert!(format!("{err}").contains("does not match"), "{err}");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// NIK-254 · every code a pin refusal prints is one `nika explain` answers, through the
+    /// oracle's door too: the run's refusal sends the user there (`fix: nika explain <code>`).
+    #[test]
+    fn every_pin_refusal_code_is_explained() {
+        let server = || "abench".to_owned();
+        let why = || "measured".to_owned();
+        let refusals = [
+            PinError::Transport {
+                server: server(),
+                why: why(),
+            },
+            PinError::Malformed {
+                server: server(),
+                why: why(),
+            },
+            PinError::Drift(ServerDrift {
+                server: server(),
+                changed: Vec::new(),
+                added: vec!["gmail_find_email".to_owned()],
+                removed: Vec::new(),
+            }),
+            PinError::Corrupt {
+                path: PathBuf::from(PINS_PATH),
+                why: why(),
+            },
+            PinError::Unsupported {
+                server: server(),
+                why: why(),
+            },
+            PinError::Sandbox {
+                server: server(),
+                why: why(),
+            },
+            PinError::Io {
+                path: PathBuf::from(PINS_PATH),
+                why: why(),
+            },
+            PinError::Unapproved {
+                server: server(),
+                tool: "gmail_find_email".to_owned(),
+                pinned: Vec::new(),
+            },
+        ];
+        // No wildcard: a new variant fails to compile here until it joins the list above.
+        let kinds: BTreeSet<&str> = (refusals.iter())
+            .map(|refusal| match refusal {
+                PinError::Transport { .. } => "transport",
+                PinError::Malformed { .. } => "malformed",
+                PinError::Drift(_) => "drift",
+                PinError::Corrupt { .. } => "corrupt",
+                PinError::Unsupported { .. } => "unsupported",
+                PinError::Sandbox { .. } => "sandbox",
+                PinError::Io { .. } => "io",
+                PinError::Unapproved { .. } => "unapproved",
+            })
+            .collect();
+        assert_eq!(kinds.len(), refusals.len(), "one refusal per variant");
+        let codes: BTreeSet<&str> = refusals.iter().filter_map(PinError::code).collect();
+        assert_eq!(codes.len(), 6, "NIKA-MCP-001..006: {codes:?}");
+        for code in codes {
+            let out = nika_cli_host::explain::run_for(
+                code,
+                nika_cli_host::Theme::new(false, true, false),
+                nika_cli_host::explain::Door::Oracle,
+            );
+            assert_eq!(out.code, 0, "{code}:\n{}", out.text);
+            assert!(out.text.starts_with(code), "{code}:\n{}", out.text);
+        }
     }
 
     #[test]

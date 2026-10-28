@@ -88,10 +88,18 @@ fn char_end_after(s: &str, start: usize) -> usize {
 /// docs-url line (the grep-stable contract), so the frame is HEADERLESS
 /// (`no_name` + empty title): origin `path:line:col`, the source line,
 /// the caret run — nothing duplicated.
+///
+/// A span indexes the caller's text, byte-order mark included (#1608),
+/// and an editor shows line 1 from the character after the mark: the
+/// frame paints the text after it, the span shifted with it, so a marked
+/// file is framed exactly as the same file without the mark.
 #[must_use]
 pub fn paint_span(source: &str, path: &str, span: ByteSpan, theme: Theme) -> String {
-    let start = floor_char(source, span.start as usize);
-    let mut end = ceil_char(source, span.end as usize);
+    let (source, mark) = source
+        .strip_prefix('\u{feff}')
+        .map_or((source, 0), |text| (text, '\u{feff}'.len_utf8()));
+    let start = floor_char(source, (span.start as usize).saturating_sub(mark));
+    let mut end = ceil_char(source, (span.end as usize).saturating_sub(mark));
     // A point span (start == end — flow-scalar tokens) still deserves a
     // visible caret: widen to one char, clamped to the source end.
     if end <= start {
@@ -220,5 +228,40 @@ mod tests {
             Theme::new(false, true, false),
         );
         assert!(out.contains('^'), "mid-char span still paints:\n{out}");
+    }
+
+    /// #1608 · a span indexes the caller's text, byte-order mark included,
+    /// and an editor shows line 1 from the character after the mark: a
+    /// marked file is framed exactly as the same file without it, line 1
+    /// included (`1:1`, never `1:2`).
+    #[test]
+    fn a_byte_order_mark_is_not_a_column() {
+        let bare = "bogus: 1\nnika: hello: there\n";
+        let marked = format!("\u{feff}{bare}");
+        let mark = u32::try_from('\u{feff}'.len_utf8()).expect("3 bytes");
+        let theme = Theme::new(false, true, false);
+        for (needle, origin) in [
+            ("bogus", "demo.nika:1:1"),
+            ("1", "demo.nika:1:8"),
+            ("hello", "demo.nika:2:7"),
+        ] {
+            let start = u32::try_from(bare.find(needle).expect("present")).expect("small");
+            let end = start + u32::try_from(needle.len()).expect("small");
+            let framed = paint_span(
+                &marked,
+                "demo.nika",
+                ByteSpan::new(start + mark, end + mark),
+                theme,
+            );
+            let unmarked = paint_span(bare, "demo.nika", ByteSpan::new(start, end), theme);
+            assert_eq!(framed, unmarked, "{needle}");
+            assert!(framed.contains(origin), "{needle}:\n{framed}");
+            assert!(
+                !framed.contains('\u{feff}'),
+                "the mark is not painted:\n{framed}"
+            );
+        }
+        let point = paint_span(&marked, "demo.nika", ByteSpan::new(mark, mark), theme);
+        assert!(point.contains("demo.nika:1:1"), "{point}");
     }
 }

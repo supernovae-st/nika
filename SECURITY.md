@@ -70,11 +70,11 @@ run starts, and the runtime enforces the same boundary again.
 Without a code `nika explain` resolves:
 
 - **MCP definition pins.** `nika mcp approve <server>` pins each tool's
-  definition; a run refuses an unapproved tool (`NIKA-MCP-006`) or a server
-  whose definitions drifted (`NIKA-MCP-003`). The refusal names its remedy,
+  definition ([docs/ops/mcp-servers.md](docs/ops/mcp-servers.md)); a run
+  refuses an unapproved tool (`NIKA-MCP-006`) or a server whose definitions
+  drifted (`NIKA-MCP-003`). The refusal names its remedy,
   `nika mcp approve <server>`; the `nika explain` it also suggests does not
-  know these two codes in 0.124.0
-  ([docs/ops/mcp-servers.md](docs/ops/mcp-servers.md)).
+  know these two codes in 0.124.0.
 - **Tamper-evident, signed runs.** Every run journal is hash-chained, and
   runs are signed once `nika key init` minted a run-signing key;
   `nika trace verify` checks both.

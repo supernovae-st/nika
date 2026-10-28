@@ -53,10 +53,19 @@ fn tmp_dir(name: &str) -> std::path::PathBuf {
     dir
 }
 
-/// Run the binary in `dir` and return (exit code, stdout+stderr).
+/// Run the binary in `dir` and return (exit code, stdout+stderr). The environment is the
+/// test's own: no provider key or other variable of the shell that runs the suite, a scratch
+/// `HOME` (never the developer's `~/.nika`), the keychain off, and the system `PATH` the
+/// fixtures' programs and the OS sandboxes live on.
 fn run_in(dir: &std::path::Path, args: &[&str]) -> (i32, String) {
+    let home = dir.join("home");
+    std::fs::create_dir_all(&home).expect("scratch home");
     let out = bin()
         .current_dir(dir)
+        .env_clear()
+        .env("HOME", &home)
+        .env("PATH", "/usr/bin:/bin")
+        .env("NIKA_KEYCHAIN", "off")
         .args(args)
         .output()
         .expect("binary runs");

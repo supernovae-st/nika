@@ -400,10 +400,10 @@ whole API.
 
 <p align="center">
   <a href="media/gifs/sdk-doors.optimized.gif">
-    <img src="media/gifs/sdk-doors.optimized.gif" alt="Animated diagram of the TypeScript SDK: in the quick start, new Nika() starts the engine bundled with @supernovae-st/nika 0.123.0 as a child process; for nika serve, line 3 takes url, token and allowInsecureHttp, and line 6 takes an idempotencyKey in place of maxCostUsd. A refused list-files.nika gets NIKA-SEC-004 and run() throws, hello.nika runs, its events stream back to the app, its six hash-chained journal lines end in run_sealed, and traceVerify() answers verified locally and sealed from the server" width="860">
+    <img src="media/gifs/sdk-doors.optimized.gif" alt="Animated diagram of the TypeScript SDK: in the quick start, new Nika() starts the engine bundled with @supernovae-st/nika 0.124.0 as a child process; for nika serve, line 3 takes url, token and allowInsecureHttp, and line 6 takes an idempotencyKey in place of maxCostUsd. A refused list-files.nika gets NIKA-SEC-004 and run() throws, hello.nika runs, its events stream back to the app, its six hash-chained journal lines end in run_sealed, and traceVerify() answers verified locally and sealed from the server" width="860">
   </a>
 </p>
-<p align="center"><sub>Your app asks, the engine decides, the receipt proves it. The code is the quick start above, which the capture ran, with lines 3 and 6 also shown as its server driver ran them against <code>nika serve</code>. Every event, verdict, hash and version on screen was captured from <code>@supernovae-st/nika</code> 0.123.0, the engine it bundles and <code>nika serve</code> in a <code>mock/echo</code> rehearsal; the cards, lanes, packets and pacing are illustration.</sub></p>
+<p align="center"><sub>Your app asks, the engine decides, the receipt proves it. The code is the quick start above, which the capture ran, with lines 3 and 6 also shown as its server driver ran them against <code>nika serve</code>. Every event, verdict, hash and version on screen was captured from <code>@supernovae-st/nika</code> 0.124.0, the engine it bundles and <code>nika serve</code> in a <code>mock/echo</code> rehearsal; the cards, lanes, packets and pacing are illustration.</sub></p>
 
 ## Know the limits
 

@@ -1529,6 +1529,7 @@ mod network_tests;
 
 /// What a seat cannot honour, judged from its declared capabilities (D2).
 mod seat_fields;
+pub use seat_fields::seat_blockers;
 
 #[cfg(test)]
 mod seat_fields_tests;

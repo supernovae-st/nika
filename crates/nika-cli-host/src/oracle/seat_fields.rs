@@ -37,6 +37,19 @@ pub(super) struct SeatFields {
     pub(super) seated: BTreeSet<String>,
 }
 
+/// What the seats of `plan` (or `run.access.via`) cannot honour in `wf`: one line per task,
+/// each naming the run's refusal (NIKA-432 · NIKA-465) and its remedy. The lines that block
+/// RUN READY in `check`; `nika run --dry-run` refuses its preview on them, as the run refuses
+/// the task before anything is sent.
+#[must_use]
+pub fn seat_blockers(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    plan: &ExecutionAccessPlan,
+) -> Vec<String> {
+    judge(wf, report, plan).blockers
+}
+
 /// Judge every task of `wf` against the seat the plan (or `run.access.via`) gives it.
 pub(super) fn judge(
     wf: &RawWorkflow,
