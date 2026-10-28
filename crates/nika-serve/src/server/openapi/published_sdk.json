@@ -1,6 +1,6 @@
 {
-  "sdk": "@supernovae-st/nika@0.124.0",
-  "read_from": "the published dist/index.js (npm integrity sha512-9es/CUCNRqoZ1K6yq01ahJnPcMFH8OCscqrtSj15IQy1BjZHcEWN3Tmrp4JYrTBZZ4PVDWmWZOeScsylz5+9gQ==, read 28 Oct 2026): the keys and values each closed parser accepts",
+  "sdk": "@supernovae-st/nika@0.124.1",
+  "read_from": "the published dist/index.js (npm integrity sha512-yxx57r6xTnTGUr/WqqwR1QNXzLwuS0xyjEd7/HaZ0z9qMcQWQj4mmNPDQttAom4heToqJYkZF69GlzrBRGyjjg==, read 28 Oct 2026): the keys and values each closed parser accepts",
   "enforced_clocks": { "machineProtocolVersion": 2 },
   "closed": [
     {
