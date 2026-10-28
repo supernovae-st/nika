@@ -142,9 +142,10 @@ fn repair_prompt(
     )
 }
 
-/// The explicit task controls an ACP session cannot apply, refused before
-/// any spawn — never dropped.
-fn refuse_uncarried(input: &InferInput, seat: &str) -> Result<(), VerbInferError> {
+/// The explicit task controls an ACP session cannot apply, in the order its
+/// refusal names them: the direct seat's `vision:` refusal reads the same
+/// list before it offers the ACP route.
+pub(crate) fn uncarried(input: &InferInput) -> Vec<&'static str> {
     let mut named: Vec<&'static str> = Vec::new();
     if input.temperature.is_some() {
         named.push("temperature");
@@ -165,6 +166,13 @@ fn refuse_uncarried(input: &InferInput, seat: &str) -> Result<(), VerbInferError
     {
         named.push("vision URL");
     }
+    named
+}
+
+/// The explicit task controls an ACP session cannot apply, refused before
+/// any spawn — never dropped.
+fn refuse_uncarried(input: &InferInput, seat: &str) -> Result<(), VerbInferError> {
+    let named = uncarried(input);
     let Some(first) = named.first().copied() else {
         return Ok(());
     };

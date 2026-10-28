@@ -959,7 +959,9 @@ tasks:
 
 /// `codex exec` puts no image on its command: an `infer:` naming `vision:` on the direct seat
 /// is not RUN READY on `check` (NIKA-432, the route that carries the image named), and the run
-/// refuses it before the seat is spawned, where it answered without the image.
+/// refuses it before the seat is spawned, where it answered without the image. The task also
+/// sets `max_tokens`, which the ACP one-shot refuses, so both doors lead with the API route and
+/// name that field instead of offering a route that would refuse it in turn.
 #[test]
 fn a_vision_task_on_the_direct_seat_is_refused_on_both_doors() {
     let rig = Rig::new("direct-vision", true);
@@ -982,7 +984,10 @@ fn a_vision_task_on_the_direct_seat_is_refused_on_both_doors() {
             .any(
                 |b| b.contains("`look` is an infer: on `codex`'s direct one-shot")
                     && b.contains("NIKA-432")
-                    && b.contains("`run.access: { via: codex, protocol: acp }`")
+                    && b.ends_with(
+                        "— declare an API route or drop `vision:`; `run.access: { via: codex, \
+                         protocol: acp }` carries `vision:` files, not `max_tokens`"
+                    )
             ),
         "{obj:#}"
     );
@@ -1009,6 +1014,15 @@ fn a_vision_task_on_the_direct_seat_is_refused_on_both_doors() {
     assert_eq!(settled["status"], "failed", "{settled}");
     assert_eq!(settled["error"]["code"], "NIKA-432", "{settled}");
     assert_eq!(settled["error"]["task"], "look", "{settled}");
+    assert!(
+        settled["error"]["message"]
+            .as_str()
+            .is_some_and(|m| m.contains(
+                "run the task on an API route or drop `vision:` — `run.access: { via: codex, \
+             protocol: acp }` carries `vision:` files, not `max_tokens`"
+            )),
+        "the run's remedy is the check's: {settled}"
+    );
     assert!(
         !stdout.contains("seated-answer"),
         "the seat never answered: {stdout}"

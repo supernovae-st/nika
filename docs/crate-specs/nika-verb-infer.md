@@ -145,7 +145,12 @@ passthrough). Range registered in the kernel range-registry hub at admission.
   before the provider call. A seat's direct one-shot (`codex exec`,
   `claude -p`, no declared `run.access.protocol: acp`) carries no image on
   its command, so a `vision:` input refuses there (`InvalidParam`,
-  NIKA-432) before the seat is spawned, never answered without it.
+  NIKA-432) before the seat is spawned, never answered without it. It is
+  judged before the seat's schema grade, the order `nika check` judges them
+  in. The refusal offers the seat's ACP one-shot only when that session
+  would carry the whole task; a task that also sets what the session
+  refuses (`temperature`, `max_tokens`, `thinking`, a `vision:` URL) is
+  sent to an API route, with those fields named.
   Content-addressed staging remains deferred to `nika-media-*` (§10bis).
 - **NOT template/CEL resolution** — `${{ }}` is resolved upstream.
 - **NOT retry-on-transport** — transport retry/backoff policy belongs to the

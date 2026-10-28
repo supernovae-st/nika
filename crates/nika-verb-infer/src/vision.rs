@@ -142,33 +142,54 @@ pub(crate) fn prompt_images(
         .collect()
 }
 
-/// A direct one-shot seat (`codex exec`, `claude -p` …) carries the prompt, the system, the
-/// model and a `schema:` on its command, never an image: an `infer:` that names `vision:`
-/// there is refused before the seat is spawned, as the ACP one-shot refuses a URL, instead of
-/// answering without the images it names. A seat whose ACP one-shot reads images is named as
-/// the route that carries them.
+/// A direct one-shot seat (`codex exec`, `claude -p` …) carries the prompt, the system and the
+/// model on its command (and a `schema:` where it is schema-grade), never an image: an
+/// `infer:` that names `vision:` there is refused before the seat is spawned, as the ACP
+/// one-shot refuses a URL, instead of answering without the images it names. It is judged
+/// before the seat's schema grade, as `nika check` judges it. A seat whose ACP one-shot reads
+/// images is offered as the route that carries them only when that session would carry the
+/// rest of the task too; otherwise the API route leads and the ACP route's refusals are named.
 #[cfg(feature = "access-harness")]
 pub(crate) fn refuse_on_direct_seat(
-    parts: &[VisionPart],
+    input: &crate::InferInput,
     seat: &str,
 ) -> Result<(), VerbInferError> {
-    if parts.is_empty() {
+    use nika_harness::{StructuredOutputGrade, meet_infer_grade};
+    // No direct one-shot at all: the seat's own meet refuses it, unchanged.
+    if input.vision.is_empty() || meet_infer_grade(seat, StructuredOutputGrade::Text).is_err() {
         return Ok(());
     }
-    let route = if nika_harness::meet_acp_one_shot(seat)
-        .is_ok_and(nika_harness::AcpOneShot::image_prompts)
-    {
-        format!(
-            "declare `run.access: {{ via: {seat}, protocol: acp }}`, whose ACP one-shot carries \
-             `vision:` files, or an API route"
-        )
+    let carried = if meet_infer_grade(seat, StructuredOutputGrade::JsonSchema).is_ok() {
+        "the prompt, system, model and a `schema:`"
     } else {
-        "run the task on an API route".to_owned()
+        "the prompt, system and model"
+    };
+    let acp = format!("`run.access: {{ via: {seat}, protocol: acp }}`");
+    let reads_images =
+        nika_harness::meet_acp_one_shot(seat).is_ok_and(nika_harness::AcpOneShot::image_prompts);
+    let refused: Vec<String> = crate::acp::uncarried(input)
+        .into_iter()
+        .map(|field| match field {
+            "vision URL" => "a `vision:` URL".to_owned(),
+            field => format!("`{field}`"),
+        })
+        .collect();
+    let route = match (reads_images, refused.is_empty()) {
+        (true, true) => format!(
+            "declare {acp}, whose ACP one-shot carries `vision:` files, or an API route, or drop \
+             `vision:`"
+        ),
+        (true, false) => format!(
+            "run the task on an API route or drop `vision:` — {acp} carries `vision:` files, \
+             not {}",
+            refused.join(" · ")
+        ),
+        (false, _) => "run the task on an API route, or drop `vision:`".to_owned(),
     };
     Err(invalid(format!(
-        "`{seat}` serves this `infer:` through its direct one-shot, whose command carries the \
-         prompt, system, model and a `schema:`, never an image, so the model would not see \
-         `vision:`: {route}, or drop `vision:` (nothing was sent)"
+        "`{seat}` serves this `infer:` through its direct one-shot, whose command carries \
+         {carried}, never an image, so the model would not see `vision:`: {route} (nothing was \
+         sent)"
     )))
 }
 

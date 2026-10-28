@@ -72,7 +72,8 @@ async fn a_vision_file_on_a_direct_seat_is_refused_before_the_seat_is_spawned() 
     }
 }
 
-/// A `vision:` URL rides no direct command either: the same refusal, never a dropped URL.
+/// A `vision:` URL rides no direct command either: the same refusal, never a dropped URL. The
+/// ACP one-shot refuses a URL too, so the API route leads and the ACP route is named with it.
 #[tokio::test]
 async fn a_vision_url_on_a_direct_seat_is_refused_too() {
     let err = verb()
@@ -84,7 +85,105 @@ async fn a_vision_url_on_a_direct_seat_is_refused_too() {
         .expect_err("a URL is not sent either");
     assert!(
         matches!(&err, VerbInferError::InvalidParam { param: "vision", detail }
-            if detail.contains("never an image")),
+        if detail.contains("never an image")
+            && detail.contains(
+                ": run the task on an API route or drop `vision:` — `run.access: { via: \
+                 codex, protocol: acp }` carries `vision:` files, not a `vision:` URL \
+                 (nothing was sent)"
+            )),
+        "{err:?}"
+    );
+}
+
+/// The ACP route is offered as the fix only when its session would carry the whole task: a
+/// task that also sets what that session refuses (here `max_tokens`, `temperature` and a
+/// `thinking` budget) is told to take an API route first, with the ACP route's refusals named,
+/// so following the remedy never meets a second refusal.
+#[tokio::test]
+async fn the_acp_route_is_offered_only_when_its_session_carries_the_whole_task() {
+    let mut input = ask(vec![png()]);
+    input.max_tokens = Some(256);
+    let err = verb()
+        .run_on_harness("codex", input)
+        .await
+        .expect_err("never answered without its image");
+    assert!(
+        matches!(&err, VerbInferError::InvalidParam { param: "vision", detail }
+        if detail.ends_with(
+            ": run the task on an API route or drop `vision:` — `run.access: { via: codex, \
+             protocol: acp }` carries `vision:` files, not `max_tokens` (nothing was sent)"
+        )),
+        "{err:?}"
+    );
+    let mut input = ask(vec![png()]);
+    input.temperature = Some(0.2);
+    input.thinking_budget = Some(1024);
+    let err = verb()
+        .run_on_harness("claude-code", input)
+        .await
+        .expect_err("never answered without its image");
+    assert!(
+        matches!(&err, VerbInferError::InvalidParam { param: "vision", detail }
+            if detail.contains(
+                "`run.access: { via: claude-code, protocol: acp }` carries `vision:` files, not \
+                 `temperature` · `thinking`"
+            ) && !detail.contains("declare `run.access")),
+        "{err:?}"
+    );
+}
+
+/// A seat's direct command says what it carries: the schema-grade ones carry a `schema:`,
+/// `copilot` (text-grade) does not. Its `vision:` refusal comes before its schema grade, the
+/// order `nika check` judges them in, so a task with both reads NIKA-432 on both doors rather
+/// than NIKA-432 at check and the schema-grade refusal at run.
+#[tokio::test]
+async fn a_text_grade_seat_names_what_its_command_carries_and_refuses_vision_first() {
+    let schema = serde_json::json!({ "type": "object" });
+    let mut input = ask(vec![png()]);
+    input.schema = Some(schema.clone());
+    let err = verb()
+        .run_on_harness("copilot", input)
+        .await
+        .expect_err("never answered without its image");
+    match &err {
+        VerbInferError::InvalidParam { param, detail } => {
+            assert_eq!(*param, "vision");
+            assert!(
+                detail
+                    .contains("whose command carries the prompt, system and model, never an image")
+                    && !detail.contains("schema:"),
+                "{detail}"
+            );
+        }
+        other => panic!("expected the vision refusal first, got {other:?}"),
+    }
+    assert_eq!(err.nika_code().to_string(), "NIKA-432");
+    for seat in ["codex", "claude-code", "grok-build"] {
+        let mut input = ask(vec![png()]);
+        input.schema = Some(schema.clone());
+        let err = verb()
+            .run_on_harness(seat, input)
+            .await
+            .expect_err("never answered without its image");
+        assert!(
+            matches!(&err, VerbInferError::InvalidParam { param: "vision", detail }
+            if detail.contains(
+                "whose command carries the prompt, system, model and a `schema:`, never an \
+                 image"
+            )),
+            "{seat}: {err:?}"
+        );
+    }
+    // Without `vision:` the text-grade seat still meets its schema grade, unchanged.
+    let mut input = ask(Vec::new());
+    input.schema = Some(schema);
+    let err = verb()
+        .run_on_harness("copilot", input)
+        .await
+        .expect_err("copilot has no schema grade");
+    assert!(
+        matches!(&err, VerbInferError::HarnessAccess { detail }
+            if detail.contains("not infer-grade for json_schema")),
         "{err:?}"
     );
 }
