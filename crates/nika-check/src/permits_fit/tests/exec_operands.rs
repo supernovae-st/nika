@@ -305,6 +305,39 @@ fn a_literal_url_prefix_with_a_dynamic_query_keeps_its_existing_host_check() {
     one_escape(&wf, "net", "outside.example.com");
 }
 
+/// Issue 1597 · WHATWG admits `$`, `{` and `}` in a domain, so a template
+/// written without spaces parses as (part of) the host itself. That host is
+/// computed, the run's verdict, never an entry to ask for; a literal host
+/// beside a templated userinfo is still judged.
+#[test]
+fn a_computed_authority_is_never_named_as_a_host() {
+    for operand in [
+        "https://${{inputs.host}}/data",
+        "https://api.${{inputs.host}}/data",
+        "https://outside.example.com${{inputs.host}}/data",
+    ] {
+        let wf = fixture(
+            "inputs: {host: {type: string}}",
+            &["curl", operand],
+            None,
+            &[],
+            &[],
+        );
+        assert!(
+            scan_escapes(&wf).is_empty(),
+            "a computed host stays unknown: {operand}"
+        );
+    }
+    let pinned = fixture(
+        "inputs: {pw: {type: string}}",
+        &["curl", "https://u:${{inputs.pw}}@outside.example.com/data"],
+        None,
+        &[],
+        &[],
+    );
+    one_escape(&pinned, "net", "outside.example.com");
+}
+
 #[test]
 fn unresolved_arguments_are_retained_in_place_without_a_placeholder() {
     let wf = fixture(

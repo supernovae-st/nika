@@ -31,6 +31,7 @@ mod file_plumbing;
 mod fit;
 mod harness_gate;
 mod hash;
+mod http_client;
 mod integrity;
 mod permits;
 mod shape;
@@ -79,6 +80,7 @@ pub use fit::{expand_home_grant, glob_admits, lexically_normalize};
 pub use fetch_response::fetch_response_statuses;
 pub use harness_gate::{HarnessAskFacts, HarnessGate, judge_harness_ask};
 pub use hash::{HashAlgorithm, HashEncoding};
+pub use http_client::HTTP_CLIENT_PROGRAMS;
 pub use sink::code_bearing_path_class;
 // F-O1 PR-1 · the runtime integrity label (the Integ axis of RS-06's
 // trifecta Value) + the shared untrusted-ingress source predicates

@@ -1038,6 +1038,7 @@ impl<T> core::convert::From<T> for nika_cap::WithheldNative
 pub fn nika_cap::WithheldNative::from(t: T) -> T
 pub const nika_cap::DANGEROUS_ENV_VARS: &[&str]
 pub const nika_cap::FILE_PLUMBING_PROGRAMS: &[&str]
+pub const nika_cap::HTTP_CLIENT_PROGRAMS: &[&str]
 pub const nika_cap::HUMAN_GATE_TOOL: &str
 pub const nika_cap::JQ_CAPABILITY_POLICY: &[nika_cap::JqCapabilityRule]
 pub const nika_cap::JQ_CLOCK_DEFS: &str

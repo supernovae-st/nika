@@ -776,23 +776,8 @@ fn check_exec_net(
     consts: &ConstStrings,
     out: &mut Vec<CapabilityEscape>,
 ) {
-    let tokens: Vec<&str> = match command {
-        RawCommand::Argv(parts) => parts
-            .iter()
-            .map(|p| judgeable_operand(&p.value, consts).unwrap_or(&p.value))
-            .collect(),
-        RawCommand::Shell(line) => line.value.split_whitespace().collect(),
-        #[allow(
-            clippy::unreachable,
-            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
-        )]
-        _ => unreachable!("unknown exec command form"),
-    };
-    for tok in tokens {
-        if !(tok.starts_with("http://") || tok.starts_with("https://")) {
-            continue;
-        }
-        let Some(host) = url_host(tok) else {
+    for tok in exec_url_tokens(command, consts) {
+        let Some(host) = exec_url_host(tok) else {
             continue;
         };
         if nika_types::net::host_is_blocked(&host) {
@@ -809,6 +794,44 @@ fn check_exec_net(
             });
         }
     }
+}
+
+/// The URL tokens an `exec:` carries, as the net arm above reads them: an
+/// argv element (a bare immutable const resolved, anything else verbatim)
+/// or a standalone token of a shell line, kept when it opens with an
+/// `http(s)://` scheme. ONE scan for the fit lane and the permits
+/// inference (issue 1597): the block the inference writes is judged on the
+/// very tokens it was derived from.
+pub(super) fn exec_url_tokens<'a>(
+    command: &'a RawCommand,
+    consts: &'a ConstStrings,
+) -> Vec<&'a str> {
+    let tokens: Vec<&str> = match command {
+        RawCommand::Argv(parts) => parts
+            .iter()
+            .map(|p| judgeable_operand(&p.value, consts).unwrap_or(&p.value))
+            .collect(),
+        RawCommand::Shell(line) => line.value.split_whitespace().collect(),
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
+        )]
+        _ => unreachable!("unknown exec command form"),
+    };
+    tokens
+        .into_iter()
+        .filter(|tok| tok.starts_with("http://") || tok.starts_with("https://"))
+        .collect()
+}
+
+/// The host the net arm judges for one of those tokens, when a static read
+/// pins it. WHATWG admits `$`, `{` and `}` in a domain, so
+/// `https://${{inputs.host}}/` parses with the template TEXT as its host:
+/// that host is computed, the run's verdict (its taint judge and the exec
+/// egress proxy see the resolved value), never an entry to ask for. The
+/// check asked for `"${{inputs.host}}"` in `permits.net.http` (issue 1597).
+pub(super) fn exec_url_host(tok: &str) -> Option<String> {
+    url_host(tok).filter(|host| !host.contains("${{"))
 }
 
 /// The fine-grained effect table lives in `nika-cap` beside the coarse

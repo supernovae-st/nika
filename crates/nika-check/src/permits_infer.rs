@@ -24,12 +24,18 @@
 //!   widening is not expressible; the rendered block stays literal-only and
 //!   the dynamic effect becomes an actionable [`InferredPermits::notes`]
 //!   entry the operator must resolve before running.
+//! - `exec` URLs — an argv (or an admissible shell line) carrying a literal
+//!   or const-backed URL names its host like an invoke, read from the SAME
+//!   tokens the fit lane's exec net arm judges; a computed authority, or an
+//!   HTTP client handed only a computed operand, leaves the net face partial
+//!   (issue 1597).
 
 use std::collections::BTreeSet;
 
 use super::permits_fit::{
-    BuiltinEffect, ConstStrings, builtin_effect, chart_vl_sibling, judgeable_arg,
-    judgeable_program, path_escapes_workspace, resolve_const_argv, url_host,
+    BuiltinEffect, ConstStrings, builtin_effect, chart_vl_sibling, exec_url_host, exec_url_tokens,
+    judgeable_arg, judgeable_operand, judgeable_program, path_escapes_workspace,
+    resolve_const_argv, templated_url_host, url_host,
 };
 use nika_schema::raw::{RawAction, RawCommand, RawExecAction, RawTask, RawWorkflow};
 use nika_schema::types::{ExecPermit, FsPermits, NetPermits, Permits};
@@ -276,6 +282,7 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
                 )]
                 _ => unreachable!("unknown exec command form"),
             }
+            collect_exec_net(c, id, &a.command);
         }
         RawAction::Invoke(a) => match &a.target {
             nika_schema::raw::RawInvokeTarget::Tool(t) => {
@@ -345,6 +352,99 @@ fn collect_images_save(c: &mut Collector, id: &str, a: &nika_schema::raw::RawAge
     }
 }
 
+/// The net face of an `exec:` (issue 1597). An argv's URL reaches its host
+/// exactly like an invoke's, and the fit lane's exec net arm judges the
+/// SAME tokens ([`exec_url_tokens`]), so the block written here re-checks
+/// clean instead of being refused by the rung that reads it. What no static
+/// read can pin stays visible as a partial net face: a URL whose authority
+/// a template can still move, or an HTTP client whose argv carries no URL
+/// but a computed operand (the caller's URL). The run's egress proxy admits
+/// only `permits.net.http`, so a block silent on that host checks green and
+/// fails at run (measured on 0.124.0).
+fn collect_exec_net(c: &mut Collector, id: &str, command: &RawCommand) {
+    let urls = exec_url_tokens(command, &c.consts);
+    for tok in &urls {
+        let templated = tok.contains("${{");
+        match exec_url_host(tok) {
+            Some(host) if nika_types::net::host_is_blocked(&host) => {
+                c.partial.net = true;
+                c.notes.push(floor_note(id, &host));
+            }
+            Some(host) => {
+                // A template ahead of the delimiter that closes the
+                // authority can still move the host (`u:${{ p }}@a.example`):
+                // the parsed host is granted, since the fit lane judges it,
+                // and the face stays partial.
+                if templated && templated_url_host(tok).is_none() {
+                    c.partial.net = true;
+                    c.notes.push(computed_host_note(id));
+                }
+                c.hosts.insert(host);
+            }
+            None if templated => {
+                c.partial.net = true;
+                c.notes.push(computed_host_note(id));
+            }
+            // No parseable host: nothing to grant, and the fit lane skips it.
+            None => {}
+        }
+    }
+    if !urls.is_empty() {
+        return;
+    }
+    let RawCommand::Argv(parts) = command else {
+        return;
+    };
+    let Some(program) = judgeable_program(command, &c.consts) else {
+        return;
+    };
+    let base = program.rsplit(['/', '\\']).next().unwrap_or(program);
+    let computed = parts
+        .iter()
+        .skip(1)
+        .any(|p| judgeable_operand(&p.value, &c.consts).is_none());
+    if computed && nika_cap::HTTP_CLIENT_PROGRAMS.contains(&base) {
+        c.partial.net = true;
+        c.notes.push(format!(
+            "task `{id}` hands `{base}` a computed argument and no literal URL — the \
+             host it reaches is resolved at run, and the exec egress proxy admits only \
+             `permits.net.http`; add that host before running"
+        ));
+    }
+}
+
+/// The note for an exec URL whose host a template decides.
+fn computed_host_note(id: &str) -> String {
+    format!(
+        "task `{id}` runs a URL whose host is computed — `net.http` cannot express \
+         'any host'; add the resolved host(s) before running"
+    )
+}
+
+/// The note for a host the always-on SSRF floor refuses whatever the
+/// boundary says — never inferred into the grants (an inert entry the
+/// escape scanner would flag at once: a self-refusing suggestion). A
+/// LOOPBACK host is declassifiable (#395), but only by the AUTHOR's hand,
+/// so the note teaches the opt-in instead.
+fn floor_note(id: &str, host: &str) -> String {
+    if nika_types::net::is_exact_loopback_literal(host) {
+        format!(
+            "task `{id}` fetches `{host}` — the always-on SSRF floor \
+             (NIKA-SEC-005) refuses it unless YOU declassify it: \
+             writing the exact literal `{host}` into \
+             `permits.net.http` is the owner's explicit act, so it \
+             is never inferred"
+        )
+    } else {
+        format!(
+            "task `{id}` fetches `{host}` — the always-on SSRF floor \
+             (NIKA-SEC-005) refuses loopback/private/link-local/metadata \
+             targets, so no `permits.net.http` entry can admit it; not \
+             inferred (point the task at a public host)"
+        )
+    }
+}
+
 /// Fold a builtin invoke's literal fs/net effect into the inference state,
 /// per the shared [`builtin_effect`] classification.
 fn collect_builtin_effect(c: &mut Collector, id: &str, a: &nika_schema::raw::RawInvokeAction) {
@@ -366,24 +466,8 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &nika_schema::raw::Raw
                 // the inference still never writes it; the note teaches
                 // the opt-in instead.
                 Some(host) if nika_types::net::host_is_blocked(&host) => {
-                    let note = if nika_types::net::is_exact_loopback_literal(&host) {
-                        format!(
-                            "task `{id}` fetches `{host}` — the always-on SSRF floor \
-                             (NIKA-SEC-005) refuses it unless YOU declassify it: \
-                             writing the exact literal `{host}` into \
-                             `permits.net.http` is the owner's explicit act, so it \
-                             is never inferred"
-                        )
-                    } else {
-                        format!(
-                            "task `{id}` fetches `{host}` — the always-on SSRF floor \
-                             (NIKA-SEC-005) refuses loopback/private/link-local/metadata \
-                             targets, so no `permits.net.http` entry can admit it; not \
-                             inferred (point the task at a public host)"
-                        )
-                    };
                     c.partial.net = true;
-                    c.notes.push(note);
+                    c.notes.push(floor_note(id, &host));
                 }
                 // A documentation host (RFC 2606/6761) is granted like any
                 // other boundary member. The runtime allowlist judges the

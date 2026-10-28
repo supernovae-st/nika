@@ -746,3 +746,144 @@ fn non_loopback_floor_note_never_teaches_the_opt_in() {
         r.notes[0]
     );
 }
+
+/// nika#1597 · an argv's literal URL reaches its host exactly like an
+/// invoke's, and the exec net arm of the fit lane judges it. MEASURED on
+/// 0.124.0: the block printed for `curl https://example.com/` granted
+/// `exec: ["curl"]` alone, and `nika check` refused that very block
+/// with `NIKA-SEC-004 · net`.
+#[test]
+fn an_exec_argv_literal_url_infers_its_host() {
+    let yaml = "nika: w\ntasks:\n  get:\n    exec: { command: [\"curl\", \"-s\", \"https://example.com/\"] }\n";
+    let r = infer_of(yaml);
+    let net = r.permits.net.as_ref().expect("a net block");
+    assert_eq!(net.http, vec!["example.com"]);
+    assert!(!r.partial.net, "{:?}", r.notes);
+    assert_round_trips_clean(yaml);
+}
+
+/// A bare const-backed URL is static to the fit lane, so it is static
+/// here too (the `const:` asymmetry this collector already closed for
+/// paths).
+#[test]
+fn a_const_backed_exec_url_infers_its_host() {
+    let yaml = "nika: w\nconst:\n  site: \"https://api.example.com/v1\"\ntasks:\n  get:\n    exec: { command: [\"curl\", \"${{ const.site }}\"] }\n";
+    let r = infer_of(yaml);
+    let net = r.permits.net.as_ref().expect("a net block");
+    assert_eq!(net.http, vec!["api.example.com"]);
+    assert_round_trips_clean(yaml);
+}
+
+/// The shell line is scanned for standalone URL tokens by the fit lane
+/// once its form is admissible (`exec: true`, the widening this module
+/// writes for it), so the host rides the same block.
+#[test]
+fn a_shell_line_literal_url_infers_its_host() {
+    let yaml = "nika: w\ntasks:\n  get:\n    exec: { shell: \"curl -s https://example.com/ | head -1\" }\n";
+    let r = infer_of(yaml);
+    assert_eq!(r.permits.exec, Some(ExecPermit::Any));
+    let net = r.permits.net.as_ref().expect("a net block");
+    assert_eq!(net.http, vec!["example.com"]);
+    assert_round_trips_clean(yaml);
+}
+
+/// nika#1597 · the reported case: an HTTP client handed its URL by the
+/// caller. No static read names that host, and the run's egress proxy
+/// admits only `permits.net.http`, so the face is partial and the note
+/// names the task and the program — never a complete-looking block the
+/// run then refuses.
+#[test]
+fn a_computed_url_handed_to_an_http_client_marks_net_partial() {
+    let r = infer_of(
+        "nika: w\ninputs:\n  url: { type: string, required: true }\ntasks:\n  get:\n    exec: { command: [\"curl\", \"-s\", \"${{ inputs.url }}\"] }\n",
+    );
+    assert!(r.partial.net, "{:?}", r.notes);
+    assert!(r.permits.net.is_none(), "{:?}", r.permits.net);
+    assert!(
+        r.notes
+            .iter()
+            .any(|n| n.contains("`get`") && n.contains("`curl`") && n.contains("permits.net.http")),
+        "{:?}",
+        r.notes
+    );
+}
+
+/// A URL the argv already pins is the host; a computed option beside
+/// it (an output path, a header) is not a second, unknown host.
+#[test]
+fn a_computed_option_beside_a_literal_url_pins_the_host_only() {
+    let yaml = "nika: w\ninputs:\n  out: { type: string, required: true }\ntasks:\n  get:\n    exec: { command: [\"curl\", \"-o\", \"${{ inputs.out }}\", \"https://example.com/\"] }\n";
+    let r = infer_of(yaml);
+    let net = r.permits.net.as_ref().expect("a net block");
+    assert_eq!(net.http, vec!["example.com"]);
+    assert!(!r.partial.net, "{:?}", r.notes);
+}
+
+/// A computed argument to a program that is not an HTTP client says
+/// nothing about hosts: the net face stays complete (and empty).
+#[test]
+fn a_computed_argument_to_another_program_leaves_net_complete() {
+    let r = infer_of(
+        "nika: w\ninputs:\n  msg: { type: string, required: true }\ntasks:\n  save:\n    exec: { command: [\"git\", \"commit\", \"-m\", \"${{ inputs.msg }}\"] }\n",
+    );
+    assert!(!r.partial.net, "{:?}", r.notes);
+    assert!(r.permits.net.is_none(), "{:?}", r.permits.net);
+}
+
+/// A URL whose AUTHORITY is computed cannot be pinned by any program:
+/// the scheme says a host is reached, the template says which. WHATWG
+/// admits `$`, `{` and `}` in a domain, so the spelling without spaces
+/// parses with the template text as its host; that text is never granted.
+#[test]
+fn an_exec_url_with_a_computed_authority_marks_net_partial() {
+    for url in [
+        "https://${{ inputs.host }}/r.git",
+        "https://${{inputs.host}}/r.git",
+    ] {
+        let yaml = format!(
+            "nika: w\ninputs:\n  host: {{ type: string, required: true }}\ntasks:\n  pull:\n    exec: {{ command: [\"git\", \"clone\", \"{url}\"] }}\n"
+        );
+        let r = infer_of(&yaml);
+        assert!(r.partial.net, "{url}: {:?}", r.notes);
+        assert!(r.permits.net.is_none(), "{url}: {:?}", r.permits.net);
+        assert!(
+            r.notes.iter().any(|n| n.contains("`pull`")),
+            "{url}: {:?}",
+            r.notes
+        );
+        assert_round_trips_clean(&yaml);
+    }
+}
+
+/// A template ahead of the delimiter that closes the authority can
+/// still move the host (a value `x@evil.example/` in the password): the
+/// parsed host is granted, since the fit lane judges it, and the face
+/// stays partial.
+#[test]
+fn a_template_in_the_userinfo_keeps_the_net_face_partial() {
+    let yaml = "nika: w\ninputs:\n  pw: { type: string, required: true }\ntasks:\n  get:\n    exec: { command: [\"curl\", \"https://u:${{ inputs.pw }}@example.com/\"] }\n";
+    let r = infer_of(yaml);
+    let net = r.permits.net.as_ref().expect("a net block");
+    assert_eq!(net.http, vec!["example.com"]);
+    assert!(r.partial.net, "{:?}", r.notes);
+    assert_round_trips_clean(yaml);
+}
+
+/// The SSRF floor refuses a private target whatever `permits:` says, so
+/// an exec URL there is noted, never written into the grants (the same
+/// law as an invoke's).
+#[test]
+fn a_floor_blocked_exec_host_is_noted_never_inferred() {
+    let r = infer_of(
+        "nika: w\ntasks:\n  get:\n    exec: { command: [\"curl\", \"https://10.0.0.8/x\"] }\n",
+    );
+    assert!(r.permits.net.is_none(), "{:?}", r.permits.net);
+    assert!(r.partial.net);
+    assert!(
+        r.notes
+            .iter()
+            .any(|n| n.contains("10.0.0.8") && n.contains("SSRF floor")),
+        "{:?}",
+        r.notes
+    );
+}
