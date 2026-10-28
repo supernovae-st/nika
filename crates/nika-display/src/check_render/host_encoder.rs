@@ -7,11 +7,14 @@
 //! The line is STATIC: it names the program and where the engine looks for
 //! it, never what this host has (a host-dependent line would break check ≡
 //! run and the wasm checker). It says the program runs under the sandbox the
-//! engine gives `exec:` tasks, and never that it has no network: that holds
-//! only where the host's jail denies loopback too.
+//! engine gives `exec:` tasks unless the operator waives it (the waiver is
+//! the operator's, read at the run, so the line names it rather than
+//! guessing), and never that it has no network: that holds only where the
+//! host's jail denies loopback too.
 
 use nika_cap::video::{FFMPEG, FFMPEG_CANDIDATES, FFMPEG_ENV, FFMPEG_FLOOR, H264_ENCODER};
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
+use nika_types::SandboxPolicy;
 
 /// The program a `nika:video_compose` call starts, the places it is looked
 /// for, the floor, and how it runs.
@@ -19,8 +22,11 @@ use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 pub(crate) fn host_encoder_clause() -> String {
     format!(
         "starts the host's {FFMPEG} itself ({FFMPEG_ENV}, else {} · FFmpeg {FFMPEG_FLOOR} or \
-         later with {H264_ENCODER}) under the exec sandbox · not exec:, no permits.exec",
-        FFMPEG_CANDIDATES.join(" · ")
+         later with {H264_ENCODER}) under the exec sandbox unless {}={} waives it · not exec:, \
+         no permits.exec",
+        FFMPEG_CANDIDATES.join(" · "),
+        SandboxPolicy::ENV_VAR,
+        SandboxPolicy::Off.as_str()
     )
 }
 

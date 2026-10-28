@@ -545,7 +545,7 @@ fn media_ref(desc: &str) -> serde_json::Value {
 fn video_compose_def() -> ToolDef {
     def(
         "video_compose",
-        "Assemble PNG stills and WAV narration into ONE MP4 (H.264 video · AAC-LC or FLAC audio), cut from still to still: audio is the clock, each still holds for its clip plus pad_ms, or for its duration_ms. The engine reads and decodes every input itself and starts the host's ffmpeg (6.0 or later, with libx264) inside its own confinement, on raw samples it wrote — no exec:, no permits.exec. Every media input is a permit-gated fs.read and out an fs.write; outputs carry path + sha256 + durations + frame counts, bytes never inline.",
+        "Assemble PNG stills and WAV narration into ONE MP4 (H.264 video · AAC-LC or FLAC audio), cut from still to still: audio is the clock, each still holds for its clip plus pad_ms, or for its duration_ms. The engine reads and decodes every input itself and starts the host's ffmpeg (6.0 or later, with libx264) inside its own confinement unless the operator waives it, on raw samples it wrote — no exec:, no permits.exec. Every media input is a permit-gated fs.read and out an fs.write; outputs carry path + sha256 + durations + frame counts, bytes never inline.",
         serde_json::json!({
             "segments": {
                 "type": "array",

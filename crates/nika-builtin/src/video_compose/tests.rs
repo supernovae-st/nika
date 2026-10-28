@@ -337,6 +337,28 @@ fn the_catalog_row_is_the_contracts_argument_set() {
     assert_eq!(row.required, ["segments", "out"]);
 }
 
+/// The definition a model reads names the encoder's confinement as the
+/// contract has it: the engine's jail unless the operator waives it, and
+/// never « no network ».
+#[test]
+fn the_tool_definition_never_overclaims_the_encoder_s_confinement() {
+    let def = crate::tool_defs()
+        .into_iter()
+        .find(|d| d.name == nika_cap::video::TOOL)
+        .expect("a definition");
+    assert!(
+        def.description
+            .contains("inside its own confinement unless the operator waives it"),
+        "{}",
+        def.description
+    );
+    assert!(
+        !def.description.to_lowercase().contains("no network"),
+        "{}",
+        def.description
+    );
+}
+
 /// What the static check says about a LITERAL call: its shape rules, then
 /// the catalog row's unknown keys and required arguments.
 fn check_refuses(args: &Value) -> bool {

@@ -1731,7 +1731,8 @@ mod host_encoder_lines {
             wave.contains(
                 "video (invoke · nika:video_compose · starts the host's ffmpeg itself (NIKA_FFMPEG, \
                  else /opt/homebrew/bin/ffmpeg · /usr/local/bin/ffmpeg · /usr/bin/ffmpeg · FFmpeg \
-                 6.0 or later with libx264) under the exec sandbox · not exec:, no permits.exec)"
+                 6.0 or later with libx264) under the exec sandbox unless NIKA_SANDBOX=off waives \
+                 it · not exec:, no permits.exec)"
             ),
             "{wave}"
         );
@@ -1755,7 +1756,8 @@ mod host_encoder_lines {
             effects,
             "encodes video · starts the host's ffmpeg itself (NIKA_FFMPEG, else \
              /opt/homebrew/bin/ffmpeg · /usr/local/bin/ffmpeg · /usr/bin/ffmpeg · FFmpeg 6.0 or \
-             later with libx264) under the exec sandbox · not exec:, no permits.exec"
+             later with libx264) under the exec sandbox unless NIKA_SANDBOX=off waives it · not \
+             exec:, no permits.exec"
         );
         let plan = review::plan_lines(VIDEO);
         assert!(
