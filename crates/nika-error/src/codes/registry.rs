@@ -266,7 +266,9 @@ pub const NIKA_431: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "infer-schema-validation",
 };
-/// NIKA-432: Invalid `infer` parameter (empty prompt · temperature out of 0-2).
+/// NIKA-432: Invalid `infer` parameter (empty prompt · temperature out of 0-2), or one its
+/// subscription seat cannot carry (`vision:` on a direct one-shot · over ACP `temperature`,
+/// `max_tokens`, `thinking` or a `vision:` URL).
 pub const NIKA_432: NikaCode = NikaCode {
     num: 432,
     category: Category::Verb,

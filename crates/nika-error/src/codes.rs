@@ -186,7 +186,7 @@ fn verb_help(num: u16) -> &'static str {
             "The model output never satisfied the task `schema:` within the retry budget. Simplify the schema, raise max_tokens, or pick a schema-capable model."
         }
         432 => {
-            "An `infer` parameter is invalid. Prompt must be non-empty; temperature must be within 0-2."
+            "An `infer` parameter is invalid or cannot ride its route. Prompt must be non-empty; temperature must be within 0-2. On a subscription seat, the run refuses what the seat cannot carry before anything is sent: `vision:` on a direct one-shot (no `run.access.protocol: acp`), and over ACP `temperature`, `max_tokens`, an enabled `thinking` budget or a `vision:` URL. The message names the field and a route that carries it: drop it, declare the route it names, or run the task on an API route."
         }
         433 => {
             "The `model:` string did not resolve. Use `provider/model` with a provider from the canonical catalog and ensure its API key is configured."
@@ -1185,6 +1185,30 @@ mod tests {
     /// plane FIRST, enumerates the refused set, and hands both working
     /// exits (`nika run` for the effect · `on_error: recover` to
     /// rehearse) before falling back to the generic causes.
+    /// NIKA-432 is also the code a subscription seat refuses with, before
+    /// anything is sent, when the task sets what the seat cannot carry
+    /// (`vision:` on a direct one-shot, explicit controls or a `vision:`
+    /// URL over ACP). `nika explain NIKA-432` named only the empty prompt
+    /// and the temperature range, so a reader who met a seat refusal got
+    /// an unrelated remedy.
+    #[test]
+    fn infer_432_explain_names_the_seat_refusals_and_their_exits() {
+        let help = code_help(NIKA_432);
+        for lesson in [
+            "Prompt must be non-empty",
+            "temperature must be within 0-2",
+            "`vision:` on a direct one-shot",
+            "`run.access.protocol: acp`",
+            "`max_tokens`",
+            "`thinking`",
+            "a `vision:` URL",
+            "before anything is sent",
+            "run the task on an API route",
+        ] {
+            assert!(help.contains(lesson), "missing `{lesson}` in:\n{help}");
+        }
+    }
+
     #[test]
     fn invoke_452_explain_names_the_test_plane_and_its_exits() {
         let help = code_help(NIKA_452);
