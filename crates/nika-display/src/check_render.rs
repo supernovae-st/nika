@@ -1034,6 +1034,18 @@ fn verb_of<'w>(action: &'w RawAction, wf: &'w RawWorkflow) -> (&'static str, Opt
                     Some(format!("{} · {}", t.value, system_voice_clause())),
                 )
             }
+            nika_schema::raw::RawInvokeTarget::Tool(t)
+                if host_encoder::starts_encoder(&t.value) =>
+            {
+                (
+                    "invoke",
+                    Some(format!(
+                        "{} · {}",
+                        t.value,
+                        host_encoder::host_encoder_clause()
+                    )),
+                )
+            }
             nika_schema::raw::RawInvokeTarget::Tool(t) => ("invoke", Some(t.value.clone())),
             nika_schema::raw::RawInvokeTarget::Workflow(w) => {
                 ("invoke", Some(format!("workflow:{}", w.value)))
@@ -1470,6 +1482,7 @@ fn loopback_declassification_lines(out: &mut String, wf: &RawWorkflow, t: Theme)
 mod cost;
 use cost::cost;
 mod footer;
+mod host_encoder;
 mod layers;
 pub use layers::VerdictLayers;
 use layers::{access_rung, layers_line};

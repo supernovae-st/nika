@@ -716,4 +716,46 @@ mod tests {
             out.text
         );
     }
+
+    /// `nika:video_compose` is local work with nothing to meter: the dry-run
+    /// ceiling keeps its plain line — never a price of its own, never free
+    /// (stdlib §`nika:video_compose` · Cost).
+    #[test]
+    fn a_video_has_no_cost_line_of_its_own() {
+        let src = r#"nika: video
+permits:
+  tools: ["nika:video_compose"]
+  fs:
+    read: ["./out/frames/**"]
+    write: ["./out/v.mp4"]
+tasks:
+  video:
+    invoke: { tool: "nika:video_compose", args: { segments: [{ image: ./out/frames/a.png, duration_ms: 2000 }], out: ./out/v.mp4 } }
+"#;
+        let wf = nika_schema::parse(
+            src,
+            nika_schema::source::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("the fixture parses");
+        let report = nika_check::check(&wf);
+        let preview = render_pair(&wf, &report, Theme::new(false, false, false));
+        assert!(
+            preview
+                .text
+                .contains("no infer/agent tasks · $0.00 · exec + mcp spend unpriced"),
+            "{}",
+            preview.text
+        );
+        assert!(
+            !preview.text.contains("video local work"),
+            "{}",
+            preview.text
+        );
+        assert!(
+            !preview.text.to_lowercase().contains("free"),
+            "{}",
+            preview.text
+        );
+    }
 }
