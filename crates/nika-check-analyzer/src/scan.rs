@@ -94,7 +94,7 @@ impl<'a> WorkflowIndex<'a> {
                     clippy::unreachable,
                     reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
                 )]
-                other => unreachable!("unknown action: {other:?}"),
+                _ => unreachable!("an action kind this checker does not know"),
             };
             if let Some(schema) = declared {
                 schemas.insert(task.value.id.value.as_str(), schema);
@@ -347,7 +347,7 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
                 clippy::unreachable,
                 reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
             )]
-            other => unreachable!("unknown for_each form: {other:?}"),
+            _ => unreachable!("a for_each form this checker does not know"),
         }
     }
     // `with:` values — the boundary itself.
@@ -415,7 +415,7 @@ pub(crate) fn action_surfaces(
                         clippy::unreachable,
                         reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
                     )]
-                    other => unreachable!("unknown vision input: {other:?}"),
+                    _ => unreachable!("a vision input this checker does not know"),
                 }
             }
         }
