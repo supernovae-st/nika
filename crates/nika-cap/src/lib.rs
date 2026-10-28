@@ -38,6 +38,7 @@ pub mod sink;
 mod subsume;
 mod system_voice;
 mod trifecta;
+pub mod video;
 mod witness;
 
 // Public surface = the 4 capability types + their inherent methods (allows_* ·

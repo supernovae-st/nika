@@ -7,7 +7,9 @@
 //! the whole `nika:fetch` contract (required `url` · closed mode set ·
 //! mode pairings · the vNext payload families `body ⊥ form ⊥ multipart`
 //! · the closed `traverse:` crawl spec) · the `nika:image_generate` /
-//! `nika:tts_generate` closed enums and literal ranges.
+//! `nika:tts_generate` closed enums and literal ranges · the
+//! `nika:video_compose` literal rules ([`crate::video`] owns them, beside
+//! the bounds the run parses with).
 //!
 //! PURE DATA over `serde_json::Value` — no parser types, no spans, no
 //! error enums: each rule appends a human-readable finding message to
@@ -72,6 +74,7 @@ pub fn builtin_shape_findings(tool: &str, args: Option<&serde_json::Value>) -> V
         "nika:chart" => check_chart_shape(args, &mut out),
         "nika:image_fx" => check_image_fx_shape(args, &mut out),
         "nika:image_compose" => check_image_compose_shape(args, &mut out),
+        crate::video::TOOL => crate::video::check_shape(args, &mut out),
         "nika:tts_generate" => check_tts_generate_shape(args, &mut out),
         "nika:decide" => check_decide_shape(args, &mut out),
         "nika:hash" => check_hash_shape(args, &mut out),
@@ -464,8 +467,9 @@ fn compose_cell_shape(cell: &serde_json::Value, suffix: &str, out: &mut Vec<Stri
     }
 }
 
-/// `#rrggbb` or `[r, g, b]` with integer channels 0..=255.
-fn compose_color_ok(v: &serde_json::Value) -> bool {
+/// `#rrggbb` or `[r, g, b]` with integer channels 0..=255 (the colour form
+/// `nika:image_compose` and `nika:video_compose` share).
+pub(crate) fn compose_color_ok(v: &serde_json::Value) -> bool {
     if let Some(hex) = v.as_str() {
         let digits = hex.strip_prefix('#').unwrap_or_default();
         return hex.starts_with('#')

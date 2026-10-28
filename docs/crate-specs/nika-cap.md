@@ -279,9 +279,9 @@ additive constants, and the crate keeps no jaq dependency.
 call and its task's stated reach. It returns findings for recognized, present filesystem
 slots that do not match the appropriate read/write list; `edit.path` must match both.
 Primary slots and directions come from `builtin_effect`; the same owner also checks
-`image_fx.input`, each `image_compose.inputs[]` element, `chart.data.path`,
-`image_generate.image`/`images[]`/`mask`, string `decide.bundle` and
-`fetch.multipart[].path`. Present nonliteral, empty or malformed
+`image_fx.input`, each `image_compose.inputs[]` element, each `video_compose`
+media reference, `chart.data.path`, `image_generate.image`/`images[]`/`mask`, string
+`decide.bundle` and `fetch.multipart[].path`. Present nonliteral, empty or malformed
 recognized slots are findings rather than silently omitted. Inline chart rows, an inline
 decision bundle and text multipart parts do not acquire filesystem meaning.
 
@@ -342,6 +342,28 @@ this build's OS, or `None`) and `starts_system_voice(tool, args)` (a literal
 `provider: system` on `nika:tts_generate`) are the one home for the names
 the composition root probes and `nika check` prints. They grant nothing: the
 builtin starts the program itself, never through `exec:` or `permits.exec`.
+
+### 3.9 The video contract (`video.rs` · `nika:video_compose`)
+
+`nika_cap::video` is the one table the static check and the builtin's run
+parse both read: the closed argument set and segment map, the bounds
+(`MAX_SEGMENTS` 200 · `DURATION_MS` · `PAD_MS` · `WIDTH`/`HEIGHT` · `FPS` ·
+`TIMEOUT_MS` · `METADATA_MAX_BYTES`), the defaults, the closed words as
+`#[non_exhaustive]` enums (`Scale` · `Quality` · `AudioCodec` · `Transition`,
+with `fade` reserved), and the predicates `size` (even sides inside the
+bounds), `is_sha256_hex` (64 lowercase hex digits), `out_is_mp4` and
+`metadata_len` (canonical JSON bytes). `builtin_effect` names the `out`
+write; `secondary_read_slots` lists every media reference — `segments[k].image`,
+`segments[k].audio`, the top-level `audio`, valued at its path
+(`media_ref_path`: the string, or an object's `path`) — and one hidden slot
+for a `segments` that is not a list (`segments`) or an element that is not a
+map (`segments[k]`). The literal shape rules (`builtin_shape_findings`) mirror
+the spec oracle: a templated value is the run's, a literal sibling is still
+judged. The host program is named here, cfg-free and never probed:
+`FFMPEG`, `FFMPEG_ENV` (`NIKA_FFMPEG`), `FFMPEG_CANDIDATES` (three absolute
+paths · `PATH` is never consulted), `FFMPEG_FLOOR` (6.0 ·
+`FFMPEG_LIB_FLOOR` 60) and `H264_ENCODER`. Nothing here grants authority or
+resolves a host path.
 
 ## 4. Module structure with LOC estimates
 
