@@ -7,6 +7,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::fmt::Write as _;
+
 use serde_json::{Value, json};
 
 use super::*;
@@ -128,4 +130,38 @@ fn an_mcp_tool_and_a_paid_media_call_are_network_tasks() {
          content: \"hi\" }\n",
     );
     assert_eq!(judged.verdict.layers.network_tasks, ["look", "say"]);
+}
+
+/// A rehearsal over many fetches keeps its mock line a line: three names and how many more,
+/// while the typed layers and `--json` list every one.
+#[test]
+fn a_mock_line_names_three_tasks_and_counts_the_rest() {
+    let mut source = "nika: many\nmodel: openai/gpt-5.2\npermits:\n  net: { http: \
+                      [\"jsonplaceholder.typicode.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n"
+        .to_owned();
+    for n in 1..=5 {
+        write!(
+            source,
+            "  grab_{n}:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \
+             \"https://jsonplaceholder.typicode.com/todos/{n}\" }}\n"
+        )
+        .expect("a String takes it");
+    }
+    source.push_str("  brief:\n    infer:\n      prompt: \"Summarise\"\n      max_tokens: 200\n");
+    let judged = rehearsal(&source);
+    let all = ["grab_1", "grab_2", "grab_3", "grab_4", "grab_5"];
+    assert_eq!(judged.verdict.layers.network_tasks, all);
+    assert_eq!(
+        judged
+            .verdict
+            .layers
+            .access_lines
+            .last()
+            .map(String::as_str),
+        Some(
+            "a mock model stubs no tool: `grab_1` · `grab_2` · `grab_3` · +2 more can still \
+             reach the network, judged on the PERMITS row"
+        )
+    );
+    assert_eq!(verdicts(&judged)["network_tasks"], json!(all));
 }

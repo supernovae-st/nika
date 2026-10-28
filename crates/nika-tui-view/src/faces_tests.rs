@@ -277,6 +277,39 @@ fn the_graph_draws_a_diamond_and_lists_what_it_cannot_draw_truthfully() {
     );
 }
 
+/// #1605 · a file with no `infer:`/`agent:` task read « nothing dials » on its ACCESS READY
+/// row, while its own effects (a fetch, an MCP tool, a paid media call) may still reach the
+/// network: the row now says only that there is no model route to judge, in English and in
+/// the French the person writes (its accents folded under ASCII).
+#[test]
+fn a_moot_access_row_says_there_is_no_model_route_in_both_languages() {
+    let row = |canvas: Canvas| {
+        texts(&shown(Face::Check, "clean.nika", CLEAN, canvas))
+            .into_iter()
+            .find(|line| line.contains("ACCESS READY"))
+            .expect("the ACCESS READY row")
+    };
+    let english = row(Canvas::new(100, true, false));
+    assert!(
+        english.starts_with("-  ACCESS READY ")
+            && english
+                .ends_with("ACCESS READY n/a: no infer or agent task, so no model route to judge"),
+        "{english}"
+    );
+    let french = row(Canvas::new(100, true, false).speaking(nika_session::Lang::Fr));
+    assert!(
+        french.ends_with(
+            "ACCESS READY sans objet : aucune tache infer ou agent, donc aucune route de modele a \
+             juger"
+        ),
+        "{french}"
+    );
+    assert!(
+        !english.contains("dials") && !french.contains("appelle"),
+        "{english} / {french}"
+    );
+}
+
 #[test]
 fn the_check_names_the_four_layers_and_every_code() {
     let clean = texts(&shown(

@@ -27,7 +27,8 @@ pub(super) fn tasks(report: &CheckReport) -> Vec<String> {
 }
 
 /// The ACCESS line a mock lane owes the tasks it does not stub: the mock replaces the model,
-/// never a tool, so a rehearsal on it still reaches the network through them.
+/// never a tool, so a rehearsal on it still reaches the network through them. It names the
+/// first three and how many more (`check --json` lists them all), so the line stays a line.
 pub(super) fn mock_scope_line(
     plan: &ExecutionAccessPlan,
     network_tasks: &[String],
@@ -38,9 +39,12 @@ pub(super) fn mock_scope_line(
     if !mocked || network_tasks.is_empty() {
         return None;
     }
-    let named: Vec<String> = (network_tasks.iter())
+    let mut named: Vec<String> = (network_tasks.iter().take(3))
         .map(|task| format!("`{task}`"))
         .collect();
+    if network_tasks.len() > 3 {
+        named.push(format!("+{} more", network_tasks.len() - 3));
+    }
     Some(format!(
         "a mock model stubs no tool: {} can still reach the network, judged on the PERMITS row",
         named.join(" · ")

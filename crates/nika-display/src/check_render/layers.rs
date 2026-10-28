@@ -92,9 +92,10 @@ impl VerdictLayers {
         self
     }
 
-    /// Declare the ACCESS question MOOT — no task dials (see
-    /// [`Self::access_moot`]). The caller that holds the workflow is the
-    /// only one that can know it.
+    /// Declare the ACCESS question MOOT — no `infer:`/`agent:` task, so no
+    /// model route to judge (see [`Self::access_moot`]); a task's own
+    /// effects can still reach the network ([`Self::network_tasks`]). The
+    /// caller that holds the workflow is the only one that can know it.
     #[must_use]
     pub fn with_access_moot(mut self, moot: bool) -> Self {
         self.access_moot = moot;
@@ -220,13 +221,17 @@ fn moot_access(network_tasks: &[String]) -> String {
     )
 }
 
-/// `` `a` · `b` `` — the task ids a line names, in the order given.
+/// `` `a` · `b` · `c` · +2 more `` — the first three task ids a line names,
+/// in the order given, and how many more: the one-line verdict stays one
+/// line on a file with many fetches (the JSON lists them all).
 fn named_tasks(tasks: &[String]) -> String {
-    tasks
-        .iter()
+    let mut named: Vec<String> = (tasks.iter().take(3))
         .map(|task| format!("`{task}`"))
-        .collect::<Vec<_>>()
-        .join(" · ")
+        .collect();
+    if tasks.len() > 3 {
+        named.push(format!("+{} more", tasks.len() - 3));
+    }
+    named.join(" · ")
 }
 
 #[cfg(test)]
@@ -254,7 +259,7 @@ mod tests {
         assert_eq!(
             layers.run_ready(),
             Some(true),
-            "nothing dials, so the three answered layers decide"
+            "no model route, so the three answered layers decide"
         );
         let line = layers_line(&layers, Theme::new(false, false, false));
         assert!(
@@ -285,6 +290,20 @@ mod tests {
             "{line}"
         );
         assert!(!line.contains("nothing dials"), "{line}");
+        // A file with many fetches keeps a one-line verdict: three names
+        // and how many more (twenty fetch tasks made a 611-column line).
+        let many: Vec<String> = (1..=20).map(|n| format!("fetch_{n:02}")).collect();
+        let line = layers_line(
+            &builtin_only().with_network_tasks(many),
+            Theme::new(false, false, false),
+        );
+        assert!(
+            line.contains(
+                "access ready n/a · no model route · `fetch_01` · `fetch_02` · `fetch_03` · +17 \
+                 more can reach the network (PERMITS row) · capacity fit ✔"
+            ) && !line.contains("fetch_04"),
+            "{line}"
+        );
         // The network clause rides only a moot answer: a judged access
         // keeps its glyph, and its rung says the rest.
         let judged = VerdictLayers::new(true, Some(true), Vec::new(), true, Vec::new())
