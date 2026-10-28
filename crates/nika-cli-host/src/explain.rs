@@ -104,6 +104,11 @@ pub fn run_for(wire: &str, theme: Theme, door: Door) -> VerbOutput {
         if let Some(text) = nika_error::codes::namespace_help(&normalized, &docs) {
             return VerbOutput::ok(text);
         }
+        // The MCP pin refusals the engine mints before the canon lists them (NIK-254): a run
+        // that refuses with one prints `fix: nika explain <code>`.
+        if let Some(text) = mcp_pin_help(&normalized) {
+            return VerbOutput::ok(text);
+        }
         // The last rung before the 404: a code nothing served is often ONE
         // edit from a real one (`NIKA-PARSE-01` · `NIKA-DGA-003` — V9 wave 3
         // row 11, p01: « no way to LIST or SEARCH codes … if a sceptic
@@ -236,6 +241,54 @@ fn closer_line(code: &str) -> &'static str {
     }
 }
 
+/// The MCP pin family `nika-mcp` mints (`PinError` · `pin.rs`) and the canon table does not
+/// carry yet (NIK-254): what failed, then the remedy the refusal itself prints, labelled with
+/// the category the spec registry reserves for the code. The rung goes once the canon carries
+/// these rows: its tripwire test fails then.
+fn mcp_pin_help(code: &str) -> Option<String> {
+    let (category, meaning, fix) = match code {
+        "NIKA-MCP-003" => (
+            "security_error",
+            "the tools a pinned MCP server serves drifted from the definitions approved in \
+             `.nika/mcp_pins.json` (a changed description or input schema, a tool added or \
+             removed): no tool from that server reaches the run until a human re-approves it",
+            "if the change is expected, review it and re-pin deliberately: `nika mcp approve \
+             <server>`; if not, the server or its supply chain changed under you: investigate \
+             it first, or drop the server from `.nika/mcp_servers.json`",
+        ),
+        "NIKA-MCP-004" => (
+            "security_error",
+            "`.nika/mcp_pins.json` exists but cannot be trusted (it does not parse, its format \
+             is unknown, or an entry does not match its pin): it is never read as empty and was \
+             not rewritten, since a corrupt or hand-edited lockfile is itself a tamper signal",
+            "restore the file from version control; to re-enroll instead, delete it \
+             deliberately, then re-approve every server: `nika mcp approve <server>`",
+        ),
+        "NIKA-MCP-005" => (
+            "process_error",
+            "the OS sandbox could not confine the MCP server's process (the mechanism is \
+             missing, or the project path cannot be confined): the server was not started, and \
+             running it unconfined is never the fallback",
+            "check that the platform sandbox is present (`sandbox-exec` on macOS, `bwrap` on \
+             Linux, as `nika doctor` names it) and that the project path can be confined, then \
+             retry",
+        ),
+        "NIKA-MCP-006" => (
+            "security_error",
+            "the run named an MCP tool that is not approved: its server is declared in \
+             `.nika/mcp_servers.json` but was never approved, or the tool is outside the set \
+             it was approved with; the server was not started",
+            "review the server's tools and approve them: `nika mcp approve <server>` (again, \
+             when the server now serves the tool); `nika check` names each unapproved call in \
+             its `[mcp-pins]` hint",
+        ),
+        _ => return None,
+    };
+    Some(format!(
+        "{code} · {category} · an MCP pin refusal\n\n  {meaning}.\n  fix: {fix}.\n"
+    ))
+}
+
 /// The retirement teaching for a conformance code the canon table no
 /// longer carries (spec 05 · retired codes are never reused — the
 /// allocation hole is deliberate). States what the class BECAME so an
@@ -339,9 +392,16 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              `tasks:` map (keyed by task id); description is a `#` comment \
              above `nika:`",
         ),
+        // #1608: the same causes the refusal names on the pointed line (`yaml_error.rs`).
         "NIKA-PARSE-001" => Some(
-            "the YAML itself is broken — check the pointed line for a missing \
-             `:`, a stray tab (YAML forbids tabs), or unbalanced quotes; if \
+            "the YAML itself is broken — the usual causes, on the pointed line: a \
+             `: ` inside a plain value (`prompt: Note: here`): quote the whole value \
+             (`prompt: \"Note: here\"`), write it as a block scalar after `prompt: |`, \
+             or, when the second key is a key of its own, put it on its own line, \
+             indented under the first; an unquoted `${{ … }}` inside a flow mapping \
+             `{ … }`: quote the expression (`{ prompt: \"${{ inputs.t }}\" }`); a \
+             `{` or `[` the file never closes: close it. Otherwise look for a stray \
+             tab (YAML forbids tabs), unbalanced quotes or a key missing its `:`; if \
              line 1 is blamed, a copier may have de-commented the \
              `# yaml-language-server:` modeline",
         ),
@@ -917,6 +977,61 @@ mod tests {
                 row.code,
                 out.text
             );
+        }
+    }
+
+    /// NIK-254 · a run refused with `NIKA-MCP-006` prints `fix: nika explain NIKA-MCP-006`:
+    /// the pin family the engine mints is answered with its remedy, never the 404, by both
+    /// doors.
+    #[test]
+    fn the_mcp_pin_family_teaches_its_remedy() {
+        for (wire, code, remedy) in [
+            ("NIKA-MCP-003", "NIKA-MCP-003", "nika mcp approve"),
+            ("NIKA-MCP-004", "NIKA-MCP-004", "nika mcp approve"),
+            ("NIKA-MCP-005", "NIKA-MCP-005", "sandbox"),
+            ("NIKA-MCP-006", "NIKA-MCP-006", "nika mcp approve"),
+            ("MCP-006", "NIKA-MCP-006", "nika mcp approve"),
+        ] {
+            for door in [Door::Cli, Door::Oracle] {
+                let out = super::run_for(wire, Theme::new(false, false, false), door);
+                assert_eq!(out.code, exit::OK, "{wire}:\n{}", out.text);
+                assert!(out.text.starts_with(code), "{wire}:\n{}", out.text);
+                assert!(out.text.contains(remedy), "{wire}:\n{}", out.text);
+                assert!(!out.text.contains("unknown code"), "{wire}:\n{}", out.text);
+            }
+        }
+        // The tripwire: once the canon carries these rows, its rung answers them and
+        // `mcp_pin_help` is deleted.
+        let rows = nika_pack::error_codes();
+        for code in [
+            "NIKA-MCP-003",
+            "NIKA-MCP-004",
+            "NIKA-MCP-005",
+            "NIKA-MCP-006",
+        ] {
+            assert!(
+                rows.iter().all(|row| row.code != code),
+                "{code} is a canon row now: delete `mcp_pin_help`"
+            );
+        }
+    }
+
+    /// #1608 · the checklist names the causes the refusal itself names on the pointed line:
+    /// a surplus `: `, an unquoted expression inside a flow mapping, an unclosed flow.
+    #[test]
+    fn parse_001_names_the_surplus_colon_and_the_flow_expression() {
+        let out = run("NIKA-PARSE-001");
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        for needle in [
+            "a `: ` inside a plain value",
+            "quote the whole value",
+            "inside a flow mapping",
+            "quote the expression (`{ prompt: \"${{ inputs.t }}\" }`)",
+            "the file never closes",
+            "a key missing its `:`",
+            "`# yaml-language-server:` modeline",
+        ] {
+            assert!(out.text.contains(needle), "{needle}:\n{}", out.text);
         }
     }
 
