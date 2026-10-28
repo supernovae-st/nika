@@ -77,45 +77,45 @@
   ],
   "sealed": true,
   "chain_len": 6,
-  "chain_head": "3f960c75aa1a07f00815870c8d6046dd63b9ca5a9d7091e0ab3000d150be0cd9",
-  "trace": ".nika/traces/2026-10-24T16-42-23Z-89f2.ndjson"
+  "chain_head": "9647ac4733e0641a612d799ca2065f77197be2c47ce25068bf9d037c7987c689",
+  "trace": ".nika/traces/2026-10-27T22-55-34Z-7ece.ndjson"
  },
  "verify": {
   "verified": true,
   "verdict": "verified",
   "reason": null,
-  "first": "OK — 6 events · chain intact · head 3f960c75aa1a07f00815870c8d6046dd63b9ca5a9d7091e0ab3000d150be0cd9"
+  "first": "OK — 6 events · chain intact · head 9647ac4733e0641a612d799ca2065f77197be2c47ce25068bf9d037c7987c689"
  },
  "journal": [
   {
    "kind": "workflow_started",
    "chain": "7466341540fd02fca9ec21937862176b7821a52495b86d81bb5f30d16c8462dc",
-   "hash": "2a67e39b9e64369f471e90dc46fc4659c72b8db4d302289f8d8f9f5b99df36af"
+   "hash": "a789dd1834c6c0a381ee5318603ed7d258f3a2061786e259e489799ce208e1f2"
   },
   {
    "kind": "task_scheduled",
-   "chain": "2a67e39b9e64369f471e90dc46fc4659c72b8db4d302289f8d8f9f5b99df36af",
-   "hash": "a355211c20c2b10420f6488b2e44eceb7686a2fa95ac2d3b0a5d1cba64e2f42a"
+   "chain": "a789dd1834c6c0a381ee5318603ed7d258f3a2061786e259e489799ce208e1f2",
+   "hash": "9c0320cba0807d5e7cba32f87221d998552ff15cff06e15e6d0c22654bbb7e23"
   },
   {
    "kind": "task_started",
-   "chain": "a355211c20c2b10420f6488b2e44eceb7686a2fa95ac2d3b0a5d1cba64e2f42a",
-   "hash": "b64fdc5926079847cee9a5563e2a6b1f7dcc4b2b5504539ca07f9bd7693d9c71"
+   "chain": "9c0320cba0807d5e7cba32f87221d998552ff15cff06e15e6d0c22654bbb7e23",
+   "hash": "ce86ef55485349a0c44503f9fd06871802a756c1f9bf5cac2bd3e2c231dfcc1e"
   },
   {
    "kind": "task_completed",
-   "chain": "b64fdc5926079847cee9a5563e2a6b1f7dcc4b2b5504539ca07f9bd7693d9c71",
-   "hash": "878939f07b0981b097642f5ae0aad00cf56e18b205542e3d4ddfbd19f4504188"
+   "chain": "ce86ef55485349a0c44503f9fd06871802a756c1f9bf5cac2bd3e2c231dfcc1e",
+   "hash": "79484ac4ab67d4855e3a72a025759fbb85c13e0455907bcbde6e4146e7dcff69"
   },
   {
    "kind": "workflow_completed",
-   "chain": "878939f07b0981b097642f5ae0aad00cf56e18b205542e3d4ddfbd19f4504188",
-   "hash": "82f17f2f220f7e0f47fcd85c5c82e72d2da198105a7f8738832fa1a7332af137"
+   "chain": "79484ac4ab67d4855e3a72a025759fbb85c13e0455907bcbde6e4146e7dcff69",
+   "hash": "dfb553135309df2e895a9da20a187a23c65f797f6f819f0d98d10b454c851907"
   },
   {
    "kind": "run_sealed",
-   "chain": "82f17f2f220f7e0f47fcd85c5c82e72d2da198105a7f8738832fa1a7332af137",
-   "hash": "3f960c75aa1a07f00815870c8d6046dd63b9ca5a9d7091e0ab3000d150be0cd9"
+   "chain": "dfb553135309df2e895a9da20a187a23c65f797f6f819f0d98d10b454c851907",
+   "hash": "9647ac4733e0641a612d799ca2065f77197be2c47ce25068bf9d037c7987c689"
   }
  ],
  "tamper": {
@@ -127,7 +127,7 @@
   "verified": false,
   "verdict": "invalid",
   "reason": null,
-  "first": "BROKEN at line 5 — recorded chain 878939f07b0981b0 · computed eec064b094c23685"
+  "first": "BROKEN at line 5 — recorded chain 79484ac4ab67d485 · computed 0ee61af907ccb351"
  },
  "demo": {
   "stdout": [

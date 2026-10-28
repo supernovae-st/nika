@@ -73,8 +73,8 @@
  "health": {
   "service": "nika-serve",
   "status": "ok",
-  "engineVersion": "0.123.0",
-  "buildSha": "0bfde3765",
+  "engineVersion": "0.124.0",
+  "buildSha": "866ed914b",
   "machineProtocolVersion": 2,
   "supportedCapabilities": [
    "check",
@@ -83,6 +83,7 @@
    "cancel",
    "jobInputs",
    "compile",
+   "artifacts",
    "schedule"
   ]
  },
