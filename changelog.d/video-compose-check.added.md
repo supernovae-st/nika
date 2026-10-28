@@ -18,4 +18,7 @@
   the review name the program the call starts — the host's ffmpeg, from
   `NIKA_FFMPEG` or three fixed paths, 6.0 or later with libx264, under the
   exec sandbox — statically, without probing the host and without a network
-  claim. `nika test` refuses it like every other media effect.
+  claim. `nika test` refuses it like every other media effect. This build
+  carries no video backend: a run judges the same arguments, then stops
+  with `NIKA-BUILTIN-VIDEO_COMPOSE-010` before it reads, stages or writes
+  anything.
