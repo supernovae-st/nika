@@ -11,7 +11,7 @@
 
 <p align="center">
   <b>Checked before it runs. Run with the model you choose. Proven afterwards.</b><br>
-  Nika turns the AI work you repeat into a readable workflow that stays yours.
+  Nika turns the AI work you repeat into a readable workflow that stays yours. Fully open source.
 </p>
 
 <p align="center">
@@ -48,11 +48,13 @@ want done, like *"every Monday, pull the action items out of my meeting
 notes"*, and Nika writes it as a readable `.nika` workflow. Before
 anything runs, its check shows what the workflow will do, which models
 and tools it uses, what it is allowed to touch and what it can cost,
-without calling a model. You run it when you decide, with the model you
-choose, on your machine or through a provider's API, and every run
-leaves a tamper-evident record you can verify. One Rust binary with a
-terminal Session and a command line, plus a TypeScript SDK for your
-applications; local-first and open source (AGPL-3.0).
+without calling a model. A workflow that could read your private data,
+take in untrusted content and send data out is refused until it asks a
+person first. You run it when you decide, with the model you choose, on
+your machine or through a provider's API, and every run leaves a
+tamper-evident record you can verify. One Rust binary with a terminal
+Session and a command line, plus a TypeScript SDK for your applications;
+local-first and fully open source (AGPL-3.0).
 
 | 1 · Say it | 2 · Check it | 3 · Run it | 4 · Prove it |
 |:---:|:---:|:---:|:---:|
@@ -61,6 +63,7 @@ applications; local-first and open source (AGPL-3.0).
 <p align="center">
   <a href="#see-it-in-four-steps"><b>See it</b></a> ·
   <a href="#you-stay-in-control"><b>Control</b></a> ·
+  <a href="#it-refuses-the-lethal-trifecta-before-a-token-is-spent"><b>Trifecta</b></a> ·
   <a href="#try-it-in-two-minutes"><b>Try it</b></a> ·
   <a href="#what-you-can-hand-to-nika"><b>Examples</b></a> ·
   <a href="#why-a-file-and-not-a-chat"><b>Why a file</b></a> ·
@@ -147,6 +150,98 @@ open the macOS keychain.
 <p align="center"><sub>The chain read back intact, then one changed byte refused at the next line. A <code>mock/echo</code> rehearsal captured from the real CLI; the scan is an illustration.</sub></p>
 
 ## You stay in control
+
+### It refuses the lethal trifecta before a token is spent
+
+A workflow that can read your private data, take in content nobody vetted
+(a web page, a tool's answer, a command's output) and send data out is one
+injected instruction away from a leak. Simon Willison named this the
+[lethal trifecta](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/).
+`nika check` reads it from the permits, then follows the untrusted content
+from step to step, through a model's answer and into child workflows. When
+all three meet, it refuses the file until a person must say yes first.
+
+This workflow reads a note, fetches a public page, asks a local model for a
+digest and posts it to Slack:
+
+```yaml
+nika: page-digest
+
+model: ollama/llama3.2:3b
+
+permits:
+  fs: { read: ["./notes/today.md"] }
+  net: { http: ["news.ycombinator.com", "hooks.slack.com"] }
+  tools: ["nika:fetch", "nika:read", "nika:notify"]
+
+tasks:
+  page:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://news.ycombinator.com/" }
+
+  notes:
+    invoke:
+      tool: "nika:read"
+      args: { path: "./notes/today.md" }
+
+  digest:
+    with: { page: "${{ tasks.page.output }}", notes: "${{ tasks.notes.output }}" }
+    infer:
+      prompt: "Pick the three stories that matter for my notes.\nNotes: ${{ with.notes }}\nPage: ${{ with.page }}"
+      max_tokens: 400
+
+  post:
+    with: { digest: "${{ tasks.digest.output }}" }
+    invoke:
+      tool: "nika:notify"
+      args: { target: "https://hooks.slack.com/services/T000/B000/XXXX", message: "${{ with.digest }}" }
+```
+
+The page never reaches Slack directly, only through the model's digest. The
+check follows it anyway and refuses the file with exit code 2:
+
+```text
+nika check · page-digest.nika
+ ✔ PLAN     3 waves · 4 tasks · max parallelism 2
+ …
+ ✖ TRIFECTA [NIKA-SEC-009] lethal trifecta complete · human gate required — untrusted content from `page` reaches egress task `post` while private read + untrusted ingress + external egress are all permitted …
+```
+
+Drop any one of the three and there is nothing to refuse. To keep all three,
+put a question in front of them: a `nika:prompt` with no default, whose
+answer the fetch, the read and the post each require.
+
+```yaml
+  approve:
+    invoke:
+      tool: "nika:prompt"
+      args: { message: "Read my notes, fetch Hacker News and post a digest to Slack?" }
+
+  page:
+    with: { go: "${{ tasks.approve.output }}" }
+    when: ${{ with.go == true }}
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://news.ycombinator.com/" }
+```
+
+With `nika:prompt` added to `permits.tools`, and the same `go` binding and
+`when:` line on `notes` and `post`, the check passes with exit code 0:
+
+```text
+ ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
+ layers · valid ✔ · access ready ✔ · capacity fit ✔ · run ready ✔
+```
+
+A gate that only looks like one is refused too: a prompt with a `default:`
+answers itself and guards nothing (`NIKA-SEC-009` stays), and a step that
+still runs after a "no" fails `NIKA-SEC-014`. At a terminal the run asks; in
+CI it pauses with exit 4, as [shown below](#it-asks-before-it-acts). Every
+verdict here was captured from nika 0.124.0.
+[NIKA-SEC-009](https://nika.sh/language/errors/NIKA-SEC-009) explains the
+rule; Meta's [Agents Rule of Two](https://ai.meta.com/blog/practical-ai-agent-security/)
+states the same principle for agents.
 
 ### It tells you the cost before the first token
 
@@ -417,6 +512,10 @@ whole API.
   and writes nothing.
 - **A clean check is not a true answer.** It describes a file's structure
   and boundary; it does not prove that model output is right.
+- **The trifecta check judges permits and flow, not words.** It does not
+  read a page or a model's answer for injected instructions, and a person
+  who answers yes approves what follows. On a harness seat, what `permits:`
+  covers is listed per seat ([harness agents](docs/usage/harness-agents.md)).
 - **This README describes the released 0.124.1.** Compare `nika --version`
   with the [changelog](CHANGELOG.md), which lists what each release
   changed. Until the next release, each change merged after 0.124.1 is
@@ -532,4 +631,5 @@ repositories drive this engine without adding to its authority.
 
 Nika 0.124 is the current open-source release line, usable today and
 maintained. The engine is
-[AGPL-3.0-or-later](LICENSE); the specification is Apache-2.0.
+[AGPL-3.0-or-later](LICENSE); the specification and the TypeScript SDK are
+Apache-2.0.
