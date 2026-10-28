@@ -4,4 +4,7 @@
   frames: an unknown key at column 1 was framed at the end of the line above
   it (`5:24` instead of `6:1`), and the `--json` spans, trace and debugger
   lines carried the same shift. Spans now index the text the caller passed
-  in, byte-order mark included; a file without one is unchanged.
+  in, byte-order mark included. The frame and the browser checker's `col`
+  count line 1 from the character after the mark, as an editor shows it, so
+  a finding on line 1 keeps its column (`1:1`, as without the mark). A file
+  without one is unchanged.
