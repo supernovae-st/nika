@@ -475,3 +475,42 @@ fn input_failures_name_their_index_and_keep_their_class() {
         Err(FxError::Decode(m)) if m.starts_with("inputs[0]:")
     ));
 }
+
+/// One cell's placed box is the composition's own geometry: `fit` keeps the
+/// whole image inside the cell, `fill` covers it before the crop, `none`
+/// keeps the image as it is — and the caps fire from the sizes alone.
+#[test]
+fn placed_size_is_the_one_cell_geometry_with_its_caps() {
+    assert_eq!(
+        placed_size(400, 300, Scale::Fit, (1280, 720)).ok(),
+        Some((960, 720))
+    );
+    assert_eq!(
+        placed_size(400, 300, Scale::Fill, (1280, 720)).ok(),
+        Some((1280, 960))
+    );
+    assert_eq!(
+        placed_size(400, 300, Scale::None, (1280, 720)).ok(),
+        Some((400, 300))
+    );
+    // A small image scales UP to the cell.
+    assert_eq!(placed_size(9, 7, Scale::Fit, (8, 8)).ok(), Some((8, 6)));
+    // A very wide still filling a frame breaks the per-side cap.
+    assert!(matches!(
+        placed_size(16_384, 1, Scale::Fill, (3840, 2160)),
+        Err(FxError::Cap(m)) if m.contains("16384 per-side cap")
+    ));
+    // `fit` never leaves the cell, so it never trips a cap the cell keeps.
+    assert_eq!(
+        placed_size(16_384, 1, Scale::Fit, (3840, 2160)).ok(),
+        Some((3840, 1))
+    );
+    assert!(matches!(
+        placed_size(0, 3, Scale::Fit, (8, 8)),
+        Err(FxError::Args(_))
+    ));
+    assert!(matches!(
+        placed_size(3, 3, Scale::Fill, (0, 8)),
+        Err(FxError::Args(_))
+    ));
+}
