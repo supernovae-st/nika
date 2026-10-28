@@ -97,7 +97,7 @@ impl Builtin {
 /// - [`Self::Data`] (8) · `jq` · `json_diff` · `validate` · `json_merge_patch` · `convert` · `uuid` · `date` · `hash`
 /// - [`Self::Network`] (2) · `fetch` · `notify`
 /// - [`Self::Introspection`] (2) · `inspect` (view-discriminated · 4 views) · `compose`
-/// - [`Self::Media`] (5) · `chart` · `image_generate` · `tts_generate` (§Audio) · `image_fx` (deterministic effects) · `image_compose` (deterministic composition)
+/// - [`Self::Media`] (6) · `chart` · `image_generate` · `tts_generate` (§Audio) · `image_fx` (deterministic effects) · `image_compose` (deterministic composition) · `video_compose` (native video assembly)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "kebab-case"))]
@@ -122,9 +122,10 @@ pub enum BuiltinCategory {
     /// `inspect` (view: `cost` | `records` | `dag_info` | `threads`).
     Introspection,
     /// Media builtins — disk-landing outputs (paths + hashes, never inline
-    /// payloads). Provider-backed (`image_generate` · `tts_generate` §Audio)
-    /// AND deterministic pure transforms (`chart` · `image_fx` · `image_compose`
-    /// — zero provider).
+    /// payloads). Provider-backed (`image_generate` · `tts_generate` §Audio),
+    /// deterministic pure transforms (`chart` · `image_fx` · `image_compose`
+    /// — zero provider) AND `video_compose` (the host's encoder, started by
+    /// the engine itself).
     Media,
 }
 

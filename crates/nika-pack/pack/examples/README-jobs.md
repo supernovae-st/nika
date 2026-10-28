@@ -25,6 +25,7 @@ multi-agent swarm without ever leaving validated ground.
 | [`og-images`](og-images.nika) | marketing / content | brief in → OG PNG + provenance manifest out, one task | `nika:image_generate` · dir-writing permit |
 | [`image-fx-batch`](image-fx-batch.nika) | creators / media | a folder of photos → deterministic art, byte-identical forever | `nika:glob` · jq-derived paths · `nika:image_fx` ops chain |
 | [`image-compose-sheet`](image-compose-sheet.nika) | creators / media | photos and their variants → one contact sheet, with no image program to install | `nika:image_fx` · `nika:image_compose` row + grid · `scale: fit` |
+| [`video-compose-storyboard`](video-compose-storyboard.nika) | creators / media | photos and narration → one MP4 slideshow, with no shell step and no exec grant | `nika:tts_generate` mock · `nika:video_compose` · media references |
 | [`release-notes`](release-notes.nika) | engineering / devrel | git log → typed notes → a CHANGELOG copy edited in place | `exec` `recover:` · `nika:edit` · gated notify |
 | [`seo-content-brief`](seo-content-brief.nika) | SEO / content | a brief that beats the competitor's best page | chained fetch modes · `recover:` · CEL indexing |
 | [`invoice-chaser`](invoice-chaser.nika) | finance / freelance | overdue reminders drafted · NOTHING sent without a yes | `nika:convert` · `nika:prompt` gate · `size()` |

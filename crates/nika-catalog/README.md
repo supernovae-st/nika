@@ -1,7 +1,8 @@
 # nika-catalog
 
 Compile-time capability vocabulary — 39 LLM providers, 105 MCP servers,
-13 embeddings, 30 builtins, 57 capability rules (as of 0.124.0).
+13 embeddings, 31 builtins, 57 capability rules (as of 0.124.0, with
+`nika:video_compose` since).
 
 <!-- The five counts above are not typed from memory. Three of them are
      asserted by this crate's own tests (`src/lib.rs` · `all_providers`,
@@ -37,7 +38,7 @@ use nika_catalog::{all_builtins, all_providers, find_builtin, find_pricing_scope
 let deepseek = find_provider("deepseek");                        // id or alias, case-insensitive
 let price = find_pricing_scoped("deepseek", "deepseek-flash");   // Option<&'static ModelPricing>
 let remove = find_builtin("remove_file");                        // name without the `nika:` prefix
-let (providers, builtins) = (all_providers().len(), all_builtins().len()); // 39 · 30 in 0.124.0
+let (providers, builtins) = (all_providers().len(), all_builtins().len()); // 39 · 31 since 0.124.0
 ```
 
 ## Catalog surface (0.124.0)
@@ -45,7 +46,7 @@ let (providers, builtins) = (all_providers().len(), all_builtins().len()); // 39
 - **39 LLM providers** · Anthropic · OpenAI · Google · DeepSeek · Mistral · xAI · Scaleway · Groq · Ollama · LM Studio · + 29 more (31 speak the OpenAI chat dialect)
 - **105 MCP servers** · vocabulary per [MCP spec](https://modelcontextprotocol.io)
 - **13 embedding models** · BGE-M3 (multilingual default · Phase 0 lock per ADR-005) + alternatives
-- **30 builtins** · the `nika:*` tools in six categories (core · file · data · network · introspection · media)
+- **31 builtins** · the `nika:*` tools in six categories (core · file · data · network · introspection · media)
 - **57 capability rules** · what each model accepts (modalities, token-limit parameter, JSON mode, supported parameters), first match wins
 
 ## Features

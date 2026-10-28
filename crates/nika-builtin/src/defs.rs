@@ -491,6 +491,7 @@ fn media_defs() -> Vec<ToolDef> {
             &["input", "out", "ops"],
         ),
         image_compose_def(),
+        video_compose_def(),
     ]
 }
 
@@ -520,6 +521,60 @@ fn image_compose_def() -> ToolDef {
             "background": s("#rrggbb (or [r,g,b]) · default #ffffff · the canvas, gaps and letterboxes")
         }),
         &["inputs", "out"],
+    )
+}
+
+/// A `nika:video_compose` media reference, as the model sees it: a path, or
+/// a producer's `{ path, sha256 }` object (both keys required).
+fn media_ref(desc: &str) -> serde_json::Value {
+    serde_json::json!({
+        "description": desc,
+        "anyOf": [
+            { "type": "string", "pattern": "\\S" },
+            {
+                "type": "object",
+                "properties": { "path": { "type": "string" }, "sha256": { "type": "string" } },
+                "required": ["path", "sha256"]
+            }
+        ]
+    })
+}
+
+/// `nika:video_compose` (stdlib §Media graduate #6) — its own fn under the
+/// fn-length law.
+fn video_compose_def() -> ToolDef {
+    def(
+        "video_compose",
+        "Assemble PNG stills and WAV narration into ONE MP4 (H.264 video · AAC-LC or FLAC audio), cut from still to still: audio is the clock, each still holds for its clip plus pad_ms, or for its duration_ms. The engine reads and decodes every input itself and starts the host's ffmpeg (6.0 or later, with libx264) inside its own confinement, on raw samples it wrote — no exec:, no permits.exec. Every media input is a permit-gated fs.read and out an fs.write; outputs carry path + sha256 + durations + frame counts, bytes never inline.",
+        serde_json::json!({
+            "segments": {
+                "type": "array",
+                "description": "1..=200 stills in playback order · each a closed map { image, audio?, duration_ms?, pad_ms? }",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "image": media_ref("the still · a PNG path or { path, sha256 } · permit-gated fs.read"),
+                        "audio": media_ref("the still's clip · a WAV path or { path, sha256 } (tts_generate's audio object passes as it is)"),
+                        "duration_ms": { "type": "integer", "description": "100..=600000 · required without a clip · never shorter than the clip" },
+                        "pad_ms": { "type": "integer", "description": "0..=10000 · silence after the clip · only for a clip without duration_ms" }
+                    },
+                    "required": ["image"],
+                    "additionalProperties": false
+                }
+            },
+            "audio": media_ref("ONE soundtrack for the whole video · a WAV path or { path, sha256 } · every segment then carries duration_ms and no clip"),
+            "audio_codec": s("aac (default · AAC-LC) | flac"),
+            "out": s("output artifact path ending .mp4 — rides the declared permits.fs.write boundary"),
+            "size": s("WIDTHxHEIGHT · both even · width 64..=3840 · height 64..=2160 · default 1280x720"),
+            "fps": { "type": "integer", "description": "1..=60 · default 25" },
+            "scale": s("fit (default · the whole still, letterboxed) | fill (covers the frame, center-cropped) | none (native size)"),
+            "background": s("#rrggbb (or [r,g,b]) · default #000000 · the letterbox and what sits behind alpha"),
+            "quality": s("draft | standard (default) | high"),
+            "transition": s("cut (the only value in this version · fade is reserved)"),
+            "metadata": { "type": "object", "description": "free provenance echoed into the outputs · at most 16 KiB as canonical JSON · never reaches the encoder" },
+            "timeout_ms": { "type": "integer", "description": "1000..=3600000 · default 600000 · waiting for the encode slot counts" }
+        }),
+        &["segments", "out"],
     )
 }
 
@@ -769,11 +824,12 @@ mod tests {
         let defs = tool_defs();
         assert_eq!(
             defs.len(),
-            30,
-            "stdlib ships exactly 30 (22 Rams-swept + nika:compose ADR-096 + \
+            31,
+            "stdlib ships exactly 31 (22 Rams-swept + nika:compose ADR-096 + \
              nika:image_generate stdlib §Media + nika:tts_generate stdlib §Audio + \
              nika:image_fx stdlib §Media + nika:decide spec 11 W-DEC + \
-             nika:remove_file §nika:remove_file + nika:image_compose §Media #5)"
+             nika:remove_file §nika:remove_file + nika:image_compose §Media #5 + \
+             nika:video_compose §Media #6)"
         );
         let mut names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
         names.sort_unstable();
@@ -988,6 +1044,9 @@ mod tests {
             "nika:image_fx.out",
             "nika:image_compose.inputs",
             "nika:image_compose.out",
+            "nika:video_compose.segments",
+            "nika:video_compose.audio",
+            "nika:video_compose.out",
             "nika:image_generate.output_dir",
             "nika:image_generate.image",
             "nika:image_generate.images",

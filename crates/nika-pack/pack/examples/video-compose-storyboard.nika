@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T2 chain · stills and narration → one video
+#
+# Two sample photos and two narration lines become one MP4 slideshow: each
+# photo holds while its line plays, then a short pause, and a closing still
+# ends it. No shell step, no model and no key: the engine reads and decodes
+# the photos and the clips itself and drives the ffmpeg installed on the
+# host as its encoder, so the workflow names no program and needs no exec
+# grant. The mock voice keeps the file offline; switch the provider to
+# `system` (the host's own synthesizer) or `openai` for real speech.
+#
+# Demonstrates ·
+#   - `nika:tts_generate` · `provider: mock` · a real WAV per line
+#   - `nika:video_compose` · audio is the clock: each still lasts its clip
+#     plus `pad_ms`, and the closing still its `duration_ms`
+#   - media references · a path string, or a producer's `{ path, sha256 }`
+#     object, which binds the read to the bytes the producer wrote
+#   - every input a READ judged against `permits.fs.read`, the video a WRITE
+#     judged against `permits.fs.write` · no `permits.exec`
+#
+# Needs · ffmpeg 6.0 or later with libx264 on the host (macOS · brew install
+#   ffmpeg · Debian or Ubuntu · apt install ffmpeg), or NIKA_FFMPEG naming one.
+#
+# Run · nika run examples/video-compose-storyboard.nika
+
+nika: video-compose-storyboard
+
+permits:
+  exec: false
+  tools: ["nika:tts_generate", "nika:video_compose"]
+  fs:
+    # The photos ship with the repo. The narration lands flat in its
+    # directory under content-hash names, so the read grant is that
+    # directory's files, and the write grant is the directory (judged at
+    # check) and its files (each judged at run), plus the one video.
+    read:
+      - "examples/fixtures/photos/harbour-02.png"
+      - "examples/fixtures/photos/sunset-01.png"
+      - "out/storyboard/voice/*"
+    write:
+      - "out/storyboard/storyboard.mp4"
+      - "out/storyboard/voice"
+      - "out/storyboard/voice/*"
+
+tasks:
+  line_one:
+    invoke:
+      tool: "nika:tts_generate"
+      args:
+        provider: mock
+        text: "Sunset over the old town."
+        output_dir: "out/storyboard/voice"
+        filename_prefix: "line-1"
+
+  line_two:
+    invoke:
+      tool: "nika:tts_generate"
+      args:
+        provider: mock
+        text: "The harbour wakes up."
+        output_dir: "out/storyboard/voice"
+        filename_prefix: "line-2"
+
+  # Each clip passes as the producer's `audio` object (path + sha256): the
+  # read is bound to the bytes the voice task wrote.
+  video:
+    with:
+      one: ${{ tasks.line_one.output.audio }}
+      two: ${{ tasks.line_two.output.audio }}
+    invoke:
+      tool: "nika:video_compose"
+      args:
+        segments:
+          - image: "examples/fixtures/photos/sunset-01.png"
+            audio: "${{ with.one }}"
+            pad_ms: 600
+          - image: "examples/fixtures/photos/harbour-02.png"
+            audio: "${{ with.two }}"
+            pad_ms: 600
+          - image: "examples/fixtures/photos/harbour-02.png"
+            duration_ms: 1500
+        out: "out/storyboard/storyboard.mp4"
+        size: "640x360"
+        background: "#10141c"
+
+outputs:
+  video:
+    value: ${{ tasks.video.output }}
+    description: "The video receipt · path, sha256, duration, frame and sample counts, the encoder"

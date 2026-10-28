@@ -64,7 +64,7 @@ The order is a builtin (`invoke: { tool: "nika:<name>" }`) → an MCP tool
    | DATA | `nika:jq` · `nika:json_diff` · `nika:json_merge_patch` · `nika:validate` · `nika:convert` · `nika:uuid` · `nika:date` · `nika:hash` · `nika:decide` |
    | NETWORK | `nika:fetch` · `nika:notify` |
    | INTROSPECTION | `nika:compose` (agent-loop only · calling a child is `invoke: { workflow: … }` · §Composition) · `nika:inspect` |
-   | MEDIA | `nika:chart` · `nika:image_generate` · `nika:image_fx` · `nika:image_compose` · `nika:tts_generate` |
+   | MEDIA | `nika:chart` · `nika:image_generate` · `nika:image_fx` · `nika:image_compose` · `nika:video_compose` · `nika:tts_generate` |
 
    The NAMES above are canon — that is the whole set. The argument
    CONTRACTS are not: read them from `nika catalog --tools`
@@ -87,7 +87,12 @@ The order is a builtin (`invoke: { tool: "nika:<name>" }`) → an MCP tool
    `fs.read`) · speech with no key (`say` / `espeak-ng`) →
    `nika:tts_generate` with `provider: system` (the engine starts the
    host synthesizer itself — no `permits.exec`; the audio rides
-   `permits.fs.write`).
+   `permits.fs.write`) · stills and narration into one video
+   (`ffmpeg -loop 1 …`) → `nika:video_compose` (cuts from still to
+   still, audio is the clock; the engine decodes every input itself and
+   starts the host's ffmpeg 6.0+ with libx264 on raw samples it wrote —
+   no `exec:`, no `permits.exec`; every still and clip is an `fs.read`,
+   `out` an `fs.write`).
 2. **Which MCP tool replaces it?** A product API deserves an MCP
    server, never a helper script.
 3. **Neither?** Name the exact gap — then `exec:` is legitimate

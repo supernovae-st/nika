@@ -322,7 +322,7 @@
       "cognition": "deterministicOnly",
       "compiler_version": "0.124.0",
       "skeleton": "classify-and-route",
-      "spec_pin": "5cd95cd25c0ff453be266794a03666e5e3f2d7a8",
+      "spec_pin": "d6b4ac81a307de67726dc7ed6bac66f2893a7469",
       "strategy": "skeleton",
       "suggested_file": null
     },

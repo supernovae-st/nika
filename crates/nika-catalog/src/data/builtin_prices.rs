@@ -278,6 +278,7 @@ mod tests {
             "nika:image_fx",
             "nika:chart",
             "nika:image_compose",
+            "nika:video_compose",
             "nika:fetch",
         ] {
             assert_eq!(

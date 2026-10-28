@@ -249,10 +249,15 @@ declared v1 residual · NEP-0007 law 2). The frame's fields name the `gate` (the
 bound consulted), the `decision` (`allow` \| `deny`), the `why` (the
 law applied), and the `task`. A builtin that starts an engine-fixed
 program as part of its own contract (`nika:tts_generate` with
-`provider: system` · [stdlib](../stdlib/builtins-v0.1.md)) is journaled as
-the BUILTIN's effect, never as an `exec:` decision: one frame with
-`plane: builtin`, the program as `gate`, `decision: allow`, and a `why`
-naming the builtin — no `permits.exec` grant is consulted or implied.
+`provider: system`, and `nika:video_compose`, which starts the host's
+ffmpeg · [stdlib](../stdlib/builtins-v0.1.md)) is journaled as the
+BUILTIN's effect, never as an `exec:` decision: one frame per start of the
+program, with `plane: builtin`, the program as `gate`, `decision: allow`,
+and a `why` naming the builtin — no `permits.exec` grant is consulted or
+implied. An engine that starts such a program at launch, to establish it
+before the run's first effect, records those starts in one such frame
+right after `workflow_started`, its `why` saying they ran at launch; a
+launch refusal opens no journal.
 This is a CONFORMANCE requirement on the
 ENGINE, not a wire bump: the frame grammar is unchanged (one more kind
 in the stream), so `trace_format` stays 2. A journal from an OLDER

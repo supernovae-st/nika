@@ -17,9 +17,9 @@
 The real tool layer. `nika-verb-invoke` and `nika-verb-agent` dispatch over
 the kernel `ToolExecuteDyn` seam, and the agent enumerates definitions over
 `ToolDefinitionProviderDyn` — until now only mocks implement either. This
-crate is the production implementation: a **closed registry of the 30
+crate is the production implementation: a **closed registry of the 31
 stdlib builtins** (core 6 · file 6 · data 9 · introspection 2 ·
-network 2 · media 5), each a thin composition over kernel effect seams, plus the
+network 2 · media 6), each a thin composition over kernel effect seams, plus the
 model-facing `ToolDef` (name · description · JSON-Schema params) for every
 tool.
 
@@ -28,9 +28,9 @@ tool.
 ```text
                     ┌───────────────────────────────────────┐
  verbs (L2) ──────▶ │ BuiltinDispatcher<F, H, C, E, P, W>   │  implements
-   invoke · agent   │   the closed 30-registry              │  ToolExecuteDyn
+   invoke · agent   │   the closed 31-registry              │  ToolExecuteDyn
                     │   route(name) → the builtin fn        │  ToolBatchDyn
- agent tool-defs ─▶ │   tool_defs() → 30 × ToolDef          │  ToolDefinitionProviderDyn
+ agent tool-defs ─▶ │   tool_defs() → 31 × ToolDef          │  ToolDefinitionProviderDyn
                     └──┬────┬────┬────┬─────┬────┬──────────┘
                        │    │    │    │     │    │
                   F: Fs │ H: HttpClient │ C: ClockDyn │ E: Emitter
@@ -48,6 +48,13 @@ tool.
                   composition root — tts_generate `provider: system`
                   starts say / espeak-ng itself (never exec:) · unwired
                   or no synthesizer ⇒ the precise -002
+                       │
+                  video (NO BACKEND in this build) · video_compose parses
+                  its arguments against nika_cap::video (-001 · -005 for
+                  more than 200 segments) and holds the plan model
+                  (video_compose::plan: integer timing, keyframes, budgets);
+                  with no encoder wired every call refuses -010 before any
+                  read, scratch or write
 ```
 
 - **Kernel seams consumed** (all `trait_variant` Dyn · generics not

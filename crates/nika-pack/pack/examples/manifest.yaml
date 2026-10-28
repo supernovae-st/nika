@@ -4,7 +4,7 @@
 # Consumers · the reference engine embeds this pack (nika try ·
 # nika spec) · docs + website render projections of the same files.
 pack_version: 0.2.0-draft
-workflow_count: 63
+workflow_count: 64
 foundation:
   - file: examples/01-hello.nika
     sha256_16: 0b35ae8b802835d2
@@ -220,6 +220,10 @@ showcase:
     name: transcript-shownotes
     constructs: [local_model, outputs, schema, with]
     sha256_16: 690f91c3f06d114d
+  - file: examples/video-compose-storyboard.nika
+    name: video-compose-storyboard
+    constructs: [outputs, with]
+    sha256_16: 84cbab94e2d23372
 snippets:
   - file: examples/snippets/delegate.nika
     sha256_16: 9c24f8e7c8fc88db
