@@ -242,9 +242,10 @@ fn closer_line(code: &str) -> &'static str {
 }
 
 /// The MCP pin family `nika-mcp` mints (`PinError` · `pin.rs`) and the canon table does not
-/// carry yet (NIK-254): what failed, then the remedy the refusal itself prints, labelled with
-/// the category the spec registry reserves for the code. The rung goes once the canon carries
-/// these rows: its tripwire test fails then.
+/// carry yet (NIK-254): what failed, then the remedy the refusal itself prints. 003 to 005 wear
+/// the category the spec registry reserves for them; 006 has no registry row yet and wears the
+/// security category of the pin refusals beside it. The rung goes once the canon carries these
+/// rows: its tripwire test fails then.
 fn mcp_pin_help(code: &str) -> Option<String> {
     let (category, meaning, fix) = match code {
         "NIKA-MCP-003" => (

@@ -34,7 +34,8 @@ analysis:
   law-pinned). Findings → `{"graph": null, "reason": "findings"}` — never a
   projection of an unproven DAG. An agent SEES the graph before editing it.
 - **`nika_explain`** — teach one error code (cause · category · fix form), from
-  the numeric crate registry OR the embedded spec-code canon.
+  the numeric crate registry, the embedded spec-code canon, or the MCP pin
+  family (`NIKA-MCP-003` to `006`) the engine answers until the canon lists it.
 
 Running a workflow is deliberately **not** exposed (it needs the effect-permits
 boundary); `nika run` stays the gated, audited effectful path.
