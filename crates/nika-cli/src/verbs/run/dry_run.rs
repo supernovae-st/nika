@@ -116,12 +116,18 @@ fn access_refusal(plan: &ExecutionAccessPlan, output_json: bool) -> Option<RunVe
 /// preview applies the same access admission meet as a live run): the run refuses the task
 /// before anything is sent (NIKA-432 · NIKA-465), so the preview refuses with the same lines
 /// `check` blocks RUN READY on. The remedy is an edit to the file, hence its exit (2).
+///
+/// A task with no model and no seat is refused at admission first, before any task reaches
+/// its seat (NIKA-1800): that refusal is the preview's verdict, printed with the run's exit.
 fn seat_refusal(
     wf: &RawWorkflow,
     report: &CheckReport,
     plan: &ExecutionAccessPlan,
     machine: bool,
 ) -> Option<RunVerdict> {
+    if nika_runtime::modelless_refusal(wf, plan).is_some() {
+        return None;
+    }
     let lines = seat_lines(wf, report, plan)?;
     super::epilogue::emit_diagnostic(&lines, machine);
     Some(RunVerdict::bare(exit::FILE))
@@ -391,6 +397,43 @@ mod tests {
                 assert!(verdict.trace.is_none());
             }
         }
+    }
+
+    /// The run refuses a model-less task at admission, before task 1 (NIKA-1800, exit 3), so
+    /// it never reaches a seat blocker on the same file (an unseated agent's `images:`,
+    /// NIKA-465): the preview refuses with the run's refusal and exit, never the seat's.
+    #[test]
+    fn a_model_less_refusal_comes_before_the_seat() {
+        let source = "nika: imgs\npermits:\n  fs:\n    write: [\"./out/**\"]\ntasks:\n  draw:\n    \
+                      agent:\n      prompt: draw a cat\n      images: { save: ./out/a.png }\n";
+        let wf = nika_schema::parse(
+            source,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check(&wf);
+        let plan = ExecutionAccessPlan::default();
+        assert!(
+            super::seat_lines(&wf, &report, &plan).is_some_and(|lines| lines.contains("NIKA-465")),
+            "the seat judge blocks this file"
+        );
+        assert!(nika_runtime::modelless_refusal(&wf, &plan).is_some());
+        let verdict = super::lane(
+            "imgs.nika",
+            source,
+            &wf,
+            &report,
+            &nika_schema::ResolvedSkills::default(),
+            nika_display::check_render::RepairTarget::Stdin,
+            None,
+            &plan,
+            false,
+            crate::Theme::new(false, true, false),
+            false,
+        );
+        assert_eq!(verdict.code, super::exit::ENV);
+        assert!(verdict.trace.is_none());
     }
 
     /// No pin, no lane (a file with no inference): the payload is left
