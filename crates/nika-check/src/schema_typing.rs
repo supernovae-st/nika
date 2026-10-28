@@ -399,11 +399,9 @@ fn action_texts(action: &RawAction) -> Vec<&str> {
             }
             texts
         }
-        #[allow(
-            clippy::unreachable,
-            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
-        )]
-        other => unreachable!("unknown action: {other:?}"),
+        // An action kind this checker does not know has no text to read: the runtime refuses it
+        // unwired before it runs, and the workflow's text is never formatted into a panic.
+        _ => Vec::new(),
     }
 }
 

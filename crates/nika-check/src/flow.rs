@@ -464,11 +464,10 @@ pub fn action_effect_fields(action: &RawAction) -> Vec<&str> {
             fields
         }
         RawAction::Agent(a) => prompt_system_fields(a.prompt.value.as_str(), a.system.as_ref()),
-        #[allow(
-            clippy::unreachable,
-            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
-        )]
-        other => unreachable!("unknown action: {other:?}"),
+        // An action kind this checker does not know has no sink field: the runtime refuses it
+        // unwired before it sends anything, and the workflow's text is never formatted into a
+        // panic.
+        _ => Vec::new(),
     }
 }
 

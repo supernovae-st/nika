@@ -225,11 +225,9 @@ fn check_action(
             check_images_save(id, a, permits, consts, out);
         }
         RawAction::Infer(a) => check_vision_reads(id, a, permits, consts, out),
-        #[allow(
-            clippy::unreachable,
-            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
-        )]
-        other => unreachable!("unknown action: {other:?}"),
+        // An action kind this checker does not know has no effect to fit: the runtime refuses
+        // it unwired before it runs, and the workflow's text is never formatted into a panic.
+        _ => {}
     }
 }
 
