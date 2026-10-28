@@ -427,7 +427,8 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
         ),
         _ => reference_fix_hint(code)
             .or_else(|| decide_fix_hint(code))
-            .or_else(|| run_decl_fix_hint(code)),
+            .or_else(|| run_decl_fix_hint(code))
+            .or_else(|| security_fix_hint(code)),
     }
 }
 
@@ -493,6 +494,34 @@ fn run_decl_fix_hint(code: &str) -> Option<&'static str> {
              consumes a structural source (a live retry jitter · `nika:uuid`) \
              — set `jitter: false`, drop the uuid call, or name the stream \
              with `entropy: { seeded: <u64> }`",
+        ),
+        _ => None,
+    }
+}
+
+/// The security-boundary hints — split out of [`cli_fix_hint`] at the
+/// fn-length wall.
+fn security_fix_hint(code: &str) -> Option<&'static str> {
+    match code {
+        // The finding's own fix names only the gate. A missing leg is safe
+        // by construction, while a gate is safe only while someone answers
+        // it, so the page teaches the leg first.
+        "NIKA-SEC-009" => Some(
+            "first drop a leg the workflow does not need: the finding names \
+             each leg and the permit that grants it (private read · \
+             `permits.fs.read`; untrusted ingress · a fetch, `mcp:` or \
+             browsing tool in `permits.tools`; external egress · \
+             `permits.net.http`, an escaping `fs.write` glob or `exec`), and \
+             a boundary missing a leg is safe by construction. When all \
+             three are needed, place a blocking `nika:prompt` (no \
+             `default:`, granted in `permits.tools`) upstream of every entry \
+             task the finding names, not only the ingress, so that every \
+             path to the egress task, data edges included, crosses it; \
+             bind its answer into each effect with `with:` and gate the \
+             effect with `when:`, and NIKA-SEC-014 checks that a « no » \
+             fires nothing. That gate is asked before the untrusted content \
+             exists, so the person consents to the run, not to the payload \
+             that leaves",
         ),
         _ => None,
     }
@@ -757,6 +786,51 @@ mod tests {
             !floor.text.contains("catches this before a run ever starts"),
             "a run-time hop is never a check-time promise:\n{}",
             floor.text
+        );
+    }
+
+    /// The SEC-009 page described the trifecta but printed no fix, and the
+    /// finding's own fix names only the gate. Both doors now teach dropping
+    /// a leg before the gate, and say what the gate is consent to.
+    #[test]
+    fn the_trifecta_page_teaches_the_leg_before_the_gate() {
+        let cli = run("NIKA-SEC-009");
+        assert_eq!(cli.code, exit::OK);
+        let leg = cli
+            .text
+            .find("fix: first drop a leg the workflow does not need");
+        let gate = cli
+            .text
+            .find("place a blocking `nika:prompt` (no `default:`, granted in `permits.tools`)");
+        assert!(
+            matches!((leg, gate), (Some(leg), Some(gate)) if leg < gate),
+            "the leg comes first, then the gate:\n{}",
+            cli.text
+        );
+        for fact in [
+            "`permits.fs.read`",
+            "`permits.tools`",
+            "`permits.net.http`",
+            "safe by construction",
+            "upstream of every entry task the finding names, not only the ingress",
+            "data edges included",
+            "bind its answer into each effect with `with:`",
+            "gate the effect with `when:`",
+            "NIKA-SEC-014",
+            "consents to the run, not to the payload",
+        ] {
+            assert!(cli.text.contains(fact), "`{fact}` missing:\n{}", cli.text);
+        }
+        let oracle = run_for(
+            "NIKA-SEC-009",
+            Theme::new(false, false, false),
+            Door::Oracle,
+        );
+        assert_eq!(oracle.code, exit::OK);
+        assert!(
+            oracle.text.contains("fix: first drop a leg"),
+            "the MCP door teaches the same fix:\n{}",
+            oracle.text
         );
     }
 
