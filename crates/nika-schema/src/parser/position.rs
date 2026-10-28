@@ -29,6 +29,11 @@ pub(crate) struct CharToByte {
     /// the char index where it starts and where its content ends (its
     /// break, or the end of the source). Empty on the ASCII path.
     lines: Vec<(u32, u32)>,
+    /// The bytes the caller's text holds ahead of the parsed one: the
+    /// byte-order mark the ingest seam stripped (3), else 0. [`Self::byte`]
+    /// and [`Self::marker`] answer in the parsed text; a span adds this, so
+    /// every span indexes the text the caller passed in (#1608).
+    origin: u32,
 }
 
 impl CharToByte {
@@ -64,6 +69,7 @@ impl CharToByte {
             return Ok(Self {
                 byte_at: Vec::new(),
                 lines: Vec::new(),
+                origin: 0,
             });
         }
         let mut byte_at: Vec<u32> = source
@@ -72,7 +78,23 @@ impl CharToByte {
             .collect();
         byte_at.push(u32::try_from(source.len()).unwrap_or(u32::MAX));
         let lines = line_table(source);
-        Ok(Self { byte_at, lines })
+        Ok(Self {
+            byte_at,
+            lines,
+            origin: 0,
+        })
+    }
+
+    /// The same table for a parsed text that starts `origin` bytes into the
+    /// caller's own (after the byte-order mark the ingest seam stripped).
+    pub(super) fn after(self, origin: u32) -> Self {
+        Self { origin, ..self }
+    }
+
+    /// The byte offset in the caller's text of `parsed`, an offset in the
+    /// parsed one: the offset a span carries.
+    pub(super) const fn spanned(&self, parsed: u32) -> u32 {
+        parsed.saturating_add(self.origin)
     }
 
     /// Translate a character index into a byte offset, clamping to
@@ -133,7 +155,8 @@ fn line_table(source: &str) -> Vec<(u32, u32)> {
 /// both markers are present we produce a `[start, end)` range; when
 /// only `start` is available the span is zero-length (point). An
 /// entirely blank yaml span yields `None`. Markers are translated to
-/// byte offsets by [`CharToByte::marker`].
+/// byte offsets by [`CharToByte::marker`], in the caller's text
+/// ([`CharToByte::spanned`]).
 pub(crate) fn yaml_span_to_span(
     file_id: FileId,
     span: &YamlSpan,
@@ -144,8 +167,8 @@ pub(crate) fn yaml_span_to_span(
     let end_off = span.end().map_or(start_off, |m| char_to_byte.marker(m));
     Some(Span::new(
         file_id,
-        ByteOffset::new(start_off),
-        ByteOffset::new(end_off),
+        ByteOffset::new(char_to_byte.spanned(start_off)),
+        ByteOffset::new(char_to_byte.spanned(end_off)),
     ))
 }
 

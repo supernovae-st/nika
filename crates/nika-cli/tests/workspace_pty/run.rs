@@ -312,7 +312,15 @@ fn heavy_journal(path: &std::path::Path) {
 /// verdict follows, the words stay in the draft, nothing is sent.
 #[test]
 fn the_shell_stays_live_while_a_run_proof_is_verified() {
-    let rig = Rig::new("acquire");
+    // The header and the status row name the project, and its random name can hold the draft's
+    // letters: this rig's tag holds them, so that case runs every time. The draft is counted
+    // with the name taken out, since the busy row replaces the status row while it reads.
+    let rig = Rig::new("acquire-zz");
+    let name = (rig.project.path().file_name())
+        .and_then(|name| name.to_str())
+        .expect("the project's name")
+        .to_owned();
+    let drafts = |text: String| text.replace(&name, "").matches(DRAFT).count();
     std::fs::create_dir_all(rig.path("notes")).expect("notes");
     std::fs::write(rig.path("notes/brief.md"), "# Brief\n").expect("brief");
     std::fs::write(rig.path("copy.nika"), COPY).expect("copy");
@@ -326,18 +334,21 @@ fn the_shell_stays_live_while_a_run_proof_is_verified() {
         .find(|path| path.extension().is_some_and(|e| e == "ndjson"))
         .expect("the run's journal");
     heavy_journal(&journal);
-    term.send(&format!("{F6}{RIGHT}{RIGHT}{RIGHT}{SHIFT_F6}zz"));
+    term.send(&format!("{F6}{RIGHT}{RIGHT}{RIGHT}{SHIFT_F6}{DRAFT}"));
     term.wait_until("words typed while the proof is read", |s| {
-        s.contains("zz") && s.contains("reading what the run left") && !s.contains("verdict ·")
+        drafts(s.text()) > 0 && s.contains("reading what the run left") && !s.contains("verdict ·")
     });
     term.wait_until("the verdict, then", |s| {
-        s.contains("verdict ·") && s.contains("zz")
+        s.contains("verdict ·") && drafts(s.text()) > 0
     });
     // The words are the draft alone: never echoed into the conversation.
-    assert_eq!(term.text().matches("zz").count(), 1, "{}", term.dump());
+    assert_eq!(drafts(term.text()), 1, "{}", term.dump());
     term.leave();
     rig.no_model_call("a proof verified while words are typed");
 }
+
+/// The words typed while a run's proof is read.
+const DRAFT: &str = "zz";
 
 /// Two tasks, the second reading a file that is not there: a run that fails
 /// the same way every time, with nothing to configure and no model.

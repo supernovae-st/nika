@@ -25,6 +25,28 @@ const MANIFEST: &str = "/v1/jobs/{id}/artifacts";
 const DOWNLOAD: &str = "/v1/jobs/{id}/artifacts/{name}";
 const WORKFLOW_HASH: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 const CHART_WORKFLOW: &str = "nika: chart\npermits:\n  fs: { write: [\"./out/**\"] }\n  tools: [\"nika:chart\"]\ntasks:\n  draw:\n    invoke:\n      tool: \"nika:chart\"\n      args:\n        data: [{ region: \"north\", total: 10 }, { region: \"south\", total: 4 }]\n        chart: { type: bar, x: region, y: total }\n        out: \"./out/totals.svg\"\n";
+/// One `nika:chart` call, then a fan-out of the same tool over two items.
+const FAN_WORKFLOW: &str = r#"nika: fan
+permits:
+  fs: { write: ["./out/**"] }
+  tools: ["nika:chart"]
+tasks:
+  single:
+    invoke:
+      tool: "nika:chart"
+      args:
+        data: [{ region: "north", total: 10 }, { region: "south", total: 4 }]
+        chart: { type: bar, x: region, y: total }
+        out: "./out/single.svg"
+  draw:
+    for_each: { items: [a, b] }
+    invoke:
+      tool: "nika:chart"
+      args:
+        data: [{ region: "north", total: 10 }, { region: "south", total: 4 }]
+        chart: { type: bar, x: region, y: total }
+        out: "./out/totals-${{ item }}.svg"
+"#;
 
 /// A run key the test holds: the seal signs with it; the door weighs its public file.
 struct Key {
@@ -1055,12 +1077,12 @@ fn real_run_limits() -> ServerLimits {
     )
 }
 
-/// Admit `chart.nika` and wait for its job to settle: the job id, once it succeeded.
-async fn run_chart(server: &TestServer) -> String {
+/// Admit `workflow` and wait for its job to settle: the job id, once it succeeded.
+async fn run_workflow(server: &TestServer, workflow: &str) -> String {
     let created = server
         .request(&post_request(
-            r#"{"workflow":"chart.nika"}"#,
-            "chart-run",
+            &serde_json::json!({ "workflow": workflow }).to_string(),
+            &format!("{workflow}-run"),
             &auth_header(),
         ))
         .await;
@@ -1099,7 +1121,7 @@ async fn a_real_chart_run_lists_and_serves_its_svg() {
     );
     let server = start(&world, backend, real_run_limits(), Some(&key.file)).await;
     let document = served_document(&server).await;
-    let id = run_chart(&server).await;
+    let id = run_workflow(&server, "chart.nika").await;
     let written = std::fs::read(world.workflows.join("out/totals.svg")).expect("the chart");
     let (code_, _, body) = exchange(&server, &get(&format!("/v1/jobs/{id}/artifacts"))).await;
     assert_eq!(code_, 200, "{}", String::from_utf8_lossy(&body));
@@ -1115,6 +1137,58 @@ async fn a_real_chart_run_lists_and_serves_its_svg() {
     let (status, headers, bytes) = download(&server, &document, &id, "file/out/totals.svg").await;
     assert_eq!(status, 200, "{headers}");
     assert_eq!(bytes, written);
+    server.stop().await.expect("clean stop");
+}
+
+/// The production backend's journal of a fan-out: each item's file is listed beside the
+/// single call's, with the size and digest of the file on disk, and served byte-identical.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_real_fan_out_lists_and_serves_every_items_file() {
+    let world = TestWorld::new();
+    let key = test_key(&world);
+    std::fs::write(world.workflows.join("fan.nika"), FAN_WORKFLOW).expect("workflow");
+    let backend = Arc::new(
+        ResidentExecutionBackend::new(&world.workflows).with_journal_seal(Arc::new(TestSeal {
+            secret: key.secret.clone(),
+            public: key.public.clone(),
+        })),
+    );
+    let server = start(&world, backend, real_run_limits(), Some(&key.file)).await;
+    let document = served_document(&server).await;
+    let id = run_workflow(&server, "fan.nika").await;
+    let (code_, _, body) = exchange(&server, &get(&format!("/v1/jobs/{id}/artifacts"))).await;
+    assert_eq!(code_, 200, "{}", String::from_utf8_lossy(&body));
+    assert_declared(&document, MANIFEST, 200, &body);
+    let manifest: Value = serde_json::from_slice(&body).expect("manifest");
+    assert_eq!(manifest["verdict"], "sealed", "{manifest}");
+    let listed = manifest["artifacts"].as_array().expect("entries");
+    let mut names: Vec<&str> = listed.iter().filter_map(|e| e["name"].as_str()).collect();
+    names.sort_unstable();
+    assert_eq!(
+        names,
+        [
+            "file/out/single.svg",
+            "file/out/totals-a.svg",
+            "file/out/totals-b.svg"
+        ],
+        "{manifest}"
+    );
+    for entry in listed {
+        let name = entry["name"].as_str().expect("a name");
+        let path = name.strip_prefix("file/").expect("a file artifact");
+        let written = std::fs::read(world.workflows.join(path)).expect("the chart");
+        assert_eq!(entry["size"], written.len(), "{name}");
+        assert_eq!(entry["sha256"], hex(&written), "{name}");
+        let task = if path == "out/single.svg" {
+            "single"
+        } else {
+            "draw"
+        };
+        assert_eq!(entry["task"], task, "{name}");
+        let (status, headers, bytes) = download(&server, &document, &id, name).await;
+        assert_eq!(status, 200, "{name}: {headers}");
+        assert_eq!(bytes, written, "{name}");
+    }
     server.stop().await.expect("clean stop");
 }
 
@@ -1248,7 +1322,7 @@ async fn attributed_by_both_routes(key_id: &str, source: &str, hidden: &str) {
     let backend = Arc::new(ResidentExecutionBackend::new(&world.workflows));
     let server = start(&world, backend, real_run_limits(), None).await;
     let document = served_document(&server).await;
-    let id = run_chart(&server).await;
+    let id = run_workflow(&server, "chart.nika").await;
     let verdict = server
         .request(&get(&format!("/v1/jobs/{id}/trace/verify")))
         .await;

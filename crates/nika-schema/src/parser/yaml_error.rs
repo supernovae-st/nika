@@ -48,7 +48,7 @@ pub(super) fn scanner_refusal(
         },
         span: Some(Span::point(
             file_id,
-            ByteOffset::new(u32::try_from(site).unwrap_or(u32::MAX)),
+            ByteOffset::new(char_to_byte.spanned(u32::try_from(site).unwrap_or(u32::MAX))),
         )),
     }
 }

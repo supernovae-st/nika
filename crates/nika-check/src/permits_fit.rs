@@ -225,11 +225,13 @@ fn check_action(
             check_images_save(id, a, permits, consts, out);
         }
         RawAction::Infer(a) => check_vision_reads(id, a, permits, consts, out),
+        // The message never formats the action: it carries prompts, arguments and secret
+        // references.
         #[allow(
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
-        other => unreachable!("unknown action: {other:?}"),
+        _ => unreachable!("an action kind this checker does not know"),
     }
 }
 

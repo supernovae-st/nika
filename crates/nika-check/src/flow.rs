@@ -464,11 +464,13 @@ pub fn action_effect_fields(action: &RawAction) -> Vec<&str> {
             fields
         }
         RawAction::Agent(a) => prompt_system_fields(a.prompt.value.as_str(), a.system.as_ref()),
+        // The message never formats the action: it carries prompts, arguments and secret
+        // references.
         #[allow(
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
-        other => unreachable!("unknown action: {other:?}"),
+        _ => unreachable!("an action kind this checker does not know"),
     }
 }
 

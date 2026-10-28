@@ -2,8 +2,10 @@
 
 Official visual assets for the README, docs, website and social surfaces.
 The feature clips below are captured from the released `nika 0.123.0
-(0bfde3765)` ([`raw/nika-version.txt`](raw/nika-version.txt)); each clip's
-plate names the release it was captured with.
+(0bfde3765)` ([`raw/nika-version.txt`](raw/nika-version.txt)), and sdk-doors
+from the published `@supernovae-st/nika` 0.124.0 and the `nika 0.124.0
+(866ed914b)` it bundles ([`raw/sdk-doors-versions.json`](raw/sdk-doors-versions.json));
+each clip's plate names the release it was captured with.
 
 ## README hero
 

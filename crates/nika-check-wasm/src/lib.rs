@@ -86,12 +86,17 @@ fn finding_row(kind: &str, gate: &str, source: &str, e: &SchemaError) -> serde_j
 /// The parser's offsets land on char boundaries; a mid-char or past-end
 /// offset would be an engine bug, and clamping to the last boundary keeps
 /// this a rendering aid rather than a new failure mode.
+///
+/// A leading byte-order mark is not a column (#1608): the span indexes the
+/// caller's text, mark included, and an editor shows line 1 from the
+/// character after it, as the CLI's frame does.
 fn line_col(source: &str, byte: usize) -> (usize, usize) {
     let mut at = byte.min(source.len());
     while at > 0 && !source.is_char_boundary(at) {
         at -= 1;
     }
     let head = &source[..at];
+    let head = head.strip_prefix('\u{feff}').unwrap_or(head);
     let line_start = head.rfind('\n').map_or(0, |i| i + 1);
     (
         head.matches('\n').count() + 1,
@@ -280,20 +285,54 @@ mod tests {
         /// panics — mid-char offsets, past-end offsets, empty sources,
         /// newline-at-offset included. The walker is a DIFFERENT algorithm
         /// (one pass over chars, counting) so a shared blind spot would
-        /// need the same bug written twice.
+        /// need the same bug written twice. A leading byte-order mark is
+        /// not a column (#1608): the walker skips it as its first char.
         #[test]
         fn line_col_agrees_with_a_char_walker(
-            source in "\\PC{0,120}",
+            marked in proptest::bool::ANY,
+            body in "\\PC{0,120}",
             raw_offset in 0usize..200,
         ) {
+            let source = if marked { format!("\u{feff}{body}") } else { body };
             let (line, col) = line_col(&source, raw_offset);
             let mut at = raw_offset.min(source.len());
             while at > 0 && !source.is_char_boundary(at) { at -= 1; }
             let (mut rl, mut rc) = (1usize, 1usize);
-            for c in source[..at].chars() {
+            for (i, c) in source[..at].chars().enumerate() {
+                if i == 0 && c == '\u{feff}' { continue; }
                 if c == '\n' { rl += 1; rc = 1; } else { rc += 1; }
             }
             proptest::prop_assert_eq!((line, col), (rl, rc));
+        }
+    }
+
+    /// #1608 · the span indexes the caller's text, byte-order mark
+    /// included, and an editor shows line 1 from the character after the
+    /// mark: a marked file reports the bare file's line and column, line 1
+    /// included, while its span sits 3 bytes right.
+    #[test]
+    fn a_byte_order_mark_is_not_a_column() {
+        for bare in [
+            "bogus: 1\nnika: t\n",
+            "nika: hello: there\n",
+            "nika: t\ntasks:\n  a:\n    with: { d: \"${{ tasks.zz.output }}\" }\n    exec:\n      command: [\"echo\"]\n",
+        ] {
+            let row = |text: &str| -> serde_json::Value {
+                let v: serde_json::Value = serde_json::from_str(&check(text)).unwrap();
+                v["findings"][0].clone()
+            };
+            let (unmarked, marked) = (row(bare), row(&format!("\u{feff}{bare}")));
+            assert!(unmarked["line"].is_u64(), "{bare}: {unmarked}");
+            assert_eq!(
+                (&marked["line"], &marked["col"]),
+                (&unmarked["line"], &unmarked["col"]),
+                "{bare}"
+            );
+            assert_eq!(
+                marked["span"]["start"].as_u64().unwrap(),
+                unmarked["span"]["start"].as_u64().unwrap() + 3,
+                "{bare}"
+            );
         }
     }
 
