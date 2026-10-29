@@ -35,34 +35,18 @@ struct Binding {
     original_intent: String,
     input: String,
     effective_usd: f64,
-    source: Source,
+    source: MonetarySource,
     explicit_amount: Option<String>,
     project_default_usd: Option<f64>,
     project_file: Option<PathBuf>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum Source {
-    SessionDefault,
-    ProjectDefault,
-    Explicit,
-    Override,
-}
-
 impl Binding {
     fn of(saved: &SavedMoney) -> Option<Self> {
         let decision = &saved.decision;
-        if decision.refusal.is_some() {
+        if decision.refusal.is_some() || decision.source == MonetarySource::Rejected {
             return None;
         }
-        let source = match decision.source {
-            MonetarySource::SessionDefault => Source::SessionDefault,
-            MonetarySource::ProjectDefault => Source::ProjectDefault,
-            MonetarySource::Explicit => Source::Explicit,
-            MonetarySource::Override => Source::Override,
-            MonetarySource::Rejected => return None,
-        };
         Some(Self {
             path: saved.path.clone(),
             resolved: saved.resolved.clone()?,
@@ -70,7 +54,7 @@ impl Binding {
             original_intent: crate::broker::redact(&decision.original_intent).0,
             input: crate::broker::redact(&decision.input).0,
             effective_usd: decision.effective_usd?,
-            source,
+            source: decision.source,
             explicit_amount: decision.explicit_amount.clone(),
             project_default_usd: decision.project_default_usd,
             project_file: decision.project_file.clone(),
@@ -86,26 +70,27 @@ impl Binding {
         {
             return Err(UNREADABLE);
         }
-        let source = match (
+        let valid = match (
             self.source,
             self.explicit_amount.is_some(),
             self.project_default_usd,
         ) {
-            (Source::SessionDefault, false, None) => MonetarySource::SessionDefault,
-            (Source::ProjectDefault, false, Some(n))
-                if n.to_bits() == self.effective_usd.to_bits() =>
-            {
-                MonetarySource::ProjectDefault
+            (MonetarySource::SessionDefault, false, None)
+            | (MonetarySource::Explicit, true, None)
+            | (MonetarySource::Override, true, Some(_)) => true,
+            (MonetarySource::ProjectDefault, false, Some(n)) => {
+                n.to_bits() == self.effective_usd.to_bits()
             }
-            (Source::Explicit, true, None) => MonetarySource::Explicit,
-            (Source::Override, true, Some(_)) => MonetarySource::Override,
-            _ => return Err(UNREADABLE),
+            _ => false,
         };
+        if !valid {
+            return Err(UNREADABLE);
+        }
         Ok(MonetaryDecision {
             original_intent: self.original_intent.clone(),
             input: self.input.clone(),
             effective_usd: Some(self.effective_usd),
-            source,
+            source: self.source,
             explicit_amount: self.explicit_amount.clone(),
             project_default_usd: self.project_default_usd,
             project_file: self.project_file.clone(),
@@ -169,6 +154,72 @@ impl SessionRuntime {
             Err(error) => format!(
                 "\n  ⚠ the saved execution constraint was not recorded (.nika/{FILE}): {error}; after reopening, state an explicit Run ceiling or prepare and review again"
             ),
+        }
+    }
+
+    /// Receipt a ceiling picked for a Save with no durable execution constraint. An existing
+    /// valid receipt stays authoritative; changed bytes and unreadable evidence still refuse.
+    pub(in crate::runtime) fn receipt_picked_ceiling(
+        &mut self,
+        workflow: &Path,
+        checked: Option<&Witness>,
+        proposal: &crate::outcome::ProposalId,
+    ) -> Result<(), String> {
+        let checked = checked.ok_or(UNREADABLE)?;
+        let resolved = self
+            .snapshot
+            .root
+            .join(workflow)
+            .canonicalize()
+            .map_err(|_| UNREADABLE)?;
+        let now =
+            Witness::of(&std::fs::read(self.snapshot.root.join(workflow)).map_err(|_| UNREADABLE)?);
+        if &now != checked {
+            return Err("the saved workflow changed since its execution constraint was recorded — prepare and review the revision before running".into());
+        }
+        let records = ConsentRecord::read_all(&self.snapshot.root).map_err(|_| UNREADABLE)?;
+        let consent = records
+            .iter()
+            .rev()
+            .find(|record| {
+                record
+                    .written
+                    .iter()
+                    .any(|path| self.names(path, workflow, &resolved))
+            })
+            .ok_or(UNREADABLE)?;
+        let valid = records.iter().all(|r| r.version == ConsentRecord::VERSION)
+            && consent.decision == ConsentDecision::Applied
+            && consent.proposal == proposal.as_str()
+            && consent.written.iter().any(|path| path == workflow)
+            && consent
+                .witnesses
+                .iter()
+                .any(|w| w.path == workflow && w.after == now.0);
+        if !valid {
+            return Err(UNREADABLE.into());
+        }
+        if restore(&self.snapshot.root, consent, &resolved, Some(&now))?.is_some() {
+            return Ok(());
+        }
+        let mut decision = self.money.current.clone().ok_or(UNREADABLE)?;
+        if decision.explicit_amount.is_none() {
+            decision.explicit_amount = Some(decision.input.trim().to_owned());
+        }
+        decision.proposal = Some(proposal.clone());
+        self.money.saved.retain(|saved| saved.path != workflow);
+        self.money.saved.push(SavedMoney {
+            resolved: Some(resolved),
+            path: workflow.to_path_buf(),
+            witness: now,
+            decision,
+        });
+        let warning = self.save_money_evidence(consent);
+        if warning.is_empty() {
+            Ok(())
+        } else {
+            self.money.saved.pop();
+            Err(warning.trim().to_owned())
         }
     }
 }

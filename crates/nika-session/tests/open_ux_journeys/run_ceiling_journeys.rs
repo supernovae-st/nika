@@ -130,6 +130,26 @@ fn a_restored_save_and_run_asks_the_ceiling_then_runs_the_amount_picked() {
     assert_eq!(waiting(picked), "free", "{picked:#}");
 }
 
+/// The native proposal's picked ceiling is receipted against its Save, and the following plain
+/// French run reuses that amount without another question.
+#[test]
+fn a_ceiling_picked_after_save_and_run_is_receipted_and_reused() {
+    let journey = run("ceiling_restored_without_receipt");
+    let picked = "0.50";
+    assert!(runs_under(journey.step(4), "0.5"), "{:#}", journey.step(4));
+    let rerun = journey.step(5);
+    assert_eq!(rerun["line"], LANCE);
+    assert!(runs_under(rerun, "0.5"), "{rerun:#}");
+    assert_eq!(waiting(rerun), "free", "{rerun:#}");
+    let path = journey.dir.path().join("project/.nika/saved-money.ndjson");
+    let text = std::fs::read_to_string(path).expect("the picked ceiling is receipted");
+    let receipt: Value = serde_json::from_str(text.trim_end()).expect("one receipt");
+    let binding = &receipt["bindings"][0];
+    assert_eq!(binding["effective_usd"].as_f64(), Some(0.50));
+    assert_eq!(binding["input"], picked);
+    assert_eq!(binding["explicit_amount"], picked);
+}
+
 /// Reopened mid-conversation, the later proposal carries no ceiling: saved with « oui », then
 /// « lance-le » asks the ceiling in French, the conversation's language the run line shows; the
 /// amount picked runs it.

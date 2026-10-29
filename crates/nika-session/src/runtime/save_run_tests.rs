@@ -628,6 +628,58 @@ fn a_save_without_a_provable_ceiling_asks_it_when_run() {
     assert_eq!(s.waiting(), Waiting::Free);
 }
 
+/// A ceiling picked after `save & run` binds the Save's exact consent and bytes, and the next
+/// plain run reuses it instead of asking again. A ceiling picked outside that Save stays one-turn.
+#[test]
+fn a_ceiling_picked_for_save_and_run_is_receipted_for_the_next_run() {
+    let dir = tree();
+    let (mut s, _, _, _) = at_the_proposal(dir.path());
+    s.money.pending = None;
+    s.money.reconfirm = true;
+    let id = s.pending_proposal().expect("proposal without money proof");
+    let shown = s.waiting();
+    let outcome = s.submit("save & run", &shown);
+    let TurnOutcome::Question { key, .. } = outcome else {
+        panic!("save & run should ask its missing ceiling: {outcome:?}");
+    };
+    assert_eq!(key, "run.ceiling");
+    let asked = s.waiting();
+    let outcome = s.submit("0.25", &asked);
+    let TurnOutcome::RunRequested { .. } = outcome else {
+        panic!("the amount picked should run: {outcome:?}");
+    };
+    let consents = ConsentRecord::read_all(dir.path()).expect("consent journal");
+    let consent = consents
+        .iter()
+        .find(|record| record.proposal == id.as_str())
+        .expect("the Save's consent");
+    let receipt_text = read(dir.path(), ".nika/saved-money.ndjson");
+    let receipt: serde_json::Value =
+        serde_json::from_str(receipt_text.trim_end()).expect("one monetary receipt");
+    assert_eq!(receipt["proposal"], consent.proposal);
+    assert_eq!(receipt["consent_at"], consent.at);
+    let bindings = receipt["bindings"].as_array().expect("receipt bindings");
+    assert_eq!(bindings.len(), 1, "{bindings:#?}");
+    let binding = &bindings[0];
+    assert_eq!(binding["path"], COPY_DEST);
+    assert_eq!(
+        binding["effective_usd"].as_f64().map(f64::to_bits),
+        Some(0.25_f64.to_bits())
+    );
+    assert_eq!(binding["input"], "0.25");
+    assert_eq!(binding["explicit_amount"], "0.25");
+    let witness = consent
+        .witnesses
+        .iter()
+        .find(|witness| witness.path == Path::new(COPY_DEST))
+        .expect("the saved workflow's witness");
+    assert_eq!(binding["witness"], witness.after);
+    let TurnOutcome::RunRequested { run, .. } = s.turn("run it") else {
+        panic!("the next run reuses the receipt instead of asking again");
+    };
+    assert_eq!(run.max_cost_usd.to_bits(), 0.25_f64.to_bits());
+}
+
 /// The ceiling stated at a run's question is that Run's money (NIK-170): typed with its currency,
 /// it amends no Session inference, so the reopened conversation reads no exposure to reconfirm.
 #[test]

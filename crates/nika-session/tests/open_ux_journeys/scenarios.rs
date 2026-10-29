@@ -493,6 +493,7 @@ pub(crate) fn scenario(name: &str) -> Scenario {
         "schedule_zone_revised" => schedule_zone_revised(),
         "schedule_saved_then_revised" => schedule_saved_then_revised(),
         "ceiling_restored" => run_ceilings::ceiling_restored(),
+        "ceiling_restored_without_receipt" => run_ceilings::ceiling_restored_without_receipt(),
         "ceiling_reopened" => run_ceilings::ceiling_reopened(),
         "ceiling_kept_by_revision" => run_ceilings::ceiling_kept_by_revision(),
         "ceiling_kept_by_a_revision" => run_ceilings::ceiling_kept_by_a_revision(),

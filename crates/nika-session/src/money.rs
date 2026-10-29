@@ -9,7 +9,8 @@ use std::path::PathBuf;
 use crate::outcome::ProposalId;
 
 /// Where the effective execution amount came from.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum MonetarySource {
     /// Session's documented fallback when the project declares none.

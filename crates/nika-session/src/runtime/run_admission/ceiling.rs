@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! A Run refused only because no ceiling can be proved asks the person for one instead of
-//! refusing in the money law's words: the amounts an activation offers, one recommended from what
-//! the workflow is known to cost, or a typed amount. The amount they state continues the Run
-//! exactly as « run it max $X » would, through the explicit path of the money law; « yes » states
-//! no amount, and none is ever applied for them. Every other refusal stands.
+//! An unproven Run ceiling is asked, never defaulted; every other refusal stands.
 
 use std::path::Path;
 
@@ -20,9 +16,7 @@ use crate::work::{Offer, Waiting};
 /// The key a run's ceiling is asked under.
 const RUN_CEILING: &str = "run.ceiling";
 
-/// A run's ceiling as it is asked: what the recommendation reads, whether it is said in French
-/// (the conversation's language, or the verb of the line that asked the run), and why no ceiling
-/// could be proved, as the money law said it.
+/// The ceiling question, its cost evidence, language and refusal.
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::runtime) struct Asked {
     evidence: Option<Evidence>,
@@ -31,9 +25,7 @@ pub(in crate::runtime) struct Asked {
 }
 
 impl Asked {
-    /// The ceiling `said` asks for `workflow` under `root`, refused as `refused` said, in a
-    /// conversation spoken in `lang` (live gauntlet wave 7, 2026-10-19: « save & run » in a French
-    /// conversation asked « what ceiling for this run? » in English).
+    /// Build the question for this workflow and conversation language.
     pub(super) fn new(
         root: &Path,
         workflow: &Path,
@@ -153,13 +145,8 @@ impl SessionRuntime {
         self.pending_run_ceiling().is_some() && run_prefix(line).is_none()
     }
 
-    /// The ceiling a waiting run asks, for a host that shows its options natively
-    /// ([`Waiting::RunCeiling`]): its key, the question as its sentence and one short line (the
-    /// options are the host's rows, never repeated as text), the amounts (one recommended from
-    /// the workflow's last run or its static cost floor, with why in its label), and that another
-    /// typed amount is admitted. Picking an option answers as typing its key does, through the
-    /// same door and the same money law; nothing is applied without that answer. Read-only: it
-    /// answers, applies and authorizes nothing.
+    /// Native ceiling options for the waiting Run; picking one answers through the same money law.
+    /// Read-only: nothing is applied or authorized without an answer.
     #[must_use]
     pub fn waiting_run_ceiling_choices(&self) -> Option<(&'static str, String, Vec<Offer>, bool)> {
         let inputs = self.run_inputs.as_ref()?;
@@ -241,10 +228,12 @@ impl SessionRuntime {
             self.run_inputs = Some(inputs);
             return TurnOutcome::Refusal(Refusal::new(RefusalClass::EmptyAnswer, why));
         };
-        let said = inputs.said.clone();
-        match self.run_money(&said, &inputs.workflow, Some(amount)) {
+        match self.run_money(line, &inputs.workflow, Some(amount)) {
             Ok(admitted) => {
                 inputs.ceiling = Ceiling::Admitted(admitted, "stated for this run");
+                inputs.receipt = (inputs.said == "save & run")
+                    .then(|| self.decided.clone())
+                    .flatten();
                 self.last_workflow = Some(inputs.workflow.clone());
                 self.intent.unresolved.clear();
                 self.remember(line, "(run ceiling stated · run requested)");

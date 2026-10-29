@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The run admission: an explicit run line (« run it » · « run brief.nika with a ceiling of 0.05 »)
-//! becomes a run request only after a clean check on disk, the money admitted and every declared
-//! input bound, one question per missing input (moved whole out of `authoring.rs`). A run refused
-//! only because no ceiling can be proved asks the person for its ceiling first (`ceiling.rs`).
+//! Run admission: clean checked bytes, admitted money and every required input.
+//! An unproven ceiling is asked first (`ceiling.rs`).
 
 mod ceiling;
 mod choices;
@@ -23,8 +21,7 @@ use crate::outcome::{Refusal, RefusalClass};
 use crate::turn::{SessionPhase, TurnAct};
 
 impl SessionRuntime {
-    /// Whether this turn reaches only Run validation, without Session cognition: a plain run line
-    /// typed at a run's ceiling question too, a request of its own (`ceiling.rs`).
+    /// Whether this line reaches only local Run validation.
     pub(super) fn local_run_line(&self, input: &str) -> bool {
         !self.waiting_cost_choice()
             && self.authoring.is_none()
@@ -37,10 +34,7 @@ impl SessionRuntime {
             })
     }
 
-    /// An explicit run line — `run it` · `run brief.nika with a ceiling of 0.05` · `test it now`
-    /// — runs a workflow the human named or the one last accepted, only when its check on disk is
-    /// clean. `None` when the line is not a run line, or asks to see what is there (« lance-le et
-    /// montre-moi le résultat »: a reading, never a Run, NIK-234).
+    /// Run a named or last accepted workflow after a clean check on disk.
     pub(super) fn run_turn(&mut self, input: &str) -> Option<TurnOutcome> {
         run_prefix(input).filter(|_| !run_options::asks_to_read(input))?;
         let Some((line, access_pin)) = run_options::parse(input) else {
@@ -83,8 +77,7 @@ impl SessionRuntime {
         Some(self.run_plain(&line, ceiling, access_pin))
     }
 
-    /// The closed run line: the verb, the file or the last accepted
-    /// workflow, the ceiling.
+    /// The closed run line: verb, target and optional ceiling.
     fn run_plain(
         &mut self,
         input: &str,
@@ -116,8 +109,7 @@ impl SessionRuntime {
         self.admit_bound_run(input, target, ceiling, access_pin, inline_vars(input))
     }
 
-    /// Where the ceiling a run was just admitted under comes from, in words: the amount stated
-    /// for this run (`stated`), else the decision the money law restored or defaulted.
+    /// The admitted ceiling's provenance in the person's words.
     pub(super) fn ceiling_source(&self, stated: Option<f64>) -> &'static str {
         use crate::money::MonetarySource;
         if stated.is_some() {
@@ -130,8 +122,6 @@ impl SessionRuntime {
             return "the one you set for its next runs";
         }
         match self.money.current.as_ref().map(|decision| decision.source) {
-            // Beside the file, never in it (live gauntlet wave 6 r09 B2, 2026-10-18: « saved with
-            // the workflow » read against « a workflow never holds a dollar ceiling »).
             Some(MonetarySource::Explicit | MonetarySource::Override) => {
                 "saved beside the workflow"
             }
@@ -140,11 +130,7 @@ impl SessionRuntime {
         }
     }
 
-    /// A run its own last run says would exceed its ceiling, refused before it starts: the last
-    /// run of these exact bytes in this conversation cost more than the ceiling, so this one
-    /// would stop partway and leave its work undone (live gauntlet r09, 2026-10-17: a run under
-    /// $0.001 spent $0.0035 before it stopped, and wrote nothing). Other bytes, or no run of
-    /// them observed, are no evidence.
+    /// Refuse a ceiling below the last observed cost of these exact bytes.
     fn over_its_last_run(&self, workflow: &std::path::Path, ceiling: f64) -> Option<TurnOutcome> {
         let (ran, sha, spent) = self.last_spend.as_ref()?;
         let root = &self.snapshot.root;
@@ -191,9 +177,7 @@ impl SessionRuntime {
         })
     }
 
-    /// A run line bound for cognition, or a typed request (`save & run`), while a restored
-    /// exposure has no stated ceiling to reconfirm it. A fresh plain local Run instead meets this
-    /// law in its money admission, after its file is resolved and checked ([`Self::run_money`]).
+    /// A restored exposure needs a stated ceiling before a typed Run.
     fn run_unconfirmed(&mut self, said: &str, ceiling: Option<f64>) -> Option<TurnOutcome> {
         (self.money.reconfirm && ceiling.is_none()).then(|| {
             let why = self.restored_refusal();
@@ -201,21 +185,14 @@ impl SessionRuntime {
         })
     }
 
-    /// While a run's cost review waits, a `line` that answers another state (a consent, a gate,
-    /// by any door) is refused as `submit` refuses it: the review answers first
-    /// ([`Self::waiting`]), so nothing is saved, requested or resumed past it, and everything
-    /// keeps waiting. Leaving stays one line away.
+    /// A pending run cost review owns the next answer.
     pub(super) fn review_first(&self, line: &str) -> Option<TurnOutcome> {
         let refused = Refusal::new(RefusalClass::StaleRevision, super::work::REVIEW_NOT_SHOWN);
         (self.waiting_review().is_some() && !super::is_quit(line))
             .then_some(TurnOutcome::Refusal(refused))
     }
 
-    /// The run of `workflow` under the one admission every run request meets, typed: whatever
-    /// asked it (a run line, a `save & run`), its values reach the check, the money and the inputs
-    /// exactly. A rehearsed copy runs only over its rehearsed world, the check on disk is clean
-    /// under `access_pin`, the money is admitted (a stated `ceiling`, else the saved decision), and
-    /// each declared input not `given` is asked; then the run request. `said` is the human's line.
+    /// Admit a typed `save & run` through the shared checked-bytes, money and input path.
     pub(super) fn admit_run(
         &mut self,
         said: &str,
@@ -224,8 +201,6 @@ impl SessionRuntime {
         access_pin: Option<String>,
         given: Vec<String>,
     ) -> TurnOutcome {
-        // A typed request is not a fresh plain Run of an earlier Save: a paused gate holds first,
-        // and a restored exposure needs a stated ceiling, asked once its file checks clean.
         if let Some(refused) = self.run_held(said) {
             return refused;
         }
@@ -233,8 +208,7 @@ impl SessionRuntime {
         self.admit_checked(said, target, ceiling, access_pin, given, true)
     }
 
-    /// The same admission, optionally restricted to the exact bytes a retained Run observed.
-    /// Compare against the check's witness before adopting a target or asking for its inputs.
+    /// The same admission, bound to the exact retained bytes when supplied.
     pub(super) fn admit_bound_run(
         &mut self,
         said: &str,
@@ -246,9 +220,7 @@ impl SessionRuntime {
         self.admit_checked(said, target, ceiling, access_pin, given, false)
     }
 
-    /// The admission itself; `typed` marks a typed request (`save & run`), which a saved
-    /// decision cannot stand for under a restored exposure. A Run refused only because no
-    /// ceiling can be proved asks the person for one; every other refusal stands.
+    /// Ask an unproven ceiling; every other refusal stands.
     fn admit_checked(
         &mut self,
         said: &str,
@@ -329,6 +301,7 @@ impl SessionRuntime {
             given,
             world: audit.world,
             checked: (audit.bytes, audit.closure),
+            receipt: None,
         };
         self.request_or_ask(inputs)
     }
@@ -378,6 +351,12 @@ impl SessionRuntime {
         };
         let ceiling = lang.pick("ceiling", "plafond");
         let _ = write!(report, " · {ceiling} ${stated} ({source})");
+        if let Some(proposal) = inputs.receipt.clone()
+            && let Err(why) =
+                self.receipt_picked_ceiling(&inputs.workflow, inputs.checked.0.as_ref(), &proposal)
+        {
+            return self.refuse_run_money(&inputs.said, &why);
+        }
         self.requested_run = Some(crate::work::RequestedRun::new(
             inputs.workflow.clone(),
             &inputs.given,
@@ -498,6 +477,8 @@ pub(super) struct RunInputs {
     world: crate::world::World,
     /// The witness of those exact bytes and the closure of their world: the run is bound to both.
     checked: (Option<Witness>, Option<crate::change::Closure>),
+    /// The Save whose missing proof was filled by the person's answer, to receipt before the Run.
+    receipt: Option<crate::outcome::ProposalId>,
 }
 
 impl RunInputs {

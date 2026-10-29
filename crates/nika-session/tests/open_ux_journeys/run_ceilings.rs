@@ -48,6 +48,7 @@ pub(super) fn ceiling_restored() -> Scenario {
             Act::Submit(ACCEPT),
             Act::Submit(SAVE_AND_RUN_ONCE),
             Act::Submit(PICKED),
+            Act::Turn(LANCE),
         ],
         script: Script {
             agent: accepted_steps(),
@@ -56,6 +57,16 @@ pub(super) fn ceiling_restored() -> Scenario {
             verdicts: Vec::new(),
         },
     }
+}
+
+/// The same restored Save with no durable execution constraint, and a different amount picked.
+pub(super) fn ceiling_restored_without_receipt() -> Scenario {
+    let mut scenario = ceiling_restored();
+    scenario
+        .acts
+        .insert(3, Act::Edit(".nika/saved-money.ndjson", ""));
+    scenario.acts[4] = Act::Submit("0.50");
+    scenario
 }
 
 /// The digest `BUDGETED` asks for: the two sites it names, written to the file it names.
