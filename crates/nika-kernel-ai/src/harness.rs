@@ -50,6 +50,13 @@ pub struct HarnessRequest {
     /// applies it through the session's own reasoning option after the model is selected and
     /// reads it back before the prompt, or refuses; it is never dropped or translated.
     pub requested_effort: Option<String>,
+    /// The service tier the caller asks, in the LANGUAGE's word (`standard` · `fast`). The
+    /// client binds the word to the adapter's own measured speed option, applies it after the
+    /// model and the effort and reads it back before the prompt, or refuses: an adapter with
+    /// no measured binding, an option the session does not offer for the selected model, or a
+    /// read-back that does not hold the value. `None` sends nothing and keeps the session's
+    /// own tier, which is not `standard`.
+    pub requested_service_tier: Option<String>,
     /// The confinement the session must hold (NIK-266): the workflow's `permits:` projected
     /// onto the harness's own approval mode. Unlike [`Self::requested_mode`] this is never best
     /// effort — the client applies the measured mode and reads it back before the prompt, or
@@ -73,9 +80,17 @@ impl HarnessRequest {
             requested_model: None,
             requested_mode: None,
             requested_effort: None,
+            requested_service_tier: None,
             confinement: None,
             images: Vec::new(),
         }
+    }
+
+    /// Ask for a service tier by the language's word (`None` keeps the session's own).
+    #[must_use]
+    pub fn with_requested_service_tier(mut self, service_tier: Option<String>) -> Self {
+        self.requested_service_tier = service_tier;
+        self
     }
 
     /// Send `images` with the prompt (see [`Self::images`]).
@@ -447,17 +462,29 @@ pub struct HarnessSelection {
     pub configured_effort: Option<String>,
     /// How `configured_effort` was learned.
     pub configured_effort_source: Option<ModelProvenance>,
-    /// The agent itself moved the model or the effort away from what was configured during the
-    /// turn (a `config_option_update` · e.g. a rate-limit fallback): the values it announced,
-    /// `dimension=value`, in arrival order. Recorded, never hidden.
+    /// The session's own option id the service tier was sent through (codex-acp: `fast-mode`).
+    /// `None` with every other tier fact when no tier was asked: nothing is sent or recorded.
+    pub service_tier_option: Option<String>,
+    /// The native values the session listed for that option when the tier was judged, after
+    /// the model and the effort were selected, in the session's own order.
+    pub offered_service_tier: Option<Vec<String>>,
+    /// The native tier value sent, verbatim (codex-acp: `on` for `fast`, `off` for `standard`).
+    pub transmitted_service_tier: Option<String>,
+    /// The tier value the session reported current after the last selection.
+    pub configured_service_tier: Option<String>,
+    /// How `configured_service_tier` was learned.
+    pub configured_service_tier_source: Option<ModelProvenance>,
+    /// The agent itself moved the model, the effort or the service tier away from what was
+    /// configured during the turn (a `config_option_update` · e.g. a rate-limit fallback): the
+    /// values it announced, `dimension=value`, in arrival order. Recorded, never hidden.
     pub changed_mid_turn: Vec<String>,
 }
 
 impl HarnessSelection {
-    /// The refusal an EXACT selection owes an answer during which the agent moved a model or
-    /// an effort the client had applied (`fallback: none` — the answer was not produced under
-    /// it). `None` when nothing applied moved: a move of a dimension nobody set stays a fact
-    /// of the receipt, never a refusal.
+    /// The refusal an EXACT selection owes an answer during which the agent moved a model, an
+    /// effort or a service tier the client had applied (`fallback: none` — the answer was not
+    /// produced under it). `None` when nothing applied moved: a move of a dimension nobody
+    /// set stays a fact of the receipt, never a refusal.
     #[must_use]
     pub fn moved_refusal(&self) -> Option<HarnessError> {
         let moved: Vec<&str> = self
@@ -466,6 +493,8 @@ impl HarnessSelection {
             .filter(|change| {
                 (change.starts_with("model=") && self.transmitted_model.is_some())
                     || (change.starts_with("effort=") && self.transmitted_effort.is_some())
+                    || (change.starts_with("service_tier=")
+                        && self.transmitted_service_tier.is_some())
             })
             .map(String::as_str)
             .collect();
@@ -708,6 +737,47 @@ mod tests {
         let both = reason(&selection);
         assert!(both.contains("model=sonnet · effort=low"), "{both}");
         assert!(both.contains("an explicit selection is exact"), "{both}");
+    }
+
+    /// A service tier is an applied dimension like the others: its move refuses the answer
+    /// only when a tier was sent, and it never makes another dimension's move a refusal.
+    #[test]
+    fn a_moved_service_tier_refuses_only_when_a_tier_was_applied() {
+        let mut selection = HarnessSelection {
+            changed_mid_turn: vec!["service_tier=off".into(), "effort=low".into()],
+            ..HarnessSelection::default()
+        };
+        assert!(selection.moved_refusal().is_none(), "no tier was applied");
+        let reason = |selection: &HarnessSelection| match selection.moved_refusal() {
+            Some(HarnessError::Selection { reason }) => reason,
+            _ => String::new(),
+        };
+        selection.transmitted_service_tier = Some("on".into());
+        let tier_only = reason(&selection);
+        assert!(tier_only.contains("service_tier=off"), "{tier_only}");
+        assert!(!tier_only.contains("effort=low"), "{tier_only}");
+        assert!(
+            tier_only.contains("an explicit selection is exact"),
+            "{tier_only}"
+        );
+    }
+
+    /// No tier asked is the default: nothing to send, nothing recorded.
+    #[test]
+    fn a_request_asks_no_service_tier_unless_told() {
+        let plain = HarnessRequest::new("do the thing", "/tmp/project");
+        assert_eq!(plain.requested_service_tier, None);
+        let fast = plain
+            .clone()
+            .with_requested_service_tier(Some("fast".to_owned()));
+        assert_eq!(fast.requested_service_tier.as_deref(), Some("fast"));
+        assert_eq!(fast.with_requested_service_tier(None), plain);
+        let untouched = HarnessSelection::default();
+        assert_eq!(untouched.service_tier_option, None);
+        assert_eq!(untouched.offered_service_tier, None);
+        assert_eq!(untouched.transmitted_service_tier, None);
+        assert_eq!(untouched.configured_service_tier, None);
+        assert_eq!(untouched.configured_service_tier_source, None);
     }
 
     /// NIK-266 · an escalation is empty until it names a network target or a widening, and

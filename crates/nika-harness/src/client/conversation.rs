@@ -96,6 +96,7 @@ where
             progress: None,
             meta: None,
             agent_name: None,
+            agent_version: None,
             confined: None,
         };
         match driver.handshake(&setup, &offer, one_shot, &cwd).await {

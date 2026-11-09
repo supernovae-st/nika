@@ -434,14 +434,26 @@ fn codex(model: &str, effort: &str, mode: Option<&str>) -> Value {
     Value::Array(options)
 }
 
-/// A scripted codex-acp 1.13.1 recording every request it reads.
+/// The configuration a scripted codex-acp answers: [`codex`], plus its `fast-mode` option
+/// (`model_config`, `off` listed before `on`) when the session offers a speed control.
+fn codex_config(model: &str, effort: &str, mode: Option<&str>, fast: Option<&str>) -> Value {
+    let mut config = codex(model, effort, mode);
+    if let (Some(fast), Some(options)) = (fast, config.as_array_mut()) {
+        options.push(select("fast-mode", "model_config", fast, &["off", "on"]));
+    }
+    config
+}
+
+/// A scripted codex-acp 1.13.1 recording every request it reads. `fast` is the initial value
+/// of its speed option, `None` a session that offers none.
 async fn codex_peer(
     mut r: Reader,
     mut w: Writer,
-    (mode, turn): (Mode, Turn),
+    (mode, turn, fast): (Mode, Turn, Option<&'static str>),
     seen: Arc<Mutex<Vec<Value>>>,
 ) {
     let mut typed_failures = false;
+    let mut fast = fast.map(str::to_owned);
     let advertised = |current: &str| match mode {
         Mode::Absent => None,
         Mode::Confirms | Mode::Ignores => Some(current.to_owned()),
@@ -469,16 +481,18 @@ async fn codex_peer(
                 json!({"protocolVersion":1,"agentInfo":
                     {"name":"@agentclientprotocol/codex-acp","title":"Codex","version":"1.13.1"}})
             }
-            Some("session/new") => json!({"sessionId":"s-codex",
-                "configOptions":codex(&model, &effort, advertised(&current).as_deref())}),
+            Some("session/new") => json!({"sessionId":"s-codex","configOptions":codex_config(
+                &model, &effort, advertised(&current).as_deref(), fast.as_deref())}),
             Some("session/set_config_option") => {
                 match config_id {
                     "model" => value.clone_into(&mut model),
                     "reasoning_effort" => value.clone_into(&mut effort),
+                    "fast-mode" if fast.is_some() => fast = Some(value.to_owned()),
                     _ if matches!(mode, Mode::Confirms) => value.clone_into(&mut current),
                     _ => {}
                 }
-                json!({"configOptions":codex(&model, &effort, advertised(&current).as_deref())})
+                json!({"configOptions":codex_config(
+                    &model, &effort, advertised(&current).as_deref(), fast.as_deref())})
             }
             Some("session/prompt") => codex_turn_end(&mut w, turn, typed_failures).await,
             other => panic!("unexpected client request {other:?}"),
@@ -526,6 +540,8 @@ async fn codex_turn_end(w: &mut Writer, turn: Turn, typed_failures: bool) -> Val
 struct ScriptedCodex {
     mode: Mode,
     turn: Turn,
+    /// The initial value of the session's speed option, `None` when it offers none.
+    fast: Option<&'static str>,
     seen: Arc<Mutex<Vec<Value>>>,
 }
 
@@ -540,7 +556,7 @@ impl DynAgentBackend for ScriptedCodex {
         tokio::spawn(codex_peer(
             BufReader::new(peer_read),
             peer_write,
-            (self.mode, self.turn),
+            (self.mode, self.turn, self.fast),
             Arc::clone(&self.seen),
         ));
         let codex = meet_acp_one_shot("codex").expect("attested");
@@ -564,11 +580,37 @@ async fn codex_one_shot_ending(
     let transport = ScriptedCodex {
         mode,
         turn,
+        fast: None,
         seen: Arc::clone(&seen),
     };
     let request = HarnessRequest::new("answer OK", "/never/the/session/root")
         .with_requested_model("openai/gpt-6-luna")
         .with_requested_effort(Some(effort.to_owned()));
+    let codex = meet_acp_one_shot("codex").expect("attested");
+    let result = codex
+        .run_over(&transport, request, Some(Duration::from_secs(5)))
+        .await;
+    let seen = seen.lock().expect("seen").clone();
+    (result, seen)
+}
+
+/// One Codex one-shot that declares the service tier `tier`, against a session whose speed
+/// option starts at `fast` (`None`: it offers none).
+async fn codex_one_shot_tiered(
+    fast: Option<&'static str>,
+    tier: &str,
+) -> (Result<HarnessOutcome, HarnessError>, Vec<Value>) {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let transport = ScriptedCodex {
+        mode: Mode::Confirms,
+        turn: Turn::Answers,
+        fast,
+        seen: Arc::clone(&seen),
+    };
+    let request = HarnessRequest::new("answer OK", "/never/the/session/root")
+        .with_requested_model("openai/gpt-6-luna")
+        .with_requested_effort(Some("low".to_owned()))
+        .with_requested_service_tier(Some(tier.to_owned()));
     let codex = meet_acp_one_shot("codex").expect("attested");
     let result = codex
         .run_over(&transport, request, Some(Duration::from_secs(5)))
@@ -614,6 +656,83 @@ async fn the_codex_profile_selects_model_effort_and_read_only_before_one_prompt(
     assert_eq!(selection.transmitted_model.as_deref(), Some("gpt-6-luna"));
     assert_eq!(selection.configured_effort.as_deref(), Some("max"));
     assert_eq!(selection.effort_option.as_deref(), Some("reasoning_effort"));
+}
+
+/// A declared service tier rides the same one-shot: sent through the adapter's `fast-mode`
+/// option after the effort and before the `read-only` mode, whose answer still holds it, then
+/// exactly one prompt. `standard` is a selection too and sends the native `off`.
+#[tokio::test]
+async fn the_codex_profile_applies_a_declared_tier_between_the_effort_and_the_mode() {
+    for (tier, native) in [("fast", "on"), ("standard", "off")] {
+        let (result, seen) = codex_one_shot_tiered(Some("off"), tier).await;
+        let outcome = result.expect("answered");
+        assert_eq!(outcome.output, "OK");
+        assert_eq!(
+            methods(&seen),
+            [
+                "initialize",
+                "session/new",
+                "session/set_config_option",
+                "session/set_config_option",
+                "session/set_config_option",
+                "session/set_config_option",
+                "session/prompt"
+            ],
+            "{tier}"
+        );
+        assert_eq!(seen[3]["params"]["configId"], "reasoning_effort", "{tier}");
+        assert_eq!(
+            seen[4]["params"],
+            json!({"sessionId":"s-codex","configId":"fast-mode","value":native}),
+            "{tier}"
+        );
+        assert_eq!(
+            seen[5]["params"],
+            json!({"sessionId":"s-codex","configId":"mode","value":"read-only"}),
+            "{tier}"
+        );
+        let selection = &outcome.selection;
+        assert_eq!(selection.service_tier_option.as_deref(), Some("fast-mode"));
+        assert_eq!(
+            selection.offered_service_tier,
+            Some(vec!["off".to_owned(), "on".to_owned()])
+        );
+        assert_eq!(selection.transmitted_service_tier.as_deref(), Some(native));
+        assert_eq!(selection.configured_service_tier.as_deref(), Some(native));
+        assert_eq!(
+            selection.configured_service_tier_source,
+            Some(ModelProvenance::ConfirmedSelection)
+        );
+        assert_eq!(selection.configured_effort.as_deref(), Some("low"));
+    }
+}
+
+/// The session lists no speed option for the selected model: a declared tier refuses after
+/// the effort, before the mode and with zero prompts.
+#[tokio::test]
+async fn a_tier_the_codex_session_does_not_offer_refuses_with_zero_prompts() {
+    let (result, seen) = codex_one_shot_tiered(None, "fast").await;
+    match result {
+        Err(HarnessError::Selection { reason }) => {
+            assert!(
+                reason.contains("no `fast-mode` option for model `gpt-6-luna`")
+                    && reason.contains("run.access.service_tier: fast")
+                    && reason.contains("no prompt was sent"),
+                "{reason}"
+            );
+        }
+        other => panic!("an unoffered tier must refuse: {other:?}"),
+    }
+    assert_eq!(
+        methods(&seen),
+        [
+            "initialize",
+            "session/new",
+            "session/set_config_option",
+            "session/set_config_option"
+        ],
+        "the model and the effort only: {seen:?}"
+    );
 }
 
 /// `ultra` exists for the session default (astra) only: judged on the

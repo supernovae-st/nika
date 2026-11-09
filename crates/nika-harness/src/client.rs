@@ -126,6 +126,7 @@ where
             progress,
             meta,
             agent_name: None,
+            agent_version: None,
             confined: None,
         };
         if let Err(e) = driver.run(request).await {
@@ -177,6 +178,8 @@ struct Driver<R, W> {
     /// The adapter's own name (`initialize` → `agentInfo.name`): the key its measured
     /// confinement is looked up by, never a guess from the command that spawned it.
     agent_name: Option<String>,
+    /// The adapter's own release (`agentInfo.version`): what a measured speed control holds for.
+    agent_version: Option<String>,
     /// The mode the session was confined to before the prompt (NIK-266): held for the whole
     /// turn, a reported change away from it ends the session.
     confined: Option<String>,
@@ -202,10 +205,7 @@ where
             crate::authoring::acp::admit(&value, completion)?;
         }
         prompt::admit_images(&value, &request.images)?;
-        self.agent_name = value
-            .pointer("/agentInfo/name")
-            .and_then(Value::as_str)
-            .map(str::to_owned);
+        self.record_agent(&value);
         let init: wire::InitializeResult = parse_payload(value, "initialize")?;
         if init.protocol_version != wire::PROTOCOL_V1 {
             return Err(HarnessError::Refused {
@@ -587,10 +587,7 @@ where
                 });
             }
         }
-        self.select_effort(&sid, config.as_ref(), request.requested_effort.as_deref())
-            .await?;
-        self.settle_mode(sid, session, config.as_ref(), request)
-            .await
+        self.seat_after_model(sid, session, config, request).await
     }
 
     /// The session's mode, last before the prompt: a one-shot profile's required mode, an
@@ -772,6 +769,10 @@ mod seats;
 /// The native reasoning effort: discovered on the refreshed configuration, applied through
 /// the session's own option id, read back before the prompt.
 mod effort;
+
+/// The service tier: the language's word bound to the adapter's measured speed option,
+/// applied after the effort and read back before the prompt.
+mod speed;
 
 /// A completion profile's required session mode, applied and read back before the prompt.
 mod mode;
