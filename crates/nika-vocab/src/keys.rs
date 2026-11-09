@@ -57,8 +57,9 @@ pub const RUN_KEYS: &[&str] = &["entropy", "clock", "access", "reasoning"];
 pub const RUN_ENTROPY_MAP_KEYS: &[&str] = &["seeded"];
 
 /// Keys of `run.access` (closed in both modes: a typo'd `protocl:` would
-/// silently let the run reach its model another way).
-pub const RUN_ACCESS_KEYS: &[&str] = &["via", "protocol", "fallback"];
+/// silently let the run reach its model another way, and a misspelled
+/// `service_tier:` would silently keep the route's default tier).
+pub const RUN_ACCESS_KEYS: &[&str] = &["via", "protocol", "fallback", "service_tier"];
 
 /// Keys of `run.reasoning` (closed).
 pub const RUN_REASONING_KEYS: &[&str] = &["effort"];

@@ -51,21 +51,22 @@
 //! ```yaml
 //! run:
 //!   access:
-//!     via: codex        # one route id: an agent application or a provider
-//!     protocol: acp     # acp | api
-//!     fallback: none    # the only value: an explicit selection is exact
+//!     via: codex          # one route id: an agent application or a provider
+//!     protocol: acp       # acp | api
+//!     fallback: none      # the only value: an explicit selection is exact
+//!     service_tier: fast  # standard | fast: the language's words, not a route's
 //!   reasoning:
-//!     effort: high      # the route's NATIVE value, verbatim
+//!     effort: high        # the route's NATIVE value, verbatim
 //! ```
 //!
 //! Every key is optional and absence keeps today's resolution; an empty
 //! `access:` or `reasoning:` selects nothing and is refused at parse. The
 //! values are literals (no `${{ }}`): they are resolved before task 1.
-//! Whether a route, model or effort is AVAILABLE is never judged here —
-//! the access resolver refuses before task 1, and a live session refuses
-//! an unoffered model or effort before its first prompt.
+//! Whether a route, model, tier or effort is AVAILABLE is never judged
+//! here — the access resolver refuses before task 1, and a live session
+//! refuses an unoffered model, effort or tier before its first prompt.
 
-use nika_types::access::{AccessFallback, AccessProtocol, AccessRequirement};
+use nika_types::access::{AccessFallback, AccessProtocol, AccessRequirement, ServiceTier};
 
 /// The `run.entropy` declaration (F-P3) — where the run's randomness
 /// comes from.
@@ -153,10 +154,15 @@ pub struct RunAccess {
     pub protocol: Option<AccessProtocol>,
     /// `fallback:` — `none` (the only value; absent behaves the same).
     pub fallback: Option<AccessFallback>,
+    /// `service_tier:` — `standard` | `fast` (absent keeps the route's own
+    /// default tier, which is not `standard`).
+    pub service_tier: Option<ServiceTier>,
 }
 
 impl RunAccess {
-    /// The block as authored (INV-019).
+    /// The route, protocol and fallback as authored (INV-019). A declared
+    /// service tier joins through [`Self::with_service_tier`], so a caller
+    /// written before the key existed still builds the block it built.
     #[must_use]
     pub const fn new(
         via: Option<String>,
@@ -167,7 +173,15 @@ impl RunAccess {
             via,
             protocol,
             fallback,
+            service_tier: None,
         }
+    }
+
+    /// Attach the authored `service_tier:`.
+    #[must_use]
+    pub const fn with_service_tier(mut self, service_tier: Option<ServiceTier>) -> Self {
+        self.service_tier = service_tier;
+        self
     }
 }
 
@@ -249,6 +263,7 @@ impl RunDecl {
                 .with_via(access.via)
                 .with_protocol(access.protocol)
                 .with_fallback(access.fallback)
+                .with_service_tier(access.service_tier)
                 .with_effort(self.reasoning.as_ref().and_then(|r| r.effort.clone())),
         )
     }
@@ -452,6 +467,44 @@ mod tests {
         let req = effort_only.access_requirement().expect("declared");
         assert!(!req.selects_path(), "an effort alone keeps today's route");
         assert_eq!(req.identity(), "effort=max");
+    }
+
+    /// A declared tier reaches the requirement and its identity; a block that
+    /// declares none projects exactly what it projected before the key existed.
+    #[test]
+    fn a_declared_service_tier_is_projected_and_an_omitted_one_is_not() {
+        let route = || {
+            RunAccess::new(
+                Some("codex".to_owned()),
+                Some(AccessProtocol::Acp),
+                Some(AccessFallback::None),
+            )
+        };
+        assert_eq!(route().service_tier, None);
+        let omitted = RunDecl::default()
+            .with_access(Some(route()))
+            .access_requirement()
+            .expect("declared");
+        assert_eq!(omitted.service_tier, None);
+        assert_eq!(omitted.identity(), "via=codex;protocol=acp");
+        let fast = RunDecl::default()
+            .with_access(Some(route().with_service_tier(Some(ServiceTier::Fast))))
+            .with_reasoning(Some(RunReasoning::new(Some("low".to_owned()))))
+            .access_requirement()
+            .expect("declared");
+        assert_eq!(fast.service_tier, Some(ServiceTier::Fast));
+        assert_eq!(
+            fast.identity(),
+            "via=codex;protocol=acp;service_tier=fast;effort=low"
+        );
+        let alone = RunDecl::default()
+            .with_access(Some(
+                RunAccess::default().with_service_tier(Some(ServiceTier::Standard)),
+            ))
+            .access_requirement()
+            .expect("declared");
+        assert!(!alone.selects_path(), "a tier alone keeps today's route");
+        assert_eq!(alone.identity(), "service_tier=standard");
     }
 
     #[test]
