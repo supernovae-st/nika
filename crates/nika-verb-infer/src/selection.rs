@@ -11,17 +11,41 @@
 //! one-shot seat refuses an effort it cannot carry and never satisfies a
 //! declared `acp`. The receipt keeps what was requested, what was sent and
 //! what the route named apart.
+//!
+//! A declared `run.access.service_tier` rides only an ACP session, which
+//! binds the word to its adapter's own speed option after the effort, or
+//! refuses. The API path and the direct one-shot bind no speed control, so
+//! each refuses a declared tier before any request.
 
 use nika_kernel::ai::provider::ReasoningEffort;
+#[cfg(feature = "access-harness")]
+use nika_types::access::ServiceTierEvidence;
 use nika_types::access::{AccessProtocol, AccessRequirement, SelectedValue, SelectionEvidence};
 
 use crate::{InferInput, InferOutput, VerbInferError};
+
+/// The refusal a route with no bound speed control owes a declared tier: a
+/// strict selection is honored or refused, never dropped.
+fn unbound_tier(requirement: &AccessRequirement, route: &str) -> Result<(), VerbInferError> {
+    let Some(tier) = requirement.service_tier else {
+        return Ok(());
+    };
+    Err(VerbInferError::InvalidParam {
+        param: "service_tier",
+        detail: format!(
+            "`run.access.service_tier: {tier}` cannot ride {route}: no speed control is bound \
+             for it (declare an agent seat over `acp` that offers one, or remove the key to \
+             keep the route's own tier); nothing was sent"
+        ),
+    })
+}
 
 /// The declared effort as the API wire's exact level, or the refusal.
 pub(crate) fn with_declared_level(
     mut input: InferInput,
     requirement: &AccessRequirement,
 ) -> Result<InferInput, VerbInferError> {
+    unbound_tier(requirement, "this API route")?;
     let Some(word) = requirement.effort.as_deref() else {
         return Ok(input);
     };
@@ -92,6 +116,7 @@ pub(crate) fn direct_one_shot(
             ),
         });
     }
+    unbound_tier(requirement, &format!("the direct `{seat}` one-shot"))?;
     Ok(requirement.effort.clone())
 }
 
@@ -150,8 +175,33 @@ pub(crate) fn acp_evidence(
                 .configured_effort_source
                 .map(|source| source.as_str().to_owned()),
         );
+    let tier = requirement.service_tier.map(|tier| {
+        // Only when the file declared a tier: the word asked, what the session offered for
+        // its speed option, the native value sent and the one read back. The tier a turn
+        // carried and the tier that served it are not facts an ACP session states.
+        ServiceTierEvidence::new(tier)
+            .offered(
+                selection.service_tier_option.clone(),
+                selection.offered_service_tier.clone(),
+            )
+            .transmitted(selection.transmitted_service_tier.clone())
+            .configured(
+                selection.configured_service_tier.clone(),
+                selection
+                    .configured_service_tier_source
+                    .map(|source| source.as_str().to_owned()),
+            )
+    });
     SelectionEvidence::new(Some(AccessProtocol::Acp))
         .with_model(model)
         .with_effort(effort)
         .with_changes(selection.changed_mid_turn.clone())
+        .with_service_tier(tier)
+}
+
+/// The declared service tier as the word the session request carries.
+#[cfg(feature = "access-harness")]
+pub(crate) fn requested_tier(requirement: Option<&AccessRequirement>) -> Option<String> {
+    let tier = requirement.and_then(|r| r.service_tier)?;
+    Some(tier.as_str().to_owned())
 }
