@@ -5,7 +5,9 @@
 //! reaches the harness session request verbatim (the session applies and
 //! reads it back), a session refusal keeps its typed access code, every
 //! native-loop turn carries the exact level, and a word the request cannot
-//! carry refuses before any model call.
+//! carry refuses before any model call. A declared service tier reaches the
+//! session request as the file's word and its receipt keeps every fact
+//! apart; the native loop, which binds no speed control, refuses it.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -18,7 +20,7 @@ use nika_kernel::ai::harness::{
 };
 use nika_kernel::ai::provider::ReasoningEffort;
 use nika_kernel_mock::{MockProvider, MockToolDefinitionProvider, MockToolExecutor};
-use nika_types::access::{AccessFallback, AccessProtocol, AccessRequirement};
+use nika_types::access::{AccessFallback, AccessProtocol, AccessRequirement, ServiceTier};
 use nika_verb_invoke::InvokeVerb;
 use serde_json::json;
 
@@ -41,6 +43,11 @@ impl DynAgentBackend for ConfiguredSeat {
         request: HarnessRequest,
     ) -> Pin<Box<dyn Future<Output = Result<HarnessEventStream, HarnessError>> + Send + '_>> {
         let effort = request.requested_effort.clone();
+        // What codex-acp 1.13.1 calls the two tiers on its `fast-mode` option.
+        let tier = request
+            .requested_service_tier
+            .as_deref()
+            .map(|word| if word == "fast" { "on" } else { "off" });
         self.requests.lock().expect("requests").push(request);
         Box::pin(async move {
             if let Some(reason) = self.refusal.clone() {
@@ -56,6 +63,14 @@ impl DynAgentBackend for ConfiguredSeat {
             selection.transmitted_effort.clone_from(&effort);
             selection.configured_effort = effort;
             selection.configured_effort_source = Some(ModelProvenance::ConfirmedSelection);
+            if let Some(native) = tier {
+                selection.service_tier_option = Some("fast-mode".into());
+                selection.offered_service_tier = Some(vec!["off".into(), "on".into()]);
+                selection.transmitted_service_tier = Some(native.into());
+                selection.configured_service_tier = Some(native.into());
+                selection.configured_service_tier_source =
+                    Some(ModelProvenance::ConfirmedSelection);
+            }
             selection.changed_mid_turn.clone_from(&self.moved);
             outcome.selection = selection;
             Ok(
@@ -124,6 +139,10 @@ async fn the_native_effort_reaches_the_session_request_and_the_receipt() {
         "verbatim"
     );
     assert_eq!(requests[0].requested_model.as_deref(), Some(MODEL));
+    assert_eq!(
+        requests[0].requested_service_tier, None,
+        "no tier declared, none asked"
+    );
     let receipt = out
         .selection
         .expect("a requirement yields a receipt")
@@ -138,8 +157,62 @@ async fn the_native_effort_reaches_the_session_request_and_the_receipt() {
             "effort": {"requested": "xhigh", "option": "reasoning_effort", "transmitted": "xhigh",
                 "configured": "xhigh", "configured_source": "confirmed_selection"},
             "responder": {"model": null, "evidence": "unknown"}
-        })
+        }),
+        "a file that declares no tier keeps the receipt it always had"
     );
+}
+
+/// The file's word reaches the session request untranslated (the session owns the binding to
+/// the adapter's native value), and the receipt keeps the five facts apart: asked, offered,
+/// sent, read back, and the two a configuration cannot establish, left unknown.
+#[tokio::test]
+async fn a_declared_service_tier_reaches_the_session_request_and_the_receipt() {
+    for (tier, native) in [(ServiceTier::Fast, "on"), (ServiceTier::Standard, "off")] {
+        let (verb, seat) = seated(None);
+        let requirement = codex("low").with_service_tier(Some(tier));
+        let out = verb
+            .run(AgentInput::new("summarise").with_requirement(Some(&requirement)))
+            .await
+            .expect("configured session answers");
+        let requests = seat.requests.lock().expect("requests");
+        assert_eq!(
+            requests[0].requested_service_tier.as_deref(),
+            Some(tier.as_str()),
+            "the language's word, never the adapter's"
+        );
+        let receipt = out.selection.expect("receipt").to_json();
+        assert_eq!(
+            receipt["service_tier"],
+            json!({
+                "requested": tier.as_str(),
+                "option": "fast-mode",
+                "offered": ["off", "on"],
+                "transmitted": native,
+                "configured": native,
+                "configured_source": "confirmed_selection",
+                "turn": {"value": null, "evidence": "unknown"},
+                "effective": {"value": null, "evidence": "unknown"}
+            }),
+            "{tier}"
+        );
+        assert_eq!(receipt["effort"]["configured"], "low", "{tier}");
+        assert_eq!(receipt["responder"]["evidence"], "unknown", "{tier}");
+    }
+}
+
+/// A tier the agent moved after it was applied refuses the answer under the declaration,
+/// like a moved model or effort (NIKA-1805).
+#[tokio::test]
+async fn a_service_tier_moved_mid_turn_refuses_under_a_declaration() {
+    let (verb, _) = seated_moving(None, &["service_tier=off"]);
+    let requirement = codex("low").with_service_tier(Some(ServiceTier::Fast));
+    let err = verb
+        .run(AgentInput::new("summarise").with_requirement(Some(&requirement)))
+        .await
+        .expect_err("not produced under the selection");
+    assert!(matches!(err, VerbAgentError::Harness { .. }), "{err:?}");
+    assert_eq!(err.spec_code(), "NIKA-1805");
+    assert!(err.to_string().contains("service_tier=off"), "{err}");
 }
 
 #[tokio::test]
@@ -231,6 +304,32 @@ async fn every_native_turn_carries_the_exact_declared_level() {
     assert_eq!(receipt["protocol"], "api");
     assert_eq!(receipt["effort"]["transmitted"], "high");
     assert_eq!(receipt["effort"]["option"], "reasoning_effort");
+}
+
+/// The native loop binds no speed control: a declared tier refuses before the first model
+/// call, whichever word it is, and is never dropped.
+#[tokio::test]
+async fn a_declared_service_tier_refuses_on_the_native_loop_before_any_model_call() {
+    for tier in ServiceTier::ALL {
+        let provider = Arc::new(MockProvider::new("mock").enqueue_text("never"));
+        let requirement = AccessRequirement::new().with_service_tier(Some(tier));
+        let err = native(Arc::clone(&provider))
+            .run(AgentInput::new("plan").with_requirement(Some(&requirement)))
+            .await
+            .expect_err("no speed control on this route");
+        match &err {
+            VerbAgentError::InvalidParam { param, detail } => {
+                assert_eq!(*param, "service_tier", "{tier}");
+                assert!(
+                    detail.contains(&format!("run.access.service_tier: {tier}"))
+                        && detail.contains("no model call was made"),
+                    "{detail}"
+                );
+            }
+            other => panic!("{tier}: expected the tier refusal, got {other:?}"),
+        }
+        assert!(provider.captured_requests().is_empty(), "zero model calls");
+    }
 }
 
 #[tokio::test]

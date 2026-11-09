@@ -215,6 +215,7 @@ fn session_request(seat: &HarnessSeat, input: &AgentInput) -> HarnessRequest {
     };
     let mut request = HarnessRequest::new(prompt, seat.cwd.clone())
         .with_requested_effort(input.requirement.as_ref().and_then(|r| r.effort.clone()))
+        .with_requested_service_tier(crate::selection::requested_tier(input.requirement.as_ref()))
         .with_confinement(confinement_for(input.permits.as_ref()));
     if let Some(system) = &input.system {
         request = request.with_system(system.clone());

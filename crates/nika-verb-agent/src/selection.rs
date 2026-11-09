@@ -9,18 +9,37 @@
 //! read back apart, and the responder stays unknown (an ACP prompt result
 //! names none). On the native loop the effort becomes every turn's exact
 //! request level, or refuses before the first call — no alias, ever.
+//!
+//! A declared service tier travels the same way on a seat: the session binds
+//! the word to its adapter's own speed option after the effort, or refuses.
+//! The native loop binds no speed control, so it refuses a declared tier
+//! before its first call.
 
 #[cfg(feature = "access-harness")]
 use nika_kernel::ai::harness::HarnessSelection;
 use nika_kernel::ai::provider::ReasoningEffort;
+#[cfg(feature = "access-harness")]
+use nika_types::access::ServiceTierEvidence;
 use nika_types::access::{AccessProtocol, AccessRequirement, SelectedValue, SelectionEvidence};
 
 use crate::VerbAgentError;
 
-/// The declared effort as the native loop's exact request level.
+/// The declared effort as the native loop's exact request level. A declared
+/// service tier refuses here: this API loop binds no speed control, and a
+/// strict selection is never dropped.
 pub(crate) fn native_level(
     requirement: Option<&AccessRequirement>,
 ) -> Result<Option<ReasoningEffort>, VerbAgentError> {
+    if let Some(tier) = requirement.and_then(|r| r.service_tier) {
+        return Err(VerbAgentError::InvalidParam {
+            param: "service_tier",
+            detail: format!(
+                "`run.access.service_tier: {tier}` cannot ride this API route: no speed control \
+                 is bound for it (declare an agent seat that offers one, or remove the key to \
+                 keep the route's own tier); no model call was made"
+            ),
+        });
+    }
     let Some(word) = requirement.and_then(|r| r.effort.as_deref()) else {
         return Ok(None);
     };
@@ -91,4 +110,38 @@ pub(crate) fn harness_evidence(
         .with_model(model)
         .with_effort(effort)
         .with_changes(selection.changed_mid_turn.clone())
+        .with_service_tier(tier_evidence(requirement, selection))
+}
+
+/// The declared service tier as the word the session request carries.
+#[cfg(feature = "access-harness")]
+pub(crate) fn requested_tier(requirement: Option<&AccessRequirement>) -> Option<String> {
+    let tier = requirement.and_then(|r| r.service_tier)?;
+    Some(tier.as_str().to_owned())
+}
+
+/// The service-tier block of the receipt, only when the file declared a tier:
+/// the word asked, what the session offered for its speed option, the native
+/// value sent and the one read back. The tier a turn carried and the tier
+/// that served it are not facts an ACP session states, so they stay unknown.
+#[cfg(feature = "access-harness")]
+fn tier_evidence(
+    requirement: &AccessRequirement,
+    selection: &HarnessSelection,
+) -> Option<ServiceTierEvidence> {
+    let tier = requirement.service_tier?;
+    Some(
+        ServiceTierEvidence::new(tier)
+            .offered(
+                selection.service_tier_option.clone(),
+                selection.offered_service_tier.clone(),
+            )
+            .transmitted(selection.transmitted_service_tier.clone())
+            .configured(
+                selection.configured_service_tier.clone(),
+                selection
+                    .configured_service_tier_source
+                    .map(|source| source.as_str().to_owned()),
+            ),
+    )
 }
