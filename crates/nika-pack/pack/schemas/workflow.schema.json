@@ -254,7 +254,7 @@
     "run": {
       "type": "object",
       "additionalProperties": false,
-      "description": "The run's declarations · entropy and clock: every source of randomness and of time is declared, never ambient. The two dimensions couple: only `ambient × system` (the status quo) and `none | seeded × virtual` (the deterministic states) are legal, and a declared contradiction refuses at parse (NEP-0010). Plus the access route and the native reasoning effort that serve every `infer:`/`agent:` task of the run (spec/01-envelope.md §run). Each key is optional; an absent key leaves its dimension exactly as it was.",
+      "description": "The run's declarations · entropy and clock: every source of randomness and of time is declared, never ambient. The two dimensions couple: only `ambient × system` (the status quo) and `none | seeded × virtual` (the deterministic states) are legal, and a declared contradiction refuses at parse (NEP-0010). Plus the access route, the service tier asked of it and the native reasoning effort that serve every `infer:`/`agent:` task of the run (spec/01-envelope.md §run). Each key is optional; an absent key leaves its dimension exactly as it was.",
       "properties": {
         "entropy": {
           "description": "none (strict determinism) · ambient (the honest status quo, default) · { seeded: <u64> } (the deterministic seams + the pinned seed · two runs of the same file with the same seed produce byte-identical journals)",
@@ -292,7 +292,7 @@
           "type": "object",
           "additionalProperties": false,
           "minProperties": 1,
-          "description": "How the run reaches its model · a dimension distinct from the model's identity (`model:` stays the `<provider>/<name>` string). Every key is optional; an empty declaration selects nothing and is refused. This shape is the whole static contract: whether the route exists, speaks the protocol or serves the model is judged by the engine before any inference, never by this schema (spec/01-envelope.md §run).",
+          "description": "How the run reaches its model, and the service tier it asks of that route · dimensions distinct from the model's identity (`model:` stays the `<provider>/<name>` string). Every key is optional; an empty declaration selects nothing and is refused. This shape is the whole static contract: whether the route exists, speaks the protocol, serves the model or offers the tier is judged by the engine before any inference, never by this schema (spec/01-envelope.md §run).",
           "properties": {
             "via": {
               "type": "string",
@@ -310,7 +310,14 @@
               "enum": [
                 "none"
               ],
-              "description": "What may replace the declared selection · none, also the meaning of an omitted fallback once access is declared: no other route, protocol, model or effort, before admission or after it — an unavailable route refuses before inference and a route failing mid-run fails its task, never re-routed. Declared alternatives are unspecified; a later value is additive."
+              "description": "What may replace the declared selection · none, also the meaning of an omitted fallback once access is declared: no other route, protocol, model, effort or service tier, before admission or after it — an unavailable route refuses before inference and a route failing mid-run fails its task, never re-routed. Declared alternatives are unspecified; a later value is additive."
+            },
+            "service_tier": {
+              "enum": [
+                "standard",
+                "fast"
+              ],
+              "description": "The serving speed asked of the route · standard (the route's regular tier) · fast (its faster tier, where the route offers one for the selected model). The one closed vocabulary of this declaration: a route binds each word to its own native control and the engine applies that control exactly, or refuses before inference. A word is never translated into another model, another effort or another route's control, and fast is never served as standard. Omitted, the route keeps its own default tier, which may be either and may stay unknown: omission is not standard. A route's native words (`on` · `off` · a boolean) are not values here. There is no third value."
             }
           }
         },
