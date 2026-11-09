@@ -748,123 +748,29 @@ impl SpawnedHarness {
             .stderr(Stdio::null())
             .kill_on_drop(true)
             .process_group(0);
-        let handshake =
-            tokio::time::timeout(std::time::Duration::from_secs(30), handshake_roundtrip(cmd));
+        let handshake = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            handshake::roundtrip(cmd),
+        );
         let answered = handshake.await.map_err(|_| HarnessError::Unavailable {
             reason: format!(
                 "adapter `{}`: the initialize handshake did not answer in 30s",
                 self.adapter.id
             ),
         })??;
-        // The answer is a v1 InitializeResult: protocol version 1, and
-        // the agent's self-report for identity + version.
-        let version = answered
-            .pointer("/result/agentInfo/version")
-            .and_then(serde_json::Value::as_str)
-            .and_then(crate::probe::parse_version);
-        let name = answered
-            .pointer("/result/agentInfo/name")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("");
-        if !self.adapter.answers_as(name) {
-            let accepted = std::iter::once(self.adapter.id.as_str())
-                .chain(self.adapter.identities.iter().map(String::as_str))
-                .collect::<Vec<_>>()
-                .join("` · `");
-            return Err(HarnessError::Unavailable {
-                reason: format!(
-                    "adapter `{}`: the handshake answered as `{name}` — this binary is not \
-                     the adapter it claims to be (it answers as `{accepted}`)",
-                    self.adapter.id
-                ),
-            });
-        }
-        match (&self.adapter.version_pin, version) {
-            (Some(pin), Some((major, minor))) if pin.accepts(major, minor) => {
-                Ok(Some((major, minor)))
-            }
-            (Some(pin), Some((major, minor))) => Err(HarnessError::Unavailable {
-                reason: format!(
-                    "adapter `{}`: handshake version {major}.{minor} is outside the pin \
-                     (>= {}.{} · major <= {})",
-                    self.adapter.id, pin.min.0, pin.min.1, pin.max_major
-                ),
-            }),
-            (Some(_), None) => Err(HarnessError::Unavailable {
-                reason: format!(
-                    "adapter `{}`: the initialize answer carried no `agentInfo.version`",
-                    self.adapter.id
-                ),
-            }),
-            (None, seen) => Ok(seen),
-        }
+        let result = answered.get("result").unwrap_or(&serde_json::Value::Null);
+        self.adapter.judge_handshake(result)
     }
-}
 
-/// One initialize roundtrip over the child's pipes (the probe's
-/// transport half — write the request, read one bounded line).
-async fn handshake_roundtrip(
-    mut cmd: tokio::process::Command,
-) -> Result<serde_json::Value, HarnessError> {
-    let mut child = cmd.spawn().map_err(|e| HarnessError::Unavailable {
-        reason: format!("cannot spawn the adapter: {e}"),
-    })?;
-    let answer = handshake_over(&mut child).await;
-    // One answer is all a probe needs: the child — and the grandchild an
-    // npm wrapper forked — end here, whatever the answer was.
-    stop_probe(&mut child).await;
-    answer
-}
-
-/// The initialize request written and one bounded line read.
-async fn handshake_over(
-    child: &mut tokio::process::Child,
-) -> Result<serde_json::Value, HarnessError> {
-    use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
-    let mut stdin = child.stdin.take().ok_or_else(|| HarnessError::Session {
-        reason: "the child's stdin was not piped".to_owned(),
-    })?;
-    let stdout = child.stdout.take().ok_or_else(|| HarnessError::Session {
-        reason: "the child's stdout was not piped".to_owned(),
-    })?;
-    let line = crate::wire::request_line(
-        1,
-        crate::wire::METHOD_INITIALIZE,
-        &crate::wire::InitializeParams {
-            protocol_version: crate::wire::PROTOCOL_V1,
-            client_capabilities: serde_json::json!({}),
-        },
-    )
-    .map_err(|e| HarnessError::Session {
-        reason: e.to_string(),
-    })?;
-    stdin
-        .write_all(line.as_bytes())
-        .await
-        .map_err(|e| HarnessError::Session {
-            reason: format!("handshake write: {e}"),
-        })?;
-    stdin
-        .write_all(b"\n")
-        .await
-        .map_err(|e| HarnessError::Session {
-            reason: format!("handshake write: {e}"),
-        })?;
-    let mut line = String::new();
-    let n = tokio::io::BufReader::new(stdout)
-        .read_line(&mut line)
-        .await
-        .map_err(|e| HarnessError::Session {
-            reason: format!("handshake read: {e}"),
-        })?;
-    if n == 0 {
-        return Err(HarnessError::Unavailable {
-            reason: "the adapter closed its pipe without answering initialize".to_owned(),
-        });
+    /// The judge a session's own `initialize` answer meets when this row's identity is that
+    /// answer ([`HarnessAdapter::probe_via_handshake`]): the session argv is then spawned
+    /// once, never a second time to ask the same question (`crate::client::StartJudge`).
+    pub(crate) fn start_judge(&self) -> crate::client::StartJudge {
+        let adapter = self.adapter.clone();
+        crate::client::StartJudge::new(self.adapter.id.clone(), move |initialize| {
+            adapter.judge_handshake(initialize).map(|_| ())
+        })
     }
-    serde_json::from_str(line.trim_end()).map_err(|e| HarnessError::Session {
-        reason: format!("the initialize answer is not valid JSON: {e}"),
-    })
 }
 
 impl SpawnedHarness {
@@ -886,10 +792,19 @@ impl SpawnedHarness {
         if spent() {
             return Err(passed());
         }
-        // Identity before dialect (spec §4): a version outside the pin
-        // refuses HERE, with the version named — never as a protocol
-        // confusion three frames into a session.
-        self.probe_version().await?;
+        // Identity before dialect (spec §4): a version outside the pin refuses with the
+        // version named, never as a protocol confusion three frames into a session. A row
+        // whose identity IS its `initialize` self-report is judged on the session's own
+        // first answer, before `session/new`: one process, where a standalone probe spawned
+        // the same argv a first time only to ask and be killed. Every other row keeps its
+        // version probe.
+        let start = if self.adapter.probe_via_handshake {
+            self.probe_command_shape().await?;
+            Some(self.start_judge())
+        } else {
+            self.probe_version().await?;
+            None
+        };
         let profile_env = match self.completion {
             Some(one_shot) if one_shot.profile == crate::authoring::acp::Profile::Codex => {
                 self.codex_profile_env(None).await?
@@ -913,8 +828,10 @@ impl SpawnedHarness {
         // kill_on_drop reaps it — the cancel-safety contract.
         let (completion, marks) = (self.completion, call.map(|(_, marks)| marks));
         let meta = self.session_meta();
-        let stream = drive_with_child(stdout, stdin, request, child, completion, idle, marks, meta);
-        Ok((stream, idle))
+        let session = crate::client::drive_profile(
+            stdout, stdin, request, idle, completion, marks, meta, start,
+        );
+        Ok((hold_child(session, child, completion.is_some()), idle))
     }
 
     /// The options this seat's sessions send with `session/new`: a one-shot's audited profile, or
@@ -956,25 +873,19 @@ impl Door for SpawnedHarness {
     }
 }
 
-/// The driver with the child's lifetime tied to the stream — the child
+/// The session's stream with the child's lifetime tied to it — the child
 /// handle parks inside a wrapper stream so its `Drop` (and the OS kill
-/// underneath) fires exactly when the consumer lets go. `idle` bounds each
-/// frame read and each write; `meta` rides `session/new`
-/// ([`crate::client::drive_profile`]).
-fn drive_with_child(
-    stdout: tokio::process::ChildStdout,
-    stdin: tokio::process::ChildStdin,
-    request: HarnessRequest,
+/// underneath) fires exactly when the consumer lets go. `grouped`: the
+/// child leads its own process group (a completion profile), ended with it.
+fn hold_child(
+    inner: HarnessEventStream,
     child: tokio::process::Child,
-    completion: Option<OneShot>,
-    idle: std::time::Duration,
-    progress: Option<crate::authoring::acp::Progress>,
-    meta: Option<serde_json::Value>,
+    grouped: bool,
 ) -> HarnessEventStream {
-    let inner =
-        crate::client::drive_profile(stdout, stdin, request, idle, completion, progress, meta);
     #[cfg(unix)]
-    let group = completion.and_then(|_| child.id());
+    let group = if grouped { child.id() } else { None };
+    #[cfg(not(unix))]
+    let _ = grouped;
     Box::pin(ChildStream {
         inner,
         _child: child,
@@ -1471,6 +1382,10 @@ kid.wait()
 
 /// A persistent conversation on the spawned adapter (`crate::conversation`).
 mod conversation;
+
+/// The `initialize` handshake of a wrapper-class adapter: the standalone probe's transport
+/// and the judgment a session's own first answer meets.
+mod handshake;
 
 #[cfg(test)]
 mod completion_tests;

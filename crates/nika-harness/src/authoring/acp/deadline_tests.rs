@@ -91,8 +91,16 @@ impl Door for Arc<Scripted> {
             tokio::spawn(peer(theirs));
             let (r, w) = tokio::io::split(ours);
             let (marks, meta) = (Some(progress), claude().session_meta());
-            let stream =
-                crate::client::drive_profile(r, w, request, allowance, Some(claude()), marks, meta);
+            let stream = crate::client::drive_profile(
+                r,
+                w,
+                request,
+                allowance,
+                Some(claude()),
+                marks,
+                meta,
+                None,
+            );
             Ok(Opened { stream, allowance })
         })
     }
@@ -326,7 +334,7 @@ async fn a_valid_completion_silent_past_the_former_bound_completes_within_its_de
     let request_once = HarnessRequest::new("p", "/tmp");
     let meta = claude().session_meta();
     let stream =
-        crate::client::drive_profile(r, w, request_once, bound, Some(claude()), None, meta);
+        crate::client::drive_profile(r, w, request_once, bound, Some(claude()), None, meta, None);
     let ended = whole(stream).await;
     assert!(
         within(started.elapsed(), bound),

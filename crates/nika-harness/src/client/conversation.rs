@@ -95,6 +95,7 @@ where
             completion: Some(one_shot),
             progress: None,
             meta: None,
+            start: None,
             agent_name: None,
             agent_version: None,
             confined: None,
