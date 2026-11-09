@@ -395,6 +395,55 @@ pub unsafe fn nika_types::access::SeatReadiness::clone_to_uninit(&self, dest: *m
 impl<T> core::convert::From<T> for nika_types::access::SeatReadiness
 pub fn nika_types::access::SeatReadiness::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::access::SeatReadiness where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::access::ServiceTier
+pub nika_types::access::ServiceTier::Fast
+pub nika_types::access::ServiceTier::Standard
+impl nika_types::access::ServiceTier
+pub const nika_types::access::ServiceTier::ALL: [Self; 2]
+pub const fn nika_types::access::ServiceTier::as_str(self) -> &'static str
+pub fn nika_types::access::ServiceTier::parse(word: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_types::access::ServiceTier
+pub fn nika_types::access::ServiceTier::clone(&self) -> nika_types::access::ServiceTier
+impl core::cmp::Eq for nika_types::access::ServiceTier
+impl core::cmp::PartialEq for nika_types::access::ServiceTier
+pub fn nika_types::access::ServiceTier::eq(&self, other: &nika_types::access::ServiceTier) -> bool
+impl core::fmt::Debug for nika_types::access::ServiceTier
+pub fn nika_types::access::ServiceTier::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::access::ServiceTier
+pub fn nika_types::access::ServiceTier::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::ServiceTier
+pub fn nika_types::access::ServiceTier::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::access::ServiceTier
+impl core::marker::StructuralPartialEq for nika_types::access::ServiceTier
+impl serde_core::ser::Serialize for nika_types::access::ServiceTier
+pub fn nika_types::access::ServiceTier::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::ServiceTier
+pub fn nika_types::access::ServiceTier::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::ServiceTier where U: core::convert::From<T>
+pub fn nika_types::access::ServiceTier::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::ServiceTier where U: core::convert::Into<T>
+pub type nika_types::access::ServiceTier::Error = core::convert::Infallible
+pub fn nika_types::access::ServiceTier::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::ServiceTier where U: core::convert::TryFrom<T>
+pub type nika_types::access::ServiceTier::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::ServiceTier::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::ServiceTier where T: core::clone::Clone
+pub type nika_types::access::ServiceTier::Owned = T
+pub fn nika_types::access::ServiceTier::clone_into(&self, target: &mut T)
+pub fn nika_types::access::ServiceTier::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::access::ServiceTier where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::access::ServiceTier::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::access::ServiceTier where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::ServiceTier::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::ServiceTier where T: ?core::marker::Sized
+pub fn nika_types::access::ServiceTier::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::ServiceTier where T: ?core::marker::Sized
+pub fn nika_types::access::ServiceTier::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::ServiceTier where T: core::clone::Clone
+pub unsafe fn nika_types::access::ServiceTier::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::ServiceTier
+pub fn nika_types::access::ServiceTier::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::ServiceTier where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub enum nika_types::access::Trust
 pub nika_types::access::Trust::Declared
 pub nika_types::access::Trust::Discovered
@@ -588,6 +637,7 @@ impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessRejection
 pub nika_types::access::AccessRequirement::effort: core::option::Option<alloc::string::String>
 pub nika_types::access::AccessRequirement::fallback: core::option::Option<nika_types::access::AccessFallback>
 pub nika_types::access::AccessRequirement::protocol: core::option::Option<nika_types::access::AccessProtocol>
+pub nika_types::access::AccessRequirement::service_tier: core::option::Option<nika_types::access::ServiceTier>
 pub nika_types::access::AccessRequirement::via: core::option::Option<alloc::string::String>
 impl nika_types::access::AccessRequirement
 pub fn nika_types::access::AccessRequirement::identity(&self) -> alloc::string::String
@@ -597,6 +647,7 @@ pub fn nika_types::access::AccessRequirement::to_json(&self) -> serde_json::valu
 pub fn nika_types::access::AccessRequirement::with_effort(self, effort: core::option::Option<alloc::string::String>) -> Self
 pub const fn nika_types::access::AccessRequirement::with_fallback(self, fallback: core::option::Option<nika_types::access::AccessFallback>) -> Self
 pub const fn nika_types::access::AccessRequirement::with_protocol(self, protocol: core::option::Option<nika_types::access::AccessProtocol>) -> Self
+pub const fn nika_types::access::AccessRequirement::with_service_tier(self, service_tier: core::option::Option<nika_types::access::ServiceTier>) -> Self
 pub fn nika_types::access::AccessRequirement::with_via(self, via: core::option::Option<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_types::access::AccessRequirement
 pub fn nika_types::access::AccessRequirement::clone(&self) -> nika_types::access::AccessRequirement
@@ -804,6 +855,7 @@ pub nika_types::access::SelectionEvidence::model: nika_types::access::SelectedVa
 pub nika_types::access::SelectionEvidence::protocol: core::option::Option<nika_types::access::AccessProtocol>
 pub nika_types::access::SelectionEvidence::responder: core::option::Option<alloc::string::String>
 pub nika_types::access::SelectionEvidence::responder_source: core::option::Option<alloc::string::String>
+pub nika_types::access::SelectionEvidence::service_tier: core::option::Option<nika_types::access::ServiceTierEvidence>
 impl nika_types::access::SelectionEvidence
 pub const nika_types::access::SelectionEvidence::SCHEMA: &'static str
 pub fn nika_types::access::SelectionEvidence::new(protocol: core::option::Option<nika_types::access::AccessProtocol>) -> Self
@@ -812,6 +864,7 @@ pub fn nika_types::access::SelectionEvidence::with_changes(self, changes: alloc:
 pub fn nika_types::access::SelectionEvidence::with_effort(self, effort: nika_types::access::SelectedValue) -> Self
 pub fn nika_types::access::SelectionEvidence::with_model(self, model: nika_types::access::SelectedValue) -> Self
 pub fn nika_types::access::SelectionEvidence::with_responder(self, model: core::option::Option<alloc::string::String>, source: &'static str) -> Self
+pub fn nika_types::access::SelectionEvidence::with_service_tier(self, service_tier: core::option::Option<nika_types::access::ServiceTierEvidence>) -> Self
 impl core::clone::Clone for nika_types::access::SelectionEvidence
 pub fn nika_types::access::SelectionEvidence::clone(&self) -> nika_types::access::SelectionEvidence
 impl core::cmp::Eq for nika_types::access::SelectionEvidence
@@ -851,6 +904,114 @@ pub unsafe fn nika_types::access::SelectionEvidence::clone_to_uninit(&self, dest
 impl<T> core::convert::From<T> for nika_types::access::SelectionEvidence
 pub fn nika_types::access::SelectionEvidence::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::access::SelectionEvidence where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::access::ServiceTierBinding
+pub nika_types::access::ServiceTierBinding::agents: &'static [&'static str]
+pub nika_types::access::ServiceTierBinding::category: &'static str
+pub nika_types::access::ServiceTierBinding::fast: &'static str
+pub nika_types::access::ServiceTierBinding::measured_on: &'static str
+pub nika_types::access::ServiceTierBinding::option: &'static str
+pub nika_types::access::ServiceTierBinding::seat: &'static str
+pub nika_types::access::ServiceTierBinding::standard: &'static str
+pub nika_types::access::ServiceTierBinding::versions: &'static [&'static str]
+impl nika_types::access::ServiceTierBinding
+pub const nika_types::access::ServiceTierBinding::CODEX_ACP: Self
+pub const nika_types::access::ServiceTierBinding::MEASURED: [Self; 1]
+pub fn nika_types::access::ServiceTierBinding::for_agent(agent_name: &str) -> core::option::Option<Self>
+pub fn nika_types::access::ServiceTierBinding::for_seat(id: &str) -> core::option::Option<Self>
+pub fn nika_types::access::ServiceTierBinding::measures(&self, version: &str) -> bool
+pub const fn nika_types::access::ServiceTierBinding::native(&self, tier: nika_types::access::ServiceTier) -> &'static str
+pub fn nika_types::access::ServiceTierBinding::tier_of(&self, native: &str) -> core::option::Option<nika_types::access::ServiceTier>
+impl core::clone::Clone for nika_types::access::ServiceTierBinding
+pub fn nika_types::access::ServiceTierBinding::clone(&self) -> nika_types::access::ServiceTierBinding
+impl core::cmp::Eq for nika_types::access::ServiceTierBinding
+impl core::cmp::PartialEq for nika_types::access::ServiceTierBinding
+pub fn nika_types::access::ServiceTierBinding::eq(&self, other: &nika_types::access::ServiceTierBinding) -> bool
+impl core::fmt::Debug for nika_types::access::ServiceTierBinding
+pub fn nika_types::access::ServiceTierBinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::ServiceTierBinding
+pub fn nika_types::access::ServiceTierBinding::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::access::ServiceTierBinding
+impl core::marker::StructuralPartialEq for nika_types::access::ServiceTierBinding
+impl<T, U> core::convert::Into<U> for nika_types::access::ServiceTierBinding where U: core::convert::From<T>
+pub fn nika_types::access::ServiceTierBinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::ServiceTierBinding where U: core::convert::Into<T>
+pub type nika_types::access::ServiceTierBinding::Error = core::convert::Infallible
+pub fn nika_types::access::ServiceTierBinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::ServiceTierBinding where U: core::convert::TryFrom<T>
+pub type nika_types::access::ServiceTierBinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::ServiceTierBinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::ServiceTierBinding where T: core::clone::Clone
+pub type nika_types::access::ServiceTierBinding::Owned = T
+pub fn nika_types::access::ServiceTierBinding::clone_into(&self, target: &mut T)
+pub fn nika_types::access::ServiceTierBinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::access::ServiceTierBinding where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::ServiceTierBinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::ServiceTierBinding where T: ?core::marker::Sized
+pub fn nika_types::access::ServiceTierBinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::ServiceTierBinding where T: ?core::marker::Sized
+pub fn nika_types::access::ServiceTierBinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::ServiceTierBinding where T: core::clone::Clone
+pub unsafe fn nika_types::access::ServiceTierBinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::ServiceTierBinding
+pub fn nika_types::access::ServiceTierBinding::from(t: T) -> T
+#[non_exhaustive] pub struct nika_types::access::ServiceTierEvidence
+pub nika_types::access::ServiceTierEvidence::configured: core::option::Option<alloc::string::String>
+pub nika_types::access::ServiceTierEvidence::configured_source: core::option::Option<alloc::string::String>
+pub nika_types::access::ServiceTierEvidence::effective: core::option::Option<alloc::string::String>
+pub nika_types::access::ServiceTierEvidence::effective_source: core::option::Option<alloc::string::String>
+pub nika_types::access::ServiceTierEvidence::offered: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub nika_types::access::ServiceTierEvidence::option: core::option::Option<alloc::string::String>
+pub nika_types::access::ServiceTierEvidence::requested: core::option::Option<nika_types::access::ServiceTier>
+pub nika_types::access::ServiceTierEvidence::transmitted: core::option::Option<alloc::string::String>
+pub nika_types::access::ServiceTierEvidence::turn: core::option::Option<alloc::string::String>
+pub nika_types::access::ServiceTierEvidence::turn_source: core::option::Option<alloc::string::String>
+impl nika_types::access::ServiceTierEvidence
+pub fn nika_types::access::ServiceTierEvidence::configured(self, value: core::option::Option<alloc::string::String>, source: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_types::access::ServiceTierEvidence::new(requested: nika_types::access::ServiceTier) -> Self
+pub fn nika_types::access::ServiceTierEvidence::offered(self, option: core::option::Option<alloc::string::String>, values: core::option::Option<alloc::vec::Vec<alloc::string::String>>) -> Self
+pub fn nika_types::access::ServiceTierEvidence::to_json(&self) -> serde_json::value::Value
+pub fn nika_types::access::ServiceTierEvidence::transmitted(self, value: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_types::access::ServiceTierEvidence::with_effective(self, value: core::option::Option<alloc::string::String>, source: &'static str) -> Self
+pub fn nika_types::access::ServiceTierEvidence::with_turn(self, value: core::option::Option<alloc::string::String>, source: &'static str) -> Self
+impl core::clone::Clone for nika_types::access::ServiceTierEvidence
+pub fn nika_types::access::ServiceTierEvidence::clone(&self) -> nika_types::access::ServiceTierEvidence
+impl core::cmp::Eq for nika_types::access::ServiceTierEvidence
+impl core::cmp::PartialEq for nika_types::access::ServiceTierEvidence
+pub fn nika_types::access::ServiceTierEvidence::eq(&self, other: &nika_types::access::ServiceTierEvidence) -> bool
+impl core::default::Default for nika_types::access::ServiceTierEvidence
+pub fn nika_types::access::ServiceTierEvidence::default() -> nika_types::access::ServiceTierEvidence
+impl core::fmt::Debug for nika_types::access::ServiceTierEvidence
+pub fn nika_types::access::ServiceTierEvidence::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::ServiceTierEvidence
+pub fn nika_types::access::ServiceTierEvidence::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::StructuralPartialEq for nika_types::access::ServiceTierEvidence
+impl serde_core::ser::Serialize for nika_types::access::ServiceTierEvidence
+pub fn nika_types::access::ServiceTierEvidence::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::ServiceTierEvidence
+pub fn nika_types::access::ServiceTierEvidence::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::ServiceTierEvidence where U: core::convert::From<T>
+pub fn nika_types::access::ServiceTierEvidence::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::ServiceTierEvidence where U: core::convert::Into<T>
+pub type nika_types::access::ServiceTierEvidence::Error = core::convert::Infallible
+pub fn nika_types::access::ServiceTierEvidence::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::ServiceTierEvidence where U: core::convert::TryFrom<T>
+pub type nika_types::access::ServiceTierEvidence::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::ServiceTierEvidence::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::ServiceTierEvidence where T: core::clone::Clone
+pub type nika_types::access::ServiceTierEvidence::Owned = T
+pub fn nika_types::access::ServiceTierEvidence::clone_into(&self, target: &mut T)
+pub fn nika_types::access::ServiceTierEvidence::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::access::ServiceTierEvidence where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::ServiceTierEvidence::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::ServiceTierEvidence where T: ?core::marker::Sized
+pub fn nika_types::access::ServiceTierEvidence::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::ServiceTierEvidence where T: ?core::marker::Sized
+pub fn nika_types::access::ServiceTierEvidence::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::ServiceTierEvidence where T: core::clone::Clone
+pub unsafe fn nika_types::access::ServiceTierEvidence::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::ServiceTierEvidence
+pub fn nika_types::access::ServiceTierEvidence::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::ServiceTierEvidence where T: for<'de> serde_core::de::Deserialize<'de>
 pub const nika_types::access::HARNESS_IMAGES_ADVICE: &str
 pub const nika_types::access::HARNESS_SHARED_RESIDUAL: &str
 pub const nika_types::access::HARNESS_UNRESOLVED_PATH: &str

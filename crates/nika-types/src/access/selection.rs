@@ -2,10 +2,10 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The authored access selection — `run.access` (route · protocol ·
-//! fallback) and `run.reasoning.effort` — and the receipt of how one call
-//! carried it (requested · transmitted · configured · responder attested
-//! or unknown). The requirement and the observation are separate types,
-//! so a read-back is never mistaken for what the author asked.
+//! fallback · service tier) and `run.reasoning.effort` — and the receipt of
+//! how one call carried it (requested · transmitted · configured · responder
+//! attested or unknown). The requirement and the observation are separate
+//! types, so a read-back is never mistaken for what the author asked.
 
 use core::fmt;
 
@@ -13,6 +13,7 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 
 use super::AccessClass;
+use super::tier::{ServiceTier, ServiceTierEvidence};
 
 /// `run.access.protocol` — HOW the engine talks to the route, apart from
 /// WHICH route (`via`) and the model. `api`: a direct endpoint (a key · a
@@ -118,6 +119,13 @@ pub struct AccessRequirement {
     /// `run.reasoning.effort`, verbatim.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub effort: Option<alloc::string::String>,
+    /// `run.access.service_tier`, as authored. Absent keeps the route's own
+    /// default tier and leaves the identity and the receipt as they were.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub service_tier: Option<ServiceTier>,
 }
 
 impl AccessRequirement {
@@ -155,16 +163,28 @@ impl AccessRequirement {
         self
     }
 
+    /// The service tier, as authored.
+    #[must_use]
+    pub const fn with_service_tier(mut self, service_tier: Option<ServiceTier>) -> Self {
+        self.service_tier = service_tier;
+        self
+    }
+
     /// Whether the requirement constrains the PATH (a route or a
-    /// protocol); an effort-only requirement keeps today's resolution.
+    /// protocol); an effort-only or tier-only requirement keeps today's
+    /// resolution.
     #[must_use]
     pub const fn selects_path(&self) -> bool {
         self.via.is_some() || self.protocol.is_some()
     }
 
-    /// The behavior-bearing identity a resume key folds: route, protocol
-    /// and effort in a fixed order, absent dimensions omitted. `fallback`
-    /// has one behavior today, so it changes nothing a task produces.
+    /// The behavior-bearing identity a resume key folds: route, protocol,
+    /// service tier and effort in a fixed order, absent dimensions omitted,
+    /// so a requirement that declares no tier keeps the identity it had.
+    /// The effort is the route's own free word and may hold a `;`, so it
+    /// stays last: every part before it is a closed word, and no effort can
+    /// spell another requirement's parts. `fallback` has one behavior today,
+    /// so it changes nothing a task produces.
     #[must_use]
     pub fn identity(&self) -> alloc::string::String {
         let mut parts = alloc::vec::Vec::new();
@@ -173,6 +193,9 @@ impl AccessRequirement {
         }
         if let Some(protocol) = self.protocol {
             parts.push(alloc::format!("protocol={protocol}"));
+        }
+        if let Some(service_tier) = self.service_tier {
+            parts.push(alloc::format!("service_tier={service_tier}"));
         }
         if let Some(effort) = &self.effort {
             parts.push(alloc::format!("effort={effort}"));
@@ -268,8 +291,17 @@ pub struct SelectionEvidence {
     pub responder: Option<alloc::string::String>,
     /// Where `responder` came from (`api_response` · `cli_reported`).
     pub responder_source: Option<alloc::string::String>,
-    /// What the route moved mid-call (`model=<v>` · `effort=<v>`, in order).
+    /// What the route moved mid-call (`model=<v>` · `effort=<v>` ·
+    /// `service_tier=<v>`, in order).
     pub changed_mid_turn: alloc::vec::Vec<alloc::string::String>,
+    /// The service-tier dimension, `Some` only when the file declared a
+    /// tier: a call that asked for none records none, so its receipt keeps
+    /// the shape it always had.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub service_tier: Option<ServiceTierEvidence>,
 }
 
 impl SelectionEvidence {
@@ -318,8 +350,17 @@ impl SelectionEvidence {
         self
     }
 
+    /// The service-tier dimension of a call whose file declared a tier
+    /// (`None` for every other call: nothing is recorded).
+    #[must_use]
+    pub fn with_service_tier(mut self, service_tier: Option<ServiceTierEvidence>) -> Self {
+        self.service_tier = service_tier;
+        self
+    }
+
     /// The receipt (`responder.evidence` is `unknown` when absent;
-    /// `changed_mid_turn` rides only when the route moved something).
+    /// `changed_mid_turn` rides only when the route moved something, and
+    /// `service_tier` only when the file declared a tier).
     #[cfg(feature = "serde")]
     #[must_use]
     pub fn to_json(&self) -> serde_json::Value {
@@ -333,13 +374,16 @@ impl SelectionEvidence {
                 "evidence": self.responder_source.as_deref().unwrap_or("unknown"),
             },
         });
-        if !self.changed_mid_turn.is_empty()
-            && let Some(object) = row.as_object_mut()
-        {
-            object.insert(
-                "changed_mid_turn".into(),
-                serde_json::json!(self.changed_mid_turn),
-            );
+        if let Some(object) = row.as_object_mut() {
+            if !self.changed_mid_turn.is_empty() {
+                object.insert(
+                    "changed_mid_turn".into(),
+                    serde_json::json!(self.changed_mid_turn),
+                );
+            }
+            if let Some(service_tier) = &self.service_tier {
+                object.insert("service_tier".into(), service_tier.to_json());
+            }
         }
         row
     }
@@ -398,6 +442,130 @@ mod tests {
         );
         let effort_only = AccessRequirement::new().with_effort(Some("high".into()));
         assert_eq!(effort_only.to_json(), serde_json::json!({"effort":"high"}));
+    }
+
+    /// A declared tier joins the identity last, and only when declared: every
+    /// requirement written before the key existed keeps its exact identity.
+    #[test]
+    fn a_declared_tier_extends_the_identity_and_an_omitted_one_changes_nothing() {
+        let base = AccessRequirement::new()
+            .with_via(Some("codex".into()))
+            .with_protocol(Some(AccessProtocol::Acp))
+            .with_effort(Some("low".into()));
+        assert_eq!(base.identity(), "via=codex;protocol=acp;effort=low");
+        assert_eq!(
+            base.clone().with_service_tier(None).identity(),
+            "via=codex;protocol=acp;effort=low",
+            "an omitted tier is not a part"
+        );
+        let fast = base.clone().with_service_tier(Some(ServiceTier::Fast));
+        assert_eq!(
+            fast.identity(),
+            "via=codex;protocol=acp;service_tier=fast;effort=low"
+        );
+        let standard = base.with_service_tier(Some(ServiceTier::Standard));
+        assert_eq!(
+            standard.identity(),
+            "via=codex;protocol=acp;service_tier=standard;effort=low"
+        );
+        assert_ne!(
+            fast.identity(),
+            standard.identity(),
+            "the two words are two selections"
+        );
+        let alone = AccessRequirement::new().with_service_tier(Some(ServiceTier::Fast));
+        assert_eq!(alone.identity(), "service_tier=fast");
+        assert!(!alone.selects_path(), "a tier alone keeps today's route");
+    }
+
+    /// The effort is the route's free word and may hold a `;`. It closes the
+    /// identity, so it cannot spell the tier part of another requirement.
+    #[test]
+    fn an_effort_cannot_spell_a_declared_tier() {
+        let codex = || AccessRequirement::new().with_via(Some("codex".into()));
+        let forged = codex().with_effort(Some("low;service_tier=fast".into()));
+        let declared = codex()
+            .with_effort(Some("low".into()))
+            .with_service_tier(Some(ServiceTier::Fast));
+        assert_eq!(forged.identity(), "via=codex;effort=low;service_tier=fast");
+        assert_eq!(
+            declared.identity(),
+            "via=codex;service_tier=fast;effort=low"
+        );
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn the_requirement_receipt_names_a_tier_only_when_declared() {
+        let declared = AccessRequirement::new()
+            .with_via(Some("codex".into()))
+            .with_protocol(Some(AccessProtocol::Acp))
+            .with_fallback(Some(AccessFallback::None))
+            .with_effort(Some("low".into()))
+            .with_service_tier(Some(ServiceTier::Fast));
+        assert_eq!(
+            declared.to_json(),
+            serde_json::json!({"via":"codex","protocol":"acp","fallback":"none","effort":"low",
+                "service_tier":"fast"})
+        );
+        // A receipt written before the key existed reads as no tier, and writes back unchanged.
+        let old = serde_json::json!({"via":"codex","protocol":"acp","effort":"low"});
+        let read: AccessRequirement = serde_json::from_value(old.clone()).expect("an old receipt");
+        assert_eq!(read.service_tier, None);
+        assert_eq!(read.to_json(), old);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn the_call_receipt_carries_a_tier_record_only_for_a_declared_tier() {
+        let plain = SelectionEvidence::new(Some(AccessProtocol::Acp));
+        let mut keys: alloc::vec::Vec<_> = plain
+            .to_json()
+            .as_object()
+            .expect("an object")
+            .keys()
+            .cloned()
+            .collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            ["effort", "model", "protocol", "responder", "schema"],
+            "no tier asked, no tier key"
+        );
+        let asked = plain.with_service_tier(Some(
+            ServiceTierEvidence::new(ServiceTier::Fast)
+                .offered(
+                    Some("fast-mode".into()),
+                    Some(vec!["on".into(), "off".into()]),
+                )
+                .transmitted(Some("on".into()))
+                .configured(Some("on".into()), Some("confirmed_selection".into())),
+        ));
+        let json = asked.to_json();
+        assert_eq!(
+            json["schema"],
+            SelectionEvidence::SCHEMA,
+            "the name is kept"
+        );
+        assert_eq!(
+            json["service_tier"],
+            serde_json::json!({
+                "requested": "fast",
+                "option": "fast-mode",
+                "offered": ["on", "off"],
+                "transmitted": "on",
+                "configured": "on",
+                "configured_source": "confirmed_selection",
+                "turn": {"value": null, "evidence": "unknown"},
+                "effective": {"value": null, "evidence": "unknown"},
+            })
+        );
+        // The existing dimensions are untouched by the new block.
+        assert_eq!(
+            json["effort"],
+            serde_json::json!({"requested":null,"option":null,"transmitted":null,
+                "configured":null,"configured_source":null})
+        );
     }
 
     #[cfg(feature = "serde")]

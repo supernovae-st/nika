@@ -609,6 +609,12 @@ pub use selection::{
     AccessFallback, AccessProtocol, AccessRequirement, SelectedValue, SelectionEvidence,
 };
 
+// The service tier a run asks of its route (`run.access.service_tier`): the language's two
+// words, the measured binding of those words to an adapter's own speed control (the ONE table
+// the client and the access resolver read) and the facts one call kept about it.
+mod tier;
+pub use tier::{ServiceTier, ServiceTierBinding, ServiceTierEvidence};
+
 // What a harness seat's `agent:` session can be held to (NIK-266): the measured modes the
 // client selects and the residual `nika check` states, one table for both.
 mod boundary;
