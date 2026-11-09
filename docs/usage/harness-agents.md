@@ -184,6 +184,75 @@ anything is sent (`NIKA-432`), and `nika check` names them as blockers instead
 of reporting the file run-ready. On a seated task, `check` also stops
 suggesting `max_tokens` or `max_tokens_total`.
 
+## Asking a seat for its fast tier
+
+A workflow can ask its seat how fast to serve, beside the model and the
+effort:
+
+```yaml
+run:
+  access:
+    via: codex
+    protocol: acp
+    fallback: none
+    service_tier: fast   # or: standard
+  reasoning:
+    effort: low
+```
+
+- `service_tier` takes two words, `standard` and `fast`. They are the
+  language's words. Codex's own values (`on`, `off`, `priority`) are refused
+  in the file.
+- Leaving the key out is not `standard`: Nika then sends no speed selection,
+  the session keeps its own tier, and the receipt records none.
+- On the codex seat, Nika selects the model, the effort, the tier and the
+  session mode in that order, and reads the whole selection back before the
+  first prompt. `fast` is sent as codex-acp's `fast-mode: on`, `standard` as
+  `off`.
+- The session decides whether the selected model offers a fast tier. Codex
+  lists the option only for a model that supports one. When the option is
+  missing, or the read-back does not hold the value, the task fails
+  `NIKA-1805` before any prompt is sent. Nika never serves `fast` at the
+  regular tier.
+- The binding was measured on codex-acp 1.13.1 and is held for that release.
+  Another release of the adapter refuses a declared tier until it is
+  measured: install 1.13.1, or remove the key.
+- Only an ACP session carries a tier. An API or local route, a seat with no
+  measured speed control (claude-code today) and an `infer:` task outside
+  `protocol: acp` are refused by `nika check` and by the run before task 1
+  (`NIKA-1800`).
+- A child workflow reads its own `run.access`. It does not inherit the
+  parent's tier.
+- A resumed run whose tier changed re-runs its `infer:` and `agent:` tasks.
+
+What the receipt can and cannot say. Each such task's `access_selection`
+gains a `service_tier` block:
+
+```json
+{
+  "requested": "fast",
+  "option": "fast-mode",
+  "offered": ["off", "on"],
+  "transmitted": "on",
+  "configured": "on",
+  "configured_source": "confirmed_selection",
+  "turn": { "value": null, "evidence": "unknown" },
+  "effective": { "value": null, "evidence": "unknown" }
+}
+```
+
+`configured` is what the session reported after the selection. `turn` (the
+tier carried on the turn) and `effective` (the tier that served it) read
+`unknown`: no ACP answer names either. A configured `on` is not proof that a
+given turn ran on the fast tier. Two things outside Nika's sight decide it:
+
+- Codex applies a tier only while its own `fast_mode` feature is enabled
+  (it is by default). Check it on the seat with `codex features list`.
+- A fast tier uses more of your subscription's allowance per turn.
+
+On a short answer the tier changes little: most of the time is session start
+and time to first token. It shows on long outputs.
+
 ## Reading the trace
 
 Each harness `agent:` task journals, in order:
