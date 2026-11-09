@@ -26,12 +26,16 @@ pub const MACHINE_SNAPSHOT_FORMAT_VERSION: u32 = 1;
 // neither can advertise a route only the other serves. `compile` means exactly
 // "`nika compile --json` speaks the compile_version 1 foundation wire": it promises
 // no authoring cognition beyond what that document's provenance states.
+// `accessServiceTier` means exactly "this engine reads `run.access.service_tier` and judges
+// it on every route": honored where a measured speed control exists, refused before any
+// model call everywhere else. An engine without the token refuses the key at parse.
 const SUPPORTED_CAPABILITIES: &[&str] = &[
     "check",
     "executionSnapshot",
     "eventStream",
     "trace",
     "inputsLiteral",
+    "accessServiceTier",
     "compile",
     "sessionHost",
     "sessionIntelligence",

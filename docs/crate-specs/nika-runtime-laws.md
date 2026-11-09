@@ -54,6 +54,14 @@ The shared engine identity advertises `inputsLiteral` for the CLI's bounded
 `run --inputs-json -` producer. This additive token does not rename Serve's
 `jobInputs` envelope capability or grant authority beyond declared inputs.
 
+### Service tier capability
+
+Both doors advertise `accessServiceTier`: the engine reads
+`run.access.service_tier` and judges it on every route (honored where a measured
+speed control exists, refused before any model call elsewhere). An engine
+without the token refuses the key at parse, in both parse modes, so a client
+that wants to admit a workflow declaring a tier requires the token first.
+
 ### Native compile capability
 
 `supportedCapabilities` here is the NATIVE door's list; `nika-serve` projects

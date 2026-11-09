@@ -151,6 +151,9 @@ struct StoreFormatVersion {
 // promises no authoring cognition beyond what that document's provenance states.
 // `artifacts`: GET /v1/jobs/{id}/artifacts and /artifacts/{name} serve a settled job's
 // journaled artifacts (NIK-265).
+// `accessServiceTier`: POST /v1/jobs and /v1/check admit a served workflow that declares
+// `run.access.service_tier` and judge the tier on its route, where an engine without the
+// token answers 422 for the same source.
 const HTTP_ADAPTER_CAPABILITIES: &[&str] = &[
     "check",
     "executionSnapshot",
@@ -159,6 +162,7 @@ const HTTP_ADAPTER_CAPABILITIES: &[&str] = &[
     "jobInputs",
     "compile",
     "artifacts",
+    "accessServiceTier",
 ];
 // Only on a server whose resident scheduler is live: the schedule routes.
 const SCHEDULE_CAPABILITY: &str = "schedule";

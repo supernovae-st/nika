@@ -19,6 +19,11 @@
   `standard`: nothing is sent, the route keeps its own tier, and the
   file keeps its resume identity and its receipt. A resumed run whose
   tier changed re-runs its `infer:` and `agent:` tasks. A child workflow
-  resolves its own declaration and never inherits its parent's tier. An
-  editor served by an older `nika lsp` refuses the new key and loses
-  hover and navigation on the file until it is updated.
+  resolves its own declaration and never inherits its parent's tier.
+  `nika --sdk-identity` and a resident's `/health` list
+  `accessServiceTier` in `supportedCapabilities`: an engine without the
+  token refuses the key at parse, so a client requires it before it
+  admits a file that declares a tier. On `nika serve` the tier is a field
+  of the file, never of the request, and the per-call receipt stays in
+  the sealed journal. An editor served by an older `nika lsp` refuses the
+  new key and loses hover and navigation on the file until it is updated.
