@@ -942,8 +942,8 @@ where
         wf: &RawWorkflow,
         secrets: &BTreeMap<String, Value>,
     ) -> resume::ResumeContext {
-        // The pin half folds the authored selection: a changed route,
-        // protocol or effort re-runs intelligence tasks, never reuses them.
+        // The pin half folds the authored selection: a changed route, protocol,
+        // service tier or effort re-runs intelligence tasks, never reuses them.
         let declared = self
             .access_plan
             .as_ref()

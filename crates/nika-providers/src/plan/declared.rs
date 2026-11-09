@@ -19,9 +19,15 @@
 //!   lane must list it in the model catalog, and a direct CLI one-shot
 //!   cannot carry one. A live ACP session judges its own offer before the
 //!   first prompt.
+//! - A declared service tier rides only a seat whose adapter has a measured
+//!   speed control, over an ACP session: a provider lane, a seat with no
+//!   measured binding and a direct CLI one-shot each refuse before task 1.
+//!   Whether the session offers the tier for the selected model is the live
+//!   session's judgment, before its first prompt.
 
 use nika_types::access::{
-    AccessClass, AccessPlan, AccessProtocol, AccessRequirement, HarnessRuntime,
+    AccessClass, AccessPlan, AccessProtocol, AccessRequirement, HarnessRuntime, ServiceTier,
+    ServiceTierBinding,
 };
 
 use super::{ExecutionAccessPlan, LaneVerdict, ModelNeed, resolve_execution_plan_for};
@@ -86,8 +92,9 @@ impl ExecutionAccessPlan {
     /// request (never another route); the lane carries the call's receipt
     /// to the terminal. Under an effort-only declaration a rendered model
     /// keeps today's provider path (its own provider, never refused here),
-    /// with the lane naming it. No pin and no requirement: `Ok(None)` —
-    /// today's dispatch-time resolution, unchanged.
+    /// with the lane naming it; a service tier declared without a route
+    /// refuses there, since that path binds no speed control. No pin and no
+    /// requirement: `Ok(None)` — today's dispatch-time resolution, unchanged.
     ///
     /// # Errors
     /// The [`PinRefusal`] the plan-time judge returns for the same model.
@@ -110,6 +117,21 @@ impl ExecutionAccessPlan {
             );
         };
         if !req.selects_path() && self.pin.is_none() {
+            // A rendered model keeps its own provider path here, and that path binds no
+            // speed control: a tier declared alone refuses as it does for a static model,
+            // whatever rows this plan froze (it may hold none), never served at another tier.
+            if let Some(tier) = req.service_tier {
+                return Err(PinRefusal::NoPath {
+                    message: format!(
+                        "`{model}` keeps its own provider path (`{}`) and no speed control is \
+                         bound for that route, so `run.access.service_tier: {tier}` cannot be \
+                         honored — declare an agent seat that offers one (`run.access.via: \
+                         codex` with `protocol: acp`), or remove the key to keep the route's \
+                         own tier (nothing ran)",
+                        provider_of(model)
+                    ),
+                });
+            }
             let plan =
                 resolve_execution_plan_for(&need, &self.rows, Some(provider_of(model)), verbs);
             return Ok(plan.lane(model).map(|lane| {
@@ -333,10 +355,56 @@ fn role_refusal(
             ));
         }
     }
+    if let Some(tier) = req.service_tier {
+        let direct_infer = infer && req.protocol != Some(AccessProtocol::Acp);
+        if let Some(witness) = tier_refusal(plan, tier, direct_infer) {
+            return Some(witness);
+        }
+    }
     let effort = req.effort.as_deref()?;
     plan.admitted()
         .filter(|(_, lane)| !matches!(lane.plan.chosen, AccessClass::Harness))
         .find_map(|(model, _)| catalog_effort_refusal(model, effort))
+}
+
+/// The service-tier law over the resolved plan: the two words bind only to a
+/// seat whose adapter has a measured speed control ([`ServiceTierBinding`]).
+/// A provider lane binds none, a seat without a measured row binds none, and
+/// the direct one-shot an `infer:` task rides outside `acp` carries no
+/// selection at all. Each refuses here, never served at the route's own tier.
+fn tier_refusal(
+    plan: &ExecutionAccessPlan,
+    tier: ServiceTier,
+    direct_infer: bool,
+) -> Option<String> {
+    let field = format!("`run.access.service_tier: {tier}`");
+    for (model, lane) in plan.admitted() {
+        let route = lane.plan.access.as_str();
+        if !matches!(lane.plan.chosen, AccessClass::Harness) {
+            return Some(format!(
+                "`{model}` resolves to `{route}` ({}) and no speed control is bound for that \
+                 route, so {field} cannot be honored — declare an agent seat that offers one \
+                 (`run.access.via: codex` with `protocol: acp`), or remove the key to keep the \
+                 route's own tier (nothing ran)",
+                lane.plan.chosen.as_str()
+            ));
+        }
+        if ServiceTierBinding::for_seat(route).is_none() {
+            return Some(format!(
+                "`{model}` is served by the seat `{route}`, which has no measured speed \
+                 control, so {field} cannot be honored — remove the key to keep the seat's own \
+                 tier (nothing ran)"
+            ));
+        }
+    }
+    if direct_infer && let Some(seat) = plan.seat.as_deref() {
+        return Some(format!(
+            "{field} cannot ride the direct `{seat}` one-shot an `infer:` task uses here (it \
+             carries no speed selection) — declare `run.access.protocol: acp`, or remove the \
+             key (nothing ran)"
+        ));
+    }
+    None
 }
 
 fn protocol_teaching(protocol: AccessProtocol) -> &'static str {
