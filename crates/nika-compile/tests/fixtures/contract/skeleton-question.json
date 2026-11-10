@@ -320,7 +320,7 @@
     "diagnostics": [],
     "provenance": {
       "cognition": "deterministicOnly",
-      "compiler_version": "0.124.2",
+      "compiler_version": "0.124.3",
       "skeleton": "classify-and-route",
       "spec_pin": "5a579bc707c720689ba7940f6d66e11c14050d6f",
       "strategy": "skeleton",
