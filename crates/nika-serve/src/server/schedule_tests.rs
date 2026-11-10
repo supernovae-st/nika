@@ -1091,6 +1091,11 @@ async fn an_overlapped_slot_is_skipped_once_and_never_fires_late() {
     clock.wait_for_sleeps(1).await;
     clock.advance_to("2026-09-01T08:01:01Z[UTC]");
     backend.wait_for_call().await;
+    // The resident registers its next sleep after it hands the run to the queue, and that
+    // sleep only sees an advance made after it. Without this wait an advance could land
+    // first: the resident then slept through it, the gated run ended at the execution
+    // limit and the next day's slot fired instead of being skipped.
+    clock.wait_for_sleeps(2).await;
     // The next day's slot comes due while the first run still holds the gate.
     clock.advance_to("2026-09-02T08:01:01Z[UTC]");
     clock.wait_for_sleeps(3).await;
