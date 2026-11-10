@@ -516,6 +516,96 @@ mod tests {
         assert_eq!(plan.seat_for("${{ inputs.m }}"), Some("codex"));
     }
 
+    /// The file of [`DECLARED`] with a service tier beside its route.
+    fn tiered(access: &str) -> RawWorkflow {
+        parse(&format!(
+            "nika: t\nmodel: openai/gpt-6-astra\nrun:\n  access: {access}\n  reasoning: {{ \
+             effort: low }}\ntasks:\n  a:\n    agent: {{ prompt: go }}\n"
+        ))
+    }
+
+    /// A declared service tier reaches the plan the ordinary door resolves: the codex seat is
+    /// admitted under the whole requirement and the tier joins the resume pin. The same file
+    /// without the key keeps the pin it had.
+    #[test]
+    fn a_declared_service_tier_reaches_the_plan_and_its_resume_pin() {
+        let probes = [api_probe("openai", true), codex_probe()];
+        let wf = tiered("{ via: codex, protocol: acp, fallback: none, service_tier: fast }");
+        let report = nika_check::check(&wf);
+        let plan = resolve_plan_over(&wf, &report, None, None, &probes);
+        assert!(plan.is_admitted(), "{:?}", plan.pin_refusal);
+        assert_eq!(plan.seat.as_deref(), Some("codex"));
+        let requirement = declared_requirement(&wf).expect("declared");
+        assert_eq!(
+            requirement.service_tier,
+            Some(nika_types::access::ServiceTier::Fast)
+        );
+        assert_eq!(plan.requirement.as_ref(), Some(&requirement));
+        assert_eq!(
+            plan.resume_pin().as_deref(),
+            Some("run.access[via=codex;protocol=acp;service_tier=fast;effort=low]")
+        );
+        let untiered = tiered("{ via: codex, protocol: acp, fallback: none }");
+        let report = nika_check::check(&untiered);
+        let plan = resolve_plan_over(&untiered, &report, None, None, &probes);
+        assert_eq!(
+            plan.resume_pin().as_deref(),
+            Some("run.access[via=codex;protocol=acp;effort=low]"),
+            "no tier declared, the pin it always had"
+        );
+    }
+
+    /// A tier no route of this machine can carry refuses the plan before task 1: on a
+    /// declared API route, and declared alone on a model a ready key serves. The signed-in
+    /// codex seat beside it never stands in for the route the file resolved to.
+    #[test]
+    fn a_service_tier_on_an_api_route_refuses_the_plan() {
+        let probes = [api_probe("openai", true), codex_probe()];
+        for (access, word) in [
+            ("{ via: openai, protocol: api, service_tier: fast }", "fast"),
+            ("{ service_tier: standard }", "standard"),
+        ] {
+            let wf = tiered(access);
+            let plan = resolve_plan_over(&wf, &nika_check::check(&wf), None, None, &probes);
+            assert!(!plan.is_admitted(), "{access}");
+            assert!(
+                matches!(
+                    &plan.pin_refusal,
+                    Some(nika_providers::PinRefusal::NoPath { message })
+                        if message.contains(&format!("`run.access.service_tier: {word}`"))
+                            && message.contains("`openai/gpt-6-astra` resolves to `openai` (api)")
+                            && message.contains("nothing ran")
+                ),
+                "{access}: {:?}",
+                plan.pin_refusal
+            );
+            assert_eq!(plan.seat, None, "{access}");
+        }
+    }
+
+    /// A tier declared alone beside a model rendered at dispatch: the plan freezes no static
+    /// lane (and, with no flag, no row), so the dispatch-time judge is the one that refuses
+    /// the tier on the provider path the rendered model keeps.
+    #[test]
+    fn a_tier_declared_alone_refuses_a_rendered_model_at_dispatch() {
+        let wf = parse(
+            "nika: t\ninputs:\n  m: { type: string, default: openai/gpt-6-astra }\nrun:\n  \
+             access: { service_tier: fast }\ntasks:\n  a:\n    agent: { prompt: go, \
+             model: \"${{ inputs.m }}\" }\n",
+        );
+        let report = nika_check::check(&wf);
+        let plan = resolve_plan_over(&wf, &report, None, None, &[]);
+        assert!(plan.lanes.is_empty(), "no static lane to judge");
+        match plan.task_lane("openai/gpt-6-astra", VerbNeeds::new(false, true)) {
+            Err(nika_providers::PinRefusal::NoPath { message }) => assert!(
+                message.contains("`run.access.service_tier: fast`")
+                    && message.contains("keeps its own provider path (`openai`)"),
+                "{message}"
+            ),
+            other => panic!("a provider path binds no speed control: {other:?}"),
+        }
+    }
+
     /// A flag that contradicts the file refuses before task 1.
     #[test]
     fn a_contradicting_flag_refuses_the_plan() {

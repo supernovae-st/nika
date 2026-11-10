@@ -160,8 +160,8 @@ impl ExecutionAccessPlan {
 
     /// The resume identity's pin half: the operator's flag, joined with
     /// the authored requirement's behavior-bearing identity when there is
-    /// one (a run resumed under another route, protocol or effort re-runs
-    /// its intelligence tasks instead of reusing their output). A plan
+    /// one (a run resumed under another route, protocol, service tier or
+    /// effort re-runs its intelligence tasks instead of reusing their output). A plan
     /// without a requirement answers the flag alone, exactly as before.
     #[must_use]
     pub fn resume_pin(&self) -> Option<String> {

@@ -1,0 +1,111 @@
+name: candidate-binary
+
+# A release-shaped Linux binary of a pull request's exact head, on demand.
+#
+# WHY · a change that must be qualified on a real host before it is tagged
+# (a hosted agent seat, a resident under load) had no way to get there: the
+# release workflow builds from tags only, and the hosts that need the binary
+# have no compiler. Building it on a laptop gives a binary the release lane
+# never produced. This job runs the release lane's own linux-x64 leg — same
+# runner image, same target, same features, same packaging, same two gates —
+# against the head commit, and stops at an artifact. It publishes nothing:
+# no tag, no release, no registry, no attestation. The artifact expires.
+#
+# HOW · add the `candidate-binary` label to the pull request. One labelling
+# builds one head: a later push builds nothing until the label is removed and
+# added again, so every candidate answers to a deliberate request for the
+# commit a maintainer was looking at. Fetch it with:
+#
+#   gh run download <run-id> --name nika-linux-x64-candidate-<head sha>
+#   sha256sum -c nika-linux-x64-candidate-*.tar.gz.sha256
+#
+# The artifact name carries the full head commit and the binary reports the
+# same commit (`nika --version`); the job fails if the two disagree.
+#
+# SECURITY (cf diamond-ci.yml):
+# - Only a branch of this repository builds. A pull request from a fork is
+#   skipped: its author could move the head after the label was applied.
+# - No cache is restored or saved. A cache written by an earlier run of the
+#   same pull request could carry build outputs of a commit nobody asked to
+#   qualify into this one. Every candidate is built from a clean tree, and
+#   every dependency is checked against `Cargo.lock` (`--locked`).
+# - Every `run:` step references only fixed strings and `env:` values; no
+#   pull-request text reaches a shell. The token is read-only and no secret
+#   is in scope.
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: candidate-binary-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  linux-x64:
+    name: candidate linux-x64
+    if: >-
+      github.event.label.name == 'candidate-binary'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    # The release lane's linux-x64 row: GNU on the oldest runner image for the
+    # broadest glibc compatibility (release.yml · `build` matrix).
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    env:
+      TARGET: x86_64-unknown-linux-gnu
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      # The HEAD commit, not the merge commit GitHub synthesises for a pull
+      # request: the candidate must be the bytes the branch names, and the
+      # binary records the commit it was built from.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Add the Rust target
+        run: rustup target add "$TARGET"
+      - name: Build nika (release · locked · the release lane's features · no cache)
+        run: cargo build --release --locked --bin nika --target "$TARGET" --features local-infer,access-harness
+      - name: Package as the release lane does
+        run: |
+          set -euo pipefail
+          stage="$(mktemp -d)"
+          cp "target/${TARGET}/release/nika" "${stage}/nika"
+          chmod +x "${stage}/nika"
+          mkdir -p "${stage}/completions"
+          "${stage}/nika" completions bash > "${stage}/completions/nika.bash"
+          "${stage}/nika" completions zsh  > "${stage}/completions/_nika"
+          "${stage}/nika" completions fish > "${stage}/completions/nika.fish"
+          for f in nika.bash _nika nika.fish; do
+            test -s "${stage}/completions/${f}"
+          done
+          # The binary must name the commit this run was asked to build.
+          "${stage}/nika" --version | tee version.txt
+          grep -F -- "(${HEAD_SHA:0:9})" version.txt
+          tarball="nika-linux-x64-candidate-${HEAD_SHA:0:9}.tar.gz"
+          tar --owner=0 --group=0 --numeric-owner -czf "${tarball}" -C "${stage}" nika completions
+          sha256sum "${tarball}" | tee "${tarball}.sha256"
+      - name: Install bubblewrap (the gates run CONFINED · the release lane's recipe)
+        run: |
+          sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends bubblewrap
+          sudo apparmor_parser -R /etc/apparmor.d/bwrap-userns-restrict 2>/dev/null || true
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 2>/dev/null || true  # absent on ubuntu-22.04
+      - name: Funnel e2e and trust battery (the release lane's gates before upload)
+        run: |
+          set -euo pipefail
+          smoke="$(mktemp -d)"
+          tar -xzf nika-linux-x64-candidate-*.tar.gz -C "$smoke"
+          bash scripts/ci/funnel-e2e.sh "$smoke/nika"
+          bash scripts/test/trust-battery.sh "$smoke/nika"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nika-linux-x64-candidate-${{ github.event.pull_request.head.sha }}
+          path: |
+            nika-linux-x64-candidate-*.tar.gz
+            nika-linux-x64-candidate-*.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7

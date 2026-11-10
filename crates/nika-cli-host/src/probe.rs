@@ -1145,16 +1145,42 @@ pub fn auth_class_witness(detail: &str) -> bool {
     detail.contains("NIKA-INFER-001") || detail.contains("NIKA-1800")
 }
 
-/// Print the seat escape line when any witness is auth-class AND the
-/// census found a ready seat — the ONE seam every run lane calls (the
-/// lane picks the stream; `writeln!` to a locked handle, so the print
-/// lints stay silent and the bytes stay the lane's choice).
+/// A witness that names the file's own `run.access` declaration: the
+/// refusal belongs to what the workflow asks for, not to what this
+/// machine lacks. A pin does not heal it. Under a declared route,
+/// `--access <another seat>` is refused by that same declaration and
+/// `--access <the same seat>` changes nothing, so the seat escape would
+/// teach a dead end. The witness already says what to edit.
+#[must_use]
+pub fn declared_route_witness(detail: &str) -> bool {
+    detail.contains("`run.access.")
+}
+
+/// Whether a failure earns the seat escape: an auth-class witness, and
+/// none that names the file's own route declaration.
+#[must_use]
+fn seat_escape_applies<'a>(witnesses: impl IntoIterator<Item = &'a str>) -> bool {
+    let mut auth = false;
+    for witness in witnesses {
+        if declared_route_witness(witness) {
+            return false;
+        }
+        auth |= auth_class_witness(witness);
+    }
+    auth
+}
+
+/// Print the seat escape line when the failure earns it
+/// (`seat_escape_applies`) AND the census found a ready seat — the ONE
+/// seam every run lane calls (the lane picks the stream; `writeln!` to a
+/// locked handle, so the print lints stay silent and the bytes stay the
+/// lane's choice).
 pub fn print_seat_escape<'a, W: std::io::Write>(
     witnesses: impl IntoIterator<Item = &'a str>,
     prefix: &str,
     out: &mut W,
 ) {
-    if !witnesses.into_iter().any(auth_class_witness) {
+    if !seat_escape_applies(witnesses) {
         return;
     }
     if let Some(tail) = seat_escape_tail() {

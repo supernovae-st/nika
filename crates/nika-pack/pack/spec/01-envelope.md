@@ -218,8 +218,8 @@ A task may override this. If absent · each `infer:`/`agent:` task must specify
 its own `model:`.
 
 The string names WHICH model answers. HOW the run reaches it (an agent
-application or an API, over which protocol) and the native reasoning effort it
-is asked for are separate declarations under [`run`](#run--optional--the-runs-entropy-clock-access-and-reasoning-declaration)
+application or an API, over which protocol, at which service tier) and the
+native reasoning effort it is asked for are separate declarations under [`run`](#run--optional--the-runs-entropy-clock-access-and-reasoning-declaration)
 · `run.access` and `run.reasoning`. Absent, the engine resolves the route as it
 always has.
 
@@ -702,20 +702,22 @@ run:
     via: codex              # the route · an agent application or an API provider id
     protocol: acp           # api | acp
     fallback: none          # none · also what an omitted fallback means
+    service_tier: fast      # standard | fast · omitted keeps the route's default
   reasoning:                # optional
     effort: high            # the EXACT native value the route offers
 ```
 
 Every source of randomness and time a run consumes is **declared, never
 ambient** (normative · NEP-0010). The same block MAY declare the route that
-reaches the run's model and the native effort it asks for (§`run.access` ·
-`run.reasoning` below). The block is optional; absent, the run behaves
-exactly as `entropy: ambient` + `clock: system` with the engine's own route
-resolution and each route's default effort (the status quo). Each key is
-optional on its own: an absent key leaves its dimension exactly as it was.
-The key set is closed (`{entropy, clock, access, reasoning}` only — a typo'd
-declaration is refused in both parse modes, like `permits:`), and so are the
-nested sets (`access: {via, protocol, fallback}` · `reasoning: {effort}`).
+reaches the run's model, the service tier asked of that route and the native
+effort it asks for (§`run.access` · `run.reasoning` below). The block is
+optional; absent, the run behaves exactly as `entropy: ambient` +
+`clock: system` with the engine's own route resolution and each route's
+default tier and effort (the status quo). Each key is optional on its own: an
+absent key leaves its dimension exactly as it was. The key set is closed
+(`{entropy, clock, access, reasoning}` only — a typo'd declaration is refused
+in both parse modes, like `permits:`), and so are the nested sets
+(`access: {via, protocol, fallback, service_tier}` · `reasoning: {effort}`).
 
 - **`entropy: { seeded: N }`** forces the deterministic seams and pins the
   run's seed: two runs of the same file with the same `N` produce
@@ -742,8 +744,9 @@ nested sets (`access: {via, protocol, fallback}` · `reasoning: {effort}`).
 
 #### `run.access` · `run.reasoning` · *the route and the native effort* (normative)
 
-`model:` says WHICH model answers. `run.access` says HOW the run reaches it,
-and `run.reasoning.effort` says which native effort it is asked to spend.
+`model:` says WHICH model answers. `run.access` says HOW the run reaches it
+and, with `service_tier`, how fast that route is asked to serve.
+`run.reasoning.effort` says which native effort the model is asked to spend.
 They are separate dimensions and none is derived from another. The
 credentials, account and billing a route uses stay in that route's own
 configuration, never in the file.
@@ -753,6 +756,7 @@ configuration, never in the file.
 | `access.via` | kebab-case id | the route · an agent application (`codex` · `claude-code` · …) or an API provider id (`openai` · …) · an open set judged by the engine's route registry · this specification freezes no catalog of routes or models |
 | `access.protocol` | `api` \| `acp` | `api` · the route's inference API · `acp` · an Agent Client Protocol session with an agent application · there is no third value |
 | `access.fallback` | `none` | the declared selection is exact · an omitted `fallback` means `none` once `access:` is declared |
+| `access.service_tier` | `standard` \| `fast` | the serving speed asked of the route · `fast` is its faster tier for the selected model, `standard` its regular one · omitted, the route keeps its own default, which may stay unknown |
 | `reasoning.effort` | nonempty string | the EXACT native value the selected route advertises for the selected model |
 
 An empty `access: {}` or `reasoning: {}` selects nothing and is refused;
@@ -770,13 +774,25 @@ An empty `access: {}` or `reasoning: {}` selects nothing and is refused;
   connection actually used. With `protocol` omitted, the route connects
   the way it did before this declaration existed.
 - **No substitution · `fallback: none`.** An explicit selection (route ·
-  protocol · model · effort) is honored exactly or refused. A route the
-  engine cannot reach is refused before inference; a route that fails
-  during the run fails its task, and a declared retry stays on that same
-  route. Neither is replaced by another route, protocol, model or effort —
-  not even by an API key or a direct CLI that happens to be configured on
-  the same machine. Declared alternatives are not specified; a later
-  `fallback` value is additive.
+  protocol · model · service tier · effort) is honored exactly or refused.
+  A route the engine cannot reach is refused before inference; a route that
+  fails during the run fails its task, and a declared retry stays on that
+  same route. Neither is replaced by another route, protocol, model, service
+  tier or effort — not even by an API key or a direct CLI that happens to
+  be configured on the same machine. Declared alternatives are not
+  specified; a later `fallback` value is additive.
+- **Two words for the tier, bound by each route.** `service_tier` is the
+  one closed vocabulary of this declaration: `standard` and `fast` are the
+  language's words, not a route's. A route that offers a speed control
+  binds each word to its own native setting, and the engine applies exactly
+  that setting. It MUST NOT translate a word into another model, another
+  effort or another route's control, and it MUST NOT serve `fast` as
+  `standard`. A route, or a selected model, that offers no such control can
+  honor neither word and refuses both: `standard` is never assumed where
+  nothing states it. Selecting a model or an effort can change the tiers a
+  route offers, so the tier is judged against the options offered AFTER
+  both are selected. Omitted, the route keeps its own default tier, which
+  may be either and may remain unknown · omission is not `standard`.
 - **Native effort, never translated.** The value is forwarded as the
   selected route's own option. There is no universal effort scale: a value
   is not an alias of another route's value, and an engine MUST NOT map,
@@ -788,21 +804,23 @@ An empty `access: {}` or `reasoning: {}` selects nothing and is refused;
   check`) is the shape only: the closed key sets, string values, a
   nonempty ASCII kebab-case `via`, a nonempty `effort` without surrounding
   whitespace (the Unicode White_Space property · inner characters stay as
-  written), the `protocol` and `fallback` enums, no template · a
-  violation is `NIKA-PARSE` · `validation_error`. Whether a route exists,
-  speaks the protocol, serves the model or offers the effort is a runtime
-  fact. The engine discovers it (an ACP handshake or a capability query is
+  written), the `protocol`, `fallback` and `service_tier` enums, no
+  template · a violation is `NIKA-PARSE` · `validation_error`. Whether a
+  route exists, speaks the protocol, serves the model or offers the tier
+  or the effort is a runtime fact. The engine discovers it (an ACP handshake or a capability query is
   discovery, not inference) and MUST refuse a selection it cannot honor
   exactly before any inference request is sent — no prompt, no API
   inference call — with a diagnostic naming the failed field, the requested
   value and the available choices wherever the route revealed them.
-- **Applied, then confirmed.** Over `acp`, the model and the effort are
-  applied through the session's own selection methods before the first
-  prompt. Where the session exposes configuration options, the resulting
-  configuration is read back, and one that does not hold the applied values
-  is refused, never assumed. A session that can only acknowledge a model
-  request yields accepted-request evidence, never a configured or served
-  claim, and an effort it cannot apply is refused.
+- **Applied, then confirmed.** Over `acp`, the model, the effort and the
+  service tier are applied, in that order, through the session's own
+  selection methods before the first prompt. Where the session exposes
+  configuration options, the resulting configuration is read back, and one
+  that does not hold every applied value is refused, never assumed: a
+  later selection that resets an earlier one is refused the same way. A
+  session that can only acknowledge a model request yields accepted-request
+  evidence, never a configured or served claim, and an effort or a tier it
+  cannot apply is refused.
 - **One run, one route.** The declaration serves every `infer:` and
   `agent:` task of the run, including a task carrying its own `model:`
   override; a task whose effective model the declared route cannot serve is
@@ -818,9 +836,14 @@ An empty `access: {}` or `reasoning: {}` selects nothing and is refused;
   route confirmed, and the responding model when — and only when — the
   route attests it. A requested or acknowledged value is never relabelled
   as the served one, and an unattested fact stays absent, never guessed.
+  For a declared service tier the record also keeps what the route offered,
+  and it names two facts only a witness can state: the tier carried on the
+  turn itself and the tier the provider reports. Both stay unknown until
+  attested · a confirmed configuration is never relabelled as the tier
+  that served. A run that declares no tier records none.
   The declared selection is part of each model task's identity: a resume
-  never reuses a result obtained under a different route, protocol, model
-  or effort.
+  never reuses a result obtained under a different route, protocol, model,
+  service tier or effort.
 - **Independent of entropy and clock.** `access:` and `reasoning:` take no
   part in the coupling above; the legal pairs and `NIKA-PARSE-026` ·
   `027` · `028` are judged identically with or without them.
@@ -1114,7 +1137,7 @@ A v0.1-compliant engine MUST ·
 7. Mask resolved `secrets` values in all logs · traces · journal events
 8. Enforce a declared `permits:` block on both surfaces: refuse statically-detectable escapes at check time, and fail any runtime effect outside the boundary with `NIKA-SEC-004` · once `permits:` is present every category is default-deny unless listed
 9. Compose every child process environment (§permits env · NEP-0005): the runner env floor ∪ the declared `env:` passthrough ∪ the task `env:` map, minus the dangerous-name floor · never inherit the engine environment
-10. Accept `run.access` and `run.reasoning` only in their closed literal shapes (§run · `NIKA-PARSE` · `validation_error` otherwise) · honor a declared selection exactly — route, protocol (a direct CLI never satisfies `acp`), model and native effort, applied before the first prompt and read back wherever the route exposes its configuration — and refuse a selection it cannot honor before any inference request is sent, never substituting another route, protocol, model or effort · an absent declaration leaves route resolution and default effort unchanged
+10. Accept `run.access` and `run.reasoning` only in their closed literal shapes (§run · `NIKA-PARSE` · `validation_error` otherwise) · honor a declared selection exactly — route, protocol (a direct CLI never satisfies `acp`), model, service tier and native effort, applied before the first prompt and read back wherever the route exposes its configuration — and refuse a selection it cannot honor before any inference request is sent, never substituting another route, protocol, model, service tier or effort · an absent declaration leaves route resolution, default tier and default effort unchanged
 
 ---
 

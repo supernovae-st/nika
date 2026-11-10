@@ -609,6 +609,12 @@ pub use selection::{
     AccessFallback, AccessProtocol, AccessRequirement, SelectedValue, SelectionEvidence,
 };
 
+// The service tier a run asks of its route (`run.access.service_tier`): the language's two
+// words, the measured binding of those words to an adapter's own speed control (the ONE table
+// the client and the access resolver read) and the facts one call kept about it.
+mod tier;
+pub use tier::{ServiceTier, ServiceTierBinding, ServiceTierEvidence};
+
 // What a harness seat's `agent:` session can be held to (NIK-266): the measured modes the
 // client selects and the residual `nika check` states, one table for both.
 mod boundary;
@@ -733,8 +739,13 @@ impl AccessRefused {
 
     /// The refusal over the admitted plan: the next ready path is the
     /// first READY row the ranking recorded — an outranked path, else a
-    /// path a pin excluded (ready without the pin). A plan that recorded
-    /// none (a seat pin · a sole candidate) names nothing: honest.
+    /// path an operator pin excluded (ready without the pin). A plan that
+    /// recorded none (a seat pin · a sole candidate) names nothing: honest.
+    ///
+    /// A path the FILE's own `run.access.via` excluded is never named: it
+    /// is recorded as pin-excluded too, but `--access` for it is refused
+    /// by that same declaration, so the flag would teach a dead end. The
+    /// way out of a declared route is to edit the file.
     #[must_use]
     pub fn from_plan(
         seat: impl Into<alloc::string::String>,
@@ -745,9 +756,14 @@ impl AccessRefused {
         let Some(plan) = plan else {
             return refused;
         };
+        let route_declared = plan
+            .requirement
+            .as_ref()
+            .is_some_and(|requirement| requirement.via.is_some());
         let next = plan.outranked.first().or_else(|| {
             plan.rejected
                 .iter()
+                .filter(|_| !route_declared)
                 .find(|r| r.dimension == RejectionDimension::PinUnsatisfied)
         });
         match next {
@@ -1193,5 +1209,45 @@ mod readiness_tests {
             AccessRefused::from_plan("codex", "exited 1", None).seat,
             "codex"
         );
+    }
+
+    /// A path the FILE's own route excluded is never taught. Under a declared
+    /// `run.access.via`, `--access <another route>` is refused by that same
+    /// declaration, so naming it would send the reader to a dead end. A path
+    /// the ranking kept inside the declaration is still named.
+    #[test]
+    fn a_declared_route_never_teaches_a_pin_outside_it() {
+        let declared = AccessRequirement::new().with_via(Some("codex".into()));
+        let mut plan = AccessPlan::new(
+            "openai/gpt-6-luna",
+            "openai",
+            "codex",
+            AccessClass::Harness,
+            BillingClass::Unknown,
+            false,
+            alloc::vec::Vec::new(),
+        )
+        .with_requirement(Some(declared));
+        plan.rejected.push(AccessRejection::new(
+            "openai",
+            RejectionDimension::PinUnsatisfied,
+            RejectionLayer::Pin,
+            "the workflow declares `run.access.via: codex`",
+        ));
+        let refused = AccessRefused::from_plan("codex", "selection refused", Some(&plan));
+        assert_eq!(
+            refused.next_ready, None,
+            "the declaration excludes `openai`: it is no next step"
+        );
+        assert_eq!(refused.pin, None, "no flag the declaration would refuse");
+        plan.outranked.push(AccessRejection::new(
+            "codex-team",
+            RejectionDimension::Outranked,
+            RejectionLayer::Access,
+            "ready",
+        ));
+        let ranked = AccessRefused::from_plan("codex", "selection refused", Some(&plan));
+        assert_eq!(ranked.next_ready.as_deref(), Some("codex-team"));
+        assert_eq!(ranked.pin.as_deref(), Some("--access codex-team"));
     }
 }

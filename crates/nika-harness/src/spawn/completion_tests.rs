@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! A spawned completion opened inside a call's deadline, against keyless scripted adapters: the
-//! deadline is spent by the probes, an expired one starts no process, and the transport is bounded
-//! by the call's own allowance, never by the fixed generic bound.
+//! A spawned completion opened inside a call's deadline, against keyless scripted adapters: an
+//! expired deadline starts no process, a row whose identity is its handshake starts its adapter
+//! once (the session's own `initialize` is the identity answer), and the transport is bounded by
+//! the call's own allowance, never by the fixed generic bound.
 use super::*;
 use crate::authoring::acp::{Completion, Deadline, Door, Progress};
 use futures_core::Stream as _;
@@ -74,27 +75,78 @@ async fn an_expired_deadline_starts_no_process() {
     assert_eq!(starts(&log), 0, "no probe, no adapter");
 }
 
-/// The identity probe spends the same deadline: a probe answering after the deadline leaves
-/// nothing, so the session adapter is never spawned.
+/// The first frame of a session, ended or errored, within a generous outer bound.
+async fn first_frame(
+    stream: &mut HarnessEventStream,
+) -> Option<Result<nika_kernel::ai::harness::HarnessEvent, HarnessError>> {
+    tokio::time::timeout(
+        Duration::from_secs(20),
+        std::future::poll_fn(|cx| std::pin::Pin::new(&mut *stream).poll_next(cx)),
+    )
+    .await
+    .expect("ended long before the generic 300 s bound")
+}
+
+/// A row whose identity is its handshake starts its adapter ONCE: the session's own
+/// `initialize` answer is the identity, judged before `session/new`, so no probe process runs
+/// beside the session. The scripted adapter answers `initialize` and nothing else, so the
+/// admitted session then ends at the call's allowance.
 #[tokio::test]
-async fn a_deadline_spent_by_the_probe_spawns_no_session() {
+async fn a_handshake_row_starts_its_adapter_once() {
     let dir = tempfile::tempdir().expect("dir");
-    let (seat, log) = adapter(dir.path(), "0.6", true);
-    let request = HarnessRequest::new("p", dir.path());
+    let (seat, log) = adapter(dir.path(), "0", true);
     let opened = seat
         .open(
-            request,
+            HarnessRequest::new("p", dir.path()),
+            Deadline::start(Duration::from_millis(1500)),
+            Progress::default(),
+        )
+        .await
+        .expect("the adapter opens");
+    let mut stream = opened.stream;
+    let first = first_frame(&mut stream).await;
+    assert!(
+        matches!(&first, Some(Err(HarnessError::Session { reason })) if reason.contains("idle deadline")),
+        "admitted at initialize, then silent on session/new: {first:?}"
+    );
+    assert_eq!(
+        starts(&log),
+        1,
+        "the session is the handshake: no probe beside it"
+    );
+}
+
+/// The identity answer spends the call's own deadline: an adapter that answers `initialize`
+/// after it ends the session within the call's allowance, as the session death it is, and the
+/// one process that was started is the only one.
+#[tokio::test]
+async fn a_start_slower_than_the_deadline_ends_within_the_allowance() {
+    let dir = tempfile::tempdir().expect("dir");
+    let (seat, log) = adapter(dir.path(), "0.6", true);
+    let started = tokio::time::Instant::now();
+    let opened = seat
+        .open(
+            HarnessRequest::new("p", dir.path()),
             Deadline::start(Duration::from_millis(400)),
             Progress::default(),
         )
-        .await;
+        .await
+        .expect("the adapter starts inside the deadline");
+    let mut stream = opened.stream;
+    let first = first_frame(&mut stream).await;
     assert!(
-        matches!(&opened, Err(HarnessError::Session { reason }) if reason.contains("nothing was spawned")),
-        "{:?}",
-        opened.as_ref().err()
+        matches!(&first, Some(Err(error @ HarnessError::Session { reason }))
+            if reason.contains("idle deadline") && error.is_transient()),
+        "{first:?}"
     );
-    tokio::time::sleep(Duration::from_millis(200)).await;
-    assert_eq!(starts(&log), 1, "the probe ran; no session adapter started");
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        started.elapsed()
+    );
+    drop(stream);
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert_eq!(starts(&log), 1, "one adapter, nothing started after it");
 }
 
 /// The spawned transport is bounded by the call's own allowance: an adapter that never answers
@@ -121,12 +173,7 @@ async fn the_spawned_transport_is_bounded_by_the_call_allowance() {
         opened.allowance
     );
     let mut stream = opened.stream;
-    let first = tokio::time::timeout(
-        Duration::from_secs(20),
-        std::future::poll_fn(|cx| std::pin::Pin::new(&mut stream).poll_next(cx)),
-    )
-    .await
-    .expect("ended long before the generic 300 s bound");
+    let first = first_frame(&mut stream).await;
     assert!(
         matches!(&first, Some(Err(HarnessError::Session { reason })) if reason.contains("idle deadline")),
         "{first:?}"

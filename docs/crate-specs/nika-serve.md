@@ -118,6 +118,16 @@ validates literal JSON input bindings. Clients must require this capability
 before sending inputs: older residents may accept unknown request fields
 without applying them. This capability does not authorize snapshot overlays.
 
+`/health` advertises `accessServiceTier` when the resident admits a served
+workflow that declares `run.access.service_tier`. The tier is a field of the
+workflow file, never of the request: it rides the source bytes, so the snapshot
+digest binds it and a replayed request never re-reads it. A resident without the
+token answers 422 for the same source. A tier the route cannot carry leaves a
+failed job with `NIKA-1800` and no settlement; a tier the session refuses
+leaves `settlement.error` with `NIKA-1805` and the task. The per-call
+`access_selection` receipt, with its `service_tier` block, stays in the sealed
+journal: no HTTP object carries it.
+
 ### Authoring door (`POST /v1/compile` · #1670)
 
 The compile route is the HTTP transport of the one stateless Compile core

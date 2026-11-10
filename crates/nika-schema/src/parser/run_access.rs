@@ -2,19 +2,19 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! `run.access:` and `run.reasoning:` — the authored access selection
-//! (route · protocol · fallback · native effort), SHAPE only.
+//! (route · protocol · fallback · service tier · native effort), SHAPE only.
 //!
 //! Every key set is closed in both parse modes (a typo'd `protocl:` would
 //! let the run reach its model another way), every value is a literal
 //! string resolved before task 1 (no `${{ }}`), and an empty block selects
 //! nothing, so it is refused rather than read as a declaration. Whether a
-//! route, model or effort is AVAILABLE is never judged here: the access
-//! resolver refuses before task 1, and a live session refuses an unoffered
-//! model or effort before its first prompt.
+//! route, model, tier or effort is AVAILABLE is never judged here: the
+//! access resolver refuses before task 1, and a live session refuses an
+//! unoffered model, effort or tier before its first prompt.
 
 use marked_yaml::Node;
 use marked_yaml::types::MarkedMappingNode;
-use nika_types::access::{AccessFallback, AccessProtocol};
+use nika_types::access::{AccessFallback, AccessProtocol, ServiceTier};
 use nika_vocab::keys::{RUN_ACCESS_KEYS, RUN_REASONING_KEYS};
 
 use crate::error::SchemaError;
@@ -37,8 +37,8 @@ pub(super) fn parse_access(
         return Err(invalid(
             cx,
             node,
-            "`run.access` selects nothing — declare `via:`, `protocol:` or `fallback:`, \
-             or remove the block (absent keeps today's access resolution)"
+            "`run.access` selects nothing — declare `via:`, `protocol:`, `fallback:` or \
+             `service_tier:`, or remove the block (absent keeps today's access resolution)"
                 .to_owned(),
         ));
     }
@@ -83,7 +83,23 @@ pub(super) fn parse_access(
         })?),
         None => None,
     };
-    Ok(Some(RunAccess::new(via, protocol, fallback)))
+    let service_tier = match literal(cx, mapping, "service_tier", "run.access.service_tier")? {
+        Some((word, node)) => Some(ServiceTier::parse(&word).ok_or_else(|| {
+            invalid(
+                cx,
+                node,
+                format!(
+                    "`run.access.service_tier` must be `standard` or `fast` — got `{word}` (a \
+                     route's own word for its speed control, such as `on` or `priority`, is \
+                     never a value here; remove the key to keep the route's default tier)"
+                ),
+            )
+        })?),
+        None => None,
+    };
+    Ok(Some(
+        RunAccess::new(via, protocol, fallback).with_service_tier(service_tier),
+    ))
 }
 
 /// `run.reasoning:` — `None` when absent; `effort:` is required inside.

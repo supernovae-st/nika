@@ -58,8 +58,8 @@ pub(super) fn current(option: Option<&Value>) -> Option<String> {
 }
 
 /// Every advertised option id (with its category when it has one), for a
-/// refusal that has no reasoning option to name.
-fn advertised_ids(config: Option<&Value>) -> String {
+/// refusal that has no option to name.
+pub(super) fn advertised_ids(config: Option<&Value>) -> String {
     let ids: Vec<String> = config
         .and_then(Value::as_array)
         .map(|options| {
@@ -93,25 +93,28 @@ where
 {
     /// Apply `wanted` (when asked) over `config` — the complete state the
     /// session last reported — and read it back; without a request, record
-    /// the session's own current effort as stated (never applied).
+    /// the session's own current effort as stated (never applied). Returns
+    /// the newest complete configuration, the setter's answer or `config`
+    /// itself, so the next dependent selection is never judged on a stale one.
     pub(super) async fn select_effort(
         &mut self,
         sid: &str,
-        config: Option<&Value>,
+        config: Option<Value>,
         wanted: Option<&str>,
-    ) -> Result<(), HarnessError> {
+    ) -> Result<Option<Value>, HarnessError> {
         let Some(wanted) = wanted else {
             // Nothing asked: record the session's own value when it states one unambiguously;
             // an ambiguous pair is simply not recorded (no request depends on it).
-            self.selection.configured_effort = thought_option(config).ok().and_then(current);
+            self.selection.configured_effort =
+                thought_option(config.as_ref()).ok().and_then(current);
             self.selection.configured_effort_source = self
                 .selection
                 .configured_effort
                 .as_ref()
                 .map(|_| ModelProvenance::SessionConfig);
-            return Ok(());
+            return Ok(config);
         };
-        let option = thought_option(config).map_err(refusal)?;
+        let option = thought_option(config.as_ref()).map_err(refusal)?;
         let model = self
             .observed_model
             .clone()
@@ -120,7 +123,7 @@ where
             return Err(refusal(format!(
                 "the harness offers no reasoning-effort option for model `{model}`, so effort \
                  `{wanted}` cannot be applied — it advertises {} (no prompt was sent)",
-                advertised_ids(config)
+                advertised_ids(config.as_ref())
             )));
         };
         let id = option
@@ -158,11 +161,14 @@ where
         let answered: Value = self
             .await_response(ID_SESSION_EFFORT, "session/set_config_option")
             .await?;
-        self.confirm_holds(answered.get("configOptions"))
+        let newest = answered.get("configOptions").cloned();
+        self.confirm_holds(newest.as_ref())?;
+        Ok(newest)
     }
 
     /// Read back the complete configuration an answer carried: the effort
-    /// that was sent and the model that was selected must both still hold.
+    /// that was sent, the model that was selected and the service tier that
+    /// was sent must all still hold.
     pub(super) fn confirm_holds(&mut self, config: Option<&Value>) -> Result<(), HarnessError> {
         if let Some(wanted) = self.selection.transmitted_effort.clone() {
             let read = current(thought_option(config).map_err(refusal)?);
@@ -188,12 +194,13 @@ where
                 )));
             }
         }
-        Ok(())
+        self.confirm_service_tier(config)
     }
 
     /// A `config_option_update` during the turn: the agent itself moved
-    /// the model or the effort away from what was configured — recorded,
-    /// never hidden (an ACP agent may fall back on a rate limit).
+    /// the model, the effort or the service tier away from what was
+    /// configured — recorded, never hidden (an ACP agent may fall back on a
+    /// rate limit).
     pub(super) fn observe_config_update(&mut self, update: &Value) {
         let config = update.get("configOptions");
         let model = seats::current_model(seats::model_option(config), None);
@@ -212,6 +219,7 @@ where
                 .changed_mid_turn
                 .push(format!("effort={now}"));
         }
+        self.observe_service_tier_update(config);
     }
 }
 

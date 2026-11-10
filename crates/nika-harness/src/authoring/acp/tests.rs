@@ -151,6 +151,7 @@ async fn unsupported_identity_stops_before_session_or_prompt() {
         Some(claude()),
         None,
         claude().session_meta(),
+        None,
     );
     let first = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
     assert!(matches!(first, Some(Err(HarnessError::Refused { .. }))));
@@ -202,6 +203,7 @@ async fn admitted_wire_carries_strict_options_and_keeps_the_whole_answer() {
         Some(claude()),
         None,
         claude().session_meta(),
+        None,
     );
     let mut answer = None;
     while let Some(event) = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await {
@@ -268,6 +270,7 @@ async fn refuses_after_prompt(mode: &str) {
         Some(claude()),
         None,
         claude().session_meta(),
+        None,
     );
     let first = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
     assert!(

@@ -7,7 +7,8 @@
 //! refusal (an unqualified route, a control the session cannot apply)
 //! happens before any session opens. A `schema:` is validated by Nika, each
 //! repair a new one-shot session; `vision:` files ride as ACP image blocks
-//! only to an agent that advertises image prompts.
+//! only to an agent that advertises image prompts. A declared service tier
+//! rides the Codex one-shot through the adapter's own speed option.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -17,7 +18,7 @@ use std::sync::{Arc, Mutex};
 use nika_error::traits::NikaErrorCode;
 use nika_kernel::ai::harness::{DynAgentBackend, HarnessError, HarnessEventStream, HarnessRequest};
 use nika_providers::ProvidersConfig;
-use nika_types::access::{AccessFallback, AccessProtocol, AccessRequirement};
+use nika_types::access::{AccessFallback, AccessProtocol, AccessRequirement, ServiceTier};
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
@@ -451,6 +452,187 @@ async fn a_control_the_session_cannot_apply_refuses_before_any_session() {
         other => panic!("expected the parameter refusal: {other:?}"),
     }
     assert_eq!(transport.opened.load(Ordering::SeqCst), 0);
+}
+
+/// codex-acp 1.13.1's configuration for a model that supports a fast tier: `mode`, `model`,
+/// `reasoning_effort` and the `fast-mode` speed option (`model_config`, `off` before `on`).
+fn codex(mode: &str, model: &str, effort: &str, fast: &str) -> Value {
+    json!([
+        select(
+            "mode",
+            "mode",
+            mode,
+            &["read-only", "agent", "agent-full-access"]
+        ),
+        select("model", "model", model, &["gpt-6-astra", "gpt-6-luna"]),
+        select(
+            "reasoning_effort",
+            "thought_level",
+            effort,
+            &["low", "medium", "high"]
+        ),
+        select("fast-mode", "model_config", fast, &["off", "on"])
+    ])
+}
+
+/// A scripted codex-acp 1.13.1: every setter is applied and answered with the complete state.
+async fn codex_peer(mut r: Reader, mut w: Writer, seen: Arc<Mutex<Vec<Value>>>) {
+    let (mut mode, mut model, mut effort, mut fast) = (
+        "agent".to_owned(),
+        "gpt-6-astra".to_owned(),
+        "medium".to_owned(),
+        "off".to_owned(),
+    );
+    while let Some(request) = read(&mut r).await {
+        seen.lock().expect("seen").push(request.clone());
+        let value = request["params"]["value"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned();
+        let result = match request["method"].as_str() {
+            Some("initialize") => json!({"protocolVersion":1,"agentInfo":
+                {"name":"@agentclientprotocol/codex-acp","title":"Codex","version":"1.13.1"}}),
+            Some("session/new") => {
+                json!({"sessionId":"s-infer","configOptions":codex(&mode, &model, &effort, &fast)})
+            }
+            Some("session/set_config_option") => {
+                match request["params"]["configId"].as_str() {
+                    Some("model") => model = value,
+                    Some("reasoning_effort") => effort = value,
+                    Some("fast-mode") => fast = value,
+                    Some("mode") => mode = value,
+                    other => panic!("unexpected option {other:?}"),
+                }
+                json!({"configOptions":codex(&mode, &model, &effort, &fast)})
+            }
+            Some("session/prompt") => {
+                let chunk = json!({"jsonrpc":"2.0","method":"session/update","params":{
+                    "sessionId":"s-infer","update":{"sessionUpdate":"agent_message_chunk",
+                    "content":{"type":"text","text":"OK"}}}});
+                send(&mut w, &chunk).await;
+                json!({"stopReason":"end_turn"})
+            }
+            other => panic!("unexpected client request {other:?}"),
+        };
+        send(
+            &mut w,
+            &json!({"jsonrpc":"2.0","id":request["id"],"result":result}),
+        )
+        .await;
+    }
+}
+
+/// The lent transport of the Codex route: its REAL completion-profile client over a duplex.
+#[derive(Default)]
+struct ScriptedCodex {
+    seen: Arc<Mutex<Vec<Value>>>,
+}
+
+impl DynAgentBackend for ScriptedCodex {
+    fn run_agent_boxed(
+        &self,
+        request: HarnessRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<HarnessEventStream, HarnessError>> + Send + '_>> {
+        let (ours, theirs) = tokio::io::duplex(64 * 1024);
+        let (client_read, client_write) = tokio::io::split(ours);
+        let (peer_read, peer_write) = tokio::io::split(theirs);
+        tokio::spawn(codex_peer(
+            BufReader::new(peer_read),
+            peer_write,
+            Arc::clone(&self.seen),
+        ));
+        let one_shot = nika_harness::meet_acp_one_shot("codex").expect("attested");
+        Box::pin(async move { Ok(one_shot.drive(client_read, client_write, request)) })
+    }
+}
+
+/// One `infer:` on the Codex route over ACP under `requirement`, with what its peer read.
+async fn on_codex(
+    requirement: &AccessRequirement,
+) -> (Result<HarnessInferOutput, VerbInferError>, Vec<Value>) {
+    let transport = Arc::new(ScriptedCodex::default());
+    let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+    let verb: InferVerb =
+        InferVerb::new(registry, "openai/gpt-6-luna").with_acp_transport(transport.clone());
+    let out = verb
+        .run_on_harness(
+            "codex",
+            InferInput::new("answer OK").with_requirement(Some(requirement)),
+        )
+        .await;
+    let seen = transport.seen.lock().expect("seen").clone();
+    (out, seen)
+}
+
+/// The `(configId, value)` of every selection the peer read, in order.
+fn selections(seen: &[Value]) -> Vec<(String, String)> {
+    seen.iter()
+        .filter(|r| r["method"] == "session/set_config_option")
+        .map(|r| {
+            let text = |key: &str| r["params"][key].as_str().unwrap_or_default().to_owned();
+            (text("configId"), text("value"))
+        })
+        .collect()
+}
+
+/// A declared service tier rides the Codex ACP one-shot: the file's word becomes the
+/// adapter's own `fast-mode` value after the effort and before the `read-only` mode, one
+/// prompt follows, and the receipt keeps the tier's facts apart beside the model and effort.
+#[tokio::test]
+async fn a_declared_service_tier_rides_the_codex_one_shot_and_keeps_its_receipt() {
+    for (tier, native) in [(ServiceTier::Fast, "on"), (ServiceTier::Standard, "off")] {
+        let requirement = declared("codex", "low").with_service_tier(Some(tier));
+        let (out, seen) = on_codex(&requirement).await;
+        let out = out.expect("answered over ACP");
+        assert_eq!(out.output, json!("OK"), "{tier}");
+        let own = |pair: (&str, &str)| (pair.0.to_owned(), pair.1.to_owned());
+        assert_eq!(
+            selections(&seen),
+            [
+                own(("model", "gpt-6-luna")),
+                own(("reasoning_effort", "low")),
+                own(("fast-mode", native)),
+                own(("mode", "read-only")),
+            ],
+            "{tier}"
+        );
+        let prompts = seen.iter().filter(|r| r["method"] == "session/prompt");
+        assert_eq!(prompts.count(), 1, "{tier}");
+        let receipt = out.selection.expect("a declared run carries its receipt");
+        assert_eq!(
+            receipt.to_json(),
+            json!({
+                "schema": "nika/access-selection@1",
+                "protocol": "acp",
+                "model": {"requested": "openai/gpt-6-luna", "option": "model",
+                    "transmitted": "gpt-6-luna", "configured": "gpt-6-luna",
+                    "configured_source": "confirmed_selection"},
+                "effort": {"requested": "low", "option": "reasoning_effort",
+                    "transmitted": "low", "configured": "low",
+                    "configured_source": "confirmed_selection"},
+                "service_tier": {"requested": tier.as_str(), "option": "fast-mode",
+                    "offered": ["off", "on"], "transmitted": native, "configured": native,
+                    "configured_source": "confirmed_selection",
+                    "turn": {"value": null, "evidence": "unknown"},
+                    "effective": {"value": null, "evidence": "unknown"}},
+                "responder": {"model": null, "evidence": "unknown"}
+            }),
+            "{tier}"
+        );
+    }
+}
+
+/// Without the key the same route sends no speed selection and its receipt holds no tier.
+#[tokio::test]
+async fn without_a_declared_tier_the_codex_one_shot_selects_no_speed() {
+    let (out, seen) = on_codex(&declared("codex", "low")).await;
+    let out = out.expect("answered over ACP");
+    assert!(
+        selections(&seen).iter().all(|(id, _)| id != "fast-mode"),
+        "{seen:?}"
+    );
+    let receipt = out.selection.expect("receipt").to_json();
+    assert!(receipt.get("service_tier").is_none(), "{receipt}");
 }
 
 /// The adapter gone at the call: the task fails with the harness's own

@@ -6,8 +6,10 @@
 //! its direct CLI one-shot and never another route.
 //!
 //! The session carries the prompt, the system, the model, the native
-//! effort (applied and read back before the prompt) and the task's
-//! `vision:` files as ACP image blocks (sent only to an agent whose
+//! effort and a declared `run.access.service_tier` (each applied and read
+//! back before the prompt; the tier through the adapter's own measured
+//! speed option, or refused) and the task's `vision:` files as ACP image
+//! blocks (sent only to an agent whose
 //! `initialize` advertises image prompts). Any other explicit task control
 //! (`temperature` · `max_tokens` · `thinking` · a task-level effort · a
 //! `vision:` URL, which Nika would have to fetch) cannot be applied by the
@@ -83,6 +85,7 @@ impl<H> InferVerb<H> {
             let mut request = HarnessRequest::new(prompt, std::path::PathBuf::new())
                 .with_requested_model(requested_model.clone())
                 .with_requested_effort(requirement.as_ref().and_then(|r| r.effort.clone()))
+                .with_requested_service_tier(selection::requested_tier(requirement.as_ref()))
                 .with_images(images.clone());
             request.system.clone_from(&system);
             let transport = self.acp_transport.clone();

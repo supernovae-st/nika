@@ -12,7 +12,7 @@
 
 use nika_error::traits::NikaErrorCode;
 use nika_providers::ProvidersConfig;
-use nika_types::access::AccessRequirement;
+use nika_types::access::{AccessRequirement, ServiceTier};
 
 use super::*;
 
@@ -184,6 +184,30 @@ async fn a_text_grade_seat_names_what_its_command_carries_and_refuses_vision_fir
     assert!(
         matches!(&err, VerbInferError::HarnessAccess { detail }
             if detail.contains("not infer-grade for json_schema")),
+        "{err:?}"
+    );
+}
+
+/// A declared service tier never rides a direct one-shot, which binds no speed control: it
+/// is refused before the seat is spawned. The requirement keeps the effort guard, so a lost
+/// tier refusal would still stop before a process starts.
+#[tokio::test]
+async fn a_declared_service_tier_is_refused_before_the_direct_seat_is_spawned() {
+    let guard = AccessRequirement::new()
+        .with_effort(Some("high".to_owned()))
+        .with_service_tier(Some(ServiceTier::Fast));
+    let err = verb()
+        .run_on_harness(
+            "codex",
+            InferInput::new("describe the logo").with_requirement(Some(&guard)),
+        )
+        .await
+        .expect_err("no speed control on a direct one-shot");
+    assert!(
+        matches!(&err, VerbInferError::InvalidParam { param: "service_tier", detail }
+            if detail.contains("run.access.service_tier: fast")
+                && detail.contains("the direct `codex` one-shot")
+                && detail.contains("nothing was sent")),
         "{err:?}"
     );
 }

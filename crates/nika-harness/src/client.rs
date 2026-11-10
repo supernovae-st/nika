@@ -31,8 +31,8 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWrite
 use tokio::sync::mpsc;
 
 use crate::wire::{
-    self, Incoming, InitializeParams, NewSessionParams, PermissionRequestIn, PermissionResult,
-    PromptResult, SessionUpdateParams,
+    self, Incoming, NewSessionParams, PermissionRequestIn, PermissionResult, PromptResult,
+    SessionUpdateParams,
 };
 
 /// One incoming line may not exceed this (bounded reads · spec §4): a
@@ -91,11 +91,12 @@ where
     R: AsyncRead + Unpin + Send + 'static,
     W: AsyncWrite + Unpin + Send + 'static,
 {
-    drive_profile(reader, writer, request, idle, None, None, None)
+    drive_profile(reader, writer, request, idle, None, None, None, None)
 }
 
-/// [`drive_with_idle`] under a one-shot `completion` profile, telling `progress`, and sending
-/// `meta` with `session/new` (`OneShot::session_meta`, or an agent session's own options).
+/// [`drive_with_idle`] under a one-shot `completion` profile, telling `progress`, sending
+/// `meta` with `session/new` (`OneShot::session_meta`, or an agent session's own options), and
+/// judging the `initialize` answer with `start` when the spawner lent its judgment.
 pub(crate) fn drive_profile<R, W>(
     reader: R,
     writer: W,
@@ -104,6 +105,7 @@ pub(crate) fn drive_profile<R, W>(
     completion: Option<crate::authoring::acp::OneShot>,
     progress: Option<crate::authoring::acp::Progress>,
     meta: Option<Value>,
+    start: Option<StartJudge>,
 ) -> HarnessEventStream
 where
     R: AsyncRead + Unpin + Send + 'static,
@@ -125,7 +127,9 @@ where
             completion,
             progress,
             meta,
+            start,
             agent_name: None,
+            agent_version: None,
             confined: None,
         };
         if let Err(e) = driver.run(request).await {
@@ -174,9 +178,13 @@ struct Driver<R, W> {
     progress: Option<crate::authoring::acp::Progress>,
     /// The options sent once with `session/new` (`_meta`), if any.
     meta: Option<Value>,
+    /// The spawner's judgment of the `initialize` answer, taken when it is met (`start.rs`).
+    start: Option<StartJudge>,
     /// The adapter's own name (`initialize` → `agentInfo.name`): the key its measured
     /// confinement is looked up by, never a guess from the command that spawned it.
     agent_name: Option<String>,
+    /// The adapter's own release (`agentInfo.version`): what a measured speed control holds for.
+    agent_version: Option<String>,
     /// The mode the session was confined to before the prompt (NIK-266): held for the whole
     /// turn, a reported change away from it ends the session.
     confined: Option<String>,
@@ -188,35 +196,7 @@ where
     W: AsyncWrite + Unpin + Send,
 {
     async fn run(&mut self, request: HarnessRequest) -> Result<(), HarnessError> {
-        self.send_request(
-            ID_INITIALIZE,
-            wire::METHOD_INITIALIZE,
-            &InitializeParams {
-                protocol_version: wire::PROTOCOL_V1,
-                client_capabilities: wire::client_capabilities(),
-            },
-        )
-        .await?;
-        let value: Value = self.await_response(ID_INITIALIZE, "initialize").await?;
-        if let Some(completion) = self.completion {
-            crate::authoring::acp::admit(&value, completion)?;
-        }
-        prompt::admit_images(&value, &request.images)?;
-        self.agent_name = value
-            .pointer("/agentInfo/name")
-            .and_then(Value::as_str)
-            .map(str::to_owned);
-        let init: wire::InitializeResult = parse_payload(value, "initialize")?;
-        if init.protocol_version != wire::PROTOCOL_V1 {
-            return Err(HarnessError::Refused {
-                reason: format!(
-                    "agent settled on protocol v{} — this client speaks v1 only \
-                     (the schema-diff gate's runtime twin)",
-                    init.protocol_version
-                ),
-            });
-        }
-        Milestone::InitializeAccepted.reached(self.progress.as_ref());
+        self.initialize(&request).await?;
 
         let mut params = serde_json::to_value(NewSessionParams {
             cwd: request.cwd.clone(),
@@ -587,10 +567,7 @@ where
                 });
             }
         }
-        self.select_effort(&sid, config.as_ref(), request.requested_effort.as_deref())
-            .await?;
-        self.settle_mode(sid, session, config.as_ref(), request)
-            .await
+        self.seat_after_model(sid, session, config, request).await
     }
 
     /// The session's mode, last before the prompt: a one-shot profile's required mode, an
@@ -773,6 +750,14 @@ mod seats;
 /// the session's own option id, read back before the prompt.
 mod effort;
 
+/// The service tier: the language's word bound to the adapter's measured speed option,
+/// applied after the effort and read back before the prompt.
+mod speed;
+
+/// The session's own `initialize`, judged by the spawner when it lent its judgment.
+mod start;
+pub(crate) use start::StartJudge;
+
 /// A completion profile's required session mode, applied and read back before the prompt.
 mod mode;
 
@@ -899,7 +884,7 @@ async fn read_bounded_line<R: AsyncRead + Unpin>(
         }
         if n == 0 {
             return Err(HarnessError::Session {
-                reason: "transport: the agent closed the pipe mid-run".to_owned(),
+                reason: PIPE_CLOSED.to_owned(),
             });
         }
         if buf.len() > MAX_LINE_BYTES {
@@ -911,6 +896,9 @@ async fn read_bounded_line<R: AsyncRead + Unpin>(
         }
     }
 }
+
+/// The session death an agent that closes its pipe leaves.
+const PIPE_CLOSED: &str = "transport: the agent closed the pipe mid-run";
 
 /// The adapter's typed kind of an error that a lost sign-in raises.
 const SIGN_IN_KIND: &str = "authentication_failed";

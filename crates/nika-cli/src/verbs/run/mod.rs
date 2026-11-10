@@ -1441,8 +1441,11 @@ fn map_run_result(result: Result<RunOutcome, RuntimeError>) -> (u8, RunOutcome) 
                 // R4 — the 1800 witness names the missing credential's
                 // custody; the L4 renderer (which knows seats, unlike
                 // the provider layer) appends the seat escape hatch —
-                // census-derived, so it prints only when TRUE.
+                // census-derived, so it prints only when TRUE. A refusal
+                // of the file's own `run.access` declaration earns none:
+                // no pin heals it.
                 if matches!(err, RuntimeError::AccessNoPath { .. })
+                    && !nika_cli_host::probe::declared_route_witness(&err.to_string())
                     && let Some(tail) = nika_cli_host::probe::seat_escape_tail()
                 {
                     let _ = writeln!(stderr, "nika run: {tail}");

@@ -196,18 +196,34 @@ ignore = [
   "RUSTSEC-2026-0194",
   "RUSTSEC-2026-0195",
   #
-  # RUSTSEC-2026-0367 + RUSTSEC-2026-0368 + RUSTSEC-2026-0369 · zip 7.2.0 extraction
-  # (SUID/SGID bits kept, symlink targets outside the destination, permissions applied
-  # through symlinks · fix >=9.0.0). Every one is in `ZipArchive::extract` or
+  # RUSTSEC-2026-0367 + RUSTSEC-2026-0368 + RUSTSEC-2026-0369 + RUSTSEC-2026-0429 · zip 7.2.0
+  # extraction (SUID/SGID bits kept, symlink targets outside the destination, permissions
+  # applied through symlinks, and a process abort on a symlink entry with a large declared
+  # size · fix >=9.0.0). Every one is in `ZipArchive::extract` or
   # `ZipStreamReader::extract`. zip 7.2 is pulled only by candle-core 0.10.2 →
   # nika-infer-local (ADR-091), which reads `.npz` / `.pth` archives entry by entry
-  # (`ZipArchive::new` + `by_name`) and writes `.npz` with `ZipWriter`: it never extracts
-  # an archive to a directory, so the vulnerable paths are not reached. No patched candle
-  # exists: candle-core 0.11.0 still requires zip ^8.6. Review: when candle-core accepts
-  # zip >=9.0. Upstream: github.com/huggingface/candle. Mirror: .cargo/audit.toml.
+  # (`ZipArchive::new` + `by_index` / `by_name`) and writes `.npz` with `ZipWriter`: it never
+  # extracts an archive to a directory, so the vulnerable paths are not reached (re-read in
+  # candle-core 0.10.2 `npy.rs` and `pickle.rs` on 2026-11-10 for RUSTSEC-2026-0429). No
+  # patched candle exists: candle-core 0.11.0 still requires zip ^8.6. Review: when
+  # candle-core accepts zip >=9.0. Upstream: github.com/huggingface/candle.
+  # Mirror: .cargo/audit.toml.
   "RUSTSEC-2026-0367",
   "RUSTSEC-2026-0368",
   "RUSTSEC-2026-0369",
+  "RUSTSEC-2026-0429",
+  #
+  # Three more zip advisories carry a GitHub id and no RUSTSEC id on 2026-11-10, so no entry
+  # can list them yet: GHSA-m665-v7pm-7grj (a central directory and a local header that
+  # disagree · fix >=9.0.5), GHSA-9hj8-73fh-9963 (the legacy Shrink, Reduce and Implode
+  # decoders · fix >=9.0.0) and GHSA-8hxf-qr8p-62x4 (AES entry authentication · fix >=9.0.0).
+  # candle-core asks for zip with `default-features = false`, and the lockfile resolves
+  # zip 7.2.0 with no feature at all: the legacy decoders (`legacy-zip`) and AES
+  # (`aes-crypto`) are not compiled. The header disagreement matters to a program that
+  # writes entries to disk or shows an archive to a second parser; candle reads tensors
+  # into memory by name and writes no entry path. Read on 2026-11-10 in zip 7.2.0
+  # (`Cargo.toml`, `src/lib.rs`, `src/read.rs`) and candle-core 0.10.2 (`npy.rs`,
+  # `pickle.rs`). When RustSec numbers them, add the ids above after reading them again.
   #
   # RUSTSEC-2026-0370 + RUSTSEC-2026-0371 + RUSTSEC-2026-0372 · `zvariant`, `zbus_names` and
   # `zvariant_derive` are unmaintained as standalone crates: zbus 6.0.0 merged them as its
@@ -219,6 +235,16 @@ ignore = [
   "RUSTSEC-2026-0370",
   "RUSTSEC-2026-0371",
   "RUSTSEC-2026-0372",
+  #
+  # RUSTSEC-2026-0441 · `pin-utils` is unmaintained: its repository was archived on
+  # 2026-10-01 after 0.1.1 (informational, no vulnerability, no patched version). It is a
+  # macro crate with no dependency of its own. Only nix 0.26.4 pulls it here, under
+  # ptyprocess 0.5.0 and expectrl 0.9.0, which are DEV-dependencies of nika-cli and nika-tui
+  # (the PTY tests, unix only): it is in no shipped binary. The latest expectrl (0.9.0) and
+  # ptyprocess (0.5.0) still require nix ^0.26. Review: when either publishes a release that
+  # leaves nix 0.26. Upstream: github.com/zhiburt/expectrl. cargo-audit reports it as an
+  # allowed warning, as it does `paste`, so .cargo/audit.toml carries no entry.
+  "RUSTSEC-2026-0441",
 ]
 
 [sources]

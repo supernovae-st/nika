@@ -1206,9 +1206,11 @@ pub fn nika_vocab::run::RunEntropy::from(t: T) -> T
 #[non_exhaustive] pub struct nika_vocab::run::RunAccess
 pub nika_vocab::run::RunAccess::fallback: core::option::Option<nika_types::access::selection::AccessFallback>
 pub nika_vocab::run::RunAccess::protocol: core::option::Option<nika_types::access::selection::AccessProtocol>
+pub nika_vocab::run::RunAccess::service_tier: core::option::Option<nika_types::access::tier::ServiceTier>
 pub nika_vocab::run::RunAccess::via: core::option::Option<alloc::string::String>
 impl nika_vocab::run::RunAccess
 pub const fn nika_vocab::run::RunAccess::new(via: core::option::Option<alloc::string::String>, protocol: core::option::Option<nika_types::access::selection::AccessProtocol>, fallback: core::option::Option<nika_types::access::selection::AccessFallback>) -> Self
+pub const fn nika_vocab::run::RunAccess::with_service_tier(self, service_tier: core::option::Option<nika_types::access::tier::ServiceTier>) -> Self
 impl core::clone::Clone for nika_vocab::run::RunAccess
 pub fn nika_vocab::run::RunAccess::clone(&self) -> nika_vocab::run::RunAccess
 impl core::cmp::Eq for nika_vocab::run::RunAccess
@@ -2633,9 +2635,11 @@ impl<T> serde_core::de::DeserializeOwned for nika_vocab::retry::RetryConfig wher
 #[non_exhaustive] pub struct nika_vocab::RunAccess
 pub nika_vocab::RunAccess::fallback: core::option::Option<nika_types::access::selection::AccessFallback>
 pub nika_vocab::RunAccess::protocol: core::option::Option<nika_types::access::selection::AccessProtocol>
+pub nika_vocab::RunAccess::service_tier: core::option::Option<nika_types::access::tier::ServiceTier>
 pub nika_vocab::RunAccess::via: core::option::Option<alloc::string::String>
 impl nika_vocab::run::RunAccess
 pub const fn nika_vocab::run::RunAccess::new(via: core::option::Option<alloc::string::String>, protocol: core::option::Option<nika_types::access::selection::AccessProtocol>, fallback: core::option::Option<nika_types::access::selection::AccessFallback>) -> Self
+pub const fn nika_vocab::run::RunAccess::with_service_tier(self, service_tier: core::option::Option<nika_types::access::tier::ServiceTier>) -> Self
 impl core::clone::Clone for nika_vocab::run::RunAccess
 pub fn nika_vocab::run::RunAccess::clone(&self) -> nika_vocab::run::RunAccess
 impl core::cmp::Eq for nika_vocab::run::RunAccess

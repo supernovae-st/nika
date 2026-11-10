@@ -5,7 +5,7 @@
 //! the exact body the provider received, a refusal with ZERO requests,
 //! and the receipt keeping requested, sent and named apart.
 
-use nika_types::access::{AccessProtocol, AccessRequirement};
+use nika_types::access::{AccessProtocol, AccessRequirement, ServiceTier};
 
 use super::*;
 
@@ -77,6 +77,33 @@ async fn a_native_word_the_request_cannot_carry_refuses_with_zero_requests() {
         "{err}"
     );
     assert!(seam.captured().is_empty(), "zero inference requests");
+}
+
+/// The API route binds no speed control: a declared service tier refuses with zero
+/// requests, whichever word it is, and is never dropped.
+#[tokio::test]
+async fn a_declared_service_tier_refuses_on_the_api_route_with_zero_requests() {
+    for tier in ServiceTier::ALL {
+        let seam = SeamHttp::with_json(&[FLASH_ANSWER]);
+        let requirement = effort("high").with_service_tier(Some(tier));
+        let err = deepseek(&seam)
+            .run(InferInput::new("plan the migration").with_requirement(Some(&requirement)))
+            .await
+            .expect_err("no speed control on this route");
+        match &err {
+            VerbInferError::InvalidParam { param, detail } => {
+                assert_eq!(*param, "service_tier", "{tier}");
+                assert!(
+                    detail.contains(&format!("run.access.service_tier: {tier}"))
+                        && detail.contains("this API route")
+                        && detail.contains("nothing was sent"),
+                    "{detail}"
+                );
+            }
+            other => panic!("{tier}: expected the tier refusal, got {other:?}"),
+        }
+        assert!(seam.captured().is_empty(), "zero inference requests");
+    }
 }
 
 #[tokio::test]

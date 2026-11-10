@@ -150,6 +150,45 @@ fn an_effort_the_provider_catalog_does_not_list_refuses() {
     assert!(message.contains("no effort level"), "{message}");
 }
 
+/// A declared service tier on a provider lane refuses before task 1: no
+/// speed control is bound for an API route, and a strict selection is never
+/// dropped. The witness names the file field and the word.
+#[test]
+fn a_service_tier_on_a_provider_lane_refuses_before_task_1() {
+    let probes = vec![api_probe("openai", true)];
+    let needs = [agent("openai/gpt-5.5")];
+    for tier in ServiceTier::ALL {
+        let req = AccessRequirement::new()
+            .with_via(Some("openai".into()))
+            .with_protocol(Some(AccessProtocol::Api))
+            .with_service_tier(Some(tier));
+        let plan = plan(&needs, &probes, None, &req);
+        let (code, message) = refusal(&plan);
+        assert_eq!(code, "1800", "{tier}");
+        assert!(
+            message.contains(&format!("run.access.service_tier: {tier}"))
+                && message.contains("`openai/gpt-5.5` resolves to `openai` (api)")
+                && message.contains("no speed control is bound")
+                && message.contains("nothing ran"),
+            "{message}"
+        );
+        assert_eq!(plan.seat, None);
+    }
+    // A tier alone keeps today's route, which still cannot carry it.
+    let alone = AccessRequirement::new().with_service_tier(Some(ServiceTier::Fast));
+    let (code, message) = refusal(&plan(&needs, &probes, None, &alone));
+    assert_eq!(code, "1800");
+    assert!(
+        message.contains("run.access.service_tier: fast"),
+        "{message}"
+    );
+    // The same route without a tier is admitted: the tier, not the route, is what refuses.
+    let without = AccessRequirement::new()
+        .with_via(Some("openai".into()))
+        .with_protocol(Some(AccessProtocol::Api));
+    assert!(plan(&needs, &probes, None, &without).is_admitted());
+}
+
 /// Spec fixture 017 · `via: codex` + `protocol: api` is the file's own
 /// contradiction: refused whatever this machine offers.
 #[test]
@@ -426,6 +465,92 @@ mod seats {
         );
     }
 
+    /// A declared tier on the codex seat is admitted by the plan: its adapter
+    /// has a measured speed control, and the live session judges the offer
+    /// before its first prompt. The tier joins the resume identity, and the
+    /// same file without it keeps the identity it had.
+    #[test]
+    fn a_service_tier_rides_the_codex_seat_and_joins_the_resume_identity() {
+        let probes = vec![
+            api_probe("openai", true),
+            harness_probe("codex", &["openai"], true, true),
+        ];
+        let needs = [infer("openai/gpt-6-astra"), agent("openai/gpt-6-astra")];
+        for (tier, pin) in [
+            (
+                ServiceTier::Fast,
+                "run.access[via=codex;protocol=acp;service_tier=fast]",
+            ),
+            (
+                ServiceTier::Standard,
+                "run.access[via=codex;protocol=acp;service_tier=standard]",
+            ),
+        ] {
+            let req = codex_route().with_service_tier(Some(tier));
+            let plan = plan(&needs, &probes, None, &req);
+            assert!(plan.is_admitted(), "{tier}: {:?}", plan.pin_refusal);
+            assert_eq!(plan.seat.as_deref(), Some("codex"));
+            let lane = plan.lane("openai/gpt-6-astra").expect("admitted");
+            assert_eq!(lane.plan.chosen, AccessClass::Harness);
+            assert_eq!(lane.plan.requirement.as_deref(), Some(&req));
+            assert_eq!(plan.resume_pin().as_deref(), Some(pin));
+        }
+        let omitted = plan(&needs, &probes, None, &codex_route());
+        assert_eq!(
+            omitted.resume_pin().as_deref(),
+            Some("run.access[via=codex;protocol=acp]"),
+            "no tier declared, the identity it always had"
+        );
+    }
+
+    /// A seat whose adapter has no measured speed control cannot honor a
+    /// tier: refused before task 1, never served at the seat's own tier.
+    #[test]
+    fn a_service_tier_on_a_seat_without_a_measured_control_refuses() {
+        let probes = vec![
+            api_probe("anthropic", true),
+            harness_probe("claude-code", &["anthropic"], true, true),
+        ];
+        let req = AccessRequirement::new()
+            .with_via(Some("claude-code".into()))
+            .with_protocol(Some(AccessProtocol::Acp))
+            .with_service_tier(Some(ServiceTier::Fast));
+        let plan = plan(&[agent("anthropic/claude-opus-5-5")], &probes, None, &req);
+        let (code, message) = refusal(&plan);
+        assert_eq!(code, "1800");
+        assert!(
+            message.contains("the seat `claude-code`")
+                && message.contains("no measured speed control")
+                && message.contains("run.access.service_tier: fast")
+                && message.contains("nothing ran"),
+            "{message}"
+        );
+        assert_eq!(plan.seat, None);
+    }
+
+    /// A direct one-shot carries no speed selection: an `infer:` on codex
+    /// without `protocol: acp` refuses the tier before task 1, while the same
+    /// declaration serves an `agent:` task over the seat's ACP session.
+    #[test]
+    fn a_declared_service_tier_cannot_ride_the_direct_one_shot() {
+        let probes =
+            vec![harness_probe("codex", &["openai"], true, true).with_product_present(true)];
+        let req = AccessRequirement::new()
+            .with_via(Some("codex".into()))
+            .with_service_tier(Some(ServiceTier::Fast));
+        let (code, message) = refusal(&plan(&[infer("openai/gpt-5.5")], &probes, None, &req));
+        assert_eq!(code, "1800");
+        assert!(
+            message.contains("run.access.service_tier: fast")
+                && message.contains("the direct `codex` one-shot")
+                && message.contains("run.access.protocol: acp"),
+            "{message}"
+        );
+        let agent_only = plan(&[agent("openai/gpt-5.5")], &probes, None, &req);
+        assert!(agent_only.is_admitted(), "{:?}", agent_only.pin_refusal);
+        assert_eq!(agent_only.seat.as_deref(), Some("codex"));
+    }
+
     /// `protocol: acp` with a compatible flag narrows to that seat.
     #[test]
     fn a_compatible_flag_narrows_the_declared_protocol() {
@@ -522,6 +647,36 @@ fn an_undeclared_or_effort_only_plan_never_refuses_a_rendered_model() {
         .expect("its own provider");
     assert_eq!((lane.access.as_str(), lane.pinned), ("mistral", false));
     assert_eq!(lane.requirement.as_deref(), Some(&effort));
+}
+
+/// A tier declared alone selects no path, so a rendered model keeps its own
+/// provider — which binds no speed control. The dispatch-time judge refuses
+/// it like the plan refuses a static model, whichever word the file wrote
+/// and whatever rows the plan froze: a plan with no static model holds none.
+#[test]
+fn a_tier_only_plan_refuses_a_rendered_model_on_its_provider_path() {
+    let ready = [api_probe("deepseek", true), api_probe("mistral", true)];
+    for tier in ServiceTier::ALL {
+        for rows in [&ready[..], &[]] {
+            let alone = AccessRequirement::new().with_service_tier(Some(tier));
+            let frozen = plan(&[], rows, None, &alone);
+            match frozen.task_lane("mistral/mistral-small-latest", VerbNeeds::new(true, false)) {
+                Err(PinRefusal::NoPath { message }) => assert!(
+                    message.contains(
+                        "`mistral/mistral-small-latest` keeps its own provider path (`mistral`)"
+                    ) && message.contains(&format!("`run.access.service_tier: {tier}`"))
+                        && message.contains("nothing ran"),
+                    "{message}"
+                ),
+                other => panic!("{tier}: a provider path binds no speed control: {other:?}"),
+            }
+        }
+    }
+    // The effort-only neighbor is unchanged: its rendered model is never refused here.
+    let effort = AccessRequirement::new().with_effort(Some("high".into()));
+    let lane = plan(&[], &ready, None, &effort)
+        .task_lane("mistral/mistral-small-latest", VerbNeeds::new(true, false));
+    assert!(matches!(lane, Ok(Some(_))), "{lane:?}");
 }
 
 /// An operator `--access` pin binds a rendered model like a static one:

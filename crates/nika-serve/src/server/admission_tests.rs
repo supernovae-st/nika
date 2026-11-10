@@ -9,8 +9,9 @@ use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 
 use super::tests::{
-    TestBackend, TestWorld, WORKFLOW, auth_header, check_request, events_request, get_request,
-    limits, parse_sse_data, post_request, snapshot_body, wait_for_status,
+    ObservedPin, PinRecordingBackend, TestBackend, TestWorld, WORKFLOW, auth_header, check_request,
+    events_request, get_request, limits, parse_sse_data, post_request, snapshot_body,
+    wait_for_status,
 };
 use super::{ExecutionBackend, ExecutionDisposition, ExecutionOutcome};
 
@@ -232,6 +233,112 @@ async fn a_served_workflow_is_admitted_by_name_and_runs() {
         unknown.body
     );
     assert_eq!(backend.calls(), 1);
+    server.stop().await.expect("clean stop");
+}
+
+/// Four served files on one ACP route: each tier word, no tier, and a route's native word.
+fn write_tiered_workflows(world: &TestWorld) {
+    let route = "via: codex, protocol: acp, fallback: none";
+    for (name, tier) in [
+        ("fast.nika", ", service_tier: fast"),
+        ("standard.nika", ", service_tier: standard"),
+        ("plain.nika", ""),
+        ("native-word.nika", ", service_tier: priority"),
+    ] {
+        let source = format!(
+            "nika: tiered\nmodel: openai/gpt-6-astra\nrun:\n  access: {{ {route}{tier} }}\ntasks:\n  \
+             act:\n    agent: {{ prompt: go }}\n"
+        );
+        std::fs::write(world.workflows.join(name), source).expect("served file");
+    }
+}
+
+/// A served workflow may declare `run.access.service_tier` (the `accessServiceTier` token on
+/// `/health`). The tier is a field of the FILE: the job is admitted by name with no request
+/// member for it, each word binds its own snapshot digest (and so does the file that declares
+/// none), a word the language does not have is refused before a job exists, and a request
+/// that tries to carry the tier is refused as the unknown member it is.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_served_workflow_that_declares_a_service_tier_is_admitted_by_name() {
+    let world = TestWorld::new();
+    write_tiered_workflows(&world);
+    // A backend that takes any admitted world: the judgment under test is the door's.
+    let backend = Arc::new(PinRecordingBackend::new());
+    let server = world.start(backend.clone(), limits()).await;
+    let health = server.request(&get_request("/health")).await.json();
+    assert!(
+        health["supportedCapabilities"]
+            .as_array()
+            .expect("capabilities")
+            .contains(&Value::from("accessServiceTier")),
+        "{health}"
+    );
+
+    let mut digests = Vec::new();
+    for name in ["fast.nika", "standard.nika", "plain.nika"] {
+        let created = server
+            .request(&post_request(
+                &format!(r#"{{"workflow":"{name}"}}"#),
+                name,
+                &auth_header(),
+            ))
+            .await;
+        assert_eq!(created.status, 202, "{name}: {}", created.body);
+        let id = created.json()["id"].as_str().expect("id").to_owned();
+        wait_for_status(&server, &id, "succeeded")
+            .await
+            .expect("the job settles");
+        let job = server
+            .request(&get_request(&format!("/v1/jobs/{id}")))
+            .await
+            .json();
+        let digest = job["receipt"]["snapshot_digest"]
+            .as_str()
+            .expect("a settled job's receipt names its snapshot")
+            .to_owned();
+        assert!(
+            !digests.contains(&digest),
+            "{name}: the tier is source bytes, so each declaration is its own snapshot"
+        );
+        digests.push(digest);
+    }
+    assert_eq!(backend.calls(), 3);
+    assert_eq!(
+        backend.last_pin(),
+        Some(ObservedPin::Unpinned),
+        "the tier is the file's own, no operator pin stands in for it"
+    );
+
+    let refused = server
+        .request(&post_request(
+            r#"{"workflow":"native-word.nika"}"#,
+            "native-word",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(refused.status, 422, "{}", refused.body);
+    let message = refused.json()["error"]["message"]
+        .as_str()
+        .expect("message")
+        .to_owned();
+    assert!(
+        message.contains("`run.access.service_tier` must be `standard` or `fast`"),
+        "the refusal names the two words: {message}"
+    );
+
+    let carried = server
+        .request(&post_request(
+            r#"{"workflow":"plain.nika","service_tier":"fast"}"#,
+            "request-tier",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(
+        carried.status, 422,
+        "the request envelope is closed: {}",
+        carried.body
+    );
+    assert_eq!(backend.calls(), 3, "neither refusal created a job");
     server.stop().await.expect("clean stop");
 }
 

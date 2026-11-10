@@ -70,3 +70,17 @@ no store answer observed — pending or cancelled; a blob may or may not exist).
 (`session_config` · `confirmed_selection` · `accepted_request`). None of these
 is a response attestation: ACP prompt results name no model. `None` means the
 source is unspecified and is never treated as attested.
+
+`HarnessRequest.requested_service_tier` carries a declared
+`run.access.service_tier` as the file's own word (`standard` · `fast`). The
+session binds it to its adapter's native speed option; this crate names no
+adapter. `HarnessSelection` keeps what the session then did, apart from the
+model and the effort: `service_tier_option` (the option id),
+`offered_service_tier` (the native values listed when the tier was judged, in
+the session's order), `transmitted_service_tier` (the native value sent) and
+`configured_service_tier` with its `configured_service_tier_source` (the value
+read back). All five stay `None` when no tier was asked. A tier the agent moves
+during the turn joins `changed_mid_turn` as `service_tier=<value>` (or
+`service_tier=unoffered`), and `moved_refusal()` then owes a refusal like a
+moved model or effort. No field states the tier a turn carried or the tier that
+served it: an ACP prompt result names neither.
