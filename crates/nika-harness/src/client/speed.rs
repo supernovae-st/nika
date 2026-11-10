@@ -46,7 +46,7 @@ fn refusal(reason: String) -> HarnessError {
 /// The one option `binding` names, when the configuration advertises it under
 /// the measured category. Two options with that id, or the id under another
 /// category, are not the measured control.
-fn tier_option<'c>(
+pub(super) fn tier_option<'c>(
     config: Option<&'c Value>,
     binding: &ServiceTierBinding,
 ) -> Result<Option<&'c Value>, String> {

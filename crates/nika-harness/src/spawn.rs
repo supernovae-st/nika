@@ -792,12 +792,36 @@ impl SpawnedHarness {
         if spent() {
             return Err(passed());
         }
-        // Identity before dialect (spec §4): a version outside the pin refuses with the
-        // version named, never as a protocol confusion three frames into a session. A row
-        // whose identity IS its `initialize` self-report is judged on the session's own
-        // first answer, before `session/new`: one process, where a standalone probe spawned
-        // the same argv a first time only to ask and be killed. Every other row keeps its
-        // version probe.
+        let (start, profile_env) = self.prove().await?;
+        if spent() {
+            return Err(passed());
+        }
+        let generic = std::time::Duration::from_secs(crate::IDLE_TIMEOUT_SECS);
+        let idle = (call.as_ref()).map_or(generic, |(deadline, _)| deadline.allowance());
+        let mut child = self.spawn_child(&request.cwd, self.completion.is_some(), &profile_env)?;
+        let (stdout, stdin) = take_session_pipes(&mut child)?;
+        // The child rides INSIDE the stream's driver task: dropping the
+        // stream drops the driver, the driver drops the child, and
+        // kill_on_drop reaps it — the cancel-safety contract.
+        let (completion, marks) = (self.completion, call.map(|(_, marks)| marks));
+        let meta = self.session_meta();
+        let session = crate::client::drive_profile(
+            stdout, stdin, request, idle, completion, marks, meta, start,
+        );
+        Ok((hold_child(session, child, completion.is_some()), idle))
+    }
+
+    /// What is proven before any session of this seat is spawned, for a run and for an offer
+    /// alike. Identity before dialect (spec §4): a version outside the pin refuses with the
+    /// version named, never as a protocol confusion three frames into a session. A row whose
+    /// identity IS its `initialize` self-report is judged on the session's own first answer,
+    /// before `session/new`: one process, where a standalone probe spawned the same argv a
+    /// first time only to ask and be killed; the judge is returned for that session. Every
+    /// other row keeps its version probe. Then the Codex completion profile, proven on the
+    /// exact binary: the environment that carries it is returned.
+    async fn prove(
+        &self,
+    ) -> Result<(Option<crate::client::StartJudge>, Vec<(String, String)>), HarnessError> {
         let start = if self.adapter.probe_via_handshake {
             self.probe_command_shape().await?;
             Some(self.start_judge())
@@ -811,27 +835,58 @@ impl SpawnedHarness {
             }
             _ => Vec::new(),
         };
-        if spent() {
-            return Err(passed());
+        Ok((start, profile_env))
+    }
+
+    /// Read what a session of this seat offers for `model`, without a prompt
+    /// ([`crate::session_offer`]): the same proofs, spawn, `initialize` judgment and
+    /// `session/new` options as a run, in a fresh scratch directory the session is rooted at
+    /// and that is removed with it. `timeout` bounds the whole reading. The adapter leads its
+    /// own process group, ended when this returns or is dropped, whichever profile it serves.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::session_offer`].
+    pub(crate) async fn offer(
+        &self,
+        model: Option<&str>,
+        timeout: std::time::Duration,
+    ) -> Result<crate::SessionOffer, HarnessError> {
+        let scratch = tempfile::tempdir().map_err(|error| HarnessError::Unavailable {
+            reason: format!("a session offer cannot create its scratch directory: {error}"),
+        })?;
+        let reading = self.offer_in(scratch.path(), model, timeout);
+        tokio::time::timeout(timeout, reading)
+            .await
+            .unwrap_or_else(|_| {
+                Err(HarnessError::Unavailable {
+                    reason: format!(
+                        "adapter `{}`: the session did not report its offer in {}s; it was ended",
+                        self.adapter.id,
+                        timeout.as_secs()
+                    ),
+                })
+            })
+    }
+
+    async fn offer_in(
+        &self,
+        cwd: &std::path::Path,
+        model: Option<&str>,
+        timeout: std::time::Duration,
+    ) -> Result<crate::SessionOffer, HarnessError> {
+        let (start, profile_env) = self.prove().await?;
+        let mut child = self.spawn_child(cwd, true, &profile_env)?;
+        let (stdout, stdin) = take_session_pipes(&mut child)?;
+        // Held until the offer is read or this future is dropped: the group goes with it.
+        let _session = SessionGroup::of(child);
+        let mut request = HarnessRequest::new(String::new(), cwd);
+        if let Some(model) = model {
+            request = request.with_requested_model(model);
         }
-        let generic = std::time::Duration::from_secs(crate::IDLE_TIMEOUT_SECS);
-        let idle = (call.as_ref()).map_or(generic, |(deadline, _)| deadline.allowance());
-        let mut child = self.spawn_child(&request.cwd, self.completion.is_some(), &profile_env)?;
-        let stdout = child.stdout.take().ok_or_else(|| HarnessError::Session {
-            reason: "the child's stdout was not piped".to_owned(),
-        })?;
-        let stdin = child.stdin.take().ok_or_else(|| HarnessError::Session {
-            reason: "the child's stdin was not piped".to_owned(),
-        })?;
-        // The child rides INSIDE the stream's driver task: dropping the
-        // stream drops the driver, the driver drops the child, and
-        // kill_on_drop reaps it — the cancel-safety contract.
-        let (completion, marks) = (self.completion, call.map(|(_, marks)| marks));
-        let meta = self.session_meta();
-        let session = crate::client::drive_profile(
-            stdout, stdin, request, idle, completion, marks, meta, start,
-        );
-        Ok((hold_child(session, child, completion.is_some()), idle))
+        let idle = timeout.min(std::time::Duration::from_secs(crate::IDLE_TIMEOUT_SECS));
+        let (completion, meta) = (self.completion, self.session_meta());
+        crate::client::read_offer(stdout, stdin, request, idle, completion, meta, start).await
     }
 
     /// The options this seat's sessions send with `session/new`: a one-shot's audited profile, or
@@ -870,6 +925,44 @@ impl Door for SpawnedHarness {
             let (stream, allowance) = opened.await?;
             Ok(Opened { stream, allowance })
         })
+    }
+}
+
+/// The two pipes a session speaks over, taken from its freshly spawned child.
+fn take_session_pipes(
+    child: &mut tokio::process::Child,
+) -> Result<(tokio::process::ChildStdout, tokio::process::ChildStdin), HarnessError> {
+    let stdout = child.stdout.take().ok_or_else(|| HarnessError::Session {
+        reason: "the child's stdout was not piped".to_owned(),
+    })?;
+    let stdin = child.stdin.take().ok_or_else(|| HarnessError::Session {
+        reason: "the child's stdin was not piped".to_owned(),
+    })?;
+    Ok((stdout, stdin))
+}
+
+/// A session child that leads its own process group, ended with this value: the direct
+/// child by `kill_on_drop`, whatever it forked by the group.
+struct SessionGroup {
+    _child: tokio::process::Child,
+    #[cfg(unix)]
+    group: Option<u32>,
+}
+
+impl SessionGroup {
+    fn of(child: tokio::process::Child) -> Self {
+        Self {
+            #[cfg(unix)]
+            group: child.id(),
+            _child: child,
+        }
+    }
+}
+
+impl Drop for SessionGroup {
+    fn drop(&mut self) {
+        #[cfg(unix)]
+        kill_probe_group(self.group);
     }
 }
 
@@ -1389,6 +1482,10 @@ mod handshake;
 
 #[cfg(test)]
 mod completion_tests;
+
+/// A session offer read from a spawned adapter: no prompt, and its process group ended.
+#[cfg(test)]
+mod offer_tests;
 
 #[cfg(test)]
 #[cfg(unix)]

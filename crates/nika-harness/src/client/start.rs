@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The session's own `initialize` — the one handshake of a session.
+//! The session's own `initialize` — the one handshake of a session — and
+//! the `session/new` that follows it.
 //!
 //! A wrapper-class adapter (codex-acp, claude-agent-acp …) has no version
 //! flag: its identity is the `agentInfo` it reports on `initialize`. A
@@ -28,9 +29,11 @@ use nika_kernel::ai::harness::{HarnessError, HarnessRequest};
 use serde_json::Value;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::{Driver, ID_INITIALIZE, PIPE_CLOSED, parse_payload, prompt};
+use super::{
+    Driver, ID_INITIALIZE, ID_SESSION_NEW, PIPE_CLOSED, parse_payload, prompt, session_err,
+};
 use crate::authoring::acp::Milestone;
-use crate::wire::{self, InitializeParams};
+use crate::wire::{self, InitializeParams, NewSessionParams};
 
 /// How long a judged session waits for its `initialize` answer: the bound the
 /// standalone probe gave the same question (a cold wrapper resolve fits in it;
@@ -107,6 +110,31 @@ where
         }
         Milestone::InitializeAccepted.reached(self.progress.as_ref());
         Ok(())
+    }
+
+    /// The handshake and `session/new`, the same for a run and for an offer: the agent is
+    /// admitted on its `initialize` answer, then the session is opened at the request's root
+    /// with the options this seat's sessions send.
+    pub(super) async fn open_session(
+        &mut self,
+        request: &HarnessRequest,
+    ) -> Result<wire::NewSessionResult, HarnessError> {
+        self.initialize(request).await?;
+
+        let mut params = serde_json::to_value(NewSessionParams {
+            cwd: request.cwd.clone(),
+            mcp_servers: Vec::new(),
+        })
+        .map_err(session_err)?;
+        if let Some(meta) = self.meta.take() {
+            params["_meta"] = meta;
+        }
+        self.send_request(ID_SESSION_NEW, wire::METHOD_SESSION_NEW, &params)
+            .await?;
+        let session: wire::NewSessionResult =
+            self.await_response(ID_SESSION_NEW, "session/new").await?;
+        Milestone::SessionCreated.reached(self.progress.as_ref());
+        Ok(session)
     }
 
     /// The `initialize` result, judged by the spawner when it lent a judge.

@@ -31,8 +31,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWrite
 use tokio::sync::mpsc;
 
 use crate::wire::{
-    self, Incoming, NewSessionParams, PermissionRequestIn, PermissionResult, PromptResult,
-    SessionUpdateParams,
+    self, Incoming, PermissionRequestIn, PermissionResult, PromptResult, SessionUpdateParams,
 };
 
 /// One incoming line may not exceed this (bounded reads · spec §4): a
@@ -196,21 +195,7 @@ where
     W: AsyncWrite + Unpin + Send,
 {
     async fn run(&mut self, request: HarnessRequest) -> Result<(), HarnessError> {
-        self.initialize(&request).await?;
-
-        let mut params = serde_json::to_value(NewSessionParams {
-            cwd: request.cwd.clone(),
-            mcp_servers: Vec::new(),
-        })
-        .map_err(session_err)?;
-        if let Some(meta) = self.meta.take() {
-            params["_meta"] = meta;
-        }
-        self.send_request(ID_SESSION_NEW, wire::METHOD_SESSION_NEW, &params)
-            .await?;
-        let session: wire::NewSessionResult =
-            self.await_response(ID_SESSION_NEW, "session/new").await?;
-        Milestone::SessionCreated.reached(self.progress.as_ref());
+        let session = self.open_session(&request).await?;
         self.seat_session(&session, &request).await?;
         Milestone::SelectionChecked.reached(self.progress.as_ref());
 
@@ -753,6 +738,12 @@ mod effort;
 /// The service tier: the language's word bound to the adapter's measured speed option,
 /// applied after the effort and read back before the prompt.
 mod speed;
+
+/// A session's offer, read without a prompt: the same handshake, `session/new` and model
+/// selection as a run, then the models, the reasoning values and the service tiers the
+/// session lists, and nothing after.
+mod offer;
+pub(crate) use offer::read_offer;
 
 /// The session's own `initialize`, judged by the spawner when it lent its judgment.
 mod start;
