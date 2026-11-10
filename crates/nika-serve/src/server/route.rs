@@ -141,6 +141,12 @@ async fn protected(request: Request<Incoming>, state: Arc<AppState>) -> Response
         let path = request.uri().path().to_owned();
         return super::artifacts::download(&path, state).await;
     }
+    // An access offer opens a session on the workflow's own declared route: the door applies
+    // its own deadline, its waiter slots bound the requests and one reading runs at a time.
+    if request.method() == Method::GET && super::access_offer::is_route(request.uri().path()) {
+        let path = request.uri().path().to_owned();
+        return super::access_offer::handle(&path, state).await;
+    }
     // A Session's command outlives any request deadline: its worker owns it (nika-session-host).
     if state.sessions.is_some() && request.uri().path().starts_with("/v1/sessions") {
         return super::session::route(request, &state).await;

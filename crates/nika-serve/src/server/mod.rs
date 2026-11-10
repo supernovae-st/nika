@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+mod access_offer;
 mod artifacts;
 mod auth;
 mod cancel;
@@ -363,6 +364,8 @@ struct AppState {
     compile_slots: Arc<Semaphore>,
     /// The artifact door's read slots (NIK-265).
     artifacts: artifacts::Door,
+    /// The access-offer door: its waiter slots, what it read lately and its reader.
+    access_offers: access_offer::Door,
     /// The operator's native authoring seat (compile generation 2), when configured.
     native: Option<Arc<compile::Seat>>,
     token: BearerToken,
@@ -664,6 +667,7 @@ impl BoundServer {
                 authority.state.limits.max_compile_requests(),
             )),
             artifacts: artifacts::Door::default(),
+            access_offers: access_offer::Door::default(),
             native,
             token: prepared.token,
             store: authority.state.store.clone(),

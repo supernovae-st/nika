@@ -40,6 +40,282 @@
       }
     },
     "schemas": {
+      "AccessOffer": {
+        "additionalProperties": false,
+        "properties": {
+          "declared": {
+            "additionalProperties": false,
+            "description": "The file's `run.access` and `run.reasoning.effort` as the engine reads them (the `access_requirement` receipt's keys); absent when the file declares neither",
+            "properties": {
+              "effort": {
+                "type": "string"
+              },
+              "fallback": {
+                "enum": [
+                  "none"
+                ],
+                "type": "string"
+              },
+              "protocol": {
+                "enum": [
+                  "api",
+                  "acp"
+                ],
+                "type": "string"
+              },
+              "service_tier": {
+                "enum": [
+                  "standard",
+                  "fast"
+                ],
+                "type": "string"
+              },
+              "via": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "prompts_sent": {
+            "const": 0,
+            "description": "This door holds no prompt: a session is opened, asked what it lists and ended",
+            "type": "integer"
+          },
+          "reason": {
+            "description": "Present with not_applicable",
+            "type": "string"
+          },
+          "routes": {
+            "description": "One row per session shape the workflow's tasks run in and per model they resolve to: completion rows first, then agent rows",
+            "items": {
+              "$ref": "#/components/schemas/AccessOfferRoute"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "routes_omitted": {
+            "description": "Sessions the workflow names beyond the eight one request reads",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "schema": {
+            "const": "nika/access-offer@1",
+            "type": "string"
+          },
+          "status": {
+            "description": "read: the routes below were asked. not_applicable: the file selects no ACP sessions (no `run.access.via` under `run.access.protocol: acp`, or no `infer:`/`agent:` task with a static model); no session was opened and `reason` says why",
+            "enum": [
+              "read",
+              "not_applicable"
+            ],
+            "type": "string"
+          },
+          "workflow": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema",
+          "workflow",
+          "status",
+          "prompts_sent",
+          "routes",
+          "routes_omitted"
+        ],
+        "type": "object"
+      },
+      "AccessOfferListing": {
+        "additionalProperties": false,
+        "properties": {
+          "current": {
+            "description": "The value the session holds now: what a run that declares none keeps on a session like this one",
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^[!-~]+$",
+            "type": "string"
+          },
+          "offered": {
+            "description": "The values, in the session's order. A run accepts a declared value only when it equals one of them exactly",
+            "items": {
+              "maxLength": 160,
+              "minLength": 1,
+              "pattern": "^[!-~]+$",
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          },
+          "omitted": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "option": {
+            "description": "The session option's own id",
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^[!-~]+$",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 240,
+            "type": "string"
+          },
+          "status": {
+            "description": "offered: the session lists the option for the model. not_offered: it lists none. unobserved: not read, and `reason` says why (the model does not hold, the option is ambiguous or in another form, or no speed control is measured for this adapter release)",
+            "enum": [
+              "offered",
+              "not_offered",
+              "unobserved"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "AccessOfferRoute": {
+        "additionalProperties": false,
+        "properties": {
+          "adapter": {
+            "additionalProperties": false,
+            "description": "The adapter's own report on `initialize`; a value that is not a short graphic-ASCII token is absent",
+            "properties": {
+              "name": {
+                "maxLength": 160,
+                "minLength": 1,
+                "pattern": "^[!-~]+$",
+                "type": "string"
+              },
+              "version": {
+                "maxLength": 160,
+                "minLength": 1,
+                "pattern": "^[!-~]+$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "code": {
+            "description": "With unavailable: NIKA-1803 (adapter absent, silent or outside its pin), NIKA-1804 (session death) or NIKA-1805 (refused)",
+            "type": "string"
+          },
+          "effort": {
+            "$ref": "#/components/schemas/AccessOfferListing"
+          },
+          "fresh_until": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "model": {
+            "additionalProperties": false,
+            "properties": {
+              "current": {
+                "description": "The native id the session holds (confirmed, legacy_list), its own model (session_default) or the one it answered instead (not_confirmed)",
+                "maxLength": 160,
+                "minLength": 1,
+                "pattern": "^[!-~]+$",
+                "type": "string"
+              },
+              "offered": {
+                "description": "The model values the session lists, in its order",
+                "items": {
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "pattern": "^[!-~]+$",
+                  "type": "string"
+                },
+                "maxItems": 64,
+                "type": "array"
+              },
+              "omitted": {
+                "description": "Listed values not carried: beyond 64, or not a token",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "requested": {
+                "description": "The model as the file names it",
+                "minLength": 1,
+                "type": "string"
+              },
+              "status": {
+                "description": "confirmed: listed, selected for this session only and read back. session_default: the file names `default`. legacy_list: only the session's legacy model list names it, which answers no configuration. not_offered: the session does not list it. not_confirmed: listed, and the session answered another model. Efforts and tiers are read only under confirmed and session_default",
+                "enum": [
+                  "confirmed",
+                  "session_default",
+                  "legacy_list",
+                  "not_offered",
+                  "not_confirmed"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "requested"
+            ],
+            "type": "object"
+          },
+          "observed_at": {
+            "description": "When this row was read. A row is served again until `fresh_until` (60 s after an observed reading, 15 s after an unavailable one)",
+            "format": "date-time",
+            "type": "string"
+          },
+          "profile": {
+            "description": "completion: the route's one-shot completion profile, which `infer:` tasks run under. agent: its agent session, which `agent:` tasks run in",
+            "enum": [
+              "completion",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "protocol": {
+            "const": "acp",
+            "type": "string"
+          },
+          "reason": {
+            "description": "With unavailable: the engine's sentence, no path in it",
+            "maxLength": 240,
+            "type": "string"
+          },
+          "service_tier": {
+            "$ref": "#/components/schemas/AccessOfferListing"
+          },
+          "status": {
+            "description": "observed: the session answered. unavailable: it gave no offer; `code` and `reason` say why, as a run on the route would meet it before its prompt",
+            "enum": [
+              "observed",
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "tasks": {
+            "description": "The tasks that resolve to this model in this shape",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "via": {
+            "description": "The file's `run.access.via`",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "via",
+          "protocol",
+          "profile",
+          "tasks",
+          "status",
+          "observed_at",
+          "fresh_until",
+          "model"
+        ],
+        "type": "object"
+      },
       "Artifact": {
         "additionalProperties": false,
         "properties": {
@@ -1570,6 +1846,87 @@
         },
         "security": [],
         "summary": "Public process liveness"
+      }
+    },
+    "/v1/access-offers/{name}": {
+      "get": {
+        "description": "Reads, without a prompt, what the sessions of the served workflow's own `run.access` route list for its models: the models, the reasoning efforts and the service tiers. The route and the models are the file's: a request names a served workflow and nothing else. Each session is opened as a run opens it and ended before any prompt. A row is an observation with a time, kept 60 s (15 s when unavailable) and served again meanwhile; one reading runs at a time. An offer authorizes nothing: POST /v1/jobs still selects, reads back and refuses on its own session. `{name}` is sent as for GET /v1/workflows/{name}. Advertised by `accessSessionOffer` on /health; an engine without the token answers 404.",
+        "parameters": [
+          {
+            "description": "The served name, `/` separators sent literally (it spans several path segments)",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*\\.nika$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessOffer"
+                }
+              }
+            },
+            "description": "The offer document, also when the file selects no ACP sessions (status not_applicable) or a session gave no offer (a row with status unavailable)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "408": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error envelope"
+          }
+        },
+        "summary": "What the sessions of a workflow's declared ACP route offer now"
       }
     },
     "/v1/check": {

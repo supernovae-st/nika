@@ -104,6 +104,7 @@ No public job mutation accepts a filesystem path. Startup paths live only in
 | `GET` | `/health` | public | status, service, engine/protocol identity and `storeFormatVersion` for jobs and schedules |
 | `GET` | `/v1/workflows` | exactly one Bearer | contained `.nika` relative names |
 | `GET` | `/v1/workflows/{name}` | exactly one Bearer | `{ "workflow": "<contained name>" }` |
+| `GET` | `/v1/access-offers/{name}` | exactly one Bearer | the `nika/access-offer@1` document: the file's declared route, then one row per session shape and model with bounded tokens only (models, reasoning efforts, service tiers, adapter name and release) · 404 unknown name · 422 a workflow the job door would refuse · 408 · 503 `access_offer_busy` |
 | `POST` | `/v1/jobs` | exactly one Bearer + `Idempotency-Key` | opaque id + status · 422 `{error:{code,message}}` names the capture NIKA code when stamped · also 400/408/409/413/415/503/507 |
 | `GET` | `/v1/jobs/{id}` | exactly one Bearer | opaque id + status · optional `{error:{code,message}}` on `failed` |
 | `GET` | `/v1/jobs/{id}/status` | exactly one Bearer | status only · diagnosis lives on GET job and SSE |
@@ -127,6 +128,40 @@ failed job with `NIKA-1800` and no settlement; a tier the session refuses
 leaves `settlement.error` with `NIKA-1805` and the task. The per-call
 `access_selection` receipt, with its `service_tier` block, stays in the sealed
 journal: no HTTP object carries it.
+
+`/health` advertises `accessSessionOffer` when the resident serves
+`GET /v1/access-offers/{name}`: what the sessions of a served workflow's own
+declared ACP route offer now. The door admits the workflow by name exactly as
+the job door does and reads `run.access` from it. It asks only when the file
+selects ACP sessions (`run.access.via` under `run.access.protocol: acp`): one
+session for the models its `infer:` tasks resolve to (the route's one-shot
+completion profile), one for the models its `agent:` tasks resolve to. Any
+other workflow answers `status: "not_applicable"` with the reason and opens no
+session. A request names a served workflow and nothing else: no route, model,
+adapter or frame of the caller's choosing reaches a harness.
+
+Each session is opened as a run opens it (registry adapter, identity judged on
+`initialize`, completion profile proven) and ended before any prompt. It
+selects the file's model for that session only, then lists the models, the
+values of the session's one reasoning option and the service tiers its
+measured speed option carries. No effort, tier or mode is set and the path
+holds no `session/prompt`: an offer costs the route no turn. A model the
+session does not list, lists only in its legacy list or does not confirm is a
+row state, and the efforts and tiers are then left `unobserved` rather than
+read from another model's configuration. A session that gives no offer is a
+row with `status: "unavailable"`, the engine's code (`NIKA-1803`, `NIKA-1804`,
+`NIKA-1805`) and a reason with no path in it.
+
+A row is an observation with a time (`observed_at`, `fresh_until`): it is kept
+60 s, 15 s when unavailable, and served again meanwhile, to any workflow on
+the same seat, shape and model. One reading runs at a time; the door holds at
+most eight requests and refuses the next one 503 `access_offer_busy`, and one
+request reads at most eight sessions (`routes_omitted` counts the rest). The
+door applies its own 90 s deadline, each session its own 30 s.
+
+An offer authorizes nothing. `POST /v1/jobs` admits and runs as before: the
+run selects, reads back and refuses on its own session, whatever an offer said
+a moment earlier. A resident without the token answers 404.
 
 ### Authoring door (`POST /v1/compile` · #1670)
 

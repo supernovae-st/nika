@@ -444,6 +444,7 @@ fn four_header_limits() -> ServerLimits {
     )
 }
 
+mod access_offer;
 #[cfg(unix)]
 mod artifacts;
 #[cfg(test)]
