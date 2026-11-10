@@ -797,3 +797,15 @@ async fn a_mid_turn_update_that_keeps_the_tier_records_nothing() {
     assert!(outcome.selection.changed_mid_turn.is_empty());
     assert!(outcome.selection.moved_refusal().is_none());
 }
+
+/// Codex applies a turn's service tier only while its `fast_mode` feature is
+/// on. If the tool-free profile ever listed it, the session would still offer
+/// the speed option and confirm the selection while Codex dropped the tier: a
+/// receipt that reads `configured` for a request with no effect.
+#[test]
+fn the_tool_free_profile_leaves_the_speed_feature_on() {
+    assert!(
+        !crate::infer::tool_free::DISABLED_FEATURES.contains(&"fast_mode"),
+        "disabling `fast_mode` makes a confirmed service tier a silent no-op"
+    );
+}
