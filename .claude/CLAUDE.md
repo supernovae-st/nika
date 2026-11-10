@@ -25,8 +25,8 @@ claim that the current candidate passed tests.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `a0a92b766` (`a0a92b766c51eb8d9bb880dae4d5c1161a3a8949`)             |
-| workspace        | v0.124.2                                  |
+| HEAD             | `eb634b408` (`eb634b408dba7d982f3979771541b24a8bc5b32b`)             |
+| workspace        | v0.124.3                                  |
 | crates (workspace)| 90                                              |
 | crates (admitted)| 75                                             |
 | crates (WIP)     | 15 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve nika-session nika-session-change nika-session-agent nika-session-host nika-session-intelligence nika-tui nika-tui-view                                  |
