@@ -4,7 +4,7 @@
 
 ## Use Nika
 
-- [Documentation index](https://docs.nika.sh/llms.txt): docs.nika.sh, indexed for agents. The documentation describes the released 0.124.1.
+- [Documentation index](https://docs.nika.sh/llms.txt): docs.nika.sh, indexed for agents. The documentation describes the released 0.124.2.
 - [llms-install.md](llms-install.md): Installing the `nika` binary — the agent-lane runbook (package managers first, then a verified tarball · verify · prove offline · wire MCP · uninstall clean).
 - [README.md#try-it-in-two-minutes](README.md#try-it-in-two-minutes): Install, describe a first workflow in the Session with no AI account, set up a provider key, then compile · check · run · verify a file directly. Ends with the current limits.
 - [docs/usage/conversational-session.md](docs/usage/conversational-session.md): Bare `nika` on a terminal — describe · clarify · review · save (`yes`) · run (`run it`) · inspect (`/proof`). Provider keys come from the environment (DeepSeek example); the AI choice is kept in `~/.nika/session-intelligence.json`. Covers intelligence selection, `/restore`, knowledge provenance, the optional Jev decision model and downgrade limits.

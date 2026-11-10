@@ -14,11 +14,11 @@ leave records you can inspect.
 | Run | `run it` | The saved workflow runs once, under an announced ceiling |
 | Inspect | `/proof`, `/details` | What the run produced and recorded, and how the workflow was built |
 
-This guide describes the released 0.124.2, on the current 0.124 line. An
+This guide describes the released 0.124.3, on the current 0.124 line. An
 older installed release does not have every feature described here, so
 compare `nika --version` with the [changelog](../../CHANGELOG.md), which
 lists what each release changed.
-Until the next release, each change merged after 0.124.2 is described in its
+Until the next release, each change merged after 0.124.3 is described in its
 own file under [`changelog.d/`](../../changelog.d/README.md), and the release
 folds those files into the changelog.
 
@@ -433,7 +433,7 @@ contracts; they do not describe the interactive preparation defaults.
 
 **Run provider limits in 0.124.** A price shown in the model catalog is not
 enough to admit an OpenAI-compatible API route automatically: the release's
-admission table names each exact route and model it admits. In 0.124.2 that is
+admission table names each exact route and model it admits. In 0.124.3 that is
 DeepSeek's direct API (`deepseek-v4-pro` and `deepseek-flash`); OpenAI's direct
 API from GPT-4o mini to GPT-6 (GPT-4o mini, GPT-5 mini, GPT-5.2, GPT-5.5,
 GPT-5.6 Sol, GPT-6 Astra, GPT-6 Sol, GPT-6.1 Sol and GPT-6 Luna); xAI's grok-4.7
@@ -472,7 +472,7 @@ startup file as your key. The walkthroughs above need none of them.
 
 **Knowledge releases.** By default, the Session admits the knowledge release
 embedded in its binary against the build's trusted identity and pins it when it
-opens; in 0.124.2 that is still the r3.5 Foundry release that 0.123.0 embedded
+opens; in 0.124.3 that is still the r3.5 Foundry release that 0.123.0 embedded
 (`knowledge-0.123.0-r3.5-foundry-20261016`). `/status` names that identity and
 its embedded origin. The release holds workflow blocks, patterns grouped in packs
 and families, examples and skills for recurring jobs; it holds no repair
