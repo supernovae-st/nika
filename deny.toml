@@ -213,6 +213,18 @@ ignore = [
   "RUSTSEC-2026-0369",
   "RUSTSEC-2026-0429",
   #
+  # Three more zip advisories carry a GitHub id and no RUSTSEC id on 2026-11-10, so no entry
+  # can list them yet: GHSA-m665-v7pm-7grj (a central directory and a local header that
+  # disagree · fix >=9.0.5), GHSA-9hj8-73fh-9963 (the legacy Shrink, Reduce and Implode
+  # decoders · fix >=9.0.0) and GHSA-8hxf-qr8p-62x4 (AES entry authentication · fix >=9.0.0).
+  # candle-core asks for zip with `default-features = false`, and the lockfile resolves
+  # zip 7.2.0 with no feature at all: the legacy decoders (`legacy-zip`) and AES
+  # (`aes-crypto`) are not compiled. The header disagreement matters to a program that
+  # writes entries to disk or shows an archive to a second parser; candle reads tensors
+  # into memory by name and writes no entry path. Read on 2026-11-10 in zip 7.2.0
+  # (`Cargo.toml`, `src/lib.rs`, `src/read.rs`) and candle-core 0.10.2 (`npy.rs`,
+  # `pickle.rs`). When RustSec numbers them, add the ids above after reading them again.
+  #
   # RUSTSEC-2026-0370 + RUSTSEC-2026-0371 + RUSTSEC-2026-0372 · `zvariant`, `zbus_names` and
   # `zvariant_derive` are unmaintained as standalone crates: zbus 6.0.0 merged them as its
   # own modules (informational, no vulnerability, no patched version). They ride zbus 5.19,
