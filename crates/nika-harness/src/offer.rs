@@ -262,6 +262,27 @@ pub async fn session_offer(
     harness.offer(model, timeout).await
 }
 
+/// How a reading that had a deadline ends. `outcome` is what the reading
+/// returned, or `None` when its deadline fired first; `late` says the deadline
+/// had passed when it returned.
+///
+/// The transport's idle bound arms on the reading's own allowance, a little
+/// after the deadline. A late poll can observe that bound first, so an error
+/// returned at or after the deadline ends as the deadline: which timer was
+/// seen is the scheduler's choice, never the adapter's. An offer that was read
+/// is kept, and an error returned in time is the adapter's own answer.
+pub(crate) fn settle_reading(
+    outcome: Option<Result<SessionOffer, HarnessError>>,
+    late: bool,
+    deadline_passed: impl FnOnce() -> HarnessError,
+) -> Result<SessionOffer, HarnessError> {
+    match outcome {
+        Some(Ok(offer)) => Ok(offer),
+        Some(Err(error)) if !late => Err(error),
+        Some(Err(_)) | None => Err(deadline_passed()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -309,5 +330,75 @@ mod tests {
             }
             .holds()
         );
+    }
+
+    fn deadline_passed() -> HarnessError {
+        HarnessError::Unavailable {
+            reason: "the session did not report its offer in 30s; it was ended".to_owned(),
+        }
+    }
+
+    /// What the transport reports when the agent stays silent for its idle bound.
+    fn idle_bound() -> HarnessError {
+        HarnessError::Session {
+            reason: "transport: the agent sent nothing for 30s (idle deadline)".to_owned(),
+        }
+    }
+
+    fn an_offer() -> SessionOffer {
+        SessionOffer::new(
+            ModelOffer::SessionDefault { current: None },
+            EffortOffer::Unobserved {
+                reason: "not read".to_owned(),
+            },
+            ServiceTierOffer::Unobserved {
+                reason: "not read".to_owned(),
+            },
+        )
+    }
+
+    #[test]
+    fn a_reading_that_fails_at_or_after_its_deadline_ends_as_the_deadline() {
+        // A late poll saw the transport's idle bound before the reading's own deadline (a CI
+        // run did on 2026-11-10). A silent adapter is unavailable whichever timer was seen.
+        let settled = settle_reading(Some(Err(idle_bound())), true, deadline_passed);
+        assert!(
+            matches!(
+                &settled,
+                Err(HarnessError::Unavailable { reason })
+                    if reason == "the session did not report its offer in 30s; it was ended"
+            ),
+            "{settled:?}"
+        );
+    }
+
+    #[test]
+    fn a_reading_that_fails_before_its_deadline_keeps_its_own_error() {
+        let settled = settle_reading(Some(Err(idle_bound())), false, deadline_passed);
+        assert!(
+            matches!(
+                &settled,
+                Err(HarnessError::Session { reason })
+                    if reason == "transport: the agent sent nothing for 30s (idle deadline)"
+            ),
+            "{settled:?}"
+        );
+    }
+
+    #[test]
+    fn a_reading_that_never_returned_ends_as_the_deadline() {
+        let settled = settle_reading(None, true, deadline_passed);
+        assert!(
+            matches!(&settled, Err(HarnessError::Unavailable { .. })),
+            "{settled:?}"
+        );
+    }
+
+    #[test]
+    fn an_offer_that_was_read_is_kept_however_late_its_poll() {
+        for late in [false, true] {
+            let settled = settle_reading(Some(Ok(an_offer())), late, deadline_passed);
+            assert_eq!(settled.ok(), Some(an_offer()), "late: {late}");
+        }
     }
 }
