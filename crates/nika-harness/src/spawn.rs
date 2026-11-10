@@ -855,18 +855,17 @@ impl SpawnedHarness {
         let scratch = tempfile::tempdir().map_err(|error| HarnessError::Unavailable {
             reason: format!("a session offer cannot create its scratch directory: {error}"),
         })?;
+        let deadline = tokio::time::Instant::now() + timeout;
         let reading = self.offer_in(scratch.path(), model, timeout);
-        tokio::time::timeout(timeout, reading)
-            .await
-            .unwrap_or_else(|_| {
-                Err(HarnessError::Unavailable {
-                    reason: format!(
-                        "adapter `{}`: the session did not report its offer in {}s; it was ended",
-                        self.adapter.id,
-                        timeout.as_secs()
-                    ),
-                })
-            })
+        let outcome = tokio::time::timeout_at(deadline, reading).await.ok();
+        let late = tokio::time::Instant::now() >= deadline;
+        crate::offer::settle_reading(outcome, late, || HarnessError::Unavailable {
+            reason: format!(
+                "adapter `{}`: the session did not report its offer in {}s; it was ended",
+                self.adapter.id,
+                timeout.as_secs()
+            ),
+        })
     }
 
     async fn offer_in(
