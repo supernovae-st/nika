@@ -48,6 +48,7 @@ pub mod access;
 mod caller;
 mod closure;
 pub mod inputs;
+pub mod offer;
 mod rehearsal;
 pub mod run_cost;
 
