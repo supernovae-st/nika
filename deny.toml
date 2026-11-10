@@ -196,18 +196,22 @@ ignore = [
   "RUSTSEC-2026-0194",
   "RUSTSEC-2026-0195",
   #
-  # RUSTSEC-2026-0367 + RUSTSEC-2026-0368 + RUSTSEC-2026-0369 · zip 7.2.0 extraction
-  # (SUID/SGID bits kept, symlink targets outside the destination, permissions applied
-  # through symlinks · fix >=9.0.0). Every one is in `ZipArchive::extract` or
+  # RUSTSEC-2026-0367 + RUSTSEC-2026-0368 + RUSTSEC-2026-0369 + RUSTSEC-2026-0429 · zip 7.2.0
+  # extraction (SUID/SGID bits kept, symlink targets outside the destination, permissions
+  # applied through symlinks, and a process abort on a symlink entry with a large declared
+  # size · fix >=9.0.0). Every one is in `ZipArchive::extract` or
   # `ZipStreamReader::extract`. zip 7.2 is pulled only by candle-core 0.10.2 →
   # nika-infer-local (ADR-091), which reads `.npz` / `.pth` archives entry by entry
-  # (`ZipArchive::new` + `by_name`) and writes `.npz` with `ZipWriter`: it never extracts
-  # an archive to a directory, so the vulnerable paths are not reached. No patched candle
-  # exists: candle-core 0.11.0 still requires zip ^8.6. Review: when candle-core accepts
-  # zip >=9.0. Upstream: github.com/huggingface/candle. Mirror: .cargo/audit.toml.
+  # (`ZipArchive::new` + `by_index` / `by_name`) and writes `.npz` with `ZipWriter`: it never
+  # extracts an archive to a directory, so the vulnerable paths are not reached (re-read in
+  # candle-core 0.10.2 `npy.rs` and `pickle.rs` on 2026-11-10 for RUSTSEC-2026-0429). No
+  # patched candle exists: candle-core 0.11.0 still requires zip ^8.6. Review: when
+  # candle-core accepts zip >=9.0. Upstream: github.com/huggingface/candle.
+  # Mirror: .cargo/audit.toml.
   "RUSTSEC-2026-0367",
   "RUSTSEC-2026-0368",
   "RUSTSEC-2026-0369",
+  "RUSTSEC-2026-0429",
   #
   # RUSTSEC-2026-0370 + RUSTSEC-2026-0371 + RUSTSEC-2026-0372 · `zvariant`, `zbus_names` and
   # `zvariant_derive` are unmaintained as standalone crates: zbus 6.0.0 merged them as its
@@ -219,6 +223,16 @@ ignore = [
   "RUSTSEC-2026-0370",
   "RUSTSEC-2026-0371",
   "RUSTSEC-2026-0372",
+  #
+  # RUSTSEC-2026-0441 · `pin-utils` is unmaintained: its repository was archived on
+  # 2026-10-01 after 0.1.1 (informational, no vulnerability, no patched version). It is a
+  # macro crate with no dependency of its own. Only nix 0.26.4 pulls it here, under
+  # ptyprocess 0.5.0 and expectrl 0.9.0, which are DEV-dependencies of nika-cli and nika-tui
+  # (the PTY tests, unix only): it is in no shipped binary. The latest expectrl (0.9.0) and
+  # ptyprocess (0.5.0) still require nix ^0.26. Review: when either publishes a release that
+  # leaves nix 0.26. Upstream: github.com/zhiburt/expectrl. cargo-audit reports it as an
+  # allowed warning, as it does `paste`, so .cargo/audit.toml carries no entry.
+  "RUSTSEC-2026-0441",
 ]
 
 [sources]
