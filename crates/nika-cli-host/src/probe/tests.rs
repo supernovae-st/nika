@@ -611,3 +611,26 @@ fn environment_json_carries_the_registry_lane() {
         "the not-probed are named, machine-readable: {lane}"
     );
 }
+
+/// A refusal that names the file's own `run.access` declaration earns no seat
+/// escape. Under a declared route another seat is refused by that declaration
+/// and the same seat changes nothing, so the tail would teach a dead end; the
+/// witness already says what to edit. A missing credential keeps its tail.
+#[test]
+fn a_declared_route_refusal_earns_no_seat_escape() {
+    let declared = "NIKA-1800 · `run.access.service_tier: fast` cannot ride the direct `codex` \
+                    one-shot an `infer:` task uses here (nothing ran)";
+    let missing_key = "NIKA-1800 · no credential for `openai` (set OPENAI_API_KEY)";
+    assert!(declared_route_witness(declared));
+    assert!(!declared_route_witness(missing_key));
+    assert!(seat_escape_applies([missing_key]));
+    assert!(!seat_escape_applies([declared]));
+    assert!(
+        !seat_escape_applies([missing_key, declared]),
+        "one witness that names the declaration is enough"
+    );
+    assert!(
+        !seat_escape_applies(["NIKA-AGENT-007 · the turn delivered no image"]),
+        "only an auth-class witness earns the tail"
+    );
+}
