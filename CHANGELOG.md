@@ -16,6 +16,114 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.124.2](https://github.com/supernovae-st/nika/compare/v0.124.1..v0.124.2) - 2026-11-10
+
+Nika 0.124.2 lets a workflow ask its route for a service tier. `run.access.service_tier` takes
+`standard` or `fast` on the codex seat over ACP (`via: codex`, `protocol: acp`): the session selects
+the tier with the model and the effort and reads the selection back before its first prompt. When
+the session cannot confirm the tier, the call is refused before the prompt (`NIKA-1805`), and a
+route that cannot carry a tier is refused before task 1 (`NIKA-1800`). The receipt keeps what was
+requested, offered, sent and read back, and says `unknown` for the tier a turn carried and the tier
+that served it, because no ACP answer names them. Omitting the key changes nothing: no option is
+sent, and the file keeps its resume identity and its receipt. An ACP task also starts its adapter
+once instead of twice. Measured on one codex seat with codex-acp 1.13.1 on 2026-11-10: the single
+start saves about 1.6 s per task; an answer of about 400 words took 12.5 s and 13.1 s on the route's
+default tier and 9.3 s and 9.1 s with `fast`; one image from the agent's image tool took 15.8 s to
+20.7 s on the default tier (3 runs) and 14.8 s to 15.7 s with `fast` (3 of 4 runs; the fourth ended
+without an image). These are observations of one seat, not a promise of the tier. A refused seat and
+a refused route declaration no longer suggest a pin the same file refuses, `nika check
+--infer-permits` names the host an `exec:` URL reaches, and the embedded language pack follows
+nika-spec `b4c692f`. The SDK protocol is unchanged; an engine that reads the key lists
+`accessServiceTier` in `supportedCapabilities`.
+
+### Added
+
+- **A workflow can ask its route for a service tier.** `run.access` gains
+  `service_tier`, with the two words `standard` and `fast` (spec 01
+  §run). On the codex seat over ACP (`via: codex`, `protocol: acp`) the
+  session selects the model, the effort, the tier and the confinement
+  mode in that order, then reads the whole selection back before its
+  first prompt; `fast` is sent as codex-acp's `fast-mode: on` and
+  `standard` as `off`. The binding is held for codex-acp 1.13.1 only:
+  another release of the adapter, an adapter with no measured speed
+  control, a model whose session lists no such option, or a read-back
+  that does not hold the value refuses before the prompt (`NIKA-1805`).
+  A tier no route can carry is refused before task 1 by `nika check` and
+  by the run (`NIKA-1800`): an API or local route, a seat without a
+  measured control, and an `infer:` task outside `protocol: acp`. The
+  `access_selection` receipt gains a `service_tier` block only when the
+  file declares a tier: `requested`, `option`, `offered`, `transmitted`,
+  `configured` and `configured_source`, plus `turn` and `effective`,
+  which read `unknown` because no ACP answer names the tier a turn
+  carried or the tier that served it. Omitting the key is not
+  `standard`: nothing is sent, the route keeps its own tier, and the
+  file keeps its resume identity and its receipt. A resumed run whose
+  tier changed re-runs its `infer:` and `agent:` tasks. A child workflow
+  resolves its own declaration and never inherits its parent's tier.
+  `nika --sdk-identity` and a resident's `/health` list
+  `accessServiceTier` in `supportedCapabilities`: an engine without the
+  token refuses the key at parse, so a client requires it before it
+  admits a file that declares a tier. On `nika serve` the tier is a field
+  of the file, never of the request, and the per-call receipt stays in
+  the sealed journal. An editor served by an older `nika lsp` refuses the
+  new key and loses hover and navigation on the file until it is updated.
+
+### Changed
+
+- **An ACP task starts its adapter once.** For an agent application whose
+  identity is its `initialize` answer (codex-acp, claude-agent-acp,
+  opencode, copilot), every `agent:` task and every `infer:` task over ACP
+  used to start the adapter twice: once to ask `initialize` and stop it,
+  once for the session. The session's own first answer is now the one
+  judged, before `session/new`. A hosted codex seat saves one adapter
+  start per task, measured at about 1.6 s. The refusals are unchanged: an
+  adapter that does not answer `initialize` within 30 s, exits before
+  answering, answers as another program or sits outside its version pin
+  is unavailable (`NIKA-1803`) and is not retried. `nika doctor` and the
+  access rows still probe on their own.
+- **The embedded language pack follows nika-spec `b4c692f`.** `SPEC_PIN`
+  and `crates/nika-pack/pack` advance together from `5cd95cd`, the commit
+  0.124.0 and 0.124.1 embed. The schema `nika spec --schema` prints, and
+  the one `nika check` validates against, gains
+  `run.access.service_tier` (`standard` · `fast`); spec 01 §run states its
+  rules and the coverage matrix lists its fixtures. The three status
+  amendments that name 0.124.0 and 0.124.1 as released ride along
+  (`QUICKSTART.md`, spec 00 and 07). `canon.yaml`, the examples, the
+  templates and the stdlib pages are unchanged.
+
+### Fixed
+
+- **`nika check --infer-permits` names the host an `exec:` URL reaches.**
+  For `exec: { command: ["curl", "https://example.com/"] }` it printed
+  `exec: ["curl"]` alone, and `nika check` then refused that very block
+  with `NIKA-SEC-004` (`exec URL host example.com is outside
+  permits.net.http`). A literal or `const:`-backed URL in an argv, or in a
+  shell line, now adds its host to `permits.net.http`, read from the same
+  tokens the check judges. When an HTTP client (`curl`, `wget`, `xh`,
+  `http`, `https`) gets only a computed argument, or a template decides a
+  URL's host, the block gains a review note naming the task and the
+  inferred net face is marked partial, instead of a block that checks
+  green and is refused at run. `nika check` also stops asking for
+  `"${{inputs.host}}"` in `permits.net.http` when a template written
+  without spaces fills an exec URL's host: that host is computed, and the
+  run judges it.
+- **A refused seat no longer teaches a flag its own file refuses.** When a
+  seat fails at the call, the `access_refused` record on `task_failed`
+  names the next ready path and the flag that pins it. Under a declared
+  `run.access.via`, that next path could be a route the declaration
+  itself excludes: a machine with a ready `openai` key answered a refused
+  `via: codex` call with `"pin": "--access openai"`, a flag the same file
+  refuses before task 1. The record now names a next path only when the
+  declaration allows it, and names none otherwise.
+- **A refused route declaration no longer suggests a pin that cannot help.**
+  When a run is refused before task 1 (`NIKA-1800`) and this machine has
+  a signed-in seat, `nika run` adds "or use a seat present on this
+  machine: `--access <seat>`". It also did so when the refusal was about
+  the file's own `run.access` declaration, for example a `service_tier`
+  its route cannot carry. Under a declared route, another seat is refused
+  by that declaration and the same seat changes nothing. The line is now
+  printed only when the refusal is about what the machine lacks, such as
+  a missing credential.
 ## [0.124.1](https://github.com/supernovae-st/nika/compare/v0.124.0..v0.124.1) - 2026-10-28
 
 Nika 0.124.1 is the first maintenance release of the 0.124 line. On a direct seat route, without

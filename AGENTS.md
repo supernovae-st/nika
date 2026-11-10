@@ -56,6 +56,12 @@ affected plugin/onboarding tests when changing emitted guidance. Keep existing
 hooks. Do not use `--no-verify` or claim unexecuted checks passed. Broaden testing
 when consumers, failures or remaining uncertainty justify it.
 
+A new or changed `pub` item in an admitted crate also updates that crate's
+`public-api.txt`. The pre-push gate does not run that diff. The `public-api`
+workflow does, and on a failure it uploads its own rendering of every crate
+as the `public-api-actual` artifact: take the crate's file from there rather
+than from a local build with another toolchain.
+
 Report the changed behavior, exact checks and limitations. Completion includes
 the requested integration or execution when authorized; a first implementation
 is not the stopping point. Pause only at a concrete unresolved decision or
