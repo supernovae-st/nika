@@ -60,7 +60,8 @@ These 5 pillars are **locked forever** at v1. Everything else (providers · buil
 
 > **Amended 2026-10-27 · the current release line.**
 > Engine 0.124.0 embeds this spec at commit `5cd95cd`, and so does 0.124.1
-> (2026-10-28), the current release. 0.124 is the current release line.
+> (2026-10-28). Engine 0.124.2 (2026-11-10), the current release, embeds it
+> at `b4c692f`. 0.124 is the current release line.
 > Work stays focused on maintenance, security and the media capabilities
 > workflows need; native video is planned for 0.125. No engine 1.0.0 is
 > scheduled, so the freeze this section waits for is still not planned, and
