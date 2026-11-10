@@ -47,7 +47,7 @@ non-trivial vulnerabilities, shorter for actively-exploited issues.
 ## Defense Layers in 0.124
 
 What the released engine enforces. Every code below resolves with
-`nika explain <code>` on 0.124.1; most are refused by `nika check` before a
+`nika explain <code>` on 0.124.2; most are refused by `nika check` before a
 run starts, and the runtime enforces the same boundary again.
 
 | Code | Layer | Defense |
