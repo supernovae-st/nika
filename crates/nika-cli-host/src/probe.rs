@@ -1159,7 +1159,7 @@ pub fn declared_route_witness(detail: &str) -> bool {
 /// Whether a failure earns the seat escape: an auth-class witness, and
 /// none that names the file's own route declaration.
 #[must_use]
-pub fn seat_escape_applies<'a>(witnesses: impl IntoIterator<Item = &'a str>) -> bool {
+fn seat_escape_applies<'a>(witnesses: impl IntoIterator<Item = &'a str>) -> bool {
     let mut auth = false;
     for witness in witnesses {
         if declared_route_witness(witness) {
@@ -1171,7 +1171,7 @@ pub fn seat_escape_applies<'a>(witnesses: impl IntoIterator<Item = &'a str>) -> 
 }
 
 /// Print the seat escape line when the failure earns it
-/// ([`seat_escape_applies`]) AND the census found a ready seat — the ONE
+/// (`seat_escape_applies`) AND the census found a ready seat — the ONE
 /// seam every run lane calls (the lane picks the stream; `writeln!` to a
 /// locked handle, so the print lints stay silent and the bytes stay the
 /// lane's choice).

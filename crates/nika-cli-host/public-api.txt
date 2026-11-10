@@ -2739,6 +2739,7 @@ pub fn nika_cli_host::probe::adoption_state(probe: &nika_cli_host::probe::Probe)
 pub fn nika_cli_host::probe::auth_class_witness(detail: &str) -> bool
 pub fn nika_cli_host::probe::capability_receipts(probe: &nika_cli_host::probe::Probe) -> alloc::vec::Vec<nika_cli_host::probe::HostCapabilityReceipt>
 pub fn nika_cli_host::probe::collect(ping: bool) -> nika_cli_host::probe::Probe
+pub fn nika_cli_host::probe::declared_route_witness(detail: &str) -> bool
 pub fn nika_cli_host::probe::environment_json(probe: &nika_cli_host::probe::Probe) -> serde_json::value::Value
 pub fn nika_cli_host::probe::home_dir() -> core::option::Option<std::path::PathBuf>
 pub fn nika_cli_host::probe::operator_account() -> (u32, core::option::Option<alloc::string::String>)
