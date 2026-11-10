@@ -72,6 +72,14 @@ the TypeScript SDK cover the API from an application.
   settle; past it the resident drops the run and the job settles
   `interrupted`. A task inside one long step (an agent turn, a long wait)
   usually outlasts the grace.
+- `GET /v1/access-offers/{name}` reads what the sessions of a served
+  workflow's own declared ACP route offer now (its models, reasoning efforts
+  and service tiers), without sending a prompt. `{name}` is the served name,
+  as for `GET /v1/workflows/{name}`. A workflow that declares no
+  `run.access.via` under `protocol: acp` answers `not_applicable` and opens
+  no session. Rows are kept 60 seconds, one reading runs at a time, and the
+  answer authorizes no run: see
+  [Asking a seat what it offers](../usage/harness-agents.md#asking-a-seat-what-it-offers).
 - `GET /v1/jobs/{id}/artifacts` lists what a settled job's journal records
   as its artifacts: the files `nika:chart`, `nika:image_generate`,
   `nika:tts_generate`, `nika:image_fx` and `nika:image_compose` saved inside

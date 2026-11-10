@@ -684,6 +684,239 @@ pub fn nika_harness::infer::InferGradeSeat::as_any(&self) -> &(dyn core::any::An
 impl<T> typenum::type_operators::Same for nika_harness::infer::InferGradeSeat
 pub type nika_harness::infer::InferGradeSeat::Output = T
 pub fn nika_harness::infer::meet_infer_grade(seat: &str, need: nika_harness::infer::StructuredOutputGrade) -> core::result::Result<nika_harness::infer::InferGradeSeat, nika_harness::infer::InferGradeError>
+pub mod nika_harness::offer
+#[non_exhaustive] pub enum nika_harness::offer::EffortOffer
+pub nika_harness::offer::EffortOffer::NotOffered
+pub nika_harness::offer::EffortOffer::Offered
+pub nika_harness::offer::EffortOffer::Offered::current: core::option::Option<alloc::string::String>
+pub nika_harness::offer::EffortOffer::Offered::omitted: usize
+pub nika_harness::offer::EffortOffer::Offered::option: alloc::string::String
+pub nika_harness::offer::EffortOffer::Offered::values: alloc::vec::Vec<alloc::string::String>
+pub nika_harness::offer::EffortOffer::Unobserved
+pub nika_harness::offer::EffortOffer::Unobserved::reason: alloc::string::String
+impl core::clone::Clone for nika_harness::offer::EffortOffer
+pub fn nika_harness::offer::EffortOffer::clone(&self) -> nika_harness::offer::EffortOffer
+impl core::cmp::Eq for nika_harness::offer::EffortOffer
+impl core::cmp::PartialEq for nika_harness::offer::EffortOffer
+pub fn nika_harness::offer::EffortOffer::eq(&self, other: &nika_harness::offer::EffortOffer) -> bool
+impl core::fmt::Debug for nika_harness::offer::EffortOffer
+pub fn nika_harness::offer::EffortOffer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::offer::EffortOffer
+impl<D> owo_colors::OwoColorize for nika_harness::offer::EffortOffer
+impl<T, U> core::convert::Into<U> for nika_harness::offer::EffortOffer where U: core::convert::From<T>
+pub fn nika_harness::offer::EffortOffer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::offer::EffortOffer where U: core::convert::Into<T>
+pub type nika_harness::offer::EffortOffer::Error = core::convert::Infallible
+pub fn nika_harness::offer::EffortOffer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::offer::EffortOffer where U: core::convert::TryFrom<T>
+pub type nika_harness::offer::EffortOffer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::offer::EffortOffer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::offer::EffortOffer where T: core::clone::Clone
+pub type nika_harness::offer::EffortOffer::Owned = T
+pub fn nika_harness::offer::EffortOffer::clone_into(&self, target: &mut T)
+pub fn nika_harness::offer::EffortOffer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::offer::EffortOffer where T: 'static + ?core::marker::Sized
+pub fn nika_harness::offer::EffortOffer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::offer::EffortOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::EffortOffer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::offer::EffortOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::EffortOffer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::offer::EffortOffer where T: core::clone::Clone
+pub unsafe fn nika_harness::offer::EffortOffer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::offer::EffortOffer
+pub fn nika_harness::offer::EffortOffer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::offer::EffortOffer where T: 'static
+pub fn nika_harness::offer::EffortOffer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::offer::EffortOffer
+pub type nika_harness::offer::EffortOffer::Output = T
+#[non_exhaustive] pub enum nika_harness::offer::ModelOffer
+pub nika_harness::offer::ModelOffer::Confirmed
+pub nika_harness::offer::ModelOffer::Confirmed::native: alloc::string::String
+pub nika_harness::offer::ModelOffer::LegacyList
+pub nika_harness::offer::ModelOffer::LegacyList::native: alloc::string::String
+pub nika_harness::offer::ModelOffer::NotConfirmed
+pub nika_harness::offer::ModelOffer::NotConfirmed::reported: core::option::Option<alloc::string::String>
+pub nika_harness::offer::ModelOffer::NotOffered
+pub nika_harness::offer::ModelOffer::SessionDefault
+pub nika_harness::offer::ModelOffer::SessionDefault::current: core::option::Option<alloc::string::String>
+impl nika_harness::offer::ModelOffer
+pub const fn nika_harness::offer::ModelOffer::holds(&self) -> bool
+impl core::clone::Clone for nika_harness::offer::ModelOffer
+pub fn nika_harness::offer::ModelOffer::clone(&self) -> nika_harness::offer::ModelOffer
+impl core::cmp::Eq for nika_harness::offer::ModelOffer
+impl core::cmp::PartialEq for nika_harness::offer::ModelOffer
+pub fn nika_harness::offer::ModelOffer::eq(&self, other: &nika_harness::offer::ModelOffer) -> bool
+impl core::fmt::Debug for nika_harness::offer::ModelOffer
+pub fn nika_harness::offer::ModelOffer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::offer::ModelOffer
+impl<D> owo_colors::OwoColorize for nika_harness::offer::ModelOffer
+impl<T, U> core::convert::Into<U> for nika_harness::offer::ModelOffer where U: core::convert::From<T>
+pub fn nika_harness::offer::ModelOffer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::offer::ModelOffer where U: core::convert::Into<T>
+pub type nika_harness::offer::ModelOffer::Error = core::convert::Infallible
+pub fn nika_harness::offer::ModelOffer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::offer::ModelOffer where U: core::convert::TryFrom<T>
+pub type nika_harness::offer::ModelOffer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::offer::ModelOffer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::offer::ModelOffer where T: core::clone::Clone
+pub type nika_harness::offer::ModelOffer::Owned = T
+pub fn nika_harness::offer::ModelOffer::clone_into(&self, target: &mut T)
+pub fn nika_harness::offer::ModelOffer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::offer::ModelOffer where T: 'static + ?core::marker::Sized
+pub fn nika_harness::offer::ModelOffer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::offer::ModelOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::ModelOffer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::offer::ModelOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::ModelOffer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::offer::ModelOffer where T: core::clone::Clone
+pub unsafe fn nika_harness::offer::ModelOffer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::offer::ModelOffer
+pub fn nika_harness::offer::ModelOffer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::offer::ModelOffer where T: 'static
+pub fn nika_harness::offer::ModelOffer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::offer::ModelOffer
+pub type nika_harness::offer::ModelOffer::Output = T
+#[non_exhaustive] pub enum nika_harness::offer::OfferProfile
+pub nika_harness::offer::OfferProfile::Agent
+pub nika_harness::offer::OfferProfile::Completion
+impl nika_harness::offer::OfferProfile
+pub const fn nika_harness::offer::OfferProfile::as_str(self) -> &'static str
+impl core::clone::Clone for nika_harness::offer::OfferProfile
+pub fn nika_harness::offer::OfferProfile::clone(&self) -> nika_harness::offer::OfferProfile
+impl core::cmp::Eq for nika_harness::offer::OfferProfile
+impl core::cmp::Ord for nika_harness::offer::OfferProfile
+pub fn nika_harness::offer::OfferProfile::cmp(&self, other: &nika_harness::offer::OfferProfile) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_harness::offer::OfferProfile
+pub fn nika_harness::offer::OfferProfile::eq(&self, other: &nika_harness::offer::OfferProfile) -> bool
+impl core::cmp::PartialOrd for nika_harness::offer::OfferProfile
+pub fn nika_harness::offer::OfferProfile::partial_cmp(&self, other: &nika_harness::offer::OfferProfile) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_harness::offer::OfferProfile
+pub fn nika_harness::offer::OfferProfile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_harness::offer::OfferProfile
+pub fn nika_harness::offer::OfferProfile::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_harness::offer::OfferProfile
+impl core::marker::StructuralPartialEq for nika_harness::offer::OfferProfile
+impl<D> owo_colors::OwoColorize for nika_harness::offer::OfferProfile
+impl<T, U> core::convert::Into<U> for nika_harness::offer::OfferProfile where U: core::convert::From<T>
+pub fn nika_harness::offer::OfferProfile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::offer::OfferProfile where U: core::convert::Into<T>
+pub type nika_harness::offer::OfferProfile::Error = core::convert::Infallible
+pub fn nika_harness::offer::OfferProfile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::offer::OfferProfile where U: core::convert::TryFrom<T>
+pub type nika_harness::offer::OfferProfile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::offer::OfferProfile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::offer::OfferProfile where T: core::clone::Clone
+pub type nika_harness::offer::OfferProfile::Owned = T
+pub fn nika_harness::offer::OfferProfile::clone_into(&self, target: &mut T)
+pub fn nika_harness::offer::OfferProfile::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::offer::OfferProfile where T: 'static + ?core::marker::Sized
+pub fn nika_harness::offer::OfferProfile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::offer::OfferProfile where T: ?core::marker::Sized
+pub fn nika_harness::offer::OfferProfile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::offer::OfferProfile where T: ?core::marker::Sized
+pub fn nika_harness::offer::OfferProfile::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::offer::OfferProfile where T: core::clone::Clone
+pub unsafe fn nika_harness::offer::OfferProfile::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::offer::OfferProfile
+pub fn nika_harness::offer::OfferProfile::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::offer::OfferProfile where T: 'static
+pub fn nika_harness::offer::OfferProfile::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::offer::OfferProfile
+pub type nika_harness::offer::OfferProfile::Output = T
+#[non_exhaustive] pub enum nika_harness::offer::ServiceTierOffer
+pub nika_harness::offer::ServiceTierOffer::NotOffered
+pub nika_harness::offer::ServiceTierOffer::Offered
+pub nika_harness::offer::ServiceTierOffer::Offered::current: core::option::Option<nika_types::access::tier::ServiceTier>
+pub nika_harness::offer::ServiceTierOffer::Offered::option: alloc::string::String
+pub nika_harness::offer::ServiceTierOffer::Offered::tiers: alloc::vec::Vec<nika_types::access::tier::ServiceTier>
+pub nika_harness::offer::ServiceTierOffer::Unobserved
+pub nika_harness::offer::ServiceTierOffer::Unobserved::reason: alloc::string::String
+impl core::clone::Clone for nika_harness::offer::ServiceTierOffer
+pub fn nika_harness::offer::ServiceTierOffer::clone(&self) -> nika_harness::offer::ServiceTierOffer
+impl core::cmp::Eq for nika_harness::offer::ServiceTierOffer
+impl core::cmp::PartialEq for nika_harness::offer::ServiceTierOffer
+pub fn nika_harness::offer::ServiceTierOffer::eq(&self, other: &nika_harness::offer::ServiceTierOffer) -> bool
+impl core::fmt::Debug for nika_harness::offer::ServiceTierOffer
+pub fn nika_harness::offer::ServiceTierOffer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::offer::ServiceTierOffer
+impl<D> owo_colors::OwoColorize for nika_harness::offer::ServiceTierOffer
+impl<T, U> core::convert::Into<U> for nika_harness::offer::ServiceTierOffer where U: core::convert::From<T>
+pub fn nika_harness::offer::ServiceTierOffer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::offer::ServiceTierOffer where U: core::convert::Into<T>
+pub type nika_harness::offer::ServiceTierOffer::Error = core::convert::Infallible
+pub fn nika_harness::offer::ServiceTierOffer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::offer::ServiceTierOffer where U: core::convert::TryFrom<T>
+pub type nika_harness::offer::ServiceTierOffer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::offer::ServiceTierOffer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::offer::ServiceTierOffer where T: core::clone::Clone
+pub type nika_harness::offer::ServiceTierOffer::Owned = T
+pub fn nika_harness::offer::ServiceTierOffer::clone_into(&self, target: &mut T)
+pub fn nika_harness::offer::ServiceTierOffer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::offer::ServiceTierOffer where T: 'static + ?core::marker::Sized
+pub fn nika_harness::offer::ServiceTierOffer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::offer::ServiceTierOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::ServiceTierOffer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::offer::ServiceTierOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::ServiceTierOffer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::offer::ServiceTierOffer where T: core::clone::Clone
+pub unsafe fn nika_harness::offer::ServiceTierOffer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::offer::ServiceTierOffer
+pub fn nika_harness::offer::ServiceTierOffer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::offer::ServiceTierOffer where T: 'static
+pub fn nika_harness::offer::ServiceTierOffer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::offer::ServiceTierOffer
+pub type nika_harness::offer::ServiceTierOffer::Output = T
+#[non_exhaustive] pub struct nika_harness::offer::SessionOffer
+pub nika_harness::offer::SessionOffer::agent_name: core::option::Option<alloc::string::String>
+pub nika_harness::offer::SessionOffer::agent_version: core::option::Option<alloc::string::String>
+pub nika_harness::offer::SessionOffer::effort: nika_harness::offer::EffortOffer
+pub nika_harness::offer::SessionOffer::model: nika_harness::offer::ModelOffer
+pub nika_harness::offer::SessionOffer::models: alloc::vec::Vec<alloc::string::String>
+pub nika_harness::offer::SessionOffer::models_omitted: usize
+pub nika_harness::offer::SessionOffer::service_tier: nika_harness::offer::ServiceTierOffer
+impl nika_harness::offer::SessionOffer
+pub const fn nika_harness::offer::SessionOffer::new(model: nika_harness::offer::ModelOffer, effort: nika_harness::offer::EffortOffer, service_tier: nika_harness::offer::ServiceTierOffer) -> Self
+pub fn nika_harness::offer::SessionOffer::with_agent(self, name: core::option::Option<alloc::string::String>, version: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_harness::offer::SessionOffer::with_models(self, listed: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_harness::offer::SessionOffer
+pub fn nika_harness::offer::SessionOffer::clone(&self) -> nika_harness::offer::SessionOffer
+impl core::cmp::Eq for nika_harness::offer::SessionOffer
+impl core::cmp::PartialEq for nika_harness::offer::SessionOffer
+pub fn nika_harness::offer::SessionOffer::eq(&self, other: &nika_harness::offer::SessionOffer) -> bool
+impl core::fmt::Debug for nika_harness::offer::SessionOffer
+pub fn nika_harness::offer::SessionOffer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::offer::SessionOffer
+impl<D> owo_colors::OwoColorize for nika_harness::offer::SessionOffer
+impl<T, U> core::convert::Into<U> for nika_harness::offer::SessionOffer where U: core::convert::From<T>
+pub fn nika_harness::offer::SessionOffer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::offer::SessionOffer where U: core::convert::Into<T>
+pub type nika_harness::offer::SessionOffer::Error = core::convert::Infallible
+pub fn nika_harness::offer::SessionOffer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::offer::SessionOffer where U: core::convert::TryFrom<T>
+pub type nika_harness::offer::SessionOffer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::offer::SessionOffer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::offer::SessionOffer where T: core::clone::Clone
+pub type nika_harness::offer::SessionOffer::Owned = T
+pub fn nika_harness::offer::SessionOffer::clone_into(&self, target: &mut T)
+pub fn nika_harness::offer::SessionOffer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::offer::SessionOffer where T: 'static + ?core::marker::Sized
+pub fn nika_harness::offer::SessionOffer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::offer::SessionOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::SessionOffer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::offer::SessionOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::SessionOffer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::offer::SessionOffer where T: core::clone::Clone
+pub unsafe fn nika_harness::offer::SessionOffer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::offer::SessionOffer
+pub fn nika_harness::offer::SessionOffer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::offer::SessionOffer where T: 'static
+pub fn nika_harness::offer::SessionOffer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::offer::SessionOffer
+pub type nika_harness::offer::SessionOffer::Output = T
+pub const nika_harness::offer::MAX_OFFERED_VALUES: usize
+pub const nika_harness::offer::MAX_OFFERED_VALUE_BYTES: usize
+pub fn nika_harness::offer::bounded(listed: alloc::vec::Vec<alloc::string::String>) -> (alloc::vec::Vec<alloc::string::String>, usize)
+pub async fn nika_harness::offer::session_offer(seat: &str, profile: nika_harness::offer::OfferProfile, model: core::option::Option<&str>, timeout: core::time::Duration) -> core::result::Result<nika_harness::offer::SessionOffer, nika_kernel_ai::harness::HarnessError>
 pub mod nika_harness::probe
 #[non_exhaustive] pub enum nika_harness::probe::LoginCheck
 pub nika_harness::probe::LoginCheck::SignedIn
@@ -1628,6 +1861,50 @@ impl<T> nika_error::traits::AsAny for nika_harness::registry::AuthProbe where T:
 pub fn nika_harness::registry::AuthProbe::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_harness::registry::AuthProbe
 pub type nika_harness::registry::AuthProbe::Output = T
+#[non_exhaustive] pub enum nika_harness::EffortOffer
+pub nika_harness::EffortOffer::NotOffered
+pub nika_harness::EffortOffer::Offered
+pub nika_harness::EffortOffer::Offered::current: core::option::Option<alloc::string::String>
+pub nika_harness::EffortOffer::Offered::omitted: usize
+pub nika_harness::EffortOffer::Offered::option: alloc::string::String
+pub nika_harness::EffortOffer::Offered::values: alloc::vec::Vec<alloc::string::String>
+pub nika_harness::EffortOffer::Unobserved
+pub nika_harness::EffortOffer::Unobserved::reason: alloc::string::String
+impl core::clone::Clone for nika_harness::offer::EffortOffer
+pub fn nika_harness::offer::EffortOffer::clone(&self) -> nika_harness::offer::EffortOffer
+impl core::cmp::Eq for nika_harness::offer::EffortOffer
+impl core::cmp::PartialEq for nika_harness::offer::EffortOffer
+pub fn nika_harness::offer::EffortOffer::eq(&self, other: &nika_harness::offer::EffortOffer) -> bool
+impl core::fmt::Debug for nika_harness::offer::EffortOffer
+pub fn nika_harness::offer::EffortOffer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::offer::EffortOffer
+impl<D> owo_colors::OwoColorize for nika_harness::offer::EffortOffer
+impl<T, U> core::convert::Into<U> for nika_harness::offer::EffortOffer where U: core::convert::From<T>
+pub fn nika_harness::offer::EffortOffer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::offer::EffortOffer where U: core::convert::Into<T>
+pub type nika_harness::offer::EffortOffer::Error = core::convert::Infallible
+pub fn nika_harness::offer::EffortOffer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::offer::EffortOffer where U: core::convert::TryFrom<T>
+pub type nika_harness::offer::EffortOffer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::offer::EffortOffer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::offer::EffortOffer where T: core::clone::Clone
+pub type nika_harness::offer::EffortOffer::Owned = T
+pub fn nika_harness::offer::EffortOffer::clone_into(&self, target: &mut T)
+pub fn nika_harness::offer::EffortOffer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::offer::EffortOffer where T: 'static + ?core::marker::Sized
+pub fn nika_harness::offer::EffortOffer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::offer::EffortOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::EffortOffer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::offer::EffortOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::EffortOffer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::offer::EffortOffer where T: core::clone::Clone
+pub unsafe fn nika_harness::offer::EffortOffer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::offer::EffortOffer
+pub fn nika_harness::offer::EffortOffer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::offer::EffortOffer where T: 'static
+pub fn nika_harness::offer::EffortOffer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::offer::EffortOffer
+pub type nika_harness::offer::EffortOffer::Output = T
 #[non_exhaustive] pub enum nika_harness::InferGradeError
 pub nika_harness::InferGradeError::Execution
 pub nika_harness::InferGradeError::Execution::detail: alloc::string::String
@@ -1712,6 +1989,143 @@ impl<T> nika_error::traits::AsAny for nika_harness::probe::LoginCheck where T: '
 pub fn nika_harness::probe::LoginCheck::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_harness::probe::LoginCheck
 pub type nika_harness::probe::LoginCheck::Output = T
+#[non_exhaustive] pub enum nika_harness::ModelOffer
+pub nika_harness::ModelOffer::Confirmed
+pub nika_harness::ModelOffer::Confirmed::native: alloc::string::String
+pub nika_harness::ModelOffer::LegacyList
+pub nika_harness::ModelOffer::LegacyList::native: alloc::string::String
+pub nika_harness::ModelOffer::NotConfirmed
+pub nika_harness::ModelOffer::NotConfirmed::reported: core::option::Option<alloc::string::String>
+pub nika_harness::ModelOffer::NotOffered
+pub nika_harness::ModelOffer::SessionDefault
+pub nika_harness::ModelOffer::SessionDefault::current: core::option::Option<alloc::string::String>
+impl nika_harness::offer::ModelOffer
+pub const fn nika_harness::offer::ModelOffer::holds(&self) -> bool
+impl core::clone::Clone for nika_harness::offer::ModelOffer
+pub fn nika_harness::offer::ModelOffer::clone(&self) -> nika_harness::offer::ModelOffer
+impl core::cmp::Eq for nika_harness::offer::ModelOffer
+impl core::cmp::PartialEq for nika_harness::offer::ModelOffer
+pub fn nika_harness::offer::ModelOffer::eq(&self, other: &nika_harness::offer::ModelOffer) -> bool
+impl core::fmt::Debug for nika_harness::offer::ModelOffer
+pub fn nika_harness::offer::ModelOffer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::offer::ModelOffer
+impl<D> owo_colors::OwoColorize for nika_harness::offer::ModelOffer
+impl<T, U> core::convert::Into<U> for nika_harness::offer::ModelOffer where U: core::convert::From<T>
+pub fn nika_harness::offer::ModelOffer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::offer::ModelOffer where U: core::convert::Into<T>
+pub type nika_harness::offer::ModelOffer::Error = core::convert::Infallible
+pub fn nika_harness::offer::ModelOffer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::offer::ModelOffer where U: core::convert::TryFrom<T>
+pub type nika_harness::offer::ModelOffer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::offer::ModelOffer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::offer::ModelOffer where T: core::clone::Clone
+pub type nika_harness::offer::ModelOffer::Owned = T
+pub fn nika_harness::offer::ModelOffer::clone_into(&self, target: &mut T)
+pub fn nika_harness::offer::ModelOffer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::offer::ModelOffer where T: 'static + ?core::marker::Sized
+pub fn nika_harness::offer::ModelOffer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::offer::ModelOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::ModelOffer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::offer::ModelOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::ModelOffer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::offer::ModelOffer where T: core::clone::Clone
+pub unsafe fn nika_harness::offer::ModelOffer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::offer::ModelOffer
+pub fn nika_harness::offer::ModelOffer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::offer::ModelOffer where T: 'static
+pub fn nika_harness::offer::ModelOffer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::offer::ModelOffer
+pub type nika_harness::offer::ModelOffer::Output = T
+#[non_exhaustive] pub enum nika_harness::OfferProfile
+pub nika_harness::OfferProfile::Agent
+pub nika_harness::OfferProfile::Completion
+impl nika_harness::offer::OfferProfile
+pub const fn nika_harness::offer::OfferProfile::as_str(self) -> &'static str
+impl core::clone::Clone for nika_harness::offer::OfferProfile
+pub fn nika_harness::offer::OfferProfile::clone(&self) -> nika_harness::offer::OfferProfile
+impl core::cmp::Eq for nika_harness::offer::OfferProfile
+impl core::cmp::Ord for nika_harness::offer::OfferProfile
+pub fn nika_harness::offer::OfferProfile::cmp(&self, other: &nika_harness::offer::OfferProfile) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_harness::offer::OfferProfile
+pub fn nika_harness::offer::OfferProfile::eq(&self, other: &nika_harness::offer::OfferProfile) -> bool
+impl core::cmp::PartialOrd for nika_harness::offer::OfferProfile
+pub fn nika_harness::offer::OfferProfile::partial_cmp(&self, other: &nika_harness::offer::OfferProfile) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_harness::offer::OfferProfile
+pub fn nika_harness::offer::OfferProfile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_harness::offer::OfferProfile
+pub fn nika_harness::offer::OfferProfile::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_harness::offer::OfferProfile
+impl core::marker::StructuralPartialEq for nika_harness::offer::OfferProfile
+impl<D> owo_colors::OwoColorize for nika_harness::offer::OfferProfile
+impl<T, U> core::convert::Into<U> for nika_harness::offer::OfferProfile where U: core::convert::From<T>
+pub fn nika_harness::offer::OfferProfile::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::offer::OfferProfile where U: core::convert::Into<T>
+pub type nika_harness::offer::OfferProfile::Error = core::convert::Infallible
+pub fn nika_harness::offer::OfferProfile::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::offer::OfferProfile where U: core::convert::TryFrom<T>
+pub type nika_harness::offer::OfferProfile::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::offer::OfferProfile::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::offer::OfferProfile where T: core::clone::Clone
+pub type nika_harness::offer::OfferProfile::Owned = T
+pub fn nika_harness::offer::OfferProfile::clone_into(&self, target: &mut T)
+pub fn nika_harness::offer::OfferProfile::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::offer::OfferProfile where T: 'static + ?core::marker::Sized
+pub fn nika_harness::offer::OfferProfile::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::offer::OfferProfile where T: ?core::marker::Sized
+pub fn nika_harness::offer::OfferProfile::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::offer::OfferProfile where T: ?core::marker::Sized
+pub fn nika_harness::offer::OfferProfile::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::offer::OfferProfile where T: core::clone::Clone
+pub unsafe fn nika_harness::offer::OfferProfile::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::offer::OfferProfile
+pub fn nika_harness::offer::OfferProfile::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::offer::OfferProfile where T: 'static
+pub fn nika_harness::offer::OfferProfile::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::offer::OfferProfile
+pub type nika_harness::offer::OfferProfile::Output = T
+#[non_exhaustive] pub enum nika_harness::ServiceTierOffer
+pub nika_harness::ServiceTierOffer::NotOffered
+pub nika_harness::ServiceTierOffer::Offered
+pub nika_harness::ServiceTierOffer::Offered::current: core::option::Option<nika_types::access::tier::ServiceTier>
+pub nika_harness::ServiceTierOffer::Offered::option: alloc::string::String
+pub nika_harness::ServiceTierOffer::Offered::tiers: alloc::vec::Vec<nika_types::access::tier::ServiceTier>
+pub nika_harness::ServiceTierOffer::Unobserved
+pub nika_harness::ServiceTierOffer::Unobserved::reason: alloc::string::String
+impl core::clone::Clone for nika_harness::offer::ServiceTierOffer
+pub fn nika_harness::offer::ServiceTierOffer::clone(&self) -> nika_harness::offer::ServiceTierOffer
+impl core::cmp::Eq for nika_harness::offer::ServiceTierOffer
+impl core::cmp::PartialEq for nika_harness::offer::ServiceTierOffer
+pub fn nika_harness::offer::ServiceTierOffer::eq(&self, other: &nika_harness::offer::ServiceTierOffer) -> bool
+impl core::fmt::Debug for nika_harness::offer::ServiceTierOffer
+pub fn nika_harness::offer::ServiceTierOffer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::offer::ServiceTierOffer
+impl<D> owo_colors::OwoColorize for nika_harness::offer::ServiceTierOffer
+impl<T, U> core::convert::Into<U> for nika_harness::offer::ServiceTierOffer where U: core::convert::From<T>
+pub fn nika_harness::offer::ServiceTierOffer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::offer::ServiceTierOffer where U: core::convert::Into<T>
+pub type nika_harness::offer::ServiceTierOffer::Error = core::convert::Infallible
+pub fn nika_harness::offer::ServiceTierOffer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::offer::ServiceTierOffer where U: core::convert::TryFrom<T>
+pub type nika_harness::offer::ServiceTierOffer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::offer::ServiceTierOffer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::offer::ServiceTierOffer where T: core::clone::Clone
+pub type nika_harness::offer::ServiceTierOffer::Owned = T
+pub fn nika_harness::offer::ServiceTierOffer::clone_into(&self, target: &mut T)
+pub fn nika_harness::offer::ServiceTierOffer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::offer::ServiceTierOffer where T: 'static + ?core::marker::Sized
+pub fn nika_harness::offer::ServiceTierOffer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::offer::ServiceTierOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::ServiceTierOffer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::offer::ServiceTierOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::ServiceTierOffer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::offer::ServiceTierOffer where T: core::clone::Clone
+pub unsafe fn nika_harness::offer::ServiceTierOffer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::offer::ServiceTierOffer
+pub fn nika_harness::offer::ServiceTierOffer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::offer::ServiceTierOffer where T: 'static
+pub fn nika_harness::offer::ServiceTierOffer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::offer::ServiceTierOffer
+pub type nika_harness::offer::ServiceTierOffer::Output = T
 #[non_exhaustive] pub enum nika_harness::StructuredOutputGrade
 pub nika_harness::StructuredOutputGrade::Json
 pub nika_harness::StructuredOutputGrade::JsonSchema
@@ -2394,6 +2808,53 @@ impl<T> nika_error::traits::AsAny for nika_harness::probe::PresenceFact where T:
 pub fn nika_harness::probe::PresenceFact::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_harness::probe::PresenceFact
 pub type nika_harness::probe::PresenceFact::Output = T
+#[non_exhaustive] pub struct nika_harness::SessionOffer
+pub nika_harness::SessionOffer::agent_name: core::option::Option<alloc::string::String>
+pub nika_harness::SessionOffer::agent_version: core::option::Option<alloc::string::String>
+pub nika_harness::SessionOffer::effort: nika_harness::offer::EffortOffer
+pub nika_harness::SessionOffer::model: nika_harness::offer::ModelOffer
+pub nika_harness::SessionOffer::models: alloc::vec::Vec<alloc::string::String>
+pub nika_harness::SessionOffer::models_omitted: usize
+pub nika_harness::SessionOffer::service_tier: nika_harness::offer::ServiceTierOffer
+impl nika_harness::offer::SessionOffer
+pub const fn nika_harness::offer::SessionOffer::new(model: nika_harness::offer::ModelOffer, effort: nika_harness::offer::EffortOffer, service_tier: nika_harness::offer::ServiceTierOffer) -> Self
+pub fn nika_harness::offer::SessionOffer::with_agent(self, name: core::option::Option<alloc::string::String>, version: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_harness::offer::SessionOffer::with_models(self, listed: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_harness::offer::SessionOffer
+pub fn nika_harness::offer::SessionOffer::clone(&self) -> nika_harness::offer::SessionOffer
+impl core::cmp::Eq for nika_harness::offer::SessionOffer
+impl core::cmp::PartialEq for nika_harness::offer::SessionOffer
+pub fn nika_harness::offer::SessionOffer::eq(&self, other: &nika_harness::offer::SessionOffer) -> bool
+impl core::fmt::Debug for nika_harness::offer::SessionOffer
+pub fn nika_harness::offer::SessionOffer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::offer::SessionOffer
+impl<D> owo_colors::OwoColorize for nika_harness::offer::SessionOffer
+impl<T, U> core::convert::Into<U> for nika_harness::offer::SessionOffer where U: core::convert::From<T>
+pub fn nika_harness::offer::SessionOffer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::offer::SessionOffer where U: core::convert::Into<T>
+pub type nika_harness::offer::SessionOffer::Error = core::convert::Infallible
+pub fn nika_harness::offer::SessionOffer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::offer::SessionOffer where U: core::convert::TryFrom<T>
+pub type nika_harness::offer::SessionOffer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::offer::SessionOffer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::offer::SessionOffer where T: core::clone::Clone
+pub type nika_harness::offer::SessionOffer::Owned = T
+pub fn nika_harness::offer::SessionOffer::clone_into(&self, target: &mut T)
+pub fn nika_harness::offer::SessionOffer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::offer::SessionOffer where T: 'static + ?core::marker::Sized
+pub fn nika_harness::offer::SessionOffer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::offer::SessionOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::SessionOffer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::offer::SessionOffer where T: ?core::marker::Sized
+pub fn nika_harness::offer::SessionOffer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::offer::SessionOffer where T: core::clone::Clone
+pub unsafe fn nika_harness::offer::SessionOffer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::offer::SessionOffer
+pub fn nika_harness::offer::SessionOffer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::offer::SessionOffer where T: 'static
+pub fn nika_harness::offer::SessionOffer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::offer::SessionOffer
+pub type nika_harness::offer::SessionOffer::Output = T
 pub struct nika_harness::SpawnedHarness
 impl nika_harness::spawn::SpawnedHarness
 pub async fn nika_harness::spawn::SpawnedHarness::converse(&self, setup: nika_harness::conversation::ConversationSetup, offer: nika_harness::conversation::ToolOffer) -> core::result::Result<nika_harness::conversation::Conversation, nika_kernel_ai::harness::HarnessError>
@@ -2559,6 +3020,8 @@ pub type nika_harness::probe::VersionPin::Output = T
 pub const nika_harness::DISABLE_ENV: &str
 pub const nika_harness::IDLE_TIMEOUT_SECS: u64
 pub const nika_harness::MAX_LINE_BYTES: usize
+pub const nika_harness::MAX_OFFERED_VALUES: usize
+pub const nika_harness::MAX_OFFERED_VALUE_BYTES: usize
 pub fn nika_harness::compose_env(parent: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, passthrough: &[alloc::string::String]) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub fn nika_harness::declared_adapter_id() -> core::option::Option<alloc::string::String>
 pub fn nika_harness::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
@@ -2576,3 +3039,4 @@ pub fn nika_harness::seat_from_env() -> core::result::Result<core::option::Optio
 pub fn nika_harness::seat_from_id(id: &str) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub fn nika_harness::seat_from_lookup(lookup: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub fn nika_harness::seat_http_err(why: impl core::fmt::Display) -> nika_kernel_core::io::http::HttpError
+pub async fn nika_harness::session_offer(seat: &str, profile: nika_harness::offer::OfferProfile, model: core::option::Option<&str>, timeout: core::time::Duration) -> core::result::Result<nika_harness::offer::SessionOffer, nika_kernel_ai::harness::HarnessError>

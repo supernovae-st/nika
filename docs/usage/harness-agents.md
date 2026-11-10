@@ -253,6 +253,81 @@ given turn ran on the fast tier. Two things outside Nika's sight decide it:
 On a short answer the tier changes little: most of the time is session start
 and time to first token. It shows on long outputs.
 
+## Asking a seat what it offers
+
+A run learns what its session offers on the way to its prompt, and says so
+only when it refuses. `nika serve` can ask ahead, without a prompt, for a
+workflow it serves:
+
+```sh
+curl -s http://127.0.0.1:8787/v1/access-offers/workflows/brief.nika \
+  -H "Authorization: Bearer $(cat .nika/serve.token)"
+```
+
+`/health` lists `accessSessionOffer` when the server has this route. The
+answer is a `nika/access-offer@1` document:
+
+```json
+{
+  "schema": "nika/access-offer@1",
+  "workflow": "workflows/brief.nika",
+  "status": "read",
+  "declared": { "via": "codex", "protocol": "acp", "fallback": "none", "effort": "low" },
+  "prompts_sent": 0,
+  "routes": [
+    {
+      "via": "codex", "protocol": "acp", "profile": "completion", "tasks": ["brief"],
+      "status": "observed",
+      "observed_at": "2026-11-10T17:00:00Z", "fresh_until": "2026-11-10T17:01:00Z",
+      "adapter": { "name": "@agentclientprotocol/codex-acp", "version": "1.13.1" },
+      "model": { "requested": "openai/gpt-5.5", "status": "confirmed", "current": "gpt-5.5",
+                 "offered": ["gpt-5.4", "gpt-5.5"], "omitted": 0 },
+      "effort": { "status": "offered", "option": "reasoning_effort",
+                  "offered": ["low", "medium", "high"], "omitted": 0, "current": "medium" },
+      "service_tier": { "status": "offered", "option": "fast-mode",
+                        "offered": ["standard", "fast"], "omitted": 0, "current": "standard" }
+    }
+  ],
+  "routes_omitted": 0
+}
+```
+
+- The route is the file's. Nika asks only when the workflow declares
+  `run.access.via` under `run.access.protocol: acp`. Any other workflow
+  answers `"status": "not_applicable"` with the reason, and no session is
+  opened. A request names a served workflow and nothing else.
+- There is one row per session shape and model: `completion` for the models
+  `infer:` tasks resolve to (the route's one-shot completion profile),
+  `agent` for the models `agent:` tasks resolve to.
+- Each session is opened as a run opens it, selects the file's model for
+  that session only, lists what the session has for that model and ends. No
+  effort, tier or mode is set and no prompt is sent, so an offer uses no
+  turn of your subscription.
+- `effort.offered` holds the exact values a run accepts on
+  `run.reasoning.effort` for that model: no case folding and no alias.
+  `effort.current` is what a run that declares no effort keeps on a session
+  like this one. `service_tier.offered` holds the language's words
+  (`standard`, `fast`), read through the adapter's measured speed option.
+- A model the session does not list is `"status": "not_offered"`, with the
+  models it does list in `offered`. Its efforts and tiers are then
+  `unobserved`: they are never read from another model's configuration. The
+  same holds for `legacy_list` (the session names the model only in its
+  legacy model list) and `not_confirmed` (it answered another model).
+- The tiers are `unobserved`, with the reason, on an adapter or a release
+  whose speed control is not measured (anything but codex-acp 1.13.1 today).
+- A session that gives no offer is a row with `"status": "unavailable"`, the
+  code a run would meet before its prompt (`NIKA-1803` adapter absent,
+  silent or outside its pin; `NIKA-1804` session death; `NIKA-1805`
+  refused) and a reason.
+- A row is an observation with a time. It is kept 60 seconds (15 when
+  unavailable) and served again meanwhile, so a page that asks often opens a
+  session rarely. One reading runs at a time; a ninth concurrent request
+  answers `503 access_offer_busy`.
+
+An offer authorizes nothing. A model, an effort or a tier can leave a seat
+between the offer and the run: the run selects, reads back and refuses on
+its own session exactly as before.
+
 ## Reading the trace
 
 Each harness `agent:` task journals, in order:

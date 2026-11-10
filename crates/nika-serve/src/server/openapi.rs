@@ -201,6 +201,12 @@ mod builder {
                 super::super::compile::schema::outcome(),
             );
             named.insert("ArtifactManifest".to_owned(), artifact_manifest_schema());
+            named.insert("AccessOffer".to_owned(), access_offer_schema());
+            named.insert("AccessOfferRoute".to_owned(), access_offer_route_schema());
+            named.insert(
+                "AccessOfferListing".to_owned(),
+                access_offer_listing_schema(),
+            );
             named.insert("Artifact".to_owned(), artifact_schema());
             named.insert("ScheduleFindings".to_owned(), schedule_findings_schema());
             named.insert(
@@ -335,6 +341,99 @@ mod builder {
             "required": ["workflow"],
             "properties": {"workflow": {"type": "string", "minLength": 1}}
         })
+    }
+
+    /// `nika/access-offer@1`: what the sessions of a served workflow's own declared ACP
+    /// route offer now. An observation with a time; it authorizes nothing.
+    fn access_offer_schema() -> Value {
+        json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["schema", "workflow", "status", "prompts_sent", "routes", "routes_omitted"],
+            "properties": {
+                "schema": {"type": "string", "const": "nika/access-offer@1"},
+                "workflow": {"type": "string", "minLength": 1},
+                "status": {"type": "string", "enum": ["read", "not_applicable"], "description": "read: the routes below were asked. not_applicable: the file selects no ACP sessions (no `run.access.via` under `run.access.protocol: acp`, or no `infer:`/`agent:` task with a static model); no session was opened and `reason` says why"},
+                "reason": {"type": "string", "description": "Present with not_applicable"},
+                "declared": {
+                    "type": "object", "additionalProperties": false,
+                    "description": "The file's `run.access` and `run.reasoning.effort` as the engine reads them (the `access_requirement` receipt's keys); absent when the file declares neither",
+                    "properties": {
+                        "via": {"type": "string"},
+                        "protocol": {"type": "string", "enum": ["api", "acp"]},
+                        "fallback": {"type": "string", "enum": ["none"]},
+                        "effort": {"type": "string"},
+                        "service_tier": {"type": "string", "enum": ["standard", "fast"]}
+                    }
+                },
+                "prompts_sent": {"type": "integer", "const": 0, "description": "This door holds no prompt: a session is opened, asked what it lists and ended"},
+                "routes": {"type": "array", "maxItems": 8, "items": {"$ref": "#/components/schemas/AccessOfferRoute"}, "description": "One row per session shape the workflow's tasks run in and per model they resolve to: completion rows first, then agent rows"},
+                "routes_omitted": {"type": "integer", "minimum": 0, "description": "Sessions the workflow names beyond the eight one request reads"}
+            }
+        })
+    }
+
+    fn access_offer_route_schema() -> Value {
+        let token =
+            json!({"type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[!-~]+$"});
+        json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["via", "protocol", "profile", "tasks", "status", "observed_at", "fresh_until", "model"],
+            "properties": {
+                "via": {"type": "string", "minLength": 1, "description": "The file's `run.access.via`"},
+                "protocol": {"type": "string", "const": "acp"},
+                "profile": {"type": "string", "enum": ["completion", "agent"], "description": "completion: the route's one-shot completion profile, which `infer:` tasks run under. agent: its agent session, which `agent:` tasks run in"},
+                "tasks": {"type": "array", "items": {"type": "string", "minLength": 1}, "description": "The tasks that resolve to this model in this shape"},
+                "status": {"type": "string", "enum": ["observed", "unavailable"], "description": "observed: the session answered. unavailable: it gave no offer; `code` and `reason` say why, as a run on the route would meet it before its prompt"},
+                "observed_at": {"type": "string", "format": "date-time", "description": "When this row was read. A row is served again until `fresh_until` (60 s after an observed reading, 15 s after an unavailable one)"},
+                "fresh_until": {"type": "string", "format": "date-time"},
+                "code": {"type": "string", "description": "With unavailable: NIKA-1803 (adapter absent, silent or outside its pin), NIKA-1804 (session death) or NIKA-1805 (refused)"},
+                "reason": {"type": "string", "maxLength": 240, "description": "With unavailable: the engine's sentence, no path in it"},
+                "adapter": {
+                    "type": "object", "additionalProperties": false,
+                    "description": "The adapter's own report on `initialize`; a value that is not a short graphic-ASCII token is absent",
+                    "properties": {"name": token.clone(), "version": token.clone()}
+                },
+                "model": {
+                    "type": "object", "additionalProperties": false,
+                    "required": ["requested"],
+                    "properties": {
+                        "requested": {"type": "string", "minLength": 1, "description": "The model as the file names it"},
+                        "status": {"type": "string", "enum": ["confirmed", "session_default", "legacy_list", "not_offered", "not_confirmed"], "description": "confirmed: listed, selected for this session only and read back. session_default: the file names `default`. legacy_list: only the session's legacy model list names it, which answers no configuration. not_offered: the session does not list it. not_confirmed: listed, and the session answered another model. Efforts and tiers are read only under confirmed and session_default"},
+                        "current": dup(&token, "The native id the session holds (confirmed, legacy_list), its own model (session_default) or the one it answered instead (not_confirmed)"),
+                        "offered": {"type": "array", "maxItems": 64, "items": token.clone(), "description": "The model values the session lists, in its order"},
+                        "omitted": {"type": "integer", "minimum": 0, "description": "Listed values not carried: beyond 64, or not a token"}
+                    }
+                },
+                "effort": {"$ref": "#/components/schemas/AccessOfferListing"},
+                "service_tier": {"$ref": "#/components/schemas/AccessOfferListing"}
+            }
+        })
+    }
+
+    /// One dependent offer of a route row: its reasoning efforts (the exact values a run
+    /// accepts on `run.reasoning.effort`) or its service tiers (the language's words).
+    fn access_offer_listing_schema() -> Value {
+        let token =
+            json!({"type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[!-~]+$"});
+        json!({
+            "type": "object", "additionalProperties": false,
+            "required": ["status"],
+            "properties": {
+                "status": {"type": "string", "enum": ["offered", "not_offered", "unobserved"], "description": "offered: the session lists the option for the model. not_offered: it lists none. unobserved: not read, and `reason` says why (the model does not hold, the option is ambiguous or in another form, or no speed control is measured for this adapter release)"},
+                "option": dup(&token, "The session option's own id"),
+                "offered": {"type": "array", "maxItems": 64, "items": token.clone(), "description": "The values, in the session's order. A run accepts a declared value only when it equals one of them exactly"},
+                "omitted": {"type": "integer", "minimum": 0},
+                "current": dup(&token, "The value the session holds now: what a run that declares none keeps on a session like this one"),
+                "reason": {"type": "string", "maxLength": 240}
+            }
+        })
+    }
+
+    /// `schema` with a description.
+    fn dup(schema: &Value, description: &str) -> Value {
+        let mut described = schema.clone();
+        described["description"] = Value::from(description);
+        described
     }
 
     /// The `kind` enumeration is GENERATED from [`crate::JobEventKind`] (#1471):
@@ -573,6 +672,7 @@ mod builder {
             "/v1/openapi.json": openapi_path(),
             "/v1/workflows": workflow_list_path(),
             "/v1/workflows/{name}": workflow_metadata_path(),
+            "/v1/access-offers/{name}": access_offer_path(),
             "/v1/jobs": jobs_path(),
             "/v1/check": check_path(),
             "/v1/compile": super::super::compile::schema::path(),
@@ -716,6 +816,23 @@ mod builder {
             "description": "`{name}` is a served name exactly as GET /v1/workflows lists it: a project-relative path that usually contains `/` (`workflows/daily.nika`). Send its `/` separators literally, as path separators: GET /v1/workflows/workflows/daily.nika. A served name uses only ASCII letters, digits, `.`, `_`, `-` and `/`, so no segment needs percent-encoding; an encoded separator (`%2F`) or any other escape is not decoded and answers 404.",
             "parameters": [{"name": "name", "in": "path", "required": true, "description": "The served name, `/` separators sent literally (it spans several path segments)", "schema": {"type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*\\.nika$"}}],
             "responses": {"200": {"description": "Contained name", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowMetadata"}}}}, "401": error_ref(), "404": error_ref()}
+        }})
+    }
+
+    /// The access-offer door (capability `accessSessionOffer`).
+    fn access_offer_path() -> Value {
+        json!({"get": {
+            "summary": "What the sessions of a workflow's declared ACP route offer now",
+            "description": "Reads, without a prompt, what the sessions of the served workflow's own `run.access` route list for its models: the models, the reasoning efforts and the service tiers. The route and the models are the file's: a request names a served workflow and nothing else. Each session is opened as a run opens it and ended before any prompt. A row is an observation with a time, kept 60 s (15 s when unavailable) and served again meanwhile; one reading runs at a time. An offer authorizes nothing: POST /v1/jobs still selects, reads back and refuses on its own session. `{name}` is sent as for GET /v1/workflows/{name}. Advertised by `accessSessionOffer` on /health; an engine without the token answers 404.",
+            "parameters": [{"name": "name", "in": "path", "required": true, "description": "The served name, `/` separators sent literally (it spans several path segments)", "schema": {"type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*\\.nika$"}}],
+            "responses": {
+                "200": {"description": "The offer document, also when the file selects no ACP sessions (status not_applicable) or a session gave no offer (a row with status unavailable)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccessOffer"}}}},
+                "401": error_ref(),
+                "404": error_ref(),
+                "408": error_ref(),
+                "422": error_ref(),
+                "503": error_ref()
+            }
         }})
     }
 
@@ -962,6 +1079,7 @@ mod tests {
         "/health",
         "/v1/workflows",
         "/v1/workflows/{name}",
+        "/v1/access-offers/{name}",
         "/v1/check",
         "/v1/compile",
         "/v1/jobs",
@@ -1050,6 +1168,7 @@ mod tests {
             ("/health", "Health"),
             ("/v1/workflows", "WorkflowList"),
             ("/v1/workflows/{name}", "WorkflowMetadata"),
+            ("/v1/access-offers/{name}", "AccessOffer"),
         ] {
             assert_eq!(
                 spec["paths"][path]["get"]["responses"]["200"]["content"]["application/json"]["schema"]

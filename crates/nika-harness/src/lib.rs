@@ -29,6 +29,7 @@ pub mod conversation;
 pub mod declaration;
 pub mod infer;
 mod media;
+pub mod offer;
 mod oneshot;
 pub mod probe;
 pub mod registry;
@@ -46,6 +47,10 @@ pub use declaration::{
 pub use infer::{
     HarnessInferOutcome, HarnessInferRequest, InferGradeAttestation, InferGradeError,
     InferGradeSeat, StructuredOutputGrade, meet_infer_grade,
+};
+pub use offer::{
+    EffortOffer, MAX_OFFERED_VALUE_BYTES, MAX_OFFERED_VALUES, ModelOffer, OfferProfile,
+    ServiceTierOffer, SessionOffer, session_offer,
 };
 pub use probe::{
     AdapterProbeRow, LoginCheck, PresenceFact, VersionPin, judge_version, parse_version,

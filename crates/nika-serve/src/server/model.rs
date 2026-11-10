@@ -154,6 +154,9 @@ struct StoreFormatVersion {
 // `accessServiceTier`: POST /v1/jobs and /v1/check admit a served workflow that declares
 // `run.access.service_tier` and judge the tier on its route, where an engine without the
 // token answers 422 for the same source.
+// `accessSessionOffer`: GET /v1/access-offers/{name} reads what the sessions of a served
+// workflow's own declared ACP route offer (models, reasoning efforts, service tiers) without a
+// prompt, where an engine without the token answers 404.
 const HTTP_ADAPTER_CAPABILITIES: &[&str] = &[
     "check",
     "executionSnapshot",
@@ -163,6 +166,7 @@ const HTTP_ADAPTER_CAPABILITIES: &[&str] = &[
     "compile",
     "artifacts",
     "accessServiceTier",
+    "accessSessionOffer",
 ];
 // Only on a server whose resident scheduler is live: the schedule routes.
 const SCHEDULE_CAPABILITY: &str = "schedule";

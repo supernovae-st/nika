@@ -115,8 +115,9 @@ pub(super) fn offered_model(models: Option<&Value>, wanted: &str) -> Option<Stri
     .map(str::to_owned)
 }
 
-/// Every model the agent offers, for the refusal's teaching line.
-pub(super) fn offered_names(option: Option<&Value>, models: Option<&Value>) -> String {
+/// Every model value the agent offers, in advertised order: the model option's choices,
+/// then the legacy list's ids.
+pub(super) fn offered_values(option: Option<&Value>, models: Option<&Value>) -> Vec<String> {
     let mut names: Vec<String> = option.map(choice_values).unwrap_or_default();
     if let Some(list) = models
         .and_then(|m| m.get("availableModels"))
@@ -127,6 +128,12 @@ pub(super) fn offered_names(option: Option<&Value>, models: Option<&Value>) -> S
                 .filter_map(|m| m.get("modelId").and_then(Value::as_str).map(str::to_owned)),
         );
     }
+    names
+}
+
+/// Every model the agent offers, for the refusal's teaching line.
+pub(super) fn offered_names(option: Option<&Value>, models: Option<&Value>) -> String {
+    let names = offered_values(option, models);
     if names.is_empty() {
         "(it advertises no model choice; `default` is its own)".to_owned()
     } else {
