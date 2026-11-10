@@ -2,7 +2,8 @@ name: spec-pin-heal
 
 # The pin advances itself: daily, if nika-spec main moved past SPEC_PIN,
 # bump the pin and open ONE idempotent PR that ALSO re-vendors the pack
-# from the same commit — one spec identity per binary. The job judges the
+# from the same commit and moves the `spec_pin` line of the compile
+# contract fixtures — one spec identity per binary. The job judges the
 # full tests-leg battery at the candidate before opening anything. Never
 # a direct push. The healed files live outside .github/workflows/, so
 # GITHUB_TOKEN can push them.
@@ -110,6 +111,28 @@ jobs:
           git -C ../spec checkout --detach "$head"
           bash scripts/sync-pack.sh ../spec
           git add crates/nika-pack/pack
+          # The compile contract fixtures record the spec commit they were produced
+          # at, so a pin advance moves one `spec_pin` line in each of them. Without
+          # this rewrite the battery below fails on that one test
+          # (`every_contract_fixture_is_the_wire_of_this_compiler`) whenever the pin
+          # moves: every daily run from 2026-10-28 to 2026-11-10 was red, the job
+          # said the engine did not implement the spec, and the pin stopped following
+          # it. Any other difference is a change of the compiler's wire: it is refused
+          # here and left to a human.
+          NIKA_SPEC_DIR="$PWD/../spec" NIKA_CONTRACT_FIXTURES=write \
+            cargo test --locked -p nika-compile --test compile_contract_fixtures
+          fixtures=crates/nika-compile/tests/fixtures/contract
+          fixture_diff="$(git diff -U0 -- "$fixtures")"
+          foreign="$(printf '%s\n' "$fixture_diff" | grep -E '^[+-][^+-]' \
+            | grep -vE '^[+-][[:space:]]*"spec_pin": "[0-9a-f]{40}",?$' || true)"
+          if [ -n "$foreign" ]; then
+            printf '%s\n' "$foreign" | head -20
+            echo "::error::the contract fixtures differ beyond their spec_pin line at spec $head — pin NOT advanced, no PR opened"
+            echo "mutated=false" >> "$GITHUB_OUTPUT"
+            echo "MUTATED: none because the contract fixtures differ beyond their spec_pin line at spec $head" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          git add "$fixtures"
           python3 scripts/estate.py --write
           git add estate.yaml
           echo "::group::the full battery at the candidate pin"
