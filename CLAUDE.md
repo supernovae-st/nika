@@ -15,12 +15,13 @@ Crates live under `crates/nika-*` (renamed from `tools/` during the L0-foundatio
 
 ### Hygiene vectors
 
-Hygiene runs via `scripts/hygiene/check-all.sh`. The vector count grows
-from **10 to 21** once Batch C lands: layering,
-security-axes, cargo-geiger unsafe-deps, env-example parity, license
-consistency, no-async-in-L0, catalog owned-strings, kernel-no-spawn,
-no-`Box<dyn Error>`, cancel-safety docs, and case-insensitive collisions.
-P0/P1 vectors run pre-commit; P2/P3 run pre-push.
+Hygiene runs via `scripts/hygiene/check-all.sh` (exit 0 green, 1 yellow
+only, 2 red). The script is the list of vectors: layering, security axes,
+unsafe dependencies, license consistency, no async in L0, typed errors,
+status and release carriers, advisories and more. Do not quote a count
+here. Formatting and clippy on the touched crates run pre-commit; the
+workspace tests, the whole hygiene suite and the CI ratchets run in the
+pre-push gate (`lefthook.yml`, `scripts/pre-push/gate.sh`).
 
 ### Forward-compat invariants are non-negotiable
 
