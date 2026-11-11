@@ -303,6 +303,25 @@ Serve's cost-review door (`--cost-review`) drives the same path with its own
 startup-composed evidence. `serve_args` gains `--cost-review` and
 `--run-cost-ceiling <USD|none>` (both require `--bind`). The observer decision
 and account now come from Service (`observes` · `observer`).
+Since 2026-11-11 a host's evidence may carry the operator's standing cost
+policy (`CostHostEvidence::with_standing_policy`, nika-providers). `prepare`
+then judges a review whose route a rule names under that rule: it leaves a
+present ceiling to the review when the rule declares a price, refuses a Run
+outside its rule (`PendingCostReview::standing_admission` over the largest
+literal `max_tokens` of the Run's infers) before it returns, and makes room
+in the cost journal for the Run it frames (`Cleared::make_room`, nika-dap:
+4 KiB for each of the Run's two rows and for each request it may send; a
+cleared journal that does not leave that room under its read bound is
+archived whole first). The framed `ReviewedRun` names its rule (`standing`)
+and is admitted with no fresh decision by `confirm_standing(source, now)`:
+the Run is counted in the project's standing ledger (nika-dap, refused when
+the window is full), then confirmed exactly as `confirm` confirms an approved
+review. A host that only asks (Serve's review door) calls
+`standing_rule(root, invocation, wf, plan, inputs, evidence, now)`: the same
+judgment of the route, the Run's bounds, every ceiling and the rule's window,
+made without the project's cost lease, so it never waits on a Run in flight
+and prepares, counts and holds nothing. Evidence without a policy, or a route
+no rule names, takes none of these paths.
 Zero vetoes unknown spend before any question and no review can override
 it: `--max-cost-usd 0` refuses in `prepare`, and a project `ceiling:` must
 be a positive real (nika-vocab refuses 0, negative and NaN at the project
