@@ -53,7 +53,7 @@ trips the `env ` wrapper pattern; route via `pre_validated`).
 | deadline | `tokio::time::timeout` → `ShellError::Timeout` |
 | forced end before an exit without destructors | Linux/macOS: `terminate_owned_groups(grace, then)` — every group still owned gets SIGTERM, a bounded grace, SIGKILL, then a bounded reap; a group whose leader the process can no longer wait for is never signalled, nothing spawns after, and `then` (where the CLI exits) runs before any owner may go on |
 
-Linux/macOS use rustix 1.1.4's safe `waitid(WNOWAIT)` wrapper to observe
+Linux/macOS use rustix 1.1.6's safe `waitid(WNOWAIT)` wrapper to observe
 exit without releasing the process-group identity while a descendant holds
 an output pipe. SIGCHLD wakes the waiter; there is no periodic polling.
 Cancellation registration and post-confinement scratch are released on
