@@ -461,6 +461,68 @@ mod standing {
         );
     }
 
+    /// A scheduled occurrence is judged and recorded as one. Under its
+    /// required ceiling a rule without a price refuses and says what a
+    /// schedule needs; with a declared price whose worst case fits, the job's
+    /// record names the occurrence and the ceiling it was judged under. The
+    /// same Run asked by a caller is recorded as a caller's.
+    #[tokio::test]
+    async fn a_scheduled_occurrence_is_judged_and_recorded_as_one() {
+        let root = tempfile::tempdir().expect("root");
+        let (inputs, plan) = (BTreeMap::new(), plan());
+        let text = rule("");
+        let unpriced = Some(Arc::new(Seat::new(policy(&text))));
+        let refused = driver(root.path(), MODEL, 16);
+        let refused = judge_unreviewed(
+            root.path(),
+            &refused,
+            &plan,
+            &inputs,
+            (&unpriced, (Some(0.05), true)),
+        );
+        assert_eq!(
+            refused
+                .await
+                .err()
+                .expect("a schedule always carries a ceiling"),
+            format!(
+                "price unknown: a $0.050000 ceiling binds this job and the standing cost rule {} declares no price, so the ceiling cannot bound it: a schedule always carries maxCostUsd, so its rule must declare input-usd and output-usd",
+                id(&text)
+            )
+        );
+        assert!(rows(root.path()).is_empty(), "nothing was prepared");
+        let priced = rule(",request-bytes=2048,input-usd=1,output-usd=2");
+        let priced = Some(Arc::new(Seat::new(policy(&priced))));
+        for (scheduled, origin) in [
+            (
+                true,
+                "scheduled occurrence: its required maxCostUsd is the per-run ceiling judged as the machine layer",
+            ),
+            (
+                false,
+                "authenticated job request, not a scheduled occurrence",
+            ),
+        ] {
+            let run = driver(root.path(), MODEL, 16);
+            let judged = (&priced, (Some(0.05), scheduled));
+            let (cost, standing) = judge_unreviewed(root.path(), &run, &plan, &inputs, judged)
+                .await
+                .expect("the declared worst case fits under five cents");
+            let (admission, turn) = standing.expect("a standing admission");
+            assert_eq!(admission["price"], "host_declared");
+            assert_eq!(
+                admission["host"]["occurrence"],
+                json!({"class": "not_applicable", "origin": origin})
+            );
+            assert_eq!(
+                admission["host"]["machine"]["cap"],
+                json!({"capped_usd": "$0.050000"})
+            );
+            cost.expect("its account").finish().expect("settled");
+            drop(turn);
+        }
+    }
+
     /// One unknown-cost Run holds the project's cost lease at a time. On a
     /// backend that holds the policy a second Run a rule names waits for the
     /// first to settle and is then admitted, instead of failing on the lease.

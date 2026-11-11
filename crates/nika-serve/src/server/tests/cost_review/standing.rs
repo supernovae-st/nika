@@ -442,6 +442,89 @@ async fn a_job_outside_the_policy_fails_and_carries_no_admission() {
     server.stop().await.expect("stop");
 }
 
+/// One slot of a schedule, as its firing reaches the coordinator.
+fn fired_slot(slot: char) -> JobOrigin {
+    use nika_cadence::firing::{ArmGeneration, SlotId};
+    use nika_cadence::{ScheduleDecision, ScheduleOrigin, ScheduleRevision};
+    let revision = format!("sha256:{}", "a".repeat(64));
+    let revision = ScheduleRevision::from_wire(&revision).expect("revision");
+    let slot = SlotId::from_wire(&slot.to_string().repeat(64)).expect("slot id");
+    let generation = ArmGeneration::from_wire(&"c".repeat(64)).expect("generation");
+    let at = |instant: &str| instant.parse::<jiff::Timestamp>().expect("instant");
+    JobOrigin::schedule(
+        ScheduleOrigin::Project,
+        "standing",
+        &revision,
+        &slot,
+        ScheduleDecision::Scheduled,
+        at("2026-08-30T10:00:00Z"),
+        at("2026-08-30T10:00:01Z"),
+        &generation,
+    )
+    .expect("scheduled origin")
+}
+
+/// A scheduled occurrence reaches the same gate through the coordinator,
+/// under the ceiling a schedule always carries. A rule that declares a price
+/// admits it when its worst case fits, and the job's record names the
+/// occurrence and that ceiling; a rule without a price refuses it and says
+/// what a schedule needs.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_scheduled_occurrence_runs_only_under_a_declared_price_and_is_recorded_as_one() {
+    let fired = async |text: &str, slot: char| {
+        let world = standing_world();
+        let backend = production(&world, policy(text));
+        let (server, state) = start(&world, backend, generous(None), false).await;
+        let admitted = crate::server::route::admit_by_name("standing.nika", &state).await;
+        let admitted = admitted.expect("a served workflow");
+        let (coordinator, origin) = (state.coordinator.clone(), fired_slot(slot));
+        let prepared = tokio::task::spawn_blocking(move || {
+            let inputs = std::collections::BTreeMap::new();
+            coordinator.prepare_scheduled_with_max_cost(admitted, origin, Some(0.05), inputs)
+        });
+        let prepared = prepared
+            .await
+            .expect("task")
+            .expect("scheduled preparation");
+        let id = prepared.run_id().to_string();
+        let record = tokio::task::spawn_blocking(move || prepared.execute());
+        let record = record.await.expect("task").expect("scheduled execution");
+        let read = get_request(&format!("/v1/jobs/{id}"));
+        let job = server.request(&read).await.json();
+        server.stop().await.expect("stop");
+        (record.status(), job)
+    };
+    let priced = format!(
+        "{},request-bytes=2048,input-usd=1,output-usd=2",
+        rule(MODEL)
+    );
+    let (status, job) = fired(&priced, 'a').await;
+    assert_eq!(status, JobStatus::Succeeded, "{job}");
+    assert_eq!(job["receipt"]["origin"]["kind"], "schedule", "{job}");
+    let admission = &job["cost_admission"];
+    assert_eq!(admission["price"], "host_declared", "{job}");
+    assert_eq!(
+        admission["host"]["occurrence"],
+        json!({"class": "not_applicable", "origin": "scheduled occurrence: its required maxCostUsd is the per-run ceiling judged as the machine layer"})
+    );
+    assert_eq!(
+        admission["host"]["machine"]["cap"],
+        json!({"capped_usd": "$0.050000"})
+    );
+    let text = rule(MODEL);
+    let (status, job) = fired(&text, 'b').await;
+    assert_eq!(status, JobStatus::Failed, "{job}");
+    assert_eq!(job["error"]["code"], "admission_refused", "{job}");
+    assert_eq!(
+        job["error"]["message"],
+        format!(
+            "price unknown: a $0.050000 ceiling binds this job and the standing cost rule {} declares no price, so the ceiling cannot bound it: a schedule always carries maxCostUsd, so its rule must declare input-usd and output-usd",
+            rule_id(&text)
+        )
+    );
+    assert!(job.get("cost_admission").is_none(), "{job}");
+}
+
 /// A Session's review is judged under the Session's own ceiling and never
 /// reads the policy: where a manual review of the same Run is told it needs
 /// none, the Session's is framed for its human and held.
@@ -470,6 +553,37 @@ async fn a_session_review_never_reads_the_policy() {
         .expect("a Session's review is framed");
     assert!(session.starts_with("rev-"), "{session}");
     assert!(!lease_is_free(&world), "held for the Session's human");
+    server.stop().await.expect("stop");
+}
+
+/// Version 1 of the door never answers for a Run it cannot describe. A fan
+/// with an authored retry that the policy admits is still refused there, in
+/// version 1's own words, which name version 2; version 2 says the Run needs
+/// no review and names the rule.
+#[tokio::test(flavor = "multi_thread")]
+async fn version_1_keeps_refusing_a_fan_the_policy_admits() {
+    const FAN: &str = "nika: fan\nmodel: deepseek/c6-unpriced-fixture\npermits: {}\ntasks:\n  review:\n    for_each: { items: [a, b, c], max_parallel: 2 }\n    retry: { max_attempts: 2 }\n    infer: { prompt: 'x ${{ item }}', max_tokens: 16 }\n";
+    let world = world();
+    std::fs::write(world.workflows.join("fan.nika"), FAN).expect("workflow");
+    // Three items, two attempts each: six requests, inside a rule of six.
+    let text = rule(MODEL).replace("requests=4", "requests=6");
+    let backend = Arc::new(Holding(policy(&text)));
+    let (server, _state) = start(&world, backend, disarmed(), true).await;
+    let body = r#"{"workflow":"fan.nika"}"#;
+    let v1 = server.request(&review_at(1, body, "fan-v1")).await;
+    assert_eq!(v1.status, 422, "{}", v1.body);
+    let refused = v1.json();
+    let message = refused["error"]["message"].as_str().expect("message");
+    assert!(message.contains("POST /v2/cost-reviews"), "{message}");
+    assert!(!v1.body.contains("standing_policy"), "{}", v1.body);
+    let v2 = server.request(&review_at(2, body, "fan-v2")).await;
+    assert_eq!(v2.status, 200, "{}", v2.body);
+    let answered = v2.json();
+    assert_eq!(answered["review_required"], false);
+    assert_eq!(answered["standing_policy"]["policy"], rule_id(&text));
+    assert_eq!(answered["standing_policy"]["max_requests"], 6);
+    assert!(rows(&world).is_empty(), "the door prepared nothing");
+    assert!(lease_is_free(&world), "and holds nothing");
     server.stop().await.expect("stop");
 }
 

@@ -180,6 +180,72 @@ fn settlement_is_a_terminal_event_projection_across_reopen_and_later_events() {
     }
 }
 
+/// How a standing cost policy admitted a run is a projection of the same hash-bound terminal
+/// event: read from it, never stored beside the record, the same after a reopen and an
+/// idempotent replay, and unmoved by a later event. A terminal event that carries anything but
+/// an object there cannot mutate durable state.
+#[test]
+fn cost_admission_is_a_terminal_event_projection_and_a_malformed_one_is_refused() {
+    let root = tempfile::tempdir().expect("root");
+    let store = JobStore::open(root.path()).expect("store");
+    let created = admitted_record(
+        store
+            .create_or_replay(key("admission"), digest(71))
+            .expect("create"),
+    );
+    assert!(created.cost_admission().is_none());
+    transition(&store, created.id(), JobStatus::Running);
+    let state = root.path().join("jobs/state.json");
+    let before = std::fs::read(&state).expect("before");
+    let settled = |admission: &serde_json::Value| json!({"kind": "execution.settled", "status": "succeeded", "cost_admission": admission});
+    for malformed in [
+        json!("standing_policy"),
+        json!(null),
+        json!(["standing_policy"]),
+        json!(1),
+    ] {
+        let refused = store.transition_with_events(
+            created.id(),
+            JobStatus::Succeeded,
+            &[settled(&malformed)],
+        );
+        assert!(
+            matches!(refused, Err(JobStoreError::Corrupt(_))),
+            "{malformed}"
+        );
+        assert_eq!(std::fs::read(&state).expect("after"), before, "{malformed}");
+    }
+    let admission = json!({"schema": "nika/cost-admission@1", "authority": "standing_policy",
+        "price": "unknown"});
+    let terminal = store
+        .transition_with_events(created.id(), JobStatus::Succeeded, &[settled(&admission)])
+        .expect("terminal");
+    assert_eq!(terminal.record().cost_admission(), Some(&admission));
+    let later = json!({"kind": "annotation", "cost_admission": {"authority": "not the terminal"}});
+    store
+        .append_events(created.id(), &[later])
+        .expect("later event");
+    let persisted: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&state).expect("persisted state"))
+            .expect("json");
+    assert!(
+        persisted["jobs"][0]["record"]
+            .get("cost_admission")
+            .is_none(),
+        "one durable authority: the terminal event"
+    );
+    drop(store);
+    let reopened = JobStore::open(root.path()).expect("reopen");
+    let read = reopened.get(created.id()).expect("get").expect("record");
+    assert_eq!(read.cost_admission(), Some(&admission));
+    let replay = admitted_record(
+        reopened
+            .create_or_replay(key("admission"), digest(71))
+            .expect("replay"),
+    );
+    assert_eq!(replay.cost_admission(), Some(&admission));
+}
+
 fn key(value: &str) -> IdempotencyKey {
     IdempotencyKey::new(value).expect("valid key")
 }
