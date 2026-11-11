@@ -154,6 +154,17 @@ impl PendingCostReview {
     pub fn challenge(&self) -> &CostChallenge {
         &self.challenge
     }
+    /// [`CostReview::standing_admission`] of the pending review: the standing
+    /// rule its host may confirm it under with no fresh decision, or why the
+    /// Run is outside that rule.
+    /// # Errors
+    /// As [`CostReview::standing_admission`].
+    pub fn standing_admission(
+        &self,
+        output_tokens: u32,
+    ) -> Result<Option<&crate::admission::StandingRule>, String> {
+        self.review.standing_admission(output_tokens)
+    }
     /// Consume exactly once, after the host independently re-observes its evidence.
     /// # Errors
     /// Decline, mismatched response, expiry or changed candidate/route/policy.

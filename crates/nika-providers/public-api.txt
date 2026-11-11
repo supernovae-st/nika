@@ -332,8 +332,10 @@ pub type nika_providers::admission::CostChallenge::Output = T
 impl nika_providers::admission::CostHostEvidence
 pub fn nika_providers::admission::CostHostEvidence::new(allowed: bool, policy: nika_providers::admission::CapEvidence, machine: nika_providers::admission::CapEvidence, occurrence: nika_providers::admission::CapEvidence) -> Self
 pub fn nika_providers::admission::CostHostEvidence::unknown_cost_refusal(&self) -> core::option::Option<alloc::string::String>
+pub fn nika_providers::admission::CostHostEvidence::unknown_cost_refusal_on(&self, route: &nika_providers::admission::CostRoute) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::admission::CostHostEvidence::unmanaged_interactive_local() -> Self
 pub fn nika_providers::admission::CostHostEvidence::view(&self) -> serde_json::value::Value
+pub fn nika_providers::admission::CostHostEvidence::with_standing_policy(self, policy: nika_providers::admission::StandingCostPolicy) -> Self
 impl core::clone::Clone for nika_providers::admission::CostHostEvidence
 pub fn nika_providers::admission::CostHostEvidence::clone(&self) -> nika_providers::admission::CostHostEvidence
 impl core::default::Default for nika_providers::admission::CostHostEvidence
@@ -412,6 +414,7 @@ pub fn nika_providers::admission::CostReview::new(candidate: alloc::string::Stri
 pub fn nika_providers::admission::CostReview::new_with_clock<C: nika_kernel_core::io::clock::ClockDyn + core::fmt::Debug + 'static>(candidate: alloc::string::String, invocation: alloc::string::String, route: nika_providers::admission::CostRoute, evidence: nika_providers::admission::CostHostEvidence, invocation_default: core::option::Option<nika_types::cost::Cost>, project_default: core::option::Option<nika_types::cost::Cost>, clock: alloc::sync::Arc<C>) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_providers::admission::CostReview::question(&self) -> alloc::string::String
 pub fn nika_providers::admission::CostReview::request_timeout(&self) -> core::time::Duration
+pub fn nika_providers::admission::CostReview::standing_admission(&self, output_tokens: u32) -> core::result::Result<core::option::Option<&nika_providers::admission::StandingRule>, alloc::string::String>
 pub fn nika_providers::admission::CostReview::with_authored_retry(self, authored: bool) -> Self
 pub fn nika_providers::admission::CostReview::with_breakdown(self, lines: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_providers::admission::CostReview::with_concurrency(self, max_in_flight: u32) -> core::result::Result<Self, alloc::string::String>
@@ -684,6 +687,7 @@ impl nika_providers::admission::PendingCostReview
 pub fn nika_providers::admission::PendingCostReview::challenge(&self) -> &nika_providers::admission::CostChallenge
 pub fn nika_providers::admission::PendingCostReview::confirm(self, response: &nika_providers::admission::CostResponse, candidate: &str, route: &nika_providers::admission::CostRoute) -> core::result::Result<nika_providers::admission::InferenceAdmission, alloc::string::String>
 pub fn nika_providers::admission::PendingCostReview::new(review: nika_providers::admission::CostReview, source_sha256: alloc::string::String, inputs_sha256: alloc::string::String) -> Self
+pub fn nika_providers::admission::PendingCostReview::standing_admission(&self, output_tokens: u32) -> core::result::Result<core::option::Option<&nika_providers::admission::StandingRule>, alloc::string::String>
 impl core::fmt::Debug for nika_providers::admission::PendingCostReview
 pub fn nika_providers::admission::PendingCostReview::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_providers::admission::PendingCostReview
@@ -707,6 +711,86 @@ impl<T> nika_error::traits::AsAny for nika_providers::admission::PendingCostRevi
 pub fn nika_providers::admission::PendingCostReview::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_providers::admission::PendingCostReview
 pub type nika_providers::admission::PendingCostReview::Output = T
+#[non_exhaustive] pub struct nika_providers::admission::StandingCostPolicy
+impl nika_providers::admission::StandingCostPolicy
+pub fn nika_providers::admission::StandingCostPolicy::resolve(rules: &[alloc::string::String], config: &nika_providers::registry::ProvidersConfig) -> core::result::Result<Self, alloc::string::String>
+pub fn nika_providers::admission::StandingCostPolicy::rule_for(&self, route: &nika_providers::admission::CostRoute) -> core::option::Option<&nika_providers::admission::StandingRule>
+pub fn nika_providers::admission::StandingCostPolicy::view(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_providers::admission::StandingCostPolicy
+pub fn nika_providers::admission::StandingCostPolicy::clone(&self) -> nika_providers::admission::StandingCostPolicy
+impl core::cmp::PartialEq for nika_providers::admission::StandingCostPolicy
+pub fn nika_providers::admission::StandingCostPolicy::eq(&self, other: &nika_providers::admission::StandingCostPolicy) -> bool
+impl core::fmt::Debug for nika_providers::admission::StandingCostPolicy
+pub fn nika_providers::admission::StandingCostPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::admission::StandingCostPolicy
+impl<D> owo_colors::OwoColorize for nika_providers::admission::StandingCostPolicy
+impl<T, U> core::convert::Into<U> for nika_providers::admission::StandingCostPolicy where U: core::convert::From<T>
+pub fn nika_providers::admission::StandingCostPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::admission::StandingCostPolicy where U: core::convert::Into<T>
+pub type nika_providers::admission::StandingCostPolicy::Error = core::convert::Infallible
+pub fn nika_providers::admission::StandingCostPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::admission::StandingCostPolicy where U: core::convert::TryFrom<T>
+pub type nika_providers::admission::StandingCostPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::admission::StandingCostPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::admission::StandingCostPolicy where T: core::clone::Clone
+pub type nika_providers::admission::StandingCostPolicy::Owned = T
+pub fn nika_providers::admission::StandingCostPolicy::clone_into(&self, target: &mut T)
+pub fn nika_providers::admission::StandingCostPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::admission::StandingCostPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_providers::admission::StandingCostPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::admission::StandingCostPolicy where T: ?core::marker::Sized
+pub fn nika_providers::admission::StandingCostPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::admission::StandingCostPolicy where T: ?core::marker::Sized
+pub fn nika_providers::admission::StandingCostPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::admission::StandingCostPolicy where T: core::clone::Clone
+pub unsafe fn nika_providers::admission::StandingCostPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::admission::StandingCostPolicy
+pub fn nika_providers::admission::StandingCostPolicy::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::admission::StandingCostPolicy where T: 'static
+pub fn nika_providers::admission::StandingCostPolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::StandingCostPolicy
+pub type nika_providers::admission::StandingCostPolicy::Output = T
+#[non_exhaustive] pub struct nika_providers::admission::StandingRule
+impl nika_providers::admission::StandingRule
+pub fn nika_providers::admission::StandingRule::id(&self) -> &str
+pub fn nika_providers::admission::StandingRule::max_runs(&self) -> u32
+pub fn nika_providers::admission::StandingRule::parse(text: &str) -> core::result::Result<Self, alloc::string::String>
+pub fn nika_providers::admission::StandingRule::view(&self) -> serde_json::value::Value
+pub fn nika_providers::admission::StandingRule::window(&self) -> core::time::Duration
+impl core::clone::Clone for nika_providers::admission::StandingRule
+pub fn nika_providers::admission::StandingRule::clone(&self) -> nika_providers::admission::StandingRule
+impl core::cmp::PartialEq for nika_providers::admission::StandingRule
+pub fn nika_providers::admission::StandingRule::eq(&self, other: &nika_providers::admission::StandingRule) -> bool
+impl core::fmt::Debug for nika_providers::admission::StandingRule
+pub fn nika_providers::admission::StandingRule::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::admission::StandingRule
+impl<D> owo_colors::OwoColorize for nika_providers::admission::StandingRule
+impl<T, U> core::convert::Into<U> for nika_providers::admission::StandingRule where U: core::convert::From<T>
+pub fn nika_providers::admission::StandingRule::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::admission::StandingRule where U: core::convert::Into<T>
+pub type nika_providers::admission::StandingRule::Error = core::convert::Infallible
+pub fn nika_providers::admission::StandingRule::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::admission::StandingRule where U: core::convert::TryFrom<T>
+pub type nika_providers::admission::StandingRule::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::admission::StandingRule::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::admission::StandingRule where T: core::clone::Clone
+pub type nika_providers::admission::StandingRule::Owned = T
+pub fn nika_providers::admission::StandingRule::clone_into(&self, target: &mut T)
+pub fn nika_providers::admission::StandingRule::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::admission::StandingRule where T: 'static + ?core::marker::Sized
+pub fn nika_providers::admission::StandingRule::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::admission::StandingRule where T: ?core::marker::Sized
+pub fn nika_providers::admission::StandingRule::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::admission::StandingRule where T: ?core::marker::Sized
+pub fn nika_providers::admission::StandingRule::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::admission::StandingRule where T: core::clone::Clone
+pub unsafe fn nika_providers::admission::StandingRule::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::admission::StandingRule
+pub fn nika_providers::admission::StandingRule::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::admission::StandingRule where T: 'static
+pub fn nika_providers::admission::StandingRule::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::StandingRule
+pub type nika_providers::admission::StandingRule::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::UnknownAttemptReceipt
 pub nika_providers::admission::UnknownAttemptReceipt::choice: nika_providers::admission::UnknownCostChoice
 pub nika_providers::admission::UnknownAttemptReceipt::currency: core::option::Option<alloc::string::String>
@@ -758,11 +842,13 @@ impl<T> typenum::type_operators::Same for nika_providers::admission::UnknownAtte
 pub type nika_providers::admission::UnknownAttemptReceipt::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::UnknownCostChoice
 impl nika_providers::admission::UnknownCostChoice
+pub fn nika_providers::admission::UnknownCostChoice::declared_worst_case(&self) -> core::option::Option<nika_types::cost::Cost>
 pub fn nika_providers::admission::UnknownCostChoice::endpoint(&self) -> &str
 pub fn nika_providers::admission::UnknownCostChoice::model(&self) -> &str
 pub fn nika_providers::admission::UnknownCostChoice::new(candidate: alloc::string::String, invocation: alloc::string::String, provider: alloc::string::String, model: alloc::string::String, endpoint: alloc::string::String, max_requests: u32, max_output_tokens: u32, timeout: core::time::Duration) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::UnknownCostChoice::origin(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::admission::UnknownCostChoice::provider(&self) -> &str
+pub fn nika_providers::admission::UnknownCostChoice::standing_policy(&self) -> core::option::Option<&str>
 pub fn nika_providers::admission::UnknownCostChoice::with_authored_retry(self) -> Self
 pub fn nika_providers::admission::UnknownCostChoice::with_declared_tariff(self, tariff: nika_providers::admission::DeclaredTariff) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::UnknownCostChoice::with_max_in_flight(self, n: u32) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
@@ -844,6 +930,7 @@ pub const nika_providers::admission::RUN_REVIEW_TIMEOUT: core::time::Duration
 pub const nika_providers::admission::SESSION_REVIEW_MAX_OUTPUT_TOKENS: u32
 pub const nika_providers::admission::SESSION_REVIEW_MAX_REQUESTS: u32
 pub const nika_providers::admission::SESSION_REVIEW_TIMEOUT: core::time::Duration
+pub const nika_providers::admission::STANDING_MAX_REQUESTS: u32
 pub fn nika_providers::admission::account_status(receipt: core::result::Result<core::option::Option<nika_providers::admission::InferenceReceipt>, alloc::string::String>, reconfirm: bool, historical: usize, interrupted: &str, note: core::option::Option<&str>, refusal: core::option::Option<&str>, zero: bool) -> alloc::string::String
 pub fn nika_providers::admission::accounting_checkpoint(account: core::option::Option<&nika_providers::admission::InferenceAdmission>, observations: &[serde_json::value::Value], project: &[u8]) -> core::option::Option<serde_json::value::Value>
 pub fn nika_providers::admission::admit_unpriced_companion(admission: core::option::Option<&nika_providers::admission::InferenceAdmission>) -> core::result::Result<(), alloc::string::String>

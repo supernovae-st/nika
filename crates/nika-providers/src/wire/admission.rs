@@ -64,6 +64,8 @@ pub(crate) fn reserve<H>(
             "this {bytes}-byte request may exceed the {bound} input tokens its tariff admits (a longer prompt bills at the model's next price tier); nothing was sent"
         )));
     }
+    // A standing rule may bound the request below the 1 MiB above.
+    a.check_request_bytes(bytes)?;
     a.reserve(rp.profile.id, &rp.wire_model, &rp.base_url, max)
         .map(Some)
 }

@@ -31,11 +31,13 @@ pub use review::{
     monetary_default, native_catalog_price_known, unknown_cost_route,
 };
 mod scope;
+mod standing;
 mod unknown;
 pub use declared::{DeclaredTariff, TariffUnit};
 pub use observation::{
     observation_consistent, observation_readable, observation_request_ids, observation_route,
 };
+pub use standing::{STANDING_MAX_REQUESTS, StandingCostPolicy, StandingRule};
 pub use unknown::{HardMonetaryCap, UnknownAttemptReceipt, UnknownCostChoice, UnknownCostPolicy};
 
 #[cfg(test)]

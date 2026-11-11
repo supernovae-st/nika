@@ -557,6 +557,39 @@ question, followed by the in-flight bound and, for authored retries, the retry
 rule. A review with neither a breakdown, concurrency nor authored retries keeps
 its historical question bytes.
 
+`admission::standing` (2026-11-11) is the operator's standing cost policy: an
+authorization made once in a host's composition for Runs on an API route the
+catalog does not price. `StandingRule::parse` reads one rule
+(`PROVIDER/MODEL:requests=N,output-tokens=N,timeout=SECONDS,runs=N/PERIOD`,
+then optionally `request-bytes=N` and `input-usd=USD,output-usd=USD`); every
+bound only narrows what a Run review admits, the four bounds are required,
+and the rule's identity is a digest of its canonical form.
+`StandingCostPolicy::resolve` observes each rule's exact route under the
+host's provider configuration and refuses a route the catalog prices or names
+twice. A host hands the policy to a review inside its evidence
+(`CostHostEvidence::with_standing_policy`): `CostReview` then carries the rule
+that names its route, narrows its output and time bounds to it, and
+`standing_admission` says whether the host may confirm the review with no
+fresh decision. The confirmed `UnknownCostChoice` records the rule (`standing`)
+and, when the rule bounds it, `max_request_bytes`, which the account enforces
+before any reservation. Both keys are absent on a fresh review's choice, whose
+bytes are unchanged; the durable `@2` observation carries them as optional
+keys, so an engine before this one refuses to read a journal row that holds
+them (it fails closed, as for every key it does not know).
+
+A standing choice overrides no ceiling (`UnknownCostPolicy::validate_for`).
+The host must permit unknown cost and have observed every cap layer; then
+each ceiling the Run is under (a hard cap, an invocation or project default)
+is absent or covers the choice's declared worst case. Only a rule that
+declares a USD price has one: the rates are attached as the existing
+`DeclaredTariff` (an operator's estimate, never an invoice), and the worst
+case is every request at its size bound (a request's bytes bound its input
+tokens) and its output bound. A reply that reports more input tokens than
+that size bound contradicts what the worst case rests on and leaves the
+account Uncertain.
+`CostHostEvidence::unknown_cost_refusal_on(route)` is `unknown_cost_refusal`
+except that a rule declaring a price leaves a present ceiling to the review.
+
 `ExecutionAccessPlan::admits_api_lane(provider)` (C6, descended from Serve's
 cost-review door) answers whether an admitted lane of that canonical provider,
 named by the lane's model prefix, runs on the API access class: the lane whose
