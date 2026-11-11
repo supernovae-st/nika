@@ -675,7 +675,9 @@ and no repricer exists.
 observation, `nika/inference-cost-observation@2`, and
 `InferenceReceipt::durable_observation()` is `project_observation` of the
 receipt's own `observation()`, which stays the exact `@1` in memory. The closed
-schema follows W9 with B12's `max_in_flight` and `authored_retry` (A1):
+schema follows W9 with B12's `max_in_flight` and `authored_retry` (A1), and
+with the two optional keys a choice admitted under a standing cost rule
+writes, `max_request_bytes` and `standing` (absent on a fresh review's choice):
 - every endpoint (the choice's, a declared tariff's, a catalog attempt's, a
   pricing route's) becomes its `origin`;
 - money, counters, states, ids, bounds, catalog constants and usage are copied as
