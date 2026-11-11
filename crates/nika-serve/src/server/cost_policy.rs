@@ -123,20 +123,26 @@ impl StandingJob<'_> {
             .with_standing_policy(self.policy.clone())
     }
 
-    /// The refusal of a Run whose rule declares no price while a ceiling binds
-    /// the job: the one refusal whose remedy this server teaches.
+    /// The refusal of a Run a rule names when the job's ceiling stops it before
+    /// any review: the one refusal whose remedy this server teaches. A ceiling
+    /// that reads as a USD amount stops only a rule that declares no price (a
+    /// declared worst case is judged against it instead). One that does not
+    /// read stops every rule, and the refusal says that rather than blame the
+    /// rule. A job under no ceiling never reaches this refusal.
     pub(super) fn capped(&self, rule: &StandingRule) -> String {
-        let ceiling = self
-            .ceiling
-            .and_then(|usd| monetary_default(Some(usd)).ok().flatten())
-            .map_or_else(|| "a".to_owned(), |cap| format!("a {cap}"));
+        let Some(Ok(Some(ceiling))) = self.ceiling.map(|usd| monetary_default(Some(usd))) else {
+            return format!(
+                "price unknown: the per-run ceiling this job runs under does not read as a USD amount, so the standing cost rule {} admits nothing under it",
+                rule.id()
+            );
+        };
         let remedy = if self.scheduled {
             "a schedule always carries maxCostUsd, so its rule must declare input-usd and output-usd"
         } else {
             "declare input-usd and output-usd on the rule, or start with --run-cost-ceiling none"
         };
         format!(
-            "price unknown: {ceiling} ceiling binds this job and the standing cost rule {} declares no price, so the ceiling cannot bound it: {remedy}",
+            "price unknown: a {ceiling} ceiling binds this job and the standing cost rule {} declares no price, so the ceiling cannot bound it: {remedy}",
             rule.id()
         )
     }

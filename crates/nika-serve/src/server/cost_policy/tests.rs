@@ -175,7 +175,24 @@ fn every_refusal_a_job_record_keeps_fits_its_message_bound() {
             "price unknown: a $0.050000 ceiling binds this job and the standing cost rule {id} declares no price, so the ceiling cannot bound it: a schedule always carries maxCostUsd, so its rule must declare input-usd and output-usd"
         )
     );
-    for kept in [manual.as_str(), scheduled.as_str(), UNNAMED] {
+    // A ceiling that does not read stops every rule, and never blames the rule.
+    let unreadable = named(&StandingJob {
+        policy: &held,
+        ceiling: Some(f64::NAN),
+        scheduled: false,
+    });
+    assert_eq!(
+        unreadable,
+        format!(
+            "price unknown: the per-run ceiling this job runs under does not read as a USD amount, so the standing cost rule {id} admits nothing under it"
+        )
+    );
+    for kept in [
+        manual.as_str(),
+        scheduled.as_str(),
+        unreadable.as_str(),
+        UNNAMED,
+    ] {
         assert_eq!(bound_message(kept), kept, "the record keeps it whole");
         assert!(kept.len() <= 240, "{}", kept.len());
     }

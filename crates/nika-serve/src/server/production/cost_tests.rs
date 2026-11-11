@@ -436,6 +436,29 @@ mod standing {
             .expect("the worst case exceeds the ceiling"),
             "the declared worst case of this Run ($0.002176: every request at its size and output bounds, at the declared rates) exceeds the $0.001000 ceiling it runs under; nothing was sent"
         );
+        // A ceiling that does not read as an amount admits nothing, whatever
+        // the rule declares, and the refusal never says the rule has no price.
+        let unreadable = StandingJob {
+            policy: &priced,
+            ceiling: Some(f64::NAN),
+            scheduled: false,
+        };
+        let refused = unreviewed_cost(
+            root.path(),
+            &driver,
+            &plan(),
+            &BTreeMap::new(),
+            Some(&unreadable),
+        );
+        assert_eq!(
+            refused
+                .err()
+                .expect("no ceiling to judge a worst case against"),
+            format!(
+                "price unknown: the per-run ceiling this job runs under does not read as a USD amount, so the standing cost rule {} admits nothing under it",
+                id(&priced_text)
+            )
+        );
     }
 
     /// One unknown-cost Run holds the project's cost lease at a time. On a
