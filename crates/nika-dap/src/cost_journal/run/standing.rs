@@ -10,7 +10,12 @@
 //! bound holds across restarts of its host. It is a count the host enforces,
 //! never billing evidence: the journal and the trace stay that. An admission
 //! forgets the route's Runs that left the window it was given, so a rule
-//! rewritten with a longer window counts only what the shorter one kept.
+//! rewritten with a longer window counts only what the shorter one kept. The
+//! count is kept by route, not by rule: two hosts that serve one project with
+//! different windows for one route share it, and each admission under the
+//! shorter window forgets Runs the longer one still counts, so the longer
+//! rule's bound starts again from what the shorter one kept. Nothing here
+//! prevents that: one project is served by one policy.
 //!
 //! The archive keeps unattended Runs from filling the journal, which every
 //! admission reads whole and refuses past its read bound. A cleared journal

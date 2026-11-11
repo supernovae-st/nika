@@ -153,6 +153,12 @@ A run that may send more requests or ask more output than the rule admits
 is refused before anything is sent, as is a route no rule names and the run
 past a full window.
 
+Runs are counted per route in the project, not per rule. Serve a project
+from one server and keep a route's window when you edit its rule: an
+admission under a shorter window (a second server on the same project, or a
+restart with an edited rule) forgets the runs a longer window still counted,
+so the longer rule's count starts again from what is left.
+
 A rule overrides no ceiling. Without a price, every ceiling the job is
 under must be absent: the server's (`--run-cost-ceiling none`), the job's
 own and the project's `ceiling:`. Scheduled occurrences always carry
