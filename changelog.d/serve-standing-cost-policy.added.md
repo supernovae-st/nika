@@ -15,8 +15,9 @@
   ceiling the job is under must be absent (`--run-cost-ceiling none`, never
   implied), so scheduled occurrences stay refused; with
   `input-usd=USD,output-usd=USD` (an operator's estimate per million tokens,
-  optionally `request-bytes=N`) the run is admitted under a present ceiling
-  only when its declared worst case fits. The run's cost journal, its trace
+  optionally `request-bytes=N`) the run, a scheduled occurrence included,
+  is admitted under a present ceiling only when its declared worst case
+  fits. The run's cost journal, its trace
   and the job's new `cost_admission` (`nika/cost-admission@1`) name the
   rule, its bounds, whether the price is `unknown` or `host_declared` and
   the ceiling evidence; a call whose cost is unknown is never recorded as

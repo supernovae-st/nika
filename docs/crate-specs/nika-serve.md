@@ -737,10 +737,13 @@ the catalog already prices, two rules for one route).
   (never implied by the policy). A rule that declares a price records it as
   the operator's estimate, and the Run is admitted under a present ceiling
   only when its declared worst case (every request at its size and output
-  bounds, at the declared rates) fits under each one. The runtime's own
-  `--max-cost-usd` gate is replaced as it is for a reviewed job: the catalog
-  cannot price the route, and the account's request, size and output bounds
-  are what hold the Run inside that worst case.
+  bounds, at the declared rates) fits under each one: a scheduled occurrence
+  included, whose `maxCostUsd` is then a ceiling it must fit under. A ceiling
+  that does not read as a USD amount admits nothing, whatever the rule
+  declares (`StandingJob::capped` says so rather than blame the rule). The
+  runtime's own `--max-cost-usd` gate is replaced as it is for a reviewed
+  job: the catalog cannot price the route, and the account's request, size
+  and output bounds are what hold the Run inside that worst case.
 - **Truthful records.** The account's choice records the rule that admitted
   it (`standing`: the rule's identity, a digest of its canonical form, and
   its Runs-per-window; with a declared price, `declared_tariff` and
@@ -765,9 +768,13 @@ the catalog already prices, two rules for one route).
   answer never waits on a Run in flight and nothing is counted or held. The
   job's own admission judges it again and reads what earlier Runs left. A
   client that asks for a review before every job then posts the job without
-  one. Version 1 keeps refusing a fan or an authored retry; a Session's
-  review, judged under the Session's own ceiling, never reads the policy; a
-  Run the policy does not admit gets its review as before.
+  one. Version 1 keeps refusing a fan or an authored retry, in its own
+  words, even when the policy admits the Run (version 2 then answers that it
+  needs no review); a Session's review, judged under the Session's own
+  ceiling, never reads the policy; a Run the policy does not admit gets its
+  review as before. Without the door, a Session's run reaches the backend as
+  a job under the Session's own ceiling, so a rule admits it only with a
+  declared price whose worst case fits.
 - **Contract.** `openapi::under_cost_policy` merges
   `cost_policy/openapi.json` (`Job.cost_admission`, `JobEvent.cost_admission`,
   `CostAdmission`, `StandingCostRule`) over the served document when the

@@ -449,7 +449,9 @@ HTTP jobs are queued normally, then settle as `failed` / `admission_refused`
 before any model or tool effect. Resident schedule fires use the same gate. The
 terminal Session and interactive local `nika run` can ask for this choice; an
 explicit `--cost-review-stdio` host must implement the review exchange. A
-workflow's saved ceiling is not that choice.
+workflow's saved ceiling is not that choice. On a server, only its operator can
+admit such a route, with a per-run review door or a standing cost policy: see
+[Runs on a route the catalog does not price](../ops/README.md#runs-on-a-route-the-catalog-does-not-price).
 
 Unknown-price review is limited to bounded HTTPS OpenAI-compatible text calls.
 HTTP API overrides and native Anthropic/Gemini gateway overrides refuse even

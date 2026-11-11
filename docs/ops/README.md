@@ -156,10 +156,11 @@ past a full window.
 A rule overrides no ceiling. Without a price, every ceiling the job is
 under must be absent: the server's (`--run-cost-ceiling none`), the job's
 own and the project's `ceiling:`. Scheduled occurrences always carry
-`maxCostUsd`, so they stay refused. With `input-usd` and `output-usd` the
-engine computes the run's declared worst case (every request at its size
-and output bounds, at your rates) and admits the run only when that figure
-fits under each ceiling, so the default ceiling can stay armed:
+`maxCostUsd`, so without a declared price they stay refused. With
+`input-usd` and `output-usd` the engine computes the run's declared worst
+case (every request at its size and output bounds, at your rates) and
+admits the run only when that figure fits under each ceiling, so the
+default ceiling can stay armed and a schedule can run on the route:
 
 ```sh
 nika serve --bind 127.0.0.1:8787 --workflows ./workflows --token-file .nika/serve.token \
