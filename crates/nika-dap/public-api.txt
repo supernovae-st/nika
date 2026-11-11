@@ -2110,6 +2110,9 @@ pub type nika_dap::cost_journal::Claims<V>::NoneType = T
 pub fn nika_dap::cost_journal::Claims<V>::null_value() -> T
 pub struct nika_dap::cost_journal::Cleared
 impl nika_dap::cost_journal::Cleared
+pub fn nika_dap::cost_journal::Cleared::admit_standing_run(&self, route: &str, max_runs: u32, window: core::time::Duration, now: std::time::SystemTime) -> core::io::error::Result<core::result::Result<u32, nika_dap::cost_journal::WindowFull>>
+pub fn nika_dap::cost_journal::Cleared::make_room(&self, reserve: u64) -> core::io::error::Result<core::option::Option<alloc::string::String>>
+impl nika_dap::cost_journal::Cleared
 pub fn nika_dap::cost_journal::Cleared::journal(&self) -> core::io::error::Result<nika_dap::cost_journal::JournalWitness>
 pub fn nika_dap::cost_journal::Cleared::observe_file(&self, path: &std::path::Path, write: core::option::Option<bool>) -> core::io::error::Result<core::option::Option<alloc::string::String>>
 pub fn nika_dap::cost_journal::Cleared::same_place(&self, root: &std::path::Path) -> core::io::error::Result<bool>
@@ -2397,6 +2400,58 @@ impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::RunJournal
 impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::RunJournal
 impl<T> typenum::type_operators::Same for nika_dap::cost_journal::RunJournal
 pub type nika_dap::cost_journal::RunJournal::Output = T
+#[non_exhaustive] pub struct nika_dap::cost_journal::WindowFull
+pub nika_dap::cost_journal::WindowFull::admitted: u32
+pub nika_dap::cost_journal::WindowFull::reopens_at: u64
+impl core::clone::Clone for nika_dap::cost_journal::WindowFull
+pub fn nika_dap::cost_journal::WindowFull::clone(&self) -> nika_dap::cost_journal::WindowFull
+impl core::cmp::Eq for nika_dap::cost_journal::WindowFull
+impl core::cmp::PartialEq for nika_dap::cost_journal::WindowFull
+pub fn nika_dap::cost_journal::WindowFull::eq(&self, other: &nika_dap::cost_journal::WindowFull) -> bool
+impl core::fmt::Debug for nika_dap::cost_journal::WindowFull
+pub fn nika_dap::cost_journal::WindowFull::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dap::cost_journal::WindowFull
+impl core::marker::StructuralPartialEq for nika_dap::cost_journal::WindowFull
+impl<D> owo_colors::OwoColorize for nika_dap::cost_journal::WindowFull
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::cost_journal::WindowFull where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::WindowFull::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::cost_journal::WindowFull where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::cost_journal::WindowFull::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::cost_journal::WindowFull where U: core::convert::From<T>
+pub fn nika_dap::cost_journal::WindowFull::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::cost_journal::WindowFull where U: core::convert::Into<T>
+pub type nika_dap::cost_journal::WindowFull::Error = core::convert::Infallible
+pub fn nika_dap::cost_journal::WindowFull::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::cost_journal::WindowFull where U: core::convert::TryFrom<T>
+pub type nika_dap::cost_journal::WindowFull::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::cost_journal::WindowFull::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::cost_journal::WindowFull where T: core::clone::Clone
+pub type nika_dap::cost_journal::WindowFull::Owned = T
+pub fn nika_dap::cost_journal::WindowFull::clone_into(&self, target: &mut T)
+pub fn nika_dap::cost_journal::WindowFull::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::cost_journal::WindowFull where T: 'static + ?core::marker::Sized
+pub fn nika_dap::cost_journal::WindowFull::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::cost_journal::WindowFull where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::WindowFull::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::cost_journal::WindowFull where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::WindowFull::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::cost_journal::WindowFull where T: core::clone::Clone
+pub unsafe fn nika_dap::cost_journal::WindowFull::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::cost_journal::WindowFull
+pub fn nika_dap::cost_journal::WindowFull::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::cost_journal::WindowFull where T: core::clone::Clone
+pub fn nika_dap::cost_journal::WindowFull::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::cost_journal::WindowFull where T: 'static
+pub fn nika_dap::cost_journal::WindowFull::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_dap::cost_journal::WindowFull where T: core::marker::Copy
+pub fn nika_dap::cost_journal::WindowFull::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::cost_journal::WindowFull where T: ?core::marker::Sized
+pub fn nika_dap::cost_journal::WindowFull::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::cost_journal::WindowFull::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::cost_journal::WindowFull
+impl<T> tracing::instrument::WithSubscriber for nika_dap::cost_journal::WindowFull
+impl<T> typenum::type_operators::Same for nika_dap::cost_journal::WindowFull
+pub type nika_dap::cost_journal::WindowFull::Output = T
 #[non_exhaustive] pub struct nika_dap::cost_journal::Writer
 pub nika_dap::cost_journal::Writer::host: alloc::string::String
 pub nika_dap::cost_journal::Writer::pid: u32
@@ -2452,6 +2507,7 @@ pub type nika_dap::cost_journal::Writer::Output = T
 pub const nika_dap::cost_journal::JOURNAL: &str
 pub const nika_dap::cost_journal::REVIEWS_RETAINED: usize
 pub const nika_dap::cost_journal::REVIEW_TTL: core::time::Duration
+pub const nika_dap::cost_journal::STANDING_LEDGER: &str
 pub trait nika_dap::cost_journal::RunAccount: core::marker::Send + core::marker::Sync
 pub fn nika_dap::cost_journal::RunAccount::close(&self, why: &str) -> core::io::error::Result<()>
 pub fn nika_dap::cost_journal::RunAccount::observation(&self) -> core::io::error::Result<serde_json::value::Value>
@@ -2461,6 +2517,7 @@ pub fn nika_dap::cost_journal::fold(nika: &nika_fs::owned_dir::OwnedDir, host: &
 pub fn nika_dap::cost_journal::fold_as(nika: &nika_fs::owned_dir::OwnedDir, holder: &nika_dap::cost_journal::Writer, observer: &str) -> core::io::error::Result<nika_dap::cost_journal::Exposures>
 pub fn nika_dap::cost_journal::refusal(exposures: &nika_dap::cost_journal::Exposures) -> alloc::string::String
 pub fn nika_dap::cost_journal::review_witness(nonce: &[u8; 32], binding: &str) -> alloc::string::String
+pub fn nika_dap::cost_journal::standing_runs(root: &nika_fs::owned_dir::OwnedDir, route: &str, window: core::time::Duration, now: std::time::SystemTime) -> core::io::error::Result<u32>
 pub fn nika_dap::cost_journal::take(nika: &nika_fs::owned_dir::OwnedDir, writer: &nika_dap::cost_journal::Writer) -> core::io::error::Result<nika_dap::cost_journal::Taken>
 pub fn nika_dap::cost_journal::take_at(project: &nika_fs::owned_dir::OwnedDir, nika: &nika_fs::owned_dir::OwnedDir, writer: &nika_dap::cost_journal::Writer) -> core::io::error::Result<nika_dap::cost_journal::Taken>
 pub type nika_dap::cost_journal::AccountView = alloc::boxed::Box<(dyn core::ops::function::Fn() -> core::option::Option<serde_json::value::Value> + core::marker::Send + core::marker::Sync)>
