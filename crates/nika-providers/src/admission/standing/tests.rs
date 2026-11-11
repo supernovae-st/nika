@@ -510,19 +510,6 @@ fn a_declared_price_admits_a_run_whose_worst_case_fits_every_ceiling() {
         Some(Cost::new(4 * per_request))
     );
     assert_eq!(receipt.overridden_defaults, [None, None]);
-    // A default the Run fits under is honoured, never recorded as overridden,
-    // where a fresh decision records the defaults it overrode.
-    let five = Some(Cost::new(5_000_000_000));
-    let under_default = review(standing(None), [None, five])
-        .expect("one request fits under five dollars")
-        .confirm("candidate", &route())
-        .expect("confirmed");
-    let receipt_under = under_default.snapshot().expect("receipt");
-    assert_eq!(
-        receipt_under.overridden_defaults,
-        [None, None],
-        "a standing rule overrides no default"
-    );
     let durable = receipt.durable_observation();
     assert_eq!(durable["unknown_cost"]["max_request_bytes"], 32_768);
     assert_eq!(
@@ -547,15 +534,6 @@ fn a_declared_price_admits_a_run_whose_worst_case_fits_every_ceiling() {
         "the declared worst case of this Run ($0.029491: every request at its size and output bounds, at the declared rates) exceeds the $0.020000 ceiling it runs under; nothing was sent"
     );
     assert!(short.confirm("candidate", &route()).is_err());
-    // A project default is a ceiling a standing Run must fit under, never an
-    // overridable one; a single request that does not fit refuses at once.
-    let default = [None, Some(Cost::new(5_000_000))];
-    assert_eq!(
-        review(standing(None), default).expect_err("the project ceiling"),
-        "the declared worst case of this Run ($0.007372: every request at its size and output bounds, at the declared rates) exceeds the $0.005000 ceiling it runs under; nothing was sent"
-    );
-    assert!(review(standing(None), [None, Some(Cost::new(per_request))]).is_ok());
-    assert!(review(standing(None), [None, Some(Cost::new(per_request - 1))]).is_err());
     // A zero ceiling vetoes every positive worst case.
     assert!(review(standing(Some(0)), [None, None]).is_err());
     // Without a request-size bound the worst case counts the 1 MiB of every
@@ -574,6 +552,73 @@ fn a_declared_price_admits_a_run_whose_worst_case_fits_every_ceiling() {
             .and_then(|choice| choice.declared_worst_case()),
         Some(Cost::new(1_048_576 * 150 + 4_096 * 600))
     );
+}
+
+/// A standing Run is judged under the lowest ceiling it runs under, whichever
+/// layer carries it, and overrides none: a default it fits under is honoured
+/// and never recorded as overridden, where a fresh decision records the
+/// defaults it overrode. A ceiling below zero is named as one, and a declared
+/// price lifts no host that forbids unknown cost or did not observe a layer.
+#[test]
+fn a_standing_run_is_judged_under_its_lowest_ceiling_and_overrides_none() {
+    let held = policy(PRICED);
+    let standing = |ceiling: Option<i128>| evidence(ceiling).with_standing_policy(held.clone());
+    // One request costs 7,372,800 nano-USD at worst.
+    let per_request: i128 = 32_768 * 150 + 4_096 * 600;
+    let (fits, short) = (Some(Cost::new(5_000_000_000)), Some(Cost::new(5_000_000)));
+    let under_default = review(standing(None), [None, fits])
+        .expect("one request fits under five dollars")
+        .confirm("candidate", &route())
+        .expect("confirmed");
+    assert_eq!(
+        under_default
+            .snapshot()
+            .expect("receipt")
+            .overridden_defaults,
+        [None, None],
+        "a standing rule overrides no default"
+    );
+    // A project default is a ceiling a standing Run must fit under, to the
+    // nano-USD; the lowest of several ceilings decides, wherever it sits.
+    assert!(review(standing(None), [None, Some(Cost::new(per_request))]).is_ok());
+    assert!(review(standing(None), [None, Some(Cost::new(per_request - 1))]).is_err());
+    for (hard, defaults) in [
+        (None, [None, short]),
+        (Some(1_000_000_000), [None, short]),
+        (Some(1_000_000_000), [short, fits]),
+        (Some(5_000_000), [fits, fits]),
+    ] {
+        assert_eq!(
+            review(standing(hard), defaults).expect_err("the lowest ceiling"),
+            "the declared worst case of this Run ($0.007372: every request at its size and output bounds, at the declared rates) exceeds the $0.005000 ceiling it runs under; nothing was sent"
+        );
+    }
+    assert!(review(standing(Some(1_000_000_000)), [fits, fits]).is_ok());
+    assert_eq!(
+        review(standing(None), [Some(Cost::new(-1)), None]).expect_err("below zero"),
+        "negative monetary ceiling"
+    );
+    let unknown = CapEvidence::Unknown;
+    let unobserved = CostHostEvidence::new(true, absent("policy"), unknown, absent("occurrence"));
+    let denied = CostHostEvidence::new(
+        false,
+        absent("policy"),
+        absent("machine"),
+        absent("occurrence"),
+    );
+    for evidence in [unobserved, denied] {
+        let standing = evidence.with_standing_policy(held.clone());
+        assert!(standing.unknown_cost_refusal().is_some());
+        assert_eq!(
+            standing.unknown_cost_refusal_on(&route()),
+            standing.unknown_cost_refusal(),
+            "the cap's own refusal, as without a declared price"
+        );
+        assert_eq!(
+            review(standing, [None, None]).expect_err("no authority"),
+            "unknown cost is unavailable: the host must permit it and have observed every policy, machine and occurrence cap"
+        );
+    }
 }
 
 /// The durable schema stays closed around the rule. A record keeps the rule
