@@ -374,6 +374,31 @@ fn an_interrupted_archive_is_finished_by_the_next_one() {
     assert_eq!(archives, 2, "the journal and its one archive");
 }
 
+/// A journal that has another link is never emptied: its rows could be read,
+/// or keep growing, under the other name. Its bytes stay whole and the
+/// refusal names the link; once the other name is gone the same call finishes.
+#[test]
+fn a_journal_with_another_link_is_never_emptied() {
+    let root = tempfile::tempdir().unwrap();
+    run(root.path(), "run-1", 0);
+    let before = journal_bytes(root.path());
+    let nika = root.path().join(".nika");
+    let held = cleared(root.path(), "run-2");
+    let other = nika.join("another-name.ndjson");
+    std::fs::hard_link(nika.join(JOURNAL), &other).unwrap();
+    let refused = held.make_room(u64::MAX).unwrap_err();
+    assert_eq!(refused.kind(), std::io::ErrorKind::InvalidData);
+    assert_eq!(
+        refused.to_string(),
+        "cost journal no longer has one owned link"
+    );
+    assert_eq!(journal_bytes(root.path()), before, "left whole");
+    std::fs::remove_file(&other).unwrap();
+    let name = held.make_room(u64::MAX).unwrap().expect("archived");
+    assert_eq!(std::fs::read(nika.join(&name)).unwrap(), before);
+    assert_eq!(journal_bytes(root.path()), b"");
+}
+
 /// A journal that still blocks is never archived: no `Cleared` exists for it,
 /// so an earlier Run whose charge is unknown keeps blocking, row for row.
 #[test]
