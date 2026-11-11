@@ -180,9 +180,10 @@ can lag this repository.** On 2026-10-24 it served the revision of
 reading it flags a valid workflow that uses them. For the exact schema an
 engine embeds, `nika spec --schema` prints it offline, byte for byte, and the
 address pinned at the embedded spec commit serves the same bytes online; for
-engine 0.124.2 (spec `b4c692f`) that is
-`https://raw.githubusercontent.com/supernovae-st/nika-spec/b4c692f538834db5733f972cd8f52b558c18926a/schemas/workflow.schema.json`,
-and engines 0.124.0 and 0.124.1 embed `5cd95cd`.
+engine 0.124.3 (spec `5a579bc`) that is
+`https://raw.githubusercontent.com/supernovae-st/nika-spec/5a579bc707c720689ba7940f6d66e11c14050d6f/schemas/workflow.schema.json`;
+engine 0.124.2 embeds `b4c692f`, and engines 0.124.0 and 0.124.1 embed
+`5cd95cd`.
 
 #### The address MUST become versioned and immutable (normative · D-2026-08-11-N24)
 
