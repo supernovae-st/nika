@@ -335,7 +335,7 @@ mod standing {
     /// A route no rule names refuses in the policy's words, and a server
     /// with no policy keeps its own, byte for byte.
     #[test]
-    fn a_route_no_rule_names_is_refused_in_the_policys_words() {
+    fn a_route_no_rule_names_is_refused_in_the_words_of_the_policy() {
         let elsewhere = policy(&rule("").replace(MODEL, "deepseek/another-unpriced-fixture"));
         let job = StandingJob {
             policy: &elsewhere,
