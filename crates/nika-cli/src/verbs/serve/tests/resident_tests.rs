@@ -102,6 +102,70 @@ fn cost_review_and_run_cost_ceiling_are_explicit_listener_options() {
     ));
 }
 
+/// `--cost-policy` is an explicit, repeatable listener option: it needs
+/// `--bind`, each occurrence is one rule kept as written, and it never
+/// changes the ceiling or seats the review door. The launch reads every rule
+/// and refuses one it cannot hold, so a server that starts holds the policy
+/// its operator wrote.
+#[test]
+fn cost_policy_is_an_explicit_repeatable_listener_option() {
+    let command = || <ServeArgs as clap::Args>::augment_args(clap::Command::new("serve"));
+    let rule = "deepseek/c6-unpriced-fixture:requests=4,output-tokens=64,timeout=30,runs=3/hour";
+    assert!(
+        command()
+            .try_get_matches_from(["serve", "--cost-policy", rule])
+            .is_err(),
+        "--cost-policy needs --bind"
+    );
+    let parse = |extra: &[&str]| {
+        let mut argv = vec!["serve", "--bind", "127.0.0.1:0"];
+        argv.extend_from_slice(extra);
+        let matches = command().try_get_matches_from(argv).expect("flags");
+        <ServeArgs as clap::FromArgMatches>::from_arg_matches(&matches).expect("args")
+    };
+    let none = parse(&[]);
+    assert!(none.cost_policy.is_empty(), "off unless asked");
+    let other = rule.replace("c6-unpriced-fixture", "another-unpriced-fixture");
+    let args = parse(&["--cost-policy", rule, "--cost-policy", &other]);
+    assert_eq!(args.cost_policy, [rule.to_owned(), other.clone()]);
+    assert!(!args.cost_review && args.run_cost_ceiling.is_none());
+    let listener = || {
+        Some(nika_serve::ServerConfig::new(
+            "127.0.0.1:0".parse().expect("address"),
+            "workflows",
+            "serve.token",
+        ))
+    };
+    let seated = nika_serve::server::seat_cost_policy(listener(), &args.cost_policy);
+    assert!(seated.is_ok_and(|config| config.is_some()));
+    assert!(matches!(
+        nika_serve::server::seat_cost_policy(None, &none.cost_policy),
+        Ok(None)
+    ));
+    let unbounded = ["deepseek/c6-unpriced-fixture:requests=4".to_owned()];
+    let Err(refused) = nika_serve::server::seat_cost_policy(listener(), &unbounded) else {
+        panic!("a rule that bounds too little was seated");
+    };
+    let refused = refused.to_string();
+    assert!(
+        refused.starts_with("standing cost rule ") && refused.contains("is required"),
+        "{refused}"
+    );
+    // The verb refuses the same rule before it reads a project, a credential
+    // or a socket, in the words every other launch refusal uses.
+    let launch = parse(&[
+        "--workflows",
+        "workflows",
+        "--token-file",
+        "serve.token",
+        "--cost-policy",
+        &unbounded[0],
+    ]);
+    let out = run(&launch);
+    assert_eq!(out.code, exit::WORKFLOW);
+    assert_eq!(out.text, format!("serve · {refused}"));
+}
+
 /// #1649 · a project that arms nothing says so: `--once` and `--dry` are
 /// rehearsals of nothing and exit 0 at once, naming the empty registry and
 /// the HTTP door that serves workflows without a beat. Measured on 0.123.2

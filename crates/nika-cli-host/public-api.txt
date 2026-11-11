@@ -3130,6 +3130,7 @@ pub nika_cli_host::serve_args::ServeArgs::allow_remote: bool
 pub nika_cli_host::serve_args::ServeArgs::authoring: nika_cli_host::serve_args::NativeAuthoringArgs
 pub nika_cli_host::serve_args::ServeArgs::authoring_max_calls: core::option::Option<u32>
 pub nika_cli_host::serve_args::ServeArgs::bind: core::option::Option<alloc::string::String>
+pub nika_cli_host::serve_args::ServeArgs::cost_policy: alloc::vec::Vec<alloc::string::String>
 pub nika_cli_host::serve_args::ServeArgs::cost_review: bool
 pub nika_cli_host::serve_args::ServeArgs::dry: bool
 pub nika_cli_host::serve_args::ServeArgs::now: core::option::Option<alloc::string::String>

@@ -126,6 +126,16 @@ pub struct ServeArgs {
     /// Per-run spend ceiling of manual jobs in USD (default 1); `none` disarms it explicitly.
     #[arg(long, value_name = "USD|none", requires = "bind")]
     pub run_cost_ceiling: Option<String>,
+    /// Standing cost rule for one API route the catalog does not price (repeatable · health
+    /// `costStandingPolicyV1`): a Run inside it needs no per-run cost review.
+    /// `PROVIDER/MODEL:requests=N,output-tokens=N,timeout=SECONDS,runs=N/PERIOD`, PERIOD being
+    /// minute, hour, day, week or `<seconds>s`; optionally `request-bytes=N`, and
+    /// `input-usd=USD,output-usd=USD` (your price per million tokens, an estimate). Without a
+    /// declared price no USD ceiling can bound the Run: every ceiling it is under must be
+    /// absent (`--run-cost-ceiling none`). With one, its declared worst case must fit under
+    /// them. A rule overrides no ceiling.
+    #[arg(long = "cost-policy", value_name = "RULE", requires = "bind")]
+    pub cost_policy: Vec<String>,
     /// Serve the project's native Session under /v1/sessions (health `sessionHost`): the same
     /// Session bare `nika` opens, whose runs are this resident's jobs. A Session writes the
     /// project's workflows only on a human's consent.

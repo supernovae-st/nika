@@ -321,7 +321,8 @@ review. A host that only asks (Serve's review door) calls
 judgment of the route, the Run's bounds, every ceiling and the rule's window,
 made without the project's cost lease, so it never waits on a Run in flight
 and prepares, counts and holds nothing. Evidence without a policy, or a route
-no rule names, takes none of these paths.
+no rule names, takes none of these paths. `serve_args` gains the repeatable
+`--cost-policy <RULE>` (requires `--bind`).
 Zero vetoes unknown spend before any question and no review can override
 it: `--max-cost-usd 0` refuses in `prepare`, and a project `ceiling:` must
 be a positive real (nika-vocab refuses 0, negative and NaN at the project

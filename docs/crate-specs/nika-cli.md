@@ -33,7 +33,10 @@ Machine modes and Quiet retain their existing announcement policy.
 
 `nika serve --cost-review` seats the cost-review door and `--run-cost-ceiling <USD|none>`
 replaces the per-run ceiling (an explicit `none` disarms it); both require `--bind` and are
-applied through `nika_serve::server::seat_cost_review` (C6).
+applied through `nika_serve::server::seat_cost_review` (C6). The repeatable
+`nika serve --cost-policy <RULE>` holds the operator's standing cost policy for
+Runs on an unpriced route (`nika_serve::server::seat_cost_policy`): it also
+requires `--bind`, changes no ceiling and seats no door.
 
 `nika serve --authoring-model` permits one authoring model request per round
 unless the operator explicitly grants more with `--authoring-max-calls`.
