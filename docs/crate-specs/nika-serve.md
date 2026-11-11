@@ -751,10 +751,17 @@ the catalog already prices, two rules for one route).
   terminal frame carry it. The backend also returns
   `ExecutionOutcome::with_cost_admission` (`nika/cost-admission@1`:
   `authority: standing_policy`, `price: unknown | host_declared`, the durable
-  choice and the evidence view), which the resident writes on the job's
-  terminal event and projects on the job record and its SSE frame as
-  `cost_admission`. A job no rule admitted carries none. A call whose usage
-  the engine cannot qualify keeps an unknown cost, never zero.
+  choice and the evidence view). The resident writes it inside the settlement
+  of the job's terminal event (`settlement.cost_admission`), the one member
+  it adds beside the runtime's own, so the job record and the SSE frame
+  project it with the settlement and the store keeps it as it keeps any
+  settlement member. It is never a key of the job or of its event: the
+  published SDK closes `Job` and `JobEvent` and would refuse a job the
+  engine admitted, and it reads a settlement open. A job no rule admitted
+  carries none, and neither does one whose runtime never settled (the
+  resident lost or stopped it, so it has no settlement): that Run's trace and
+  cost journal still name the rule. A call whose usage the engine cannot
+  qualify keeps an unknown cost, never zero.
 - **Turns.** One unknown-cost Run holds the project's cost lease at a time.
   A Run a rule names waits for the one before it (`cost_policy::Seat::turn`,
   held until the Run's account settled and its lease is released) instead of
@@ -776,12 +783,15 @@ the catalog already prices, two rules for one route).
   a job under the Session's own ceiling, so a rule admits it only with a
   declared price whose worst case fits.
 - **Contract.** `openapi::under_cost_policy` merges
-  `cost_policy/openapi.json` (`Job.cost_admission`, `JobEvent.cost_admission`,
+  `cost_policy/openapi.json` (`RunSettlement.cost_admission`,
   `CostAdmission`, `StandingCostRule`) over the served document when the
   backend holds a policy, and `cost_policy/openapi-review.json`
   (`standing_policy` on both not-required answers) when the door is seated
   too. A server without a policy serves the document it always served, byte
-  for byte.
+  for byte. The published-SDK guard (`openapi/published_sdk_tests.rs`) reads
+  the widest document with the policy merged in, and the HTTP tests hold a
+  real admitted job and each frame of its stream to the key sets that SDK
+  closes.
 
 A server that admits Runs with no decision fills the cost journal, which
 every admission reads whole and refuses past 1 MiB. A Run writes two rows,

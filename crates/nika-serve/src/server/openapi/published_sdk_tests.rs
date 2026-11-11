@@ -27,8 +27,10 @@ fn what_a_published_sdk_closes_changes_only_with_a_clock_it_enforces() {
         serde_json::from_str(PUBLISHED).expect("the published SDK's closed sets");
     let enforced = published["enforced_clocks"]["machineProtocolVersion"].as_u64();
     let moved = enforced != Some(u64::from(nika_runtime::MACHINE_PROTOCOL_VERSION));
-    // The widest document a resident serves: native authoring, the cost review, the Session door.
-    let refused = refused_by(&published, &super::served(true, true, true));
+    // The widest document a resident serves: native authoring, the cost review, the Session door,
+    // and a standing cost policy beside that review door.
+    let widest = super::under_cost_policy(super::served(true, true, true), true);
+    let refused = refused_by(&published, &widest);
     assert!(
         moved || refused.is_empty(),
         "{} refuses what this engine serves, and no clock it enforces moved: {refused:#?}\n\

@@ -899,7 +899,6 @@ pub type nika_serve::JobReceipt::Output = T
 #[non_exhaustive] pub struct nika_serve::job::JobRecord
 impl nika_serve::JobRecord
 pub fn nika_serve::JobRecord::access_pin(&self) -> core::option::Option<&str>
-pub fn nika_serve::JobRecord::cost_admission(&self) -> core::option::Option<&serde_json::value::Value>
 pub fn nika_serve::JobRecord::error(&self) -> core::option::Option<(&str, &str)>
 pub const fn nika_serve::JobRecord::evidence(&self) -> core::option::Option<nika_serve::JournalEvidence>
 pub fn nika_serve::JobRecord::execution_id(&self) -> core::option::Option<&str>
@@ -3780,7 +3779,6 @@ pub type nika_serve::JobReceipt::Output = T
 #[non_exhaustive] pub struct nika_serve::JobRecord
 impl nika_serve::JobRecord
 pub fn nika_serve::JobRecord::access_pin(&self) -> core::option::Option<&str>
-pub fn nika_serve::JobRecord::cost_admission(&self) -> core::option::Option<&serde_json::value::Value>
 pub fn nika_serve::JobRecord::error(&self) -> core::option::Option<(&str, &str)>
 pub const fn nika_serve::JobRecord::evidence(&self) -> core::option::Option<nika_serve::JournalEvidence>
 pub fn nika_serve::JobRecord::execution_id(&self) -> core::option::Option<&str>

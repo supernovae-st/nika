@@ -1,14 +1,7 @@
 {
   "components": {
     "schemas": {
-      "Job": {
-        "properties": {
-          "cost_admission": {
-            "$ref": "#/components/schemas/CostAdmission"
-          }
-        }
-      },
-      "JobEvent": {
+      "RunSettlement": {
         "properties": {
           "cost_admission": {
             "$ref": "#/components/schemas/CostAdmission"
@@ -18,7 +11,7 @@
       "CostAdmission": {
         "type": "object",
         "additionalProperties": false,
-        "description": "Only on a server whose operator composed a standing cost policy (`nika serve --cost-policy`, health capability `costStandingPolicyV1`), and only on a job that policy admitted: its Run uses an API route the engine's catalog does not price, and ran with no per-run cost review because one of the operator's rules names that route and covers the Run's bounds. The authority is the server's startup composition; no request field grants or widens it. `price` says whether the route's price stayed unknown or was declared by the operator (an estimate, never a provider invoice). `choice` is the bounded authorization the Run's account enforced, with the rule that admitted it. `host` is the cap evidence it was judged under: a rule overrides no ceiling, so every ceiling was absent or covered the declared worst case. Nothing here is a spend: the job's `settlement` counts each call, and a call whose cost is unknown is never counted as zero. Present on the job's terminal event and durable record; absent on every other job.",
+        "description": "Only on a server whose operator composed a standing cost policy (`nika serve --cost-policy`, health capability `costStandingPolicyV1`), and only on a job that policy admitted: its Run uses an API route the engine's catalog does not price, and ran with no per-run cost review because one of the operator's rules names that route and covers the Run's bounds. The authority is the server's startup composition; no request field grants or widens it. `price` says whether the route's price stayed unknown or was declared by the operator (an estimate, never a provider invoice). `choice` is the bounded authorization the Run's account enforced, with the rule that admitted it. `host` is the cap evidence it was judged under: a rule overrides no ceiling, so every ceiling was absent or covered the declared worst case. Nothing here is a spend: the settlement's own `spend` counts each call, and a call whose cost is unknown is never counted as zero. It is the one member the resident adds to the runtime's settlement, and it rides inside `settlement` on the job's terminal event and durable record, never beside it: a published SDK closes `Job` and `JobEvent` and reads a settlement open. Absent on every other job, and on a job whose runtime never settled, which carries no `settlement`: that Run's trace and cost journal still name the rule.",
         "required": ["schema", "authority", "price", "choice", "host"],
         "properties": {
           "schema": {

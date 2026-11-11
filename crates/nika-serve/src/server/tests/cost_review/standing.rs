@@ -6,8 +6,10 @@
 //! names runs through the production backend with no review, and its record,
 //! its cost journal and its trace say how it was admitted; a route no rule
 //! names fails in the policy's words; and the review door answers that a Run
-//! the policy admits needs no review. The access plan is injected and the
-//! fixture Run's only model call is gated off, so nothing is dispatched.
+//! the policy admits needs no review. The admission rides inside the job's
+//! settlement, so a published SDK still reads the job and its events. The
+//! access plan is injected and the fixture Run's only model call is gated off,
+//! so nothing is dispatched.
 
 use super::super::declared::{assert_declared_on, served_document};
 use super::super::trace_journal::TestSeal;
@@ -105,6 +107,33 @@ fn review_at(version: u64, body: &str, key: &str) -> String {
     )
 }
 
+/// The keys the latest published SDK accepts on `schema`, which it reads closed
+/// (`openapi/published_sdk.json`): any other key makes it refuse the object.
+fn published_keys(schema: &str) -> Vec<String> {
+    const PUBLISHED: &str = include_str!("../../openapi/published_sdk.json");
+    let published: Value = serde_json::from_str(PUBLISHED).expect("the published closed sets");
+    let closed = published["closed"].as_array().expect("closed sets");
+    let whole = |place: &&Value| {
+        place["schema"] == schema && place.get("member").is_none() && place.get("variant").is_none()
+    };
+    let place = closed.iter().find(whole).expect("the schema is closed");
+    let keys = place["keys"].as_array().expect("its keys");
+    keys.iter()
+        .filter_map(|key| key.as_str().map(str::to_owned))
+        .collect()
+}
+
+/// Every key of `object` is one the published SDK reads on `schema`.
+fn assert_published_reads(schema: &str, object: &Value) {
+    let known = published_keys(schema);
+    for key in object.as_object().expect("an object").keys() {
+        assert!(
+            known.contains(key),
+            "a published SDK refuses the {schema} key {key}: {object}"
+        );
+    }
+}
+
 fn capabilities(health: &Value) -> Vec<String> {
     let listed = health["supportedCapabilities"].as_array().expect("caps");
     listed
@@ -133,8 +162,8 @@ async fn health_and_the_contract_show_the_policy_only_when_the_backend_holds_one
             .get("CostAdmission")
             .is_none()
     );
-    let job = &plain_contract["components"]["schemas"]["Job"]["properties"];
-    assert!(job.get("cost_admission").is_none());
+    let settlement = &plain_contract["components"]["schemas"]["RunSettlement"]["properties"];
+    assert!(settlement.get("cost_admission").is_none());
     server.stop().await.expect("stop");
 
     let holding = || Arc::new(Holding(policy(&rule(MODEL))));
@@ -157,18 +186,22 @@ async fn health_and_the_contract_show_the_policy_only_when_the_backend_holds_one
     assert_ne!(contract, plain_contract);
     assert_eq!(
         contract,
-        super::super::openapi::under_cost_policy(plain_contract, false),
+        super::super::openapi::under_cost_policy(plain_contract.clone(), false),
         "the plain contract, and the policy's own additions"
     );
     let schemas = &contract["components"]["schemas"];
     assert_eq!(
-        schemas["Job"]["properties"]["cost_admission"]["$ref"],
+        schemas["RunSettlement"]["properties"]["cost_admission"]["$ref"],
         "#/components/schemas/CostAdmission"
     );
-    assert_eq!(
-        schemas["JobEvent"]["properties"]["cost_admission"]["$ref"],
-        "#/components/schemas/CostAdmission"
-    );
+    // The job and its event gain no key: a published SDK reads both closed.
+    for closed in ["Job", "JobEvent"] {
+        assert_eq!(
+            schemas[closed]["properties"],
+            plain_contract["components"]["schemas"][closed]["properties"],
+            "{closed}"
+        );
+    }
     assert_eq!(
         schemas["CostAdmission"]["properties"]["authority"]["const"],
         "standing_policy"
@@ -209,6 +242,46 @@ async fn health_and_the_contract_show_the_policy_only_when_the_backend_holds_one
     server.stop().await.expect("stop");
 }
 
+/// A `standing.nika` job that succeeded with no review, as its server shows it.
+struct Admitted {
+    server: TestServer,
+    _state: Arc<AppState>,
+    id: String,
+    /// The job's record, which the served contract declares.
+    job: Value,
+    /// The same record as it was sent.
+    body: String,
+}
+
+/// Run `standing.nika` through the production backend holding the rule `text`,
+/// on a server whose per-run ceiling is `ceiling`, and wait for it to succeed.
+async fn admitted(world: &TestWorld, text: &str, ceiling: Option<f64>, key: &str) -> Admitted {
+    let backend = production(world, policy(text));
+    let (server, state) = start(world, backend, generous(ceiling), false).await;
+    let document = served_document(&server).await;
+    let body = r#"{"workflow":"standing.nika"}"#;
+    let created = server
+        .request(&post_request(body, key, &auth_header()))
+        .await;
+    assert_eq!(created.status, 202, "{}", created.body);
+    let id = created.json()["id"].as_str().expect("id").to_owned();
+    wait_patiently_for(&server, &id, "succeeded")
+        .await
+        .expect("the rule admits the job");
+    let read = get_request(&format!("/v1/jobs/{id}"));
+    let answered = server.request(&read).await;
+    assert_eq!(answered.status, 200, "{}", answered.body);
+    let sent = answered.body.as_bytes();
+    assert_declared_on(&document, "get", "/v1/jobs/{id}", 200, sent);
+    Admitted {
+        server,
+        _state: state,
+        id,
+        job: answered.json(),
+        body: answered.body,
+    }
+}
+
 /// A job on the route a rule names runs through the production backend with
 /// no review and no per-run decision. Its record says a standing rule admitted
 /// it, that the price is unknown, and under which bounds; its cost journal and
@@ -217,34 +290,9 @@ async fn health_and_the_contract_show_the_policy_only_when_the_backend_holds_one
 async fn a_job_on_a_named_route_runs_with_no_review_and_every_record_says_how() {
     let world = standing_world();
     let text = rule(MODEL);
-    let backend = production(&world, policy(&text));
-    let (server, _state) = start(&world, backend, generous(None), false).await;
-    let document = served_document(&server).await;
-    let created = server
-        .request(&post_request(
-            r#"{"workflow":"standing.nika"}"#,
-            "standing-1",
-            &auth_header(),
-        ))
-        .await;
-    assert_eq!(created.status, 202, "{}", created.body);
-    let id = created.json()["id"].as_str().expect("id").to_owned();
-    wait_patiently_for(&server, &id, "succeeded")
-        .await
-        .expect("the rule admits the job");
-    let answered = server
-        .request(&get_request(&format!("/v1/jobs/{id}")))
-        .await;
-    assert_eq!(answered.status, 200, "{}", answered.body);
-    assert_declared_on(
-        &document,
-        "get",
-        "/v1/jobs/{id}",
-        200,
-        answered.body.as_bytes(),
-    );
-    let job = answered.json();
-    let admission = &job["cost_admission"];
+    let run = admitted(&world, &text, None, "standing-1").await;
+    let job = &run.job;
+    let admission = &job["settlement"]["cost_admission"];
     assert_eq!(admission["schema"], "nika/cost-admission@1");
     assert_eq!(admission["authority"], "standing_policy");
     assert_eq!(admission["price"], "unknown");
@@ -264,12 +312,14 @@ async fn a_job_on_a_named_route_runs_with_no_review_and_every_record_says_how() 
     assert_eq!(admission["host"]["allowed"], true);
     assert_eq!(admission["host"]["machine"]["cap"], "absent");
     assert_eq!(admission["host"]["policy"]["cap"], "absent");
+    let spend = &job["settlement"]["spend"];
+    assert_eq!(spend["priced_calls"], 0, "{spend}");
+    assert_eq!(spend["unpriced_calls"], 0, "the gated call was never sent");
     assert!(
-        job["settlement"].get("total_cost_usd").is_none(),
-        "nothing metered is never a zero: {}",
-        job["settlement"]
+        spend.get("total_cost_usd").is_none(),
+        "nothing metered is never a zero: {spend}"
     );
-    let record = answered.body.to_lowercase();
+    let record = run.body.to_lowercase();
     assert!(
         !record.contains("free") && !record.contains("$0"),
         "{record}"
@@ -309,15 +359,33 @@ async fn a_job_on_a_named_route_runs_with_no_review_and_every_record_says_how() 
         .expect("a frame carries the account's observation");
     assert!(terminal.contains(&rule_id(&text)), "{terminal}");
     assert!(terminal.contains("standing"), "{terminal}");
-    // The terminal event of the job's stream carries the same admission.
-    let events = server.request(&events_request(&id, None)).await;
-    assert!(
-        events.body.contains("\"cost_admission\""),
-        "{}",
-        events.body
-    );
-    assert!(events.body.contains(&rule_id(&text)), "{}", events.body);
-    server.stop().await.expect("stop");
+    run.server.stop().await.expect("stop");
+}
+
+/// A published SDK reads a job and each frame of its stream closed: a key it
+/// does not know makes it refuse a job the engine admitted. It reads a
+/// settlement open. So the admission adds no key to the job or to a frame, and
+/// the stream's terminal frame carries the settlement the record carries, the
+/// admission inside it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_published_sdk_reads_the_admitted_job_and_every_frame_of_its_stream() {
+    let world = standing_world();
+    let run = admitted(&world, &rule(MODEL), None, "closed-1").await;
+    assert_published_reads("Job", &run.job);
+    let settlement = &run.job["settlement"];
+    assert_eq!(settlement["cost_admission"]["authority"], "standing_policy");
+    let events = run.server.request(&events_request(&run.id, None)).await;
+    let frames = parse_sse_data(&events.body);
+    assert!(frames.len() >= 2, "{}", events.body);
+    for frame in &frames {
+        assert_published_reads("JobEvent", frame);
+    }
+    let settled: Vec<&Value> = frames
+        .iter()
+        .filter_map(|frame| frame.get("settlement"))
+        .collect();
+    assert_eq!(settled, [settlement], "{}", events.body);
+    run.server.stop().await.expect("stop");
 }
 
 /// With a declared price the server's ceiling stays armed. A job whose
@@ -331,34 +399,11 @@ async fn a_declared_price_runs_under_the_armed_ceiling_and_its_record_says_whose
         "{},request-bytes=2048,input-usd=1,output-usd=2",
         rule(MODEL)
     );
-    let backend = production(&world, policy(&text));
-    let (server, _state) = start(&world, backend, generous(Some(1.0)), false).await;
-    let document = served_document(&server).await;
-    let created = server
-        .request(&post_request(
-            r#"{"workflow":"standing.nika"}"#,
-            "priced-1",
-            &auth_header(),
-        ))
-        .await;
-    assert_eq!(created.status, 202, "{}", created.body);
-    let id = created.json()["id"].as_str().expect("id").to_owned();
-    wait_patiently_for(&server, &id, "succeeded")
-        .await
-        .expect("the declared worst case fits under one dollar");
-    let answered = server
-        .request(&get_request(&format!("/v1/jobs/{id}")))
-        .await;
-    assert_eq!(answered.status, 200, "{}", answered.body);
-    assert_declared_on(
-        &document,
-        "get",
-        "/v1/jobs/{id}",
-        200,
-        answered.body.as_bytes(),
-    );
-    let job = answered.json();
-    let admission = &job["cost_admission"];
+    // The declared worst case fits under one dollar.
+    let run = admitted(&world, &text, Some(1.0), "priced-1").await;
+    let job = &run.job;
+    assert_published_reads("Job", job);
+    let admission = &job["settlement"]["cost_admission"];
     assert_eq!(admission["authority"], "standing_policy");
     assert_eq!(admission["price"], "host_declared");
     let choice = &admission["choice"];
@@ -381,12 +426,13 @@ async fn a_declared_price_runs_under_the_armed_ceiling_and_its_record_says_whose
         admission["host"]["machine"]["cap"],
         json!({"capped_usd": "$1.000000"})
     );
+    let spend = &job["settlement"]["spend"];
+    assert_eq!(spend["priced_calls"], 0, "{spend}");
     assert!(
-        job["settlement"].get("total_cost_usd").is_none(),
-        "a declared worst case is never a spend: {}",
-        job["settlement"]
+        spend.get("total_cost_usd").is_none(),
+        "a declared worst case is never a spend: {spend}"
     );
-    server.stop().await.expect("stop");
+    run.server.stop().await.expect("stop");
 }
 
 /// A route no rule names is still refused, in the policy's words, and its
@@ -419,7 +465,7 @@ async fn a_job_outside_the_policy_fails_and_carries_no_admission() {
     let job = failed(&server, "unnamed-1").await;
     assert_eq!(job["error"]["code"], "admission_refused");
     assert_eq!(job["error"]["message"], super::super::cost_policy::UNNAMED);
-    assert!(job.get("cost_admission").is_none());
+    assert!(job.get("settlement").is_none(), "a refusal settles nothing");
     assert!(rows(&world).is_empty(), "nothing was prepared");
     server.stop().await.expect("stop");
 
@@ -437,9 +483,43 @@ async fn a_job_outside_the_policy_fails_and_carries_no_admission() {
             rule_id(&text)
         )
     );
-    assert!(job.get("cost_admission").is_none());
+    assert!(job.get("settlement").is_none(), "a refusal settles nothing");
     assert!(rows(&world).is_empty(), "nothing was prepared");
     server.stop().await.expect("stop");
+}
+
+/// The admission rides inside the settlement and never beside it. Whatever an
+/// outcome carries, each key of its terminal event is one a published SDK reads
+/// on a job's event, and the runtime's own settlement stays whole around the one
+/// member the resident adds. An outcome with no settlement (the resident stopped
+/// a Run its runtime never settled) names the admission nowhere on the job.
+#[test]
+fn the_terminal_event_keeps_the_admission_inside_the_settlement() {
+    use nika_event::settlement::{RunCause, RunSettlement, RunState};
+    let admission = json!({"schema": "nika/cost-admission@1", "authority": "standing_policy"});
+    let settled = RunSettlement::new(RunState::Succeeded, RunCause::Normal);
+    let runtime = serde_json::to_value(&settled).expect("the runtime's settlement");
+    let admitted = ExecutionOutcome::from(ExecutionDisposition::Succeeded)
+        .with_settlement(settled.clone())
+        .with_cost_admission(admission.clone());
+    let event = crate::server::terminal_event(JobStatus::Succeeded, &admitted);
+    assert_published_reads("JobEvent", &event);
+    assert_eq!(event["settlement"]["cost_admission"], admission);
+    let mut without = event["settlement"].clone();
+    let members = without.as_object_mut().expect("a settlement");
+    members.remove("cost_admission");
+    assert_eq!(without, runtime, "the runtime's members are untouched");
+
+    let plain = ExecutionOutcome::from(ExecutionDisposition::Succeeded).with_settlement(settled);
+    let event = crate::server::terminal_event(JobStatus::Succeeded, &plain);
+    assert_eq!(event["settlement"], runtime, "no admission, no member");
+
+    let lost = ExecutionOutcome::failed("NIKA-COMP-001", "execution worker did not finish")
+        .with_cost_admission(admission);
+    let event = crate::server::terminal_event(JobStatus::Failed, &lost);
+    assert_published_reads("JobEvent", &event);
+    assert!(event.get("settlement").is_none(), "{event}");
+    assert!(!event.to_string().contains("cost-admission"), "{event}");
 }
 
 /// One slot of a schedule, as its firing reaches the coordinator.
@@ -501,7 +581,8 @@ async fn a_scheduled_occurrence_runs_only_under_a_declared_price_and_is_recorded
     let (status, job) = fired(&priced, 'a').await;
     assert_eq!(status, JobStatus::Succeeded, "{job}");
     assert_eq!(job["receipt"]["origin"]["kind"], "schedule", "{job}");
-    let admission = &job["cost_admission"];
+    assert_published_reads("Job", &job);
+    let admission = &job["settlement"]["cost_admission"];
     assert_eq!(admission["price"], "host_declared", "{job}");
     assert_eq!(
         admission["host"]["occurrence"],
@@ -522,7 +603,7 @@ async fn a_scheduled_occurrence_runs_only_under_a_declared_price_and_is_recorded
             rule_id(&text)
         )
     );
-    assert!(job.get("cost_admission").is_none(), "{job}");
+    assert!(job.get("settlement").is_none(), "{job}");
 }
 
 /// A Session's review is judged under the Session's own ceiling and never

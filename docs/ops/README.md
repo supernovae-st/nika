@@ -178,9 +178,13 @@ time per project (a second job waits for the first), and the rule that a
 request which left without a usable answer blocks every later run on an
 unpriced route until you reconcile it with `nika trace cost`.
 
-A job a rule admitted says so: `GET /v1/jobs/{id}` carries `cost_admission`
-with the rule's identity, the bounds, the price state and the ceiling
-evidence, and the cost journal and the trace record the same choice.
+A job a rule admitted says so: the `settlement` of `GET /v1/jobs/{id}` and
+of the job's terminal event carries `cost_admission` with the rule's
+identity, the bounds, the price state and the ceiling evidence, and the
+cost journal and the trace record the same choice. It rides inside the
+settlement because a published SDK refuses a job key it does not know and
+reads a settlement open: a client on the current SDK reads these jobs
+unchanged, and finds the admission at `settlement.cost_admission`.
 `/health` lists `costStandingPolicyV1`. Beside `--cost-review`,
 `POST /v2/cost-reviews` answers `review_required: false` with the rule for
 such a run, so a client that asks for a review before every job needs no

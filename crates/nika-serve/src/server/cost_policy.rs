@@ -29,7 +29,9 @@ use super::ServerConfig;
 pub(super) const CAPABILITY: &str = "costStandingPolicyV1";
 
 /// The policy's contract, RFC 7386 merge patches over the served document: the
-/// job's `cost_admission`, and the review door's answer when both are seated.
+/// `cost_admission` a job's settlement carries, and the review door's answer
+/// when both are seated. Neither adds a key to an object a published SDK
+/// closes (`openapi::published_sdk_tests`).
 pub(super) const OPENAPI: &str = include_str!("cost_policy/openapi.json");
 pub(super) const OPENAPI_REVIEW: &str = include_str!("cost_policy/openapi-review.json");
 
@@ -175,11 +177,12 @@ impl StandingJob<'_> {
         Some(rule.view())
     }
 
-    /// What the job's record says of a Run this policy admitted
-    /// (`nika/cost-admission@1`): that a standing rule admitted it, whether its
-    /// price stayed unknown or was declared by the operator, the bounded choice
-    /// its account enforces (named by its route's origin, never its endpoint)
-    /// and the evidence it was judged under. `None` for any other account.
+    /// What the job's record says of a Run this policy admitted, inside its
+    /// settlement (`nika/cost-admission@1`): that a standing rule admitted it,
+    /// whether its price stayed unknown or was declared by the operator, the
+    /// bounded choice its account enforces (named by its route's origin, never
+    /// its endpoint) and the evidence it was judged under. `None` for any
+    /// other account.
     pub(super) fn admission(&self, cost: &RunCost) -> Option<Value> {
         let receipt = cost.account.snapshot().ok()?;
         let choice = receipt.unknown_cost.as_ref()?;

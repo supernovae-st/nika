@@ -167,9 +167,6 @@ struct ProjectedEvent<'a> {
     settlement: Option<&'a Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     evidence: Option<crate::JournalEvidence>,
-    /// How a standing cost policy admitted the run, on its terminal frame.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    cost_admission: Option<&'a Value>,
 }
 
 fn projected<'a>(
@@ -214,7 +211,6 @@ fn projected<'a>(
             .payload()
             .get("evidence")
             .and_then(|value| serde_json::from_value(value.clone()).ok()),
-        cost_admission: event.payload().get("cost_admission"),
     }
 }
 
@@ -636,7 +632,6 @@ mod tests {
             receipt: None,
             settlement: None,
             evidence: None,
-            cost_admission: None,
         }
     }
 

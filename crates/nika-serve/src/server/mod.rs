@@ -203,9 +203,13 @@ impl ExecutionOutcome {
         self.settlement.as_deref()
     }
 
-    /// Say how a standing cost policy admitted this Run (`nika/cost-admission@1`):
-    /// the resident projects it on the job's terminal event and record, so a Run
-    /// no fresh review approved never reads as one that was.
+    /// Say how a standing cost policy admitted this Run (`nika/cost-admission@1`),
+    /// so a Run no fresh review approved never reads as one that was. The
+    /// resident writes it inside the settlement it projects on the job's
+    /// terminal event and record (`settlement.cost_admission`), never as a key
+    /// of the job or of its event: a published SDK closes those two and reads a
+    /// settlement open. An outcome with no settlement carries it nowhere on the
+    /// job; the Run's trace and cost journal still name the rule.
     #[must_use]
     pub fn with_cost_admission(mut self, admission: serde_json::Value) -> Self {
         self.cost_admission = Some(admission);
@@ -1436,8 +1440,9 @@ async fn settle_disposition(
 }
 
 /// The terminal event of a run that returned its result: its status word,
-/// the settlement whole, the failure named, the journal evidence and, for a
-/// Run a standing cost policy admitted, how it was admitted.
+/// the settlement whole, the failure named and the journal evidence. For a
+/// Run a standing cost policy admitted, the settlement also says how it was
+/// admitted.
 fn terminal_event(status: JobStatus, outcome: &ExecutionOutcome) -> serde_json::Value {
     // Preserve the runtime's actual status, including success or failure
     // racing cancellation. The route never writes an active run's result.
@@ -1451,8 +1456,15 @@ fn terminal_event(status: JobStatus, outcome: &ExecutionOutcome) -> serde_json::
     // cause · elapsed · tasks · spend · error): the SDK's HTTP door reads
     // it as the CLI's `run_settled` is read, never a refold.
     if let Some(settlement) = outcome.settlement()
-        && let Ok(value) = serde_json::to_value(settlement)
+        && let Ok(mut value) = serde_json::to_value(settlement)
     {
+        // The one member the resident adds beside the runtime's own. A
+        // published SDK closes `Job` and `JobEvent` and reads a settlement
+        // open, so the admission rides here and never beside it
+        // (`openapi::published_sdk_tests`).
+        if let (Some(admission), Some(members)) = (&outcome.cost_admission, value.as_object_mut()) {
+            members.insert("cost_admission".to_owned(), admission.clone());
+        }
         event["settlement"] = value;
     }
     if let Some((code, message)) = outcome.error() {
@@ -1461,9 +1473,6 @@ fn terminal_event(status: JobStatus, outcome: &ExecutionOutcome) -> serde_json::
     }
     if let Some(evidence) = outcome.evidence {
         event["evidence"] = json!(evidence);
-    }
-    if let Some(admission) = &outcome.cost_admission {
-        event["cost_admission"] = admission.clone();
     }
     event
 }

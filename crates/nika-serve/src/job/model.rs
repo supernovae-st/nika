@@ -635,10 +635,6 @@ pub struct JobRecord {
     /// Read projection of the same hash-bound observation event.
     #[serde(skip)]
     pub(crate) evidence: Option<super::JournalEvidence>,
-    /// Read projection of the same event: how a standing cost policy admitted
-    /// the run (`nika/cost-admission@1`), when one did.
-    #[serde(skip)]
-    pub(crate) cost_admission: Option<Value>,
     #[serde(skip)]
     pub(crate) paused_outputs: Option<BTreeMap<String, Value>>,
     #[serde(skip)]
@@ -755,14 +751,6 @@ impl JobRecord {
     #[must_use]
     pub const fn evidence(&self) -> Option<super::JournalEvidence> {
         self.evidence
-    }
-
-    /// How the operator's standing cost policy admitted this run
-    /// (`nika/cost-admission@1`), projected from the validated terminal event;
-    /// absent on every run no standing rule admitted.
-    #[must_use]
-    pub fn cost_admission(&self) -> Option<&Value> {
-        self.cost_admission.as_ref()
     }
 }
 

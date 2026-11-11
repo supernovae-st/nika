@@ -399,7 +399,6 @@ impl JobStore {
             receipt: None,
             settlement: None,
             evidence: None,
-            cost_admission: None,
             paused_outputs: None,
             paused_receipt: None,
         };

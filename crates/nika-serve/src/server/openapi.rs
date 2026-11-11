@@ -99,9 +99,10 @@ pub(crate) fn served(native: bool, cost_review: bool, sessions: bool) -> Value {
 }
 
 /// `document` as a server whose backend holds a standing cost policy serves it (health
-/// `costStandingPolicyV1`): a job's `cost_admission` merged in, and where the cost-review door is
-/// also open (`reviewed`) the answer that names the rule which makes a review unnecessary. The
-/// patches name no key another door's patch names, so their order against those is free.
+/// `costStandingPolicyV1`): the `cost_admission` of a job's settlement merged in, and where the
+/// cost-review door is also open (`reviewed`) the answer that names the rule which makes a review
+/// unnecessary. The patches name no key another door's patch names, so their order against those
+/// is free, and none adds a key to an object a published SDK closes.
 pub(crate) fn under_cost_policy(mut document: Value, reviewed: bool) -> Value {
     let review = [super::cost_policy::OPENAPI_REVIEW]
         .into_iter()

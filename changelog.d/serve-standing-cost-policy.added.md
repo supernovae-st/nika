@@ -18,10 +18,13 @@
   optionally `request-bytes=N`) the run, a scheduled occurrence included,
   is admitted under a present ceiling only when its declared worst case
   fits. The run's cost journal, its trace
-  and the job's new `cost_admission` (`nika/cost-admission@1`) name the
+  and the new `cost_admission` of the job's settlement
+  (`settlement.cost_admission`, `nika/cost-admission@1`) name the
   rule, its bounds, whether the price is `unknown` or `host_declared` and
   the ceiling evidence; a call whose cost is unknown is never recorded as
-  zero. Runs per window are counted in `.nika/standing-cost-runs.json` and
+  zero. The job and its events gain no key of their own, so a published SDK,
+  which reads both closed and a settlement open, reads such a job as it
+  reads any other. Runs per window are counted in `.nika/standing-cost-runs.json` and
   survive restarts; a second run on the route waits for the first instead of
   failing on the project's cost lease; and a request that left without a
   usable answer still blocks every later run on an unpriced route until it

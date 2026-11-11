@@ -1456,15 +1456,19 @@ fn an_unpriced_route_stays_refused_without_a_cost_policy() {
             }),
             "{job}"
         );
-        assert!(job.get("cost_admission").is_none(), "{job}");
+        assert!(
+            job.get("settlement").is_none(),
+            "a refusal settles nothing: {job}"
+        );
         assert_eq!(counted_runs(&dir), None, "{tag}");
         let _ = std::fs::remove_dir_all(dir);
     }
 }
 
 /// `--cost-policy` through the real binary: a job on the route the rule names runs with no
-/// review and no decision. Its record says a standing rule admitted it, at an unknown price and
-/// under which bounds; its run is counted in the rule's window; nothing is sent or priced.
+/// review and no decision. Its settlement says a standing rule admitted it, at an unknown price
+/// and under which bounds, and the job itself gains no key (a published SDK reads a job closed
+/// and its settlement open); its run is counted in the rule's window; nothing is sent or priced.
 #[cfg(unix)]
 #[test]
 fn a_cost_policy_admits_a_run_on_its_route_with_no_review() {
@@ -1472,7 +1476,8 @@ fn a_cost_policy_admits_a_run_on_its_route_with_no_review() {
     let (job, advertised, dir) = unpriced_job("policy-admits", &flags);
     assert!(advertised, "health lists costStandingPolicyV1");
     assert_eq!(job["status"], "succeeded", "{job}");
-    let admission = &job["cost_admission"];
+    assert!(job.get("cost_admission").is_none(), "never beside: {job}");
+    let admission = &job["settlement"]["cost_admission"];
     assert_eq!(admission["schema"], "nika/cost-admission@1", "{job}");
     assert_eq!(admission["authority"], "standing_policy");
     assert_eq!(admission["price"], "unknown");
@@ -1527,14 +1532,17 @@ fn a_cost_policy_overrides_no_ceiling() {
         ),
         "{message}"
     );
-    assert!(job.get("cost_admission").is_none(), "{job}");
+    assert!(
+        job.get("settlement").is_none(),
+        "a refusal settles nothing: {job}"
+    );
     assert_eq!(counted_runs(&dir), None, "a refused run is never counted");
     let _ = std::fs::remove_dir_all(dir);
 
     let priced = format!("{UNPRICED_RULE},request-bytes=32768,input-usd=0.15,output-usd=0.60");
     let (job, _, dir) = unpriced_job("policy-priced", &["--cost-policy", &priced]);
     assert_eq!(job["status"], "succeeded", "{job}");
-    let admission = &job["cost_admission"];
+    let admission = &job["settlement"]["cost_admission"];
     assert_eq!(admission["price"], "host_declared", "{job}");
     let choice = &admission["choice"];
     assert_eq!(choice["max_request_bytes"], 32_768);
