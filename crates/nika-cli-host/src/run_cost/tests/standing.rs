@@ -632,6 +632,40 @@ async fn the_room_reserved_for_a_standing_run_covers_the_rows_it_writes() {
     }
 }
 
+/// The room is counted per request: a journal that would keep a single-request
+/// Run is archived before a Run of 64 requests is framed, because it leaves
+/// less than that Run's rows may take.
+#[test]
+fn a_larger_run_archives_a_journal_a_smaller_one_would_keep() {
+    let root = tempfile::tempdir().unwrap();
+    let text = rule("")
+        .replace("requests=4", "requests=64")
+        .replace("runs=3/hour", "runs=1000/hour");
+    let held = policy(&text);
+    admitted_run(root.path(), "exe-seed", &held, at(1_000));
+    let journal = root.path().join(".nika").join(JOURNAL);
+    let seed = std::fs::read_to_string(&journal).unwrap();
+    let filled = settled_runs(&seed, READ_BOUND - reserve(1));
+    assert!(filled.len() > READ_BOUND - reserve(64));
+    std::fs::write(&journal, &filled).unwrap();
+    admitted_run(root.path(), "exe-single", &held, at(1_100));
+    let kept = std::fs::read_to_string(&journal).unwrap();
+    assert!(kept.starts_with(&filled), "room for one request: kept");
+    std::fs::write(&journal, &filled).unwrap();
+    let (plan, _, _) = hosted(root.path(), &fan_of(64), &Inputs::new(), host(&held, None));
+    let Ok(RunCostPlan::Review(review)) = plan else {
+        panic!("a fan of 64 is inside a rule of 64");
+    };
+    assert_eq!(review.bounds().0, 64);
+    assert!(rows(root.path()).is_empty(), "archived before it is framed");
+    let digest = nika_event::source_id::sha256_hex(filled.as_bytes());
+    let archive = root.path().join(".nika").join(format!(
+        "inference-cost-observations.{}.ndjson",
+        &digest[..16]
+    ));
+    assert_eq!(std::fs::read_to_string(&archive).unwrap(), filled);
+}
+
 /// A host that only asks (the review door) is answered without the project's
 /// cost lease: the rule that names the Run when a job of it would be inside
 /// that rule now, and nothing otherwise. It never waits on a Run in flight,
