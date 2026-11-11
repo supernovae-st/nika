@@ -15,6 +15,8 @@ use nika_dap::cost_journal::JOURNAL;
 
 use super::*;
 
+mod standing;
+
 const REVIEWED: &str = "nika: reviewed\nmodel: deepseek/c6-unpriced-fixture\npermits: {}\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 16 }\n";
 
 /// An admitted API lane for the unpriced route the review workflow names.

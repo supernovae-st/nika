@@ -899,6 +899,7 @@ pub type nika_serve::JobReceipt::Output = T
 #[non_exhaustive] pub struct nika_serve::job::JobRecord
 impl nika_serve::JobRecord
 pub fn nika_serve::JobRecord::access_pin(&self) -> core::option::Option<&str>
+pub fn nika_serve::JobRecord::cost_admission(&self) -> core::option::Option<&serde_json::value::Value>
 pub fn nika_serve::JobRecord::error(&self) -> core::option::Option<(&str, &str)>
 pub const fn nika_serve::JobRecord::evidence(&self) -> core::option::Option<nika_serve::JournalEvidence>
 pub fn nika_serve::JobRecord::execution_id(&self) -> core::option::Option<&str>
@@ -1369,6 +1370,65 @@ pub const nika_serve::schedule::MAX_ENCODED_SCHEDULE_BYTES: usize
 pub const nika_serve::schedule::MAX_SCHEDULE_STORE_BYTES: usize
 pub mod nika_serve::server
 pub use nika_serve::server::NativeAuthoringArgs
+#[non_exhaustive] pub enum nika_serve::server::CostPolicyError
+pub nika_serve::server::CostPolicyError::NeedsListener
+pub nika_serve::server::CostPolicyError::Rule(alloc::string::String)
+impl core::clone::Clone for nika_serve::server::CostPolicyError
+pub fn nika_serve::server::CostPolicyError::clone(&self) -> nika_serve::server::CostPolicyError
+impl core::cmp::Eq for nika_serve::server::CostPolicyError
+impl core::cmp::PartialEq for nika_serve::server::CostPolicyError
+pub fn nika_serve::server::CostPolicyError::eq(&self, other: &nika_serve::server::CostPolicyError) -> bool
+impl core::error::Error for nika_serve::server::CostPolicyError
+impl core::fmt::Debug for nika_serve::server::CostPolicyError
+pub fn nika_serve::server::CostPolicyError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_serve::server::CostPolicyError
+pub fn nika_serve::server::CostPolicyError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_serve::server::CostPolicyError
+impl miette::protocol::Diagnostic for nika_serve::server::CostPolicyError
+impl nika_error::traits::NikaErrorCode for nika_serve::server::CostPolicyError
+pub fn nika_serve::server::CostPolicyError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_serve::server::CostPolicyError
+impl<Q, K> equivalent::Equivalent<K> for nika_serve::server::CostPolicyError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_serve::server::CostPolicyError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_serve::server::CostPolicyError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_serve::server::CostPolicyError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_serve::server::CostPolicyError where U: core::convert::From<T>
+pub fn nika_serve::server::CostPolicyError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_serve::server::CostPolicyError where U: core::convert::Into<T>
+pub type nika_serve::server::CostPolicyError::Error = core::convert::Infallible
+pub fn nika_serve::server::CostPolicyError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_serve::server::CostPolicyError where U: core::convert::TryFrom<T>
+pub type nika_serve::server::CostPolicyError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_serve::server::CostPolicyError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_serve::server::CostPolicyError where T: core::clone::Clone
+pub type nika_serve::server::CostPolicyError::Owned = T
+pub fn nika_serve::server::CostPolicyError::clone_into(&self, target: &mut T)
+pub fn nika_serve::server::CostPolicyError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_serve::server::CostPolicyError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_serve::server::CostPolicyError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_serve::server::CostPolicyError where T: 'static + ?core::marker::Sized
+pub fn nika_serve::server::CostPolicyError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_serve::server::CostPolicyError where T: ?core::marker::Sized
+pub fn nika_serve::server::CostPolicyError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_serve::server::CostPolicyError where T: ?core::marker::Sized
+pub fn nika_serve::server::CostPolicyError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_serve::server::CostPolicyError where T: core::clone::Clone
+pub unsafe fn nika_serve::server::CostPolicyError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_serve::server::CostPolicyError
+pub fn nika_serve::server::CostPolicyError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_serve::server::CostPolicyError where T: core::clone::Clone
+pub fn nika_serve::server::CostPolicyError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_serve::server::CostPolicyError where T: core::fmt::Display
+pub fn nika_serve::server::CostPolicyError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_serve::server::CostPolicyError where T: 'static
+pub fn nika_serve::server::CostPolicyError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_serve::server::CostPolicyError where T: ?core::marker::Sized
+pub fn nika_serve::server::CostPolicyError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_serve::server::CostPolicyError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_serve::server::CostPolicyError
+impl<T> tracing::instrument::WithSubscriber for nika_serve::server::CostPolicyError
+impl<T> typenum::type_operators::Same for nika_serve::server::CostPolicyError
+pub type nika_serve::server::CostPolicyError::Output = T
 #[non_exhaustive] pub enum nika_serve::server::CredentialRefuse
 pub nika_serve::server::CredentialRefuse::FollowRefused
 pub nika_serve::server::CredentialRefuse::InsecureMode
@@ -1743,6 +1803,7 @@ pub fn nika_serve::server::ExecutionOutcome::failed(code: impl core::convert::In
 pub fn nika_serve::server::ExecutionOutcome::outputs(&self) -> core::option::Option<&alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>>
 pub fn nika_serve::server::ExecutionOutcome::settlement(&self) -> core::option::Option<&nika_event::settlement::RunSettlement>
 pub fn nika_serve::server::ExecutionOutcome::with_chain_head(self, chain_head: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_serve::server::ExecutionOutcome::with_cost_admission(self, admission: serde_json::value::Value) -> Self
 pub fn nika_serve::server::ExecutionOutcome::with_error(self, code: impl core::convert::Into<alloc::string::String>, message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_serve::server::ExecutionOutcome::with_evidence(self, evidence: nika_serve::JournalEvidence) -> Self
 pub fn nika_serve::server::ExecutionOutcome::with_outputs(self, outputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
@@ -1960,6 +2021,7 @@ pub type nika_serve::ResidentConfig::Output = T
 #[non_exhaustive] pub struct nika_serve::server::ResidentExecutionBackend
 impl nika_serve::ResidentExecutionBackend
 pub fn nika_serve::ResidentExecutionBackend::new(display_root: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_serve::ResidentExecutionBackend::with_cost_policy(self, policy: nika_providers::admission::standing::StandingCostPolicy) -> Self
 impl nika_serve::server::ExecutionBackend for nika_serve::ResidentExecutionBackend
 pub fn nika_serve::ResidentExecutionBackend::execute<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
 pub fn nika_serve::ResidentExecutionBackend::execute_reviewed<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, cancel: nika_types::cancel::CancelCtx, authority: nika_serve::server::CostAuthority) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
@@ -1968,6 +2030,7 @@ pub fn nika_serve::ResidentExecutionBackend::execute_with_access<'a>(&'a self, c
 pub fn nika_serve::ResidentExecutionBackend::execute_with_cancel<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>, cancel: nika_types::cancel::CancelCtx) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
 pub fn nika_serve::ResidentExecutionBackend::execute_with_inputs<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>, access_pin: core::option::Option<&str>, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, cancel: nika_types::cancel::CancelCtx) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
 pub fn nika_serve::ResidentExecutionBackend::execute_with_max_cost<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
+pub fn nika_serve::ResidentExecutionBackend::standing_cost_policy(&self) -> core::option::Option<nika_providers::admission::standing::StandingCostPolicy>
 pub fn nika_serve::ResidentExecutionBackend::trace_journal_dir(&self) -> core::option::Option<std::path::PathBuf>
 impl<D> owo_colors::OwoColorize for nika_serve::ResidentExecutionBackend
 impl<T, U> core::convert::Into<U> for nika_serve::ResidentExecutionBackend where U: core::convert::From<T>
@@ -2041,6 +2104,7 @@ pub type nika_serve::ResidentExecutionCoordinator::Output = T
 impl nika_serve::ServerConfig
 pub fn nika_serve::ServerConfig::new(bind: core::net::socket_addr::SocketAddr, workflow_root: impl core::convert::Into<std::path::PathBuf>, token_file: impl core::convert::Into<std::path::PathBuf>) -> Self
 pub const fn nika_serve::ServerConfig::with_allow_remote(self, allow: bool) -> Self
+pub fn nika_serve::ServerConfig::with_cost_policy(self, policy: nika_providers::admission::standing::StandingCostPolicy) -> Self
 pub const fn nika_serve::ServerConfig::with_cost_review(self, seat: bool) -> Self
 pub fn nika_serve::ServerConfig::with_native_authoring(self, native: nika_serve::NativeAuthoring) -> Self
 pub fn nika_serve::ServerConfig::with_run_cost_ceiling(self, ceiling: core::option::Option<f64>) -> Self
@@ -2181,6 +2245,7 @@ pub fn nika_serve::server::ExecutionBackend::execute_with_access<'a>(&'a self, c
 pub fn nika_serve::server::ExecutionBackend::execute_with_cancel<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>, _cancel: nika_types::cancel::CancelCtx) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
 pub fn nika_serve::server::ExecutionBackend::execute_with_inputs<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>, access_pin: core::option::Option<&str>, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, cancel: nika_types::cancel::CancelCtx) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
 pub fn nika_serve::server::ExecutionBackend::execute_with_max_cost<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, _max_cost_usd: core::option::Option<f64>) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
+pub fn nika_serve::server::ExecutionBackend::standing_cost_policy(&self) -> core::option::Option<nika_providers::admission::standing::StandingCostPolicy>
 pub fn nika_serve::server::ExecutionBackend::trace_journal_dir(&self) -> core::option::Option<std::path::PathBuf>
 impl nika_serve::server::ExecutionBackend for nika_serve::ResidentExecutionBackend
 pub fn nika_serve::ResidentExecutionBackend::execute<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
@@ -2190,6 +2255,7 @@ pub fn nika_serve::ResidentExecutionBackend::execute_with_access<'a>(&'a self, c
 pub fn nika_serve::ResidentExecutionBackend::execute_with_cancel<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>, cancel: nika_types::cancel::CancelCtx) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
 pub fn nika_serve::ResidentExecutionBackend::execute_with_inputs<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>, access_pin: core::option::Option<&str>, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, cancel: nika_types::cancel::CancelCtx) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
 pub fn nika_serve::ResidentExecutionBackend::execute_with_max_cost<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
+pub fn nika_serve::ResidentExecutionBackend::standing_cost_policy(&self) -> core::option::Option<nika_providers::admission::standing::StandingCostPolicy>
 pub fn nika_serve::ResidentExecutionBackend::trace_journal_dir(&self) -> core::option::Option<std::path::PathBuf>
 pub trait nika_serve::server::ResidentClock: core::fmt::Debug + core::marker::Send + core::marker::Sync
 pub fn nika_serve::server::ResidentClock::now(&self) -> jiff::zoned::Zoned
@@ -2200,6 +2266,7 @@ pub fn nika_serve::SystemResidentClock::sleep(&self, duration: core::time::Durat
 pub fn nika_serve::server::launch_operator_message(error: nika_serve::ServerLaunchRefuse) -> alloc::string::String
 pub fn nika_serve::server::optional_server_config(bind: core::option::Option<&str>, workflow_root: core::option::Option<&std::path::Path>, token_file: core::option::Option<&std::path::Path>, allow_remote: bool, rehearsal: bool, scripted_clock: bool) -> core::result::Result<core::option::Option<nika_serve::ServerConfig>, nika_serve::ServerLaunchRefuse>
 pub async fn nika_serve::server::process_shutdown()
+pub fn nika_serve::server::seat_cost_policy(server: core::option::Option<nika_serve::ServerConfig>, rules: &[alloc::string::String]) -> core::result::Result<core::option::Option<nika_serve::ServerConfig>, nika_serve::server::CostPolicyError>
 pub fn nika_serve::server::seat_cost_review(server: core::option::Option<nika_serve::ServerConfig>, cost_review: bool, run_cost_ceiling: core::option::Option<&str>) -> core::result::Result<core::option::Option<nika_serve::ServerConfig>, nika_serve::ServerLaunchRefuse>
 pub fn nika_serve::server::seat_native_authoring(http: core::option::Option<nika_serve::ServerConfig>, flags: &nika_cli_host::serve_args::NativeAuthoringArgs) -> core::result::Result<core::option::Option<nika_serve::ServerConfig>, nika_serve::NativeAuthoringError>
 pub fn nika_serve::server::seat_native_authoring_with_calls(http: core::option::Option<nika_serve::ServerConfig>, flags: &nika_cli_host::serve_args::NativeAuthoringArgs, max_calls: core::option::Option<u32>) -> core::result::Result<core::option::Option<nika_serve::ServerConfig>, nika_serve::NativeAuthoringError>
@@ -3361,6 +3428,7 @@ pub fn nika_serve::server::ExecutionOutcome::failed(code: impl core::convert::In
 pub fn nika_serve::server::ExecutionOutcome::outputs(&self) -> core::option::Option<&alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>>
 pub fn nika_serve::server::ExecutionOutcome::settlement(&self) -> core::option::Option<&nika_event::settlement::RunSettlement>
 pub fn nika_serve::server::ExecutionOutcome::with_chain_head(self, chain_head: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_serve::server::ExecutionOutcome::with_cost_admission(self, admission: serde_json::value::Value) -> Self
 pub fn nika_serve::server::ExecutionOutcome::with_error(self, code: impl core::convert::Into<alloc::string::String>, message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_serve::server::ExecutionOutcome::with_evidence(self, evidence: nika_serve::JournalEvidence) -> Self
 pub fn nika_serve::server::ExecutionOutcome::with_outputs(self, outputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
@@ -3712,6 +3780,7 @@ pub type nika_serve::JobReceipt::Output = T
 #[non_exhaustive] pub struct nika_serve::JobRecord
 impl nika_serve::JobRecord
 pub fn nika_serve::JobRecord::access_pin(&self) -> core::option::Option<&str>
+pub fn nika_serve::JobRecord::cost_admission(&self) -> core::option::Option<&serde_json::value::Value>
 pub fn nika_serve::JobRecord::error(&self) -> core::option::Option<(&str, &str)>
 pub const fn nika_serve::JobRecord::evidence(&self) -> core::option::Option<nika_serve::JournalEvidence>
 pub fn nika_serve::JobRecord::execution_id(&self) -> core::option::Option<&str>
@@ -4063,6 +4132,7 @@ pub type nika_serve::ResidentConfig::Output = T
 #[non_exhaustive] pub struct nika_serve::ResidentExecutionBackend
 impl nika_serve::ResidentExecutionBackend
 pub fn nika_serve::ResidentExecutionBackend::new(display_root: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_serve::ResidentExecutionBackend::with_cost_policy(self, policy: nika_providers::admission::standing::StandingCostPolicy) -> Self
 impl nika_serve::server::ExecutionBackend for nika_serve::ResidentExecutionBackend
 pub fn nika_serve::ResidentExecutionBackend::execute<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
 pub fn nika_serve::ResidentExecutionBackend::execute_reviewed<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, cancel: nika_types::cancel::CancelCtx, authority: nika_serve::server::CostAuthority) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
@@ -4071,6 +4141,7 @@ pub fn nika_serve::ResidentExecutionBackend::execute_with_access<'a>(&'a self, c
 pub fn nika_serve::ResidentExecutionBackend::execute_with_cancel<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>, cancel: nika_types::cancel::CancelCtx) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
 pub fn nika_serve::ResidentExecutionBackend::execute_with_inputs<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>, access_pin: core::option::Option<&str>, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, cancel: nika_types::cancel::CancelCtx) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
 pub fn nika_serve::ResidentExecutionBackend::execute_with_max_cost<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
+pub fn nika_serve::ResidentExecutionBackend::standing_cost_policy(&self) -> core::option::Option<nika_providers::admission::standing::StandingCostPolicy>
 pub fn nika_serve::ResidentExecutionBackend::trace_journal_dir(&self) -> core::option::Option<std::path::PathBuf>
 impl<D> owo_colors::OwoColorize for nika_serve::ResidentExecutionBackend
 impl<T, U> core::convert::Into<U> for nika_serve::ResidentExecutionBackend where U: core::convert::From<T>
@@ -4229,6 +4300,7 @@ pub type nika_serve::ScheduleStore::Output = T
 impl nika_serve::ServerConfig
 pub fn nika_serve::ServerConfig::new(bind: core::net::socket_addr::SocketAddr, workflow_root: impl core::convert::Into<std::path::PathBuf>, token_file: impl core::convert::Into<std::path::PathBuf>) -> Self
 pub const fn nika_serve::ServerConfig::with_allow_remote(self, allow: bool) -> Self
+pub fn nika_serve::ServerConfig::with_cost_policy(self, policy: nika_providers::admission::standing::StandingCostPolicy) -> Self
 pub const fn nika_serve::ServerConfig::with_cost_review(self, seat: bool) -> Self
 pub fn nika_serve::ServerConfig::with_native_authoring(self, native: nika_serve::NativeAuthoring) -> Self
 pub fn nika_serve::ServerConfig::with_run_cost_ceiling(self, ceiling: core::option::Option<f64>) -> Self
@@ -4469,6 +4541,7 @@ pub fn nika_serve::ExecutionBackend::execute_with_access<'a>(&'a self, context: 
 pub fn nika_serve::ExecutionBackend::execute_with_cancel<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>, _cancel: nika_types::cancel::CancelCtx) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
 pub fn nika_serve::ExecutionBackend::execute_with_inputs<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>, access_pin: core::option::Option<&str>, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, cancel: nika_types::cancel::CancelCtx) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
 pub fn nika_serve::ExecutionBackend::execute_with_max_cost<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, _max_cost_usd: core::option::Option<f64>) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
+pub fn nika_serve::ExecutionBackend::standing_cost_policy(&self) -> core::option::Option<nika_providers::admission::standing::StandingCostPolicy>
 pub fn nika_serve::ExecutionBackend::trace_journal_dir(&self) -> core::option::Option<std::path::PathBuf>
 impl nika_serve::server::ExecutionBackend for nika_serve::ResidentExecutionBackend
 pub fn nika_serve::ResidentExecutionBackend::execute<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
@@ -4478,6 +4551,7 @@ pub fn nika_serve::ResidentExecutionBackend::execute_with_access<'a>(&'a self, c
 pub fn nika_serve::ResidentExecutionBackend::execute_with_cancel<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>, cancel: nika_types::cancel::CancelCtx) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
 pub fn nika_serve::ResidentExecutionBackend::execute_with_inputs<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>, access_pin: core::option::Option<&str>, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, cancel: nika_types::cancel::CancelCtx) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
 pub fn nika_serve::ResidentExecutionBackend::execute_with_max_cost<'a>(&'a self, context: nika_execution::service::ExecutionContext<'a>, max_cost_usd: core::option::Option<f64>) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_serve::server::ExecutionOutcome> + core::marker::Send + 'a)>>
+pub fn nika_serve::ResidentExecutionBackend::standing_cost_policy(&self) -> core::option::Option<nika_providers::admission::standing::StandingCostPolicy>
 pub fn nika_serve::ResidentExecutionBackend::trace_journal_dir(&self) -> core::option::Option<std::path::PathBuf>
 pub trait nika_serve::ResidentClock: core::fmt::Debug + core::marker::Send + core::marker::Sync
 pub fn nika_serve::ResidentClock::now(&self) -> jiff::zoned::Zoned

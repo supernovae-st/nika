@@ -19,7 +19,9 @@ use hyper::{Request, Response, StatusCode};
 use nika_cli_host::run_cost::{self, ReviewedRun, RunCost, RunCostPlan};
 use nika_dap::cost_journal::{self as custody, KeyAnswer, Replay, ReviewRefusal};
 use nika_execution::{AdmittedExecution, ExecutionService, ExecutionSession};
-use nika_providers::admission::{CapEvidence, CostHostEvidence, HardMonetaryCap};
+use nika_providers::admission::{
+    CapEvidence, CostHostEvidence, HardMonetaryCap, StandingCostPolicy,
+};
 use nika_service_execution::ExecutionAccessPlan;
 use serde_json::{Value, json};
 
@@ -62,6 +64,9 @@ pub(super) struct Door {
     store: Mutex<custody::Reviews<Held>>,
     root: PathBuf,
     ceiling: Option<f64>,
+    /// The operator's standing cost policy, when the backend enforces one: a
+    /// Run it admits needs no review, and the door says so.
+    standing: Option<StandingCostPolicy>,
     /// Seconds added to the monotonic clock (tests drive the lifetime).
     #[cfg(test)]
     pub(super) skew: std::sync::atomic::AtomicU64,
@@ -73,11 +78,16 @@ pub(super) struct Door {
 impl Door {
     /// Seat the door over the served root under the per-run ceiling, and sweep
     /// expired reviews (releasing their leases) while it lives.
-    pub(super) fn open(root: PathBuf, ceiling: Option<f64>) -> Arc<Self> {
+    pub(super) fn open(
+        root: PathBuf,
+        ceiling: Option<f64>,
+        standing: Option<StandingCostPolicy>,
+    ) -> Arc<Self> {
         let door = Arc::new(Self {
             store: Mutex::new(custody::Reviews::default()),
             root,
             ceiling,
+            standing,
             #[cfg(test)]
             skew: std::sync::atomic::AtomicU64::new(0),
             #[cfg(test)]
@@ -248,6 +258,8 @@ pub(super) async fn review_admitted(
     super::inputs::validate(&admitted, &inputs).map_err(super::error::ApiError::into_response)?;
     let request = request_value(&job);
     let (service, root, ceiling) = (state.service, door.root.clone(), door.ceiling);
+    // A Session's run is judged under its own ceiling: only a manual review reads the policy.
+    let standing = door.standing.clone().filter(|_| invocation.is_none());
     let access = job.access;
     #[cfg(test)]
     let forced = door.plan.lock().ok().and_then(|plan| plan.clone());
@@ -258,8 +270,7 @@ pub(super) async fn review_admitted(
         frame(
             service,
             admitted,
-            &root,
-            ceiling,
+            (&root, ceiling, standing.as_ref()),
             &inputs,
             access,
             (version, invocation),
@@ -281,6 +292,13 @@ pub(super) async fn review_admitted(
             return Ok(Err(
                 json!({"cost_review_version": version, "review_required": false,
                 "observer": observer, "reason": reason}),
+            ));
+        }
+        Framed::Standing(rule) => {
+            let reason = super::cost_policy::NOT_REQUIRED;
+            return Ok(Err(
+                json!({"cost_review_version": version, "review_required": false,
+                "observer": false, "reason": reason, "standing_policy": rule}),
             ));
         }
     };
@@ -311,6 +329,9 @@ pub(super) async fn review_admitted(
 enum Framed {
     Review(Box<(Held, String)>),
     NotRequired(bool, &'static str),
+    /// The operator's standing cost policy admits the Run: no review, and the
+    /// rule that names it as a public document shows it.
+    Standing(Value),
 }
 
 /// Where a review's defaults come from: a manual caller states none, a Session its run ceiling.
@@ -333,8 +354,7 @@ enum Refused {
 fn frame(
     service: ExecutionService,
     admitted: AdmittedExecution,
-    root: &Path,
-    ceiling: Option<f64>,
+    (root, ceiling, standing): (&Path, Option<f64>, Option<&StandingCostPolicy>),
     inputs: &BTreeMap<String, Value>,
     (access, forced): (Option<&str>, Option<ExecutionAccessPlan>),
     (version, invocation): (u64, Option<f64>),
@@ -344,6 +364,16 @@ fn frame(
         .ok_or_else(|| Refused::Other("workflow world could not be composed".into()))?;
     let plan = forced.unwrap_or_else(|| driver.resolve_access_plan(None, access));
     let execution = session.context().execution_id().to_string();
+    if let Some(policy) = standing {
+        let job = super::cost_policy::StandingJob {
+            policy,
+            ceiling,
+            scheduled: false,
+        };
+        if let Some(rule) = job.admits(root, &driver, &plan, inputs, version == 1) {
+            return Ok(Framed::Standing(rule));
+        }
+    }
     let ask = || Ok(());
     let prepared = run_cost::prepare(
         root,

@@ -692,6 +692,108 @@ unrelated shape, project or lease refusal. The one shared `bound_message`
 route literals (`/v1/cost-reviews`, `/v2/cost-reviews`, `/v1/jobs`) once
 trailing punctuation is trimmed; every other path-like token is still dropped.
 
+### The standing cost policy (2026-11-11)
+
+The per-run review is one human decision for every Run on an unpriced route:
+a review lives 300 seconds, dies on restart, and one review or Run holds the
+project at a time. An operator who has decided once repeats the decision for
+every job. `nika serve --cost-policy <RULE>` (repeatable,
+`ServerConfig::with_cost_policy`, applied by `server::seat_cost_policy`,
+whose refusals are the typed `CostPolicyError`) records that decision once,
+as host composition:
+`PROVIDER/MODEL:requests=N,output-tokens=N,timeout=SECONDS,runs=N/PERIOD`,
+then optionally `request-bytes=N` and `input-usd=USD,output-usd=USD`. The
+rule type, its grammar and its law are `nika_providers::admission`'s
+(`StandingCostPolicy`, `StandingRule`); the server reads every rule at
+startup against its provider configuration and refuses to start on one it
+cannot hold (unreadable, a model unknown-cost admission cannot serve, a route
+the catalog already prices, two rules for one route).
+
+- **Authority from startup composition only.** The production backend holds
+  the policy (`ResidentExecutionBackend::with_cost_policy`) and reports it
+  through `ExecutionBackend::standing_cost_policy` (default `None`), which is
+  what health reads: `costStandingPolicyV1` is listed only when the backend
+  that executes jobs enforces a policy. Health names no route, rule or bound.
+  No request field, job body or workflow key grants or widens anything: a job
+  carries no reference to the policy at all.
+- **One evaluator.** A job with no reviewed authority is still judged by
+  `nika_cli_host::run_cost::prepare`. With a policy, the backend first asks
+  whether one rule names the plan's single unknown-cost route
+  (`cost_policy::StandingJob::rule`). If none does, the job refuses as before,
+  in the policy's words (`cost_policy::UNNAMED`). If one does, the evaluator
+  runs under evidence that carries the policy: the policy as the policy layer
+  (read, setting no USD cap of its own), the per-run ceiling the job runs
+  under as the machine layer (a present one is a hard cap; only an explicit
+  disarm is observed absent) and the job's origin. The evaluator takes the
+  project's cost lease, records what earlier Runs left, computes the Run's
+  typed dispatch bound and refuses a Run outside its rule before any host
+  could confirm it. `ReviewedRun::confirm_standing` then counts the Run in
+  the rule's window and confirms it exactly as an approved review is
+  confirmed, with every re-observation that entails.
+- **No ceiling is overridden.** A rule that declares no price fits under no
+  USD ceiling: the server's per-run ceiling, a job's own, a schedule's
+  `maxCostUsd` and the project's `ceiling:` must all be absent, so scheduled
+  occurrences stay refused and the server needs `--run-cost-ceiling none`
+  (never implied by the policy). A rule that declares a price records it as
+  the operator's estimate, and the Run is admitted under a present ceiling
+  only when its declared worst case (every request at its size and output
+  bounds, at the declared rates) fits under each one. The runtime's own
+  `--max-cost-usd` gate is replaced as it is for a reviewed job: the catalog
+  cannot price the route, and the account's request, size and output bounds
+  are what hold the Run inside that worst case.
+- **Truthful records.** The account's choice records the rule that admitted
+  it (`standing`: the rule's identity, a digest of its canonical form, and
+  its Runs-per-window; with a declared price, `declared_tariff` and
+  `declared_worst_case_nano_usd`), so the cost journal's rows and the trace's
+  terminal frame carry it. The backend also returns
+  `ExecutionOutcome::with_cost_admission` (`nika/cost-admission@1`:
+  `authority: standing_policy`, `price: unknown | host_declared`, the durable
+  choice and the evidence view), which the resident writes on the job's
+  terminal event and projects on the job record and its SSE frame as
+  `cost_admission`. A job no rule admitted carries none. A call whose usage
+  the engine cannot qualify keeps an unknown cost, never zero.
+- **Turns.** One unknown-cost Run holds the project's cost lease at a time.
+  A Run a rule names waits for the one before it (`cost_policy::Seat::turn`,
+  held until the Run's account settled and its lease is released) instead of
+  failing on the lease. The wait is in memory, inside one server process, and
+  counts against the job's execution timeout.
+- **The door beside it.** With `--cost-review` also seated, a manual review
+  of a Run the policy admits now answers 200 `review_required: false` with
+  `standing_policy`, the rule as a public document. `StandingJob::admits`
+  asks `run_cost::standing_rule`: the route, the Run's bounds, every ceiling
+  and the rule's window, judged without the project's cost lease, so the
+  answer never waits on a Run in flight and nothing is counted or held. The
+  job's own admission judges it again and reads what earlier Runs left. A
+  client that asks for a review before every job then posts the job without
+  one. Version 1 keeps refusing a fan or an authored retry; a Session's
+  review, judged under the Session's own ceiling, never reads the policy; a
+  Run the policy does not admit gets its review as before.
+- **Contract.** `openapi::under_cost_policy` merges
+  `cost_policy/openapi.json` (`Job.cost_admission`, `JobEvent.cost_admission`,
+  `CostAdmission`, `StandingCostRule`) over the served document when the
+  backend holds a policy, and `cost_policy/openapi-review.json`
+  (`standing_policy` on both not-required answers) when the door is seated
+  too. A server without a policy serves the document it always served, byte
+  for byte.
+
+A server that admits Runs with no decision fills the cost journal, which
+every admission reads whole and refuses past 1 MiB. A Run writes two rows,
+and its last one records every request it sent: measured on the fixture
+route, 3.1 kB for a Run of one answered request (4.3 kB under a declared
+price) and 485 kB for the largest Run a rule can carry, 256 answered requests
+under a declared price. Under a policy the evaluator therefore makes room
+before it admits a Run (`Cleared::make_room`, nika-dap): 4 KiB for each of
+the Run's two rows and for each request it may send, a little over twice the
+largest record measured. A cleared journal that does not leave that room
+under the read bound is archived first: the exact bytes go to
+`.nika/inference-cost-observations.<sha256, 16 hex>.ndjson`, then the journal
+is emptied. A journal that still blocks is never archived, and a server
+without a policy archives nothing. The reserve is a margin, not a proof: a
+record carries strings the provider's answer supplies (its request id), so
+answers with very long ones can still carry a journal past its read bound,
+as they can for a reviewed Run. Admissions then refuse until the operator
+moves the journal aside.
+
 ## Native authoring request authority
 
 The shared cognition authority counts model invocations and physical HTTP requests separately.

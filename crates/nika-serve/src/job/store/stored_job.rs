@@ -114,6 +114,18 @@ impl StoredJob {
                 Ok(settlement.clone())
             })
             .transpose()?;
+        self.record.cost_admission = event
+            .and_then(|event| event.payload.get("cost_admission"))
+            .map(|admission| {
+                if admission.is_object() {
+                    Ok(admission.clone())
+                } else {
+                    Err(JobStoreError::Corrupt(
+                        "cost admission is invalid".to_owned(),
+                    ))
+                }
+            })
+            .transpose()?;
         self.record.paused_outputs = None;
         self.record.paused_receipt = None;
         if self.record.status == JobStatus::Paused
