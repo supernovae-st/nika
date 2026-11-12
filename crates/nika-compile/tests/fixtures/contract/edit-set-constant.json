@@ -306,7 +306,7 @@
     ],
     "provenance": {
       "cognition": "deterministicOnly",
-      "compiler_version": "0.124.3",
+      "compiler_version": "0.124.4",
       "skeleton": null,
       "spec_pin": "66dbdd647b08d7c8594d966fa27e680ffb3fa11f",
       "suggested_file": null

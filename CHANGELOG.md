@@ -16,6 +16,88 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.124.4](https://github.com/supernovae-st/nika/compare/v0.124.3..v0.124.4) - 2026-11-12
+
+Nika 0.124.4 lets the operator of a server decide once what may run on a route the catalog does not
+price. `nika serve --cost-policy` takes one rule per route: how many requests a run may send, how
+many output tokens a request may ask, how long it may wait, and how many runs fit in a window. A job
+whose run fits its rule runs with no cost review; a run outside its rule, a route no rule names and
+the run past a full window are refused before anything is sent, and a rule overrides no ceiling. The
+job's settlement, its trace and the cost journal say that a rule admitted the run and under which
+bounds. A server started without the flag behaves and serves its contract exactly as before; the
+language and the SDK protocol are unchanged, and a server that holds a policy lists
+`costStandingPolicyV1` on `/health`. The tests of this release gate the model call off or inject the
+access plan: no provider was called under a rule before the tag. The release also ends a late
+session offer as its deadline and moves `rustix` past an unsoundness advisory.
+
+### Added
+
+- **`nika serve --cost-policy` admits runs on an unpriced route with no
+  per-run cost review.** A workflow whose model the catalog does not price
+  (measured on 0.124.3 with `scaleway/deepseek-v4-flash-0731`) was refused
+  under any USD ceiling, and with the ceiling disarmed every job still
+  needed `POST /v2/cost-reviews`, a human `approve_once` and one job
+  carrying that review, a review living five minutes. The operator now
+  records that decision once, at startup: `--cost-policy
+  'PROVIDER/MODEL:requests=N,output-tokens=N,timeout=SECONDS,runs=N/PERIOD'`
+  (repeatable, requires `--bind`). A job on a named route whose run fits the
+  rule runs with no review; a run outside the rule, a route no rule names
+  and the run past a full window are still refused before anything is sent.
+  The authority is the server's startup composition only: no request field,
+  job body or workflow key grants or widens it, and the language is
+  unchanged. A rule overrides no ceiling. Without a declared price every
+  ceiling the job is under must be absent (`--run-cost-ceiling none`, never
+  implied), so scheduled occurrences stay refused; with
+  `input-usd=USD,output-usd=USD` (an operator's estimate per million tokens,
+  optionally `request-bytes=N`) the run, a scheduled occurrence included,
+  is admitted under a present ceiling only when its declared worst case
+  fits. The run's cost journal, its trace
+  and the new `cost_admission` of the job's settlement
+  (`settlement.cost_admission`, `nika/cost-admission@1`) name the
+  rule, its bounds, whether the price is `unknown` or `host_declared` and
+  the ceiling evidence; a call whose cost is unknown is never recorded as
+  zero. The job and its events gain no key of their own, so a published SDK,
+  which reads both closed and a settlement open, reads such a job as it
+  reads any other. Runs per window are counted in `.nika/standing-cost-runs.json` and
+  survive restarts; a second run on the route waits for the first instead of
+  failing on the project's cost lease; and a request that left without a
+  usable answer still blocks every later run on an unpriced route until it
+  is reconciled. Health lists `costStandingPolicyV1` and `GET
+  /v1/openapi.json` describes the new fields only on a server that holds a
+  policy; beside `--cost-review`, a review of a run the policy admits
+  answers `review_required: false` with the rule. Without `--cost-policy`
+  every behaviour, refusal and served document is unchanged. A journal row
+  written under a rule carries keys an engine before this release does not
+  read: after a downgrade, that engine refuses unknown-cost runs in the
+  project until the journal is moved aside. A server that holds a policy
+  archives a cleared cost journal that nears its 1 MiB read bound to
+  `.nika/inference-cost-observations.<digest>.ndjson` before the run that
+  needs the room.
+
+### Fixed
+
+- **A silent adapter reads as unavailable whichever timer is observed
+  first.** A session offer (`GET /v1/access-offers/{name}`,
+  `nika_harness::session_offer`) is bounded by its own deadline, and the
+  transport's idle bound arms on the same allowance a little later. When the
+  process was polled late, the idle bound could be observed first: the row
+  then carried `NIKA-1804` (session death) instead of `NIKA-1803` (adapter
+  silent), and one harness test failed on a loaded runner. An error returned
+  at or after the reading's deadline now ends as that deadline. An offer that
+  was read is kept, and an error returned in time is still the adapter's own
+  answer.
+
+### Security
+
+- **`rustix` is past its extended-attribute unsoundness advisory.** Given a
+  zero-length buffer, `getxattr`, `listxattr` and their `l` and `f` forms
+  marked bytes they never wrote as initialized in 1.1.4
+  (RUSTSEC-2026-0486); 1.1.6 returns an empty result instead. The engine's
+  own code calls none of those functions, but the audit denies unsoundness
+  in every lockfile, so the advisory refused each push. The workspace pin
+  and the three lockfiles (the root, `fuzz/` and `crates/nika-acp/`) move
+  together. The 0.38 series, which the advisory does not affect, stays
+  where it was.
 ## [0.124.3](https://github.com/supernovae-st/nika/compare/v0.124.2..v0.124.3) - 2026-11-10
 
 Nika 0.124.3 lets an application ask what a workflow's declared ACP route offers before anything
