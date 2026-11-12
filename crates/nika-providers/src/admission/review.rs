@@ -6,7 +6,9 @@ mod bounded_tests;
 mod exchange;
 pub use exchange::{CostChallenge, CostResponse, PendingCostReview};
 
-use super::{HardMonetaryCap, UnknownCostChoice, UnknownCostPolicy};
+use super::{
+    HardMonetaryCap, StandingCostPolicy, StandingRule, UnknownCostChoice, UnknownCostPolicy,
+};
 use crate::{InferenceAdmission, ProviderRegistry, ProvidersConfig, WireFormat};
 use nika_types::cost::Cost;
 use std::sync::Arc;
@@ -63,6 +65,8 @@ impl CapEvidence {
 pub struct CostHostEvidence {
     allowed: bool,
     layers: [CapEvidence; 3],
+    /// The operator's standing cost policy, when this host composed one.
+    standing: Option<StandingCostPolicy>,
 }
 impl Default for CostHostEvidence {
     fn default() -> Self {
@@ -86,7 +90,40 @@ impl CostHostEvidence {
         Self {
             allowed,
             layers: [policy, machine, occurrence],
+            standing: None,
         }
+    }
+    /// The same evidence with the operator's standing cost policy: a review of
+    /// a route one of its rules names is judged under that rule, and may be
+    /// confirmed by the host with no fresh human decision
+    /// ([`CostReview::standing_admission`]). The policy comes from the host's
+    /// own composition (its startup flags or configuration), never from a
+    /// request, a workflow or a model; it grants nothing to any other route.
+    #[must_use]
+    pub fn with_standing_policy(mut self, policy: StandingCostPolicy) -> Self {
+        self.standing = Some(policy);
+        self
+    }
+    /// [`Self::unknown_cost_refusal`] for a choice on `route`. It differs in
+    /// one case: a standing rule that declares a price for the route leaves a
+    /// present ceiling to the review itself, which admits the Run only when
+    /// its declared worst case fits under it.
+    #[must_use]
+    pub fn unknown_cost_refusal_on(&self, route: &CostRoute) -> Option<String> {
+        let priced = self
+            .standing_rule(route)
+            .is_some_and(StandingRule::declares_price);
+        let observed = self
+            .layers
+            .iter()
+            .all(|layer| layer.cap() != HardMonetaryCap::Unknown);
+        if priced && self.allowed && observed {
+            return None;
+        }
+        self.unknown_cost_refusal()
+    }
+    fn standing_rule(&self, route: &CostRoute) -> Option<&StandingRule> {
+        self.standing.as_ref()?.rule_for(route)
     }
     /// Attestation for the built-in unmanaged interactive local CLI only.
     /// Its composition has no configured policy/machine-cap source and is not
@@ -282,6 +319,8 @@ pub struct CostReview {
     request_timeout: Duration,
     reviewed_at: std::time::Instant,
     clock: Arc<dyn ReviewClock>,
+    /// The standing rule of the host's evidence that names this route, if any.
+    standing: Option<StandingRule>,
 }
 impl CostReview {
     /// One request, [`RUN_REVIEW_MAX_OUTPUT_TOKENS`] output tokens, [`RUN_REVIEW_TIMEOUT`];
@@ -318,6 +357,17 @@ impl CostReview {
         project_default: Option<Cost>,
         clock: Arc<C>,
     ) -> Result<Self, String> {
+        // A standing rule only narrows what a Run review admits per request.
+        let standing = evidence.standing_rule(&route).cloned();
+        let (max_output_tokens, request_timeout) =
+            standing
+                .as_ref()
+                .map_or((RUN_REVIEW_MAX_OUTPUT_TOKENS, RUN_REVIEW_TIMEOUT), |rule| {
+                    (
+                        rule.max_output_tokens.min(RUN_REVIEW_MAX_OUTPUT_TOKENS),
+                        rule.timeout.min(RUN_REVIEW_TIMEOUT),
+                    )
+                });
         let review = Self {
             candidate,
             invocation,
@@ -329,18 +379,47 @@ impl CostReview {
             max_in_flight: 1,
             breakdown: Vec::new(),
             authored_retry: false,
-            max_output_tokens: RUN_REVIEW_MAX_OUTPUT_TOKENS,
-            request_timeout: RUN_REVIEW_TIMEOUT,
+            max_output_tokens,
+            request_timeout,
             reviewed_at: nika_kernel::clock::ClockDyn::now(clock.as_ref()),
             clock,
+            standing,
         };
-        // Validate evidence and identity without creating reusable authority.
-        let account = InferenceAdmission::new_unknown(review.choice()?, review.policy())
-            .map_err(|e| e.to_string())?;
+        review.validate()?;
+        Ok(review)
+    }
+    /// Validate evidence, identity and bounds without creating reusable authority.
+    fn validate(&self) -> Result<(), String> {
+        let choice = self.choice()?;
+        // A standing choice's refusal reads in its own words.
+        if self.standing.is_some()
+            && let Some(refused) = self.policy().standing_refusal(&choice)
+        {
+            return Err(refused);
+        }
+        let account =
+            InferenceAdmission::new_unknown(choice, self.policy()).map_err(|e| e.to_string())?;
         account
             .close("review only; not confirmed")
-            .map_err(|e| e.to_string())?;
-        Ok(review)
+            .map_err(|e| e.to_string())
+    }
+    /// Whether the host may confirm this review under its standing rule with
+    /// no fresh decision, judged on the review's final bounds: the requests it
+    /// would admit and `output_tokens`, the most output any of its requests
+    /// asks, are within the rule, and every ceiling the Run is under is absent
+    /// or covers its declared worst case. `Ok(None)`: no standing rule names
+    /// this route. Counting the Run against the rule's window is the host's.
+    /// # Errors
+    /// Why the Run is outside its standing rule, in words a host shows.
+    pub fn standing_admission(&self, output_tokens: u32) -> Result<Option<&StandingRule>, String> {
+        let Some(rule) = &self.standing else {
+            return Ok(None);
+        };
+        if let Some(outside) = rule.refusal(self.max_requests, output_tokens) {
+            return Err(outside);
+        }
+        self.validate()?;
+        Ok(Some(rule))
     }
     /// Session classifier/reader/candidate share one finite review, sized to the calls one
     /// Session authoring turn may actually make ([`SESSION_REVIEW_MAX_REQUESTS`]) with the
@@ -497,6 +576,10 @@ impl CostReview {
             } else {
                 choice
             }
+        })
+        .and_then(|choice| match &self.standing {
+            Some(rule) => choice.under_standing(rule),
+            None => Ok(choice),
         })
         .map_err(|e| e.to_string())
     }

@@ -26,6 +26,7 @@ pub use run::review::{
     AccountView, Claim, Claims, KeyAnswer, REVIEW_TTL, REVIEWS_RETAINED, Replay, ReviewRefusal,
     Reviews, review_witness,
 };
+pub use run::standing::{STANDING_LEDGER, WindowFull, standing_runs};
 pub use run::{Blocked, Cleared, JournalWitness, RunAccount, RunJournal, clear};
 
 /// The journal's name under the project's `.nika/` directory.
@@ -145,6 +146,24 @@ impl Lease {
         file.rewind()?;
         let bytes = read_file(file)?;
         derive(nika, &bytes, holder, observer, |row| append_file(file, row))
+    }
+
+    /// Empty the locked journal inode, once its exact bytes are durable in an
+    /// archive beside it (`run::standing`, the one caller). The rows are not
+    /// rewritten: the next append starts a journal whose earlier Runs all
+    /// settled clear.
+    ///
+    /// # Errors
+    /// An unsafe link count, I/O failure or poisoned cursor lock.
+    fn reset(&self) -> std::io::Result<()> {
+        use std::os::unix::fs::MetadataExt as _;
+        let held = self.journal_guard()?;
+        let file: &std::fs::File = &held;
+        if file.metadata()?.nlink() != 1 {
+            return Err(invalid("cost journal no longer has one owned link"));
+        }
+        file.set_len(0)?;
+        file.sync_all()
     }
 
     fn journal_guard(&self) -> std::io::Result<std::sync::MutexGuard<'_, Flock<std::fs::File>>> {
@@ -646,10 +665,14 @@ fn read(nika: &OwnedDir) -> std::io::Result<Vec<u8>> {
     read_file(file)
 }
 
+/// The most journal bytes an admission reads: a larger journal is refused
+/// whole, and every review with it, until an operator moves it aside.
+const READ_BOUND: u64 = 1_048_576;
+
 fn read_file(file: impl std::io::Read) -> std::io::Result<Vec<u8>> {
     let mut bytes = Vec::new();
-    file.take(1_048_577).read_to_end(&mut bytes)?;
-    if bytes.len() > 1_048_576 {
+    file.take(READ_BOUND + 1).read_to_end(&mut bytes)?;
+    if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > READ_BOUND {
         return Err(invalid("cost observation journal exceeds the read bound"));
     }
     Ok(bytes)

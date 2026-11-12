@@ -604,6 +604,23 @@ const CHOICE_FIELDS: &[Field] = &[
         Carry::Object(DECLARED_FIELDS, true),
         true,
     ),
+    // Written only by a choice admitted under an operator's standing rule:
+    // absent, the choice is a fresh review's and keeps its historical keys.
+    ("max_request_bytes", Carry::Copy(Kind::Count), false),
+    ("standing", Carry::Object(STANDING_FIELDS, false), false),
+];
+/// The standing rule a choice was admitted under: its identity, the Runs it
+/// admits per window and, when the rule declares a USD price, the Run's
+/// declared worst case.
+const STANDING_FIELDS: &[Field] = &[
+    ("policy", Carry::Copy(Kind::Text), true),
+    ("max_runs", Carry::Copy(Kind::Count), true),
+    ("window_seconds", Carry::Copy(Kind::Count), true),
+    (
+        "declared_worst_case_nano_usd",
+        Carry::Copy(Kind::Nano),
+        false,
+    ),
 ];
 const DECLARED_FIELDS: &[Field] = &[
     ("provider", Carry::Copy(Kind::Text), true),

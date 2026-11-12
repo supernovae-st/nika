@@ -98,6 +98,22 @@ pub(crate) fn served(native: bool, cost_review: bool, sessions: bool) -> Value {
     document
 }
 
+/// `document` as a server whose backend holds a standing cost policy serves it (health
+/// `costStandingPolicyV1`): the `cost_admission` of a job's settlement merged in, and where the
+/// cost-review door is also open (`reviewed`) the answer that names the rule which makes a review
+/// unnecessary. The patches name no key another door's patch names, so their order against those
+/// is free, and none adds a key to an object a published SDK closes.
+pub(crate) fn under_cost_policy(mut document: Value, reviewed: bool) -> Value {
+    let review = [super::cost_policy::OPENAPI_REVIEW]
+        .into_iter()
+        .filter(|_| reviewed);
+    let patches = [super::cost_policy::OPENAPI].into_iter().chain(review);
+    for patch in patches.filter_map(|patch| serde_json::from_str::<Value>(patch).ok()) {
+        super::compile::schema::merge(&mut document, patch);
+    }
+    document
+}
+
 /// The document's source: the builder the committed file is generated from.
 #[cfg(test)]
 mod builder {

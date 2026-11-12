@@ -237,6 +237,29 @@ only an unlinked legacy lock cannot retroactively acquire the new project,
 directory and journal guards. Replacing the project root itself changes the
 custody object, and filesystem access can still forge unauthenticated rows.
 
+A host that admits Runs under an operator's standing cost policy keeps two
+more things under the same lease (`cost_journal::run::standing`, 2026-11-11).
+`Cleared::admit_standing_run(route, max_runs, window, now)` counts one Run of a
+route in `.nika/standing-cost-runs.json` (`nika/standing-cost-runs@1`: Unix
+seconds by route, replaced atomically), unless the window already holds
+`max_runs`; the free `standing_runs(root, route, window, now)` reads the
+count without the lease and without writing, for a host that only asks. The
+count survives restarts, a ledger this engine did not write refuses rather
+than reading as empty, a Run admitted in the clock's future still counts, and
+the ledger is never written past its own 4 MiB read bound (the Run that would
+carry it there is refused uncounted). An admission forgets the route's Runs
+that left the window it was given, so a rule rewritten with a longer window
+counts only what the shorter one kept. The ledger is a bound the host
+enforces, never billing evidence. `Cleared::make_room(reserve)` keeps such a
+host from filling the journal, which every admission reads whole and refuses
+past 1 MiB: a cleared journal that would pass that bound with `reserve` more
+bytes is written, byte for byte, to
+`inference-cost-observations.<sha256, 16 hex>.ndjson` beside it, made
+durable, and only then emptied through the locked inode. A repeat after an
+interruption writes the same file and finishes. A journal that still blocks
+is never archived (no `Cleared` exists for it), and `nika trace cost` inspects
+the live journal only.
+
 Unjudged writers, refused rows and torn rows stay blocking and are shown as not
 reconcilable. The journal is still not authenticated: a consistent
 reconciliation written by hand reads like one this door wrote, and a copied

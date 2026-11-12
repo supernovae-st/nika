@@ -15,9 +15,11 @@ use nika_service_execution::{
 };
 use nika_types::cancel::CancelCtx;
 
+use nika_providers::admission::StandingCostPolicy;
+
 use super::{
     BoundServer, CostAuthority, CredentialRefuse, ExecutionBackend, ExecutionDisposition,
-    ExecutionOutcome, ResidentAuthority, ResidentConfig, ServerConfig, ServerError,
+    ExecutionOutcome, ResidentAuthority, ResidentConfig, ServerConfig, ServerError, cost_policy,
 };
 
 /// Production adapter from admitted execution snapshots to the shared service driver.
@@ -27,6 +29,11 @@ pub struct ResidentExecutionBackend {
     /// The seal the run journal receives at settlement: the machine's key
     /// custody in production, an in-memory key under test.
     seal: Arc<dyn JournalSeal>,
+    /// The operator's standing cost policy, when this backend holds one.
+    standing: Option<Arc<cost_policy::Seat>>,
+    /// The plan every job runs under in tests (the machine's probes otherwise).
+    #[cfg(test)]
+    plan: Option<nika_service_execution::ExecutionAccessPlan>,
 }
 
 impl ResidentExecutionBackend {
@@ -36,7 +43,31 @@ impl ResidentExecutionBackend {
         Self {
             display_root: display_root.into(),
             seal: Arc::new(CustodySeal),
+            standing: None,
+            #[cfg(test)]
+            plan: None,
         }
+    }
+
+    /// Run every job under `plan` instead of the machine's probes: the tests'
+    /// access seam, as the cost-review door has one; production never calls it.
+    #[cfg(test)]
+    pub(crate) fn with_access_plan(
+        mut self,
+        plan: nika_service_execution::ExecutionAccessPlan,
+    ) -> Self {
+        self.plan = Some(plan);
+        self
+    }
+
+    /// Hold the operator's standing cost policy: a job with no reviewed
+    /// authority whose one unknown-cost route a rule names is admitted under
+    /// that rule, with no per-run cost review. Every other job is judged
+    /// exactly as before.
+    #[must_use]
+    pub fn with_cost_policy(mut self, policy: StandingCostPolicy) -> Self {
+        self.standing = Some(Arc::new(cost_policy::Seat::new(policy)));
+        self
     }
 
     /// Replace the seal's key custody — the tests prove the door's seal
@@ -55,35 +86,47 @@ impl ResidentExecutionBackend {
         pair: (BTreeMap<String, serde_json::Value>, Option<CancelCtx>),
         authority: Option<CostAuthority>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
-        let facts = nika_runtime::RunFacts::default();
-        self.drive_told(context, (max_cost_usd, access_pin), pair, authority, facts)
+        self.drive_told(context, (max_cost_usd, access_pin), pair, authority, None)
     }
 
-    /// [`Self::drive`] with the run told the instant it serves (spec 04 §`run`).
+    /// [`Self::drive`] with a scheduled run told the instant it serves (spec 04
+    /// §`run`); `None`: a job no schedule fired.
     fn drive_told<'a>(
         &'a self,
         context: nika_execution::ExecutionContext<'a>,
         (max_cost_usd, access_pin): (Option<f64>, Option<&str>),
         (inputs, cancel): (BTreeMap<String, serde_json::Value>, Option<CancelCtx>),
         authority: Option<CostAuthority>,
-        facts: nika_runtime::RunFacts,
+        told: Option<nika_runtime::RunFacts>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
-        let display_root = self.display_root.clone();
-        let seal = Arc::clone(&self.seal);
+        let host = Host {
+            display_root: self.display_root.clone(),
+            seal: Arc::clone(&self.seal),
+            standing: self.standing.clone(),
+            #[cfg(test)]
+            plan: self.plan.clone(),
+        };
         let access_pin = access_pin.map(str::to_owned);
         Box::pin(async move {
             drive_resident_execution(
-                display_root,
-                seal,
+                host,
                 context,
-                max_cost_usd,
-                access_pin.as_deref(),
-                (inputs, cancel, facts),
+                (max_cost_usd, access_pin.as_deref()),
+                (inputs, cancel, told),
                 authority,
             )
             .await
         })
     }
+}
+
+/// What one resident execution takes from the backend that drives it.
+struct Host {
+    display_root: PathBuf,
+    seal: Arc<dyn JournalSeal>,
+    standing: Option<Arc<cost_policy::Seat>>,
+    #[cfg(test)]
+    plan: Option<nika_service_execution::ExecutionAccessPlan>,
 }
 
 /// The run journal's seal at settlement — the custody seam as a trait, so
@@ -205,11 +248,15 @@ impl ExecutionBackend for ResidentExecutionBackend {
         facts: nika_runtime::RunFacts,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
         let pair = (inputs.clone(), Some(cancel));
-        self.drive_told(context, (max_cost_usd, access_pin), pair, None, facts)
+        self.drive_told(context, (max_cost_usd, access_pin), pair, None, Some(facts))
     }
 
     fn trace_journal_dir(&self) -> Option<PathBuf> {
         Some(self.display_root.join(nika_dap::store::TRACE_DIR))
+    }
+
+    fn standing_cost_policy(&self) -> Option<StandingCostPolicy> {
+        self.standing.as_ref().map(|seat| seat.policy().clone())
     }
 }
 
@@ -246,18 +293,23 @@ impl Drop for CancelOnDrop {
 }
 
 async fn drive_resident_execution(
-    display_root: PathBuf,
-    seal: Arc<dyn JournalSeal>,
+    host: Host,
     context: nika_execution::ExecutionContext<'_>,
-    max_cost_usd: Option<f64>,
-    access_pin: Option<&str>,
-    (inputs, operator_cancel, run_facts): (
+    (max_cost_usd, access_pin): (Option<f64>, Option<&str>),
+    (inputs, operator_cancel, told): (
         BTreeMap<String, serde_json::Value>,
         Option<CancelCtx>,
-        nika_runtime::RunFacts,
+        Option<nika_runtime::RunFacts>,
     ),
     authority: Option<CostAuthority>,
 ) -> ExecutionOutcome {
+    let Host {
+        display_root,
+        seal,
+        standing,
+        #[cfg(test)]
+            plan: forced,
+    } = host;
     // The journal a `nika run` would leave, under the project the resident
     // serves: the trace the receipt names exists on disk (#1381). The sink
     // stays with the resident — the driver mirrors into a lane on it — so
@@ -283,17 +335,23 @@ async fn drive_resident_execution(
     // CLI door does. A job body `access` is `--access` (a pin is a pin);
     // absent, the unpinned plan. No silent substitution after admission.
     // A reviewed job (C6) runs the plan its review judged, with its account.
-    let (plan, cost) = if let Some(CostAuthority { plan, cost }) = authority {
-        (plan, Some(cost))
+    let (plan, cost, standing) = if let Some(CostAuthority { plan, cost }) = authority {
+        (plan, Some(cost), None)
     } else {
+        #[cfg(test)]
+        let plan = forced.unwrap_or_else(|| driver.resolve_access_plan(None, access_pin));
+        #[cfg(not(test))]
         let plan = driver.resolve_access_plan(None, access_pin);
-        match unreviewed_cost(&display_root, &driver, &plan, &inputs) {
-            Ok(cost) => (plan, cost),
+        let ceiling = (max_cost_usd, told.is_some());
+        let judged =
+            judge_unreviewed(&display_root, &driver, &plan, &inputs, (&standing, ceiling)).await;
+        match judged {
+            Ok((cost, standing)) => (plan, cost, standing),
             Err(why) => return ExecutionOutcome::failed("admission_refused", why),
         }
     };
-    // Only a fresh unknown-cost choice replaces the run's spend ceiling, as
-    // in `nika run`; an observer keeps it.
+    // Only a fresh or standing unknown-cost choice replaces the run's spend
+    // ceiling, as in `nika run`; an observer keeps it.
     let reviewed = cost
         .as_ref()
         .is_some_and(|c| !c.account.observes_declared_free_only());
@@ -312,7 +370,8 @@ async fn drive_resident_execution(
         operator_cancel,
         max_cost_usd,
         inputs,
-        run_facts,
+        run_facts: told.unwrap_or_default(),
+        standing,
     };
     match tokio::task::spawn_blocking(move || run_admitted_resident_job(job, cancel_rx)).await {
         Ok(outcome) => outcome,
@@ -320,25 +379,83 @@ async fn drive_resident_execution(
     }
 }
 
+/// What a Run a standing rule admitted carries to its end: what its job's
+/// record says of the admission, and the turn it holds among such Runs.
+type StandingRun = (serde_json::Value, tokio::sync::OwnedMutexGuard<()>);
+
+/// [`unreviewed_cost`] on a backend that may hold a standing cost policy,
+/// under the job's per-run ceiling and origin (`scheduled`). One unknown-cost
+/// Run holds the project's cost lease at a time, so a Run a standing rule
+/// names first waits its turn behind the one before it, and keeps that turn
+/// to its end when the rule admits it.
+async fn judge_unreviewed(
+    root: &Path,
+    driver: &ServiceExecutionDriver,
+    plan: &nika_service_execution::ExecutionAccessPlan,
+    inputs: &BTreeMap<String, serde_json::Value>,
+    (standing, (ceiling, scheduled)): (&Option<Arc<cost_policy::Seat>>, (Option<f64>, bool)),
+) -> Result<
+    (
+        Option<nika_cli_host::run_cost::RunCost>,
+        Option<StandingRun>,
+    ),
+    String,
+> {
+    let Some(seat) = standing else {
+        return unreviewed_cost(root, driver, plan, inputs, None).map(|cost| (cost, None));
+    };
+    let job = cost_policy::StandingJob {
+        policy: seat.policy(),
+        ceiling,
+        scheduled,
+    };
+    let turn = match job.rule(plan) {
+        Some(_) => Some(seat.turn().await),
+        None => None,
+    };
+    let cost = unreviewed_cost(root, driver, plan, inputs, Some(&job))?;
+    let admission = cost.as_ref().and_then(|cost| job.admission(cost));
+    Ok((cost, admission.zip(turn)))
+}
+
 /// A job with no reviewed authority (manual, snapshot or scheduled) goes
 /// through the one host evaluator `nika run` uses: exact priced and local
 /// routes keep their composition, declared-free or run-time routes bind the
 /// per-Run observer, and an unknown-cost route refuses before the worker
-/// starts, after the evaluator recorded what earlier Runs left.
+/// starts, after the evaluator recorded what earlier Runs left. With a
+/// standing cost policy (`standing`), a Run whose one unknown-cost route a
+/// rule names is admitted under that rule instead, when the evaluator finds it
+/// inside the rule: counted in the rule's window, then confirmed with no
+/// fresh decision. Every other Run refuses as it would without the policy.
 fn unreviewed_cost(
     root: &Path,
     driver: &ServiceExecutionDriver,
     plan: &nika_service_execution::ExecutionAccessPlan,
     inputs: &BTreeMap<String, serde_json::Value>,
+    standing: Option<&cost_policy::StandingJob<'_>>,
 ) -> Result<Option<nika_cli_host::run_cost::RunCost>, String> {
     use nika_cli_host::run_cost::{RunCostPlan, prepare};
     use nika_providers::admission::{CapEvidence, CostHostEvidence};
-    let ask = || Err(UNREVIEWED.to_owned());
-    let evidence = CostHostEvidence::new(
-        false,
-        CapEvidence::Unknown,
-        CapEvidence::Unknown,
-        CapEvidence::Unknown,
+    let named = standing.and_then(|job| job.rule(plan).map(|rule| (job, rule)));
+    let unreviewed = if standing.is_some() {
+        cost_policy::UNNAMED
+    } else {
+        UNREVIEWED
+    };
+    let ask = || match named {
+        Some(_) => Ok(()),
+        None => Err(unreviewed.to_owned()),
+    };
+    let evidence = named.map_or_else(
+        || {
+            CostHostEvidence::new(
+                false,
+                CapEvidence::Unknown,
+                CapEvidence::Unknown,
+                CapEvidence::Unknown,
+            )
+        },
+        |(job, _)| job.evidence(),
     );
     let execution = driver.execution_id().to_string();
     let source = driver.root_source();
@@ -356,7 +473,13 @@ fn unreviewed_cost(
     )? {
         RunCostPlan::Unneeded => Ok(None),
         RunCostPlan::Observer(cost) | RunCostPlan::Zero(cost) => Ok(Some(*cost)),
-        _ => Err(UNREVIEWED.to_owned()),
+        RunCostPlan::Review(review) if review.standing().is_some() => review
+            .confirm_standing(source, std::time::SystemTime::now())
+            .map(Some),
+        RunCostPlan::HardCapped(_) => {
+            Err(named.map_or_else(|| unreviewed.to_owned(), |(job, rule)| job.capped(rule)))
+        }
+        _ => Err(unreviewed.to_owned()),
     }
 }
 
@@ -378,9 +501,26 @@ struct ResidentJob {
     inputs: BTreeMap<String, serde_json::Value>,
     /// The slot a scheduled fire serves (spec 04 §`run`); the default otherwise.
     run_facts: nika_runtime::RunFacts,
+    /// Set for a Run a standing rule admitted ([`StandingRun`]).
+    standing: Option<StandingRun>,
 }
 
+/// Run one admitted job to its end. A Run a standing rule admitted says so on
+/// its outcome, and frees its turn only once its account settled and the
+/// project's cost lease is released (both end with [`settle_resident_job`]).
 fn run_admitted_resident_job(
+    mut job: ResidentJob,
+    cancel: tokio::sync::oneshot::Receiver<()>,
+) -> ExecutionOutcome {
+    let standing = job.standing.take();
+    let outcome = settle_resident_job(job, cancel);
+    match standing {
+        Some((admission, _turn)) => outcome.with_cost_admission(admission),
+        None => outcome,
+    }
+}
+
+fn settle_resident_job(
     job: ResidentJob,
     cancel: tokio::sync::oneshot::Receiver<()>,
 ) -> ExecutionOutcome {
@@ -403,6 +543,7 @@ fn run_admitted_resident_job(
         max_cost_usd,
         inputs,
         run_facts,
+        standing: _,
     } = job;
     // Defaults retain file provenance; explicit HTTP bindings are the API
     // caller's, never a person, CI context or environment read from here.
@@ -683,7 +824,12 @@ pub fn serve_resident_process(
         .enable_all()
         .build()
         .map_err(|error| format!("serve · the signal runtime refused: {error}"))?;
-    let backend = Arc::new(ResidentExecutionBackend::new(workflow_root));
+    let backend = ResidentExecutionBackend::new(workflow_root);
+    // The operator's standing cost policy is the backend's to enforce.
+    let backend = Arc::new(match server.as_ref().and_then(ServerConfig::cost_policy) {
+        Some(policy) => backend.with_cost_policy(policy.clone()),
+        None => backend,
+    });
     let resident = ResidentConfig::new(state_root).with_workflow_root(workflow_root.to_path_buf());
     let limits = server.as_ref().and_then(ServerConfig::resident_limits);
     let resident = resident.with_limits(limits.unwrap_or_default());

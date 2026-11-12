@@ -1274,3 +1274,372 @@ fn serve_judges_a_pinned_mcp_step_and_holds_an_unapproved_one() {
     assert_eq!(terminate(&mut child), Some(0));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+// ── `--cost-policy`: a standing rule for a route the catalog does not price ──
+
+/// One bounded model call on a route the catalog does not price, gated off: the run is judged
+/// for one request and sends none.
+const UNPRICED: &str = concat!(
+    "nika: unpriced\n",
+    "model: scaleway/deepseek-v4-flash-0731\n",
+    "permits: {}\n",
+    "tasks:\n",
+    "  ask:\n",
+    "    when: false\n",
+    "    infer: { prompt: \"Reply with one word.\", max_tokens: 32 }\n",
+);
+
+/// The rule an operator writes for the route [`UNPRICED`] names.
+const UNPRICED_RULE: &str =
+    "scaleway/deepseek-v4-flash-0731:requests=4,output-tokens=4096,timeout=120,runs=200/day";
+
+/// `nika serve` on a port of its own choosing, and the address its listening line names.
+///
+/// No port is probed and released first, so no other socket can take it before the server
+/// binds, and the first request leaves only once the listener exists. Everything the server
+/// says is kept in the project's `serve.output`, which stays behind with the project when a
+/// test fails.
+#[cfg(unix)]
+fn serve_on_its_own_port(
+    dir: &std::path::Path,
+    flags: &[&str],
+    env: &[(&str, &str)],
+) -> (std::process::Child, String) {
+    let home = dir.join("home");
+    std::fs::create_dir_all(&home).expect("home");
+    let said = dir.join("serve.output");
+    let output = std::fs::File::create(&said).expect("serve output");
+    let mut command = bin();
+    command
+        .args([
+            "serve",
+            "--bind",
+            "127.0.0.1:0",
+            "--workflows",
+            "workflows",
+            "--token-file",
+            "token",
+        ])
+        .args(flags)
+        .current_dir(dir)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", &home)
+        .env("NIKA_KEYCHAIN", "off")
+        .stdout(output.try_clone().expect("serve output"))
+        .stderr(output);
+    for (name, value) in env {
+        command.env(name, value);
+    }
+    let mut child = command.spawn().expect("spawn serve");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    loop {
+        let text = std::fs::read_to_string(&said).unwrap_or_default();
+        // The address is whole once the text that follows it on the line is there.
+        let listening = text
+            .split_once("listening http://")
+            .and_then(|(_, rest)| rest.split_once(' '));
+        if let Some((address, _)) = listening {
+            return (child, address.to_owned());
+        }
+        let exited = child.try_wait().expect("wait");
+        if exited.is_some() || std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("serve never listened ({exited:?}): {text}");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    }
+}
+
+/// The settled record of one `workflows/unpriced.nika` job on a server started with `flags`,
+/// whether its health lists the standing-policy capability, and its project. The route's
+/// endpoint is a loopback port nothing listens on and the key is synthetic, so no request
+/// could reach a provider even if one were sent.
+#[cfg(unix)]
+fn unpriced_job(tag: &str, flags: &[&str]) -> (serde_json::Value, bool, std::path::PathBuf) {
+    /// A caught regression panics before the clean stop: the server is then killed and
+    /// reaped on unwind, and the temp project stays behind as evidence.
+    struct OwnedServe(Option<std::process::Child>);
+    impl Drop for OwnedServe {
+        fn drop(&mut self) {
+            if let Some(mut child) = self.0.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+    }
+    let dir = project(
+        tag,
+        &format!("nika: {tag}\n"),
+        &[("unpriced.nika", UNPRICED)],
+    );
+    secure_token(&dir);
+    let env = [
+        (
+            "NIKA_SCALEWAY_BASE_URL",
+            "https://127.0.0.1:9/v1/chat/completions",
+        ),
+        ("NIKA_SCALEWAY_API_KEY", "synthetic-standing-policy-key"),
+    ];
+    let (child, address) = serve_on_its_own_port(&dir, flags, &env);
+    let mut serve = OwnedServe(Some(child));
+    let (status, _, health) = http(
+        &address,
+        "GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
+    assert_eq!(status, 200, "{health}");
+    let job = r#"{"workflow":"workflows/unpriced.nika"}"#;
+    let (status, _, admitted) = http(
+        &address,
+        &format!(
+            "POST /v1/jobs HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {TOKEN_VALUE}\r\nIdempotency-Key: {tag}-1\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{job}",
+            job.len()
+        ),
+    );
+    assert_eq!(status, 202, "{admitted}");
+    let admitted: serde_json::Value = serde_json::from_str(&admitted).expect("admission body");
+    let id = admitted["id"].as_str().expect("job id").to_owned();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    let settled = loop {
+        let (status, _, body) = http(
+            &address,
+            &format!(
+                "GET /v1/jobs/{id} HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer {TOKEN_VALUE}\r\nConnection: close\r\n\r\n"
+            ),
+        );
+        assert_eq!(status, 200, "{body}");
+        let record: serde_json::Value = serde_json::from_str(&body).expect("job body");
+        if record["status"] != "queued" && record["status"] != "running" {
+            break record;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the job never settled: {record}"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    let mut child = serve.0.take().expect("owned serve");
+    assert_eq!(terminate(&mut child), Some(0));
+    (settled, health.contains("costStandingPolicyV1"), dir)
+}
+
+/// The runs the project's standing ledger counts for the route [`UNPRICED`] names.
+#[cfg(unix)]
+fn counted_runs(dir: &std::path::Path) -> Option<usize> {
+    let ledger = std::fs::read_to_string(dir.join(".nika/standing-cost-runs.json")).ok()?;
+    let ledger: serde_json::Value = serde_json::from_str(&ledger).ok()?;
+    ledger["runs"]["scaleway/deepseek-v4-flash-0731"]
+        .as_array()
+        .map(Vec::len)
+}
+
+/// Without `--cost-policy` nothing changes: a job on a route the catalog does not price is
+/// refused in the words it always was, under the default ceiling and with it disarmed; health
+/// lists no standing-policy capability, and nothing is counted.
+#[cfg(unix)]
+#[test]
+fn an_unpriced_route_stays_refused_without_a_cost_policy() {
+    for (tag, flags) in [
+        ("unpriced-default", &[][..]),
+        ("unpriced-disarmed", &["--run-cost-ceiling", "none"][..]),
+    ] {
+        let (job, advertised, dir) = unpriced_job(tag, flags);
+        assert!(!advertised, "{tag}: no policy, no capability");
+        assert_eq!(job["status"], "failed", "{job}");
+        assert_eq!(job["error"]["code"], "admission_refused", "{job}");
+        assert!(
+            job["error"]["message"].as_str().is_some_and(|message| {
+                message.starts_with(
+                    "price unknown: this Run's exact route needs a fresh one-time cost review, which a job without one never obtains",
+                )
+            }),
+            "{job}"
+        );
+        assert!(
+            job.get("settlement").is_none(),
+            "a refusal settles nothing: {job}"
+        );
+        assert_eq!(counted_runs(&dir), None, "{tag}");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
+/// `--cost-policy` through the real binary: a job on the route the rule names runs with no
+/// review and no decision. Its settlement says a standing rule admitted it, at an unknown price
+/// and under which bounds, and the job itself gains no key (a published SDK reads a job closed
+/// and its settlement open); its run is counted in the rule's window; nothing is sent or priced.
+#[cfg(unix)]
+#[test]
+fn a_cost_policy_admits_a_run_on_its_route_with_no_review() {
+    let flags = ["--run-cost-ceiling", "none", "--cost-policy", UNPRICED_RULE];
+    let (job, advertised, dir) = unpriced_job("policy-admits", &flags);
+    assert!(advertised, "health lists costStandingPolicyV1");
+    assert_eq!(job["status"], "succeeded", "{job}");
+    assert!(job.get("cost_admission").is_none(), "never beside: {job}");
+    let admission = &job["settlement"]["cost_admission"];
+    assert_eq!(admission["schema"], "nika/cost-admission@1", "{job}");
+    assert_eq!(admission["authority"], "standing_policy");
+    assert_eq!(admission["price"], "unknown");
+    let choice = &admission["choice"];
+    assert_eq!(choice["provider"], "scaleway");
+    assert_eq!(choice["model"], "deepseek-v4-flash-0731");
+    assert_eq!(choice["origin"], "https://127.0.0.1:9");
+    assert_eq!(choice["max_requests"], 1);
+    assert_eq!(choice["max_output_tokens"], 4096);
+    assert_eq!(choice["timeout_ms"], 120_000);
+    assert!(choice["declared_tariff"].is_null());
+    let rule = &choice["standing"];
+    assert_eq!(rule["max_runs"], 200);
+    assert_eq!(rule["window_seconds"], 86_400);
+    assert!(
+        rule["policy"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("scp-") && id.len() == 20),
+        "{rule}"
+    );
+    assert_eq!(admission["host"]["machine"]["cap"], "absent");
+    let spend = &job["settlement"]["spend"];
+    assert_eq!(spend["priced_calls"], 0, "{spend}");
+    assert_eq!(spend["unpriced_calls"], 0, "the gated call was never sent");
+    assert!(
+        spend.get("total_cost_usd").is_none(),
+        "nothing metered is never a zero: {spend}"
+    );
+    assert_eq!(counted_runs(&dir), Some(1));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A rule overrides no ceiling, through the real binary. Under the default per-run ceiling a
+/// rule without a price refuses and names its remedy; a rule that declares one runs under
+/// that ceiling, and its record says the price is the operator's and what it bounds.
+#[cfg(unix)]
+#[test]
+fn a_cost_policy_overrides_no_ceiling() {
+    let (job, _, dir) = unpriced_job("policy-capped", &["--cost-policy", UNPRICED_RULE]);
+    assert_eq!(job["status"], "failed", "{job}");
+    assert_eq!(job["error"]["code"], "admission_refused", "{job}");
+    let message = job["error"]["message"].as_str().expect("message");
+    assert!(
+        message.starts_with(
+            "price unknown: a $1.000000 ceiling binds this job and the standing cost rule scp-"
+        ),
+        "{message}"
+    );
+    assert!(
+        message.ends_with(
+            "declares no price, so the ceiling cannot bound it: declare input-usd and output-usd on the rule, or start with --run-cost-ceiling none"
+        ),
+        "{message}"
+    );
+    assert!(
+        job.get("settlement").is_none(),
+        "a refusal settles nothing: {job}"
+    );
+    assert_eq!(counted_runs(&dir), None, "a refused run is never counted");
+    let _ = std::fs::remove_dir_all(dir);
+
+    let priced = format!("{UNPRICED_RULE},request-bytes=32768,input-usd=0.15,output-usd=0.60");
+    let (job, _, dir) = unpriced_job("policy-priced", &["--cost-policy", &priced]);
+    assert_eq!(job["status"], "succeeded", "{job}");
+    let admission = &job["settlement"]["cost_admission"];
+    assert_eq!(admission["price"], "host_declared", "{job}");
+    let choice = &admission["choice"];
+    assert_eq!(choice["max_request_bytes"], 32_768);
+    assert_eq!(choice["declared_tariff"]["currency"], "USD");
+    assert_eq!(
+        choice["declared_tariff"]["nano_per_token"],
+        serde_json::json!([150, 600, 150])
+    );
+    // One request: 32,768 bytes at 150 nano-USD, 4,096 output tokens at 600.
+    assert_eq!(
+        choice["standing"]["declared_worst_case_nano_usd"],
+        "7372800"
+    );
+    assert_eq!(
+        admission["host"]["machine"]["cap"],
+        serde_json::json!({"capped_usd": "$1.000000"})
+    );
+    assert!(
+        job["settlement"]["spend"].get("total_cost_usd").is_none(),
+        "a declared worst case is never a spend: {job}"
+    );
+    assert_eq!(counted_runs(&dir), Some(1));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// `serve --help` names the flag, it needs the listener, and a rule the launch cannot hold
+/// refuses before the listener binds, in the launch's own words.
+#[cfg(unix)]
+#[test]
+fn a_cost_policy_the_launch_cannot_hold_refuses_before_binding() {
+    let help = bin().args(["serve", "--help"]).output().expect("help");
+    let help = String::from_utf8_lossy(&help.stdout).into_owned();
+    assert!(help.contains("--cost-policy <RULE>"), "{help}");
+    let alone = bin()
+        .args(["serve", "--cost-policy", UNPRICED_RULE])
+        .env("NIKA_KEYCHAIN", "off")
+        .output()
+        .expect("usage refusal");
+    assert_eq!(alone.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&alone.stderr).contains("--bind"));
+
+    let dir = project(
+        "policy-refused",
+        "nika: policy-refused\n",
+        &[("unpriced.nika", UNPRICED)],
+    );
+    secure_token(&dir);
+    let home = dir.join("home");
+    std::fs::create_dir_all(&home).expect("home");
+    // Keep the port occupied: reaching bind would produce another refusal.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("port canary");
+    let address = listener.local_addr().expect("address").to_string();
+    for (rule, why) in [
+        (
+            "scaleway/deepseek-v4-flash-0731:requests=4",
+            "`runs` is required",
+        ),
+        (
+            "deepseek/deepseek-flash:requests=4,output-tokens=16,timeout=5,runs=1/day",
+            "the catalog prices this route",
+        ),
+    ] {
+        let out = bin()
+            .args([
+                "serve",
+                "--bind",
+                address.as_str(),
+                "--workflows",
+                "workflows",
+                "--token-file",
+                "token",
+                "--cost-policy",
+                rule,
+            ])
+            .current_dir(&dir)
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .env("HOME", &home)
+            .env("NIKA_KEYCHAIN", "off")
+            .output()
+            .expect("serve refusal");
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_eq!(out.status.code(), Some(1), "{text}");
+        assert!(
+            text.contains(&format!("serve · standing cost rule {rule:?}: ")),
+            "{text}"
+        );
+        assert!(text.contains(why), "{text}");
+        assert!(
+            !text.contains("listener failed"),
+            "never reached bind: {text}"
+        );
+    }
+    drop(listener);
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -8,7 +8,7 @@
 use nika_providers::InferenceAdmission;
 use nika_providers::admission::{
     CostChallenge, CostHostEvidence, CostResponse, CostReview, CostRoute, PendingCostReview,
-    monetary_default,
+    StandingRule, monetary_default,
 };
 use std::path::{Path, PathBuf};
 mod exchange;
@@ -102,6 +102,93 @@ pub struct ReviewedRun {
     bounds: (u32, u32, std::time::Duration),
     dispatch: nika_service_execution::run_cost::DispatchBound,
     defaults: [Option<f64>; 2],
+    /// The standing rule this Run is inside, when its host's evidence carries one.
+    standing: Option<StandingRule>,
+}
+
+/// The room kept under the journal's read bound, before a Run is admitted
+/// under a standing rule, for each of the two rows it writes and for each
+/// request its last row records: a little over twice the largest record
+/// measured (1.9 kB, an answered request under a declared price). A journal
+/// that does not leave that room is archived first, so the rows of a standing
+/// Run do not carry the journal past the bound every admission reads it under.
+const ROW_RESERVE: u64 = 4096;
+
+/// What a host hears when it asks a standing admission of any other review.
+const NOT_STANDING: &str =
+    "no standing cost rule names this Run: only a fresh decision confirms it";
+
+/// The route a standing rule's Runs are counted under: `provider/model`.
+fn route_key(route: &CostRoute) -> String {
+    format!("{}/{}", route.provider, route.model)
+}
+
+/// Whether a job of this Run would be inside the operator's standing rule
+/// now, judged without the project's cost lease: the rule that names the
+/// Run's one unknown-cost route, when the Run's typed dispatch bound and its
+/// output fit the rule, every ceiling the Run is under (`evidence`, the
+/// project's `ceiling:`) is absent or covers its declared worst case, and the
+/// rule's window still admits a Run at `now`. `Ok(None)` otherwise. This is
+/// the answer for a host that only asks (Serve's review door), so it never
+/// waits on a Run in flight and prepares, counts and holds nothing. The
+/// admission itself is [`prepare`] then [`ReviewedRun::confirm_standing`],
+/// which also read what earlier Runs left and count the Run.
+/// # Errors
+/// A route no host can judge, or an unreadable project or standing ledger.
+pub fn standing_rule(
+    root: &Path,
+    invocation: &str,
+    wf: &nika_schema::raw::RawWorkflow,
+    plan: &nika_providers::ExecutionAccessPlan,
+    inputs: &Inputs,
+    evidence: CostHostEvidence,
+    now: std::time::SystemTime,
+) -> Result<Option<StandingRule>, String> {
+    let config = nika_runtime::compose::config_from_env();
+    let mut unknown = readiness::unknown_routes(plan, &config)?;
+    if unknown.len() != 1 {
+        return Ok(None);
+    }
+    let (_, route) = unknown.remove(0);
+    let bound = nika_service_execution::run_cost::dispatch_bound(wf, plan, 1, inputs);
+    let Some(dispatch) = bound.ok().filter(|bound| bound.requests() > 0) else {
+        return Ok(None);
+    };
+    if evidence.unknown_cost_refusal_on(&route).is_some() {
+        return Ok(None);
+    }
+    let project = project(root, "project monetary configuration is unreadable")?;
+    let ceiling = monetary_default(project.as_ref().and_then(|(_, p)| p.ceiling))?;
+    let key = route_key(&route);
+    let framed = CostReview::new(
+        "standing rule".into(),
+        invocation.into(),
+        route,
+        evidence,
+        None,
+        ceiling,
+    )
+    .and_then(|review| dispatch.review(review));
+    let Ok(review) = framed else {
+        return Ok(None);
+    };
+    let Ok(Some(rule)) = review.standing_admission(largest_output(wf)) else {
+        return Ok(None);
+    };
+    let dir = nika_fs::OwnedDir::open(root).map_err(|e| e.to_string())?;
+    let ran =
+        cost_journal::standing_runs(&dir, &key, rule.window(), now).map_err(|e| e.to_string())?;
+    Ok((ran < rule.max_runs()).then(|| rule.clone()))
+}
+
+/// The largest literal `max_tokens` an infer task of `wf` asks: what a
+/// standing rule's output bound is judged against before any request.
+fn largest_output(wf: &nika_schema::raw::RawWorkflow) -> u32 {
+    let asked = wf.tasks.iter().filter_map(|task| match &task.value.action {
+        nika_schema::raw::RawAction::Infer(infer) => infer.max_tokens.as_ref().map(|n| n.value),
+        _ => None,
+    });
+    asked.max().unwrap_or(0)
 }
 
 /// The evaluator for one Run: an unknown-cost route clears the project under
@@ -153,7 +240,7 @@ pub fn prepare(
     let project_default = project.as_ref().and_then(|(_, p)| p.ceiling);
     let (model, route) = unknown.remove(0);
     let candidate = witness(source, inputs, &(&project, &files));
-    if let Some(why) = evidence.unknown_cost_refusal() {
+    if let Some(why) = evidence.unknown_cost_refusal_on(&route) {
         return Ok(RunCostPlan::HardCapped(why));
     }
     let review = dispatch.review(CostReview::new(
@@ -170,7 +257,20 @@ pub fn prepare(
         nika_event::source_id::sha256_hex(source.as_bytes()),
         nika_event::source_id::sha256_hex(format!("{inputs:?}:{files:?}").as_bytes()),
     );
+    // A Run outside the standing rule that names its route refuses here, in the
+    // rule's words, before any host could confirm it.
+    let standing = pending.standing_admission(largest_output(wf))?.cloned();
+    // A host that admits Runs with no per-run decision fills the journal: a
+    // cleared one that would not leave room for this Run's rows is archived
+    // whole first, never dropped.
+    if standing.is_some() {
+        let rows = u64::from(bounds.0).saturating_add(2);
+        cleared
+            .make_room(ROW_RESERVE.saturating_mul(rows))
+            .map_err(|e| e.to_string())?;
+    }
     Ok(RunCostPlan::Review(Box::new(ReviewedRun {
+        standing,
         pending,
         prior: cleared.journal().map_err(|e| e.to_string())?,
         cleared,
@@ -222,6 +322,51 @@ impl ReviewedRun {
     #[must_use]
     pub fn defaults(&self) -> [Option<f64>; 2] {
         self.defaults
+    }
+    /// The operator's standing rule this Run is inside: its host's evidence
+    /// carries a standing cost policy, one of its rules names this Run's route,
+    /// and the Run's requests, output and declared worst case fit it. Only
+    /// then may the host admit the Run with [`Self::confirm_standing`]; `None`
+    /// for every other review, which only a fresh decision confirms.
+    #[must_use]
+    pub fn standing(&self) -> Option<&StandingRule> {
+        self.standing.as_ref()
+    }
+    /// Admit this Run under its standing rule, with no fresh decision: the
+    /// Run is counted in the project's standing ledger (and refused when the
+    /// rule's window is full), then confirmed exactly as [`Self::confirm`]
+    /// confirms an approved review, re-observing all it bound. Its account and
+    /// every record of it name the rule that admitted it. A Run counted here
+    /// that then fails to confirm stays counted.
+    /// # Errors
+    /// No standing rule names this Run, a full window, an unreadable ledger,
+    /// or any refusal of [`Self::confirm`].
+    pub fn confirm_standing(
+        self,
+        source: &str,
+        now: std::time::SystemTime,
+    ) -> Result<RunCost, String> {
+        let rule = self.standing.as_ref().ok_or(NOT_STANDING)?;
+        let route = route_key(&self.challenge().route);
+        let counted = self
+            .cleared
+            .admit_standing_run(&route, rule.max_runs(), rule.window(), now)
+            .map_err(|e| e.to_string())?;
+        if let Err(full) = counted {
+            let reopens = i64::try_from(full.reopens_at)
+                .ok()
+                .and_then(|at| jiff::Timestamp::from_second(at).ok())
+                .map_or_else(|| "later".to_owned(), |at| at.to_string());
+            return Err(format!(
+                "the standing cost rule {} admits {} Runs of {route} per {} seconds and {} ran in that window: the next is admitted from {reopens}; nothing was sent",
+                rule.id(),
+                rule.max_runs(),
+                rule.window().as_secs(),
+                full.admitted
+            ));
+        }
+        let answer = self.challenge().response(true);
+        self.confirm(&answer, source)
     }
     /// Consume the review with the host's explicit answer, re-observing all it
     /// bound (`source` as read now); the `prepared` row is written only here.
@@ -396,6 +541,7 @@ fn witness(
 )]
 mod tests {
     mod free_noninteractive;
+    mod standing;
 
     use super::*;
     use nika_dap::cost_journal::JOURNAL;

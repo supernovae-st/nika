@@ -213,9 +213,10 @@ struct HttpAdapterIdentity {
 }
 
 impl HttpAdapterIdentity {
-    /// `doors`: whether the cost-review door and the Session door are seated.
-    fn current(schedule_live: bool, native: Option<(bool, bool)>, doors: [bool; 2]) -> Self {
-        let [cost_review, sessions] = doors;
+    /// `doors`: whether the cost-review door and the Session door are seated, and
+    /// whether the backend enforces a standing cost policy.
+    fn current(schedule_live: bool, native: Option<(bool, bool)>, doors: [bool; 3]) -> Self {
+        let [cost_review, sessions, cost_policy] = doors;
         let (decision, trials) = native.unwrap_or_default();
         let native = native.is_some();
         let identity = nika_runtime::engine_identity();
@@ -242,6 +243,9 @@ impl HttpAdapterIdentity {
                 .chain(decision.then_some(DECISION_SEAT_CAPABILITY))
                 .chain(trials.then_some(TRIAL_CAPABILITY))
                 .chain(COST_REVIEW_CAPABILITIES.into_iter().filter(|_| cost_review))
+                // Only on a server whose backend holds the operator's standing cost
+                // policy (`--cost-policy`): it names no route, bound or price.
+                .chain(cost_policy.then_some(super::cost_policy::CAPABILITY))
                 .chain(sessions.then_some(nika_session_host::CAPABILITY))
                 .chain(sessions.then_some(nika_session_host::SELECTION_CAPABILITY))
                 .chain(sessions.then_some(nika_session_host::STEERING_CAPABILITY))
@@ -257,7 +261,11 @@ impl HealthResponse {
     pub(crate) fn current(state: &super::AppState) -> Self {
         let seated =
             (state.native.as_ref()).map(|seat| (seat.decision.is_some(), seat.trials.is_some()));
-        let doors = [state.cost_review.is_some(), state.sessions.is_some()];
+        let doors = [
+            state.cost_review.is_some(),
+            state.sessions.is_some(),
+            state.cost_policy,
+        ];
         Self {
             status: "ok",
             service: "nika-serve",

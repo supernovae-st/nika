@@ -368,6 +368,8 @@ pub struct ServerConfig {
     /// An explicit startup ceiling (`Some(None)` is the explicit disarm), kept
     /// apart from the default it replaces.
     run_cost_ceiling: Option<ServerLimits>,
+    /// The operator's standing cost policy, handed to the production backend.
+    cost_policy: Option<nika_providers::admission::StandingCostPolicy>,
 }
 
 impl ServerConfig {
@@ -388,7 +390,28 @@ impl ServerConfig {
             cost_review: false,
             sessions: false,
             run_cost_ceiling: None,
+            cost_policy: None,
         }
+    }
+
+    /// Hold the operator's standing cost policy (health `costStandingPolicyV1`):
+    /// [`super::serve_resident_process`] hands it to the production backend,
+    /// which then admits a Run on an unpriced route one of its rules names with
+    /// no per-run cost review. Off unless called. It changes no ceiling and
+    /// seats no door; a custom backend holds its own policy or none.
+    #[must_use]
+    pub fn with_cost_policy(
+        mut self,
+        policy: nika_providers::admission::StandingCostPolicy,
+    ) -> Self {
+        self.cost_policy = Some(policy);
+        self
+    }
+
+    pub(crate) const fn cost_policy(
+        &self,
+    ) -> Option<&nika_providers::admission::StandingCostPolicy> {
+        self.cost_policy.as_ref()
     }
 
     /// Acknowledge a non-loopback listener without weakening authentication.
@@ -473,6 +496,7 @@ impl fmt::Debug for ServerConfig {
             .field("native_authoring", &self.native)
             .field("cost_review", &self.cost_review)
             .field("run_cost_ceiling", &self.run_cost_ceiling)
+            .field("cost_policy", &self.cost_policy.is_some())
             .finish_non_exhaustive()
     }
 }

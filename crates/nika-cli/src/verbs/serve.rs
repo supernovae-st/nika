@@ -73,6 +73,8 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
         .map_err(nika_serve::launch_operator_message)
         .map_err(&fail)?
         .map(|config| config.with_sessions(args.sessions));
+    let http = nika_serve::server::seat_cost_policy(http, &args.cost_policy)
+        .map_err(|error| fail(format!("serve · {error}")))?;
     let now = instant(args.now.as_deref()).map_err(&fail)?;
     let until = instant(args.until.as_deref()).map_err(&fail)?;
     if now.is_some() && !args.once && until.is_none() {

@@ -1,0 +1,22 @@
+{
+  "components": {
+    "schemas": {
+      "CostReviewNotRequired": {
+        "properties": {
+          "standing_policy": {
+            "$ref": "#/components/schemas/StandingCostRule",
+            "description": "Present when the server's standing cost policy admits this Run (health capability `costStandingPolicyV1`): the rule that names its route. No review is prepared and nothing is held; `POST /v1/jobs` the same request without `cost_review`. The job's admission is judged again when it runs and counted in the rule's window, so a full window or a changed project can still refuse it."
+          }
+        }
+      },
+      "CostReviewNotRequiredV2": {
+        "properties": {
+          "standing_policy": {
+            "$ref": "#/components/schemas/StandingCostRule",
+            "description": "Present when the server's standing cost policy admits this Run (health capability `costStandingPolicyV1`): the rule that names its route. No review is prepared and nothing is held; `POST /v1/jobs` the same request without `cost_review`. The job's admission is judged again when it runs and counted in the rule's window, so a full window or a changed project can still refuse it."
+          }
+        }
+      }
+    }
+  }
+}

@@ -8,6 +8,7 @@ mod cancel;
 mod compile;
 mod config;
 mod coordinator;
+mod cost_policy;
 mod cost_review;
 mod error;
 mod inputs;
@@ -58,6 +59,7 @@ pub use config::{
     SystemResidentClock,
 };
 pub use coordinator::{PreparedScheduledRun, ResidentExecutionCoordinator};
+pub use cost_policy::{CostPolicyError, seat_cost_policy};
 pub use cost_review::CostAuthority;
 pub(crate) use error::bound_message;
 use error::diagnose_capture;
@@ -96,6 +98,8 @@ pub struct ExecutionOutcome {
     chain_head: Option<String>,
     evidence: Option<crate::JournalEvidence>,
     settlement: Option<Box<nika_event::settlement::RunSettlement>>,
+    /// How a standing cost policy admitted the Run (`nika/cost-admission@1`).
+    cost_admission: Option<serde_json::Value>,
 }
 
 /// The disposition IS a run state (ADR-130 · the resident's word for the
@@ -123,6 +127,7 @@ impl From<ExecutionDisposition> for ExecutionOutcome {
             chain_head: None,
             evidence: None,
             settlement: None,
+            cost_admission: None,
         }
     }
 }
@@ -139,6 +144,7 @@ impl ExecutionOutcome {
             chain_head: None,
             evidence: None,
             settlement: None,
+            cost_admission: None,
         }
     }
 
@@ -195,6 +201,19 @@ impl ExecutionOutcome {
     #[must_use]
     pub fn settlement(&self) -> Option<&nika_event::settlement::RunSettlement> {
         self.settlement.as_deref()
+    }
+
+    /// Say how a standing cost policy admitted this Run (`nika/cost-admission@1`),
+    /// so a Run no fresh review approved never reads as one that was. The
+    /// resident writes it inside the settlement it projects on the job's
+    /// terminal event and record (`settlement.cost_admission`), never as a key
+    /// of the job or of its event: a published SDK closes those two and reads a
+    /// settlement open. An outcome with no settlement carries it nowhere on the
+    /// job; the Run's trace and cost journal still name the rule.
+    #[must_use]
+    pub fn with_cost_admission(mut self, admission: serde_json::Value) -> Self {
+        self.cost_admission = Some(admission);
+        self
     }
 
     /// Declared workflow outputs supplied by the execution adapter.
@@ -352,6 +371,13 @@ pub trait ExecutionBackend: Send + Sync + 'static {
     fn trace_journal_dir(&self) -> Option<PathBuf> {
         None
     }
+
+    /// The operator's standing cost policy this backend enforces, when it holds
+    /// one: the server then advertises health `costStandingPolicyV1`. `None`
+    /// (the default) says the backend admits no Run under a standing rule.
+    fn standing_cost_policy(&self) -> Option<nika_providers::admission::StandingCostPolicy> {
+        None
+    }
 }
 
 struct AppState {
@@ -395,6 +421,8 @@ struct AppState {
     cancellations: Arc<ActiveCancellations>,
     /// The cost-review door, when the operator started this server with it.
     cost_review: Option<Arc<cost_review::Door>>,
+    /// Whether the backend enforces a standing cost policy (health, contract).
+    cost_policy: bool,
     /// The project's native Session door, when the operator started this server with it.
     sessions: Option<Arc<nika_session_host::http::Sessions>>,
 }
@@ -648,10 +676,13 @@ impl BoundServer {
         let listener = TcpListener::bind(config.bind())
             .await
             .map_err(|error| ServerError::Listener(error.kind()))?;
+        let standing = authority.state.backend.standing_cost_policy();
+        let cost_policy = standing.is_some();
         let cost_review = config.cost_review().then(|| {
             let root = authority.state.workflow_root.get().cloned();
             let root = root.unwrap_or_else(|| config.workflow_root().to_path_buf());
-            cost_review::Door::open(root, authority.state.limits.default_max_cost_usd())
+            let ceiling = authority.state.limits.default_max_cost_usd();
+            cost_review::Door::open(root, ceiling, standing)
         });
         let sessions = config.sessions().then(|| {
             let root = authority.state.workflow_root.get().cloned();
@@ -690,6 +721,7 @@ impl BoundServer {
             clock: Arc::clone(&authority.state.clock),
             cancellations: Arc::clone(&authority.state.cancellations),
             cost_review,
+            cost_policy,
             sessions: sessions.map(|root| Arc::new(session::open(root, state.clone()))),
         });
         Ok(Self { listener, state })
@@ -1372,29 +1404,7 @@ async fn settle_disposition(
         || nika_event::settlement::RunState::from(*verdict.outcome()),
         |settlement| settlement.state,
     ));
-    // Preserve the runtime's actual status, including success or failure
-    // racing cancellation. The route never writes an active run's result.
-    let kind = if status == JobStatus::Cancelled {
-        crate::JobEventKind::Cancelled
-    } else {
-        crate::JobEventKind::Settled
-    };
-    let mut event = json!({"kind": kind, "status": status});
-    // ADR-128 · the settlement rides the terminal event whole (status ·
-    // cause · elapsed · tasks · spend · error): the SDK's HTTP door reads
-    // it as the CLI's `run_settled` is read, never a refold.
-    if let Some(settlement) = outcome.settlement()
-        && let Ok(value) = serde_json::to_value(settlement)
-    {
-        event["settlement"] = value;
-    }
-    if let Some((code, message)) = outcome.error() {
-        event["code"] = json!(code);
-        event["message"] = json!(message);
-    }
-    if let Some(evidence) = outcome.evidence {
-        event["evidence"] = json!(evidence);
-    }
+    let mut event = terminal_event(status, &outcome);
     let observation_ended = status.is_settled() || status == JobStatus::Paused;
     let receipt = observation_ended
         .then(|| {
@@ -1427,6 +1437,44 @@ async fn settle_disposition(
         guard.settle_result(status, event, outputs, receipt).await?;
     }
     Ok(())
+}
+
+/// The terminal event of a run that returned its result: its status word,
+/// the settlement whole, the failure named and the journal evidence. For a
+/// Run a standing cost policy admitted, the settlement also says how it was
+/// admitted.
+fn terminal_event(status: JobStatus, outcome: &ExecutionOutcome) -> serde_json::Value {
+    // Preserve the runtime's actual status, including success or failure
+    // racing cancellation. The route never writes an active run's result.
+    let kind = if status == JobStatus::Cancelled {
+        crate::JobEventKind::Cancelled
+    } else {
+        crate::JobEventKind::Settled
+    };
+    let mut event = json!({"kind": kind, "status": status});
+    // ADR-128 · the settlement rides the terminal event whole (status ·
+    // cause · elapsed · tasks · spend · error): the SDK's HTTP door reads
+    // it as the CLI's `run_settled` is read, never a refold.
+    if let Some(settlement) = outcome.settlement()
+        && let Ok(mut value) = serde_json::to_value(settlement)
+    {
+        // The one member the resident adds beside the runtime's own. A
+        // published SDK closes `Job` and `JobEvent` and reads a settlement
+        // open, so the admission rides here and never beside it
+        // (`openapi::published_sdk_tests`).
+        if let (Some(admission), Some(members)) = (&outcome.cost_admission, value.as_object_mut()) {
+            members.insert("cost_admission".to_owned(), admission.clone());
+        }
+        event["settlement"] = value;
+    }
+    if let Some((code, message)) = outcome.error() {
+        event["code"] = json!(code);
+        event["message"] = json!(message);
+    }
+    if let Some(evidence) = outcome.evidence {
+        event["evidence"] = json!(evidence);
+    }
+    event
 }
 
 struct RunningGuard {

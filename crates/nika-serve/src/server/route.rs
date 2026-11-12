@@ -219,14 +219,7 @@ async fn route_authenticated(
         (&Method::POST, "/v1/check") => check_snapshot(request, state).await,
         (&Method::POST, "/v1/compile") => super::compile::handle(request, state).await,
         (&Method::POST, path) if path.ends_with("/cancel") => cancel_job(path, &state).await,
-        (&Method::GET, "/v1/openapi.json") => json_response(
-            StatusCode::OK,
-            &super::openapi::served(
-                state.native.is_some(),
-                state.cost_review.is_some(),
-                state.sessions.is_some(),
-            ),
-        ),
+        (&Method::GET, "/v1/openapi.json") => json_response(StatusCode::OK, &contract(&state)),
         (&Method::GET, "/v1/workflows") => list_registry(&state).await,
         (&Method::GET, path) if path.starts_with("/v1/workflows/") => {
             workflow_metadata(path, &state).await
@@ -247,6 +240,19 @@ async fn route_authenticated(
 }
 
 /// The cost-review version a path addresses and what follows its root (empty or `/…`).
+/// The contract this server serves: the doors it opens, and under a standing cost policy what a
+/// job that ran under a rule carries.
+fn contract(state: &AppState) -> serde_json::Value {
+    let reviewed = state.cost_review.is_some();
+    let document =
+        super::openapi::served(state.native.is_some(), reviewed, state.sessions.is_some());
+    if state.cost_policy {
+        super::openapi::under_cost_policy(document, reviewed)
+    } else {
+        document
+    }
+}
+
 fn review_path(path: &str) -> Option<(u64, &str)> {
     let v1 = path.strip_prefix("/v1/cost-reviews").map(|rest| (1, rest));
     let (version, rest) = v1.or_else(|| Some((2, path.strip_prefix("/v2/cost-reviews")?)))?;

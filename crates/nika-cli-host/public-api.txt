@@ -2854,9 +2854,11 @@ impl nika_cli_host::run_cost::ReviewedRun
 pub fn nika_cli_host::run_cost::ReviewedRun::bounds(&self) -> (u32, u32, core::time::Duration)
 pub fn nika_cli_host::run_cost::ReviewedRun::challenge(&self) -> &nika_providers::admission::review::exchange::CostChallenge
 pub fn nika_cli_host::run_cost::ReviewedRun::confirm(self, answer: &nika_providers::admission::review::exchange::CostResponse, source: &str) -> core::result::Result<nika_cli_host::run_cost::RunCost, alloc::string::String>
+pub fn nika_cli_host::run_cost::ReviewedRun::confirm_standing(self, source: &str, now: std::time::SystemTime) -> core::result::Result<nika_cli_host::run_cost::RunCost, alloc::string::String>
 pub fn nika_cli_host::run_cost::ReviewedRun::defaults(&self) -> [core::option::Option<f64>; 2]
 pub fn nika_cli_host::run_cost::ReviewedRun::dispatch_bound(&self) -> &nika_service_execution::run_cost::DispatchBound
 pub fn nika_cli_host::run_cost::ReviewedRun::prior_journal(&self) -> &nika_dap::cost_journal::run::JournalWitness
+pub fn nika_cli_host::run_cost::ReviewedRun::standing(&self) -> core::option::Option<&nika_providers::admission::standing::StandingRule>
 impl<D> owo_colors::OwoColorize for nika_cli_host::run_cost::ReviewedRun
 impl<T, U> core::convert::Into<U> for nika_cli_host::run_cost::ReviewedRun where U: core::convert::From<T>
 pub fn nika_cli_host::run_cost::ReviewedRun::into(self) -> U
@@ -2919,6 +2921,7 @@ pub fn nika_cli_host::run_cost::leg_observer(wf: &nika_schema::raw::workflow::Ra
 pub fn nika_cli_host::run_cost::prepare(root: &std::path::Path, launch: core::option::Option<&std::path::Path>, source: &str, invocation: alloc::string::String, wf: &nika_schema::raw::workflow::RawWorkflow, model_override: core::option::Option<&str>, plan: &nika_providers::plan::ExecutionAccessPlan, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, invocation_default: core::option::Option<f64>, (evidence, ask): (nika_providers::admission::review::CostHostEvidence, &dyn core::ops::function::Fn() -> core::result::Result<(), alloc::string::String>)) -> core::result::Result<nika_cli_host::run_cost::RunCostPlan, alloc::string::String>
 pub fn nika_cli_host::run_cost::review(root: &std::path::Path, file: &str, source: &str, invocation: alloc::string::String, wf: &nika_schema::raw::workflow::RawWorkflow, plan: &nika_providers::plan::ExecutionAccessPlan, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, invocation_default: core::option::Option<f64>, channel: impl core::convert::Into<nika_cli_host::run_cost::ReviewChannel>) -> core::result::Result<core::option::Option<nika_cli_host::run_cost::RunCost>, alloc::string::String>
 pub fn nika_cli_host::run_cost::review_with_model(root: &std::path::Path, file: &str, source: &str, invocation: alloc::string::String, wf: &nika_schema::raw::workflow::RawWorkflow, model_override: core::option::Option<&str>, plan: &nika_providers::plan::ExecutionAccessPlan, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, invocation_default: core::option::Option<f64>, channel: impl core::convert::Into<nika_cli_host::run_cost::ReviewChannel>) -> core::result::Result<core::option::Option<nika_cli_host::run_cost::RunCost>, alloc::string::String>
+pub fn nika_cli_host::run_cost::standing_rule(root: &std::path::Path, invocation: &str, wf: &nika_schema::raw::workflow::RawWorkflow, plan: &nika_providers::plan::ExecutionAccessPlan, inputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, evidence: nika_providers::admission::review::CostHostEvidence, now: std::time::SystemTime) -> core::result::Result<core::option::Option<nika_providers::admission::standing::StandingRule>, alloc::string::String>
 pub mod nika_cli_host::run_protocol
 pub fn nika_cli_host::run_protocol::emit_diagnostic(text: &str, output_json: bool)
 pub fn nika_cli_host::run_protocol::envelope_message(text: &str) -> &str
@@ -3127,6 +3130,7 @@ pub nika_cli_host::serve_args::ServeArgs::allow_remote: bool
 pub nika_cli_host::serve_args::ServeArgs::authoring: nika_cli_host::serve_args::NativeAuthoringArgs
 pub nika_cli_host::serve_args::ServeArgs::authoring_max_calls: core::option::Option<u32>
 pub nika_cli_host::serve_args::ServeArgs::bind: core::option::Option<alloc::string::String>
+pub nika_cli_host::serve_args::ServeArgs::cost_policy: alloc::vec::Vec<alloc::string::String>
 pub nika_cli_host::serve_args::ServeArgs::cost_review: bool
 pub nika_cli_host::serve_args::ServeArgs::dry: bool
 pub nika_cli_host::serve_args::ServeArgs::now: core::option::Option<alloc::string::String>

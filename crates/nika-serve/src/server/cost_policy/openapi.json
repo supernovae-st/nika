@@ -1,0 +1,307 @@
+{
+  "components": {
+    "schemas": {
+      "RunSettlement": {
+        "properties": {
+          "cost_admission": {
+            "$ref": "#/components/schemas/CostAdmission"
+          }
+        }
+      },
+      "CostAdmission": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Only on a server whose operator composed a standing cost policy (`nika serve --cost-policy`, health capability `costStandingPolicyV1`), and only on a job that policy admitted: its Run uses an API route the engine's catalog does not price, and ran with no per-run cost review because one of the operator's rules names that route and covers the Run's bounds. The authority is the server's startup composition; no request field grants or widens it. `price` says whether the route's price stayed unknown or was declared by the operator (an estimate, never a provider invoice). `choice` is the bounded authorization the Run's account enforced, with the rule that admitted it. `host` is the cap evidence it was judged under: a rule overrides no ceiling, so every ceiling was absent or covered the declared worst case. Nothing here is a spend: the settlement's own `spend` counts each call, and a call whose cost is unknown is never counted as zero. It is the one member the resident adds to the runtime's settlement, and it rides inside `settlement` on the job's terminal event and durable record, never beside it: a published SDK closes `Job` and `JobEvent` and reads a settlement open. Absent on every other job, and on a job whose runtime never settled, which carries no `settlement`: that Run's trace and cost journal still name the rule.",
+        "required": ["schema", "authority", "price", "choice", "host"],
+        "properties": {
+          "schema": {
+            "type": "string",
+            "const": "nika/cost-admission@1"
+          },
+          "authority": {
+            "type": "string",
+            "const": "standing_policy"
+          },
+          "price": {
+            "type": "string",
+            "enum": ["unknown", "host_declared"],
+            "description": "unknown: no USD price is known for the route, and no USD ceiling bound the Run. host_declared: the operator's rule declares USD rates, `choice.declared_tariff` records them and `choice.standing.declared_worst_case_nano_usd` is the most the Run can cost under that declaration."
+          },
+          "choice": {
+            "$ref": "#/components/schemas/CostAdmissionChoice"
+          },
+          "host": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "The server's cap evidence for this Run, layer by layer: the standing policy, the per-run ceiling the job ran under, and the job's origin.",
+            "required": ["allowed", "policy", "machine", "occurrence"],
+            "properties": {
+              "allowed": {
+                "type": "boolean"
+              },
+              "policy": {
+                "$ref": "#/components/schemas/CostCapEvidence"
+              },
+              "machine": {
+                "$ref": "#/components/schemas/CostCapEvidence"
+              },
+              "occurrence": {
+                "$ref": "#/components/schemas/CostCapEvidence"
+              }
+            }
+          }
+        }
+      },
+      "CostCapEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "What the host observed for one cap layer: `observed` with its cap (`absent`, or a ceiling in USD), `not_applicable` when its composition has no such layer, or `unknown`.",
+        "required": ["class"],
+        "properties": {
+          "class": {
+            "type": "string",
+            "enum": ["observed", "not_applicable", "unknown"]
+          },
+          "origin": {
+            "type": "string"
+          },
+          "cap": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": ["absent", "unknown"]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["capped_usd"],
+                "properties": {
+                  "capped_usd": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "CostAdmissionChoice": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "The bounded choice the Run's admission account enforced, as its cost journal and trace record it: the exact provider and wire model, the route's origin (scheme, host and effective port, never its path), at most `max_requests` requests of at most `max_output_tokens` output tokens and `timeout_ms` each, and no transport retry.",
+        "required": [
+          "candidate",
+          "invocation",
+          "provider",
+          "model",
+          "origin",
+          "max_requests",
+          "max_output_tokens",
+          "timeout_ms",
+          "declared_tariff",
+          "standing"
+        ],
+        "properties": {
+          "candidate": {
+            "type": "string",
+            "description": "SHA-256 witness of the program, inputs, project defaults and bound files the Run was admitted for."
+          },
+          "invocation": {
+            "type": "string",
+            "description": "The Run's execution id."
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "origin": {
+            "type": ["string", "null"]
+          },
+          "max_requests": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_in_flight": {
+            "type": "integer",
+            "minimum": 2,
+            "description": "Requests in flight at once when a fan widens it past one."
+          },
+          "authored_retry": {
+            "const": true,
+            "description": "Present when the workflow authors retries inside `max_requests`."
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "timeout_ms": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_request_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The largest request body the rule admits; absent, the 1 MiB of every admitted request."
+          },
+          "declared_tariff": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "The operator-declared price: an estimate, never a provider invoice. `nano_per_token` is input, output and cache-read, in nano-USD per token.",
+                "required": [
+                  "provider",
+                  "model",
+                  "origin",
+                  "billing_provider",
+                  "currency",
+                  "unit",
+                  "nano_per_token",
+                  "provenance",
+                  "version"
+                ],
+                "properties": {
+                  "provider": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "origin": {
+                    "type": ["string", "null"]
+                  },
+                  "billing_provider": {
+                    "type": ["string", "null"]
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "unit": {
+                    "type": "string"
+                  },
+                  "nano_per_token": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 3,
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "provenance": {
+                    "type": ["string", "null"]
+                  },
+                  "version": {
+                    "type": ["string", "null"]
+                  }
+                }
+              }
+            ]
+          },
+          "standing": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "The operator's rule that admitted the Run: its identity (a digest of the rule as the operator wrote it), the Runs it admits per window and, when it declares a price, the most this Run can cost under that declaration (nano-USD, a decimal string).",
+            "required": ["policy", "max_runs", "window_seconds"],
+            "properties": {
+              "policy": {
+                "type": "string"
+              },
+              "max_runs": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "window_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "declared_worst_case_nano_usd": {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              }
+            }
+          }
+        }
+      },
+      "StandingCostRule": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One rule of the operator's standing cost policy as a public document shows it: the model it names, the bounds the engine enforces without a price, and whether the operator declared a price. Never an endpoint, a credential or a count of Runs already admitted.",
+        "required": [
+          "policy",
+          "model",
+          "max_requests",
+          "max_output_tokens",
+          "request_timeout_seconds",
+          "max_request_bytes",
+          "max_runs",
+          "window_seconds",
+          "price"
+        ],
+        "properties": {
+          "policy": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "max_requests": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "request_timeout_seconds": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_request_bytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_runs": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "window_seconds": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "price": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["state"],
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": ["unknown", "host_declared"]
+              },
+              "currency": {
+                "type": "string",
+                "const": "USD"
+              },
+              "input_per_million": {
+                "type": "number",
+                "minimum": 0
+              },
+              "output_per_million": {
+                "type": "number",
+                "minimum": 0
+              },
+              "basis": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
