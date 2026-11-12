@@ -21,11 +21,11 @@ publish                = false  # Internal member of the nika-cli unit.
 workspace = true
 
 [dependencies]
-nika-display   = { path = "../nika-display", version = "0.124.3" }   # model_scope::decision_status (the session seat's /status words)
-nika-http      = { path = "../nika-http", version = "0.124.3" }      # ReqwestHttp — the seat's single-attempt client
-nika-kernel    = { path = "../nika-kernel", version = "0.124.3" }    # the HttpPostDyn seam · Secret
-nika-onboard   = { path = "../nika-onboard", version = "0.124.3" }   # compile::decide (the seat contract, system_one's wire form)
-nika-providers = { path = "../nika-providers", version = "0.124.3" } # authoring::preparation::PreparationCosts
+nika-display   = { path = "../nika-display", version = "0.124.4" }   # model_scope::decision_status (the session seat's /status words)
+nika-http      = { path = "../nika-http", version = "0.124.4" }      # ReqwestHttp — the seat's single-attempt client
+nika-kernel    = { path = "../nika-kernel", version = "0.124.4" }    # the HttpPostDyn seam · Secret
+nika-onboard   = { path = "../nika-onboard", version = "0.124.4" }   # compile::decide (the seat contract, system_one's wire form)
+nika-providers = { path = "../nika-providers", version = "0.124.4" } # authoring::preparation::PreparationCosts
 bytes          = { workspace = true } # the request body rides the kernel HttpRequest shape
 serde_json     = { workspace = true }
 url            = { workspace = true } # the endpoint law (https, or http on loopback)

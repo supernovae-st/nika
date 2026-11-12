@@ -30,6 +30,10 @@ and a fetch still reaches its host, which `nika try` now names before the
 run. The language reference calls the `mock/text` refusal probe keyless
 for the same reason.
 
+## 0.124.4 — 2026-11-12
+
+Lockstep on the engine wave.
+
 ## 0.124.3 — 2026-11-10
 
 Lockstep on the engine wave.
