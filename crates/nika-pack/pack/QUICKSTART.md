@@ -7,7 +7,7 @@
 > **Status** · authoring, static checking AND execution all work TODAY:
 > `brew install supernovae-st/tap/nika`, then `nika check` + `nika run` on
 > any file in this page. The spec text itself is v0.2.0-draft, the version
-> engine 0.124.3 embeds; the language family v1 is already frozen — there is
+> engine 0.124.4 embeds; the language family v1 is already frozen — there is
 > no `nika: v2`, ever.
 
 ---
